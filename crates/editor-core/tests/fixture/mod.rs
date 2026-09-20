@@ -205,6 +205,87 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
     (doc, minted.unwrap())
 }
 
+/// **A mate one of whose heads resolves to NO member**, authored the
+/// one way the doors leave open. The insert door asks the solve's own
+/// per-mate admission, so a head that resolves to no member at insert
+/// is refused there (`EditError::MateRefused`); a head can stop
+/// resolving only through a LATER edit (N5), and this is the shortest
+/// such road. The mate enters with that head on copy 1 of a scratch
+/// pattern over `anchor`, the instance its OTHER head stands on — two
+/// members over one instance, so it welds nothing and no cluster
+/// moves — then `DocEdit::Rebind` moves the head onto the name `node`
+/// spells for it (the name-repair door checks that its target is
+/// live, not that a member stands there), and the scratch pattern is
+/// deleted. Nothing solves, so the refusing reach suffices, and the
+/// document differs from one that inserted `node` as spelled only in
+/// the id the scratch pattern consumed.
+///
+/// `side` is the head that resolves to nothing, spelled in `node` as
+/// it is meant to read — at its own mint, which is where the rebind
+/// leaves it.
+pub fn insert_mate_with_stranded_head(
+    doc: ProfileDoc,
+    node: Node<ProfileProgram>,
+    side: editor_core::MateSide,
+    anchor: RecipeNodeId,
+) -> (ProfileDoc, RecipeNodeId) {
+    let Node::Mate {
+        a,
+        b,
+        class,
+        alignment,
+    } = node
+    else {
+        panic!("a mate");
+    };
+    let (doc, scratch) = insert(
+        doc,
+        Node::Pattern {
+            input: anchor,
+            count: Expr::count(2),
+            kind: editor_core::PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(1.0),
+            },
+        },
+    );
+    let stand_in = in_copy(scratch, 1, resolver::in_part(anchor, CapEnd::End));
+    let (stranded, a, b) = match side {
+        editor_core::MateSide::A => (a, head(stand_in.clone()), b),
+        editor_core::MateSide::B => (b, a, head(stand_in.clone())),
+    };
+    let (doc, mate) = insert(
+        doc,
+        Node::Mate {
+            a,
+            b,
+            class,
+            alignment,
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::Rebind {
+            from: stand_in,
+            to: (*stranded.name).clone(),
+        },
+    );
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: scratch });
+    let Some(Node::Mate { a, b, .. }) = doc.node(mate) else {
+        panic!("the mate is live");
+    };
+    let now = match side {
+        editor_core::MateSide::A => a,
+        editor_core::MateSide::B => b,
+    };
+    assert_eq!(
+        (now.at, &now.name),
+        (stranded.at, &stranded.name),
+        "the rebind left the head read where `node` spelled it"
+    );
+    (doc, mate)
+}
+
 /// The frame datum a profile is drawn on, as a node to insert.
 ///
 /// The components `desc` used to bake into a `SketchPlane` are the

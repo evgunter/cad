@@ -1175,6 +1175,25 @@ pub enum EditError {
         /// The mate being inserted.
         node: RecipeNodeId,
     },
+    /// The mate solve refuses this mate on its OWN datum — a fact
+    /// about the mate alone, which every evaluation would record
+    /// against it: its head does not resolve to a member, it names one
+    /// member twice, its class is outside the vocabulary, a frame has
+    /// no definite direction, the coset table has no row for it, or
+    /// its clocking rider contradicts the coincidence it rides
+    /// (decided over the mate's own lever, through the reach this
+    /// door holds). The same admission the solve makes
+    /// (`ASSEMBLY.md` A11 rule 1), asked at the door, so the mate
+    /// never enters the document; the recourse is the fault's own.
+    /// What is NOT this: a verdict about a PAIR — under-determined,
+    /// contradicting ANOTHER mate, an escalation on a fold — which
+    /// needs the cluster and stays the solve's.
+    MateRefused {
+        /// The mate being inserted.
+        node: RecipeNodeId,
+        /// The solve's own fault, unaltered.
+        fault: Box<crate::mate::MateFault>,
+    },
     /// A pin update aimed at a node that does not instantiate a part
     /// (A13; ASM-UPD D-1 — the [`EditError::PlacementOnNonInstance`]
     /// precedent: only a cross-document reference HAS a version).
@@ -1610,6 +1629,11 @@ impl core::fmt::Display for EditError {
             Self::NonFiniteAlignment { node } => write!(
                 f,
                 "the mate at node {} carries a non-finite alignment coordinate",
+                node.0
+            ),
+            Self::MateRefused { node, fault } => write!(
+                f,
+                "the mate at node {} is refused by the solve on its own datum: {fault}",
                 node.0
             ),
             Self::UpdateOnNonInstance { node } => write!(
@@ -2643,6 +2667,38 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             new.order.push(id);
             check_acyclic(&new)?;
             crate::roots::on_insert(&mut new, id, &node.inputs());
+            // The solve's own per-mate admission (A11 rule 1), asked
+            // of the document the mate now stands in — its walks read
+            // the operands there — through the reach this door holds:
+            // a mate the coset table refuses on its own datum never
+            // enters the history. The verdicts about a PAIR stay the
+            // solve's (`admit_mate`). This is the one door that asks:
+            // no other edit changes a mate's datum, and a reference a
+            // later edit strands is N5's — the solve's to refuse. The
+            // environment is the document's own nominal, built here
+            // once for this door's reading, the way the evaluation
+            // builds its own and hands it to the solve.
+            if let Node::Mate {
+                a,
+                b,
+                class,
+                alignment,
+            } = node
+            {
+                let env = new.param_env::<f64>();
+                crate::mate::solve::admit_mate(
+                    &new,
+                    id,
+                    a,
+                    b,
+                    *class,
+                    alignment,
+                    &env,
+                    how.lever(),
+                    tol,
+                )
+                .map_err(|fault| EditError::MateRefused { node: id, fault })?;
+            }
             EditRecord {
                 minted: Some(id),
                 structural: true,

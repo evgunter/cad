@@ -293,6 +293,19 @@ pub enum MateToolError {
         /// The refused class.
         class: ContactClass,
     },
+    /// The chosen primitive and rider have no row in the coset table
+    /// — a clocking rider on a planar rest, a standalone clocking with
+    /// no carrying mate — a fact about the choice alone, so it is
+    /// refused HERE before any geometry is read, the class door's
+    /// shape one row down. What is NOT this: a rider on a frame
+    /// coincidence, which the table DECIDES over the mate's lever and
+    /// the edit door refuses when it contradicts
+    /// (`EditError::MateRefused`), surfaced by `perform` like every
+    /// door refusal.
+    TableRefused {
+        /// What was asked for, in the table's own words.
+        what: &'static str,
+    },
 }
 
 impl core::fmt::Display for MateToolError {
@@ -337,6 +350,9 @@ impl core::fmt::Display for MateToolError {
                     "class {} is not admitted — {CLASS_DEFERRAL}",
                     class.name()
                 )
+            }
+            Self::TableRefused { what } => {
+                write!(f, "the coset table has no row for {what}")
             }
         }
     }
@@ -406,6 +422,21 @@ pub struct MateChoice {
     pub sense: AxisSense,
     /// The clocking rider, if authored.
     pub clocking: Option<f64>,
+}
+
+/// **The coset table's static gaps, read off a choice**: the rows the
+/// table has no entry for and refuses on the datum alone, with no
+/// geometry and no lever — in the table's own words, which the edit
+/// door's refusal (`MateFault::TableLacks { what }`) spells the same
+/// way for the same choice, so the tool's sentence and the door's are
+/// one sentence. `None` for every choice the table has a row for,
+/// decided or not.
+fn table_refusal(choice: &MateChoice) -> Option<&'static str> {
+    match (choice.primitive, choice.clocking) {
+        (MatePrimitive::PlanarRest { .. }, Some(_)) => Some("a clocking rider on a planar rest"),
+        (MatePrimitive::Clocking, _) => Some("a standalone clocking with no carrying mate"),
+        (MatePrimitive::FrameCoincidence | MatePrimitive::Coaxial | MatePrimitive::PlanarRest { .. }, _) => None,
+    }
 }
 
 /// The derived, ready-to-commit mate: the two picked members'
@@ -551,6 +582,12 @@ impl MateTool {
             return Err(MateToolError::ClassRefused {
                 class: choice.class,
             });
+        }
+        // The table door SECOND, still before any geometry: a
+        // primitive-and-rider pair the table has no row for is a fact
+        // about the choice alone.
+        if let Some(what) = table_refusal(&choice) {
+            return Err(MateToolError::TableRefused { what });
         }
         let (ref_a, member_a, read_a) = picked_member(doc, MateSide::A, a)?;
         let (ref_b, member_b, read_b) = picked_member(doc, MateSide::B, b)?;

@@ -249,6 +249,21 @@ pub fn seat() -> viewer::matetool::MateChoice {
 /// copy of the ladder could only drift from the bench it addresses.
 /// (`seat` above is the mate TOOL's choice for the same seat; this is
 /// the frame pair `SessionOp::AddMate` takes.)
+/// **The seat as a planar REST alone**, at `b_x` along the shelf: one
+/// planar rest fixes the seating plane and nothing else, so the pair
+/// may still slide and spin in it and the solve refuses UNDER, naming
+/// the one mate. The refusal the badge rows build a refused cluster
+/// from — a verdict about the PAIR, which the edit door admits and the
+/// solve decides (a mate the table refuses on its own datum never
+/// enters the document).
+pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
+    use pncad::document::{Alignment, MatePrimitive};
+    Alignment {
+        primitive: MatePrimitive::PlanarRest { offset: 0.0 },
+        ..seat_alignment(b_x, None)
+    }
+}
+
 pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment {
     use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
     Alignment {

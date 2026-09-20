@@ -652,31 +652,34 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
         },
     );
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
-    let (doc, m) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(outer, 1, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
-                [0.0, 0.0, 1.0],
-                AxisSense::Aligned,
-            ),
-        },
-    );
-    let m = m.expect("the mate mints");
-    let o = with_resolver(store);
-    let poses = solve(&doc, &o, Tol::witness());
-    let fault = poses
-        .fault(m)
-        .expect("a one-level name over a nest refuses");
+    // A head that resolves to no member is a fact about the mate
+    // alone: the edit door refuses it where it is authored, with the
+    // walk's own fault.
+    let err = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: seat_mate(
+                    in_copy(outer, 1, in_part(leg, CapEnd::End)),
+                    in_part(top, CapEnd::Start),
+                    [0.0, 0.0, 1.0],
+                    AxisSense::Aligned,
+                ),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("a one-level name over a nest refuses");
+    let editor_core::EditError::MateRefused { fault, .. } = err else {
+        panic!("expected MateRefused, got {err:?}");
+    };
     assert!(
         matches!(
-            fault,
+            *fault,
             // The walk consumes the outer pattern's qualifier, which
             // leaves it at the inner pattern under a name whose head
             // is the INSTANCE — so the inner pattern is a node the
             // name does not say a copy of, and no member stands there.
-            editor_core::MateFault::DanglingHead { head, .. } if *head == inner
+            editor_core::MateFault::DanglingHead { head, .. } if head == inner
         ),
         "a one-level name over a nested pattern refuses at the inner \
          pattern: {fault:?}"
@@ -757,9 +760,11 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
 /// edges: the same malformed head that refused `DanglingHead` as a
 /// document's only mate went unrefused when a well-formed sibling
 /// took the tree edge first. The committed row
-/// `out_of_vocabulary_pattern_heads_still_refuse_dangling` builds it
-/// in the first position; this row builds it in the second, and the
-/// two now agree.
+/// `out_of_vocabulary_pattern_heads_still_refuse_dangling` meets the
+/// head at the edit door, which refuses a head past the count at
+/// insert; this row reaches the same head in the second position the
+/// way one arises after insert — the pattern shrinks under the mate —
+/// and the solve refuses it there.
 #[test]
 fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
     let mut store = PartStore::default();
@@ -791,13 +796,14 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
             ),
         },
     );
-    // Then the SAME malformed head the committed fence row uses:
-    // copy 5 of a count-2 pattern. It closes a loop, so it declares.
+    // Then a second seat on copy 1 — well formed at insert, since the
+    // edit door refuses a head that resolves to no member where it is
+    // authored. It closes a loop, so it declares.
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
                 in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
@@ -805,7 +811,18 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
         },
     );
     let good = good.expect("the good mate mints");
-    let bad = bad.expect("the malformed mate mints");
+    let bad = bad.expect("the second mate mints");
+    // Now the pattern SHRINKS under it: copy 1 of a count-1 pattern is
+    // the same malformed head the committed fence row meets at the
+    // door, reached the way a head stops resolving after insert (N5).
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetStructuralParam {
+            node: pattern,
+            slot: editor_core::SlotId::Count,
+            expr: Expr::count(1),
+        },
+    );
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());

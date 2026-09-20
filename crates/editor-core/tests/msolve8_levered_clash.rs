@@ -139,6 +139,29 @@ fn add(doc: ProfileDoc, node: Node<editor_core::ProfileProgram>) -> (ProfileDoc,
     (doc, id.expect("the insert minted an id"))
 }
 
+/// The edit door's verdict on a mate, through the rig's reach: the
+/// door asks the solve's own per-mate admission — a frame with no
+/// definite direction, a rider on a coincidence decided over the
+/// parts' extent — so a mate the solve would refuse on its own datum
+/// never enters, and its fault comes out of the door instead. `Ok` is
+/// the document and the mate's id; `Err` the id the door named and
+/// the fault.
+fn at_the_door(
+    doc: &ProfileDoc,
+    o: &EvalOptions,
+    node: Node<editor_core::ProfileProgram>,
+) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, MateFault)> {
+    let reach = mate_reach::<f64>(o, Tol::witness());
+    match doc.apply(&DocEdit::InsertNode { node }, Tol::witness(), &reach) {
+        Ok(applied) => {
+            let id = applied.record.minted.expect("an insert mints an id");
+            Ok((applied.doc, id))
+        }
+        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node, *fault)),
+        Err(other) => panic!("the door refused otherwise: {other:?}"),
+    }
+}
+
 /// The part's reach, through the evaluation's own door.
 fn reach_of(r: &Rig) -> f64 {
     mate_reach::<f64>(&r.o, Tol::witness())
@@ -194,9 +217,15 @@ fn two_mates(
         (r.ids[0], r.ids[1])
     };
     let (doc, held) = add(r.doc, mate(a, b, first));
-    let (doc, added) = add(doc, mate(a, b, second));
-    let poses = solve(&doc, &r.o, Tol::witness());
-    let fault = poses.fault(added).cloned();
+    // The second mate meets its own admission at the door and the
+    // pair's verdict at the solve: whichever refuses is the fault.
+    let (doc, added, fault) = match at_the_door(&doc, &r.o, mate(a, b, second)) {
+        Ok((doc, added)) => {
+            let fault = solve(&doc, &r.o, Tol::witness()).fault(added).cloned();
+            (doc, added, fault)
+        }
+        Err((added, fault)) => (doc, added, Some(fault)),
+    };
     (Rig { doc, ..r }, held, added, fault)
 }
 
@@ -967,11 +996,14 @@ fn c2_inverted_coset_never_refuses() {
                     } else {
                         (r.ids[0], r.ids[1])
                     };
-                    let (doc, m) = add(
-                        r.doc,
+                    match at_the_door(
+                        &r.doc,
+                        &r.o,
                         mate(a, b, al(prim, sense, *f, z_up_at([0.2, 0.0, 0.0]), None)),
-                    );
-                    solve(&doc, &r.o, tol).fault(m).cloned()
+                    ) {
+                        Ok((doc, m)) => solve(&doc, &r.o, tol).fault(m).cloned(),
+                        Err((_, fault)) => Some(fault),
+                    }
                 };
                 match (verdict(false), verdict(true)) {
                     (None, None) => solved += 1,
@@ -1001,10 +1033,13 @@ fn c2_inverted_coset_never_refuses() {
 
 // ---- C4: the two mate-less arms, measured ----
 
-/// Five instances on a reference no store resolves, two mates, one
-/// singleton — a document built WITHOUT the part doors, which decide
-/// under the band and so refuse before a solve when it does.
-fn band_document(label: &str) -> (ProfileDoc, EvalOptions) {
+/// Five instances on a reference no store resolves — a document
+/// built WITHOUT the part doors, which decide under the band and so
+/// refuse before a solve when it does — and the mate an author then
+/// tries to add: the edit door asks the solve's own admission, which
+/// begins with the band, so under a tolerance that admits none the
+/// mate is refused `Band` where it is authored and never enters.
+fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc_ref = DocRef {
         id: DocumentId::derive(&format!("{label}-part")),
         pin: ContentPin([7_u8; 32]),
@@ -1021,55 +1056,74 @@ fn band_document(label: &str) -> (ProfileDoc, EvalOptions) {
         doc = next;
         ids.push(id.expect("an instance inserts under a refusing band"));
     }
-    for (x, y) in [(0, 1), (2, 3)] {
-        let (next, _) = add(
-            doc,
-            mate(
-                ids[x],
-                ids[y],
-                al(
-                    MatePrimitive::FrameCoincidence,
-                    AxisSense::Aligned,
-                    z_up_at([0.0, 0.0, 0.0]),
-                    z_up_at([0.0, 0.0, 1.0]),
-                    None,
-                ),
-            ),
-        );
-        doc = next;
-    }
-    (doc, EvalOptions::default())
+    (doc, ids)
 }
 
-/// `Band` reaches EVERY mate and EVERY instance of the document —
-/// the singleton no mate touches included — and nothing else.
-fn band_reaches_every_row(doc: &ProfileDoc, o: &EvalOptions) {
+/// `Band` is met at the door: every mate refuses there with the
+/// solve's own `Band` fault, before any mate and so any instance's
+/// pose is a question, and the document holds none.
+fn band_refuses_every_mate(doc: &ProfileDoc, ids: &[RecipeNodeId]) {
     let tol = Tol::witness();
     assert!(
         Band::linear(tol).is_err(),
         "the band must refuse for this row to measure anything"
     );
-    let poses = solve(doc, o, tol);
-    let (mut mates, mut instances) = (0_usize, 0_usize);
-    for &id in doc.order() {
-        let fault = poses.fault(id);
-        match doc.node(id).unwrap() {
-            Node::Mate { .. } => mates += 1,
-            Node::InstantiatePart { .. } => instances += 1,
-            _ => {
-                assert!(fault.is_none(), "{id:?}");
-                continue;
-            }
-        }
+    let mut refused = 0_usize;
+    for (x, y) in [(0, 1), (2, 3)] {
+        let err = doc
+            .apply(
+                &DocEdit::InsertNode {
+                    node: mate(
+                        ids[x],
+                        ids[y],
+                        al(
+                            MatePrimitive::FrameCoincidence,
+                            AxisSense::Aligned,
+                            z_up_at([0.0, 0.0, 0.0]),
+                            z_up_at([0.0, 0.0, 1.0]),
+                            None,
+                        ),
+                    ),
+                },
+                tol,
+                &editor_core::RefusingReach,
+            )
+            .expect_err("no band, no admission");
         assert!(
-            matches!(fault, Some(MateFault::Band { .. })),
-            "{id:?}: {fault:?}"
+            matches!(
+                &err,
+                editor_core::EditError::MateRefused { fault, .. }
+                    if matches!(**fault, MateFault::Band { .. })
+            ),
+            "{err:?}"
         );
+        refused += 1;
     }
-    assert_eq!((mates, instances), (2, 5));
+    assert_eq!(refused, 2);
+    assert!(
+        doc.order()
+            .iter()
+            .all(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. }))),
+        "the document holds its five instances and nothing else"
+    );
+    // And the solve of what the document does hold: `Band` reaches
+    // EVERY instance — each its own singleton cluster — and nothing
+    // else, since no band means no verdict for any of them.
+    let poses = solve(doc, &EvalOptions::default(), tol);
+    let mut instances = 0_usize;
+    for &id in doc.order() {
+        assert!(
+            matches!(poses.fault(id), Some(MateFault::Band { .. })),
+            "{id:?}: {:?}",
+            poses.fault(id)
+        );
+        instances += 1;
+    }
+    assert_eq!(instances, 5);
 }
 
-/// **`Band` reaches every row: K·ε overflows.** One process per row —
+/// **`Band` reaches every row: K·ε overflows** — every mate at the
+/// door, every instance at the solve. One process per row —
 /// `Tolerance::init` commits once — which is how this binary runs
 /// under nextest.
 #[test]
@@ -1079,8 +1133,8 @@ fn c4_band_reaches_every_row_overflow() {
         k: 10.0,
     })
     .expect("first commit in this process");
-    let (doc, o) = band_document("msolve8-c4-overflow");
-    band_reaches_every_row(&doc, &o);
+    let (doc, ids) = band_document("msolve8-c4-overflow");
+    band_refuses_every_mate(&doc, &ids);
 }
 
 /// **`Band` reaches every row: K·ε rounds back onto ε.**
@@ -1091,8 +1145,8 @@ fn c4_band_reaches_every_row_empty() {
         k: 1.0 + f64::EPSILON,
     })
     .expect("first commit in this process");
-    let (doc, o) = band_document("msolve8-c4-empty");
-    band_reaches_every_row(&doc, &o);
+    let (doc, ids) = band_document("msolve8-c4-empty");
+    band_refuses_every_mate(&doc, &ids);
 }
 
 /// **`PosesOfAnotherDocument` reaches no row.** A solved document of

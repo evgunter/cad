@@ -591,6 +591,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // A mate's alignment is authored geometry, so the non-finite
         // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
+        // The solve's own per-mate admission, met at the door: the
+        // word is the door's, the fault's word rides `inner_variant`.
+        EditError::MateRefused { .. } => "mate_refused",
         EditError::MaintenanceRefused { .. } => "maintenance_refused",
         EditError::MaintenanceUnrecorded { .. } => "maintenance_unrecorded",
     }
@@ -1127,6 +1130,10 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
             fault: Some(fault), ..
         } => Some(mate_fault_tag(fault)),
         EditError::MaintenanceRefused { fault: None, .. } => None,
+        // The admission's refusal IS the solve's fault about the mate,
+        // so its word is the fault's — the recourse a caller branches
+        // on is the mate fault's own.
+        EditError::MateRefused { fault, .. } => Some(mate_fault_tag(fault)),
         EditError::MaintenanceUnrecorded { .. } => None,
         EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,

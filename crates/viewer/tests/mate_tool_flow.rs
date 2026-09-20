@@ -11,7 +11,7 @@ use crate::common;
 
 use common::asm;
 use common::{ang, len, scl};
-use pncad::document::{ClassAdmission, MateSide, RecipeNodeId};
+use pncad::document::{ClassAdmission, MatePrimitive, MateSide, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
@@ -180,6 +180,89 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
             ..
         })
     ));
+}
+
+/// **The coset table's static gaps refuse at the tool, before any
+/// geometry is read**: a clocking rider on a planar rest and a
+/// standalone clocking primitive have no row in the table, a fact
+/// about the CHOICE alone, so the tool refuses them the way it refuses
+/// a class outside the vocabulary — here with the picks' instance
+/// deleted out from under the tool, which the pick door would refuse
+/// were it reached. The sentence is the table's: the edit door refuses
+/// the same alignment with `MateFault::TableLacks` spelling the same
+/// `what`, so the tool's word and the door's are one word.
+///
+/// The rider on a frame coincidence is not static — the table DECIDES
+/// it over the mate's lever — so the tool proposes it and the edit
+/// door refuses it typed (the story suite's stage).
+#[test]
+fn the_tool_refuses_the_tables_static_gaps_before_any_geometry() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matetable", tol);
+    let session = asm::open_bench(&bench, tol);
+    let (post_top, shelf_bottom) = two_picks(&session, &bench);
+    let mut tool = MateTool::new();
+    tool.pick(post_top);
+    tool.pick(shelf_bottom);
+    let mut gone = asm::open_bench(&bench, tol);
+    gone.perform(SessionOp::DeleteNode {
+        node: bench.shelf_i,
+    });
+    gone.pump();
+    let (doc, eval) = gone.landed_pair().expect("landed");
+    let mut choice = asm::seat();
+    choice.primitive = MatePrimitive::PlanarRest { offset: 0.0 };
+    choice.clocking = Some(0.3);
+    let Err(MateToolError::TableRefused { what: rest }) =
+        tool.proposal(doc, eval, &gone.eval_options(), tol, choice)
+    else {
+        panic!("a rider on a planar rest refuses at the tool");
+    };
+    let mut choice = asm::seat();
+    choice.primitive = MatePrimitive::Clocking;
+    let Err(MateToolError::TableRefused { what: clocking }) =
+        tool.proposal(doc, eval, &gone.eval_options(), tol, choice)
+    else {
+        panic!("a standalone clocking refuses at the tool");
+    };
+    assert_ne!(rest, clocking, "two gaps, two sentences");
+
+    // The door's word for the same two alignments, on the LIVE bench,
+    // is the same word.
+    let (doc, _) = session.landed_pair().expect("landed");
+    let door = |primitive: MatePrimitive, clocking: Option<f64>| -> &'static str {
+        let err = pncad::document::apply(
+            doc,
+            &pncad::document::DocEdit::InsertNode {
+                node: pncad::document::Node::Mate {
+                    a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+                    b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+                    class: ContactClass::Rest,
+                    alignment: pncad::document::Alignment {
+                        primitive,
+                        clocking,
+                        ..asm::seat_alignment(asm::POST_B_AT[0], None)
+                    },
+                },
+            },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect_err("the door refuses the same gap");
+        let pncad::document::EditError::MateRefused { fault, .. } = err else {
+            panic!("the door carries the solve's fault, got {err:?}");
+        };
+        let pncad::document::MateFault::TableLacks { what, .. } = *fault else {
+            panic!("the table's own gap, got {fault:?}");
+        };
+        what
+    };
+    assert_eq!(
+        door(MatePrimitive::PlanarRest { offset: 0.0 }, Some(0.3)),
+        rest
+    );
+    assert_eq!(door(MatePrimitive::Clocking, None), clocking);
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
 #[test]

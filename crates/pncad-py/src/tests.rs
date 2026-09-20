@@ -2337,6 +2337,18 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
     carries(&E::NonFinitePlacement { node: id(1) }, &["node"]);
     carries(&E::NonFiniteAlignment { node: id(1) }, &["node"]);
+    // The door's per-mate admission carries the solve's fault WHOLE
+    // beside the mate: the one payload that crosses as a value.
+    carries(
+        &E::MateRefused {
+            node: id(1),
+            fault: Box::new(pncad::document::MateFault::TableLacks {
+                mate: id(1),
+                what: "a clocking rider on a planar rest",
+            }),
+        },
+        &["node", "fault"],
+    );
     carries(&E::UpdateOnNonInstance { node: id(1) }, &["node"]);
     carries(&E::UnresolvedInput { input: id(2) }, &["input"]);
     carries(
@@ -4318,6 +4330,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "invalid_tolerance",
             "maintenance_refused",
             "maintenance_unrecorded",
+            "mate_refused",
             "measure_malformed",
             "meta_non_finite",
             "meta_not_set",

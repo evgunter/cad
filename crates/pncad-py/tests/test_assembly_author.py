@@ -87,6 +87,7 @@ substitution the audit rows used to carry was not free, and the
 direction it cost in is the mate.
 """
 
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -744,7 +745,8 @@ class TestAssemblyRefusals(BenchWorkspace):
                 clocking=tilt,
             )
             mate = doc.insert(
-                Node.mate(a_i, a_top, b_i, b_bottom, ContactClass.Rest, alignment)
+                Node.mate(a_i, a_top, b_i, b_bottom, ContactClass.Rest, alignment),
+                resolver=self.ws,
             )
             return doc, mate, a_i
 
@@ -761,25 +763,91 @@ class TestAssemblyRefusals(BenchWorkspace):
         self.assertEqual(fault.inner_variant, "part_unresolved")
         self.assertEqual(fault.instance, small_a)
 
-        large, large_mate, _ = clocked(10.0)
-        fault = solve_document(large, resolver=self.ws).fault(large_mate)
+        # A 10 m part: the same rider contradicts the coincidence, and
+        # the edit door — which asks the solve's own per-mate admission
+        # over the parts' extent through `resolver` — refuses it where
+        # it is authored, carrying the solve's fault whole.
+        with self.assertRaises(pncad.EditError) as caught:
+            clocked(10.0)
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "mate_refused")
+        self.assertEqual(refusal.inner_variant, "mate_contradictory")
+        fault = refusal.fault
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertEqual(fault.predicate, "mate_clocking_redundant")
         # The clash is the tilt priced across the parts: 1e-8 rad over
         # tens of metres, well past the document's eps.
         self.assertGreater(fault.clash.meters, small.epsilon)
 
+    def test_a_rider_the_table_decides_against_is_refused_at_the_door(self):
+        """The finding's own mistake, through the document door: a
+        quarter-turn clocking rider on a frame coincidence. The
+        coincidence has already pinned the roll, so the coset table
+        decides the rider contradictory over the mate's own lever —
+        the mated parts' extent, read through `resolver` — and the
+        edit door asks that same admission: `insert` raises typed,
+        `fault` is the solve's own `MateFault` with the lever's roll
+        and arm, and nothing enters the document."""
+        doc, post_i, shelf_i = self.two_instances()
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        alignment = Alignment(
+            mate_frame(POST_SEAT),
+            mate_frame(SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+            (math.pi / 2) * rad,
+        )
+        before = doc.roots
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+                resolver=self.ws,
+            )
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "mate_refused")
+        self.assertEqual(refusal.inner_variant, "mate_contradictory")
+        self.assertEqual(refusal.fault.predicate, "mate_clocking_redundant")
+        self.assertEqual(refusal.fault.lever_tilt, (math.pi / 2) * rad)
+        self.assertIsNotNone(refusal.fault.lever_arm)
+        self.assertEqual(
+            refusal.fault.clash.meters,
+            refusal.fault.lever_tilt.radians * refusal.fault.lever_arm.meters,
+        )
+        self.assertIn("mate_clocking_redundant", str(refusal))
+        self.assertEqual(doc.roots, before, "a refused mate enters nothing")
+        # The same rider INSIDE the band is redundant and admitted, and
+        # the solve places the pair.
+        redundant = Alignment(
+            mate_frame(POST_SEAT),
+            mate_frame(SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+            0 * rad,
+        )
+        mate = doc.insert(
+            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, redundant),
+            resolver=self.ws,
+        )
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
+        self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
+
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         face = self.instance_face(doc, post_i, CapEnd.End)
-        mate = doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
-        fault = solve_document(doc, resolver=self.ws).fault(mate)
         # A pair is two instances; a self-mate constrains nothing and
-        # is a recipe mistake, refused rather than folded into a
-        # tautology.
-        self.assertEqual(fault.variant, "mate_self")
-        self.assertEqual(fault.instance, post_i)
+        # is a recipe mistake — a fact about the mate alone, so the
+        # edit door refuses it where it is authored, with the solve's
+        # own fault, and it never enters the document.
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "mate_refused")
+        self.assertEqual(refusal.inner_variant, "mate_self")
+        self.assertEqual(refusal.fault.variant, "mate_self")
+        self.assertEqual(refusal.fault.instance, post_i)
+        self.assertEqual(doc.roots, [post_i], "nothing entered")
 
     def test_a_mate_on_a_transformed_instance_is_read_at_the_transform(self):
         """A mate's reference is a NODE and a NAME. Wrap an instance in
@@ -1115,8 +1183,8 @@ class TestMateFaultPayload(BenchWorkspace):
     def clocked(self, clocking):
         """A frame coincidence with a clocking RIDER: the coincidence
         has already pinned the roll, so any nonzero clocking
-        contradicts it and the solve refuses with the deviation it
-        measured."""
+        contradicts it and the edit door refuses it with the deviation
+        the solve measured."""
         doc, post_i, shelf_i = self.two_instances()
         a_top = self.instance_face(doc, post_i, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
@@ -1127,10 +1195,17 @@ class TestMateFaultPayload(BenchWorkspace):
             AxisSense.Aligned,
             clocking,
         )
-        mate = doc.insert(
-            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
-        )
-        return solve_document(doc, resolver=self.ws).fault(mate)
+        # Decided where the mate is authored, over the parts' extent
+        # through `resolver`: the door refuses it carrying the solve's
+        # own fault, which is what this answers.
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+                resolver=self.ws,
+            )
+        self.assertEqual(caught.exception.variant, "mate_refused")
+        self.assertEqual(caught.exception.inner_variant, "mate_contradictory")
+        return caught.exception.fault
 
     def test_a_levered_clash_carries_both_halves_of_its_lever(self):
         """`clash` IS the product of the two halves.
@@ -1276,6 +1351,9 @@ class TestMateFaultPayload(BenchWorkspace):
         alignment = Alignment(
             tiny, tiny, MatePrimitive.frame_coincidence(), AxisSense.Aligned
         )
+        # No rider, so the door asks no lever and admits the mate
+        # without the store; the solve, which levers every pair, then
+        # refuses it in the resolver's voice.
         mate = doc.insert(
             Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
         )
@@ -1289,6 +1367,26 @@ class TestMateFaultPayload(BenchWorkspace):
         # Through the store the same mate solves: the nanometre datum
         # is levered by the parts on either side of it.
         self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
+        # A RIDER on the coincidence needs the lever at the door, so the
+        # same insert without the store refuses there, in the same
+        # voice, and with the store it is decided (a zero rider is
+        # redundant and admitted).
+        clocked = Alignment(
+            tiny, tiny, MatePrimitive.frame_coincidence(), AxisSense.Aligned, 0 * rad
+        )
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, clocked)
+            )
+        self.assertEqual(caught.exception.variant, "mate_refused")
+        self.assertEqual(caught.exception.inner_variant, "mate_unleverable")
+        self.assertEqual(caught.exception.fault.inner_variant, "part_unresolved")
+        self.assertEqual(caught.exception.fault.instance, post_i)
+        rider = doc.insert(
+            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, clocked),
+            resolver=self.ws,
+        )
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(rider))
         # A lever REFUSED is not a lever measured: the contradictory
         # arm's halves are absent here.
         self.assertIsNone(fault.lever_tilt)
@@ -1296,10 +1394,11 @@ class TestMateFaultPayload(BenchWorkspace):
         self.assertIsNone(fault.lever_arm)
 
     def test_a_mate_frame_in_the_ambiguity_band_carries_the_classifier(self):
-        """The frame ladder's refusal crosses under its own word, and
-        the classifier's payload rides on the words the frame door
-        already uses — `margin`, `zero`, `escalate`, `predicate` — so
-        a caller that learned them at `FrameError` reads them here.
+        """The frame ladder's refusal crosses under its own word, out
+        of the edit door that meets it, and the classifier's payload
+        rides on the words the frame door already uses — `margin`,
+        `zero`, `escalate`, `predicate` — so a caller that learned
+        them at `FrameError` reads them here.
 
         The axis is derived from the run's epsilon rather than
         hard-coded: the band's edges move with the tolerance."""
@@ -1318,10 +1417,16 @@ class TestMateFaultPayload(BenchWorkspace):
             MatePrimitive.frame_coincidence(),
             AxisSense.Aligned,
         )
-        mate = doc.insert(
-            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
-        )
-        fault = solve_document(doc, resolver=self.ws).fault(mate)
+        # A frame with no definite direction is a fact about the mate
+        # alone: the edit door refuses it where it is authored, and the
+        # fault it carries is the solve's own.
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
+            )
+        self.assertEqual(caught.exception.variant, "mate_refused")
+        self.assertEqual(caught.exception.inner_variant, "mate_frame_degenerate")
+        fault = caught.exception.fault
         self.assertEqual(fault.variant, "mate_frame_degenerate")
         # One level in: the word `FrameError` itself crosses under.
         self.assertEqual(fault.inner_variant, "degenerate_aim")

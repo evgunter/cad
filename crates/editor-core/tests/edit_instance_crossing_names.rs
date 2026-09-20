@@ -93,6 +93,28 @@ fn crossing(mate: RecipeNodeId, outer: StableName, inner: FaceName) -> Interface
 
 /// A mate whose two heads are the named faces, read at their own
 /// mints.
+/// A two-copy pattern over `instance`: what lets a mate stand on ONE
+/// instance twice without naming one member twice — the instance and
+/// a copy of it are two members, so the edit door admits the mate
+/// (one member on both sides it refuses as a self-mate), and the
+/// solve welds nothing by it (a pair standing on one instance joins
+/// no clusters). The mate these rows want: one that exists and
+/// touches no cluster.
+fn copies_of(instance: RecipeNodeId) -> Node<ProfileProgram> {
+    Node::Pattern {
+        input: instance,
+        count: editor_core::Expr::count(2),
+        kind: editor_core::PatternKind::Linear {
+            direction: [
+                crate::fixture::scl(1.0),
+                crate::fixture::scl(0.0),
+                crate::fixture::scl(0.0),
+            ],
+            spacing: crate::fixture::len(1.0),
+        },
+    }
+}
+
 fn mate(a: StableName, b: StableName) -> Node<ProfileProgram> {
     Node::Mate {
         a: fixture::head(a),
@@ -491,13 +513,19 @@ fn deleting_a_crossings_mate_reports_nothing() {
     let doc = ProfileDoc::empty(DocumentId::derive("crossnames-mate-delete"), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
-    // The mate's own heads are faces of `b` alone, so deleting it
+    // The mate's own heads both stand on `b` — one on `b` itself, one
+    // on a copy of it, two members over one instance, which the edit
+    // door admits where one member twice it refuses — so deleting it
     // strands nothing of its own: the one name in play is the
     // `outer`, whose node `a` stays live.
     let outer = in_part(a, CapEnd::End);
+    let (doc, copies) = insert(doc, copies_of(b));
     let (doc, crossing_mate) = insert(
         doc,
-        mate(in_part(b, CapEnd::End), in_part(b, CapEnd::Start)),
+        mate(
+            crate::fixture::in_copy(copies, 1, in_part(b, CapEnd::End)),
+            in_part(b, CapEnd::Start),
+        ),
     );
     let record = InterfaceRecord {
         crossings: vec![crossing(crossing_mate, outer, part_side(CapEnd::Start))],
@@ -505,8 +533,8 @@ fn deleting_a_crossings_mate_reports_nothing() {
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let before = record_of(&doc, instance);
 
-    // The mate's heads are both `b`'s, so it joins no cluster and its
-    // delete moves no gauge: the reach is never asked.
+    // The mate's heads both stand on `b`, so it joins no cluster and
+    // its delete moves no gauge: the reach is never asked.
     let applied = apply(
         &doc,
         &DocEdit::DeleteNode { id: crossing_mate },
@@ -551,7 +579,14 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
         Node::instantiate_part(doc_ref),
     );
     let outer = in_part(keeper, CapEnd::End);
-    let (doc, crossing_mate) = insert(doc, mate(outer.clone(), in_part(keeper, CapEnd::Start)));
+    let (doc, copies) = insert(doc, copies_of(keeper));
+    let (doc, crossing_mate) = insert(
+        doc,
+        mate(
+            outer.clone(),
+            crate::fixture::in_copy(copies, 1, in_part(keeper, CapEnd::Start)),
+        ),
+    );
     let record = InterfaceRecord {
         crossings: vec![crossing(
             crossing_mate,
@@ -600,7 +635,14 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
         Node::instantiate_part(doc_ref),
     );
     let outer = in_part(neighbour, CapEnd::End);
-    let (doc, crossing_mate) = insert(doc, mate(outer.clone(), in_part(neighbour, CapEnd::Start)));
+    let (doc, copies) = insert(doc, copies_of(neighbour));
+    let (doc, crossing_mate) = insert(
+        doc,
+        mate(
+            outer.clone(),
+            crate::fixture::in_copy(copies, 1, in_part(neighbour, CapEnd::Start)),
+        ),
+    );
     let record = InterfaceRecord {
         crossings: vec![crossing(crossing_mate, outer, part_side(CapEnd::End))],
     };

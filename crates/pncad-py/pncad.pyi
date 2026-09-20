@@ -146,7 +146,13 @@ class EditError(PncadError):
     An arm carrying a NESTED refusal projects the carrier's own
     payload and nothing more: `inner_variant` names the arm of the
     refusal it holds, and the fields inside it belong to that type's
-    own door.
+    own door. The one exception is `mate_refused`, the edit door
+    asking the solve's own per-mate admission of a mate being
+    inserted: `fault` carries the solve's `MateFault` about that mate
+    WHOLE — the same value `SolvedPoses.fault` would answer for it at
+    every evaluation — so its lever, its clash and its recourse are
+    read off the type a caller already knows, and `inner_variant` is
+    that fault's word (`mate_table_lacks`, `mate_contradictory`, …).
     """
 
     variant: str
@@ -172,6 +178,7 @@ class EditError(PncadError):
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]
+    fault: Optional[MateFault]
 
 class EvaluationError(PncadError):
     """A node produced no value, or produced the wrong kind.
@@ -3146,9 +3153,24 @@ class Doc:
         gauge levers through: its cluster-record maintenance mints the
         cluster's frame from a solve of the prior document, whose lever
         is the mated parts' own extent. Every other edit never consults
-        it. Absent, such an edit raises `EditError` with variant
-        `maintenance_refused` rather than recording a frame nothing
-        decided; everything else is unaffected."""
+        it, with one exception: inserting a mate asks the solve's own
+        per-mate admission at the door, and a clocking rider on a frame
+        coincidence is decided over the mated parts' extent, read
+        through `resolver`. Absent, a gauge-moving edit raises
+        `EditError` with variant `maintenance_refused` rather than
+        recording a frame nothing decided, and a mate with such a rider
+        raises `mate_refused` with `inner_variant == "mate_unleverable"`;
+        everything else is unaffected.
+
+        A mate the solve would refuse on its own datum at every
+        evaluation — no member at its head, one member named twice, a
+        class outside the vocabulary, a frame with no definite
+        direction, a primitive-and-rider pair the coset table has no
+        row for, a rider that contradicts the coincidence it rides —
+        raises `EditError` with variant `mate_refused` here and never
+        enters the document; `fault` is the solve's own `MateFault`.
+        A verdict about a PAIR (under-determined, contradicting another
+        mate) stays the solve's."""
 
     @property
     def last_maintenance(self) -> list[Maintenance]:
@@ -3225,13 +3247,12 @@ class Doc:
         """Insert a node, answering its minted id — `apply` of
         `DocEdit.insert_node`.
 
-        `resolver` is the document seam an edit that moves a cluster's
-        gauge levers through: its cluster-record maintenance mints the
-        cluster's frame from a solve of the prior document, whose lever
-        is the mated parts' own extent. An insert is a Join at most
-        (the survivor keeps its gauge), so it never consults it; the
-        keyword is here because `insert` is `apply`, and takes what
-        `apply` takes."""
+        `resolver` is the document seam a mate's admission levers
+        through: an insert is a Join at most (the survivor keeps its
+        gauge), so its maintenance never consults it, but a mate's
+        clocking rider on a frame coincidence is decided at the door
+        over the mated parts' extent, read through `resolver` — see
+        `apply` for what a mate refuses here (`mate_refused`)."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,

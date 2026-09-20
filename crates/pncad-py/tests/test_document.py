@@ -1426,6 +1426,7 @@ EDIT_ATTRS = (
     "path",
     "value_path",
     "pin",
+    "fault",
 )
 
 

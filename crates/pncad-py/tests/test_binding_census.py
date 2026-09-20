@@ -3155,6 +3155,7 @@ MEMBERS_BOUND_AS = {
     "EditError::NonFinitePlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::NonFiniteAlignment": "EditError.variant",
+    "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
     "EditError::MaintenanceRefused": "EditError.variant",
