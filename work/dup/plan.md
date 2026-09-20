@@ -251,6 +251,34 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     orchestrator as the hand it passes through: before a brief cites a
     file, section or numbered item, check it is on the branch the
     worktree is cut from, not merely on the branch that wrote it.
+    A third instance, a different shape: a brief asserted that
+    `crates/viewer/tests/common/mod.rs` states a checkable biconditional
+    between each module's list and its markers. That text is in
+    **`crates/sweep/tests/common/mod.rs`** — a fact learned from one
+    crate's shared module, transposed onto another's by an orchestrator
+    who had read it an hour earlier in a review of a different unit.
+    Neither string occurs anywhere under `crates/viewer/tests/`. **A
+    fact about `<crate>/tests/common` is about that crate**, and a
+    brief that generalises one is asserting a census it has not taken.
+
+21. **A lane's scratch path must be lane-private, for the same reason
+    its `CARGO_TARGET_DIR` is.** Three concurrent lanes shared one
+    scratchpad directory. A sibling's `plant.py` — written for a
+    different worktree — **overwrote another lane's harness by name**
+    between writing and running it. The run produced **empty output and
+    exit 0**, which reads exactly like *no plant reddened anything*. It
+    was caught only because the output file was zero bytes.
+    This is the ENOSPC hazard's twin and the sharper of the two: a
+    truncated run at least fails, while a clobbered harness **succeeds
+    at doing nothing**. Both produce a green that is an artefact of the
+    apparatus rather than a fact about the tree, which is the one thing
+    a plant exists to rule out. So: a lane writes its harness under its
+    own worktree or its own target dir, never a shared scratch path;
+    and a plant that reds nothing is not read until its output is
+    confirmed non-empty and its `test result:` line complete.
+    (2026-09-20, `dup/viewer-shared-doors`; found and reported by the
+    lane it happened to. The shared path was the orchestrator's
+    arrangement, not the lane's.)
 
 ## Review posture
 
