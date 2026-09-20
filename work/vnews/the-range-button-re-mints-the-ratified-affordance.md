@@ -50,25 +50,47 @@ the *same panel* already does: `Panel::slot_notes_ui`
 driven slot. So a reader looking at a driven slot sees the ratified
 affordance on the row and a different sentence on the button beside it.
 
-## The second arm, which is a plain falsehood
+## The second arm, and what is and is not proved about it
 
 `offered` has two conjuncts. The hover text speaks to one.
 
-When `row.driver` is a **literal** and `row.value` is `Err` — an
-evaluation that failed — the button is disabled and tells the reader
-*"a computed slot has no range of its own to probe"*, about a slot that
-is not computed. Nothing refuses that condition either: `probe_bounds`
-guards only the driven case. So this arm is not the census's class at
-all; it is a sentence that is simply wrong, and it needs its own words
-("there is no evaluation to probe against", or whatever the panel's
-neighbour at `properties.rs:353` already says for the same state).
+**What is proved, from the predicate alone.** `offered` is
+`!row.driver.is_driven() && row.value.is_ok()` and the `else` branch is
+taken whenever it is false. So *if* a row is reached with a literal
+driver and an `Err` value, the reader is told *"a computed slot has no
+range of its own to probe"* about a slot that is not computed. Nothing
+refuses that condition either: `probe_bounds` guards only the driven
+case, through `guard_driven`. The sentence would be false there, and
+the arm would not be the census's class at all.
+
+**What is NOT proved, and is stated here as unproven rather than
+asserted.** That such a row is reachable. `SlotRow::value` is an
+`Err` when the slot did not evaluate, and whether the panel ever draws
+a `range?` button for a literal slot in that state depends on what
+`DocSession::slot_rows` produces and on what the panel does above the
+button — neither of which this census walked. The claim is therefore:
+**the predicate admits the state; no witness is exhibited.** A lane
+taking this row owes the witness first, because the repair differs —
+a reachable state needs its own true sentence, an unreachable one needs
+the two conjuncts told apart so the code cannot start lying later, and
+the second is worth doing either way but is a smaller change.
+
+**Do not reuse `properties.rs:353`'s words for it.** An earlier draft
+of this row offered *"no evaluation yet to resolve this against"* as
+the neighbour that *"already says [it] for the same state"*. It does
+not: that sentence is in `entity_standing_ui`'s `resolution` match and
+is about a standing FACE or EDGE with no evaluation to resolve its
+`StableName` against — a different subject from a slot whose
+expression failed to evaluate. The words for this arm, if it is
+reachable, are unwritten.
 
 ## What a fix does
 
 - Driven arm: call `Refusal::affordance(params, row.value.as_ref().ok().copied())`,
   the same call `slot_notes_ui` makes fifty lines up, so the button and
   the row and the status line are one composition.
-- Errored-value arm: a distinct, true sentence.
+- Errored-value arm: first a witness that it is reachable; then a
+  distinct, true sentence, newly written.
 - The two arms have to be told apart to do either, which is the whole
   change: `offered` collapses them today.
 

@@ -15,6 +15,11 @@ choice between two answers and neither is a comment edit.
 
 ## What happens
 
+*(The three line numbers in this section are the filing's, from
+2026-09-11, and no longer resolve. They are left as written and
+re-derived under "Decided" below, per the register's re-derive-never-
+shift rule.)*
+
 `crates/viewer/src/app.rs:1156-1159` says the `Create` button's disabled
 state is backed by a typed refusal:
 
@@ -62,7 +67,7 @@ The census this row waits on —
 `a-disabled-control-says-why-in-four-shapes`, run at merge base
 `2654cc111417da806d9786c40136106469096fec` — lands on the rule *a
 control a reader cannot use owes the sentence a click would have been
-answered with, when there is such a sentence*, and this button is a
+answered with — when there is such a sentence*, and this button is a
 genuine hit of it. The condition IS `NewDocument`'s refusal condition,
 so the pre-click sentence and the refusal are one sentence and get one
 composition.

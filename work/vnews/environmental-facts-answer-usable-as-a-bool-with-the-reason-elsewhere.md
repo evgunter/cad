@@ -77,7 +77,7 @@ the four named here.
 `a-disabled-control-says-why-in-four-shapes` was run at merge base
 `2654cc111417da806d9786c40136106469096fec` and lands on the rule *a
 control a reader cannot use owes the sentence a click would have been
-answered with, when there is such a sentence.* **That rule does not
+answered with — when there is such a sentence.* **That rule does not
 decide this row, and this row is untouched by it.** Recorded here
 because that census's filing named `NO_CHOOSER_BACKEND` as one of its
 own two likeliest genuine hits, and the census concludes it is not one.
@@ -100,11 +100,17 @@ Neither implies the other, and the argument recorded above (the one
 `prefs.rs` makes verbatim) is the whole case for this row. It stands
 on its own.
 
-**One piece of evidence the census adds.** `crates/viewer/src/session/
-refuse.rs` states the one-home principle three times in its own doc
-comments — at `Refusal::self_instance`, `Refusal::affordance` and
-`Refusal::exists_wording` — each time as the reason a helper exists so
-that a value's words are composed once. That is the same principle this
+**One piece of evidence the census adds.** The one-home principle is
+stated in the crate's own doc comments **nine times, in five files** —
+`session/refuse.rs` at `Refusal::self_instance`, `Refusal::affordance`
+and `Refusal::exists_wording`; `session/op.rs` at `CancelDoor` (one subject,
+stated across its two doc comments); `pane/create.rs` at the parts-catalogue entry;
+`parts.rs` at `PartEntry`'s `open_document` mint; and
+`pane/properties.rs` at the free-move probe, `slot_notes_ui` and the
+add-parameter form's already-exists notice. (An earlier version of this
+paragraph said "three times, in `refuse.rs`"; that was the count before
+the census re-derived it.) Each is the reason a helper or a field
+exists, so that a value's words are composed once. That is the same principle this
 row applies to `ChooserBackend`, at a value rather than at a sentence,
 and it is precedent for the shape *a method on the value that knows*
 over the shape *keep the bool and move the const*.

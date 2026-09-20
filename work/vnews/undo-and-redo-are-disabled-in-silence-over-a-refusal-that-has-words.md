@@ -10,7 +10,9 @@ refs: [a-disabled-control-says-why-in-four-shapes]
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at
 merge base `2654cc111417da806d9786c40136106469096fec`. A genuine hit of
 the rule that census lands on: *a control a reader cannot use owes the
-sentence a click would have been answered with.*
+sentence a click would have been answered with — when there is such a
+sentence.* The qualifier travels with the rule; it is what decides most
+of the population, and dropping it here was how this row first read.
 
 ## The two halves, and that they are the same condition
 

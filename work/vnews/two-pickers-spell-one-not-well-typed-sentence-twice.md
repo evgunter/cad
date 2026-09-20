@@ -17,8 +17,11 @@ same class as `seat-line-spells-the-list-mark-as-a-literal` and
 
 ## The two copies
 
-`crates/viewer/src/widgets.rs`'s `offer` (`:486-508`) is the shared
-picker-choice helper. For a choice the tip refuses it writes:
+`crates/viewer/src/widgets.rs`'s `offer` (`:486-508`) is the
+picker-choice helper. It is **private to `widgets.rs`** — a bare `fn`,
+not `pub(crate)` — which is the first thing a repair has to change and
+which the first draft of this row did not say. For a choice the tip
+refuses it writes:
 
 ```
 row.on_disabled_hover_text(format!(
@@ -38,10 +41,15 @@ row.on_disabled_hover_text(format!(
 ```
 
 Same template, same `sketch::tip_state_words` call, same
-`add_enabled(refusal.is_none(), egui::Button::selectable(…))` around it.
-`offer` is in scope in that file's crate and is used by every other
-picker in the editor — `target_fields` and `arc_fields`
-(`widgets.rs:453-461`, `:588-603`) both go through it.
+`add_enabled(refused.is_none(), egui::Button::selectable(…))` around
+it.
+
+**`offer` has exactly two callers, both inside `widgets.rs`**:
+`target_fields` (`:459`) and `arc_fields` (`:594`). It is not "every
+other picker in the editor" and it is not in scope in
+`pane/profile.rs` at all — module-private, in a different module. So
+the duplication is not a caller ignoring an available helper; it is a
+helper that was never made reachable from the third site.
 
 ## Why the verb combo did not use it, and whether that survives
 
@@ -52,13 +60,16 @@ option)` directly and needs the refused `TipState` back out in the
 `Some` arm. So the duplication is a real shape mismatch, not laziness.
 Two candidate repairs:
 
-- Build an `Admitted` for the verb row (its `admits` closure is
-  `move |v| sketch::admits_at(state, v).is_ok()`) and call `offer`. One
+- Make `offer` `pub(crate)`, build an `Admitted` for the verb row
+  (its `admits` closure is
+  `move |v| sketch::admits_at(state, v).is_ok()`) and call it. One
   composition, at the cost of a boxed closure per row per frame — the
-  file's own comment at `:265-268` says a replay per row is already
-  accepted as cheap.
+  file's own comment above `states` (`:263-266`) accepts *"a replay per
+  row of a hand-authored path is cheap"* for the same loop, which is an
+  argument about the same order of cost and not a licence.
 - Lift just the sentence: a `pub(crate) fn not_well_typed(label: &str,
   state: TipState) -> String` in `widgets.rs` that both call. Smaller,
+  it widens one new name rather than a five-argument generic helper,
   and it is the `Refusal::exists_wording` shape — the words get one
   home without the control shape having to match.
 
@@ -67,10 +78,17 @@ in the vocabulary, not in the control.
 
 ## Home
 
-`crates/viewer/src/widgets.rs` (chrome, vgeom, view) and
-`crates/viewer/src/pane/profile.rs` (chrome, view) — **neither is
-vnews's ground**, and `pane/profile.rs` is claimed by no VIEW successor
-(`work/view/viewer-src-files-no-successor-claims`). Filed here because
-the subject is this program's charter verbatim and the census that found
-it is this program's. A lane that takes it announces the crossing, or
-the row re-homes with the file.
+**`widgets.rs`'s WORDS are vnews's**, and the first draft of this row
+said the opposite. VGEOM's `keep_out` cedes it in as many words:
+*"scene.rs and widgets.rs and display.rs and sketch.rs are worked here
+for their numbers and by vnews or vseam for their words and their held
+state."* The subject here is a sentence, so the `widgets.rs` half is
+this program's ground by that cession, even though the file is not in
+this program's `paths` list.
+
+`crates/viewer/src/pane/profile.rs` is the half that is not: it is
+claimed by no VIEW successor
+(`work/view/viewer-src-files-no-successor-claims`), and CHROME's
+carve-out of 2026-09-15 cedes `pane/*` to VIEW, which this program
+inherits. A lane that takes that half announces the crossing to CHROME,
+or the row re-homes with the file.

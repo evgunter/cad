@@ -114,37 +114,61 @@ test is one question at the control: if the reader got past this gate
 and the operation ran, what sentence would come back? One would → the
 pre-click sentence and the refusal are one sentence and get one
 composition. None would → the control gates a draft, and a literal at
-the control is correct. The rule is not minted here: `refuse.rs`
-states it three times, at `Refusal::self_instance`,
-`Refusal::affordance` and `Refusal::exists_wording`, as the reason each
-helper exists.
+the control is correct. **And a third arm the tree forced**: the
+operation would be formed and would SUCCEED, and the chrome declines it
+anyway — a chrome-policy gate, which has no refusal to read.
+`pane/create.rs`'s bore/radius arm is the one instance, and its own
+literal says the door *"would swap the roles rather than refuse"*.
 
-**The population.** 35 members — 30 `add_enabled` / `add_enabled_ui`
-call sites plus 5 branches that draw a sentence where a control would
-be. `on_disabled_hover_text` has 11 call sites and **every one attaches
-to a member the first pass already had**: the proxy table's eighth row,
-measured. The row's filing counts (18 and 10, on 2026-09-11) are
-superseded, as are all fourteen of its citations — `pane/profile.rs`
-and `widgets.rs` did not carry members when it was written and carry
-sixteen between them now.
+**Attribution.** The rule's FIRST limb is the tree's and is stated nine
+times in five files — `session/refuse.rs` (three helpers),
+`session/op.rs` (`CancelDoor`), `pane/create.rs` (the parts catalogue),
+`parts.rs` (`PartEntry::open_document`) and `pane/properties.rs`
+(three sites). **None of them states the second limb**, and the
+qualifier is what does the classification work, so it is defended as
+this lane's rather than attributed.
+
+**The population is two populations, of different epistemic status,
+and they are not added.** P1 is `add_enabled` / `add_enabled_ui` — 30
+sites, one grep and one stated exclusion, mechanical. P2 is a branch
+drawing a sentence where a control would be — 11 sites, a judgement,
+and therefore **enumerated by site in the item** rather than counted.
+`on_disabled_hover_text` has 11 call sites, every one attached to a P1
+site; that measures `on_disabled_hover_text ⊆ add_enabled`, which is
+the narrow half of the proxy table's eighth row and not its wide
+disposition claim. The row's filing counts (18 and 10, on 2026-09-11)
+are superseded, as are all fourteen of its citations.
 
 **Both of the row's predicted genuine hits are not hits.**
-`pane/create.rs`'s `blocked: Option<&'static str>` gates a draft in all
-four arms — no `SessionOp` can be formed without the plane or the
-loops — and `platform::NO_CHOOSER_BACKEND` sits on buttons that reach
-no door at all, so it is a first composition, not a second. The
-genuine hits are elsewhere: the New-document Create button
-(`Refusal::EmptyName`), Undo and Redo (`Refusal::NothingToDo`, shown as
-nothing), and the slot range button (a third spelling of the ratified
-affordance).
+`platform::NO_CHOOSER_BACKEND` sits on buttons that reach no door at
+all, so it is a first composition. `pane/create.rs`'s `blocked` gates a
+draft in three of its four arms — and the fourth is the chrome-policy
+gate above, not a draft gate, which is the census finding a case its
+own rule did not cover. The genuine hits are elsewhere: the
+New-document Create button (`Refusal::EmptyName`), Undo and Redo
+(`Refusal::NothingToDo`, shown as nothing), the slot range button (a
+third spelling of the ratified affordance), and two P2 sites that say
+in the chrome's words what `Refusal::NoSuchParam` says in the
+session's.
 
 **Filed.** `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-
-has-words` and `the-range-button-re-mints-the-ratified-affordance`
-(genuine hits); `two-pickers-spell-one-not-well-typed-sentence-twice`
-(found in passing — `pane/profile.rs` hand-rolls `widgets.rs::offer`'s
-sentence); and on VDOC's slate,
-`a-disabled-controls-reason-has-one-home`, the README clause this
-program's exit shape names.
+has-words`, `the-range-button-re-mints-the-ratified-affordance` and
+`three-spellings-say-a-parameter-is-not-declared` (genuine hits);
+`clear-picks-hover-text-is-invisible-while-disabled` (six gated
+controls whose only words ride on `on_hover_text`);
+`two-pickers-spell-one-not-well-typed-sentence-twice` (found in
+passing — `pane/profile.rs` hand-rolls the sentence of
+`widgets.rs::offer`, which is module-private and so is not a helper the
+site could have called). Across fences:
+`work/vdoc/a-disabled-controls-reason-has-one-home` — the README clause
+this program's exit shape names, re-written as a request to GENERALISE
+two clauses the page already carries rather than to state the rule for
+the first time; `work/edit/no-door-refuses-a-blank-parameter-name`;
+`work/guard/viewer-disabled-control-population-has-no-gate`;
+`work/vseam/op-rs-cites-environmental-facts-at-its-old-path`; and
+`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`, the
+class that last one turned out to be — 26 stale `work/view/` citations
+under `crates/`, in 13 files across 5 crates.
 
 **Dispositions handed down.**
 `the-new-document-button-states-its-refusal-twice` gets answer 1, read
