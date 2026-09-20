@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 23] {
+) -> [(&'static str, Py<PyAny>); 24] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -125,6 +125,12 @@ fn edit_fields(
             opt(payload
                 .pin
                 .map(|p| Py::new(py, super::store::ContentPin(p)).map(Py::into_any))),
+        ),
+        (
+            "fault",
+            opt(payload
+                .fault
+                .map(|f| Py::new(py, super::mate::MateFault(f.clone())).map(Py::into_any))),
         ),
     ]
 }

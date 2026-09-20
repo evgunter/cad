@@ -507,8 +507,10 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
 
 // ---- P4: an out-of-range copy on a DECLARING mate ----
 
-/// PROBE (claims 5+7+8): copy 5 of a count-2 pattern, as the SECOND
-/// (non-tree) mate of the pair graph.
+/// PROBE (claims 5+7+8): a copy past the pattern's count, as the
+/// SECOND (non-tree) mate of the pair graph — the pattern shrunk under
+/// a mate that named copy 1, since a head past the count at insert is
+/// the edit door's to refuse.
 ///
 /// It refuses at the SOLVE, naming the pattern — not "somewhere" and
 /// not at the gate. The index-against-the-count check is a fact about
@@ -546,11 +548,15 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
             ),
         },
     );
+    // The second mate names copy 1, well formed at insert (the edit
+    // door refuses a head that resolves to no member where it is
+    // authored); the pattern then shrinks to one copy under it, which
+    // is how a head stops resolving after insert (N5).
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
                 in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
@@ -558,6 +564,14 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
         },
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetStructuralParam {
+            node: pattern,
+            slot: editor_core::SlotId::Count,
+            expr: Expr::count(1),
+        },
+    );
 
     let o = with_resolver(store);
     let poses = solve(&doc, &o, Tol::witness());

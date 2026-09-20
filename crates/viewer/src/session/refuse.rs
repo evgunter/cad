@@ -17,6 +17,14 @@ use pncad::document::{
 };
 use pncad::workspace::WorkspaceError;
 
+// The recourse this module's `NoSuchParam` arm ends on, read from its
+// one home beside the error whose door raises the other half of the
+// pair. A direct edge on the owning crate rather than a new re-export
+// added to `pncad`'s root — the ruling `pncad`'s own crate docs state
+// for a name the facade does not carry, and the same one this crate's
+// `bvh` and `Rgba8` edges cite.
+use editor_core::edit::UNDECLARED_PARAM_RECOURSE;
+
 use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
@@ -136,8 +144,9 @@ pub enum Refusal {
     /// goes to the edit door; dragging its row comes here. The two
     /// cannot be made one refusal without putting back the pre-check
     /// the door already refuses — so what is converged is what the
-    /// user must DO: this arm names the same recourse the door names
-    /// ("declare it first"), over the same fact. What stays apart is
+    /// user must DO: this arm renders the same recourse the door
+    /// renders — [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`], its
+    /// one home — over the same fact. What stays apart is
     /// the frame, and it has to: the door's sentence is about an edit
     /// that was refused, and a drag has no edit behind it, so a
     /// gesture that borrowed the door's frame would report a
@@ -478,7 +487,7 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchParam(name) => {
                 write!(
                     f,
-                    "no document parameter named {} — declare it first",
+                    "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
                     name.0
                 )
             }

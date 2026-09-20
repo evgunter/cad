@@ -100,6 +100,85 @@ which is PATHS'. Both stay `open` here rather than `parked`: neither
 waits on a trigger the tracker can see fire, and saying so in the plan
 is the honest record.
 
+## 2026-09-19 — the disabled-control census, and the rule it lands on
+
+`a-disabled-control-says-why-in-four-shapes` run as a census at merge
+base `2654cc111417da806d9786c40136106469096fec`. No file under
+`crates/` touched; tier docs. Tiered style review plus a correctness
+arm, per the plan's posture — a census's failure mode is a population
+that looks complete and is not.
+
+**The rule.** *A control a reader cannot use owes the sentence a click
+would have been answered with — when there is such a sentence.* The
+test is one question at the control: if the reader got past this gate
+and the operation ran, what sentence would come back? One would → the
+pre-click sentence and the refusal are one sentence and get one
+composition. None would → the control gates a draft, and a literal at
+the control is correct. **And a third arm the tree forced**: the
+operation would be formed and would SUCCEED, and the chrome declines it
+anyway — a chrome-policy gate, which has no refusal to read.
+`pane/create.rs`'s bore/radius arm is the one instance, and its own
+literal says the door *"would swap the roles rather than refuse"*.
+
+**Attribution.** The rule's FIRST limb is the tree's and is stated nine
+times in five files — `session/refuse.rs` (three helpers),
+`session/op.rs` (`CancelDoor`), `pane/create.rs` (the parts catalogue),
+`parts.rs` (`PartEntry::open_document`) and `pane/properties.rs`
+(three sites). **None of them states the second limb**, and the
+qualifier is what does the classification work, so it is defended as
+this lane's rather than attributed.
+
+**The population is two populations, of different epistemic status,
+and they are not added.** P1 is `add_enabled` / `add_enabled_ui` — 30
+sites, one grep and one stated exclusion, mechanical. P2 is a branch
+drawing a sentence where a control would be — 11 sites, a judgement,
+and therefore **enumerated by site in the item** rather than counted.
+`on_disabled_hover_text` has 11 call sites, every one attached to a P1
+site; that measures `on_disabled_hover_text ⊆ add_enabled`, which is
+the narrow half of the proxy table's eighth row and not its wide
+disposition claim. The row's filing counts (18 and 10, on 2026-09-11)
+are superseded, as are all fourteen of its citations.
+
+**Both of the row's predicted genuine hits are not hits.**
+`platform::NO_CHOOSER_BACKEND` sits on buttons that reach no door at
+all, so it is a first composition. `pane/create.rs`'s `blocked` gates a
+draft in three of its four arms — and the fourth is the chrome-policy
+gate above, not a draft gate, which is the census finding a case its
+own rule did not cover. The genuine hits are elsewhere: the
+New-document Create button (`Refusal::EmptyName`), Undo and Redo
+(`Refusal::NothingToDo`, shown as nothing), the slot range button (a
+third spelling of the ratified affordance), and two P2 sites that say
+in the chrome's words what `Refusal::NoSuchParam` says in the
+session's.
+
+**Filed.** `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-
+has-words`, `the-range-button-re-mints-the-ratified-affordance` and
+`three-spellings-say-a-parameter-is-not-declared` (genuine hits);
+`clear-picks-hover-text-is-invisible-while-disabled` (six gated
+controls whose only words ride on `on_hover_text`);
+`two-pickers-spell-one-not-well-typed-sentence-twice` (found in
+passing — `pane/profile.rs` hand-rolls the sentence of
+`widgets.rs::offer`, which is module-private and so is not a helper the
+site could have called). Across fences:
+`work/vdoc/a-disabled-controls-reason-has-one-home` — the README clause
+this program's exit shape names, re-written as a request to GENERALISE
+two clauses the page already carries rather than to state the rule for
+the first time; `work/edit/no-door-refuses-a-blank-parameter-name`;
+`work/guard/viewer-disabled-control-population-has-no-gate`;
+`work/vseam/op-rs-cites-environmental-facts-at-its-old-path`; and
+`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`, the
+class that last one turned out to be — 26 stale `work/view/` citations
+under `crates/`, in 13 files across 5 crates.
+
+**Dispositions handed down.**
+`the-new-document-button-states-its-refusal-twice` gets answer 1, read
+the refusal — its stated cost is the objection `Refusal::exists_wording`
+already answers. `environmental-facts-answer-usable-as-a-bool-with-the-
+reason-elsewhere` is **not decided** by this rule and is untouched by
+it; the two classes are disjoint at `NO_CHOOSER_BACKEND`, and that row
+stands on its own argument. Evidence appended to both rows rather than
+left in a PR body.
+
 ## 2026-09-19 (later) — two rows leave the slate, one of them already dead
 
 Ev, in-chat: `converged-recourse-has-no-home` may move to another
@@ -141,3 +220,66 @@ row naming the site.
 
 **Slate after this sitting: twelve rows**, four of them wave-1 lanes in
 flight.
+
+## 2026-09-19 — the census adjudicated, and what it cost to get right
+
+`a-disabled-control-says-why-in-four-shapes` ran as this program's
+first unit under the tier its posture names: a **style review and a
+correctness arm**, two independent lanes on the frozen head
+`0dbbc95f8`, neither with access to the other's report, and a fix pass
+against the orchestrator-adjudicated UNION. No dual, no ordinal, no row
+in `docs/MODEL-AB-LOG.md`.
+
+**The correctness arm earned its dispatch.** It returned a MAJOR that
+the style lane reached from a different direction and neither could have
+been talked out of: the population was not re-derivable. It also
+verified, rather than assumed, two things the item asserted — that the
+`refuse.rs` doc comments say what the item quotes, and that no keyboard
+or AccessKit route pushes `Undo`/`Redo`, so the buttons really are the
+only hand.
+
+**The two findings worth keeping:**
+
+- **The rule as first written is a dichotomy and the tree has three
+  cases.** `pane/create.rs`'s bore-against-radius arm forms a valid
+  `SessionOp::AddProfile` — its own literal says *"a larger bore would
+  swap the roles rather than refuse"* — so the chrome declines
+  something the door would ACCEPT. That is a chrome-policy gate, and it
+  owes a true sentence and a disclosure that it is a policy rather than
+  a refusal it cannot read. The census found a case its own rule did
+  not cover, which is worth more than the count it got wrong.
+- **Enumerating the judgement pass produced hits nobody had.** Three
+  spellings of *a parameter is not declared*, across two panes and
+  `Refusal::NoSuchParam`.
+
+**Two corrections to the orchestrator's own adjudication**, recorded
+because this program's register says the orchestrator's misses are the
+ones that propagate:
+
+1. I ruled that *"the six classification buckets are all P1 sites"* and
+   offered it as the sharpest form of the MAJOR. **It is false.** Three
+   buckets already held judgement-pass members. The ruling survived —
+   the population was not reconstructible and the buckets did not sum —
+   but the diagnosis was wrong, and the evidence was on screen when I
+   wrote it: the draft-gate bucket cites `pane/create.rs:52`, which is
+   one of them. The fix pass caught it and said so.
+2. The class row filed out of S17 said the repair *"touches five
+   crates"*; its own table lists four. Corrected here. Re-deriving its
+   headline independently: **36 citation sites under `crates/`, 26 of
+   them naming a `work/view/` row that the re-scope moved** — that
+   figure holds exactly, which is why the crate count mattered enough
+   to fix rather than shrug at. A row whose thesis is that citations rot
+   cannot carry a count its own receipt contradicts.
+
+**Filed out of this unit: six rows** — three on this slate's
+neighbours (`work/edit/`, `work/vseam/`, `work/guard/`), two here, one
+on VDOC. The VDOC clause request was rewritten mid-fix from *state this
+for the first time* to *generalise what is already stated*, after
+`crates/viewer/README.md` turned out to carry the rule for two families
+and to name the test that holds it.
+
+**Tier note for the next unit.** The correctness arm cost one extra
+lane and returned a MAJOR, two upheld MINORs and a rule change. On this
+program's posture that is the trigger working as written: a census's
+failure mode is a population that looks complete and is not, which is a
+confident wrong answer and not a refusal.
