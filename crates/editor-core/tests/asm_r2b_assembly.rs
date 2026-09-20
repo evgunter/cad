@@ -779,6 +779,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     })
     .expect("a crossing's references are face names");
     let (doc, outer) = remainder_with_a_neighbour("asm-r2b-row5b", doc_ref);
+    let outer_probe = (*outer).clone();
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             class: ContactClass::Rest,
@@ -827,6 +828,22 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     assert!(
         err.contains("does not re-verify"),
         "the refusal names the crossing that no longer fits: {err}"
+    );
+    // REVIEW PROBE (mateid-rv): the refusal built by the ONE
+    // construction site names the crossing by its `outer`, not by its
+    // `inner`. `the_crossing_refusal_is_a_named_node_error` renders a
+    // hand-built value, so it cannot see which field `eval::wire`
+    // hands in; swapping them there survives the whole suite without
+    // this line. The two nodes differ (`outer` is minted in the
+    // REMAINDER, `inner` in the part), so the rendering tells them
+    // apart.
+    assert!(
+        err.contains(&format!("minted by node {}", outer_probe.node.0)),
+        "the refusal names the crossing by its `outer`: {err}"
+    );
+    assert_ne!(
+        outer_probe.node, inner.node,
+        "the row needs the two references to be distinguishable in the prose"
     );
 }
 
@@ -1113,6 +1130,88 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
         key(&with, id_with),
         key(&without, id_without),
         "the inhabited record feeds the key"
+    );
+}
+
+/// REVIEW PROBE (mateid-rv): **each of a crossing's surviving fields
+/// feeds the content key** — the row above only distinguishes an
+/// inhabited record from an empty one, so dropping
+/// `feed_stable_name(&mut h, outer)` from the instantiate arm
+/// survives the whole `editor-core` suite. Two records differing in
+/// the `outer` alone must key apart, or a crossing edit can hit the
+/// memo on the pre-edit answer, which is the obligation the arm's own
+/// comment claims (ASM-R2b D-4).
+#[test]
+fn a_crossing_record_keys_on_each_of_its_fields() {
+    let part_id = DocumentId::derive("asm-r2b-row6-fields-part");
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(
+        {
+            let (d, _) = block(
+                ProfileDoc::empty(part_id, Tol::witness()),
+                (0.0, 1.0),
+                (0.0, 1.0),
+                0.0,
+                1.0,
+            );
+            d
+        },
+        Tol::witness(),
+    );
+    let part_face = |cap| {
+        FaceName::new(StableName {
+            kind: EntityKind::Face,
+            node: PART_BODY,
+            path: vec![RoleSeg::Cap(cap)],
+        })
+        .expect("a crossing's references are face names")
+    };
+    let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6-fields", doc_ref);
+    // The SAME live node, a different face of it: only the `outer`
+    // moves between the two records below.
+    let other_outer = FaceName::new(in_part((*outer).node, CapEnd::Start))
+        .expect("a crossing's references are face names");
+    let record = |outer: FaceName, inner: FaceName, class| editor_core::InterfaceRecord {
+        crossings: vec![InterfaceCrossing::Mate {
+            class,
+            outer,
+            inner,
+        }],
+    };
+    let key = |record| {
+        let (doc, id) = insert(host.clone(), Node::instantiate_part_with(doc_ref, record));
+        run(&doc, &with_resolver(store.clone()))
+            .value(id)
+            .expect("the instance evaluates")
+            .content_key
+    };
+    let base = key(record(
+        outer.clone(),
+        part_face(CapEnd::End),
+        ContactClass::Rest,
+    ));
+    assert_ne!(
+        base,
+        key(record(
+            other_outer,
+            part_face(CapEnd::End),
+            ContactClass::Rest
+        )),
+        "the crossing's `outer` feeds the key"
+    );
+    assert_ne!(
+        base,
+        key(record(
+            outer.clone(),
+            part_face(CapEnd::Start),
+            ContactClass::Rest
+        )),
+        "the crossing's `inner` feeds the key"
+    );
+    assert_ne!(
+        base,
+        key(record(outer, part_face(CapEnd::End), ContactClass::Tangent)),
+        "the crossing's `class` feeds the key"
     );
 }
 
