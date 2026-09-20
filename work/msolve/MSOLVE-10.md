@@ -2,7 +2,7 @@
 id: MSOLVE-10
 kind: unit
 title: A mate the coset table refuses on its own is refused at the edit door, through the solve's own per-mate admission and the reach the door holds
-status: open
+status: dispatched
 opened: 2026-09-20
 branch: msolve/10-door-admission
 ---
