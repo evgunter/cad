@@ -9,10 +9,10 @@
 //! rows call directly, because framing is not what they check — the
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
-//! What carries no oracle is shared, and that is everything this file
-//! does not hand-derive: `common::{xy_frame, rectangle, inserted, len,
-//! scl, gallery_ring_at}` — the blocks' own dimensions and the cursor
-//! positions aimed at them stay here, where the aim is written.
+//! What carries no oracle is shared: `common::{xy_frame, rectangle,
+//! inserted, len, scl, gallery_ring_at}`. The blocks' own dimensions
+//! and the cursor positions aimed at them stay here, where the aim is
+//! written.
 //!
 //! Conventions per `memories/test-suite-cost.md`: the randomized rows
 //! draw a fresh seed per run through `test_utils::fuzz` (logged

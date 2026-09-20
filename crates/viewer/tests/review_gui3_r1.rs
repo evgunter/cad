@@ -11,9 +11,8 @@
 //! because nothing below would catch it if it did not.
 //!
 //! The triangle and `r1_depth` are R1's own so that its document reads
-//! apart from the unit suites' in one aggregated binary, and the
-//! triangle is a shape no other fixture here builds rather than a
-//! second spelling of one. The sugar that carries no claim is shared:
+//! apart from the unit suites' in one aggregated binary. The sugar
+//! that carries no claim is shared:
 //! `common::{ang, edited, inserted, len, scl, tempdir, xy_frame}`.
 //!
 //! Shapes per `memories/test-suite-cost.md`: every row here is a

@@ -8,15 +8,17 @@
 //! (`PLATE_EXTENT`, `PLATE_HOLE_RADIUS`) and the plate fixtures here
 //! are functions of it, so they cannot drift from the subject.
 //!
-//! **Two kinds of thing live here and they are not interchangeable.**
-//! The plate helpers — `plate_bounds`, `plate_volume`, `framed`, and
-//! `corners` over them — carry an oracle: a row that reads one is
-//! measuring the scene against its own constants on that axis.
-//! Everything else — the literal, datum, session and document sugar,
-//! and the committed gallery fixture — carries no oracle and is a
-//! spelling, not a claim. Which of the two a helper is decides whether
-//! a suite may share it; a suite that keeps its own code says why in
-//! its own header.
+//! **Whether a helper carries an oracle is decided per helper, not by
+//! what kind of file reads it**, and the answer is in that helper's own
+//! doc rather than in a rule here — a blanket sentence over this module
+//! goes stale the next time something is added to it. The plate helpers
+//! (`plate_bounds`, `plate_volume`, `framed`, `corners` over them) say
+//! so explicitly, because a row that reads one is measuring the scene
+//! against its own constants on that axis; so do `near`, whose bound is
+//! chosen, `body_volume`, which picks WHICH document it reads, and
+//! `gallery_ring_at`, which names the row that checks its work. A
+//! suite that keeps its own code instead of sharing says why in its own
+//! header.
 
 #![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]
@@ -121,6 +123,27 @@ pub fn inserted(
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, minted) = edited(doc, DocEdit::InsertNode { node }, tol);
     (doc, minted.expect("an insert mints an id"))
+}
+
+/// Insert a node IN PLACE, answering the minted id — `inserted` for a
+/// fixture that threads `&mut doc` through a sequence of edits rather
+/// than rebinding at each one. Same call, same refusal behaviour; only
+/// the caller's spelling differs.
+pub fn insert_into(
+    doc: &mut Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> RecipeNodeId {
+    let (applied, id) = inserted(doc, node, tol);
+    *doc = applied;
+    id
+}
+
+/// Apply one edit IN PLACE — `edited` for the same `&mut` caller,
+/// discarding the minted id an insert would answer.
+pub fn edit_in(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, tol: Tol) {
+    let (applied, _) = edited(doc, edit, tol);
+    *doc = applied;
 }
 
 /// A sketch frame node's payload.

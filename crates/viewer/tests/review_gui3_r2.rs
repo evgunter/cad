@@ -9,12 +9,10 @@
 //! read from the shipped rows' own constants would make the oracle and
 //! the subject one thing. The sugar that carries no oracle is shared
 //! from `tests/common`: `ang`, `edited`, `inserted`, `len`,
-//! `rectangle`, `scl`, `tempdir`, `xy_frame` — this file's own slab
+//! `rectangle`, `scl`, `tempdir`, `xy_frame`. This file's own slab
 //! dimensions and parameter name stay here, where the expectations
-//! that read them are. No row below asserts on the profile's SHAPE,
-//! which is why the rectangle may be shared; a row added that does
-//! assert on geometry says so at its own site and brings its own
-//! fixture, because nothing below would catch it if it did not.
+//! that read them are; the profile's shape is not an oracle here, so
+//! it is drawn with the shared rectangle.
 //!
 //! Randomized rows follow `memories/test-suite-cost.md`: a fresh seed
 //! per run through `test_utils::fuzz` (logged unconditionally,

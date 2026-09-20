@@ -13,10 +13,9 @@
 //! the fixture's own dimensions. `Camera::framing` is called directly
 //! below, because the camera is the instrument here and not the
 //! subject; a fixture read from the same constants as the expectation
-//! would track it silently. What carries no oracle is shared, and that
-//! is everything this file does not hand-derive:
-//! `common::{xy_frame, rectangle, inserted, len, scl,
-//! gallery_ring_at}` — the slabs' own dimensions and the world
+//! would track it silently. What carries no oracle is shared:
+//! `common::{ang, xy_frame, rectangle, inserted, len, scl,
+//! gallery_ring_at}`. The slabs' own dimensions and the world
 //! positions aimed at them stay here, where the expectation is
 //! written.
 //!
