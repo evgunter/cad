@@ -172,8 +172,13 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
     let v_meet = meet_area * 3.0;
     // `operands::slab()`'s volume, derived here rather than read back
     // from the kernel so the oracle stays independent of what it
-    // checks. It is the ONE place this row restates the fixture's
-    // dimensions, and it has to move if the fixture does.
+    // checks. It is NOT the only line that depends on the fixture's
+    // dimensions, so a lane moving the fixture walks the row rather
+    // than this constant: `beta`'s `0.5` is the slab's half-thickness,
+    // as is the last component of the log's translation; that
+    // translation's `2.0` is the slab's x-centre; and the `3.0` in
+    // `v_meet` and `v_b` is the log's length, which is the meeting
+    // length only while the log lies inside the slab's y-extent.
     let v_a = 16.0;
     let v_b = PI * r * r * 3.0;
     for (op, expect) in [

@@ -74,25 +74,61 @@ reasons, none of which is a ruling:
 **That reading is a lane's, not a ratification**, which is why this row
 exists.
 
-**And the usual check cannot settle it here.**
-`git log --all -S'or a second suite inside it does' -- crates/sweep/src/test_support.rs`
-and the same for `-S'narrowest one all of its consumers can reach' --
-crates/sweep/tests/common/mod.rs` return the **same five commits**,
-none of which touches either file — the shallow-clone graft artefact
-`CLAUDE.md` warns about, where every file reads as added at the graft.
-So the instrument that would normally find the author of a sentence
-returns nothing usable for either of these two, and neither clause can
-be shown ratified OR unratified from this checkout. That is a second
-reason the answer is Ev's rather than a lane's.
+### What `git log -S` says, re-taken
+
+`CLAUDE.md` says to run `git log -S` before waiting on Ev. Run over
+every ref:
+
+```
+git log --all -S'or a second suite inside it does' \
+    -- crates/sweep/src/test_support.rs
+git log --all -S'narrowest one all of its consumers can reach' \
+    -- crates/sweep/tests/common/mod.rs
+```
+
+Each returns **108 commits**. The two sets are **not** the same set —
+they differ by six either way. And **107 of the 108 in each are
+parentless**: this is a shallow clone, so at every graft boundary the
+whole tree reads as added, `-S` sees the string appear, and
+`--name-only` duly shows the file. That is 107 non-answers per query
+wearing the shape of an answer, which is a sharper demonstration that
+the instrument is unusable as-run than any small number would have
+been.
+
+**One filter recovers it.** In each set exactly **one** commit has
+parents, and in each case that commit is the one that ADDED the clause:
+
+| clause | the one non-graft commit | what it did |
+| --- | --- | --- |
+| `src/test_support.rs`'s disjunction | `b52d478ae` | added `//!   crate needs it or a second suite inside it does; the narrower` |
+| `tests/common/mod.rs`'s narrowest-home rule | `9d73d71d9` | added `//! the narrowest one all of its consumers can reach:` |
+
+**Both are agent commits, not Ev's.** So the check does complete, and
+its answer is that **neither clause is ratified** — each was written by
+a lane, and no ruling is attached to either.
+
+`CLAUDE.md` says that where no ratification turns up there is none —
+so the next section is the whole of why this row still carries
+`needs_ev`, and it does not rest on either clause being ratified.
 
 ## Why it is Ev's
 
 Both sentences are standing instructions handed to future lanes by
 path — the same shape as `docs/prompts/`, one level down — and which
-one governs decides where every future `sweep` fixture goes. A lane
-picking one silently is how the pair stays unreconciled; a lane
-rewriting one is a lane changing a standing instruction. Neither
-document should be reworded until the answer is settled.
+one governs decides where every future `sweep` fixture goes. That is
+the test `CLAUDE.md` states for what waits: **text that binds future
+work rather than describing this change**, which is a wider set than
+the ratified-decision case and does not require either clause to have
+been ratified. A lane picking one silently is how the pair stays
+unreconciled; a lane rewriting one is a lane changing a standing
+instruction. Neither document should be reworded until the answer is
+settled.
+
+**The argument against, stated so it is not hidden**: nothing here is
+ratified, and `CLAUDE.md`'s procedure for that case is to proceed. A
+reader who finds that decisive should clear `needs_ev` and let a lane
+reconcile the pair. This row records the conflict and the measurement
+either way; the measurement is the part that was missing.
 
 ## Why it sits on S-DUP's slate
 
