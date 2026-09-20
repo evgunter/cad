@@ -2432,7 +2432,9 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
 /// a new value comes back with the [`EditRecord`] and the maintenance
 /// rows ([`Applied::maintenance`]). All validation is here — refs
 /// resolve, no cycles, dimension checks re-run on touched expressions
-/// (spec D6).
+/// (spec D6), and a mate being inserted passes the solve's own
+/// per-mate admission, its clocking rider decided over the mated
+/// parts' reach ([`EditError::MateRefused`]).
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
@@ -2678,26 +2680,10 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // environment is the document's own nominal, built here
             // once for this door's reading, the way the evaluation
             // builds its own and hands it to the solve.
-            if let Node::Mate {
-                a,
-                b,
-                class,
-                alignment,
-            } = node
-            {
+            if matches!(node, Node::Mate { .. }) {
                 let env = new.param_env::<f64>();
-                crate::mate::solve::admit_mate(
-                    &new,
-                    id,
-                    a,
-                    b,
-                    *class,
-                    alignment,
-                    &env,
-                    how.lever(),
-                    tol,
-                )
-                .map_err(|fault| EditError::MateRefused { node: id, fault })?;
+                crate::mate::solve::admit_mate(&new, id, node, &env, how.lever(), tol)
+                    .map_err(|fault| EditError::MateRefused { node: id, fault })?;
             }
             EditRecord {
                 minted: Some(id),

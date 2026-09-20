@@ -286,7 +286,7 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
 // ---- A3: the lever decides at the parts' scale ----
 
 /// What the run's own band says a levered tilt decides to.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Verdict {
     Parallel,
     Refused,
@@ -618,17 +618,6 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-a5-memo"), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(small_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(small_ref));
-    // Authored over the small part, where the rider is redundant and
-    // the door admits it.
-    let (doc, mate) = mated(
-        doc,
-        &opts_small,
-        clocked(
-            a,
-            b,
-            coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), theta),
-        ),
-    );
     // The row is about the flip, so it only runs where the band flips
     // it: parallel at the small scale, refused at the large.
     let band = Band::linear(Tol::witness()).expect("the band");
@@ -651,14 +640,38 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
     });
     let small_verdict = verdict(band, theta, 2.0 * r_small + 0.01);
     let large_verdict = verdict(band, theta, 2.0 * r_large + 0.01);
-    let first = run(&doc, &opts_small);
-    let key_small = first.value(mate).map(|v| v.content_key);
-    assert_eq!(
-        key_small.is_some(),
-        small_verdict == Verdict::Parallel,
-        "the small part's mate: {:?}",
-        first.result(mate)
+    // Authored over the small part: the door decides the rider over
+    // the parts as they are, so the mate enters exactly where the
+    // small part's verdict is PARALLEL — and the flip is measurable
+    // only there. Elsewhere the door's refusal IS the small part's
+    // verdict, and the row ends on it.
+    let node = clocked(
+        a,
+        b,
+        coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), theta),
     );
+    let (doc, mate) = match at_the_door(&doc, &opts_small, node) {
+        Ok(admitted) => {
+            assert_eq!(small_verdict, Verdict::Parallel, "admitted, so parallel");
+            admitted
+        }
+        Err((_, fault)) => {
+            assert!(
+                matches!(
+                    (small_verdict, &fault),
+                    (Verdict::Refused, MateFault::Contradictory { .. })
+                        | (Verdict::Indeterminate, MateFault::Indeterminate { .. })
+                ),
+                "the door's refusal is the small part's verdict: {small_verdict:?} vs {fault:?}"
+            );
+            return;
+        }
+    };
+    let first = run(&doc, &opts_small);
+    let key_small = first
+        .value(mate)
+        .map(|v| v.content_key)
+        .expect("the small part's mate evaluates");
     let (re, _) = step(
         doc,
         DocEdit::UpdateReference {
@@ -692,7 +705,7 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
             // key: the mate's key follows the VERDICT, not the part's
             // bytes, which is exactly the claim.
             let key_large = second.value(mate).map(|v| v.content_key);
-            assert_eq!(key_small, key_large, "no flip, no key move");
+            assert_eq!(Some(key_small), key_large, "no flip, no key move");
         }
     }
 }

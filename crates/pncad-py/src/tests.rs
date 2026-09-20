@@ -4376,9 +4376,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "edit_inner_variant_tag",
         values: &[],
+        // `mate_fault_tag` twice: the maintenance's refusal and the
+        // per-mate admission's each forward the solve's fault whole.
         delegates: &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
+            "mate_fault_tag",
             "mate_fault_tag",
             "measure_node_fault_tag",
             "meta_version_error_tag",

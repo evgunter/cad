@@ -4969,8 +4969,9 @@ class MatePrimitive:
 
     @staticmethod
     def clocking() -> MatePrimitive:
-        """Clocking with no carrying primitive: refused at the
-        solve."""
+        """Clocking with no carrying primitive: refused where a mate
+        carrying it is inserted (`EditError`, variant
+        `mate_refused`)."""
     @property
     def variant(self) -> str: ...
     @property
@@ -4985,8 +4986,10 @@ class Alignment:
 
     `clocking` is a RIDER, never a primitive: on `coaxial` it cuts the
     residual to prismatic; on `frame_coincidence` it is
-    redundant-or-contradictory and gets decided; on a planar rest the
-    table has no entry and the solve refuses typed."""
+    redundant-or-contradictory and gets decided, over the mated parts'
+    extent, where the mate is inserted (`Doc.insert` with `resolver`);
+    on a planar rest the table has no entry and the insert refuses
+    typed (`EditError`, variant `mate_refused`)."""
 
     def __init__(
         self,

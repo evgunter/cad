@@ -281,8 +281,9 @@ pub struct Alignment {
     /// primitive — on [`MatePrimitive::Coaxial`] it cuts the residual
     /// to prismatic along the axis; on
     /// [`MatePrimitive::FrameCoincidence`] it is redundant-or-
-    /// contradictory and gets decided; on a planar rest the table has
-    /// no entry and the solve refuses typed.
+    /// contradictory and gets decided, over the mate's own lever, at
+    /// the edit door; on a planar rest the table has no entry and the
+    /// edit door refuses typed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clocking: Option<f64>,
 }

@@ -626,7 +626,8 @@ fn admit_pair(
 }
 
 /// **One mate's own admission** — what the solve decides about a mate
-/// from its own datum alone, asked of that one mate: the two walks
+/// from its own datum alone, asked of that one mate (`node`, the
+/// `Node::Mate` the document holds or is about to hold at `mate`): the two walks
 /// ([`walk_of`]), the checks that need a number ([`check_reference`])
 /// on both, the pair door ([`admit_pair`]) and the coset table
 /// ([`mate_coset`]), in the order the solve meets them, with the
@@ -665,24 +666,43 @@ fn admit_pair(
 pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
-    a: &crate::node::SitedFace,
-    b: &crate::node::SitedFace,
-    class: super::ContactClass,
-    alignment: &Alignment,
+    node: &Node<P>,
     env: &ParamEnv<f64>,
     reach: Option<&dyn MateReach>,
     tol: Tol,
 ) -> Result<(), Box<MateFault>> {
+    // The door asks this of the mate it is inserting, under the id it
+    // minted for it; any other node here is the caller's mistake, not
+    // a refusal the mate earned.
+    let Node::Mate {
+        a,
+        b,
+        class,
+        alignment,
+    } = node
+    else {
+        unreachable!("admit_mate is asked of a mate; node {} is not one", mate.0)
+    };
+    let class = *class;
     let band = Band::linear(tol).map_err(|error| Box::new(MateFault::Band { error }))?;
     let wa = walk_of(doc, mate, MateSide::A, a).map_err(Box::new)?;
     let wb = walk_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
     check_reference(doc, env, mate, MateSide::A, &wa).map_err(Box::new)?;
     check_reference(doc, env, mate, MateSide::B, &wb).map_err(Box::new)?;
     admit_pair(mate, class, &wa.member, &wb.member)?;
+    // The two parts are asked in DOCUMENT order, which is the order
+    // the fold asks a pair that is a cluster of its own: its gauge is
+    // the earlier instance and the tree's parent, so a refusal that
+    // names the first part not in hand names the same part here.
+    let (first, second) = if wa.member.instance <= wb.member.instance {
+        (&wa.member, &wb.member)
+    } else {
+        (&wb.member, &wa.member)
+    };
     let lever = || {
         reach
             .map(|reach| {
-                pair_reach(doc, reach, &wa.member, &wb.member)
+                pair_reach(doc, reach, first, second)
                     .map(|parts| parts + alignment.lever_arm())
                     .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))
             })

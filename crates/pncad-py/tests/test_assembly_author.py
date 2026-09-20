@@ -272,8 +272,10 @@ class TestBenchLayout(BenchWorkspace):
         composes the pattern's own step and the solve places the shelf
         against that copy. `placed_union` fuses the family into one
         body first, so no copy is left to stand a member on and the
-        head refuses `DanglingHead` — the same face, the same
-        placements, and only the node between them differs.
+        head refuses `DanglingHead` — at the insert, which asks the
+        solve's own admission of the mate, so the mate never enters —
+        the same face, the same placements, and only the node between
+        them differs.
 
         So the two spellings are NOT interchangeable at the mate door,
         and the direction is the one the substitution was paying: the
@@ -306,29 +308,33 @@ class TestBenchLayout(BenchWorkspace):
                 bottom = one(
                     ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart]))
                 )
-                mate = doc.insert(
-                    Node.mate(
-                        family,
-                        cap,
-                        shelf_i,
-                        bottom,
-                        ContactClass.Rest,
-                        seat(POST_SEAT, SEAT_A),
-                    )
+                node = Node.mate(
+                    family,
+                    cap,
+                    shelf_i,
+                    bottom,
+                    ContactClass.Rest,
+                    seat(POST_SEAT, SEAT_A),
                 )
-                solved = solve_document(doc, resolver=self.ws)
-                outcome[name] = solved.fault(mate)
                 if name == "pattern":
+                    mate = doc.insert(node)
+                    solved = solve_document(doc, resolver=self.ws)
+                    outcome[name] = solved.fault(mate)
                     self.assertIsNone(solved.fault(mate))
                     self.assertEqual(solved.role(mate), MateRole.Determining)
                     self.assertEqual(pncad.clusters(doc), [[post_i, shelf_i]])
                     minted = assemble(doc, evaluate(doc, resolver=self.ws)).minted
                     self.assertEqual([d.mate for d in minted], [mate])
                 else:
-                    self.assertIsNotNone(solved.fault(mate))
-                    self.assertEqual(solved.role(mate), MateRole.Refused)
-                    # The cluster never formed, so the two instances
-                    # are still two.
+                    with self.assertRaises(pncad.EditError) as caught:
+                        doc.insert(node)
+                    refusal = caught.exception
+                    outcome[name] = refusal.fault
+                    self.assertEqual(refusal.variant, "mate_refused")
+                    self.assertEqual(refusal.inner_variant, "mate_dangling_head")
+                    self.assertEqual(refusal.fault.head, family)
+                    # The mate never entered, so the two instances are
+                    # still two.
                     self.assertEqual(pncad.clusters(doc), [[post_i], [shelf_i]])
         self.assertIsNone(outcome["pattern"])
         self.assertIsNotNone(outcome["placed_union"])

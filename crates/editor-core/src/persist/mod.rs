@@ -311,7 +311,10 @@ pub enum PersistError {
     /// An edit in the log refused through the [`crate::edit::apply`] door — on
     /// LOAD replay, or at SAVE by the symmetric log-verification pass
     /// (a log that cannot replay would make an unloadable file; save
-    /// refuses first).
+    /// refuses first). A mate the coset table has always refused on its
+    /// own datum refuses here as [`EditError::MateRefused`], naming the
+    /// entry; a rider the recording door decided over the parts' reach
+    /// is not re-decided, since replay never solves.
     EditReplay {
         /// The refusing edit's index in the log.
         index: usize,
