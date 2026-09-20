@@ -254,6 +254,39 @@ exposure the full pass does not already judge, and the full pass is the
 one CI runs on any branch that touches this crate. Check the gating
 before treating a missing skip-pass receipt as uncovered.
 
+**Read a row's STATUS before you build on its premise — a citation
+check is not a premise check.** Three rows on this slate had premises
+that the tree had already falsified, and the sessions that dispatched
+them, including this one, checked line numbers instead:
+
+- `viewer-preview-names-a-verb-by-its-variant-identifier` had been
+  discharged eight days earlier by a CLOSED row on FIX's slate. The
+  orchestrator re-derived its citation correctly — the render site
+  really had moved — and routed it to PATHS on a premise that was dead.
+- `seat-line-spells-the-list-mark-as-a-literal` told its lane the line
+  *"reaches the chrome as a lost-pick notice's text"*. It does not, and
+  the lane falsified it — then carried the correction into its report
+  and not into its decision, which is the same miss one step in.
+- That same row's central argument — that a `LIST_SEPARATOR` change
+  *"moves the withdrawal join and the preferences join and leaves this
+  one behind"* — rested on a consumer that #2710 had removed **the day
+  after the row was filed**, for failing the very test the row's
+  subject also fails. The unit closed as a negative result.
+
+The instrument is cheap and is not the one anybody ran: **grep the
+subject across `work/` and read the `status:` of every hit**, and read
+the doc comment on the TYPE a row wants to reuse, not only the rule the
+README states about modules. A closed row naming your site is the
+answer to your unit. Both halves of that are already in the register —
+*a sweep owes a TRACKER pass as well as a tree pass*, and *when the
+type's own doc already states the invariant, satisfying it is not a
+preference* — and this program has now paid for both twice in two days.
+
+**A negative result is a deliverable.** Two of the three above closed
+with no diff, and the argument for why is the thing that stops the next
+sweep re-minting them. Write it into the row rather than the PR body,
+which stops being read at merge.
+
 **Concurrency.** Four lanes is the right number for READING work and
 too many for four simultaneous viewer builds. Prefer a wave that mixes
 one or two code lanes with census and adjudication work, which is what
