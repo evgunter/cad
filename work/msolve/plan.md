@@ -176,6 +176,8 @@ CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
     undocumented; the affordance itself is CHROME's viewer seam and
     is handed there when MSOLVE-9's convention is ratified. The item
     is parked on MSOLVE-10 and closes when both halves are recorded.
+    Spec `docs/MSOLVE-10-SPEC.md` (2026-09-20): the solve's own
+    per-mate admission asked at the door through the reach it holds.
 
 The exit walk waits on 10–12 and 14–16: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
