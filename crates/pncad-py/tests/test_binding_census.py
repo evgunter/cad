@@ -2991,6 +2991,13 @@ NOT_BOUND = {
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
     # --- an arm that crosses as a TAG WORD -------------------------
+    # A crossing is whatever KIND of edge crossed the cut, and a mate
+    # is the only kind that can — so the one arm crosses as the one
+    # tag word. It was accounted by SPELLING while the arm's payload
+    # carried a `mate` field whose getter happened to share the arm's
+    # snake-cased name; the field is gone (a crossing carries no
+    # provenance) and the arm is listed where it always belonged.
+    "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
