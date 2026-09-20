@@ -4,8 +4,7 @@
 
 use eframe::egui;
 
-use crate::app::{GLYPH_ROOT, ViewerBehavior, chrome};
-use crate::frame::Tone;
+use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::session::{Selection, SessionOp};
 use crate::tree::{RowStatus, TreeRow};
 
@@ -73,23 +72,22 @@ impl ViewerBehavior<'_> {
                     });
                 }
             }
-            // A healthy row is silent HERE — the pane's own decision,
-            // not the status axis: every other surface that reads a
-            // badge prints `ok` too, and a tree of unmarked rows is
-            // what makes the marked ones carry.
+            // **Exhaustive on purpose**: whether a row draws a badge
+            // at all is this pane's decision, so a status the kernel
+            // grows has to answer it here rather than fall into a
+            // wildcard and draw.
             //
-            // Which of the rest is loud is `RowStatus::tone()`'s and
-            // is not re-derived here. The two spellings are the ones
-            // `app::draw_badge` gives a badge's tone, and
-            // `Theme::unresolved`'s contract is that the colour is
-            // REDUNDANT: the badge says its own word either way.
-            if !matches!(row.status, RowStatus::Ok) {
-                let badge = egui::RichText::new(row.status.badge());
-                let badge = match row.status.tone() {
-                    Tone::Advisory => badge.weak(),
-                    Tone::Actionable => badge.color(chrome(self.theme.unresolved)),
-                };
-                ui.label(badge);
+            // How LOUD a drawn badge is, is not decided here — that is
+            // `RowStatus::tone()`, read below.
+            match &row.status {
+                // Silent: a healthy row's own line is the whole of
+                // what it has to say, and a tree of unmarked rows is
+                // what makes the marked ones carry. The status still
+                // has a badge, which `examples/r1_e2e.rs` prints.
+                RowStatus::Ok => {}
+                RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
+                    ui.label(toned(row.status.badge(), &self.theme, row.status.tone()));
+                }
             }
         });
         // The line under the row: the payload's own words where the
