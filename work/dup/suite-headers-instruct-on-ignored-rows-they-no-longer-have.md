@@ -23,16 +23,36 @@ opened: 2026-09-20
   above the `#[test]`, said it was UN-IGNORED in a fix pass and now
   gates; `crates/viewer/tests/review_gui3_r2.rs` — a whole `# Two rows
   are #[ignore]d` section over a file with none).
-- **Eleven more files match the shape and were NOT read**:
-  `crates/editor-core/tests/m10_10_pins_interval.rs`,
-  `m10_6_r1_probes_interval.rs`, `m10_8_pins_interval.rs`,
-  `m10_9_pins_interval.rs`; `crates/geom-core/src/linalg/mat.rs`,
-  `crates/geom-core/tests/review_m5_pr2_scratch.rs`,
-  `crates/geom-core/tests/ring_interval_fuzz.rs`;
-  `crates/step-import/tests/probe_knot.rs`,
-  `crates/test-utils/src/roster.rs`,
-  `interval-transcendentals/tests/review_fuzz_exact.rs`,
-  `tools/k-lint/src/lib.rs`.
+- **A third member, found by a differently-shaped instrument and NOT
+  in this row's first candidate set**:
+  `crates/sweep/tests/p1b_r1_probes.rs` — *"the probe is adopted,
+  ignored against the issue, and preserved as the reproduction … **Un-
+  ignore it when #1152 lands**"*, present tense, on
+  `coplanar_split_products_carry_no_scaffold_at_rest`, a `#[test]` with
+  no `#[ignore]` attribute. The file carries no `gated_to!` marker, so
+  it runs on every code-tier run, and it is green — so either #1152
+  landed and the prose rotted, or the row was never ignored. Not
+  touched here: `crates/sweep/tests` is another lane's live tree.
+- **The candidate set is re-taken, and most of the first one was
+  benign.** The original eleven came from a line-shaped,
+  bracket-requiring instrument and were published unclassified. Read at
+  `ab086f8c1`, the shape splits three ways, and only the first way is
+  this row:
+  - **stale standing instruction** (this row): `review_gui0_r1.rs` and
+    `review_gui3_r2.rs`, both fixed; `sweep/tests/p1b_r1_probes.rs`,
+    open.
+  - **true, past tense** — a completed promotion correctly described,
+    nothing owed: `bvh/tests/ray_r2.rs`, `editor-core/tests/
+    m10_6_r1_probes_interval.rs`, `step-import/tests/probe_knot.rs`,
+    `geom-core/tests/review_m5_pr2_scratch.rs`,
+    `geom-core/tests/ring_interval_fuzz.rs`,
+    `interval-transcendentals/tests/review_fuzz_exact.rs`, and
+    `review_gui0_r1.rs`'s surviving row-level sentence.
+  - **a claim about ANOTHER file's ignored row**, which this row does
+    not cover and no instrument here verifies:
+    `editor-core/tests/m10_{8,9,10}_pins_interval.rs`,
+    `geom-core/src/linalg/mat.rs`, `test-utils/src/roster.rs`,
+    `tools/k-lint/src/lib.rs`.
 - **Importance**: medium, and the instrument is why this is a row
   rather than a sweep. It cannot tell a stale positive from a true
   negative: a file saying *"nothing here is `#[ignore]`d"* and a file
@@ -40,12 +60,25 @@ opened: 2026-09-20
   file has no attribute. Every one of the eleven has to be read.
 - **Confidence**: sure about the two members; the eleven are
   candidates, not findings.
-- **Instrument**: over every tracked `*.rs`, count `^\s*#\[ignore`
-  attributes and `^\s*//[/!].*#\[ignore` prose mentions, and name the
-  files with prose and no attribute. Blind spots: a prose mention
-  spelled without the brackets ("the ignored row below"), an attribute
-  written on the same line as the `fn`, and a header whose claim is
-  about a DIFFERENT file's rows.
+- **Instruments, and why it takes two.** (1) Line-shaped: count
+  `^\s*#\[ignore` attributes against `^\s*//[/!].*#\[ignore` prose
+  per file. Cheap, and it MISSES every mention that wraps or omits the
+  brackets — which is how `p1b_r1_probes.rs` was missed, since its
+  sentence says "ignored against the issue" with no brackets at all.
+  (2) Comment-joined: concatenate each file's `//`/`//!` lines into one
+  blob so a wrapped sentence is a single unit, then match
+  `un-?ignore | #\[ignore | ignored (against|because|until|pending)`
+  case-insensitively, restricted to files containing `#[test]` and no
+  `#[ignore]`. That returns 14 files, all read. A third, matching the
+  bare word `ignor(e|ed|ing)`, returns 76 and is useless: most are the
+  ordinary English verb.
+  **Neither can tell a stale positive from a true negative** — a file
+  saying *"nothing here is ignored"* matches exactly like one saying
+  *"two rows here are ignored"*. Every hit has to be read, which is why
+  this row's deliverable is a classification and not a sweep. Remaining
+  blind spots: a sentence using neither "ignore" nor the attribute
+  ("the probe below does not gate"), and an `#[ignore]` written on the
+  `fn`'s own line.
 - **Raised by**: the S-DUP lane closing
   `viewer-review-suite-fixtures-have-no-oracle-role`, 2026-09-20,
   measured at `b29fe8bd1`, while restating that unit's headers.

@@ -29,7 +29,7 @@ use pncad::select::{CapEnd, EntityKind, NamePat, Ray, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, SessionOp};
 
-use super::{edit_in, insert_into, len};
+use super::{edit_into, insert_into, len};
 
 /// The post's square section and height, metres.
 pub const POST_SECTION: f64 = 0.02;
@@ -130,7 +130,7 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let mut asm = ProfileDoc::empty(DocumentId::derive("gui4-bench"), tol);
     let post_a = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
     let shelf_i = insert_into(&mut asm, Node::instantiate_part(shelf_ref), tol);
-    edit_in(
+    edit_into(
         &mut asm,
         DocEdit::SetPlacement {
             node: shelf_i,
@@ -139,7 +139,7 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         tol,
     );
     let post_b = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
-    edit_in(
+    edit_into(
         &mut asm,
         DocEdit::SetPlacement {
             node: post_b,

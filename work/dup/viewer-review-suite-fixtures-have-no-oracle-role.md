@@ -121,65 +121,96 @@ against helpers they never touch.
 | `review_gui3_r1` | `common::{inserted, edited, ang}` | no — its oracles are history structure, refusals, generations and file bytes | shares |
 | `review_gui3_r2` | `common::{inserted, edited, ang, rectangle}` | no — its oracles are panel models and history | shares |
 | `review_gui3_r1`'s `triangle` and `r1_depth` | — | **no second spelling exists** | **kept**: nothing else in the crate builds a triangle, so there is no duplicate to fold. Sharing here would mean deleting a readability distinction, which is not this program's charter |
-| `review_gui2_r1::delta` (1.5e-4), `review_gui2_r2::delta` (3.0e-4), `coarse` (2.0e-3) | — | — | **kept**: three different values, one per suite's geometry. Not one thing spelled three times |
+| `review_gui2_r1::delta` (1.5e-4), `review_gui2_r2::delta` (3.0e-4) and `coarse` (2.0e-3) | — | — | **kept**, and the three are not one kind of thing: the two `delta`s are per-suite display tolerances chosen for each suite's own geometry, while `coarse` is `gui2_r2`'s SECOND constant and a COST choice — its own doc says it exists so the gallery ring tessellates cheaply. Neither a drift to reconcile nor one value spelled three times. The real duplication is a fourth value outside these files, filed as `viewer-tests-spell-one-display-tolerance-in-seven-places` |
 | `review_gui2_r2::insert`, `tol` | `common::inserted` | — | **kept as adapters**: one line each, fixing this suite's tolerance. The construction is gone; what is left is a parameter binding |
 
 `review_gui2_r2::rectangle` had exactly one caller and was inlined
 rather than kept as an adapter, which is the same judgement read the
 other way.
 
-### The mutation table, re-planted at `b29fe8bd1` after the folds
+### The mutation table — both directions, at `ab086f8c1`
 
-Baseline **626 pass / 0 fail / 1 ignored**, `cargo test -p viewer
---test all`, default lane. Each mutation is planted in
-`crates/viewer/tests/common/mod.rs` and reverted after the run.
+**Method item 16: the direction is argued before the result is read.**
+Baseline **626 pass / 0 fail / 1 ignored**, `cargo test -p viewer --test
+all`, default lane, own target dir. The harness restores the file's
+pre-plant BYTES and then diffs against `HEAD`, per item 17; every run
+below restored clean.
 
-| planted | total | `gui2_r1` | `gui2_r2` | `gui3_r1` | `gui3_r2` | `msolve5` |
-| --- | --- | --- | --- | --- | --- | --- |
-| `inserted` answers the document's FIRST node's id | 514 / 112 | 4 | 16 | 4 | 13 | 0 |
-| `edited` discards the edit and answers the input document | 438 / 188 | 4 | 19 | 9 | 16 | 0 |
-| `len(m)` → `m + 1.0` | 534 / 92 | 3 | 11 | 0 | 3 | 0 |
-| `scl(v)` → `v + 1.0` | 558 / 68 | 2 | 2 | 1 | 0 | 0 |
-| `ang(r)` → `r + 1.0` | 616 / 10 | 0 | 1 | 0 | 0 | 0 |
-| `rectangle`'s height halved | 616 / 10 | 1 | 2 | 0 | 0 | 0 |
+For the shape plants the two directions are not equivalent. **Shrinking
+relaxes** every containment- and disjointness-shaped predicate these
+suites use — a smaller block is further from its neighbour and further
+inside its frame — so a row asserting "these two do not overlap" or
+"this pick misses" is satisfied for free. **Growing tightens those and
+relaxes the opposite family** ("this pick hits", "the frame contains
+it"). Neither direction alone is a probe.
 
-Every folded door is live in at least one suite that newly reads it.
-The `rectangle` mutation also reds `profile_draw` (2, through
-`common::square`), `review_gui4_r1` (2), `review_gui4_r2` (1),
-`mate_tool_flow` (1) and `instance_authoring` (1) — the last four
-through `common/asm.rs`'s `box_part`, whose inline polygon this unit
-folded onto the same door.
+| planted in `tests/common/mod.rs` | direction | total | gui2_r1 | gui2_r2 | gui3_r1 | gui3_r2 | msolve5 | asm-fed suites |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `rectangle` both extents halved | **shrink** | 610 / 16 | 1 | 1 | 0 | **0** | 0 | assembly_display 1, mate_tool_flow 4, gui4_r1 2, gui4_r2 1, instance_authoring 1 |
+| `rectangle` both extents doubled | **grow** | 621 / 5 | 0 | 0 | 0 | **0** | 0 | assembly_display 1, gui4_r1 1, gui4_r2 1 |
+| `rectangle` height only doubled | **grow, one extent** | 623 / 3 | 0 | 0 | 0 | **0** | 0 | gui4_r1 1 |
+| `len(m)` → `m + 1.0` | grow | 534 / 92 | 3 | 11 | 0 | 3 | 0 | assembly_display 2 |
+| `len(m)` → `m * 0.5` | shrink | 575 / 51 | 1 | 4 | 0 | 2 | 0 | mate_tool_flow 7, gui4_r1 2, gui4_r2 2 |
+| `scl(v)` → `v + 1.0` | — | 558 / 68 | 2 | 2 | 1 | 0 | 0 | assembly_display 1, gui4_r1 2, gui4_r2 7 |
+| `ang(r)` → `r + 1.0` | — | 616 / 10 | 0 | 1 | 0 | 0 | 0 | — |
+| `inserted` answers the document's FIRST node's id | — | 434 / 192 | 4 | 16 | 4 | 13 | **1** | assembly_display 16, gui4_r1 10, gui4_r2 11 |
+| `edited` discards the edit | — | 358 / 268 | 4 | 19 | 9 | 16 | **1** | assembly_display 16, gui4_r1 10, gui4_r2 11 |
+| `insert_into` does not write the document back | — | 545 / 81 | 0 | 0 | 0 | 0 | **1** | assembly_display 16, instance_authoring 14, gui4_r2 11, mate_tool_flow 10, gui4_r1 10, tree_badges 4, doc_io 1 |
+| `edit_into` does not write the document back | — | 601 / 25 | 0 | 0 | 0 | 0 | 0 | mate_tool_flow 8, gui4_r2 7, assembly_display 3, gui4_r1 2, tree_badges 1 |
+
+**What the second direction changed.** The two shape directions red
+**different sets**. Shrinking reds `gui2_r1`, `gui2_r2`,
+`mate_tool_flow` and `instance_authoring`; growing reds none of them.
+Both red `profile_draw` (2) and `assembly_display` — and
+**`assembly_display` is live on the folded polygon in both directions
+and appeared in no row of the first table**, because the first table
+was taken before `common/asm.rs`'s inline polygon and its insert
+wrapper were folded. A one-extent grow is weaker again (3 red against
+5): a symmetric plant cannot reach a row that only watches one axis,
+and a one-axis plant cannot reach one that watches area.
+
+**An instrument defect in the harness, named because it published a
+wrong number once.** The first `insert_into` run printed *"0 pass / 1
+fail"*: the plant makes `tree_badges` panic inside `common/mod.rs`, the
+harness read the FIRST `test result:` line in the output, and a panicking
+shard emits one of its own before the suite's. The true figure is **545
+/ 81**, read off the last such line after a re-run. The per-suite counts
+were right throughout; only the total was wrong — which is method item
+18's shape, in the table whose job is to prove the folds live.
 
 ### The zeros, answered by measurement rather than inference
 
 - **`gui3_r1` on `rectangle`, `gui2_r1` on `ang`**: neither file
   reaches the helper. Zero by construction, not a coverage fact.
-- **`gui3_r2` on `rectangle`**: it DOES read it, and reds nothing. The
-  second question — *asserts nothing about that helper* or *asserts
-  nothing useful* — is settled by the same binary: `inserted` reds 13
-  of its rows and `edited` reds 16. The suite is emphatically live; its
-  rows assert on panels, history, seam generations and file bytes, and
-  none of them on the profile's shape. That is *asserts nothing about
-  that helper*, which is this row's to close, not S-TINT's.
-- **`msolve5_read_below_a_root` on everything**: one row, and its
-  three assertions are a session refusal being absent, a product fault
-  being absent, and the at-rest badge's message being the gate's own
-  `Display` word for word. No literal in its fixture reaches any of
-  them, so a changed length, scalar or angle cannot move it. The fold
-  there is a substitution and is NOT claimed as proved live; what
-  proves it is the compiler, since `common::len` and the deleted local
-  `len` are the same call.
+- **`gui3_r2` on `rectangle` — settled, and now by two directions.**
+  It reads the helper and reds zero when the fixture is halved AND when
+  it is doubled, in a binary where `inserted` reds 13 of its rows and
+  `edited` 16. Two differently-directed shape perturbations leaving a
+  demonstrably live suite green is *asserts nothing about that helper*,
+  not *asserts nothing useful*. Closed here; it is not an S-TINT
+  coverage finding.
+- **`msolve5_read_below_a_root`** reds **1** under three plants
+  (`inserted`, `edited`, `insert_into`). The first table recorded zero
+  everywhere and said the fold there was not claimed as proved live;
+  that was true of the literal doors and is no longer true of the
+  insert door, which this fix pass routed it through. The literal
+  folds in that file are still compiler-proved rather than plant-proved.
 
 ### What this unit deliberately did not do
 
-- **`docm9_range_vs_probe.rs`'s `lit`/`scalar`** are the same class and
-  were left: the file is `#![cfg(feature = "interval")]` and reaches
-  `Expr` through `editor_core` rather than the `pncad::document`
-  façade, so a fold there is type-checked in one lane only. Filed as
+- **`docm9_range_vs_probe.rs`'s `lit`/`scalar` AND its `insert`
+  wrapper** are both members of classes folded here and both left: the
+  file is `#![cfg(feature = "interval")]` and reaches `Expr`, `apply`
+  and `ProfileDoc` through `editor_core` rather than the
+  `pncad::document` façade, so a fold there is type-checked in one lane
+  only. Both members named in
   `viewer-tests-bypass-the-shared-literal-doors`.
 - The seven `crates/topo/src/review_m1_*` headers ending *"Promoted per
-  Ev's request (PR #17 thread)."* were left alone: separately filed and
-  waiting on Ev.
+  Ev's request (PR #17 thread)."* — separately filed, waiting on Ev.
+  (Measured seven: `review_m1_pr1.rs` and all six of
+  `review_m1_pr2/*.rs`. A case-sensitive line-shaped grep returns six
+  and misses `review_m1_pr2/mod.rs`, whose copy is lowercase,
+  mid-sentence and wrapped between `Ev's` and `request`.)
 - `a-viewer-error-arm-is-not-split-because-a-review-suite-pins-it` was
   not touched; nothing in this diff reaches that arm.
 
@@ -189,3 +220,37 @@ folded onto the same door.
 - `viewer-tests-each-spell-their-own-downward-pick-ray`
 - `viewer-tests-bypass-the-shared-literal-doors`
 - `suite-headers-instruct-on-ignored-rows-they-no-longer-have`
+- `viewer-tests-spell-one-display-tolerance-in-seven-places`
+- `the-rectangle-profile-is-still-written-longhand-beside-its-door`
+- `three-doors-named-insert-mean-two-different-constructions`
+
+### What the fix pass added, and the class it had left standing
+
+The first pass counted the apply-plus-`InsertNode`-plus-take-the-id
+class at **4** and folded 4. Re-censused by the structural needle
+(`DocEdit::InsertNode` over every tracked file, no path argument) the
+class in `crates/viewer/tests/` was **12 sites in 11 files** — eight
+more, differing from `common::inserted` only by taking `&mut` and
+assigning back, five of them carrying the same
+`.expect("an insert mints an id")` string. **Two of the eight sat in
+`common/asm.rs` and `msolve5_read_below_a_root.rs`, byte-identical to
+each other, in the two files this unit had already opened to pull their
+literal helpers and their inline polygon out.** Editing a file for one
+member of a class and leaving another in it is the trap the program's
+own log names; it was caught by the reviewer, not by the lane.
+
+Folded: `common/asm.rs`, `msolve5_read_below_a_root.rs`, `doc_io.rs`,
+and closures in `assembly_display.rs`, `mate_tool_flow.rs`,
+`review_gui4_r1.rs`, `tree_badges.rs`, onto two new in-place doors
+`common::insert_into` / `common::edit_into` (each three lines over
+`inserted` / `edited`, no third construction). `asm.rs`'s `fn edit` was
+the `edited` class's third spelling and went the same way. While
+folding `review_gui4_r1`'s closure, two further copies of the same
+construction were found written INLINE in the same file and folded too.
+Left: `docm9_range_vs_probe.rs`, for the interval-lane reason above.
+The class in `crates/viewer/tests/` is now 6 sites in 4 files, of which
+2 are the home and 1 is a caller passing an edit.
+
+Not censused, and stated rather than implied: `crates/editor-core/tests/`
+(~480 `InsertNode` sites) and `crates/pncad/tests/all.rs` were not
+examined for this class. They are a different crate's home question.
