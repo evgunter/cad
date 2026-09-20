@@ -5,6 +5,7 @@ title: A mate the coset table refuses on its own is refused at the edit door, th
 status: dispatched
 opened: 2026-09-20
 branch: msolve/10-door-admission
+pr: 2913
 ---
 
 
