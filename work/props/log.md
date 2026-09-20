@@ -1641,3 +1641,52 @@ its transcript did not survive the machine move, so the merge went to a
 fresh lane with the context written out. Worth noting for the next
 handoff — a held unit's lane is not durable across a session move, only
 its branch and its record are.
+
+**Sign-hull is a clean target again, and SYM has taken the fold
+(2026-09-20).** The merge-forward landed at `c4bb5502a`: PR back to
+`MERGEABLE` from `CONFLICTING`, run 35494595889 at 31 green / 4 red,
+and the red list **exactly** the three SYM rows plus `gate ok` because
+of them — verified at step level rather than by job colour. SYM has
+adopted the filed row on main, extended it with its own measurement,
+and taken it as **SYM-10** with a spec and a block slot; its reading
+is three pieces (a `max(A, B) → A` on a manifestly non-negative
+difference, a manifest upper bound for the conditioning floor, and
+rule C's certified-sign read extended to `SymOp::Select`), with Phase 1
+rendering whether they reach the row before any rule is written. Told
+them on the PR that the branch is now measurable and that if Phase 1
+says the three pieces do not reach it, the fork returns to Ev rather
+than sitting.
+
+**Independent confirmation worth keeping.** SYM measured the obvious
+fix — patch the symbolic scalar to return the chosen arm and mint no
+node — and got what our dual got: all three rows still red, the
+tilted-boss refusal one face EARLIER and ~45% WIDER. Two programs,
+two arms, same conclusion: the opacity is the candidate's form and not
+the decision above it.
+
+**Three things the merge caught that a textual resolution would have
+shipped.** A union of the test aggregators would have RESURRECTED a
+deleted suite — main's side still listed the row that measured rule
+(c′), which no longer exists — so the resolution was derived from main
+rather than from both sides. The `seat4` digests were moved by BOTH
+sides for orthogonal reasons (main through the name table, this branch
+through each carrier's stored `u_ref`), so the merged tree's value is a
+FOURTH number neither side holds and no textual resolution can
+produce; the lane refused to invent one, pushed a placeholder and read
+the true value off hosted CI, which prints before asserting — twice,
+because the row asserts on the first digest and never reaches the
+second print. And git's rename heuristic proposed `work/bool/` →
+`work/curved/` for a filed row whose sites `territory` gives to
+**PATHS**; taking the suggestion would have filed a profile-lattice row
+on the curved-boolean program's slate. The lane ran `territory` on
+every row this unit filed rather than only the two that conflicted,
+which is the habit that caught it.
+
+**A finding filed on VDOC**: three sentences in main's viewer rows,
+added while this unit was held, are falsified by it — the door's seam
+named as the equator, a fixture header's stated reason for five of its
+thirteen members, and a falsifiability clause whose witness point
+`(1, 1, 0)` is now a point where the two constructions AGREE. None sits
+on an assertion path, so nothing reds and nothing would ever have
+caught it. Filed with a witness that does still separate the rules
+rather than hand-written geometry the lane could not run.
