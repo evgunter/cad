@@ -59,24 +59,47 @@ does not cross into `crates/viewer` — so this row is VIEW's follow-up.
   lands as one edit and its names follow", the other three retire with
   the search (a set of numbers valid together is one edit now, whatever
   order the slots would have needed).
+- `crates/viewer/src/drafts.rs`, five `sketch::program_edits` sites
+  (287, 332, 340, 969, 979, 1014 — the doc references and the three
+  calls): a draft's held loops are measured against the base program
+  through the per-slot diff, and a reshaped draft is what that diff
+  refuses; with `SetProgram` a draft is one edit and the diff has no
+  question left to ask.
+- `crates/viewer/src/pane/profile.rs`, four `ShapeEdits::Locked`
+  sites (40, 86, 211, 474): the profile pane draws its step lists
+  locked on a committed profile, the second place the lock is
+  spelled.
+- `crates/viewer/tests/profile_edit_order.rs`:
+  `accepted_order_refuses_only_when_no_order_lands` (104) and the
+  `sketch::program_edits` call at 160 — the order search's own rows,
+  which retire with it.
+- `crates/viewer/tests/panel_edits.rs`, `ProfileRestructure` (458): a
+  panel row pinning the lock's refusal, which becomes the one-edit
+  landing.
 
 ## What the door reports, and the editor has to surface
 
 `Applied.maintenance` after a `SetProgram` carries every
 `Maintenance::Rebound { from, to }` (a name on a kept step, rewritten
 in place) and every `Maintenance::Strand` / `StrandedAppearance` (a
-name on a dropped or changed step, retired past the loop's end,
-resolving `Vanished` until rebound). The chrome's cascade affordance
+name on a dropped or changed step, retired to a coordinate at or above
+`editor_core::RETIRED_FLOOR` that no program draws, resolving
+`Vanished` until rebound). The chrome's cascade affordance
 shows a delete's strand count already; a reshaping's rows want the same
 surface, since a strand here is the fillet the author is about to lose.
 
 ## Sweep
 
-`re-authoring`, `Locked`, `program_edits`, `accepted_order`,
-`one argument`, `ProfileRestructure` over `crates/viewer`: every hit is
-one of the sites above (`session.rs`, `sketch.rs`, `forms.rs`,
-`session/refuse.rs`, `session/op.rs`, `tests/profile_edit.rs`, and
-`pane/create.rs`'s `path_steps_ui`, which reads `ShapeEdits`). The
+The pattern that found the sites above is
+`rg -il 're-author|ProfileRestructure|ShapeEdits::Locked|accepted_order|program_edits' crates/viewer`,
+which names eleven files: `src/session.rs`, `src/sketch.rs`,
+`src/forms.rs`, `src/session/refuse.rs`, `src/session/op.rs`,
+`src/drafts.rs`, `src/pane/profile.rs`, `tests/profile_edit.rs`,
+`tests/profile_edit_order.rs`, `tests/panel_edits.rs` — every one a
+site listed above — and `tests/valid_range.rs`, whose one hit is the
+word "millimetre-authored" (the pattern matches inside it) and is not
+a site. `pane/create.rs`'s `path_steps_ui` reads `ShapeEdits` by the
+enum and matches no word of the pattern; it was found by reading. The
 pattern cannot match a control that is disabled by a different word
 than `Locked` — none was found by reading `path_steps_ui`, which takes
 the enum.

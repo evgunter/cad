@@ -544,9 +544,10 @@ impl SlotId {
             | Self::TubeWindowEnd => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
             // Profile-program roles carry V2's per-role table; none is
-            // Count, so `is_structural` stays false for every StepArg
-            // (LIB-SWITCH §4c — program structure is the STEP LIST,
-            // changed by re-authoring, never through a slot).
+            // Count, so `is_structural` stays false for every StepArg:
+            // program structure is the STEP LIST, which no slot
+            // addresses — it changes by `DocEdit::SetProgram`, which
+            // rebinds every kept name and retires the rest (DM7).
             Self::Profile { arg, .. } => arg.dimension(),
         }
     }

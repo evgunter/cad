@@ -4980,7 +4980,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_refusal_tag",
-        values: &["geometry", "resolve", "transition", "validate"],
+        values: &["geometry", "record", "resolve", "transition", "validate"],
         delegates: &[],
     },
     TagEntry {

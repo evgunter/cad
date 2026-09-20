@@ -23,11 +23,12 @@ use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
 use crate::mate::solve::Maintain;
 use crate::meta::{MetaValue, MetaVersionError};
-use crate::names::{EntityKind, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg};
+use crate::names::{EntityKind, ProfileEdgeRef, ProfileVertexRef, SegRewrite};
 use crate::node::{
     AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
     StableName,
 };
+use crate::program::{CheckedRecords, ProgramRefusal, checked_replay};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
@@ -157,6 +158,21 @@ pub enum DocEdit<P> {
     /// profile's coordinates are untouched by construction: the walk
     /// asks each minting node which profile anchors its locators
     /// ([`Node::anchoring_profile`]).
+    ///
+    /// **The retirement.** The door does three things — reports every
+    /// strand, rebinds every kept name (both ruled on `[ev]` #2904),
+    /// and RETIRES every stranded name, which the ruling did not spell
+    /// out and which is put to Ev on
+    /// `work/edit/stranded-names-are-retired-to-an-undrawable-coordinate.md`.
+    /// A stranded name's locator is rewritten to a coordinate at or
+    /// above [`RETIRED_FLOOR`], where no program draws, and the
+    /// `Strand` / `StrandedAppearance` row carries that spelling:
+    /// left in place it would denote whichever segment the new program
+    /// draws at its old index as if it always had (the DI1 aliasing
+    /// class), and collide with a kept name moved onto that index. A
+    /// retired name resolves `Vanished` at every evaluation until it
+    /// is rebound, and a name already retired is left as it is and
+    /// reported by no later edit.
     ///
     /// A program byte-identical to the current one under the identity
     /// provenance is legal and reports nothing.
@@ -2103,9 +2119,9 @@ pub enum Maintenance {
     /// what is gone is the node that minted it, so evaluation answers
     /// [`crate::resolve::ResolveError::NodeGone`] — rung 1 of the N5
     /// ladder. After a reshaping the name is spelled at a RETIRED
-    /// coordinate — one past the loop's end, which no program draws
-    /// (`SegmentMap`'s retiring paragraph says why it is not left
-    /// where it was) — so evaluation answers
+    /// coordinate — at or above [`RETIRED_FLOOR`], which no program
+    /// draws (its doc says why it is not left where it was) — so
+    /// evaluation answers
     /// [`crate::resolve::ResolveError::Vanished`], rung 3. Either way
     /// the name resolves to nothing and [`DocEdit::Rebind`] is the
     /// repair, from the spelling this row carries. A name is not a
@@ -2291,11 +2307,14 @@ impl core::fmt::Display for Maintenance {
             // adds is what happened between them — the profile the
             // name's segment was drawn from was reshaped, and the
             // rewrite is a repair the door made, not a loss it left.
+            // "The same step's segment": combinatorially the same
+            // segment, drawn by the step the old one continues into;
+            // its plane may differ when that step's start moved.
             Self::Rebound { from, to } => write!(
                 f,
-                "a {} was rewritten in place to the {} that draws the same segment under the \
-                 reshaped profile program, so every carrier of the name still denotes what it \
-                 did",
+                "a {} was rewritten in place to the {} that draws the same step's segment under \
+                 the reshaped profile program, so every carrier of the name still denotes what \
+                 it did",
                 from, to
             ),
         }
@@ -2501,80 +2520,78 @@ fn check_provenance(
     Ok(())
 }
 
+/// **The floor of the retired index space.** A name whose step a
+/// reshaping dropped or changed is RETIRED by [`DocEdit::SetProgram`]
+/// to a coordinate at or above this floor — segment `RETIRED_FLOOR +
+/// s` of the loop that continues its loop, or loop `RETIRED_FLOOR + l`
+/// of the program where none does, `s` and `l` its old coordinates —
+/// and no program draws there: a coordinate is a count of the loop's
+/// segments in memory (`program_index` narrows exactly such a count,
+/// and a loop of `RETIRED_FLOOR` segments would hold 2^31 vertices,
+/// tens of gibibytes before the validator's pairwise self-intersection
+/// walk ever ran over it), so a drawn coordinate is bounded far below
+/// the floor by what fits, not by a check. That is what lets a retired
+/// name stay dead under EVERY later edit, a slot edit included — a
+/// corner fillet whose runs reach a `Zero` fit emits nothing, so a
+/// `SetParam` on its radius grows the loop by two segments and reports
+/// nothing, and a coordinate one past the OLD end would have gone live
+/// under it. A coordinate already at or above the floor is left
+/// exactly where it is by every later reshaping, and reported by none
+/// (DM7's clause is the referent THE EDIT removed; a name already
+/// retired lost its referent at an earlier one).
+///
+/// The sum cannot overflow: an old coordinate below the floor plus
+/// the floor is at most `u32::MAX - 1`.
+pub const RETIRED_FLOOR: u32 = u32::MAX / 2;
+
+/// Whether a coordinate is already in the retired space, where the
+/// map leaves it alone.
+fn already_retired(loop_: u32, index: u32) -> bool {
+    loop_ >= RETIRED_FLOOR || index >= RETIRED_FLOOR
+}
+
 /// **Where every segment of the program a node held went**, read off
-/// the two replay records and the provenance — the map a `SetProgram`
-/// rewrites every profile locator through.
+/// the two checked replay records and the provenance — the map a
+/// `SetProgram` rewrites every profile locator through.
 ///
 /// A KEPT step is an old step some new step continues whose recorded
 /// span has the SAME length as the new step's: its segments map
 /// segment-for-segment in order. A step nothing continues is dropped;
-/// a continued step whose span length moved (a `line` that gained a
-/// corner fillet's arc, a fused verb whose fit flattened) is changed
-/// and treated as dropped for every name on it — the record says which
-/// arm of the transition table ran, and a step that ran a different
-/// arm did not draw "the same segments, elsewhere". A loop no new
-/// loop continues maps none of its segments.
-///
-/// Segments are PROGRAM-order indices on both sides: the names hold
-/// them so (`eval::anchor` rewrites every emitted ref canonical →
-/// program before a table is published, DM8), and the spans are
-/// recorded in the same order, so no canonical permutation enters.
+/// a continued step whose span length moved is changed and treated as
+/// dropped for every name on it — the record says which arm of the
+/// transition table ran, and a different arm did not draw "the same
+/// segments, elsewhere". A loop no new loop continues maps none of its
+/// segments. Segments are PROGRAM-order indices on both sides (the
+/// names hold them so, DM8, and the spans are recorded so), and no
+/// canonical permutation enters.
 ///
 /// A vertex maps as the segment ARRIVING at it: vertex `v` is the end
-/// of segment `v - 1` (mod the loop's length), authored by the step
-/// that ends there, so it lands at the end of that segment's image.
-/// The segment LEAVING it would be wrong exactly where this edit is
-/// most used — a leg inserted before step `s` leaves old vertex
-/// `s - 1` where it stands, at new vertex `s - 1`, while segment
+/// of segment `v - 1` (mod the loop's length), so it lands at the end
+/// of that segment's image. The segment LEAVING it would be wrong
+/// exactly where this edit is most used — a leg inserted before step
+/// `s` leaves old vertex `s - 1` where it stands while segment
 /// `s - 1`'s image now starts at the inserted point.
 ///
-/// # A stranded name is RETIRED, not left in place
-///
-/// A segment nothing maps has no image, and the name on it cannot keep
-/// its old coordinates: the new program may draw a segment AT those
-/// coordinates, and the name would then denote that segment as if it
-/// had always meant it — the silent re-denotation this edit exists to
-/// end — while a name a kept step moved onto the same coordinates
-/// would collide with it in a selection and be merged away by the
-/// re-canonicalization. So a stranded locator is rewritten to a
-/// coordinate the program cannot draw: segment `n + s` of the loop it
-/// was on (`n` the loop's new segment count, `s` the old segment) for
-/// a segment of a continued loop, and loop `m + l` (`m` the new loop
-/// count, `l` the old loop) for a segment of a dropped loop, vertices
-/// likewise. Every retired coordinate is past the end, distinct from
-/// every drawn one and from every other retired one, so the name
-/// resolves to NOTHING at the next evaluation — rung 3 of the N5
-/// ladder, `Vanished`, whose diagnosis offers the repair — and a name
-/// retired once is retired again by every later reshaping (a
-/// coordinate past the OLD end maps nowhere, so it is stranded like
-/// any other), which is what keeps a loop that later grows from
-/// drawing a segment under it. DM7's posture stands: the report is
-/// made, the repair is the author's, and what the name is spelled as
-/// is exactly what the strand row carries.
+/// A segment nothing maps has no image, and the name on it is RETIRED
+/// ([`RETIRED_FLOOR`]) rather than left in place: left in place it
+/// would denote whichever segment the new program draws at its old
+/// index, silently, and collide in a selection with a kept name moved
+/// onto that index. Retired it resolves to nothing — `Vanished`, the
+/// N5 ladder's rung whose diagnosis offers the repair — and the
+/// strand row carries the spelling the document now holds. A name
+/// already retired is not a strand of this edit and is untouched.
 struct SegmentMap {
     /// Per OLD loop, per old segment: the new `(loop, segment)` it
     /// maps to, or `None` where the step that drew it was dropped or
-    /// changed. Empty when the old program does not replay, in which
-    /// case no segment maps and every name strands: a provenance
-    /// cannot be honoured against spans nobody can read.
+    /// changed. Empty when the old program's record cannot be read, in
+    /// which case no segment maps and every name strands: a
+    /// provenance cannot be honoured against spans nobody can read.
     old: Vec<Vec<Option<(u32, u32)>>>,
     /// Per OLD loop, the new loop that continues it (`None` where
     /// none does) — where a retired name of that loop is filed.
     continued: Vec<Option<u32>>,
-    /// Per NEW loop, its segment count — a vertex wraps modulo it,
-    /// and a retired coordinate sits past it.
+    /// Per NEW loop, its segment count — a vertex wraps modulo it.
     new_len: Vec<u32>,
-}
-
-/// How many segments a loop's record describes: the spans partition
-/// `0..n`, so the largest end is `n`.
-fn recorded_segments(record: &profile::ReplayStructure) -> usize {
-    record
-        .steps
-        .iter()
-        .map(profile::StepSpan::end)
-        .max()
-        .unwrap_or(0)
 }
 
 /// One locator's image under a [`SegmentMap`].
@@ -2590,16 +2607,31 @@ enum Image<L> {
 impl SegmentMap {
     /// `old_loops` is the old program's loop count — known from the
     /// program itself, so a loop's continuation is read off the
-    /// provenance whether or not the old program replays; `old` is
-    /// its records where it does.
+    /// provenance whether or not the old program's record can be
+    /// read; `old` is its checked records where it can.
+    ///
+    /// Both records are read through DM8's checked door
+    /// ([`CheckedRecords::span_of`]): the shape check that admitted
+    /// them says the step counts agree with the programs, and a span
+    /// past its loop's end is refused per step. For the NEW program
+    /// that refusal is the door's ([`ProgramRefusal::Record`]); for
+    /// the OLD program, which is replayed without validation and may
+    /// be a program the tree no longer admits, a span the walk refuses
+    /// is a step whose segments cannot be found, and every name on it
+    /// strands — reported, never guessed.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal::Record`] where the new program's checked
+    /// record refuses a span.
     fn build(
-        old: Option<&[profile::ReplayStructure]>,
+        old: Option<&[CheckedRecords<'_, '_>]>,
         old_loops: usize,
-        new: &[profile::ReplayStructure],
+        new: &[CheckedRecords<'_, '_>],
         provenance: &[LoopProvenance],
-    ) -> Self {
+    ) -> Result<Self, ProgramRefusal> {
         use crate::program::program_index as ix;
-        let new_len: Vec<u32> = new.iter().map(|r| ix(recorded_segments(r))).collect();
+        let new_len: Vec<u32> = new.iter().map(|r| ix(r.segments())).collect();
         let mut continued: Vec<Option<u32>> = vec![None; old_loops];
         for (i, prov) in provenance.iter().enumerate() {
             if let Some(from) = prov.from
@@ -2609,35 +2641,37 @@ impl SegmentMap {
             }
         }
         let Some(old) = old else {
-            return Self {
+            return Ok(Self {
                 old: Vec::new(),
                 continued,
                 new_len,
-            };
+            });
         };
-        let mut map: Vec<Vec<Option<(u32, u32)>>> = old
-            .iter()
-            .map(|r| vec![None; recorded_segments(r)])
-            .collect();
+        let mut map: Vec<Vec<Option<(u32, u32)>>> =
+            old.iter().map(|r| vec![None; r.segments()]).collect();
         for (i, prov) in provenance.iter().enumerate() {
             let Some(from) = prov.from else {
                 continue;
             };
             // The shape check ran first, so `from` is an old loop and
-            // every `Some` step is one of its steps; a record with
-            // fewer spans than authored steps is the replay
-            // contradicting its own program, and asserts.
-            let old_spans = &old[from as usize].steps;
-            let new_spans = &new[i].steps;
+            // every `Some` step is one of its steps; the records were
+            // admitted by the checked door, so each has one span per
+            // authored step.
+            let (Some(old_record), Some(new_record)) = (old.get(from as usize), new.get(i)) else {
+                continue;
+            };
             for (j, old_step) in prov.steps.iter().enumerate() {
                 let Some(k) = *old_step else {
                     continue;
                 };
-                let (Some(os), Some(ns)) = (old_spans.get(k as usize), new_spans.get(j)) else {
-                    unreachable!(
-                        "a loop's replay record has one span per authored step: old loop {from} \
-                         step {k} or new loop {i} step {j} has none"
-                    );
+                let ns = new_record
+                    .span_of(ix(j))
+                    .map_err(|error| ProgramRefusal::Record {
+                        loop_: ix(i),
+                        error,
+                    })?;
+                let Ok(os) = old_record.span_of(k) else {
+                    continue;
                 };
                 if os.len() != ns.len() {
                     continue;
@@ -2647,11 +2681,11 @@ impl SegmentMap {
                 }
             }
         }
-        Self {
+        Ok(Self {
             old: map,
             continued,
             new_len,
-        }
+        })
     }
 
     /// Where old segment `(loop, segment)` went, or `None` where the
@@ -2661,39 +2695,42 @@ impl SegmentMap {
         *self.old.get(loop_ as usize)?.get(segment as usize)?
     }
 
-    /// The retired coordinate for old segment `(loop, segment)`: past
-    /// the end of the loop that continues its loop, or on a loop past
-    /// the end of the program where nothing does.
-    ///
-    /// Sizes here are segment and loop counts, so the sums are the
-    /// `program_index` argument: a coordinate that does not fit `u32`
-    /// is a program with `2^32` segments in memory.
-    fn retired(&self, loop_: u32, segment: u32) -> (u32, u32) {
-        use crate::program::program_index as ix;
+    /// The retired coordinate for old `(loop, index)`, `index` below
+    /// the floor: on the loop that continues its loop, at
+    /// `RETIRED_FLOOR + index`; or on loop `RETIRED_FLOOR + loop`
+    /// where nothing does, at `index`. Distinct per old coordinate.
+    fn retired(&self, loop_: u32, index: u32) -> (u32, u32) {
         match self.continued.get(loop_ as usize).copied().flatten() {
-            Some(i) => {
-                let n = self.new_len.get(i as usize).copied().unwrap_or(0);
-                (i, ix(n as usize + segment as usize))
-            }
-            None => (ix(self.new_len.len() + loop_ as usize), segment),
+            Some(i) => (i, RETIRED_FLOOR + index),
+            None => (RETIRED_FLOOR + loop_, index),
         }
     }
 
-    fn edge(&self, e: ProfileEdgeRef) -> Image<ProfileEdgeRef> {
+    /// The image of an edge locator; `None` where it is already
+    /// retired and this edit has nothing to say about it.
+    fn edge(&self, e: ProfileEdgeRef) -> Option<Image<ProfileEdgeRef>> {
+        if already_retired(e.loop_index, e.segment) {
+            return None;
+        }
         let at = |(loop_index, segment)| ProfileEdgeRef {
             loop_index,
             segment,
         };
-        match self.kept(e.loop_index, e.segment) {
+        Some(match self.kept(e.loop_index, e.segment) {
             Some(to) => Image::Kept(at(to)),
             None => Image::Retired(at(self.retired(e.loop_index, e.segment))),
-        }
+        })
     }
 
-    fn vertex(&self, v: ProfileVertexRef) -> Image<ProfileVertexRef> {
+    /// The image of a vertex locator, carried by the segment arriving
+    /// at it; `None` where it is already retired.
+    fn vertex(&self, v: ProfileVertexRef) -> Option<Image<ProfileVertexRef>> {
         use crate::program::program_index as ix;
+        if already_retired(v.loop_index, v.vertex) {
+            return None;
+        }
         let at = |(loop_index, vertex)| ProfileVertexRef { loop_index, vertex };
-        let retired = || Image::Retired(at(self.retired(v.loop_index, v.vertex)));
+        let retired = || Some(Image::Retired(at(self.retired(v.loop_index, v.vertex))));
         let Some(n_old) = self.old.get(v.loop_index as usize).map(Vec::len) else {
             return retired();
         };
@@ -2708,223 +2745,114 @@ impl SegmentMap {
         if n_new == 0 {
             return retired();
         }
-        Image::Kept(at((loop_index, (segment + 1) % n_new)))
+        Some(Image::Kept(at((loop_index, (segment + 1) % n_new))))
     }
 }
 
-/// **A name mapped through a reshaped program**: the walk that decides,
-/// for every `StableName` a carrier holds, whether the edit left it
-/// alone, moved it, or stranded it — and what it is spelled as now.
+/// **A name mapped through a reshaped program**: the [`SegRewrite`]
+/// that decides, for every `StableName` a carrier holds, whether the
+/// edit left it alone, moved it, or stranded it — and what it is
+/// spelled as now. The walk over a name's shape is
+/// [`RoleSeg::rewrite`]'s, shared with the anchor rewrite and the
+/// split re-map; what this rewriter adds is the locator's image and
+/// the descent into every carried name.
 struct ProgramRemap<'a> {
     map: &'a SegmentMap,
     /// The nodes whose OWN locators are spelled in the reshaped
     /// profile's coordinates ([`Node::anchoring_profile`]). A name
     /// minted by any other node holds this profile's coordinates only
-    /// inside the `NameRef`s it carries, which the walk descends.
+    /// inside the `NameRef`s it carries, which the descent reaches.
     anchored: std::collections::BTreeSet<RecipeNodeId>,
+    /// Whether the name being walked right now is minted by an
+    /// anchored node — set per name on the way down, restored on the
+    /// way up.
+    here: bool,
+    /// Whether any locator of the name being imaged had no image:
+    /// reset per top-level name, read after the walk.
+    stranded: bool,
 }
 
 impl ProgramRemap<'_> {
-    /// `None`: untouched. `Some(now)`: rewritten to `now` — moved onto
-    /// the kept segment's new coordinates, or, when `stranded` was set
-    /// on the way, retired: a locator anywhere in the name — at its
-    /// own level or inside a carried name — had no image, and the
-    /// whole name is reported stranded.
-    fn name(&self, name: &StableName, stranded: &core::cell::Cell<bool>) -> Option<StableName> {
-        let here = self.anchored.contains(&name.node);
-        let mut moved = false;
-        let mut path = Vec::with_capacity(name.path.len());
-        for seg in &name.path {
-            match self.seg(seg, here, stranded) {
-                Some(next) => {
-                    moved = true;
-                    path.push(next);
-                }
-                None => path.push(seg.clone()),
-            }
+    fn new(
+        map: &SegmentMap,
+        anchored: std::collections::BTreeSet<RecipeNodeId>,
+    ) -> ProgramRemap<'_> {
+        ProgramRemap {
+            map,
+            anchored,
+            here: false,
+            stranded: false,
         }
-        moved.then_some(StableName {
-            kind: name.kind,
-            node: name.node,
-            path,
+    }
+
+    /// `None`: untouched. `Some(Kept(now))`: moved onto the kept
+    /// segments' new coordinates. `Some(Retired(now))`: a locator
+    /// anywhere in the name — at its own level or inside a carried
+    /// name — had no image, and the whole name is reported stranded
+    /// under the spelling `now`.
+    fn image(&mut self, name: &StableName) -> Option<Image<StableName>> {
+        self.stranded = false;
+        let Ok(now) = self.name(name);
+        let now = now?;
+        Some(if self.stranded {
+            Image::Retired(now)
+        } else {
+            Image::Kept(now)
+        })
+    }
+}
+
+impl SegRewrite for ProgramRemap<'_> {
+    type Error = core::convert::Infallible;
+
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
+        if !self.here {
+            return Ok(e);
+        }
+        Ok(match self.map.edge(e) {
+            Some(Image::Kept(to)) => to,
+            Some(Image::Retired(to)) => {
+                self.stranded = true;
+                to
+            }
+            None => e,
         })
     }
 
-    /// One segment: a locator maps through the segment map when the
-    /// minting node anchors to this profile (`here`), a carried name
-    /// descends, and everything else crosses verbatim (`None`).
-    ///
-    /// Exhaustive with no wildcard: a variant added to [`RoleSeg`]
-    /// says which of the three it is or stops the build — the same
-    /// discipline `refactor::remap_seg` and `anchor::remap_seg` hold,
-    /// and for the same reason: a locator-bearing variant left out
-    /// would be a name this edit silently re-denotes.
-    #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
-    fn seg(&self, seg: &RoleSeg, here: bool, stranded: &core::cell::Cell<bool>) -> Option<RoleSeg> {
-        use RoleSeg as R;
-        let edge = |e: &ProfileEdgeRef| -> Option<ProfileEdgeRef> {
-            if !here {
-                return None;
-            }
-            match self.map.edge(*e) {
-                Image::Kept(to) => (to != *e).then_some(to),
-                Image::Retired(to) => {
-                    stranded.set(true);
-                    Some(to)
-                }
-            }
-        };
-        let vertex = |v: &ProfileVertexRef| -> Option<ProfileVertexRef> {
-            if !here {
-                return None;
-            }
-            match self.map.vertex(*v) {
-                Image::Kept(to) => (to != *v).then_some(to),
-                Image::Retired(to) => {
-                    stranded.set(true);
-                    Some(to)
-                }
-            }
-        };
-        let one =
-            |n: &NameRef| -> Option<NameRef> { self.name(n.name(), stranded).map(NameRef::new) };
-        // A pair of carried names: rebuilt when either moved, each
-        // half its image or itself.
-        let pair = |a: &NameRef, b: &NameRef| -> Option<(NameRef, NameRef)> {
-            let (ma, mb) = (one(a), one(b));
-            if ma.is_none() && mb.is_none() {
-                return None;
-            }
-            Some((
-                ma.unwrap_or_else(|| a.clone()),
-                mb.unwrap_or_else(|| b.clone()),
-            ))
-        };
-        // A SET of names (canonical order = name order): rebuilt and
-        // re-sorted when any member moved — the rewrite may have
-        // changed the order, and the emitters sort the same way.
-        let set = |v: &[StableName]| -> Option<Vec<StableName>> {
-            let mut moved = false;
-            let mut out = Vec::with_capacity(v.len());
-            for n in v {
-                match self.name(n, stranded) {
-                    Some(next) => {
-                        moved = true;
-                        out.push(next);
-                    }
-                    None => out.push(n.clone()),
-                }
-            }
-            if moved {
-                out.sort();
-            }
-            moved.then_some(out)
-        };
-        match seg {
-            // Locator-free, name-free: verbatim.
-            R::OutputBody
-            | R::Cap(_)
-            | R::RevolveCap(_)
-            | R::SplitBody(_)
-            | R::SectionFace { .. } => None,
-            // The twelve locator-bearing variants — `anchor::remap_seg`'s
-            // list, in its order.
-            R::Lateral(e) => edge(e).map(R::Lateral),
-            R::RimEdge(c, e) => edge(e).map(|e| R::RimEdge(*c, e)),
-            R::LateralEdge(v) => vertex(v).map(R::LateralEdge),
-            R::CapVertex(c, v) => vertex(v).map(|v| R::CapVertex(*c, v)),
-            R::Band(e) => edge(e).map(R::Band),
-            R::BandRim(v) => vertex(v).map(R::BandRim),
-            R::BandRimPi(v) => vertex(v).map(R::BandRimPi),
-            R::BandPi(e) => edge(e).map(R::BandPi),
-            R::Meridian(m, e) => edge(e).map(|e| R::Meridian(*m, e)),
-            R::MeridianVertex(m, v) => vertex(v).map(|v| R::MeridianVertex(*m, v)),
-            R::Pole(v) => vertex(v).map(R::Pole),
-            R::AxisEdge(e) => edge(e).map(R::AxisEdge),
-            // The carried names: descend.
-            R::FromA(n) => one(n).map(R::FromA),
-            R::FromB(n) => one(n).map(R::FromB),
-            R::FromMember { member, of } => one(of).map(|of| R::FromMember {
-                member: *member,
-                of,
-            }),
-            R::Seam { a, b } => pair(a, b).map(|(a, b)| R::Seam { a, b }),
-            R::Merged(v) => set(v).map(R::Merged),
-            R::Fragment(q) => match q {
-                crate::names::Qualifier::SideOf(entries) => {
-                    let mut moved = false;
-                    let mut out = Vec::with_capacity(entries.len());
-                    for (n, s) in entries {
-                        match self.name(n, stranded) {
-                            Some(next) => {
-                                moved = true;
-                                out.push((next, *s));
-                            }
-                            None => out.push((n.clone(), *s)),
-                        }
-                    }
-                    if !moved {
-                        return None;
-                    }
-                    // The qualifier's own canonical order — sorted by
-                    // partner name — re-established after the rewrite.
-                    out.sort();
-                    Some(R::Fragment(crate::names::Qualifier::SideOf(out)))
-                }
-                crate::names::Qualifier::OrderAlong { .. } => None,
-            },
-            R::SectionEdge { side, face } => {
-                one(face).map(|face| R::SectionEdge { side: *side, face })
-            }
-            R::SplitFragment { side, parent } => one(parent).map(|parent| R::SplitFragment {
-                side: *side,
-                parent,
-            }),
-            R::CrossingVertex { side, edge } => {
-                one(edge).map(|edge| R::CrossingVertex { side: *side, edge })
-            }
-            R::OnToolVertex { side, of } => one(of).map(|of| R::OnToolVertex { side: *side, of }),
-            R::FromTarget(n) => one(n).map(R::FromTarget),
-            R::BlendFace(n) => one(n).map(R::BlendFace),
-            R::CornerFace(n) => one(n).map(R::CornerFace),
-            R::TrimEdge { edge, support } => {
-                pair(edge, support).map(|(edge, support)| R::TrimEdge { edge, support })
-            }
-            R::FootVertex { vertex, support } => {
-                pair(vertex, support).map(|(vertex, support)| R::FootVertex { vertex, support })
-            }
-            R::EndArc { vertex, edge } => {
-                pair(vertex, edge).map(|(vertex, edge)| R::EndArc { vertex, edge })
-            }
-            R::BandFace(v) => set(v).map(R::BandFace),
-            R::BandTrim { edge, support } => one(edge).map(|edge| R::BandTrim {
-                edge,
-                support: *support,
-            }),
-            R::BandFoot(n) => one(n).map(R::BandFoot),
-            R::BandCross(n) => one(n).map(R::BandCross),
-            R::BandCut(n) => one(n).map(R::BandCut),
-            R::BandSlit(n) => one(n).map(R::BandSlit),
-            R::Inner(n) => one(n).map(R::Inner),
-            R::Rim(n) => one(n).map(R::Rim),
-            R::HoleRim { of, hole } => one(of).map(|of| R::HoleRim { of, hole: *hole }),
-            // The document seam: the argument names ANOTHER document's
-            // nodes, whose profiles this edit did not touch.
-            R::InPart { .. } => None,
-            R::Instance { i, of } => one(of).map(|of| R::Instance { i: *i, of }),
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
+        if !self.here {
+            return Ok(v);
         }
+        Ok(match self.map.vertex(v) {
+            Some(Image::Kept(to)) => to,
+            Some(Image::Retired(to)) => {
+                self.stranded = true;
+                to
+            }
+            None => v,
+        })
+    }
+
+    /// Every carried name descends: its own locators map iff ITS
+    /// minting node anchors to this profile, and the answer is the
+    /// rewritten name where anything in it moved.
+    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
+        let outer = core::mem::replace(&mut self.here, self.anchored.contains(&n.node));
+        let Ok(now) = n.clone().rewrite_path(self);
+        self.here = outer;
+        Ok((now != *n).then_some(now))
     }
 }
 
 /// **The reshaping's report and rewrite, in one walk over the
-/// document's name carriers** ([`Doc::name_carriers`]' two carriers in
-/// its order): every name the map strands is rewritten to its retired
-/// spelling and reported ([`Maintenance::Strand`] on its carrying
-/// node, [`Maintenance::StrandedAppearance`] on a store key), every
-/// name the map moves is rewritten in place — through
-/// [`Node::rewrite_payload_names`], one pass per node, and the store's
-/// keys re-keyed all at once — and reported [`Maintenance::Rebound`]
-/// once, at the first carrier the walk met it in.
+/// document's name carriers** ([`Doc::rewrite_names`], the `&mut` twin
+/// of the walk the delete's report reads, driven by the same
+/// `Carrier::ALL` roster): every name the map strands is rewritten to
+/// its retired spelling and reported ([`Maintenance::Strand`] on its
+/// carrying node, [`Maintenance::StrandedAppearance`] on a store key),
+/// every name the map moves is rewritten in place and reported
+/// [`Maintenance::Rebound`] once, at the first carrier the walk met it
+/// in. A name already retired is neither.
 ///
 /// The rows come back in [`Applied::maintenance`]'s contracted order:
 /// the strands, then the stranded keys, then the rebounds.
@@ -2939,14 +2867,14 @@ impl ProgramRemap<'_> {
 /// collision does ([`EditError::RebindAppearanceCollision`],
 /// [`EditError::RebindMetadataCollision`]) — which value survives
 /// would be an auto-pick. The map cannot produce one on its own: kept
-/// segments map injectively and retired coordinates are past every
-/// drawn one, so two keys of this profile never land on one key. What
-/// can collide is a key this edit moves with a key of ANOTHER profile
-/// that happens to spell the same name, which no coordinate can
-/// distinguish and this door does not decide.
+/// segments map injectively and retired coordinates are distinct from
+/// every drawn one and from each other, so two keys of this profile
+/// never land on one key. What can collide is a key this edit moves
+/// with a key of ANOTHER profile that happens to spell the same name,
+/// which no coordinate can distinguish and this door does not decide.
 fn reshape_report<P>(
     doc: &mut Doc<P>,
-    remap: &ProgramRemap<'_>,
+    remap: &mut ProgramRemap<'_>,
 ) -> Result<Vec<Maintenance>, EditError> {
     let mut strands = Vec::new();
     let mut stranded_keys = Vec::new();
@@ -2955,60 +2883,38 @@ fn reshape_report<P>(
     // carriers rides one row. A list rather than a set: the order it
     // is searched in is not an output, and it stays free of any hash.
     let mut reported: Vec<StableName> = Vec::new();
-    let order = doc.order.clone();
-    for id in order {
-        let Some(node) = doc.nodes.get_mut(&id) else {
-            continue;
-        };
-        node.rewrite_payload_names(&mut |name| {
-            let stranded = core::cell::Cell::new(false);
-            let now = remap.name(name, &stranded)?;
-            if stranded.get() {
-                strands.push(Maintenance::Strand {
-                    node: id,
-                    name: now.clone(),
-                });
-            } else if !reported.contains(name) {
-                reported.push(name.clone());
-                rebounds.push(Maintenance::Rebound {
-                    from: name.clone(),
-                    to: now.clone(),
-                });
+    doc.rewrite_names(
+        |carrier| {
+            let (name, node) = match carrier {
+                NameCarrier::Payload { node, name } => (name, Some(node)),
+                NameCarrier::Store { name } => (name, None),
+            };
+            match remap.image(name)? {
+                Image::Retired(now) => {
+                    match node {
+                        Some(node) => strands.push(Maintenance::Strand {
+                            node,
+                            name: now.clone(),
+                        }),
+                        None => stranded_keys
+                            .push(Maintenance::StrandedAppearance { name: now.clone() }),
+                    }
+                    Some(now)
+                }
+                Image::Kept(now) => {
+                    if !reported.contains(name) {
+                        reported.push(name.clone());
+                        rebounds.push(Maintenance::Rebound {
+                            from: name.clone(),
+                            to: now.clone(),
+                        });
+                    }
+                    Some(now)
+                }
             }
-            Some(now)
-        });
-    }
-    let mut moves: Vec<(StableName, StableName)> = Vec::new();
-    for key in doc.appearance.keys() {
-        let stranded = core::cell::Cell::new(false);
-        let Some(now) = remap.name(key, &stranded) else {
-            continue;
-        };
-        if stranded.get() {
-            stranded_keys.push(Maintenance::StrandedAppearance { name: now.clone() });
-        } else if !reported.contains(key) {
-            reported.push(key.clone());
-            rebounds.push(Maintenance::Rebound {
-                from: key.clone(),
-                to: now.clone(),
-            });
-        }
-        moves.push((key.clone(), now));
-    }
-    // Every moved record is lifted out BEFORE any is put back, so a
-    // key that is both a source and another's target is read as the
-    // source it was and written as the target it becomes — the
-    // simultaneous rewrite the payload pass makes per node.
-    let mut lifted = Vec::with_capacity(moves.len());
-    for (from, to) in moves {
-        let Some(record) = doc.appearance.remove(&from) else {
-            unreachable!("appearance key {from} was read out of the store a moment ago")
-        };
-        lifted.push((record, to));
-    }
-    for (record, to) in lifted {
-        move_appearance_record(&mut doc.appearance, record, &to)?;
-    }
+        },
+        move_appearance_record,
+    )?;
     let mut out = strands;
     out.extend(stranded_keys);
     out.extend(rebounds);
@@ -3090,11 +2996,12 @@ pub struct Applied<P> {
     /// The paragraph above is the contract — it is stated here in
     /// full because a consumer outside this crate cannot read
     /// `Carrier::ALL`, which is `pub(crate)`. In-crate the order has
-    /// one home all the same: both reports are `Doc::name_carriers`
-    /// walked once — the delete's filtered on the deleted node, the
-    /// program edit's mapped through its segment map — so the strands'
-    /// and the rebounds' orders are that walk's, and a reader who wants
-    /// to see why reads it there.
+    /// one home all the same: one roster, `Carrier::ALL`, drives both
+    /// walks — the delete's report reads `Doc::name_carriers`, filtered
+    /// on the deleted node, and the program edit's rewrites through
+    /// `Doc::rewrite_names`, its `&mut` twin, mapped through the
+    /// segment map — so the strands' and the rebounds' orders are that
+    /// roster's, and a reader who wants to see why reads it there.
     ///
     /// Each boundary is held by the row whose fixture actually
     /// produces the pair of kinds it separates:
@@ -3917,27 +3824,40 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // Then the VQ9 door the insert door runs, keeping what the
             // replay decided: the new program's per-step spans.
             let env = new.param_env::<f64>();
-            let new_replay = rewritten.check_returning(&env, tol).map_err(|refusal| {
-                EditError::ProfileProgramRefused {
-                    node: *node,
-                    refusal: Box::new(refusal),
-                }
-            })?;
+            let refused = |refusal| EditError::ProfileProgramRefused {
+                node: *node,
+                refusal: Box::new(refusal),
+            };
+            let (new_loops, new_records) = rewritten.check_returning(&env, tol).map_err(refused)?;
+            // Read through DM8's checked door, so which segments each
+            // authored step draws is answered by the one walk that
+            // answers it at evaluation; a record the walk refuses is a
+            // typed refusal of the edit, never a guess.
+            let new_programs = rewritten
+                .loops()
+                .ok_or(EditError::SetProgramOnNonProfile { node: *node })?;
+            let new_checked =
+                checked_replay(new_programs, &new_loops, &new_records).map_err(refused)?;
             // The program being replaced, replayed under the same env
             // for ITS spans — the coordinates every name on it holds.
             // Validation is not asked of it: a program that replays
             // and does not validate (V1 class 2: refusing programs may
             // exist at rest) still has the spans its names were
-            // published against. One that does not even replay has
-            // none, so nothing can be mapped and every name on it
+            // published against. One that does not even replay, or
+            // whose record the checked door refuses, has no readable
+            // spans, so nothing can be mapped and every name on it
             // strands — reported, never guessed.
-            let old_replay = payload.replay_records(&env, tol).ok();
+            let old_replayed = payload.replay_records(&env, tol).ok();
+            let old_checked = old_replayed
+                .as_ref()
+                .and_then(|(loops, records)| checked_replay(old_loops, loops, records).ok());
             let map = SegmentMap::build(
-                old_replay.as_deref(),
+                old_checked.as_deref(),
                 old_loops.len(),
-                &new_replay,
+                &new_checked,
                 provenance,
-            );
+            )
+            .map_err(refused)?;
             new.nodes.insert(*node, probe);
             // Whose locators are spelled in this profile's coordinates:
             // the sweeps over it. Every other node's names hold them
@@ -3952,13 +3872,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                         .is_some_and(|n| n.anchoring_profile() == Some(*node))
                 })
                 .collect();
-            reported = reshape_report(
-                &mut new,
-                &ProgramRemap {
-                    map: &map,
-                    anchored,
-                },
-            )?;
+            reported = reshape_report(&mut new, &mut ProgramRemap::new(&map, anchored))?;
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as

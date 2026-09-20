@@ -318,10 +318,9 @@ owes is a report: every `(node, name)` pair whose referent the edit
 removed rides the accepted edit's `Applied.maintenance`, typed,
 computed at the door by the same payload walk the insert door checks
 with. The strand is loud where it happens rather than at the next
-evaluation; the N5 ladder's rung — `NodeGone` for a deleted minting
-node, `Vanished` for a segment a reshaping retired the name to a
-coordinate past its loop's end — and `Rebind` remain the diagnosis and
-the repair. A reshaping has one more thing to say, which a delete
+evaluation; the N5 ladder's rungs — `NodeGone` for a deleted minting
+node, `Vanished` for a name that denotes nothing — and `Rebind` remain
+the diagnosis and the repair. A reshaping has one more thing to say, which a delete
 never has: a name on a step it KEPT is rewritten in place to the
 coordinates the segment sits at now and reported `Rebound { from, to
 }`, so a moved name is visible in the accepted edit and never silently

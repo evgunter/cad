@@ -1606,6 +1606,7 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Transition { .. } => "transition",
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
+        ProgramRefusal::Record { .. } => "record",
     }
 }
 

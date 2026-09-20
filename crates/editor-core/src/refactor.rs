@@ -106,7 +106,7 @@ use crate::doc::{Doc, NameCarrier};
 use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::names::{FaceName, NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
+use crate::names::{FaceName, NameRef, RoleSeg, SegRewrite, StableName};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
@@ -684,9 +684,34 @@ fn remap_derivation(
     let node = *map.get(&node).ok_or(node)?;
     let path = path
         .iter()
-        .map(|seg| remap_seg(seg, map))
+        .cloned()
+        .map(|seg| seg.rewrite(&mut Remapping(map)))
         .collect::<Result<_, _>>()?;
     Ok((node, path))
+}
+
+/// **The split re-map as a [`SegRewrite`]**: every carried name is
+/// rewritten through [`remap_name`] — its minting node through the
+/// map, then its own path through this same rewriter, so the descent
+/// is [`remap_name`]'s and not the walk's — and a member edge, which
+/// is a local node id like the minting one, is mapped too: a subgraph
+/// copied into another document would otherwise carry a member
+/// reference that names a node HERE. A profile locator keeps the
+/// trait's identity: nothing about a split moves a segment index. The
+/// walk over [`RoleSeg`]'s shape is [`RoleSeg::rewrite`]'s, shared
+/// with the anchor rewrite and the whole-program edit.
+struct Remapping<'a>(&'a NodeMap);
+
+impl SegRewrite for Remapping<'_> {
+    type Error = RecipeNodeId;
+
+    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
+        remap_name(n, self.0).map(Some)
+    }
+
+    fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Self::Error> {
+        self.0.get(&m).copied().ok_or(m)
+    }
 }
 
 /// [`remap_name`] for a FACE name — the ONE answer this crate gives to
@@ -706,119 +731,6 @@ fn remap_derivation(
 fn remap_face(name: &FaceName, map: &NodeMap) -> Result<FaceName, RemapMiss> {
     name.map_derivation(|node, path| remap_derivation(node, path, map))
         .map_err(|_| RemapMiss::Name(Box::new((**name).clone())))
-}
-
-/// One segment of [`remap_name`]'s rewrite: the [`RoleSeg`] partition
-/// by whether the variant embeds a [`StableName`], recursing into the
-/// ones that do. Not to be confused with `eval::anchor`'s function of
-/// the same name, which partitions the same enum by whether it embeds a
-/// PROFILE LOCATOR and deliberately does not recurse.
-///
-/// The match is EXHAUSTIVE on purpose (the walk_names rule): a future
-/// [`RoleSeg`] variant embedding names must be
-/// classified here or the compile breaks — or, if it embeds no name,
-/// added to [`crate::names::name_free_seg`], which is the one place
-/// that answer is written for this and its two sibling matches.
-#[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
-fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
-    use RoleSeg as R;
-    let one = |n: &StableName| remap_name(n, map).map(NameRef::new);
-    let set = |v: &[StableName]| -> Result<Vec<StableName>, RecipeNodeId> {
-        let mut out = v
-            .iter()
-            .map(|n| remap_name(n, map))
-            .collect::<Result<Vec<_>, _>>()?;
-        // Canonical order is NAME order; the rewrite may have changed
-        // it, so the set re-sorts (the emitters on the other side sort
-        // the remapped names the same way).
-        out.sort();
-        Ok(out)
-    };
-    Ok(match seg {
-        // Name-free segments cross verbatim.
-        name_free_seg!() => seg.clone(),
-        R::FromA(n) => R::FromA(one(n)?),
-        R::FromB(n) => R::FromB(one(n)?),
-        // BOTH halves cross: the member edge is a local node id like
-        // the minting one, so a subgraph copied into another document
-        // carries a member reference that names a node HERE unless it
-        // is re-mapped too.
-        R::FromMember { member, of } => R::FromMember {
-            member: map.get(member).copied().ok_or(*member)?,
-            of: one(of)?,
-        },
-        R::Seam { a, b } => R::Seam {
-            a: one(a)?,
-            b: one(b)?,
-        },
-        R::Merged(v) => R::Merged(set(v)?),
-        R::Fragment(q) => R::Fragment(match q {
-            Qualifier::SideOf(entries) => {
-                let mut moved = entries
-                    .iter()
-                    .map(|(n, s)| remap_name(n, map).map(|n| (n, *s)))
-                    .collect::<Result<Vec<_>, _>>()?;
-                // Sorted by partner name — the qualifier's own
-                // canonical order, re-established after the rewrite.
-                moved.sort();
-                Qualifier::SideOf(moved)
-            }
-            Qualifier::OrderAlong { .. } => q.clone(),
-        }),
-        R::SectionEdge { side, face } => R::SectionEdge {
-            side: *side,
-            face: one(face)?,
-        },
-        R::SplitFragment { side, parent } => R::SplitFragment {
-            side: *side,
-            parent: one(parent)?,
-        },
-        R::CrossingVertex { side, edge } => R::CrossingVertex {
-            side: *side,
-            edge: one(edge)?,
-        },
-        R::OnToolVertex { side, of } => R::OnToolVertex {
-            side: *side,
-            of: one(of)?,
-        },
-        R::FromTarget(n) => R::FromTarget(one(n)?),
-        R::BlendFace(n) => R::BlendFace(one(n)?),
-        R::CornerFace(n) => R::CornerFace(one(n)?),
-        R::TrimEdge { edge, support } => R::TrimEdge {
-            edge: one(edge)?,
-            support: one(support)?,
-        },
-        R::FootVertex { vertex, support } => R::FootVertex {
-            vertex: one(vertex)?,
-            support: one(support)?,
-        },
-        R::EndArc { vertex, edge } => R::EndArc {
-            vertex: one(vertex)?,
-            edge: one(edge)?,
-        },
-        R::BandFace(v) => R::BandFace(set(v)?),
-        R::BandTrim { edge, support } => R::BandTrim {
-            edge: one(edge)?,
-            support: *support,
-        },
-        R::BandFoot(n) => R::BandFoot(one(n)?),
-        R::BandCross(n) => R::BandCross(one(n)?),
-        R::BandCut(n) => R::BandCut(one(n)?),
-        R::BandSlit(n) => R::BandSlit(one(n)?),
-        R::Inner(n) => R::Inner(one(n)?),
-        R::Rim(n) => R::Rim(one(n)?),
-        R::HoleRim { of, hole } => R::HoleRim {
-            of: one(of)?,
-            hole: *hole,
-        },
-        // The document seam: the argument names ANOTHER document's
-        // nodes and crosses verbatim.
-        R::InPart { of } => R::InPart { of: of.clone() },
-        R::Instance { i, of } => R::Instance {
-            i: *i,
-            of: one(of)?,
-        },
-    })
 }
 
 /// What a payload rewrite could not map: a DAG input (unreachable

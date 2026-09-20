@@ -40,10 +40,11 @@ use crate::fixture;
 
 use editor_core::{
     Attr, CapEnd, Datum, Dimension, DocEdit, DocParam, EditError, EntityKind, EvalOptions, Expr,
-    LoggedEdit, LoopProgram, LoopProvenance, Maintenance, NameRef, Node, NodeErrorKind, NodeResult,
-    ParamName, PersistError, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, ProvenanceFault, RecipeNodeId, ResolveError, Rgba8,
-    RoleSeg, SlotId, StableName, StepArg, apply, load, save,
+    LoggedEdit, LoopProgram, LoopProvenance, Maintenance, MeasureExpr, MeasurePrimitive, NameRef,
+    Node, NodeErrorKind, NodeResult, ParamName, PersistError, ProfileDoc, ProfileEdgeRef,
+    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, ProvenanceFault,
+    RETIRED_FLOOR, RecipeNodeId, Resolution, ResolveError, Rgba8, RoleSeg, RunCtx, SitedRef,
+    SlotId, StableName, StepArg, apply, band, load, resolve, save,
 };
 use fixture::{ang, edge_of, ends, fname, insert, len, minted, point, scl, table, tol};
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
@@ -52,75 +53,15 @@ use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
 // The fixture: the sunk rod, and the leg the reshaping inserts
 // ---------------------------------------------------------------- //
 
-/// Where the inserted leg lands: a bump on the block's right wall,
-/// between the corner `(1, −1)` and the corner `(1, 0)`.
-const BUMP: (f64, f64) = (1.25, -0.5);
+// The rod's loop, its bump and its provenance are the corpus
+// document's (`reshaped_rod`, the first persisted `SetProgram`): one
+// spelling, so the rows here measure the program the corpus replays.
+use crate::corpus::reshaped_rod::{BUMP, bump_provenance, lateral_edge, rod_loop};
 
 /// The area the bump adds to the section — the triangle
 /// `(1, −1), (1.25, −0.5), (1, 0)` — so the reshaped rod's volume is
 /// the old one's plus this times the length.
 const BUMP_AREA: f64 = 0.125;
-
-/// The sunk rod's loop (`edit_ruled_carve::sunk_rod`, verbatim), with
-/// or without the bump.
-///
-/// Without: steps `At, LineTo(1,−1), LineTo(1,0), LineTo(xv,0), Arc,
-/// LineTo(−1,0), LineTo(Start)` — six segments, the arc being segment
-/// 3 and the two creases the vertices 3 and 4 it runs between.
-///
-/// With: the bump is authored as a DIRECTION and a LENGTH — `Toward`
-/// then `Line` — two steps that draw ONE segment, so the step indices
-/// after it move by two while the segment indices move by one. That
-/// asymmetry is deliberate: a door that rebound names by step index
-/// instead of by the span's segments would land the crease one
-/// vertex too far, and the rows below measure where it lands.
-fn rod_loop(bump: bool) -> LoopProgram {
-    let c = rod_chord_at(ROD_FLAT);
-    let xv = c.half;
-    let pt = |x: f64, y: f64| [len(x), len(y)];
-    let mut steps = vec![
-        ProgramStep::At(pt(-1.0, -1.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, -1.0))),
-    ];
-    if bump {
-        let (dx, dy) = (BUMP.0 - 1.0, BUMP.1 + 1.0);
-        steps.push(ProgramStep::Toward {
-            dx: scl(dx),
-            dy: scl(dy),
-        });
-        steps.push(ProgramStep::Line(len(dx.hypot(dy))));
-    }
-    steps.extend([
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(xv, 0.0))),
-        ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(pt(-xv, 0.0)),
-            b: scl(c.section_bulge),
-        }),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(-1.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Start),
-    ]);
-    LoopProgram::Chain(steps)
-}
-
-/// The provenance of the bumped loop over the plain one: every step
-/// continues its old self except the two the bump inserted.
-fn bump_provenance() -> Vec<LoopProvenance> {
-    vec![LoopProvenance {
-        from: Some(0),
-        steps: vec![
-            Some(0),
-            Some(1),
-            None,
-            None,
-            Some(2),
-            Some(3),
-            Some(4),
-            Some(5),
-            Some(6),
-        ],
-    }]
-}
 
 /// [`bump_provenance`] with the ARC step (old step 4, new step 6)
 /// stated as new — the reshaping that keeps the arc's segment in the
@@ -130,9 +71,6 @@ fn bump_provenance_without_the_arc() -> Vec<LoopProvenance> {
     p[0].steps[6] = None;
     p
 }
-
-/// The number of segments the bumped loop replays to.
-const BUMPED_SEGMENTS: u32 = 7;
 
 /// A document holding the sunk rod, with `creases` (profile vertices)
 /// filleted when any are named.
@@ -173,16 +111,6 @@ fn rod(label: &str, creases: &[u32]) -> Rod {
         rod,
         fillet,
     }
-}
-
-fn lateral_edge(rod: RecipeNodeId, vertex: u32) -> StableName {
-    fixture::ename(
-        rod,
-        RoleSeg::LateralEdge(ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        }),
-    )
 }
 
 fn wall(rod: RecipeNodeId, segment: u32) -> StableName {
@@ -410,9 +338,9 @@ fn a_fillet_on_a_crease_survives_a_leg_inserted_before_it_rebound_and_reported()
 /// name and rebinds nothing.** The provenance states the arc step as
 /// new; the arc is still in the program, but the step that drew the
 /// crease's arriving segment is not a kept one, so the fillet's name
-/// is retired past the loop's end — vertex 4 becomes vertex
-/// `7 + 4 = 11` of a seven-segment loop — reported `Strand` with that
-/// spelling, and at the next evaluation the fillet refuses `Vanished`
+/// is retired to the floor — vertex 4 becomes vertex
+/// `RETIRED_FLOOR + 4`, which no loop draws — reported `Strand` with
+/// that spelling, and at the next evaluation the fillet refuses `Vanished`
 /// on exactly that name (rung 3 of the N5 ladder: the node is live and
 /// its table has no such entry).
 ///
@@ -430,7 +358,7 @@ fn a_step_the_provenance_does_not_continue_strands_the_names_on_its_segments() {
         vec![rod_loop(true)],
         bump_provenance_without_the_arc(),
     );
-    let retired = lateral_edge(r.rod, BUMPED_SEGMENTS + 4);
+    let retired = lateral_edge(r.rod, RETIRED_FLOOR + 4);
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::Strand {
@@ -537,7 +465,7 @@ fn extruded(label: &str, loops: Vec<LoopProgram>) -> (ProfileDoc, RecipeNodeId, 
 /// step that arrives at `(2, 2)` draws three segments (the trimmed
 /// side, the arc, its own leg) where it drew one; the provenance
 /// claims that step kept, and the door does not believe it: the wall
-/// it drew strands, retired past the loop's end, while the wall of the
+/// it drew strands, retired to the floor, while the wall of the
 /// next step — one segment before and after — is rebound. The two rows
 /// come back strands first.
 #[test]
@@ -573,8 +501,9 @@ fn a_step_whose_segment_count_moved_is_not_a_kept_one() {
         steps: vec![Some(0), None, None, None, Some(2), Some(3), Some(4)],
     }];
     let applied = accepted(&doc, profile, vec![LoopProgram::Chain(steps)], provenance);
-    // Five segments now: the filleted corner is two vertices.
-    let retired = wall(ext, 5 + 1);
+    // Retired at the floor plus its old segment, whatever the loop
+    // now draws (five segments: the filleted corner is two vertices).
+    let retired = wall(ext, RETIRED_FLOOR + 1);
     assert_eq!(
         applied.maintenance,
         vec![
@@ -598,8 +527,9 @@ fn a_step_whose_segment_count_moved_is_not_a_kept_one() {
 /// **A dropped loop strands every name on it; a loop that moved index
 /// rebinds every name on it.** A square with a round hole; a frame on
 /// the square's wall 1 and one on the hole's single wall. Dropping the
-/// hole strands the hole's name, retired onto a loop past the
-/// program's end, and leaves the square's alone. Swapping the two
+/// hole strands the hole's name, retired onto loop `RETIRED_FLOOR +
+/// 1` — no loop continues it, so it is filed by its OLD loop index at
+/// the floor — and leaves the square's alone. Swapping the two
 /// loops' order rebinds both — the hole to loop 0, the square's wall
 /// to loop 1.
 #[test]
@@ -623,7 +553,7 @@ fn a_dropped_loop_strands_and_a_moved_loop_rebinds_every_name_on_it() {
         dropped.maintenance,
         vec![Maintenance::Strand {
             node: on_hole,
-            name: wall_of(ext, 1 + 1, 0),
+            name: wall_of(ext, RETIRED_FLOOR + 1, 0),
         }],
         "the hole's name strands on a loop past the one-loop program's end"
     );
@@ -728,24 +658,16 @@ fn a_program_that_no_longer_replays_has_no_spans_so_every_name_on_it_strands() {
         ],
     );
     // The hole loop is continued (into new loop 1, which draws the
-    // circle's segments), so its retired coordinate sits past THAT
-    // loop's end.
-    let hole_segments = match applied.maintenance.as_slice() {
-        [Maintenance::Strand { node, name }] => {
-            assert_eq!(*node, on_hole);
-            match name.path.as_slice() {
-                [RoleSeg::Lateral(e)] => {
-                    assert_eq!(e.loop_index, 1);
-                    e.segment
-                }
-                other => panic!("a retired wall, got {other:?}"),
-            }
-        }
-        other => panic!("one strand and nothing else, got {other:?}"),
-    };
-    assert!(
-        hole_segments >= 1,
-        "retired past the circle's segments: {hole_segments}"
+    // circle's segments), so its retired coordinate is filed on THAT
+    // loop, at the floor plus the old segment — exactly
+    // `RETIRED_FLOOR + 0`.
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::Strand {
+            node: on_hole,
+            name: wall_of(ext, 1, RETIRED_FLOOR),
+        }],
+        "one strand at the retired spelling and nothing else"
     );
 }
 
@@ -790,7 +712,7 @@ fn an_appearance_attachment_keyed_on_a_moved_wall_is_rekeyed_and_reported() {
         vec![rod_loop(true)],
         bump_provenance_without_the_arc(),
     );
-    let retired = wall(r.rod, BUMPED_SEGMENTS + 3);
+    let retired = wall(r.rod, RETIRED_FLOOR + 3);
     assert_eq!(
         dropped.maintenance,
         vec![
@@ -831,7 +753,7 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys_then_its_rebounds() {
         vec![rod_loop(true)],
         bump_provenance_without_the_arc(),
     );
-    let retired = wall(r.rod, BUMPED_SEGMENTS + 3);
+    let retired = wall(r.rod, RETIRED_FLOOR + 3);
     assert_eq!(
         applied.maintenance,
         vec![
@@ -1186,7 +1108,13 @@ fn the_persisted_spelling_is_pinned_and_a_build_without_it_refuses_typed() {
         r#"{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"provenance":[{"from":0,"steps":[null]}]}}"#
     );
 
-    let (empty, log) = rod_log();
+    let (empty, mut log) = rod_log();
+    // An entry AFTER the bad one, so the end of the bad entry and the
+    // end of the log are different lines and a refusal that drifted to
+    // the file's end would be visible.
+    log.push(LoggedEdit::bare(DocEdit::InsertNode {
+        node: fixture::xy_frame(),
+    }));
     let text = save(&empty, &log, tol()).expect("saves");
     assert!(text.contains("\"SetProgram\""), "the file carries the tag");
     let older = text.replace("\"SetProgram\"", "\"SetProgramme\"");
@@ -1195,11 +1123,27 @@ fn the_persisted_spelling_is_pinned_and_a_build_without_it_refuses_typed() {
         .position(|l| l.contains("\"SetProgramme\""))
         .expect("the mutated tag is in the file")
         + 1;
+    // The bad entry runs from its tag's line to the line before the
+    // next entry opens.
+    let next = older
+        .lines()
+        .enumerate()
+        .position(|(i, l)| i + 1 > entry_line && l == "    {")
+        .expect("the entry after the bad one opens")
+        + 1;
     match load(&older, tol()) {
         Err(PersistError::Unreadable { line, detail, .. }) => {
             assert!(
-                line >= entry_line,
-                "the refusal sits at or after the entry's line {entry_line}: {line} ({detail})"
+                entry_line <= line && line < next,
+                "the refusal sits inside the bad entry's span {entry_line}..{next}: {line} \
+                 ({detail})"
+            );
+            assert_eq!(
+                line,
+                next - 1,
+                "measured: the line is the entry's LAST line, not the tag's — so the index of \
+                 the entry is recoverable from it and the tag is not \
+                 (`an-unknown-edit-tag-in-a-log-refuses-without-naming-it`)"
             );
             assert!(
                 detail.contains("untagged enum"),
@@ -1254,4 +1198,1187 @@ fn the_step_map_on_the_reshaped_profile_answers_the_new_programs_record() {
         }
         other => panic!("the frame carries the arc's wall, got {other:?}"),
     }
+}
+
+// ---------------------------------------------------------------- //
+// The retired coordinate: the floor, and what keeps it dead
+// ---------------------------------------------------------------- //
+
+/// The face a derived frame carries, as the document holds it.
+fn frame_face(doc: &ProfileDoc, frame: RecipeNodeId) -> StableName {
+    match doc.node(frame) {
+        Some(Node::Datum(Datum::FaceFrame { face, .. })) => face.clone(),
+        other => panic!("a frame, got {other:?}"),
+    }
+}
+
+/// `At, Toward(+x), Fillet(r), Toward(+y), FarEndTo(2,2), LineTo(0,2),
+/// LineTo(Start)` — the corner-fillet chain whose segment count is a
+/// function of its RADIUS. Measured: at `r = 2` both runs of the
+/// fillet have a `Zero` fit and emit nothing, so the loop draws THREE
+/// segments; at `r = 0.3` they emit and it draws FIVE.
+fn filleted_square(r: f64) -> LoopProgram {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::Toward {
+            dx: scl(1.0),
+            dy: scl(0.0),
+        },
+        ProgramStep::Fillet(len(r)),
+        ProgramStep::Toward {
+            dx: scl(0.0),
+            dy: scl(1.0),
+        },
+        ProgramStep::FarEndTo(pt(2.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
+}
+
+/// How many segments loop 0 draws, counted off the extrude's published
+/// name table.
+fn drawn_segments(doc: &ProfileDoc, ext: RecipeNodeId) -> u32 {
+    let ev = fixture::run(doc, &EvalOptions::default());
+    let t = table(&ev, ext);
+    let mut n = 0;
+    while t.lookup(&wall_of(ext, 0, n)).is_some() {
+        n += 1;
+    }
+    n
+}
+
+/// The sorted `(x, y, z)` corners of the face `name` denotes on the
+/// evaluated `node` — what a name DENOTES, read off the solid rather
+/// than off an index.
+fn corners_of(doc: &ProfileDoc, node: RecipeNodeId, name: &StableName) -> Vec<(f64, f64, f64)> {
+    let ev = fixture::run(doc, &EvalOptions::default());
+    let body = corpus::body_of(&ev, node);
+    let mut out: Vec<(f64, f64, f64)> =
+        fixture::face_vertices(body, fixture::face_of(table(&ev, node), "wall", name))
+            .into_iter()
+            .map(|v| {
+                let p = point(body, v);
+                (p.x, p.y, p.z)
+            })
+            .collect();
+    out.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    out
+}
+
+fn has_corner3(corners: &[(f64, f64, f64)], want: (f64, f64, f64)) -> bool {
+    corners.iter().any(|c| {
+        (c.0 - want.0).abs() < 1e-9 && (c.1 - want.1).abs() < 1e-9 && (c.2 - want.2).abs() < 1e-9
+    })
+}
+
+fn fillet_refuses_vanished(doc: &ProfileDoc, fillet: RecipeNodeId, retired: &StableName) {
+    let ev = fixture::run(doc, &EvalOptions::default());
+    match ev.nodes.get(&fillet) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
+                ResolveError::Vanished { name, .. } => assert_eq!(name, retired),
+                other => panic!("the retired name resolves to nothing: got {other:?}"),
+            },
+            other => panic!("the fillet refuses on its selection, got {other:?}"),
+        },
+        other => panic!("the fillet refuses, got {other:?}"),
+    }
+}
+
+/// **A retired name stays dead when a SLOT edit grows the loop.** A
+/// loop's segment count is a function of its ARGUMENTS too: at `r = 2`
+/// the corner fillet's two runs have a `Zero` fit and emit nothing
+/// (three segments), at `r = 0.3` they emit (five). A retired name
+/// spelled one past the OLD end would go live under a plain
+/// `DocEdit::SetParam` on that radius — the door reports nothing for a
+/// slot edit, and the retired name would silently denote the segment
+/// drawn at its coordinate, the DI1 aliasing class the retirement
+/// exists to end. Spelled at `RETIRED_FLOOR` it is past every
+/// coordinate a program can draw, under this edit and every other.
+#[test]
+fn a_retired_name_stays_dead_when_a_slot_edit_grows_the_loop() {
+    let (doc, profile, ext) = extruded("set-program-retire-grow", vec![filleted_square(2.0)]);
+    let n_tight = drawn_segments(&doc, ext);
+    assert_eq!(n_tight, 3, "at r = 2 both runs fit Zero and emit nothing");
+    let (doc, frame) = frame_on(doc, ext, wall_of(ext, 0, 0));
+    let applied = accepted(
+        &doc,
+        profile,
+        vec![filleted_square(2.0)],
+        vec![LoopProvenance {
+            from: Some(0),
+            steps: vec![Some(0), Some(1), Some(2), Some(3), None, Some(5), Some(6)],
+        }],
+    );
+    let retired = frame_face(&applied.doc, frame);
+    assert_eq!(
+        retired,
+        wall_of(ext, 0, RETIRED_FLOOR),
+        "retired at the floor"
+    );
+    let grown = apply(
+        &applied.doc,
+        &DocEdit::SetParam {
+            node: profile,
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: 2,
+                arg: StepArg::Radius,
+            },
+            expr: len(0.3),
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the radius is a legal slot write");
+    assert_eq!(grown.maintenance, vec![], "the slot edit reports nothing");
+    let n_loose = drawn_segments(&grown.doc, ext);
+    assert_eq!(n_loose, 5, "the loop grew under the slot edit");
+    let ev = fixture::run(&grown.doc, &EvalOptions::default());
+    assert!(
+        table(&ev, ext).lookup(&retired).is_none(),
+        "the retired name is not drawn by the grown loop"
+    );
+    match ev.nodes.get(&frame) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::FaceFrameResolve { error } => match error.as_ref() {
+                ResolveError::Vanished { name, .. } => assert_eq!(name, &retired),
+                other => panic!("the retired name resolves to nothing: got {other:?}"),
+            },
+            other => panic!("the frame refuses on its face, got {other:?}"),
+        },
+        other => panic!("the frame refuses, got {other:?}"),
+    }
+}
+
+/// The bumped rod plus six extra legs zig-zagging along the bottom
+/// edge: thirteen segments, so a coordinate one past the seven-segment
+/// loop's end would be a live corner here.
+fn many_legged_rod() -> LoopProgram {
+    let c = rod_chord_at(ROD_FLAT);
+    let xv = c.half;
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let mut steps = vec![ProgramStep::At(pt(-1.0, -1.0))];
+    let zig = [
+        (-0.7, -1.1),
+        (-0.4, -1.0),
+        (-0.1, -1.1),
+        (0.2, -1.0),
+        (0.5, -1.1),
+        (0.8, -1.0),
+    ];
+    for (x, y) in zig {
+        steps.push(ProgramStep::LineTo(ProgramTarget::Point(pt(x, y))));
+    }
+    steps.push(ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, -1.0))));
+    let (dx, dy) = (BUMP.0 - 1.0, BUMP.1 + 1.0);
+    steps.push(ProgramStep::Toward {
+        dx: scl(dx),
+        dy: scl(dy),
+    });
+    steps.push(ProgramStep::Line(len(dx.hypot(dy))));
+    steps.extend([
+        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(xv, 0.0))),
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Point(pt(-xv, 0.0)),
+            b: scl(c.section_bulge),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(-1.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    LoopProgram::Chain(steps)
+}
+
+/// **A retired name is untouched and unreported by a later reshaping
+/// that grows the loop past its old coordinate.** Strand the fillet's
+/// crease (vertex 4 of a seven-segment loop, retired to
+/// `RETIRED_FLOOR + 4`), then reshape AGAIN into a thirteen-segment
+/// loop. The name keeps its retired spelling exactly, the second edit
+/// reports NOTHING about it — DM7's clause is the referent THE EDIT
+/// removed, and this name lost its referent at the first edit — and
+/// the fillet still refuses `Vanished` on it.
+#[test]
+fn a_retired_name_is_untouched_and_unreported_by_a_later_reshaping_that_grows_past_it() {
+    let r = rod("set-program-retire-again", &[4]);
+    let fillet = r.fillet.unwrap();
+    let first = accepted(
+        &r.doc,
+        r.profile,
+        vec![rod_loop(true)],
+        bump_provenance_without_the_arc(),
+    );
+    let retired = lateral_edge(r.rod, RETIRED_FLOOR + 4);
+    assert_eq!(selection_of(&first.doc, fillet), vec![retired.clone()]);
+
+    // Old (bumped) steps: At, LineTo(1,-1), Toward, Line, LineTo(1,0),
+    // LineTo(xv,0), Arc, LineTo(-1,0), Close = 9. New: At, 6 zig,
+    // LineTo(1,-1), Toward, Line, LineTo(1,0), LineTo(xv,0), Arc,
+    // LineTo(-1,0), Close = 15.
+    let mut steps: Vec<Option<u32>> = vec![Some(0)];
+    steps.extend([None; 6]);
+    steps.extend((1..9).map(Some));
+    let second = accepted(
+        &first.doc,
+        r.profile,
+        vec![many_legged_rod()],
+        vec![LoopProvenance {
+            from: Some(0),
+            steps,
+        }],
+    );
+    assert_eq!(
+        selection_of(&second.doc, fillet),
+        vec![retired.clone()],
+        "the retired spelling is left exactly as it was"
+    );
+    assert_eq!(
+        second.maintenance,
+        vec![],
+        "an already-retired name is not a strand of the edit that grew past it"
+    );
+    fillet_refuses_vanished(&second.doc, fillet, &retired);
+}
+
+/// **A retired name round-trips the wire and is repaired by `Rebind`
+/// from its retired spelling.** The load door admits a locator at the
+/// floor in a snapshot and replays one through a logged `SetProgram`;
+/// `Rebind` from the retired spelling to the crease's live name
+/// repairs the fillet, measured on the solid.
+#[test]
+fn a_retired_name_round_trips_the_wire_and_rebinds() {
+    let r = rod("set-program-retire-wire", &[4]);
+    let fillet = r.fillet.unwrap();
+    let stranded = accepted(
+        &r.doc,
+        r.profile,
+        vec![rod_loop(true)],
+        bump_provenance_without_the_arc(),
+    );
+    let retired = lateral_edge(r.rod, RETIRED_FLOOR + 4);
+    let text = save(&stranded.doc, &[], tol()).expect("saves");
+    let loaded = load(&text, tol()).expect("a retired locator loads");
+    assert!(loaded.doc.bit_eq(&stranded.doc));
+    assert_eq!(selection_of(&loaded.doc, fillet), vec![retired.clone()]);
+    let log = vec![LoggedEdit::bare(DocEdit::SetProgram {
+        node: r.profile,
+        loops: vec![rod_loop(true)],
+        provenance: bump_provenance_without_the_arc(),
+    })];
+    let text = save(&r.doc, &log, tol()).expect("saves");
+    let loaded = load(&text, tol()).expect("loads");
+    assert!(loaded.doc.bit_eq(&stranded.doc));
+
+    let repaired = apply(
+        &stranded.doc,
+        &DocEdit::Rebind {
+            from: retired,
+            to: lateral_edge(r.rod, 5),
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .expect("rebind from a retired name");
+    assert_eq!(
+        selection_of(&repaired.doc, fillet),
+        vec![lateral_edge(r.rod, 5)]
+    );
+    let xv = rod_chord_at(ROD_FLAT).half;
+    assert!(near(
+        strut_at(&repaired.doc, r.rod, &lateral_edge(r.rod, 5)),
+        (-xv, 0.0)
+    ));
+    let ev = fixture::run(&repaired.doc, &EvalOptions::default());
+    assert!(ev.value(fillet).is_some(), "{:?}", corpus::failures(&ev));
+}
+
+/// **A retired name through the resolver door answers `Vanished` and
+/// never panics** — the N5 ladder does no arithmetic on a locator's
+/// index, so a coordinate at the floor, and one at `u32::MAX` on a
+/// loop at `u32::MAX`, are looked up and refused typed exactly as any
+/// name the table does not hold.
+#[test]
+fn a_retired_name_resolves_vanished_through_the_resolver_door() {
+    let r = rod("set-program-retire-resolve", &[]);
+    let (doc, _on_arc) = frame_on(r.doc, r.rod, wall(r.rod, 3));
+    let applied = accepted(
+        &doc,
+        r.profile,
+        vec![rod_loop(true)],
+        bump_provenance_without_the_arc(),
+    );
+    let retired = wall(r.rod, RETIRED_FLOOR + 3);
+    let ev = fixture::run(&applied.doc, &EvalOptions::default());
+    let ctx = RunCtx {
+        doc: &applied.doc,
+        eval: &ev,
+    };
+    let vanished = |name: &StableName| match resolve(ctx, name) {
+        Resolution::Failed(failure) => match failure.error {
+            ResolveError::Vanished { name: got, .. } => assert_eq!(&got, name),
+            other => panic!("a name nothing draws is Vanished, got {other:?}"),
+        },
+        other => panic!("a name nothing draws fails to resolve, got {other:?}"),
+    };
+    vanished(&retired);
+    vanished(&wall_of(r.rod, u32::MAX, u32::MAX));
+    vanished(&lateral_edge(r.rod, u32::MAX));
+}
+
+/// **A frame on a wall a reshaping dropped refuses `Vanished` at
+/// evaluation rather than evaluating on the plane the new program
+/// draws at its old index** — the edge twin of the fillet rows'
+/// `Vanished`. The block's right wall is segment 1, drawn by old step
+/// 2 (`LineTo(1, 0)`); the bump inserted before it with THAT step
+/// stated as new drops it, and the new program draws a wall AT index
+/// 1 (the bump's first leg, a different plane), so a name left in
+/// place would have re-anchored the frame to that plane silently.
+#[test]
+fn a_frame_on_a_wall_a_reshaping_dropped_refuses_vanished_at_evaluation() {
+    let r = rod("set-program-frame-dropped", &[]);
+    let (doc, frame) = frame_on(r.doc, r.rod, wall(r.rod, 1));
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    assert!(ev.value(frame).is_some(), "{:?}", corpus::failures(&ev));
+    let mut without_the_right_wall = bump_provenance();
+    without_the_right_wall[0].steps[4] = None;
+    let applied = accepted(
+        &doc,
+        r.profile,
+        vec![rod_loop(true)],
+        without_the_right_wall,
+    );
+    let retired = wall(r.rod, RETIRED_FLOOR + 1);
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::Strand {
+            node: frame,
+            name: retired.clone(),
+        }]
+    );
+    let ev = fixture::run(&applied.doc, &EvalOptions::default());
+    assert!(
+        table(&ev, r.rod).lookup(&wall(r.rod, 1)).is_some(),
+        "the new program draws a wall at the old index"
+    );
+    match ev.nodes.get(&frame) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::FaceFrameResolve { error } => match error.as_ref() {
+                ResolveError::Vanished { name, .. } => assert_eq!(name, &retired),
+                other => panic!("the retired name resolves to nothing: got {other:?}"),
+            },
+            other => panic!("the frame refuses on its face, got {other:?}"),
+        },
+        other => panic!("the frame refuses rather than re-anchoring, got {other:?}"),
+    }
+}
+
+// ---------------------------------------------------------------- //
+// Which profile a solid's names are spelled in: `anchoring_profile`
+// tied to what the evaluation publishes
+// ---------------------------------------------------------------- //
+
+/// The unit square with a leg `(3, 1)` inserted between `(2, 0)` and
+/// `(2, 2)`, and the provenance that continues every old step.
+fn square_with_a_leg() -> (LoopProgram, Vec<LoopProvenance>) {
+    (
+        LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (3.0, 1.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
+        vec![LoopProvenance {
+            from: Some(0),
+            steps: vec![Some(0), Some(1), None, Some(2), Some(3), Some(4)],
+        }],
+    )
+}
+
+/// **An extrude's names carry its profile's coordinates**, and that
+/// profile is [`Node::anchoring_profile`]'s answer: a paint on wall 1
+/// (`(2, 0) → (2, 2)`) follows the leg inserted before it to wall 2,
+/// and the wall the rebound name denotes on the solid still arrives at
+/// `(2, 2)`.
+#[test]
+fn an_extrudes_names_carry_its_profiles_coordinates() {
+    let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
+    let (doc, profile, ext) = extruded("set-program-anchor-extrude", vec![square]);
+    assert_eq!(
+        doc.node(ext).unwrap().anchoring_profile(),
+        Some(profile),
+        "the extrude anchors to its profile"
+    );
+    let before = corners_of(&doc, ext, &wall_of(ext, 0, 1));
+    assert!(has_corner3(&before, (2.0, 2.0, 0.0)), "{before:?}");
+    let doc = paint(&doc, &wall_of(ext, 0, 1));
+    let (leg, provenance) = square_with_a_leg();
+    let applied = accepted(&doc, profile, vec![leg], provenance);
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::Rebound {
+            from: wall_of(ext, 0, 1),
+            to: wall_of(ext, 0, 2),
+        }]
+    );
+    let after = corners_of(&applied.doc, ext, &wall_of(ext, 0, 2));
+    assert!(
+        has_corner3(&after, (2.0, 2.0, 0.0)) && has_corner3(&after, (3.0, 1.0, 0.0)),
+        "the rebound name denotes the wall arriving at (2, 2): {after:?}"
+    );
+}
+
+/// **A revolve's names carry its profile's coordinates**: a square
+/// standing off the axis, turned a quarter turn about the sketch's
+/// `+y`; the band drawn by segment 1 (`(2, 0) → (2, 1)`, the outer
+/// cylinder) follows the leg inserted before it, and the band the
+/// rebound name denotes still has the corner `(2, 1)` on the sketch
+/// plane.
+#[test]
+fn a_revolves_names_carry_its_profiles_coordinates() {
+    let doc = ProfileDoc::empty_derived("set-program-anchor-revolve", tol());
+    let (doc, plane, profile) = fixture::on_frame_keeping(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
+    );
+    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let (doc, rev) = insert(
+        doc,
+        Node::Revolve {
+            profile,
+            axis,
+            angle: ang(std::f64::consts::FRAC_PI_2),
+        },
+    );
+    assert_eq!(doc.node(rev).unwrap().anchoring_profile(), Some(profile));
+    let before = corners_of(&doc, rev, &band(rev, 0, 1));
+    assert!(has_corner3(&before, (2.0, 1.0, 0.0)), "{before:?}");
+    let doc = paint(&doc, &band(rev, 0, 1));
+    let leg =
+        LoopProgram::polygon([(1.0, 0.0), (2.0, 0.0), (3.0, 0.5), (2.0, 1.0), (1.0, 1.0)]).unwrap();
+    let applied = accepted(
+        &doc,
+        profile,
+        vec![leg],
+        vec![LoopProvenance {
+            from: Some(0),
+            steps: vec![Some(0), Some(1), None, Some(2), Some(3), Some(4)],
+        }],
+    );
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::Rebound {
+            from: band(rev, 0, 1),
+            to: band(rev, 0, 2),
+        }]
+    );
+    let after = corners_of(&applied.doc, rev, &band(rev, 0, 2));
+    assert!(
+        has_corner3(&after, (2.0, 1.0, 0.0)) && has_corner3(&after, (3.0, 0.5, 0.0)),
+        "the rebound name denotes the band arriving at (2, 1): {after:?}"
+    );
+}
+
+/// **A loft's names carry its FIRST section's coordinates** (DM8's
+/// exception), and only that section is [`Node::anchoring_profile`]'s
+/// answer. Two DIFFERING sections — the upper one scaled — skin a
+/// loft; reshaping the second section moves none of the loft's names
+/// and leaves the sections with different segment counts, so the
+/// loft refuses rather than re-skinning under unchanged names;
+/// reshaping the first section the same way rebinds the painted wall,
+/// and the loft skins again with the rebound name at the wall that
+/// arrives at `(2, 2, 0)`.
+#[test]
+fn a_lofts_names_carry_its_first_sections_coordinates() {
+    let square = |s: f64| {
+        LoopProgram::polygon([
+            (0.0, 0.0),
+            (2.0 * s, 0.0),
+            (2.0 * s, 2.0 * s),
+            (0.0, 2.0 * s),
+        ])
+        .unwrap()
+    };
+    let leg = |s: f64| {
+        LoopProgram::polygon([
+            (0.0, 0.0),
+            (2.0 * s, 0.0),
+            (3.0 * s, 1.0 * s),
+            (2.0 * s, 2.0 * s),
+            (0.0, 2.0 * s),
+        ])
+        .unwrap()
+    };
+    let (_, provenance) = square_with_a_leg();
+    let doc = ProfileDoc::empty_derived("set-program-anchor-loft", tol());
+    let (doc, p0) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, sec0) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: p0,
+            loops: vec![square(1.0)],
+        }),
+    );
+    let (doc, p1) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, sec1) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane: p1,
+            loops: vec![square(1.5)],
+        }),
+    );
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: vec![sec0, sec1],
+            v_degree: Expr::count(1),
+        },
+    );
+    assert_eq!(doc.node(loft).unwrap().anchoring_profile(), Some(sec0));
+    let before = corners_of(&doc, loft, &wall_of(loft, 0, 1));
+    assert!(has_corner3(&before, (2.0, 2.0, 0.0)), "{before:?}");
+    let doc = paint(&doc, &wall_of(loft, 0, 1));
+
+    let upper = accepted(&doc, sec1, vec![leg(1.5)], provenance.clone());
+    assert_eq!(
+        upper.maintenance,
+        vec![],
+        "the loft's locators are section 0's and this reshaped section 1"
+    );
+    let ev = fixture::run(&upper.doc, &EvalOptions::default());
+    assert!(
+        ev.value(loft).is_none(),
+        "sections of different segment counts do not skin"
+    );
+
+    let both = accepted(&upper.doc, sec0, vec![leg(1.0)], provenance);
+    assert_eq!(
+        both.maintenance,
+        vec![Maintenance::Rebound {
+            from: wall_of(loft, 0, 1),
+            to: wall_of(loft, 0, 2),
+        }]
+    );
+    let after = corners_of(&both.doc, loft, &wall_of(loft, 0, 2));
+    assert!(
+        has_corner3(&after, (2.0, 2.0, 0.0)) && has_corner3(&after, (3.0, 1.0, 0.0)),
+        "the rebound name denotes the wall arriving at (2, 2): {after:?}"
+    );
+}
+
+/// **A sweep publishes no name today, so a reshaping of its profile
+/// moves none** — [`Node::anchoring_profile`] answers the sweep's
+/// profile for the day its frontier lowers, and this row is what reds
+/// that day: the sweep refuses at its frontier, mints nothing, and a
+/// leg inserted into its profile or its path reports nothing. When a
+/// sweep evaluates, the author who lowers it decides which section
+/// its names are spelled in and moves this row with it.
+#[test]
+fn a_sweep_publishes_no_name_today_so_a_reshaping_of_its_profile_moves_none() {
+    let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
+    let doc = ProfileDoc::empty_derived("set-program-anchor-sweep", tol());
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![square.clone()],
+        }),
+    );
+    let (doc, path) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![square],
+        }),
+    );
+    let (doc, sweep) = insert(
+        doc,
+        Node::Sweep {
+            profile,
+            path,
+            stations: Expr::count(4),
+            v_degree: Expr::count(2),
+        },
+    );
+    assert_eq!(doc.node(sweep).unwrap().anchoring_profile(), Some(profile));
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    match ev.nodes.get(&sweep) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(e.kind, NodeErrorKind::CurvedSolidFrontier { .. }),
+            "the sweep's frontier, got {:?}",
+            e.kind
+        ),
+        other => panic!("the sweep publishes no value today, got {other:?}"),
+    }
+    let (leg, provenance) = square_with_a_leg();
+    for node in [profile, path] {
+        let applied = accepted(&doc, node, vec![leg.clone()], provenance.clone());
+        assert_eq!(
+            applied.maintenance,
+            vec![],
+            "no name of the sweep exists to move"
+        );
+    }
+}
+
+// ---------------------------------------------------------------- //
+// The loop's seams, measured on the solid
+// ---------------------------------------------------------------- //
+
+/// Where a bump is inserted into the rod's loop: after the first leg
+/// (the corpus's bump), at the very start, or as the last leg before
+/// the close.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum At {
+    Start,
+    BeforeClose,
+}
+
+/// The sunk rod's loop with a bump at `at` — two steps drawing one
+/// segment, as the corpus's bump is authored.
+fn rod_loop_at(at: At) -> LoopProgram {
+    let c = rod_chord_at(ROD_FLAT);
+    let xv = c.half;
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let bump = |steps: &mut Vec<ProgramStep>, from: (f64, f64), to: (f64, f64)| {
+        let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+        steps.push(ProgramStep::Toward {
+            dx: scl(dx),
+            dy: scl(dy),
+        });
+        steps.push(ProgramStep::Line(len(dx.hypot(dy))));
+    };
+    let mut steps = vec![ProgramStep::At(pt(-1.0, -1.0))];
+    if at == At::Start {
+        // A bump below the bottom edge, leaving (-1,-1).
+        bump(&mut steps, (-1.0, -1.0), (-0.5, -1.25));
+    }
+    steps.extend([
+        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, -1.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(xv, 0.0))),
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Point(pt(-xv, 0.0)),
+            b: scl(c.section_bulge),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(-1.0, 0.0))),
+    ]);
+    if at == At::BeforeClose {
+        // A bump on the left wall, between (-1,0) and (-1,-1).
+        bump(&mut steps, (-1.0, 0.0), (-1.25, -0.5));
+    }
+    steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+    LoopProgram::Chain(steps)
+}
+
+/// Provenance of [`rod_loop_at`] over the plain rod: every old step
+/// continues, the two bump steps are new.
+fn provenance_at(at: At) -> Vec<LoopProvenance> {
+    let mut steps: Vec<Option<u32>> = (0..7).map(Some).collect();
+    let insert_at = match at {
+        At::Start => 1,
+        At::BeforeClose => 6,
+    };
+    steps.insert(insert_at, None);
+    steps.insert(insert_at, None);
+    vec![LoopProvenance {
+        from: Some(0),
+        steps,
+    }]
+}
+
+fn vertex_at(doc: &ProfileDoc, rod: RecipeNodeId, name: &StableName) -> (f64, f64, f64) {
+    let ev = fixture::run(doc, &EvalOptions::default());
+    let body = corpus::body_of(&ev, rod);
+    let p = point(
+        body,
+        fixture::vertex_of(table(&ev, rod), "cap vertex", name),
+    );
+    (p.x, p.y, p.z)
+}
+
+type Pose6 = (f64, f64, f64, f64, f64, f64);
+
+fn face_origin(doc: &ProfileDoc, node: RecipeNodeId, name: &StableName) -> Pose6 {
+    let ev = fixture::run(doc, &EvalOptions::default());
+    let body = corpus::body_of(&ev, node);
+    let pose = topo::readback::face_pose(body, fixture::face_of(table(&ev, node), "wall", name))
+        .expect("a planar wall");
+    (
+        pose.origin.x,
+        pose.origin.y,
+        pose.origin.z,
+        pose.axis.x,
+        pose.axis.y,
+        pose.axis.z,
+    )
+}
+
+/// The `(x, y)` corners of the wall `name`: a kept step whose START
+/// moved (the leg was inserted just before it) still draws the wall
+/// that ARRIVES at its old corner, so the corner is what a rebound
+/// wall shares with its old self.
+fn wall_corners(doc: &ProfileDoc, node: RecipeNodeId, name: &StableName) -> Vec<(f64, f64)> {
+    let mut out: Vec<(f64, f64)> = corners_of(doc, node, name)
+        .into_iter()
+        .map(|(x, y, _)| (x, y))
+        .collect();
+    out.dedup_by(|a, b| near(*a, *b));
+    out
+}
+
+fn has_corner(corners: &[(f64, f64)], want: (f64, f64)) -> bool {
+    corners.iter().any(|&c| near(c, want))
+}
+
+/// **A leg inserted at the loop's START (before the first drawing
+/// step)**: vertex 0 is the end of the closing segment, which is kept,
+/// so vertex 0 stays vertex 0; wall 0 becomes wall 1; the last vertex
+/// 5 becomes 6; the closing wall 5 becomes 6. Measured on the solid,
+/// with a cap vertex and a strut on vertex 0.
+#[test]
+fn a_leg_inserted_at_the_loops_start_keeps_vertex_zero_and_moves_the_rest() {
+    let r = rod("set-program-seam-start", &[]);
+    let doc = r.doc;
+    let (doc, _on_wall_0) = frame_on(doc, r.rod, wall(r.rod, 0));
+    let (doc, _on_wall_5) = frame_on(doc, r.rod, wall(r.rod, 5));
+    let (doc, fil) = insert(
+        doc,
+        Node::fillet(
+            r.rod,
+            len(0.05),
+            vec![lateral_edge(r.rod, 0), lateral_edge(r.rod, 5)],
+        ),
+    );
+    let cap0 = cap_vertex(r.rod, CapEnd::End, 0);
+    let cap5 = cap_vertex(r.rod, CapEnd::Start, 5);
+    let doc = paint(&doc, &wall(r.rod, 0));
+    let v0_before = strut_at(&doc, r.rod, &lateral_edge(r.rod, 0));
+    let v5_before = strut_at(&doc, r.rod, &lateral_edge(r.rod, 5));
+    let w0_before = face_origin(&doc, r.rod, &wall(r.rod, 0));
+    let w5_before = face_origin(&doc, r.rod, &wall(r.rod, 5));
+    let c0_before = vertex_at(&doc, r.rod, &cap0);
+    let c5_before = vertex_at(&doc, r.rod, &cap5);
+    assert!(near(v0_before, (-1.0, -1.0)));
+    assert!(near(v5_before, (-1.0, 0.0)));
+
+    let applied = accepted(
+        &doc,
+        r.profile,
+        vec![rod_loop_at(At::Start)],
+        provenance_at(At::Start),
+    );
+    assert_eq!(
+        applied.maintenance,
+        vec![
+            Maintenance::Rebound {
+                from: wall(r.rod, 0),
+                to: wall(r.rod, 1),
+            },
+            Maintenance::Rebound {
+                from: wall(r.rod, 5),
+                to: wall(r.rod, 6),
+            },
+            Maintenance::Rebound {
+                from: lateral_edge(r.rod, 5),
+                to: lateral_edge(r.rod, 6),
+            },
+        ],
+        "vertex 0 stays; wall 0, wall 5 and vertex 5 move"
+    );
+    assert_eq!(
+        selection_of(&applied.doc, fil),
+        vec![lateral_edge(r.rod, 0), lateral_edge(r.rod, 6)]
+    );
+    assert!(near(
+        strut_at(&applied.doc, r.rod, &lateral_edge(r.rod, 0)),
+        v0_before
+    ));
+    assert!(near(
+        strut_at(&applied.doc, r.rod, &lateral_edge(r.rod, 6)),
+        v5_before
+    ));
+    // Old wall 0's START is the inserted point now, so its plane
+    // moved; what it keeps is the corner it arrives at.
+    let c = wall_corners(&applied.doc, r.rod, &wall(r.rod, 1));
+    assert!(
+        has_corner(&c, (1.0, -1.0)) && has_corner(&c, (-0.5, -1.25)),
+        "{c:?}"
+    );
+    assert_ne!(face_origin(&applied.doc, r.rod, &wall(r.rod, 1)), w0_before);
+    assert_eq!(face_origin(&applied.doc, r.rod, &wall(r.rod, 6)), w5_before);
+    assert_eq!(vertex_at(&applied.doc, r.rod, &cap0), c0_before);
+    assert_eq!(
+        vertex_at(&applied.doc, r.rod, &cap_vertex(r.rod, CapEnd::Start, 6)),
+        c5_before
+    );
+    assert!(applied.doc.appearance_of(&wall(r.rod, 1)).is_some());
+}
+
+/// **A leg inserted as the LAST leg before the close**: the closing
+/// wall 5 becomes 6, vertex 5 stays (its arriving segment 4 is kept
+/// in place), vertex 0 stays (the close's end).
+#[test]
+fn a_leg_inserted_before_the_close_moves_only_the_closing_wall() {
+    let r = rod("set-program-seam-close", &[]);
+    let doc = r.doc;
+    let (doc, _on_wall_5) = frame_on(doc, r.rod, wall(r.rod, 5));
+    let (doc, _on_wall_4) = frame_on(doc, r.rod, wall(r.rod, 4));
+    let (doc, fil) = insert(
+        doc,
+        Node::fillet(
+            r.rod,
+            len(0.05),
+            vec![lateral_edge(r.rod, 0), lateral_edge(r.rod, 5)],
+        ),
+    );
+    let v0 = strut_at(&doc, r.rod, &lateral_edge(r.rod, 0));
+    let v5 = strut_at(&doc, r.rod, &lateral_edge(r.rod, 5));
+    let w5 = face_origin(&doc, r.rod, &wall(r.rod, 5));
+    let w4 = face_origin(&doc, r.rod, &wall(r.rod, 4));
+    let applied = accepted(
+        &doc,
+        r.profile,
+        vec![rod_loop_at(At::BeforeClose)],
+        provenance_at(At::BeforeClose),
+    );
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::Rebound {
+            from: wall(r.rod, 5),
+            to: wall(r.rod, 6),
+        }]
+    );
+    assert_eq!(
+        selection_of(&applied.doc, fil),
+        vec![lateral_edge(r.rod, 0), lateral_edge(r.rod, 5)]
+    );
+    assert!(near(
+        strut_at(&applied.doc, r.rod, &lateral_edge(r.rod, 0)),
+        v0
+    ));
+    assert!(near(
+        strut_at(&applied.doc, r.rod, &lateral_edge(r.rod, 5)),
+        v5
+    ));
+    // The close's START is the inserted point now; it still arrives
+    // at (-1, -1).
+    let c = wall_corners(&applied.doc, r.rod, &wall(r.rod, 6));
+    assert!(
+        has_corner(&c, (-1.0, -1.0)) && has_corner(&c, (-1.25, -0.5)),
+        "{c:?}"
+    );
+    assert_ne!(face_origin(&applied.doc, r.rod, &wall(r.rod, 6)), w5);
+    assert_eq!(face_origin(&applied.doc, r.rod, &wall(r.rod, 4)), w4);
+}
+
+/// **Names on a reversed and rotated loop move in PROGRAM
+/// coordinates.** The same square authored CLOCKWISE (canonicalization
+/// reverses it) and starting at a corner other than the canonical
+/// start: a frame on wall 1 and one on wall 3; a leg inserted before
+/// wall 1's step. The names move by program index and the walls they
+/// denote are the same planes as before.
+#[test]
+fn names_on_a_reversed_and_rotated_loop_move_in_program_coordinates() {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let cw = |bump: bool| {
+        let mut steps = vec![
+            ProgramStep::At(pt(2.0, 2.0)),
+            ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
+        ];
+        if bump {
+            steps.push(ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, -0.5))));
+        }
+        steps.extend([
+            ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+            ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ]);
+        LoopProgram::Chain(steps)
+    };
+    let (doc, profile, ext) = extruded("set-program-cw", vec![cw(false)]);
+    let (doc, _f1) = frame_on(doc, ext, wall_of(ext, 0, 1));
+    let (doc, _f3) = frame_on(doc, ext, wall_of(ext, 0, 3));
+    let w1 = face_origin(&doc, ext, &wall_of(ext, 0, 1));
+    let w3 = face_origin(&doc, ext, &wall_of(ext, 0, 3));
+    let w0 = face_origin(&doc, ext, &wall_of(ext, 0, 0));
+    let applied = accepted(
+        &doc,
+        profile,
+        vec![cw(true)],
+        vec![LoopProvenance {
+            from: Some(0),
+            steps: vec![Some(0), Some(1), None, Some(2), Some(3), Some(4)],
+        }],
+    );
+    assert_eq!(
+        applied.maintenance,
+        vec![
+            Maintenance::Rebound {
+                from: wall_of(ext, 0, 1),
+                to: wall_of(ext, 0, 2),
+            },
+            Maintenance::Rebound {
+                from: wall_of(ext, 0, 3),
+                to: wall_of(ext, 0, 4),
+            },
+        ]
+    );
+    // Old wall 1 (2,0)→(0,0) now starts at the inserted (1,-0.5) and
+    // still arrives at (0,0); wall 3 (the close) is untouched.
+    let c = wall_corners(&applied.doc, ext, &wall_of(ext, 0, 2));
+    assert!(
+        has_corner(&c, (0.0, 0.0)) && has_corner(&c, (1.0, -0.5)),
+        "{c:?}"
+    );
+    assert_ne!(face_origin(&applied.doc, ext, &wall_of(ext, 0, 2)), w1);
+    assert_eq!(face_origin(&applied.doc, ext, &wall_of(ext, 0, 4)), w3);
+    assert_eq!(face_origin(&applied.doc, ext, &wall_of(ext, 0, 0)), w0);
+}
+
+// ---------------------------------------------------------------- //
+// Every other holder kind, and the refusal order
+// ---------------------------------------------------------------- //
+
+/// **Every holder kind the finding's rows lack — chamfer, shell open
+/// list, measure refs, declare pairs — is rebound and stranded, in
+/// the contract's order**, each stranded name at its retired
+/// spelling.
+#[test]
+fn every_other_holder_kind_is_rebound_and_stranded_in_the_contracts_order() {
+    let r = rod("set-program-holders", &[]);
+    let doc = r.doc;
+    let (doc, chamfer) = insert(
+        doc,
+        Node::Chamfer {
+            target: r.rod,
+            distance: len(0.05),
+            selection: vec![lateral_edge(r.rod, 4)],
+        },
+    );
+    let (doc, shell) = insert(doc, Node::shell(r.rod, len(0.05), vec![wall(r.rod, 3)]));
+    let (doc, measure) = insert(
+        doc,
+        Node::measure(
+            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+            vec![
+                SitedRef::new(r.rod, wall(r.rod, 1)),
+                SitedRef::new(r.rod, wall(r.rod, 3)),
+            ],
+        )
+        .unwrap(),
+    );
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(r.rod, wall(r.rod, 3)),
+            SitedRef::new(r.rod, wall(r.rod, 1)),
+        )]),
+    );
+    let applied = accepted(
+        &doc,
+        r.profile,
+        vec![rod_loop(true)],
+        bump_provenance_without_the_arc(),
+    );
+    let retired_wall = wall(r.rod, RETIRED_FLOOR + 3);
+    let retired_vertex = lateral_edge(r.rod, RETIRED_FLOOR + 4);
+    assert_eq!(
+        applied.maintenance,
+        vec![
+            Maintenance::Strand {
+                node: chamfer,
+                name: retired_vertex.clone(),
+            },
+            Maintenance::Strand {
+                node: shell,
+                name: retired_wall.clone(),
+            },
+            Maintenance::Strand {
+                node: measure,
+                name: retired_wall.clone(),
+            },
+            Maintenance::Strand {
+                node: decl,
+                name: retired_wall.clone(),
+            },
+            Maintenance::Rebound {
+                from: wall(r.rod, 1),
+                to: wall(r.rod, 2),
+            },
+        ]
+    );
+    match applied.doc.node(measure) {
+        Some(Node::Measure { refs, .. }) => {
+            assert_eq!(refs[0].name, wall(r.rod, 2));
+            assert_eq!(refs[1].name, retired_wall);
+        }
+        other => panic!("{other:?}"),
+    }
+    match applied.doc.node(shell) {
+        Some(Node::Shell { open, .. }) => assert_eq!(open, &vec![retired_wall.clone()]),
+        other => panic!("{other:?}"),
+    }
+    match applied.doc.node(decl) {
+        Some(Node::Declare { pairs }) => {
+            assert_eq!(pairs[0].0.0.name, retired_wall);
+            assert_eq!(pairs[0].0.1.name, wall(r.rod, 2));
+        }
+        other => panic!("{other:?}"),
+    }
+}
+
+/// **A shape fault wins over an undeclared parameter**: the provenance
+/// is read before the program, so a program that would ALSO refuse
+/// its parameter references refuses the provenance's fault, and the
+/// document is untouched.
+#[test]
+fn a_shape_fault_wins_over_an_undeclared_parameter() {
+    let r = rod("set-program-fault-param", &[]);
+    let nope = Expr::param(ParamName::new("nope"), Dimension::Length);
+    let LoopProgram::Chain(mut steps) = rod_loop(false) else {
+        panic!()
+    };
+    steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope, len(-1.0)]));
+    let before = r.doc.clone();
+    let err = set_program(
+        &r.doc,
+        r.profile,
+        vec![LoopProgram::Chain(steps)],
+        vec![LoopProvenance {
+            from: Some(0),
+            steps: vec![
+                Some(0),
+                Some(0),
+                Some(2),
+                Some(3),
+                Some(4),
+                Some(5),
+                Some(6),
+            ],
+        }],
+    )
+    .unwrap_err();
+    assert!(
+        matches!(
+            err,
+            EditError::ProvenanceMalformed {
+                fault: ProvenanceFault::OldStepContinuedTwice { .. },
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+    assert!(r.doc.bit_eq(&before));
+}
+
+/// **The Python rows' fixture, measured in Rust**: a square prism, a
+/// fillet on the rim edge wall 2 shares with the end cap, the leg
+/// `(3, 1)` inserted. Provenance `[0,1,None,2,3,4]` rebinds 2 → 3;
+/// `[0,1,None,2,None,4]` strands it at `RETIRED_FLOOR + 2` — the
+/// spelling `test_document.py`'s strand row asserts.
+#[test]
+fn the_python_fixture_rebinds_and_strands_as_its_rows_say() {
+    let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
+    let (doc, profile, ext) = extruded("set-program-python", vec![square]);
+    let rim = |seg: u32| {
+        fixture::rim_edge(
+            ext,
+            CapEnd::End,
+            ProfileEdgeRef {
+                loop_index: 0,
+                segment: seg,
+            },
+        )
+    };
+    let (doc, fillet) = insert(doc, Node::fillet(ext, len(0.1), vec![rim(2)]));
+    let (leg, provenance) = square_with_a_leg();
+    let rebound = accepted(&doc, profile, vec![leg.clone()], provenance);
+    assert_eq!(
+        rebound.maintenance,
+        vec![Maintenance::Rebound {
+            from: rim(2),
+            to: rim(3)
+        }]
+    );
+    let stranded = accepted(
+        &doc,
+        profile,
+        vec![leg],
+        vec![LoopProvenance {
+            from: Some(0),
+            steps: vec![Some(0), Some(1), None, Some(2), None, Some(4)],
+        }],
+    );
+    assert_eq!(
+        stranded.maintenance,
+        vec![Maintenance::Strand {
+            node: fillet,
+            name: rim(RETIRED_FLOOR + 2)
+        }]
+    );
+}
+
+// ---------------------------------------------------------------- //
+// What a SLOT edit does to a LIVE name, pinned as measured
+// ---------------------------------------------------------------- //
+
+/// **A slot edit through a `Zero` fit renumbers a loop's LIVE names
+/// and reports nothing** — pinned as measured, not as wanted
+/// (`work/edit/a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names.md`).
+/// At `r = 2` the corner fillet's two runs fit `Zero` and the loop
+/// draws three segments — the arc, the top edge, and wall 2, the LEFT
+/// edge `(0, 2) → (0, 0)`; a plain `SetParam` to `r = 0.3` makes the
+/// runs emit, the loop draws five, and wall 2 is now the RIGHT edge
+/// `(2, 0.3) → (2, 2)`. The frame on wall 2 keeps evaluating, on the
+/// opposite wall, with no row reported: the renumbering `eval::anchor`
+/// rules out for a parameter edit is exactly what a fit gate
+/// reintroduces, and nothing in the edit vocabulary says so today.
+#[test]
+fn a_slot_edit_through_a_zero_fit_renumbers_a_live_name_and_reports_nothing() {
+    let (doc, profile, ext) = extruded("set-param-zero-fit", vec![filleted_square(2.0)]);
+    assert_eq!(drawn_segments(&doc, ext), 3);
+    let (doc, frame) = frame_on(doc, ext, wall_of(ext, 0, 2));
+    let before = corners_of(&doc, ext, &wall_of(ext, 0, 2));
+    assert!(
+        has_corner3(&before, (0.0, 2.0, 0.0)) && has_corner3(&before, (0.0, 0.0, 0.0)),
+        "wall 2 is the left edge at r = 2: {before:?}"
+    );
+    let grown = apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: profile,
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: 2,
+                arg: StepArg::Radius,
+            },
+            expr: len(0.3),
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the radius is a legal slot write");
+    assert_eq!(
+        grown.maintenance,
+        vec![],
+        "measured: the slot edit reports nothing"
+    );
+    assert_eq!(drawn_segments(&grown.doc, ext), 5);
+    let ev = fixture::run(&grown.doc, &EvalOptions::default());
+    assert!(
+        ev.value(frame).is_some(),
+        "measured: the frame still evaluates — {:?}",
+        corpus::failures(&ev)
+    );
+    let after = corners_of(&grown.doc, ext, &wall_of(ext, 0, 2));
+    assert!(
+        has_corner3(&after, (2.0, 2.0, 0.0)) && !has_corner3(&after, (0.0, 2.0, 0.0)),
+        "measured: wall 2 is the right edge now — the live name renumbered: {after:?}"
+    );
 }

@@ -1487,8 +1487,13 @@ class TestTheWholeProgramEdit(unittest.TestCase):
     def test_a_step_the_provenance_drops_strands_the_fillets_name(self):
         """The same program with the wall's step stated as new — wall
         2 is drawn by the step arriving at `(0, 2)`, old step 3, new
-        step 4 — so the fillet's name is retired and reported as a
-        `strand` on the fillet node, with `rebound_to` empty."""
+        step 4 — so the fillet's name is retired to the floor of the
+        retired index space (`editor_core::RETIRED_FLOOR + 2`, the
+        exact spelling asserted) and reported as a `strand` on the
+        fillet node, with `rebound_to` empty. Pushed back through
+        `Evaluation.resolve`, the retired spelling is a typed
+        `vanished` failure and never an error: the resolver does no
+        arithmetic on a locator's index."""
         doc, profile, _box, rim = self.filleted_box()
         fillet = doc.order()[-1]
         reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
@@ -1496,8 +1501,16 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         (row,) = doc.last_maintenance
         self.assertEqual(row.variant, "strand")
         self.assertEqual(row.node, fillet)
-        self.assertNotEqual(row.name, rim)
+        # `RETIRED_FLOOR` is `u32::MAX / 2`; the retired wall is the
+        # floor plus its old segment.
+        retired_floor = 2**31 - 1
+        self.assertEqual(
+            row.name, rim.replace('"segment":2', f'"segment":{retired_floor + 2}')
+        )
         self.assertIsNone(row.rebound_to)
+        verdict = evaluate(doc).resolve(row.name)
+        self.assertEqual(verdict.status, "failed")
+        self.assertEqual(verdict.variant, "vanished")
 
     def test_a_malformed_provenance_refuses_before_the_program_is_read(self):
         doc, profile, _box, _rim = self.filleted_box()

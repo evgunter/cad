@@ -1774,7 +1774,7 @@ enum Partners {
 /// [`Qualifier`] variant embedding names must be
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
-/// that answer is written for this and its two sibling matches.
+/// that answer is written for every match that shares it.
 /// (Review Finding 7 — no fail-quiet wildcard.)
 fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
     fn visit<'a>(n: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
