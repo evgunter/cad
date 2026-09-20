@@ -229,6 +229,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
         | EditError::PlacementOnNonInstance { node }
@@ -243,7 +244,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The nested refusals: `inner_variant` names the arm and the
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
-        | EditError::MeasureMalformed { node, fault: _ } => EditPayload {
+        | EditError::MeasureMalformed { node, fault: _ }
+        | EditError::ProvenanceMalformed { node, fault: _ } => EditPayload {
             node: Some(*node),
             ..none
         },

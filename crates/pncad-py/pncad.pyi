@@ -3052,6 +3052,51 @@ class DocEdit:
         Refuses `update_on_non_instance`, and `pin_unchanged` when the
         site already names that version."""
 
+    @overload
+    @staticmethod
+    def set_program(
+        node: NodeId,
+        outline: ClosedLoop,
+        provenance: list[tuple[Optional[int], list[Optional[int]]]],
+    ) -> DocEdit: ...
+    @overload
+    @staticmethod
+    def set_program(
+        node: NodeId,
+        outline: list[ClosedLoop],
+        provenance: list[tuple[Optional[int], list[Optional[int]]]],
+    ) -> DocEdit:
+        """Replace a live profile's PROGRAM whole — its loops, their
+        verbs, order and count, arc modes and targets — validated
+        once, as one edit. The plane is not carried and does not move.
+
+        `outline` is the description `Node.profile` takes — one closed
+        loop, or `[outer, hole, hole]` — read through the same door.
+        `provenance` is one `(from, steps)` per new loop in that order:
+        `from` the OLD loop index it continues (`None` for a new loop),
+        `steps[i]` the old step index new step `i` continues (`None`
+        for a new step). The editor that reshaped the program knows
+        which leg it inserted; the door is told, never guesses.
+
+        Every name spelled in the profile's coordinates — a fillet's
+        selection, a shell's mouth, a derived frame's face, a paint —
+        is rewritten to its new coordinates when its step was kept and
+        reported on `Doc.last_maintenance` as a `rebound` (`name` the
+        old spelling, `rebound_to` the new); a name on a step that was
+        dropped, or whose segment count moved, is retired to a
+        coordinate no program draws and reported `strand` or
+        `stranded_appearance`, resolving to nothing until `rebind`
+        repairs it.
+
+        Refuses `provenance_malformed` before the program is replayed
+        (`inner_variant`: `loop_count`, `step_count`,
+        `no_such_old_loop`, `no_such_old_step`, `step_of_new_loop`,
+        `old_loop_continued_twice`, `old_step_continued_twice`),
+        `set_program_on_non_profile`, and then everything an insert
+        refuses of a profile: `slot_unknown_doc_param` and its
+        siblings over every argument, `profile_program_refused` for a
+        program that does not close, replay or validate."""
+
     @staticmethod
     def rebind(from_name: str, to_name: str) -> DocEdit:
         """Repair a stored name: rewrite every document site that
@@ -3153,10 +3198,12 @@ class Doc:
     @property
     def last_maintenance(self) -> list[Maintenance]:
         """The maintenance the LAST accepted edit performed: its
-        cluster-record acts, the payload names its delete stranded,
-        and the declarations that delete left with no consumer. The
-        strands lead, the orphaned declarations follow them and the
-        cluster acts come last, so read `variant`, never a position.
+        cluster-record acts, the names its delete or reshaping
+        stranded, the names its reshaping rebound, and the
+        declarations its delete left with no consumer. The strands
+        lead, the rebounds follow them, then the orphaned declarations,
+        and the cluster acts come last, so read `variant`, never a
+        position.
         Empty after an edit that moved no mate graph, stranded no
         name and orphaned no declaration, and on a document that has
         applied none; a REFUSED edit leaves it untouched, as it
@@ -5294,10 +5341,19 @@ class Maintenance:
     absorbed cluster's frame is consumed here, and a stranded name is
     said at the delete rather than at the next evaluation.
 
-    A `strand` names a node that survived the delete carrying a name
-    whose minting node did not. The name is not a DAG edge, so the
-    delete is legal; the name now resolves to nothing, and
-    `DocEdit.rebind` is the repair.
+    A `strand` names a node that survived the edit carrying a name
+    whose referent the edit removed — its minting node, under a
+    delete, or the profile segment it named, under
+    `DocEdit.set_program`. The name is not a DAG edge, so the edit is
+    legal; the name now resolves to nothing, and `DocEdit.rebind` from
+    the spelling `name` carries is the repair.
+
+    A `rebound` is the other thing a reshaped program does to a name:
+    one on a step the reshaping kept is rewritten in place to the
+    coordinates the segment sits at now, in every carrier that held
+    it, and the row says so — `name` the spelling before, `rebound_to`
+    the spelling now — so a moved name is visible rather than silently
+    re-denoting.
 
     A `stranded_appearance` is the same loss one carrier over: the
     document's appearance store still holds an attachment under a name
@@ -5328,7 +5384,7 @@ class Maintenance:
     @property
     def variant(self) -> str:
         """`join`, `split`, `gauge_rewrite`, `drop`, `strand`,
-        `stranded_appearance`, or `orphaned_declare`."""
+        `stranded_appearance`, `orphaned_declare`, or `rebound`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...
@@ -5348,6 +5404,8 @@ class Maintenance:
     def node(self) -> Optional[NodeId]: ...
     @property
     def name(self) -> Optional[str]: ...
+    @property
+    def rebound_to(self) -> Optional[str]: ...
 
 # --- the gather and the at-rest gate ----------------------------------
 

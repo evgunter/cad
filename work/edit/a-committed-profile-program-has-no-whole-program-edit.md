@@ -2,7 +2,7 @@
 id: a-committed-profile-program-has-no-whole-program-edit
 kind: issue
 title: A committed profile's program can be edited only one argument at a time; no edit reshapes it or writes it whole
-status: spec
+status: review
 branch: edit/program-edit
 opened: 2026-09-18
 ---
@@ -163,3 +163,50 @@ slate rather than crossed into. Pre-draw fields at the spec (L /
 STRUCTURAL, after the block byte — disclosed). The implementer is
 dispatched when the claim merges; the dual follows on its frozen head.
 
+## Built (2026-09-20, lane `program`, branch `edit/program-edit`)
+
+Landed, as the spec's premises with three of them corrected by
+measurement (the PR body is the record):
+
+- `DocEdit::SetProgram { node, loops, provenance }` with
+  `LoopProvenance { from, steps }`; the shape checked first through
+  `ProvenanceFault`'s seven arms carried as ONE `EditError` arm
+  (`ProvenanceMalformed { node, fault }`, the `MeasureMalformed`
+  precedent) plus `SetProgramOnNonProfile`; then `check_node_slots`
+  and `ProfileProgram::check_returning` — the insert door's own
+  functions — on the rewritten node.
+- `ProfileProgram::check` split into `replay_records` →
+  `check_returning` → `check`, one body; the trait gains
+  `check_returning`, `replay_records`, `loops`, `with_loops`.
+- The segment map (`SegmentMap`) read off both replay records; a
+  vertex is carried by the segment ARRIVING at it (premise 3 said
+  leaving, which is wrong exactly at an inserted leg's start — measured
+  in `a_vertex_is_carried_by_the_segment_arriving_at_it`).
+- The walk over `Doc::name_carriers` descends every `NameRef` and asks
+  each minting node which profile anchors its locators
+  (`Node::anchoring_profile`: extrude, revolve, loft's first section,
+  sweep) — premise 4's `name.node == node` filter finds nothing, since
+  a profile mints no name. Kept names are rewritten in place through
+  `Node::rewrite_payload_names` (one simultaneous pass per node, the
+  substrate `rebind_payload_names` now calls) and the store re-keyed
+  through `move_appearance_record` (the `Rebind` arm's collision rule,
+  one home). `Maintenance::Rebound { from, to }`, one row per name.
+- A stranded name is RETIRED to a coordinate past its loop's end and
+  reported `Strand`/`StrandedAppearance` with that spelling — left in
+  place it would alias the segment the new program draws at its old
+  index (the DI1 class the ruling exists to end) and collide with a
+  rebound name in the same selection; retired it resolves `Vanished`,
+  which is the evaluation refusal the spec's finding row expected
+  (`NodeGone` was the wrong rung: the node is live).
+- The order contract's rebound clause; persistence (the non-finite
+  walk's arm, the wire spelling pinned, the corpus's `reshaped_rod`
+  as the first persisted `SetProgram`); the Python door
+  `DocEdit.set_program` sharing `Node.profile`'s outline reading, the
+  `rebound` maintenance row with `rebound_to`; V2 and DM7 re-worded on
+  #2904; `SlotId::Profile`'s doc cites V2.
+
+Filed: `work/view/the-viewer-keeps-its-profile-lock-and-order-search-after-set-program.md`
+(VIEW's follow-up, every survey site listed) and
+`work/edit/an-unknown-edit-tag-in-a-log-refuses-without-naming-it.md`
+(the log wrapper's untagged miss, measured by the persisted-spelling
+row).

@@ -869,6 +869,15 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
+    # The whole-program edit's two payload types. `LoopProvenance` is
+    # what `DocEdit.set_program` takes as its `provenance` argument —
+    # a list of `(from, steps)` tuples, one per loop, which is the
+    # struct's two fields spelled as Python data rather than a class
+    # of its own. `ProvenanceFault` is what
+    # `EditError::ProvenanceMalformed` carries, and its seven arms
+    # cross at the carrier's second word.
+    "LoopProvenance": "DocEdit.set_program",
+    "ProvenanceFault": "EditError.inner_variant",
     # `MetaVersionError` is the same row one arm over, and it arrives
     # by the same reading failing. It was `NOT_CARRIED` under "the
     # curated face is a different shape", qualified: it is a nested
@@ -3135,6 +3144,12 @@ MEMBERS_BOUND_AS = {
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::OrphanedDeclare": "Maintenance.variant",
+    # `Maintenance::Rebound` needs a profile name a reshaping moved:
+    # `Node.fillet` takes a name selection and `DocEdit.set_program`
+    # is bound, and `test_document.py`'s
+    # `test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it`
+    # is the Python program that makes one appear.
+    "Maintenance::Rebound": "Maintenance.variant",
     # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
     # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
     # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
@@ -3168,6 +3183,8 @@ MEMBERS_BOUND_AS = {
     "EditError::RepeatedDesignation": "EditError.variant",
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetProgramOnNonProfile": "EditError.variant",
+    "EditError::ProvenanceMalformed": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",

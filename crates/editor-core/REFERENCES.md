@@ -308,16 +308,24 @@ stays the delete for a node with consumers.
 *Record: ruled with DM4's build, DOCM-3 (PR 1803), which is what makes
 the die's chain unnecessary; history in `docs/DOC-LEDGER.md`.*
 
-## DM7 — A stranded name is reported at the delete, never refused
+## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 
-`DeleteNode` stays legal when a payload name (`Node::payload_names`)
-names the node being deleted: a name is not a DAG edge, and the
-carve-out in §0 stands. What the door owes is a report: every
-`(node, name)` pair whose minting node the edit removed rides the
-accepted edit's `Applied.maintenance`, typed, computed at the door by
-the same payload walk the insert door checks with. The strand is loud
-where it happens rather than at the next evaluation; `NodeGone` and
-`Rebind` remain the diagnosis and the repair.
+The edit that removes a name's referent — `DeleteNode`, and
+`SetProgram` for the steps it drops or changes — stays legal when a
+payload name (`Node::payload_names`) names what is being removed: a
+name is not a DAG edge, and the carve-out in §0 stands. What the door
+owes is a report: every `(node, name)` pair whose referent the edit
+removed rides the accepted edit's `Applied.maintenance`, typed,
+computed at the door by the same payload walk the insert door checks
+with. The strand is loud where it happens rather than at the next
+evaluation; the N5 ladder's rung — `NodeGone` for a deleted minting
+node, `Vanished` for a segment a reshaping retired the name to a
+coordinate past its loop's end — and `Rebind` remain the diagnosis and
+the repair. A reshaping has one more thing to say, which a delete
+never has: a name on a step it KEPT is rewritten in place to the
+coordinates the segment sits at now and reported `Rebound { from, to
+}`, so a moved name is visible in the accepted edit and never silently
+re-denotes (`crates/profile/README.md` V2).
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is
@@ -347,6 +355,10 @@ carriers; the store is the other carrier.
 row names. The appearance-key widening was ruled by Ev on EDIT's third
 `[ev]` PR of 2026-09-16
 (`stranded-appearance-keys-are-not-reported-by-dm7`), which builds
+it. The subject's widening from the delete to the edit that removes a
+name's referent, with the reshaping's rebound arm, was ruled by Ev on
+EDIT's seventh `[ev]` PR, #2904 (2026-09-20,
+`a-committed-profile-program-has-no-whole-program-edit`), which builds
 it.*
 
 ## DM8 — The authored-step to canonical-segment map is composed in `editor-core`

@@ -1429,10 +1429,82 @@ EDIT_ATTRS = (
 )
 
 
+class TestTheWholeProgramEdit(unittest.TestCase):
+    """`DocEdit.set_program` — a live profile's program replaced whole,
+    and the names its reshaping touches reported or rebound."""
+
+    @staticmethod
+    def chain(points):
+        path = Open.at((points[0][0] * m, points[0][1] * m))
+        for x, y in points[1:]:
+            path = path.line_to((x * m, y * m))
+        return path.line_to(Start)
+
+    def filleted_box(self):
+        """A square prism with a fillet on the rim edge its wall 2
+        shares with the end cap; `(doc, profile, box, rim)`."""
+        doc = Doc()
+        frame = doc.sketch_frame()
+        profile = doc.insert(
+            Node.profile(self.chain([(0, 0), (2, 0), (2, 2), (0, 2)]), plane=frame)
+        )
+        box = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+        rim = [
+            name
+            for name in evaluate(doc).all_edges(box)
+            if "RimEdge" in name and '"segment":2' in name and '"End"' in name
+        ]
+        self.assertEqual(len(rim), 1, rim)
+        doc.insert(Node.fillet(box, Expr.length_in(0.1, m), rim))
+        return doc, profile, box, rim[0]
+
+    def test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it(self):
+        """A leg inserted before the filleted wall's step moves the
+        wall from segment 2 to segment 3; the fillet's name follows,
+        and the accepted edit says so as a `rebound` carrying both
+        spellings. The document round-trips through the persisted
+        form with the reshaping in its log."""
+        doc, profile, _box, rim = self.filleted_box()
+        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, None, 2, 3, 4])]))
+        (row,) = doc.last_maintenance
+        self.assertEqual(row.variant, "rebound")
+        self.assertEqual(row.name, rim)
+        self.assertIn('"segment":3', row.rebound_to)
+        self.assertIsNone(row.node)
+        loaded = load(doc.save())
+        self.assertEqual(loaded.edit_count, len(doc))
+        self.assertEqual(loaded.doc.save(), doc.save())
+
+    def test_a_step_the_provenance_drops_strands_the_fillets_name(self):
+        """The same program with the wall's step stated as new: the
+        fillet's name is retired and reported as a `strand` on the
+        fillet node, with `rebound_to` empty."""
+        doc, profile, _box, rim = self.filleted_box()
+        fillet = doc.order()[-1]
+        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, None, None, 3, 4])]))
+        (row,) = doc.last_maintenance
+        self.assertEqual(row.variant, "strand")
+        self.assertEqual(row.node, fillet)
+        self.assertNotEqual(row.name, rim)
+        self.assertIsNone(row.rebound_to)
+
+    def test_a_malformed_provenance_refuses_before_the_program_is_read(self):
+        doc, profile, _box, _rim = self.filleted_box()
+        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, 2, 3, 4])]))
+        self.assertEqual(caught.exception.variant, "provenance_malformed")
+        self.assertEqual(caught.exception.inner_variant, "step_count")
+        self.assertEqual(caught.exception.node, profile)
+        self.assertEqual(doc.last_maintenance, [])
+
+
 class TestTheEditDoorsPayload(unittest.TestCase):
     """The refusing arm's payload, off real edits.
 
-    The document layer's `EditError` has 58 arms and many have no
+    The document layer's `EditError` has 60 arms and many have no
     Python door — a witness, an appearance write and an
     expression-path edit are not among the `DocEdit` verbs. What the
     rows below pin is the half a Python caller can provoke: the

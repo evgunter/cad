@@ -586,13 +586,22 @@ pub struct ProfileEdgeRef {
     pub loop_index: u32,
     /// The edge's index along that loop's chain, in the same
     /// anchoring the loop index carries.
+    ///
+    /// A coordinate at or past the loop's segment count — or a loop
+    /// index at or past the program's loop count — denotes nothing,
+    /// and is where `DocEdit::SetProgram` RETIRES a name whose step
+    /// its reshaping dropped: the name then resolves `Vanished` at
+    /// every evaluation until it is rebound, rather than denoting
+    /// whichever segment the new program draws at its old index.
     pub segment: u32,
 }
 
 /// A profile vertex by combinatorial identity, under the same two
 /// anchorings as [`ProfileEdgeRef`] and by the same rewrite: vertex
 /// `v` starts segment `v` of its loop's chain, canonical as minted
-/// and program-order once published for a program loop (DM8).
+/// and program-order once published for a program loop (DM8). A
+/// vertex index at or past the loop's vertex count denotes nothing,
+/// for [`ProfileEdgeRef::segment`]'s reason.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]

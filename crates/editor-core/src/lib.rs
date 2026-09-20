@@ -126,8 +126,8 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance, apply,
-    apply_logged, cascade_delete_order, replay_entry,
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, LoopProvenance,
+    Maintenance, ProvenanceFault, apply, apply_logged, cascade_delete_order, replay_entry,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,

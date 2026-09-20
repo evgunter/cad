@@ -1703,6 +1703,10 @@ pub fn apply_with_names<T: Decide>(
         DocEdit::DeleteNode { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
+        // A program and its provenance carry no name; the names a
+        // reshaping moves are the document's own, rewritten at the
+        // door.
+        | DocEdit::SetProgram { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
         | DocEdit::SetExpression { .. }

@@ -495,8 +495,53 @@ pub trait ProfilePayload {
     /// under the CURRENT parameter environment, refusing typed at the
     /// edit door. The evaluation-time twin re-checks under every
     /// binding that is ever evaluated.
-    fn check(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
-        Ok(())
+    ///
+    /// [`ProfilePayload::check_returning`] with its records dropped —
+    /// the check has one body, and a payload answers it once.
+    fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+        self.check_returning(env, tol).map(|_| ())
+    }
+    /// [`ProfilePayload::check`] keeping each loop's replay record
+    /// (`profile::ReplayStructure`, program order) — what the
+    /// whole-program edit door reads the new program's per-step
+    /// segment spans from (DM8). A payload with no program has no
+    /// record and answers none.
+    fn check_returning(
+        &self,
+        _env: &ParamEnv<f64>,
+        _tol: Tol,
+    ) -> Result<Vec<profile::ReplayStructure>, ProgramRefusal> {
+        Ok(Vec::new())
+    }
+    /// The check's first two rungs — resolve and replay, recording —
+    /// without the validation rung: the records of a program that
+    /// replays, whether or not its loops validate. The whole-program
+    /// edit door asks this of the program a node HOLDS, which may
+    /// replay and not validate and still has the spans its names were
+    /// published against.
+    fn replay_records(
+        &self,
+        _env: &ParamEnv<f64>,
+        _tol: Tol,
+    ) -> Result<Vec<profile::ReplayStructure>, ProgramRefusal> {
+        Ok(Vec::new())
+    }
+    /// **The loop programs this payload holds**, program order — the
+    /// content [`crate::DocEdit::SetProgram`] replaces. `None` for a
+    /// payload with no program, which is every `Doc<P>` test payload.
+    fn loops(&self) -> Option<&[LoopProgram]> {
+        None
+    }
+    /// **This payload with its loops replaced whole** and everything
+    /// else it holds — the plane — kept: the value the whole-program
+    /// edit door writes. `None` where there is no program to replace,
+    /// which is the same payloads [`ProfilePayload::loops`] answers
+    /// `None` for.
+    fn with_loops(&self, _loops: Vec<LoopProgram>) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        None
     }
     /// **The document node this payload is drawn ON**, if it names one
     /// — the profile's one DAG edge.
@@ -903,7 +948,7 @@ impl core::error::Error for StepSegmentsError {}
 ///
 /// Never, for the reason above; the `unreachable!` is the fail-loud
 /// spelling of "the machine got there anyway".
-fn program_index(i: usize) -> u32 {
+pub(crate) fn program_index(i: usize) -> u32 {
     let Ok(narrowed) = u32::try_from(i) else {
         unreachable!("a collection of {i} elements does not fit in memory")
     };
@@ -1947,13 +1992,84 @@ impl ProfileProgram {
     /// the run tolerance (VQ6: the same `Tolerance::get()` evaluation
     /// pins). Used by the edit door; evaluation re-runs the same
     /// ladder per binding with full typed errors.
+    ///
+    /// [`ProfileProgram::check_returning`] with the records dropped:
+    /// the check has ONE body, and this is the door for a caller that
+    /// wants the verdict alone.
     pub fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+        self.check_returning(env, tol).map(|_| ())
+    }
+
+    /// [`ProfileProgram::check`] keeping what the replay decided: each
+    /// loop's [`profile::ReplayStructure`], in program order — the
+    /// per-step segment spans DM8's map is read from. The whole-program
+    /// edit door reads it for the program replacing a node's, so which
+    /// segments each authored step draws is read off the record the
+    /// geometry comes from and never re-derived.
+    ///
+    /// Recording changes nothing about what is computed
+    /// (`profile::replay_recording` is `replay` bit for bit plus the
+    /// account), so this and [`ProfileProgram::check`] cannot disagree.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal`], exactly as [`ProfileProgram::check`].
+    pub fn check_returning(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<Vec<profile::ReplayStructure>, ProgramRefusal> {
+        let (loops, records) = self.replay_records(env, tol)?;
+        // **The identity plane, and the check is honest about why.**
+        // Validation is 2-D — `profile::validate` says so itself, and
+        // the plane rides through it as conventional data — so what
+        // this door checks is the LOOPS: closure, orientation, no
+        // self-intersection. It could not read the real frame anyway:
+        // this runs at the insert door with a payload in hand and no
+        // document, and the frame is a node in one. A profile whose
+        // frame reference does not denote a frame is refused where
+        // every other operand's kind is, at evaluation.
+        profile::Profile::new(profile::SketchPlane::xy(), loops)
+            .validate(tol)
+            .map_err(ProgramRefusal::Validate)?;
+        Ok(records)
+    }
+
+    /// The check's first two rungs — resolve under `env`, replay every
+    /// loop recording — and what they produce: the replayed loops and
+    /// each loop's structure record. Validation is the third rung and
+    /// [`ProfileProgram::check_returning`]'s.
+    ///
+    /// Split off because the two rungs are all a SEGMENT question
+    /// needs: which segments an authored step drew is decided by the
+    /// replay, and a program whose loops replay but fail validation (a
+    /// self-crossing) still has that record. The whole-program edit
+    /// door asks it of the program a node HOLDS, which may be exactly
+    /// such a program.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`] or
+    /// [`ProgramRefusal::Geometry`] — never `Validate`, the rung this
+    /// does not run.
+    pub fn replay_records(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<
+        (
+            Vec<profile::ProfileLoop<f64>>,
+            Vec<profile::ReplayStructure>,
+        ),
+        ProgramRefusal,
+    > {
         let resolved = self
             .resolve(env)
             .map_err(|(slot, source)| ProgramRefusal::Resolve { slot, source })?;
         let mut loops = Vec::with_capacity(resolved.len());
+        let mut records = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
-            let lp = profile::replay(steps, tol).map_err(|e| match e.kind {
+            let (lp, record) = profile::replay_recording(steps, tol).map_err(|e| match e.kind {
                 profile::ReplayErrorKind::Transition { state, verb } => {
                     ProgramRefusal::Transition {
                         loop_: program_index(li),
@@ -1970,20 +2086,9 @@ impl ProfileProgram {
                 },
             })?;
             loops.push(lp);
+            records.push(record);
         }
-        // **The identity plane, and the check is honest about why.**
-        // Validation is 2-D — `profile::validate` says so itself, and
-        // the plane rides through it as conventional data — so what
-        // this door checks is the LOOPS: closure, orientation, no
-        // self-intersection. It could not read the real frame anyway:
-        // this runs at the insert door with a payload in hand and no
-        // document, and the frame is a node in one. A profile whose
-        // frame reference does not denote a frame is refused where
-        // every other operand's kind is, at evaluation.
-        profile::Profile::new(profile::SketchPlane::xy(), loops)
-            .validate(tol)
-            .map(|_| ())
-            .map_err(ProgramRefusal::Validate)
+        Ok((loops, records))
     }
 }
 
@@ -2227,11 +2332,31 @@ impl ProfilePayload for ProfileProgram {
         self.loops.get_mut(loop_ as usize)?.expr_mut(step, arg)
     }
 
-    fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
-        ProfileProgram::check(self, env, tol)
+    fn check_returning(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<Vec<profile::ReplayStructure>, ProgramRefusal> {
+        ProfileProgram::check_returning(self, env, tol)
+    }
+    fn replay_records(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<Vec<profile::ReplayStructure>, ProgramRefusal> {
+        ProfileProgram::replay_records(self, env, tol).map(|(_, records)| records)
     }
     fn plane_input(&self) -> Option<crate::RecipeNodeId> {
         Some(self.plane)
+    }
+    fn loops(&self) -> Option<&[LoopProgram]> {
+        Some(&self.loops)
+    }
+    fn with_loops(&self, loops: Vec<LoopProgram>) -> Option<Self> {
+        Some(Self {
+            plane: self.plane,
+            loops,
+        })
     }
 }
 
