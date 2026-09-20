@@ -5,7 +5,7 @@ title: Listing a solid's faces is spelled five times in topo/src, not four; thre
 status: closed
 opened: 2026-09-19
 closed: 2026-09-20
-refs: [solid-of-face-has-eleven-hand-written-walks-outside-it, shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim, the-face-to-solid-walk-is-spelled-per-test-file, two-spellings-of-the-face-to-solid-owner-index, the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times]
+refs: [solid-of-face-has-eleven-hand-written-walks-outside-it, shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim, the-face-to-solid-walk-is-spelled-per-test-file, two-spellings-of-the-face-to-solid-owner-index, the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times, the-same-solid-two-shell-body-is-hand-built-three-times]
 ---
 
 
@@ -99,11 +99,20 @@ iterated two other ways it never sees:
 - **`topo::query::all_faces(body)` at the caller** — the whole arena
   with no `.faces()` in the caller's own text, so
   `all_faces(body).into_iter().filter(..)` is invisible. **59 call
-  sites, of which 0 carry a solid token within 5 lines**: no live
-  member hides there today, so nothing is missing from the fold. But
-  the denominator is not closed, and this door's own rustdoc advertises
-  `query::all_faces` as the thing it restricts, which makes that
-  spelling the one a future caller reaches for first.
+  sites, of which 1 carries a solid token**:
+  `editor-core/tests/seat7_sweep_lowering.rs` (~:619), an **over-fire**
+  — `solid` there is a node id bound two lines above and the line is
+  `all_faces(body).len()`. No live member hides there today, so nothing
+  is missing from the fold; the denominator is still not closed, and
+  this door's own rustdoc advertises `query::all_faces` as the thing it
+  restricts, which makes that spelling the one a future caller reaches
+  for first.
+
+  **This row first published that as a ZERO**, and the zero was an
+  artifact of a forward-only window: the hit is two lines ABOVE the
+  call. A published zero that depends on which way the window looks is
+  the tidy result this program keeps tripping on — one hit,
+  dispositioned, is the honest shape.
 
 The shell-walk instrument covers the other spelling. The blind spot
 that cannot be closed at all is a member assembled by a macro, which is
@@ -214,6 +223,25 @@ it was the denominator for. Measured before, it is idiom rather than a
 copy of a *thing*. Binding repeated calls within one row instead of
 re-asking took the string count from fifteen to twelve.
 
+## Reference walks: a class this fold must NOT sweep
+
+A test that is a door's reference cannot read through that door, or it
+asserts `door == door`. Three hand-written `solid.shells ->
+shell.faces` walks in `topo/src` are members of this row's class by
+shape and are **exempt by construction**:
+
+| site | what it is the reference for |
+| --- | --- |
+| `body.rs`'s `faces_of_solid_answers_arena_order_where_the_shell_walk_would_not` | `Body::faces_of_solid` itself — the row asserts the two agree as a SET and disagree as a SEQUENCE |
+| `instance.rs` (~:352–358) | the graft's own invariant: every shell's back-pointer names the solid that lists it, and no face is claimed by two solids. Reading it through a door built on those back-pointers would assume what it checks |
+| `review_m0_pr7.rs` (~:281–292) | an arena-slot audit that must tolerate every key failing to resolve (`let Some(..) else { continue }` at three levels); a door that refuses cannot express it |
+
+Recorded here rather than on
+`work/dup/the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times.md`,
+where this exemption was first written: that row's subject is the shell
+LIST, and these are shell→**faces** walks, so a lane sweeping the faces
+class would read this row and never see it there.
+
 ## Closed
 
 Folded 2026-09-20. **Six** `topo/src` members read
@@ -229,4 +257,5 @@ Nothing here is left undisclosed as prose. Each residue has a file:
 | the face→solid OWNER INDEX, spelled three ways | `work/dup/two-spellings-of-the-face-to-solid-owner-index.md` |
 | the guarded SHELL list of a solid, ×13 — the door on the other side of this one, which this unit's own instrument had in hand and did not ask about | `work/dup/the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times.md` |
 | the `.expect` ceremony's home | `work/dup/shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim.md` |
+| the same-solid two-shell body, hand-built ×3 — **an X4 this unit's own fix pass minted**, in the fixture rather than the walk, and self-declared in prose at both copy sites | `work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md` |
 | the three `sweep/tests` copies | `work/tint/the-face-to-solid-walk-is-spelled-per-test-file.md` |

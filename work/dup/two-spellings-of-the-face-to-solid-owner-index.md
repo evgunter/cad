@@ -86,7 +86,12 @@ why it returns a bare `Vec` where `Body::faces_of_solid` returns
 `Option`.
 
 It is listed here because it was neither member nor non-member on the
-first pass, and because `body.rs`'s
-`faces_of_solid_restricts_the_face_arena_to_one_solid` and
-`offset_together::scope_walks` now assert the two agree as SEQUENCES —
-so if this index and the door ever diverge, those rows say so.
+first pass, and because
+`offset_together::scope_walks::an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`
+(and `shell10_r2_probes::r2_a_re_scope_up_holds_the_solid_it_was_aimed_at`)
+assert `faces_in_scope()` equal to `Body::faces_of_solid` as a
+SEQUENCE — so if this index and the door ever diverge, that row says
+so. **Those two rows are the only ones that do.** `body.rs`'s
+`faces_of_solid_restricts_the_face_arena_to_one_solid` was cited here
+for that and does not mention `faces_in_scope` at all; after the fix
+pass it carries no shell-walk comparison either.

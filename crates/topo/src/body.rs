@@ -1444,25 +1444,36 @@ mod tests {
     ///
     /// The fixture puts a solid's two shells out of step with the face
     /// arena — shell 1 holds the first face, shell 2 the third and
-    /// then the second — which is the state an operator that moves a
-    /// face between one solid's shells leaves behind. Arena order is
-    /// then `[fa, fb, fc]` and the shell walk `[fa, fc, fb]`: same
+    /// then the second — which is the decoupling an operator that
+    /// moves a face between one solid's shells produces. Arena order
+    /// is then `[fa, fb, fc]` and the shell walk `[fa, fc, fb]`: same
     /// SET, different SEQUENCE. A shell-walking implementation of this
     /// door passes every assertion in the row above and fails here.
+    ///
+    /// **The body is deliberately not tier-1 valid, and wider than the
+    /// story above**: the pillow's two faces share every edge, so
+    /// splitting them across two shells breaks the same-shell rule for
+    /// an edge's two faces — which a real operator would not do. What
+    /// this row asserts is ORDERING and nothing else; it never
+    /// validates, and no claim here depends on the body being sound.
     #[test]
     fn faces_of_solid_answers_arena_order_where_the_shell_walk_would_not() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
         let second = body.mvfs(origin()).unwrap();
 
-        // One solid, two shells: adopt the minted shell, and move
-        // `face_b` into it so the shells interleave with the arena.
+        // One solid, two shells: adopt the minted shell (its own solid
+        // goes, rather than staying behind empty), and move `face_b`
+        // into it so the shells interleave with the arena.
         body.get_shell_mut(second.shell).unwrap().solid = t.solid;
         body.get_solid_mut(t.solid)
             .unwrap()
             .shells
             .push(second.shell);
-        body.get_solid_mut(second.solid).unwrap().shells.clear();
+        // Paired, as `kvfs` pairs them: an arena removal that leaves
+        // the provenance entry behind is `LeakedProvenance`.
+        body.solids.remove(second.solid);
+        body.solid_provenance.remove(second.solid);
         body.get_shell_mut(t.shell)
             .unwrap()
             .faces
@@ -1472,6 +1483,12 @@ mod tests {
             .faces
             .push(t.face_b);
         body.get_face_mut(t.face_b).unwrap().shell = second.shell;
+        assert_eq!(body.solids().count(), 1, "one solid");
+        assert_eq!(
+            body.get_solid(t.solid).unwrap().shells.len(),
+            2,
+            "two shells"
+        );
 
         let walk: Vec<FaceKey> = body
             .get_solid(t.solid)

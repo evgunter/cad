@@ -65,21 +65,34 @@ same argument that kept `offset_together::scope_of_moves` out of the
 
 PR #2898's third instrument was **every `Solid::shells`-shaped field
 read** (139 at `b29fe8bd1`), classified by whether a `.faces` read
-followed within 8 lines (41). Of these thirteen sites:
+followed within 8 lines (41). Against these thirteen sites, run at the
+same base:
 
-- **8 are in the 98 the `.faces` filter discarded** — they take the
+- **9 are in the 98 the `.faces` filter discarded** — they take the
   shell list and stop, so the filter that defined "list a solid's
   faces" removed them by construction.
-- **5 were inside the 41** — `euler_kill.rs` (~:422), `seqgen.rs`
-  (~:1043, ~:1361), `review_m1_pr4.rs` (~:1611),
-  `offset_together.rs` (~:824) — and were dispositioned only against
-  THAT row's class ("does this materialise the solid's face list?
-  no"). Correct for that row, and a bucket drop for this one.
+- **4 were inside the 41** — `offset_together.rs` (~:824),
+  `seqgen.rs` (~:1043, ~:1361), `review_m1_pr4.rs` (~:1611) — and were
+  dispositioned only against THAT row's class ("does this materialise
+  the solid's face list? no"). Correct for that row, and a bucket drop
+  for this one.
+
+**This row published 8/5 first, and it was wrong twice over.**
+`euler_kill.rs` reads `solid_data.shells[..]` at ~:425 and
+`shell_data.faces[..]` at ~:434 — **nine** lines, outside the 8-line
+window — so it is in the 98, not the 41. And the list of five given
+for "inside the 41" was **not that partition at all**: it was group
+(b) above with one member swapped. Two different splits of thirteen
+were presented as one, and **the coincidence that both are 8/5 is
+exactly what made it read as verified**. The groups are (a) 8 / (b) 5
+by SHAPE; the instrument partition is 9 out / 4 in. They are not the
+same cut and neither implies the other.
 
 **Two bucket drops, 139 → 41 → 12 named.** Method item 9 says a bucket
 disposition is where a census loses things; here it lost a whole
 sibling class rather than a member. The instrument was not blind — the
-question it was asked was narrower than what it had in hand.
+question it was asked was narrower than what it had in hand, and that
+conclusion holds under either partition.
 
 And `Body::faces_of_solid`'s own rustdoc now points a caller straight
 at the undoored shape — *"a caller that needs the shells kept apart
@@ -107,14 +120,3 @@ No census was taken outside `crates/topo/src`. The same shape in
 `crates/sweep/src`, in `tests/` trees or in the cargo roots outside
 `--workspace` is unmeasured, and thirteen is therefore a floor for the
 crate and says nothing about the tree.
-
-
-## One hand-written walk that must stay hand-written
-
-`crates/topo/src/body.rs`'s
-`faces_of_solid_answers_arena_order_where_the_shell_walk_would_not`
-spells the `solid.shells -> shell.faces` walk out by hand. It is the
-REFERENCE the door is compared against — the row asserts the two agree
-as a set and disagree as a sequence — so folding it onto any door
-would make the test compare a thing with itself. A lane sweeping this
-class should skip it, and say so rather than leaving it undispositioned.
