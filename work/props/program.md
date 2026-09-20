@@ -13,11 +13,27 @@ keep_out: [OPENED 2026-09-06 at S-CERT's exit walk (#1924, ratified by Ev) — t
 priority: P2
 ---
 
-S-CERT's residue and M10's certification residue as one program: the
-`offset_fit` certificates, the sphere polar extent, the rational quad
-lane, the linalg interval-honesty audit against the ratified DL6
-contract, and the k_stats verdict channel. Class H with a few E riders
-and six rulings. Opened 2026-09-06 at S-CERT's exit: the inheritance
-landed with #1924, and the lanes that overlapped no live PR ran early
-(the log has them). Charter and lanes:
-`work/props/plan.md`; narrative in `work/props/log.md`.
+**The flux and rim arms, after the second 2026-09-20 cut**: what the
+property layer measures about a face, and the faces it will not
+measure at all.
+
+Its foundational row is that `props_rim_side` and `props_rim_dir_group`
+read whichever rim the loop walk from `Cycle::first` meets first, so
+**their recorded signs are facts about cycle order rather than about
+the face** — and everything else here rests on them. Beside it, the
+rim-level rule's structurally-impossible arm feeds `f64::NAN` into
+`classify` and `unreachable_zero` returns a 4-tuple of NaNs into live
+flux arithmetic.
+
+Three more are faces the kernel builds and this layer refuses: a cone
+bounded by one rim with the apex interior, the lune family the sphere
+flux arm's coplanar premise excludes, and a meridian that arrives in
+lineage pieces where the torus arm folds pieces and the sphere arm does
+not.
+
+PROPS was cut TWICE on 2026-09-20 (Ev, in chat): first at 66 open rows,
+opening QUAD, ENCL and FRAME; then at 108.5 budget points once every
+row carried a band, opening NURBS, LINALG and VERDICT. PROPS keeps its
+band 2400-2499.
+
+Charter and lanes: `work/props/plan.md`; narrative in `work/props/log.md`.
