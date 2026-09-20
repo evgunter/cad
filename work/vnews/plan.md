@@ -215,6 +215,50 @@ still on VIEW's slate: its lane is in flight at PR #2665 and a rename
 mid-review is a merge conflict for nothing. It arrives here when that
 PR merges, or with VIEW's exit walk, whichever is first.
 
+## Dispatch rules this program pays for
+
+**Do not ask a lane for `cargo nextest run --workspace` locally.**
+Learned 2026-09-19/20, at a cost: wave 1's four lanes each carried that
+instruction, and on this box it meant four concurrent workspace builds.
+One lane's run was SIGTERM'd after **4h33m** stuck on a single
+unrelated test with 1,427 rows still unrun; the same lane had
+`scripts/doc-gate.sh --skip-viewer-toolkit` killed by the machine three
+times, once after a 94-minute rustdoc phase. Measured at the end of
+that wave: load average **37**, 0 GB of 9 GB free, 17 `rustc`/`cargo`
+processes.
+
+The instruction was also redundant, which is the part that makes it a
+mistake rather than a trade. `docs/prompts/implementer-discipline.md`
+§2 says hosted CI is the **verification of record** and that a local
+run is an iteration tool which does not replace it — and CI's twelve
+`test (…)` jobs ARE the workspace coverage the local run was asked for.
+The register's rule that produced the instruction (#2293: *the viewer's
+own suite cannot see rosters that live in other crates*) is about what a
+**receipt** must cover, and CI covers it. So the fix is not to narrow
+the method; it is to stop taking a second, slower copy of a receipt CI
+already takes.
+
+What a viewer lane owes locally, and nothing beyond it:
+- `cargo test -p viewer --features app --no-fail-fast`, asserted by
+  SHAPE — every `--test all` row passing, `--lib` one row red (the WGPU
+  adapter) and no other — never against a row count, which moves.
+- the two `scripts/doc-gate.sh` passes **when the diff touches a doc
+  comment**, and only then.
+- anything a tight edit-compile loop genuinely needs.
+
+**And weigh the doc-gate exposure before demanding the skip pass.** The
+skip-mode hole (#2320) is about a link from the renderer-free half INTO
+the `app`-gated half. A diff whose new link is renderer-free to
+renderer-free — both modules ungated `pub mod` in `lib.rs` — has no
+exposure the full pass does not already judge, and the full pass is the
+one CI runs on any branch that touches this crate. Check the gating
+before treating a missing skip-pass receipt as uncovered.
+
+**Concurrency.** Four lanes is the right number for READING work and
+too many for four simultaneous viewer builds. Prefer a wave that mixes
+one or two code lanes with census and adjudication work, which is what
+wave 1 accidentally got right with its fourth lane.
+
 ## The register
 
 **`work/view/plan.md`'s rule register binds every lane dispatched from
