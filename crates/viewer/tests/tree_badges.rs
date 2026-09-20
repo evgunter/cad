@@ -507,8 +507,8 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 #[test]
 fn child_band_refusal_rows() {
     use pncad::document::{
-        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, Node,
-        NodeErrorKind, ProfileDoc, RecipeNodeId, apply, content_pin,
+        Alignment, AxisSense, DocRef, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind,
+        ProfileDoc, RecipeNodeId, content_pin,
     };
     use pncad::geom_core::Band;
     use pncad::geom_core::tolerance::{DEFAULT_K, Tolerance};
@@ -543,23 +543,12 @@ fn child_band_refusal_rows() {
         pin: content_pin(&part, tol).expect("the pin computes"),
     };
     let mut asm = ProfileDoc::empty_derived("band-asm", tol);
-    let insert = |doc: &mut ProfileDoc, node: Node<_>| -> RecipeNodeId {
-        let applied = apply(
-            doc,
-            &DocEdit::InsertNode { node },
-            tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the insert applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("an insert mints an id")
-    };
-    let mated_a = insert(&mut asm, Node::instantiate_part(doc_ref));
-    let mated_b = insert(&mut asm, Node::instantiate_part(doc_ref));
+    let mated_a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    let mated_b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     // The instance NO mate touches: its own singleton cluster, and the
     // row that decides whether this refusal is a cluster's or the
     // run's.
-    let lone = insert(&mut asm, Node::instantiate_part(doc_ref));
+    let lone = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     let face_of = |instance| {
         common::head(StableName {
             kind: EntityKind::Face,
@@ -572,7 +561,7 @@ fn child_band_refusal_rows() {
         axis: [0.0, 0.0, 1.0],
         reference: [1.0, 0.0, 0.0],
     };
-    let mate = insert(
+    let mate = common::insert_into(
         &mut asm,
         Node::Mate {
             a: face_of(mated_a),
@@ -586,6 +575,7 @@ fn child_band_refusal_rows() {
                 clocking: None,
             },
         },
+        tol,
     );
 
     let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
