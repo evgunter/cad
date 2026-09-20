@@ -209,8 +209,8 @@ content-key cached like everything.
   faces it is consumed over", scale-aware, and a real face has
   positive extent by construction so no floor exists. Over-refusal
   is the safe direction, which is why the bound is an upper one.
-  The `max(·, 1 m)` sibling in `mate.rs` takes the same lever.
-  Status: shipped whole at the mate site — the lever is the two
+  The mate solve's lever in `mate.rs` is the same lever, with no
+  floor. Status: shipped whole at the mate site — the lever is the two
   mated parts' own extent from the datum, each part's reach an upper
   bound taken from its evaluated body through the same boundary walk
   (`mate/reach.rs`); no floor, no constant.
