@@ -191,6 +191,36 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     it at all. **One plant is not a probe; a plant whose direction you
     have not argued is not a probe either.**
 
+17. **A plant's restore must restore exactly what the plant changed,
+    and nothing else.** A lane's replant loop began each iteration with
+    `git checkout <file>`, which silently reverted three uncommitted
+    fixes before the plants ran — so the figures it was about to
+    publish described a tree it did not mean. `git checkout` on a path
+    is a whole-file revert with **no memory of what it is reverting**,
+    and cannot tell the plant from any other edit in the file.
+    "Commit before planting" is one sufficient way to make a blunt
+    revert safe and is good hygiene, but it is not the rule: it fails
+    the moment someone plants in a tree carrying an unrelated edit.
+    The rule is a copy/restore of the file's pre-plant bytes, or a
+    patch/reverse-patch pair. **The reusable half is the detection**:
+    the lane found it by diffing against `HEAD`, and that check belongs
+    in any plant harness. (2026-09-20, `dup/one-line-fixture-wrappers`;
+    the general form is the reviewer's, not the lane's.)
+
+18. **A measurement taken to prove an instrument unreliable needs the
+    same re-take as any other measurement.** A lane documenting that
+    `git log -S` cannot answer a ratification question in this
+    shallow clone reported, as its evidence, that both queries returned
+    *"the same five commits, none of which touches either file"*. Each
+    returns **108**; the sets differ; **107 are parentless**, so
+    `--name-only` shows them touching the file. Every particular was
+    wrong and the conclusion was right — and better supported by the
+    true figures, because 108 non-answers at graft boundaries is a
+    stronger demonstration than five irrelevant commits. Item 15's
+    shape inside the row that exists to warn about it: **the number
+    offered as proof that a number cannot be trusted is still a
+    number.**
+
 ## Review posture
 
 Test-side, S-TINT's posture: one style review per unit, and a full
