@@ -1,0 +1,64 @@
+---
+id: shape-door-gained-the-rim-side-unanimity-premise
+kind: issue
+title: tess: require_iso_rectangle now refuses a face whose rims encode different material sides — the seam note for mesh's walk
+status: open
+opened: 2026-09-20
+---
+
+
+
+Filed by the PROPS curved-residues unit (PR 2924), which took the
+residue named in
+`work/props/the-shape-door-could-take-the-sense-free-rim-side-residue.md`.
+`crates/mesh/src/curved.rs` is tess's glob, and the door gates the
+walk, so this is the seam note the ruling asked for. **It is a
+disclosure, not a request** — nothing here is unfinished.
+
+## What changed at the door
+
+`geom_brep::props::require_iso_rectangle` used to ask ONE predicate on
+a linearly-leveled face: every rim sits at one of the face's two
+extreme levels (`props_rim_level`). It now also asks the sense-free
+residue of the flux lane's interior-side premise — **every rim encodes
+the SAME material side** (`unanimous_rim_side`, decided as
+`props_rim_side`) — which needs no `Face::sense` and so is available to
+a door that is handed a surface and a loop with no face.
+
+The door's charter is unchanged in the two places it was explicit
+about: a rimless lune still passes (nothing to compare), and a
+ZERO-EXTENT face still passes (no extreme for a rim to sit at, so no
+rim encodes a side for another to contradict —
+`linear_rims_at_extremes` admits `rim_side`'s `DegenerateFace`).
+
+## The measurement, before it was taken
+
+The ruling was *take it only if no body that legitimately meshes today
+stops meshing*. Run on `crates/mesh/tests/d9_mesh_goldens.rs`'s corpus,
+**40 body/δ pairs at every one of CI's six lane/eps points**
+(`{default, interval} × {default, 1e-6, 1e-12}`): exactly **one** body
+moved, `apex_crossing_bowtie`, at both its δ (0.05 and 0.15), and it
+moved from one REFUSAL to another — digest `d64f3d06937361f5` →
+`9cddb7a3543db550`, identical at every point. No body that meshes
+stopped meshing, and no digest of a body that meshes moved at all.
+
+## What the walk inherits
+
+`curved::require_iso_rectangle_face` cites the door and maps its error
+to `UnsupportedCurvedShape`, so a face whose rims contradict each other
+now refuses there rather than reaching the walk. That is the premise
+`linear_rim_side`'s own docs say the pairing exists to establish: on
+such a face the derived side is a property of where the owning body's
+loop flattening started, not of the face.
+
+The one divergence the door still has is unchanged and is NOT closed by
+this: the L-shaped complement of a half-cap has ONE rim, so there is
+nothing for unanimity to compare. That residue is
+`props_rim_interior_side`'s and stays with the flux lane.
+
+## The consequence worth knowing
+
+The bow tie's refusal NAME changed, which cost the branch premise its
+body-level witness —
+`apex-crossing-branch-premise-has-no-body-level-witness`, filed beside
+this.

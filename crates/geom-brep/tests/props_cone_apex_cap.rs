@@ -30,9 +30,7 @@ use crate::shared::point::{p3, v3};
 use crate::shared::tol::band;
 use crate::shared::topo;
 use geom::{Curve3, Surface};
-use geom_brep::props::{
-    LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face,
-};
+use geom_brep::props::{LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face};
 
 /// The cone under every row: apex at the origin, axis `+Z`, half-angle
 /// 45°, so `sin α = cos α = 1/√2`.
@@ -136,8 +134,16 @@ fn the_apex_cap_measures_the_cone_on_both_nappes_and_traversals() {
             (exact - PI * v * v * SIN_A).abs() < 1e-18,
             "the closed form is the cone of slant |v|"
         );
-        measures(&format!("apex cap at v={v}, +u"), &[rim(v, 0.0, TAU, 0, 0)], exact);
-        measures(&format!("apex cap at v={v}, -u"), &[rim(v, TAU, 0.0, 0, 0)], exact);
+        measures(
+            &format!("apex cap at v={v}, +u"),
+            &[rim(v, 0.0, TAU, 0, 0)],
+            exact,
+        );
+        measures(
+            &format!("apex cap at v={v}, -u"),
+            &[rim(v, TAU, 0.0, 0, 0)],
+            exact,
+        );
     }
 }
 
