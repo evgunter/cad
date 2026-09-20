@@ -2624,6 +2624,16 @@ NOT_BOUND = {
     "face_name": INTERIOR,
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
+    # The coset table's static gaps (a clocking rider on a planar rest,
+    # a standalone clocking), the one home the coset table and the
+    # viewer's mate tool read. A Python caller meets the same sentence
+    # at the door that asks it: `Doc.insert` raises `mate_refused` with
+    # `inner_variant == "mate_table_lacks"` and `fault.what` the table's
+    # words, before any solve. Its sibling `class_admission` IS bound
+    # because a class the solve admits can still refuse at the at-rest
+    # gate, which no insert refusal foretells; a table gap has no such
+    # second door.
+    "table_gap": INTERIOR,
     "validated": INTERIOR,
     # **The gathered-product doors, one family, and they are what the
     # binding CALLS.** `Product` is the document's product with
@@ -3238,6 +3248,7 @@ MEMBERS_BOUND_AS = {
     "EditError::NonFinitePlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::NonFiniteAlignment": "EditError.variant",
+    "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
     "EditError::MaintenanceRefused": "EditError.variant",

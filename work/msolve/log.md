@@ -611,3 +611,27 @@ without the string compare; the aim-count row at two per mate. Spec
 into the ledger at the unit head. Closes the three items; two rows
 filed here. Next: MSOLVE-9 waits on Ev's word on PR 2895; MSOLVE-10
 (the static clocking refusal at `AddMate`) specs next.
+
+## MSOLVE-10 MERGED (2026-09-20, PR 2913)
+
+The insert door asks the solve's own per-mate admission
+(`admit_mate`) and refuses `EditError::MateRefused` with the solve's
+fault unaltered; the table's static gaps have one home
+(`mate::table_gap`, the fence widened by that one pub fn); one
+per-reference prefix (`check_references`) for the solve's first loop
+and the door; the lever a named `LeverArm`; `Maintain::reach` states
+the two replay rules once; `DocEdit::writes_a_mates_datum` pins that
+the mate insert is the one edit writing a datum. Reviews on
+`7534c8854` (style six MAJOR, the correctness arm's probes run by the
+orchestrator after the arm hung: door equals solve to the bit, the
+reach asked once per part, the band's edges agreeing); the fix pass
+landed in one push plus the census disposition of `table_gap` and a
+merge of main after PR 2895 conflicted `ASSEMBLY.md`. Orchestrator
+spot-check on the diff: the five rulings as ruled; one residue (a
+copied gap string as a fallback) fixed in the census push. Principle
+settled and written into A11 rule 1 as an elaboration: the doors
+decide edits, the solve decides states. Spec into the ledger at the
+unit head. Closes `mate-clocking-has-no-gui-path` (both halves
+recorded); files `mate-band-fault-unreachable-on-a-mate`. Next:
+MSOLVE-9 dispatches from main; the exit walk's rows 10–11 close.
+

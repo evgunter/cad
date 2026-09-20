@@ -4130,6 +4130,39 @@ program runs none).
 
 - `MSOLVE-8-SPEC.md` — MSOLVE-8, a levered clash names its arm; the coset's directions carry the witness; `MateFault` names its consumers (#2896)
 
+## Per-merge deletion — MSOLVE-10's spec (2026-09-20)
+
+Recoverable at `git show 392fc0ad95e6a7ec044ca9a18bb99f125d3c56cd:docs/MSOLVE-10-SPEC.md`
+(the MSOLVE-10 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held: `admit_mate` is the per-mate
+prefix of the solve and the insert door asks it. Five of its
+sentences were overruled by the reviews. Its §2 and §5 said a mate
+the table refuses "never enters the document"; the load door's
+snapshot walk asks only the non-finite predicate, and the ruling
+kept it so — the doors decide edits and the solve decides states, a
+state a mate comes to hold after insert is the solve's, and a `save`
+that refused states the doors produced would be a trap — so every
+such sentence reads "refused at the insert door" and one row pins
+the snapshot road. Its stop clause ("changing what the solve decides
+for any mate") did not name the pair the fold never reads (two
+members over one instance), whose datum the solve never decides and
+the door now refuses; ruled the door's, on the datum alone, and
+pinned. Its §4 had the viewer refuse the table's static gaps in the
+table's words, which the lane read as a second match over the pair;
+the fence widened by one `pub fn table_gap` in `mate.rs` so the
+table has one home. Its §1 wanted `fold_pair` to call `admit_mate`
+literally; the honest shape is shared doors (`check_references`,
+`admit_class`, `mate_coset`) in the solve's own order, and the
+restatement the first shape left (the solve's first loop) was
+removed. Its §3's replay sentence was right and the lane's first
+comments on it were not (`Maintain::Never` refuses at the
+maintenance; `Recorded` re-applies); the two replay rules are stated
+once at `Maintain::reach`. The unit's record is its item's `## Closed`
+section and its MERGED entry in `work/msolve/log.md` (no A/B row: the
+program runs none).
+
+- `MSOLVE-10-SPEC.md` — MSOLVE-10, a mate the coset table refuses on its own is refused at the edit door (#2913)
+
 ## Per-merge deletion — TRIM-2's spec (2026-09-20)
 
 Recoverable at `git show d0e577121:docs/TRIM-2-SPEC.md` (PR #2863's

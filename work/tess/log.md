@@ -132,3 +132,15 @@ corrections are on the row.
   door goes stale the day that program lands** — the cap row said
   "import route dead" two days after PR 2741 opened it. Measure-first
   caught it; nothing else would have.
+
+## Announced from TRIM (2026-09-20): a filed class on this slate
+
+`chord-count-arithmetic-is-plain-f64-across-every-speed-arm` moved
+here from `work/trim/` at TRIM's 2026-09-20 cut: TRIM-2 PR-2's dual
+found that every chord-count arm in `crates/mesh/src/chords.rs`
+multiplies a certified sup by a span in plain f64 and ceils it, with
+`next_up` on the sup the only outward pad — a class, not that unit's
+defect — and that the domination idiom is spelled four times in the
+crate with the newest spelling (interior-knot sampling, vacuity
+refusal) the one to propagate. The item names TESS the owner; no
+action asked of TESS while paused.
