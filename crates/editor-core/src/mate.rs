@@ -841,7 +841,10 @@ pub enum FaceRefusal {
         error: topo::readback::ReadbackError,
     },
     /// The face's pose fixes no in-frame reference direction and the
-    /// frame authored none, so the roll is undetermined.
+    /// frame authored none, so the roll is undetermined. Every
+    /// analytic carrier the readback answers fixes one today, so this
+    /// arm answers the readback's contract (`Pose::u_ref` is optional)
+    /// and no door reaches it; the wrap is pinned by row.
     NoReference {
         /// The instance.
         instance: RecipeNodeId,

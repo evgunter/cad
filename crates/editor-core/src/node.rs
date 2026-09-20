@@ -3316,6 +3316,10 @@ impl<P> Node<P> {
             // names its reading edges are recomputed from. The
             // operands they are read at are node ids, not names, and
             // are listed by [`Node::payload_read_sites`].
+            // The two heads, and not a `FromFace` frame's face: that
+            // name is a row of the PART's table, in the part's own id
+            // space, held here the way an instance's reference is —
+            // not a name this document minted, strands or remaps.
             Node::Mate { a, b, .. } => vec![a.name.as_ref(), b.name.as_ref()],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.

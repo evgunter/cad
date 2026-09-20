@@ -220,9 +220,19 @@ def instance_cap(ev, instance, side):
 
 
 def frame_at(x, y, z):
-    """A mate frame: +z axis, +x clocking reference."""
+    """An AUTHORED mate frame: +z axis, +x clocking reference."""
     return MateFrame(origin=(x * m, y * m, z * m), axis=(0.0, 0.0, 1.0),
                      reference=(1.0, 0.0, 0.0))
+
+
+def part_cap(part, side):
+    """A cap face of a PART, by the part's own name: selected on the
+    part document's own evaluation, with no instance wrapped round it
+    — what a mate frame that names a face stores."""
+    cap = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
+    found = evaluate(part).select(part.roots[0], Selector.of(cap))
+    assert len(found) == 1, f"expected one face, got {found}"
+    return found[0]
 
 
 store = Workspace(tempfile.mkdtemp())
@@ -253,9 +263,14 @@ b_top = instance_cap(ev, post_b, CapEnd.End)
 shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 
 # Where each post's top meets the shelf's underside, each written in
-# its OWN part's coordinates. The posts sit flush with the shelf's
-# two ends, which is the obvious way to draw a bench.
-post_seat = frame_at(POST_SECTION / 2, POST_SECTION / 2, POST_HEIGHT)
+# its OWN part's coordinates. The post's seat IS its top cap face, by
+# the post's own name: the solve reads the cap's pose off the post's
+# evaluation every time, so a post whose height changes moves the
+# seat with it. The shelf's seats are authored numbers — its own datum
+# (it is modelled from its underside), not a face of it. The posts sit
+# flush with the shelf's two ends, which is the obvious way to draw a
+# bench.
+post_seat = MateFrame.from_face(part_cap(post, CapEnd.End))
 seat_a = frame_at(POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 seat_b = frame_at(SHELF_LENGTH - POST_SECTION / 2, SHELF_DEPTH / 2, 0.0)
 
@@ -319,13 +334,22 @@ assert stand.roots[:3] == [shelf_i, post_a, post_b]
 
 Two things in that block are worth pausing on.
 
-**Nothing checks a mate's alignment against the faces it names.** A
-`MateFrame` is *authored* data — the solve is structural plus decided
-predicates over exactly those numbers. So a mate can solve perfectly
-and still be refuted at the gate, and that is not a hole: it is the
+**A mate frame is a face of the part, or three authored vectors.**
+`MateFrame.from_face(name)` names a face in the PART's own spelling
+and the solve resolves it from the part's own evaluation at every
+evaluation — its origin, its chart axis and its own roll reference —
+so nothing is stored twice and the mate follows the face when the
+part is edited; a face with no canonical frame (a NURBS carrier)
+refuses typed and keeps taking authored vectors. Authored vectors are
+the spelling for a datum that is not a face (the shelf's seats above)
+and for a roll the face's own reference does not give. The solve's
+*algorithm* is unchanged — coset intersection over decided
+predicates, no numeric fitting — and its inputs are the document plus
+its mated parts' evaluations. What is still not checked is an
+AUTHORED frame against the faces the mate names: such a mate can
+solve perfectly and still be refuted at the gate, which is the
 boundary between "where you said the parts meet" and "where they
-actually do", kept visible. (Nothing yet mints a mate frame from a
-selected face; that is issue #944.)
+actually do", kept visible.
 
 **What the solve would refuse about a mate on its own, the insert
 refuses.** A head that resolves to no member, one member named

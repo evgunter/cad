@@ -2,9 +2,9 @@
 id: mate-frames-resolve-from-a-face-at-evaluation
 kind: issue
 title: a MateFrame arm that names a face and resolves at evaluation, and A11's inputs sentence
-status: parked
+status: closed
+closed: 2026-09-20
 opened: 2026-09-09
-blocked_on: [MSOLVE-9]
 ---
 
 Handed over by LIB under Ev's ruling (F) on
@@ -67,3 +67,15 @@ the Python docstring the unit repoints. The road: `MateReach` gains
 table in the part's coordinates — so no placement pull-back, which
 is what the viewer's tool does today and what the arm retires.
 Parked on MSOLVE-9.
+
+## Closed (2026-09-20, MSOLVE-9 lane)
+
+Answered by MSOLVE-9 (its `## Closed` section lists the rows). The
+arm is `MateFrame::FromFace(FaceFrame { face, reference })`, resolved
+at evaluation through `MateReach::face_pose` in the part's own
+coordinates; A11 rule 5's inputs sentence is the ratified text on
+`crates/editor-core/ASSEMBLY.md`, and `mate.rs`'s and `mate/solve.rs`'s
+module docs point at it. Nothing is stored twice:
+`a1_the_mate_follows_the_edited_face` saves the face name and no
+vectors for that side, and the tour's migration walk shows the shelf
+coming down with the shortened posts where it used to be refuted.

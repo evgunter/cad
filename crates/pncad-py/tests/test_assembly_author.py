@@ -1851,5 +1851,108 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         )
 
 
+class TestMateFrameFromFace(BenchWorkspace):
+    """`MateFrame.from_face`: a mate frame that names a face of the
+    part and resolves at the solve, through the part's own
+    evaluation."""
+
+    def post_cap(self, post_doc):
+        """The post's top cap by the POST's own name: selected on the
+        part document's own evaluation, no instance wrapped round it."""
+        ev = evaluate(post_doc)
+        found = ev.select(post_doc.roots[0], bench_scene.cap_selector(CapEnd.End))
+        self.assertEqual(len(found), 1, found)
+        return found[0]
+
+    def seated(self, label, post_frame):
+        doc = Doc(label)
+        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        alignment = Alignment(
+            post_frame,
+            mate_frame(SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+        )
+        mate = doc.insert(
+            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+            resolver=self.ws,
+        )
+        return doc, post_i, shelf_i, mate
+
+    def test_from_face_is_its_own_arm_and_carries_the_name(self):
+        cap = self.post_cap(self.post)
+        frame = MateFrame.from_face(cap)
+        self.assertEqual(frame.variant, "from_face")
+        self.assertEqual(frame.face, cap)
+        self.assertIsNone(frame.origin)
+        self.assertIsNone(frame.axis)
+        self.assertIsNone(frame.reference)
+        with self.assertRaises(TypeError):
+            frame.placement()
+        clocked = MateFrame.from_face(cap, reference=(0.0, 1.0, 0.0))
+        self.assertEqual(clocked.reference, (0.0, 1.0, 0.0))
+        self.assertNotEqual(frame, clocked)
+        authored = mate_frame(POST_SEAT)
+        self.assertEqual(authored.variant, "authored")
+        self.assertIsNone(authored.face)
+        self.assertIsNone(
+            Alignment(
+                frame, authored, MatePrimitive.frame_coincidence(), AxisSense.Aligned
+            ).lever_arm
+        )
+        with self.assertRaises(ValueError):
+            MateFrame.from_face("not a name")
+
+    def test_the_mate_follows_the_edited_face(self):
+        cap = self.post_cap(self.post)
+        doc, post_i, shelf_i, mate = self.seated(
+            "from-face-follows", MateFrame.from_face(cap)
+        )
+        evaluate(doc, resolver=self.ws).value(mate)
+        before = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
+        self.assertAlmostEqual(before.origin[2].meters, POST_HEIGHT, places=12)
+        # The post grows on disk; the reference moves; the shelf comes
+        # up with the cap, by exactly the height change.
+        taller = bench_scene.post(height=POST_HEIGHT + 0.1)
+        self.ws.resave(taller)
+        for edit in pncad.update_references(doc, self.post.id, content_pin(taller)):
+            doc.apply(edit, resolver=self.ws)
+        evaluate(doc, resolver=self.ws).value(mate)
+        after = solve_document(doc, resolver=self.ws).placement(doc, shelf_i)
+        self.assertAlmostEqual(
+            after.origin[2].meters - before.origin[2].meters, 0.1, places=12
+        )
+
+    def test_a_vanished_face_refuses_typed_with_the_face_named(self):
+        bogus = self.post_cap(bench_scene.prism("elsewhere-post", 0.02, 0.02, 0.5))
+        doc = Doc("from-face-vanished")
+        post_i = doc.insert(Node.instantiate_part(self.post_ref))
+        shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        alignment = Alignment(
+            MateFrame.from_face(bogus),
+            mate_frame(SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+        )
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+                resolver=self.ws,
+            )
+        err = caught.exception
+        self.assertEqual(err.variant, "mate_refused")
+        fault = err.fault
+        self.assertEqual(fault.variant, "mate_face_unresolved")
+        self.assertEqual(fault.inner_variant, "no_such_name")
+        self.assertEqual(fault.instance, post_i)
+        self.assertEqual(fault.face, bogus)
+        self.assertIn("did not resolve to a pose", str(fault))
+
+
 if __name__ == "__main__":
     unittest.main()

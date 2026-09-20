@@ -2,11 +2,11 @@
 id: no-door-mints-mate-frame-from-face
 kind: issue
 title: No door mints a mate's alignment frame from a selected face
-status: parked
+status: closed
+closed: 2026-09-20
 opened: 2026-08-23
 github: 944
 refs: [938]
-blocked_on: [mate-frames-resolve-from-a-face-at-evaluation]
 ---
 
 ## From GitHub issue 944
@@ -159,3 +159,18 @@ kernel design is MSOLVE's: filed as
 half — the façade re-export and `MateFrame.from_face(...)` in Python
 — follows the arm and is this item's remaining scope; (A) is not
 built. This item stays open, parked on the MSOLVE item.
+
+## Closed (2026-09-20, MSOLVE-9 lane)
+
+The remaining scope — the façade re-export and `MateFrame.from_face`
+in Python — landed with the arm on MSOLVE-9: `pncad::document`
+re-exports `AuthoredFrame`, `FaceFrame`, `FacePoseRefusal` and
+`FaceRefusal` beside `MateFrame`; Python has
+`MateFrame.from_face(face, reference=None)`, `variant`, `face`, the
+optional `origin`/`axis`/`reference`, the `mate_face_unresolved` tag
+with `face_refusal_tag` as its inner word and the payload's `face`
+(`crates/pncad-py/tests/test_assembly_author.py::TestMateFrameFromFace`;
+the `.pyi` and `docs/guide/assembly.md` show `from_face` as the
+natural spelling). The viewer's mate tool — the door this issue was
+filed about — authors `FromFace` for a picked face and stores no
+numbers.

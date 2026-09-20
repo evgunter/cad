@@ -1270,7 +1270,12 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // predicate must be able to decide on. Asked in THIS walk, of
         // the same `Node::has_non_finite_alignment` the edit door asks
         // — a second pass over the nodes would be a second place to
-        // forget the question.
+        // forget the question. A `FromFace` side is checked
+        // STRUCTURALLY and no further — a face by type, its keys
+        // closed at the wire, its optional reference finite here —
+        // because its numbers are the part's: whether the name is a
+        // row of the part's table is the solve's at evaluation
+        // (`MateFault::FaceUnresolved`), never this door's.
         if node.has_non_finite_alignment() {
             return Err(SnapshotError::MateAlignment { node: id });
         }

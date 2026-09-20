@@ -4900,17 +4900,29 @@ def evaluate(
 # frame.
 
 class MateFrame:
-    """One side's mate frame, in that instance's own part coordinates.
+    """One side's mate frame, in that instance's own part coordinates
+    — two arms.
 
-    AUTHORED data, not geometry read back: the solve is structural
-    plus decided predicates over exactly these numbers, so a frame
-    that does not match the face its mate names is a disagreement
-    nothing here can see.
-
+    AUTHORED: three vectors, `MateFrame(origin, axis, reference)`.
     `axis` need not be unit and `reference` need not be perpendicular
     to it — only the axis's direction and the reference's
     perpendicular part are read. Both are plain numbers (a direction
-    carries no dimension); `origin` is three lengths."""
+    carries no dimension); `origin` is three lengths.
+
+    FROM A FACE: `MateFrame.from_face(face, reference=None)`, where
+    `face` is the PART-LOCAL name text of a face of the mated part —
+    the row `evaluate(part).select(...)` answers on the part's own
+    document, never the instance-qualified spelling a mate head
+    carries. The solve reads that face's canonical pose off the
+    part's own evaluation at every evaluation and takes it as the
+    frame: the carrier's origin, its CHART axis (the face's
+    orientation sense is not folded in — the mate's `AxisSense` says
+    which way the sides point) and its own in-frame reference, else
+    the `reference` given here; both present, or neither, refuses at
+    the solve (`mate_face_unresolved`). Nothing is stored twice: edit
+    the part so the face moves, and the mate follows. A face with no
+    canonical frame (a NURBS carrier) refuses at the solve and keeps
+    taking authored vectors."""
 
     def __init__(
         self,
@@ -4918,18 +4930,46 @@ class MateFrame:
         axis: tuple[float, float, float],
         reference: tuple[float, float, float],
     ) -> None: ...
+    @staticmethod
+    def from_face(
+        face: str, reference: Optional[tuple[float, float, float]] = None
+    ) -> MateFrame:
+        """A frame resolved from `face`, a face of the part by its
+        PART-LOCAL name text (see the class docs). Raises ValueError
+        for text that is not a stable name, and EditError
+        (`mate_head_not_a_face`) for a name of another kind."""
+
     @property
-    def origin(self) -> tuple[Length, Length, Length]: ...
+    def variant(self) -> str:
+        """`"authored"` or `"from_face"`."""
+
     @property
-    def axis(self) -> tuple[float, float, float]: ...
+    def origin(self) -> Optional[tuple[Length, Length, Length]]:
+        """The authored origin; `None` on a `from_face` frame, whose
+        origin is the face's and is read at the solve."""
+
     @property
-    def reference(self) -> tuple[float, float, float]: ...
+    def axis(self) -> Optional[tuple[float, float, float]]:
+        """The authored axis; `None` on a `from_face` frame."""
+
+    @property
+    def reference(self) -> Optional[tuple[float, float, float]]:
+        """The authored clocking reference: an authored frame's
+        always, a `from_face` frame's where one was given."""
+
+    @property
+    def face(self) -> Optional[str]:
+        """The face a `from_face` frame names, as its name text in the
+        part's own spelling; `None` on an authored frame."""
+
     def placement(self) -> Frame:
-        """The rigid placement this frame denotes: local +Z is `axis`,
-        roll fixed by `reference`. Raises FrameError when the axis has
-        no definite direction or the reference no definite
+        """The rigid placement an AUTHORED frame denotes: local +Z is
+        `axis`, roll fixed by `reference`. Raises FrameError when the
+        axis has no definite direction or the reference no definite
         perpendicular — the refusal the solve would meet, reachable
-        BEFORE authoring the mate that carries it."""
+        BEFORE authoring the mate that carries it. Raises TypeError on
+        a `from_face` frame, which denotes no placement until the
+        solve resolves it against the part: ask the solved document."""
 
     def __eq__(self, other: object) -> bool: ...
 
@@ -5014,10 +5054,12 @@ class Alignment:
     @property
     def clocking(self) -> Optional[Angle]: ...
     @property
-    def lever_arm(self) -> Length:
+    def lever_arm(self) -> Optional[Length]:
         """The datum's own contribution to the lever this mate's angular
         decisions turn on: both mate frames' distances from their parts'
-        origins plus every length the primitive authors, summed.
+        origins plus every length the primitive authors, summed. `None`
+        when a side is a `from_face` frame, whose origin is the face's
+        and is read at the solve, where the term is formed.
 
         The lever itself adds the two mated parts' own extent (an upper
         bound from each evaluated body), which only the solve has in
@@ -5134,6 +5176,12 @@ class MateFault:
     @property
     def instance(self) -> Optional[NodeId]: ...
     @property
+    def face(self) -> Optional[str]:
+        """The face a `from_face` frame named, as its name text in the
+        PART's own spelling, where the refusal is about one
+        (`mate_face_unresolved`)."""
+
+    @property
     def parent(self) -> Optional[NodeId]: ...
     @property
     def child(self) -> Optional[NodeId]: ...
@@ -5176,9 +5224,14 @@ class MateFault:
         (`invalid_value`, `invalid_lever_arm`, `empty`), or the lever
         refusal's (`part_unresolved`, `face_unbounded`, `no_extent`,
         `no_finite_bound`, `not_an_instance`, with the instance it is
-        about as `instance`). `None` on an arm whose payload
-        is a struct rather than an enum — an escalation has no inner
-        word, and its shape is which margin attribute is set."""
+        about as `instance`), or the face refusal's on
+        `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
+        `ambiguous`, `not_a_face`, `readback`, `no_reference`,
+        `reference_refused`, `unpinned`, `not_an_instance`, with the
+        instance as `instance` and the face as `face`). `None` on an
+        arm whose payload is a struct rather than an enum — an
+        escalation has no inner word, and its shape is which margin
+        attribute is set."""
 
     @property
     def margin(self) -> Optional[Length]:
