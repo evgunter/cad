@@ -122,11 +122,7 @@ impl MateFrame {
     /// name of another kind — the same door a mate head goes through.
     #[staticmethod]
     #[pyo3(signature = (face, reference=None))]
-    fn from_face(
-        py: Python<'_>,
-        face: &str,
-        reference: Option<(f64, f64, f64)>,
-    ) -> PyResult<Self> {
+    fn from_face(py: Python<'_>, face: &str, reference: Option<(f64, f64, f64)>) -> PyResult<Self> {
         let face = super::doc::face_name_from_text(py, face)?;
         Ok(Self(d::MateFrame::from_face(
             face,

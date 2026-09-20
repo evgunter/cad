@@ -107,9 +107,7 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     tool.pick(a);
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, eval, seat())
-        .expect("the seat proposes");
+    let proposal = tool.proposal(doc, eval, seat()).expect("the seat proposes");
 
     // The oracle: resolve each pinned part from the store (the same
     // door the evaluator uses), evaluate it STANDALONE, and read the
@@ -138,7 +136,10 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
         "a names the post's own cap, the row the standalone part answers"
     );
     let shelf = oracle(&bench.shelf, &bench.shelf_bottom);
-    assert!(shelf.u_ref.is_some(), "the cap fixes a reference of its own");
+    assert!(
+        shelf.u_ref.is_some(),
+        "the cap fixes a reference of its own"
+    );
     assert_eq!(
         proposal.alignment.b,
         asm::from_face(&bench.shelf_bottom),
@@ -156,8 +157,12 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
         .placement(doc, bench.post_b)
         .expect("post_b is solved")
         .affine::<f64>();
-    let world = pncad::select::face_frame(eval, bench.post_b, &asm::in_part(bench.post_b, &bench.post_top))
-        .expect("the placed cap has a pose");
+    let world = pncad::select::face_frame(
+        eval,
+        bench.post_b,
+        &asm::in_part(bench.post_b, &bench.post_top),
+    )
+    .expect("the placed cap has a pose");
     let want = placed.transform_point(post.origin);
     assert!(
         (world.origin.x - want.x).abs() < 1e-9
@@ -185,9 +190,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     tool.pick(a);
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, eval, seat())
-        .expect("the seat proposes");
+    let proposal = tool.proposal(doc, eval, seat()).expect("the seat proposes");
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
@@ -361,9 +364,7 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
     tool.pick(a.clone());
     tool.pick(b.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, eval, seat())
-        .expect("the seat proposes");
+    let proposal = tool.proposal(doc, eval, seat()).expect("the seat proposes");
     session.perform(proposal.op());
     session.pump();
     for row in session.tree_rows() {
@@ -382,7 +383,8 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
             .placement(doc, bench.shelf_i)
             .expect("the shelf is placed")
             .affine::<f64>();
-        let pose = pncad::select::face_frame(eval, b.node, &b.name).expect("the underside has a pose");
+        let pose =
+            pncad::select::face_frame(eval, b.node, &b.name).expect("the underside has a pose");
         let authored = asm::authored_from_world(
             &placed,
             &pose,
@@ -444,9 +446,7 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     tool.pick(a);
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, eval, seat())
-        .expect("the seat proposes");
+    let proposal = tool.proposal(doc, eval, seat()).expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
@@ -490,9 +490,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     tool.pick(a);
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, eval, seat())
-        .expect("the seat proposes");
+    let proposal = tool.proposal(doc, eval, seat()).expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,

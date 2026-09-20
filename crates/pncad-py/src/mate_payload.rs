@@ -67,8 +67,8 @@ use pncad::document::{
     Clash, DocumentId, FaceRefusal, Lever, LeverRefusal, MateFault, MateSide, RecipeNodeId,
     Subgroup,
 };
-use pncad::prelude::StableName;
 use pncad::geom_core::{BandError, FrameError, Indeterminate};
+use pncad::prelude::StableName;
 
 use crate::escalation::escalation;
 use crate::tags::{

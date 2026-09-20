@@ -283,7 +283,8 @@ fn c1_rotation_identity_value_and_arm() {
         x_along_at([0.0, 0.4, 0.0]),
         None,
     );
-    let (r, held, added, fault) = two_mates("msolve8-c1-rot-id", first.clone(), second.clone(), false);
+    let (r, held, added, fault) =
+        two_mates("msolve8-c1-rot-id", first.clone(), second.clone(), false);
     let (site, fault) = fault.expect("the pair refuses");
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_rotation_identity");
@@ -331,7 +332,12 @@ fn c1_axis_fixed_value_and_arm() {
         x_along_at([0.0, 0.0, 0.5]),
         None,
     );
-    let (r, _, _, fault) = two_mates("msolve8-c1-axis-fixed", first.clone(), second.clone(), false);
+    let (r, _, _, fault) = two_mates(
+        "msolve8-c1-axis-fixed",
+        first.clone(),
+        second.clone(),
+        false,
+    );
     let (site, fault) = fault.expect("the pair refuses");
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_axis_fixed");
@@ -929,7 +935,10 @@ fn c2_parallel_boundary_through_doors() {
             bits3(UnitVec3::new(raw1, FIXTURE_MATE_AXIS, band).unwrap().get())
         );
         let r = rig(&format!("msolve8-c2-doors-{i}"), 2);
-        assert_eq!((rr + rr + first.lever_arm(av(&first.a), av(&first.b))).to_bits(), arm.to_bits());
+        assert_eq!(
+            (rr + rr + first.lever_arm(av(&first.a), av(&first.b))).to_bits(),
+            arm.to_bits()
+        );
         let (doc, _) = add(r.doc, mate(r.ids[0], r.ids[1], first));
         let (doc, added) = add(doc, mate(r.ids[0], r.ids[1], second));
         let want = one_spelling(w1, w2, arm, band);
@@ -1010,7 +1019,11 @@ fn c2_inverted_coset_never_refuses() {
                     match at_the_door(
                         &r.doc,
                         &mate_reach::<f64>(&r.o, tol),
-                        mate(a, b, al(prim, sense, f.clone(), z_up_at([0.2, 0.0, 0.0]), None)),
+                        mate(
+                            a,
+                            b,
+                            al(prim, sense, f.clone(), z_up_at([0.2, 0.0, 0.0]), None),
+                        ),
                     ) {
                         Ok((doc, m)) => solve(&doc, &r.o, tol)
                             .fault(m)

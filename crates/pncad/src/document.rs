@@ -328,6 +328,12 @@ pub use editor_core::{
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
+pub use editor_core::{
+    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance,
+    FaceFrame, Lever, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
+    PartReach, ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
+    gauge_of, mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
+};
 /// Why a mate's `FromFace` frame did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
 ///
@@ -343,12 +349,6 @@ pub use editor_core::LeverRefusal;
 /// could match `FaceUnresolved` and not name this type would read all
 /// of that out of the message prose.
 pub use editor_core::{FacePoseRefusal, FaceRefusal};
-pub use editor_core::{
-    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance,
-    FaceFrame, Lever, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
-    PartReach, ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
-    gauge_of, mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
-};
 
 // The class-admission table (`ClassAdmission`, read through
 // `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its

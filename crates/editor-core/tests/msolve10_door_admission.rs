@@ -35,10 +35,10 @@ use editor_core::{
     MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc, ReachRefusal,
     RecipeNodeId, RefusingReach, load, mate_reach, save,
 };
-use topo::readback::Pose;
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
 use geom_core::Tol;
+use topo::readback::Pose;
 
 // ---- Substrate ----
 
@@ -143,7 +143,11 @@ fn seat(clocking: Option<f64>) -> Alignment {
 /// A reach that counts its asks and answers through `inner` — the
 /// reach asks and the face-pose asks counted apart, since the door
 /// asks each where the solve asks it.
-struct Counting<'a>(core::cell::Cell<usize>, &'a dyn MateReach, core::cell::Cell<usize>);
+struct Counting<'a>(
+    core::cell::Cell<usize>,
+    &'a dyn MateReach,
+    core::cell::Cell<usize>,
+);
 
 impl<'a> Counting<'a> {
     fn over(inner: &'a dyn MateReach) -> Self {
@@ -208,8 +212,8 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     let (doc, ids, opts) = instances("msolve10-a1-beyond", 2);
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let alignment = seat(Some(core::f64::consts::FRAC_PI_2));
-    let (named, fault) = at_the_door(&doc, &reach, mate(ids[0], ids[1], alignment.clone()))
-        .expect_err("refused");
+    let (named, fault) =
+        at_the_door(&doc, &reach, mate(ids[0], ids[1], alignment.clone())).expect_err("refused");
     let MateFault::Contradictory {
         held,
         added,

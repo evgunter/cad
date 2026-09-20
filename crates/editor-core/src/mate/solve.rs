@@ -675,9 +675,16 @@ fn resolve_side<P: crate::ProfilePayload>(
             refusal: Box::new(refusal),
         })
     };
-    let part = part_of(doc, member)
-        .map_err(|node| unresolved(FaceRefusal::NotAnInstance { node }))?;
-    let named = |refusal| unresolved(FaceRefusal::of(refusal, member.instance, part, face.face.clone()));
+    let part =
+        part_of(doc, member).map_err(|node| unresolved(FaceRefusal::NotAnInstance { node }))?;
+    let named = |refusal| {
+        unresolved(FaceRefusal::of(
+            refusal,
+            member.instance,
+            part,
+            face.face.clone(),
+        ))
+    };
     let pose = reach.face_pose(&part, &face.face).map_err(named)?;
     let reference = match (pose.u_ref, face.reference) {
         (Some(u_ref), None) => [u_ref.x, u_ref.y, u_ref.z],
@@ -914,15 +921,7 @@ fn fold_pair<P: crate::ProfilePayload>(
         // own datum terms. The fold's is the largest so far.
         let mate_arm = parts + alignment.lever_arm(&a, &b);
         arm = arm.max(mate_arm);
-        let mut coset = mate_coset(
-            mate,
-            alignment,
-            &a,
-            &b,
-            || Ok(mate_arm),
-            band,
-            tol,
-        )?;
+        let mut coset = mate_coset(mate, alignment, &a, &b, || Ok(mate_arm), band, tol)?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
         // The transported direction is `a`'s axis carried into `b`'s

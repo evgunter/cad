@@ -36,13 +36,12 @@ use editor_core::{
     EditError, EntityKind, EvalOptions, Evaluation, Expr, FaceName, FacePoseRefusal, FaceRefusal,
     Frame, LoggedEdit, LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node,
     NodeErrorKind, PartFault, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedFace, SlotId,
-    StableName, all_faces, face_carrier_kind, face_frame, load, mate_reach, save,
+    RefusingReach, RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind,
+    face_frame, load, mate_reach, save,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{
-    at_the_door, gate, insert, len, on_frame, on_frame_keeping, run, solve, square, step,
-    step_with,
+    at_the_door, gate, insert, len, on_frame, on_frame_keeping, run, solve, square, step, step_with,
 };
 use geom_core::Tol;
 
@@ -142,7 +141,11 @@ fn seat(label: &str, post_height: f64) -> Seat {
     let (doc, mate) = step_with(
         doc,
         DocEdit::InsertNode {
-            node: mate(post_i, block_i, coincide(from_face(&cap(CapEnd::End)), identity())),
+            node: mate(
+                post_i,
+                block_i,
+                coincide(from_face(&cap(CapEnd::End)), identity()),
+            ),
         },
         &reach,
     );
@@ -178,7 +181,9 @@ fn resolved(pose: &topo::readback::Pose<f64>) -> Frame {
         axis: [pose.axis.x, pose.axis.y, pose.axis.z],
         reference: [u_ref.x, u_ref.y, u_ref.z],
     };
-    let fa = authored.placement(Tol::witness()).expect("a definite frame");
+    let fa = authored
+        .placement(Tol::witness())
+        .expect("a definite frame");
     let fb = identity()
         .authored_vectors()
         .expect("authored")
@@ -246,29 +251,57 @@ fn shorten_or_grow(s: &mut Seat, height: f64) {
 fn a1_the_mate_follows_the_edited_face() {
     let mut s = seat("msolve9-a1", 1.0);
     let before = cap_pose(&s.post, CapEnd::End);
-    assert_eq!(before.origin.z.to_bits(), 1.0_f64.to_bits(), "the cap is at the height");
+    assert_eq!(
+        before.origin.z.to_bits(),
+        1.0_f64.to_bits(),
+        "the cap is at the height"
+    );
     let placed = solve(&s.doc, &s.opts, Tol::witness())
         .placement(&s.doc, s.block_i)
         .expect("the block is seated");
-    assert_eq!(bits(&placed), bits(&resolved(&before)), "seated on the cap, bit for bit");
+    assert_eq!(
+        bits(&placed),
+        bits(&resolved(&before)),
+        "seated on the cap, bit for bit"
+    );
     let ev = run(&s.doc, &s.opts);
-    assert!(ev.node_error(s.mate).is_none(), "{:?}", ev.node_error(s.mate));
-    assert!(gate(&s.doc, &ev).is_ok(), "the seat certifies: {:?}", gate(&s.doc, &ev).err());
+    assert!(
+        ev.node_error(s.mate).is_none(),
+        "{:?}",
+        ev.node_error(s.mate)
+    );
+    assert!(
+        gate(&s.doc, &ev).is_ok(),
+        "the seat certifies: {:?}",
+        gate(&s.doc, &ev).err()
+    );
 
     shorten_or_grow(&mut s, 1.3);
     let after = cap_pose(&s.post, CapEnd::End);
-    assert_eq!(after.origin.z.to_bits(), 1.3_f64.to_bits(), "the cap moved with the height");
+    assert_eq!(
+        after.origin.z.to_bits(),
+        1.3_f64.to_bits(),
+        "the cap moved with the height"
+    );
     let placed = solve(&s.doc, &s.opts, Tol::witness())
         .placement(&s.doc, s.block_i)
         .expect("the block is still seated");
-    assert_eq!(bits(&placed), bits(&resolved(&after)), "seated on the moved cap, bit for bit");
+    assert_eq!(
+        bits(&placed),
+        bits(&resolved(&after)),
+        "seated on the moved cap, bit for bit"
+    );
     assert_eq!(
         placed.translation[2].to_bits(),
         1.3_f64.to_bits(),
         "the block came up by exactly the height change"
     );
     let ev = run(&s.doc, &s.opts);
-    assert!(ev.node_error(s.mate).is_none(), "{:?}", ev.node_error(s.mate));
+    assert!(
+        ev.node_error(s.mate).is_none(),
+        "{:?}",
+        ev.node_error(s.mate)
+    );
     assert!(
         gate(&s.doc, &ev).is_ok(),
         "no refutation: the mate followed the face: {:?}",
@@ -282,9 +315,15 @@ fn a1_the_mate_follows_the_edited_face() {
     let node = &body["snapshot"]["nodes"][s.mate.0.to_string()];
     let a = &node["Mate"]["alignment"]["a"];
     assert!(a.get("face").is_some(), "the face name is the state: {a}");
-    assert!(a.get("origin").is_none() && a.get("axis").is_none(), "no vectors beside it: {a}");
+    assert!(
+        a.get("origin").is_none() && a.get("axis").is_none(),
+        "no vectors beside it: {a}"
+    );
     let b = &node["Mate"]["alignment"]["b"];
-    assert!(b.get("origin").is_some() && b.get("face").is_none(), "the authored side: {b}");
+    assert!(
+        b.get("origin").is_some() && b.get("face").is_none(),
+        "the authored side: {b}"
+    );
 }
 
 // ---- A2: every analytic carrier, and the sense bit ----
@@ -292,13 +331,19 @@ fn a1_the_mate_follows_the_edited_face() {
 /// A part whose product carries a face of `wanted`'s kind, built
 /// through the ordinary doors, with that face's part-local name and
 /// its pose off the part's own evaluation.
-fn carrier(label: &str, wanted: SurfaceKind) -> (ProfileDoc, StableName, topo::readback::Pose<f64>) {
+fn carrier(
+    label: &str,
+    wanted: SurfaceKind,
+) -> (ProfileDoc, StableName, topo::readback::Pose<f64>) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let doc = match wanted {
         SurfaceKind::Plane => block(label, 0.5, 1.0),
         // A rectangle revolved a full turn: a cylinder wall between
         // two planar ends.
-        SurfaceKind::Cylinder => revolved(doc, vec![vec![(0.0, 0.0), (0.4, 0.0), (0.4, 1.0), (0.0, 1.0)]]),
+        SurfaceKind::Cylinder => revolved(
+            doc,
+            vec![vec![(0.0, 0.0), (0.4, 0.0), (0.4, 1.0), (0.0, 1.0)]],
+        ),
         // A triangle revolved: a cone flank on a planar base.
         SurfaceKind::Cone => revolved(doc, vec![vec![(0.0, 0.0), (0.5, 0.0), (0.0, 0.8)]]),
         // A half disc revolved: a sphere.
@@ -458,10 +503,17 @@ fn a2_every_analytic_carrier_resolves_to_face_pose_bit_for_bit() {
         (SurfaceKind::Torus, "msolve9-a2-torus"),
     ] {
         let (part, name, pose) = carrier(label, kind);
-        assert!(pose.u_ref.is_some(), "{kind:?}: the carrier fixes its own reference");
+        assert!(
+            pose.u_ref.is_some(),
+            "{kind:?}: the carrier fixes its own reference"
+        );
         let got = resolve_through_the_solve(label, part, from_face(&name), AxisSense::Aligned)
             .unwrap_or_else(|fault| panic!("{kind:?} resolves: {fault}"));
-        assert_eq!(bits(&got), bits(&resolved(&pose)), "{kind:?}: the pose's frame, bit for bit");
+        assert_eq!(
+            bits(&got),
+            bits(&resolved(&pose)),
+            "{kind:?}: the pose's frame, bit for bit"
+        );
     }
 }
 
@@ -495,7 +547,11 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         AxisSense::Aligned,
     )
     .expect("resolves");
-    assert_eq!(bits(&aligned), bits(&resolved(&pose)), "the CHART axis, sense left out");
+    assert_eq!(
+        bits(&aligned),
+        bits(&resolved(&pose)),
+        "the CHART axis, sense left out"
+    );
     let z = |f: &Frame| f.columns[2];
     assert_eq!(z(&aligned), [pose.axis.x, pose.axis.y, pose.axis.z]);
     let opposed = resolve_through_the_solve(
@@ -520,8 +576,20 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
     // A loft between two squares of different sizes: its flanks are
     // spline patches with no canonical frame.
     let doc = ProfileDoc::empty(DocumentId::derive("msolve9-a2-nurbs"), Tol::witness());
-    let (doc, lower) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(0.0, 0.0, 0.5)]);
-    let (doc, upper) = on_frame(doc, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(0.0, 0.0, 0.3)]);
+    let (doc, lower) = on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (doc, upper) = on_frame(
+        doc,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.3)],
+    );
     let (part, loft) = insert(
         doc,
         Node::Loft {
@@ -534,8 +602,13 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
         .into_iter()
         .find(|name| face_carrier_kind(&ev, loft, name) == Ok(SurfaceKind::Nurbs))
         .expect("a lofted flank is a spline patch");
-    let fault = resolve_through_the_solve("msolve9-a2-nurbs-asm", part.clone(), from_face(&flank), AxisSense::Aligned)
-        .expect_err("a NURBS face has no canonical frame");
+    let fault = resolve_through_the_solve(
+        "msolve9-a2-nurbs-asm",
+        part.clone(),
+        from_face(&flank),
+        AxisSense::Aligned,
+    )
+    .expect_err("a NURBS face has no canonical frame");
     let MateFault::FaceUnresolved {
         side: MateSide::A,
         refusal,
@@ -577,8 +650,13 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
 fn a_carried_reference_beside_an_authored_one_refuses_and_no_reference_is_pinned() {
     let (part, name, pose) = carrier("msolve9-ref-sphere", SurfaceKind::Sphere);
     assert!(pose.u_ref.is_some(), "a sphere fixes its own reference");
-    resolve_through_the_solve("msolve9-ref-none", part.clone(), from_face(&name), AxisSense::Aligned)
-        .expect("resolves with the carrier's own reference");
+    resolve_through_the_solve(
+        "msolve9-ref-none",
+        part.clone(),
+        from_face(&name),
+        AxisSense::Aligned,
+    )
+    .expect("resolves with the carrier's own reference");
     let doubled = MateFrame::from_face(
         FaceName::new(name.clone()).expect("a face"),
         Some([1.0, 0.0, 0.0]),
@@ -604,7 +682,12 @@ fn a_carried_reference_beside_an_authored_one_refuses_and_no_reference_is_pinned
     };
     let face = FaceName::new(name).expect("a face");
     assert_eq!(
-        FaceRefusal::of(FacePoseRefusal::NoReference, instance, part_ref, face.clone()),
+        FaceRefusal::of(
+            FacePoseRefusal::NoReference,
+            instance,
+            part_ref,
+            face.clone()
+        ),
         FaceRefusal::NoReference {
             instance,
             part: part_ref,
@@ -644,7 +727,12 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     else {
         panic!("expected FaceUnresolved, got {fault:?}");
     };
-    let FaceRefusal::NoSuchName { instance, part, face } = refusal.as_ref() else {
+    let FaceRefusal::NoSuchName {
+        instance,
+        part,
+        face,
+    } = refusal.as_ref()
+    else {
         panic!("expected NoSuchName, got {refusal:?}");
     };
     assert_eq!(*m, named);
@@ -654,7 +742,10 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
         panic!("an instance");
     };
     assert_eq!(part, doc_ref);
-    assert!(fault.to_string().contains("face name minted by node 99"), "the badge names the face: {fault}");
+    assert!(
+        fault.to_string().contains("face name minted by node 99"),
+        "the badge names the face: {fault}"
+    );
 
     // The face vanishes AFTER insert: the post document becomes a
     // revolved round post under the same id — no extrude, so no
@@ -690,7 +781,10 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
         matches!(refusal.as_ref(), FaceRefusal::NoSuchName { instance, .. } if *instance == s.post_i),
         "{fault:?}"
     );
-    assert!(ev.node_error(s.block_i).is_some(), "the fault poisons the cluster");
+    assert!(
+        ev.node_error(s.block_i).is_some(),
+        "the fault poisons the cluster"
+    );
 
     // The load: the logged insert replays with no store and the
     // document loads; what it then evaluates to is the solve's.
@@ -704,7 +798,11 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a FromFace insert replays with no store");
     let replayed = *loaded.doc.order().last().expect("the replayed mate");
-    assert_eq!(loaded.doc.node(replayed), doc.node(s.mate), "the mate as logged");
+    assert_eq!(
+        loaded.doc.node(replayed),
+        doc.node(s.mate),
+        "the mate as logged"
+    );
     let ev = run(&loaded.doc, &s.opts);
     let replayed_fault = mate_fault(&ev, replayed);
     assert!(
@@ -726,7 +824,11 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
     let (_, fault) = at_the_door(
         &s.doc,
         &RefusingReach,
-        mate(s.post_i, s.block_i, coincide(from_face(&cap(CapEnd::End)), identity())),
+        mate(
+            s.post_i,
+            s.block_i,
+            coincide(from_face(&cap(CapEnd::End)), identity()),
+        ),
     )
     .expect_err("no resolver, no face");
     let no_resolver = |fault: &MateFault, instance_named: Option<RecipeNodeId>| {
@@ -762,11 +864,12 @@ fn a4_the_key_moves_with_the_face_and_holds_otherwise() {
     let (mate, block_i) = (s.mate, s.block_i);
     let first = run(&s.doc, &s.opts);
     let key = move |ev: &Evaluation<f64>| ev.value(mate).expect("the mate evaluates").content_key;
-    let reused = move |earlier: &Evaluation<f64>, later: &Evaluation<f64>| {
-        match (earlier.value(mate), later.value(mate)) {
-            (Some(a), Some(b)) => Arc::ptr_eq(&a.name_table, &b.name_table),
-            _ => false,
-        }
+    let reused = move |earlier: &Evaluation<f64>, later: &Evaluation<f64>| match (
+        earlier.value(mate),
+        later.value(mate),
+    ) {
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.name_table, &b.name_table),
+        _ => false,
     };
     let placed_z = move |doc: &ProfileDoc, opts: &EvalOptions| {
         solve(doc, opts, Tol::witness())
@@ -787,7 +890,11 @@ fn a4_the_key_moves_with_the_face_and_holds_otherwise() {
     assert_ne!(key(&first), key(&second), "the face moved, the key moved");
     assert!(!reused(&first, &second), "the mate's value was recomputed");
     assert!(second.node_error(mate).is_none());
-    assert_eq!(placed_z(&s.doc, &s.opts), 1.3, "the solved pose followed the face");
+    assert_eq!(
+        placed_z(&s.doc, &s.opts),
+        1.3,
+        "the solved pose followed the face"
+    );
 
     // An edit that leaves the part alone: a datum inserted beside the
     // assembly's nodes.
@@ -802,7 +909,11 @@ fn a4_the_key_moves_with_the_face_and_holds_otherwise() {
         &s.opts,
         Tol::witness(),
     );
-    assert_eq!(key(&second), key(&third), "the face did not move, the key did not");
+    assert_eq!(
+        key(&second),
+        key(&third),
+        "the face did not move, the key did not"
+    );
     assert!(reused(&second, &third), "the mate came off the memo");
 }
 
@@ -817,7 +928,11 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
     let s = seat("msolve9-wire", 1.0);
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads with no store");
-    assert_eq!(loaded.doc.node(s.mate), s.doc.node(s.mate), "both arms as themselves");
+    assert_eq!(
+        loaded.doc.node(s.mate),
+        s.doc.node(s.mate),
+        "both arms as themselves"
+    );
     let again = save(&loaded.doc, &[], Tol::witness()).expect("re-saves");
     assert_eq!(again, text, "byte for byte");
     for side in ["a", "b"] {
@@ -857,17 +972,26 @@ fn c5_every_tracked_document_reads_its_frames_as_authored_and_re_saves_identical
         let text = std::fs::read_to_string(&path).expect("readable");
         let loaded = match load(&text, Tol::witness()) {
             Ok(loaded) => loaded,
-            Err(PersistError::ToleranceConflict { document, process: p }) => {
+            Err(PersistError::ToleranceConflict {
+                document,
+                process: p,
+            }) => {
                 assert_ne!(document, p);
                 assert_eq!(p, process);
                 continue;
             }
             Err(e) => panic!("{}: loads with no store: {e}", path.display()),
         };
-        for node in loaded.doc.order().iter().filter_map(|&id| loaded.doc.node(id)) {
+        for node in loaded
+            .doc
+            .order()
+            .iter()
+            .filter_map(|&id| loaded.doc.node(id))
+        {
             if let Node::Mate { alignment, .. } = node {
                 assert!(
-                    alignment.a.authored_vectors().is_some() && alignment.b.authored_vectors().is_some(),
+                    alignment.a.authored_vectors().is_some()
+                        && alignment.b.authored_vectors().is_some(),
                     "{}: a tracked mate's frames read as authored",
                     path.display()
                 );
@@ -900,7 +1024,10 @@ fn a_face_frames_reference_is_the_only_number_the_finiteness_door_sees() {
             &RefusingReach,
         )
         .expect_err("a non-finite reference refuses");
-    assert!(matches!(err, EditError::NonFiniteAlignment { .. }), "{err:?}");
+    assert!(
+        matches!(err, EditError::NonFiniteAlignment { .. }),
+        "{err:?}"
+    );
     assert!(coincide(from_face(&cap(CapEnd::End)), identity()).is_finite());
 }
 

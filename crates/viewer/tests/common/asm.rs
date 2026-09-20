@@ -276,8 +276,16 @@ pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
 pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment {
     use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
     Alignment {
-        a: MateFrame::authored([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-        b: MateFrame::authored([b_x, SHELF_DEPTH / 2.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+        a: MateFrame::authored(
+            [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ),
+        b: MateFrame::authored(
+            [b_x, SHELF_DEPTH / 2.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [1.0, 0.0, 0.0],
+        ),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking,

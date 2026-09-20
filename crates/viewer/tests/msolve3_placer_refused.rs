@@ -66,7 +66,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         tol,
     );
     let (doc, cap) = common::inserted(&doc, Node::instantiate_part(top), tol);
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
+    let frame =
+        |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
     let (doc, mate) = common::edited(
         &doc,
         DocEdit::InsertNode {

@@ -36,12 +36,20 @@ use viewer::tree::{self, RowStatus};
 /// shelf's underside, frames in each part's own coordinates.
 fn seat_alignment() -> Alignment {
     Alignment {
-        a: MateFrame::authored([
+        a: MateFrame::authored(
+            [
                 asm::POST_SECTION / 2.0,
                 asm::POST_SECTION / 2.0,
                 asm::POST_HEIGHT,
-            ], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-        b: MateFrame::authored([asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            ],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ),
+        b: MateFrame::authored(
+            [asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [1.0, 0.0, 0.0],
+        ),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking: None,

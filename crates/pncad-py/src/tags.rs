@@ -132,11 +132,10 @@ use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
     EditError, EvalError, FaceRefusal, FrameFault, InlineError, InterfaceCrossing, LeverRefusal,
-    Maintenance,
-    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
+    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
+    MetaVersionError, MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault,
+    ProgramFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,

@@ -77,13 +77,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE,
-    CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, FaceName, Frame, InlineError, LoopProgram, MateFault, MateFrame,
-    MatePrimitive, MateReach, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach,
-    PartResolver, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
-    UNDER_RECOURSE, apply, assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr,
-    product_named, save, solve_document, split,
+    Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE, CancelToken, Datum,
+    Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr,
+    FaceName, Frame, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach,
+    MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach, PartResolver, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, UNDER_RECOURSE, apply,
+    assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
+    solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;

@@ -198,7 +198,10 @@ fn the_exit_demo_walk() {
     // discarded, not zeroed.
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, MateChoice {
+        .proposal(
+            doc,
+            eval,
+            MateChoice {
                 class: ContactClass::Rest,
                 primitive: MatePrimitive::FrameCoincidence,
                 sense: AxisSense::Opposed,
@@ -243,8 +246,8 @@ fn the_exit_demo_walk() {
     session.pump();
     let (_, eval) = session.landed_pair().expect("landed");
     let pose_a = face_frame(eval, post_top.node, &post_top.name).expect("the cap has a pose");
-    let pose_b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name)
-        .expect("the underside has a pose");
+    let pose_b =
+        face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the underside has a pose");
     let close3 = |got: Vec3<f64>, want: Vec3<f64>, what: &str| {
         assert!(
             (got.x - want.x).abs() < 1e-9

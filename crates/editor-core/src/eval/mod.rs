@@ -2793,11 +2793,16 @@ fn face_pose_over_cache<T: EvalScalar>(
     };
     let key = match ent.key {
         EntityKey::Face(key) => key,
-        other => return Err(R::NotAFace { found: other.kind() }),
+        other => {
+            return Err(R::NotAFace {
+                found: other.kind(),
+            });
+        }
     };
     let pose = topo::readback::face_pose(value.body.as_ref(), key).map_err(R::Readback)?;
     let pin = |x: T| x.pinned_f64().ok_or(R::Unpinned);
-    let point = |p: geom_core::Point3<T>| Ok(geom_core::Point3::new(pin(p.x)?, pin(p.y)?, pin(p.z)?));
+    let point =
+        |p: geom_core::Point3<T>| Ok(geom_core::Point3::new(pin(p.x)?, pin(p.y)?, pin(p.z)?));
     let vec = |v: geom_core::Vec3<T>| Ok(geom_core::Vec3::new(pin(v.x)?, pin(v.y)?, pin(v.z)?));
     Ok(topo::readback::Pose {
         origin: point(pose.origin)?,
@@ -4005,7 +4010,9 @@ impl SolveAnswer {
     /// What `poses` answers for `id`.
     fn of<P>(poses: &crate::mate::SolvedPoses, doc: &crate::doc::Doc<P>, id: RecipeNodeId) -> Self {
         let face_parts = match doc.node(id) {
-            Some(crate::node::Node::Mate { a, b, alignment, .. }) => {
+            Some(crate::node::Node::Mate {
+                a, b, alignment, ..
+            }) => {
                 let part_of = |reference, frame: &crate::mate::MateFrame| {
                     frame.face()?;
                     let member = crate::mate::member_of(doc, reference)?;

@@ -212,15 +212,12 @@ fn the_tool_refuses_the_tables_static_gaps_before_any_geometry() {
     let mut choice = asm::seat();
     choice.primitive = MatePrimitive::PlanarRest { offset: 0.0 };
     choice.clocking = Some(0.3);
-    let Err(MateToolError::TableRefused { what: rest }) =
-        tool.proposal(doc, eval, choice)
-    else {
+    let Err(MateToolError::TableRefused { what: rest }) = tool.proposal(doc, eval, choice) else {
         panic!("a rider on a planar rest refuses at the tool");
     };
     let mut choice = asm::seat();
     choice.primitive = MatePrimitive::Clocking;
-    let Err(MateToolError::TableRefused { what: clocking }) =
-        tool.proposal(doc, eval, choice)
+    let Err(MateToolError::TableRefused { what: clocking }) = tool.proposal(doc, eval, choice)
     else {
         panic!("a standalone clocking refuses at the tool");
     };

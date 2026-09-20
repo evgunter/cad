@@ -219,8 +219,8 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     // in its part's own coordinates and the placement did the rest.
     let (_, eval) = session.landed_pair().expect("landed");
     let pose_a = face_frame(eval, post_a_top.node, &post_a_top.name).expect("the cap has a pose");
-    let pose_b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name)
-        .expect("the underside has a pose");
+    let pose_b =
+        face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the underside has a pose");
     close(
         [pose_a.origin.x, pose_a.origin.y, pose_a.origin.z],
         [pose_b.origin.x, pose_b.origin.y, pose_b.origin.z],
@@ -483,12 +483,20 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
 /// The seat alignment the composition row authors directly.
 fn seat() -> pncad::document::Alignment {
     pncad::document::Alignment {
-        a: pncad::document::MateFrame::authored([
+        a: pncad::document::MateFrame::authored(
+            [
                 asm::POST_SECTION / 2.0,
                 asm::POST_SECTION / 2.0,
                 asm::POST_HEIGHT,
-            ], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
-        b: pncad::document::MateFrame::authored([asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+            ],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ),
+        b: pncad::document::MateFrame::authored(
+            [asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [1.0, 0.0, 0.0],
+        ),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking: None,
