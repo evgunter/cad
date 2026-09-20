@@ -2,9 +2,9 @@
 id: pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error
 kind: issue
 title: closing the ring's own wide candidate needs a bound over the mesh's coordinate error, which crossing's does not cover
-status: open
+status: closed
+closed: 2026-09-20
 opened: 2026-09-16
-needs_ev: true
 ---
 
 
@@ -102,3 +102,24 @@ that is not one where the model is curved. (c) Compose it but keep the
 answer: treat a `delta`-only tie as ONE answer by the nearer `t` — a
 second key, which your item-2 ruling on `[ev]` #2795 removed for the
 reason it would return here.
+
+## RULED (2026-09-20, Ev on `[ev]` #2889) — alternative (b): the certificate stops at the tessellation, by design
+
+Ev: "referring to the tesselation is probably correct? it's what the
+user can see." Read as (b) and confirmed on the PR: the pick is a
+question about the picture the user sees, and the tessellation IS
+what is picked — so an interval that certifies the arithmetic on the
+triangle as given is the certificate the question needs, and the
+mesh's deviation from the surface it stands for is not a pick error.
+The recommendation (compose each candidate's deviation) is not built;
+no kernel unit.
+
+## Closed (2026-09-20, EDIT orchestrator) — by design, E-class
+
+One sentence at `crossing`'s "What the bounds bound" paragraph
+(`crates/editor-core/src/resolve/pick.rs`) names the reason, citing
+this row and the ruling. `TSpan::width`'s "a measurement, never a
+key" and the item-2 tie ruling are untouched. The ring's wide flat
+candidate stays an answer, not a tie: its rounding is the only
+uncertainty the door is asked about.
+
