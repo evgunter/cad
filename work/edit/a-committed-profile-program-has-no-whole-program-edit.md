@@ -4,6 +4,7 @@ kind: issue
 title: A committed profile's program can be edited only one argument at a time; no edit reshapes it or writes it whole
 status: review
 branch: edit/program-edit
+pr: 2927
 opened: 2026-09-18
 ---
 
