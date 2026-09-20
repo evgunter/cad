@@ -1,7 +1,7 @@
 ---
 id: carve
 kind: program
-title: CARVE — what a sweep verb builds and how it describes it
+title: CARVE — what a loft or sweep builds from its sections, and the bodies it builds that it should refuse
 status: open
 opened: 2026-09-17
 area: kernel
@@ -13,18 +13,22 @@ keep_out: [OPENED 2026-09-17 in BLEND's cut as its one successor on BLEND's grou
 priority: P1
 ---
 
-BLEND's one successor, opened by BLEND's cut of 2026-09-17 on the
-part of BLEND's slate whose subject is **what a sweep verb builds and
-how it describes what it built**: the blend surgery's phases and their
-records, the verbs' description rule at every site that mints a stored
-description, the loft's parameterisation and its section checks, and
-the fixtures the crate's own suites build those bodies from.
-Twenty-one rows arrived from `work/blend/` at the cut and four more at
-BLEND's exit walk the same day, each by `git mv` with its body, its id
-and its history unchanged; BLEND closed at that walk
-(`docs/DOC-LEDGER.md` sweep 17).
+**The loft and sweep path's own bodies, after the 2026-09-20 cut**, and
+specifically the ones it builds when it should refuse. A loft or sweep
+whose spine revisits itself — a planar arc past a full turn — builds
+and validates. A two-section loft whose top section's plane normal
+points DOWN, against the sweep, builds. `loft_geometry` takes the whole
+surface's `v` from the first strip, so a section authored rolled
+relative to the first changes the body rather than being rejected or
+normalised. `skin.rs` refuses coincident sections by a bare `f64`
+strict comparison, which is the unmargined predicate Q1 forbids.
 
-Charter and order: `work/carve/plan.md`; narrative in
-`work/carve/log.md`. Review posture is BLEND's, inherited: the full v6
-dual on a kernel unit, drawing from 5600 on; E-class rows take a single
-style review and no A/B row.
+These are the expensive failures: not a refusal a user can work
+around, but a body they will carry downstream believing it sound.
+
+CARVE was cut on 2026-09-20 (Ev, in chat) from 73 budget points into
+three tracks meant to run in parallel: BAND (the blend and rim bands),
+STRUT (one sweep rule with several homes) and this remainder. CARVE
+keeps its band 5600-5699.
+
+Charter and order: `work/carve/plan.md`; narrative in `work/carve/log.md`.

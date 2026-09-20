@@ -5,6 +5,8 @@ title: No revolve replays at Interval over an epsilon box, so a revolved band ne
 status: open
 opened: 2026-09-14
 refs: [clearance-window-tightening-needs-chart-boundary]
+priority: P3
+cost: D
 ---
 
 
