@@ -904,3 +904,173 @@ fn sym8_phase1_the_tilt_u_ladder() {
         }
     }
 }
+
+// ---------------------------------------------------------------
+// SYM-10 Phase 1 — the sign-hull frame's residual, rendered.
+// ---------------------------------------------------------------
+
+/// How many atoms of each op a rendered form spells — the census the
+/// SYM-10 measurement reads off the instrument: `select`, `max`,
+/// `min`, `abs`, `sqrt` and `copysign`, plus the top-level term count.
+fn sym10_census(rendered: &str) -> String {
+    let n = |needle: &str| rendered.matches(needle).count();
+    format!(
+        "select {} | max {} | min {} | abs {} | sqrt {} | copysign {} | terms(top) {}",
+        n("select("),
+        n("max("),
+        n("min("),
+        n("abs("),
+        n("sqrt("),
+        n("copysign("),
+        rendered.split(" + ").count()
+    )
+}
+
+/// **SYM-10 Phase 1.2 — the tilted row's refused residual at `ε/8`,
+/// rendered.** `boss_on_tilted(ε/8, derived)` under `Guided` and the
+/// shipped set (`CAD_SYM10_HALF`, `CAD_SYM10_LIFT` narrow the sweep):
+/// counts, refusals, the per-predicate split, and for every blocked
+/// residual its enclosure, early form, the census of atoms by op and
+/// the DAG below it at `explain_depth 6` with a census per rendered
+/// node — so which atoms stand in the residual, and what each is over,
+/// is read off the tree and not argued.
+#[test]
+#[ignore = "evidence-only: SYM-10 Phase 1.2, the tilted row's residual chain rendered"]
+fn sym10_phase1_the_tilted_rows_residual_rendered() {
+    use geom_core::sym::report::{
+        ShapeOutcome, explain_depth, name_param, start_shape_report, take_shape_report,
+    };
+    let eps = Tol::witness().eps();
+    let only_half = std::env::var("CAD_SYM10_HALF").ok();
+    let only_lift = std::env::var("CAD_SYM10_LIFT").ok();
+    for (hname, half) in [("eps/8", eps / 8.0), ("1e-3", 1.0e-3)] {
+        if only_half.as_deref().is_some_and(|h| h.trim() != hname) {
+            continue;
+        }
+        let doc = boss_on_tilted(half, true);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let box_ = ParamBox::of(&analyzed);
+        for name in box_.axes().keys() {
+            name_param(&name.0);
+        }
+        for lift in [ProfileLift::Guided, ProfileLift::Pinned] {
+            if only_lift
+                .as_deref()
+                .is_some_and(|l| l.trim() != format!("{lift:?}"))
+            {
+                continue;
+            }
+            let o = EvalOptions {
+                param_box: Some(Arc::new(box_.clone())),
+                profile_lift: lift,
+                ..EvalOptions::default()
+            };
+            start_shape_report();
+            explain_depth(6);
+            let t0 = std::time::Instant::now();
+            let (refusal, counts) =
+                geom_core::sym::with_session_rules(budget(), SymRules::shipped(), || {
+                    let ev: Evaluation<geom_core::Sym<Interval>> =
+                        evaluate(&doc, None, &CancelToken::new(), &o, Tol::witness());
+                    failures(&ev)
+                });
+            let dt = t0.elapsed().as_secs_f64();
+            let shapes = take_shape_report();
+            explain_depth(0);
+            println!("=== tilted derived half={hname} {lift:?} shipped ({dt:.1}s)");
+            println!("    counts {counts:?}");
+            println!("    plant fires {:?}", geom_core::sym::sym10_plant_fires());
+            println!(
+                "    refusals {:?}",
+                refusal.iter().map(|r| head(r, 300)).collect::<Vec<_>>()
+            );
+            for (pred, row) in crate::m10_8_harness::split(&shapes) {
+                println!("    split {pred:<36} {row:?}");
+            }
+            let mut seen: std::collections::BTreeSet<&str> = Default::default();
+            for s in &shapes {
+                if matches!(
+                    s.outcome,
+                    ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+                ) && seen.insert(s.predicate)
+                {
+                    println!("--- blocked {} {:?}", s.predicate, s.outcome);
+                    println!("    enclosure {:?} sizes {:?}", s.enclosure, s.sizes);
+                    if let Some(f) = &s.form {
+                        println!("    plain  {}", head(f, 600));
+                        println!("    plain census {}", sym10_census(f));
+                    }
+                    if let Some(f) = &s.early_form {
+                        println!("    early  {}", head(f, 1500));
+                        println!("    early census {}", sym10_census(f));
+                    }
+                    if let Some(e) = &s.explain {
+                        let frozen = e.lines().filter(|l| l.contains("FROZEN")).count();
+                        println!("    explain: {} lines, {frozen} FROZEN", e.lines().count());
+                        for l in e.lines() {
+                            if l.trim_start().starts_with("= ") {
+                                println!("        census {}", sym10_census(l));
+                                println!("        {}", head(l, 400));
+                            } else {
+                                println!("      {}", head(l, 200));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **SYM-10 Phase 1.3 — the hand-plant table's tilted half.** The
+/// acceptance row's four cells (`ε/8` and `1e-3`, `Pinned` and
+/// `Guided`) for the derived boss under the shipped set, plus the
+/// authored twin under `Guided` at `ε/8`: refusal count, first refusal
+/// and counts, under whatever `CAD_SYM10_PLANT` names — one run per
+/// combination of plants makes one row of the table.
+#[test]
+#[ignore = "evidence-only: SYM-10 Phase 1.3, the hand-plant table (tilted rows)"]
+fn sym10_phase1_hand_plant_table_tilted() {
+    let eps = Tol::witness().eps();
+    println!(
+        "=== plants {:?}",
+        std::env::var("CAD_SYM10_PLANT").unwrap_or_default()
+    );
+    for (hname, half) in [("eps/8", eps / 8.0), ("1e-3", 1.0e-3)] {
+        for lift in [ProfileLift::Guided, ProfileLift::Pinned] {
+            let t0 = std::time::Instant::now();
+            let (f, c) = sym(
+                &boss_on_tilted(half, true),
+                lift,
+                SymRules::shipped(),
+                budget(),
+            );
+            let fires = geom_core::sym::sym10_plant_fires();
+            println!(
+                "derived {hname} {lift:?}: fails {} in {:.1}s | sym0 {} gated {} num {} frozen {} | fires {fires:?}\n    {}",
+                f.len(),
+                t0.elapsed().as_secs_f64(),
+                c.symbolic_zero,
+                c.sign_gated,
+                c.numeric,
+                c.frozen,
+                head(f.first().map_or("", String::as_str), 260)
+            );
+        }
+    }
+    let (f, c) = sym(
+        &boss_on_tilted(eps / 8.0, false),
+        ProfileLift::Guided,
+        SymRules::shipped(),
+        budget(),
+    );
+    println!(
+        "authored eps/8 Guided: fails {} | sym0 {} gated {} num {} frozen {} | fires {:?}",
+        f.len(),
+        c.symbolic_zero,
+        c.sign_gated,
+        c.numeric,
+        c.frozen,
+        geom_core::sym::sym10_plant_fires()
+    );
+}

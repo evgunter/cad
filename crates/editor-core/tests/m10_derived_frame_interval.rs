@@ -701,3 +701,79 @@ fn sym5_phase1_the_newell_refusal_at_5e_2() {
         }
     }
 }
+
+/// **SYM-10 Phase 1.2 — the derived-frame row's refusal under `none`
+/// and under A0, rendered.** `boss_on_widened_box(5e-2)` under
+/// `Pinned` at the two rungs `m10_the_derived_frames_refusal_is_not_a_freeze`
+/// asserts: counts, every refusal, and the blocked residual's plain
+/// form with its atom census (no early walk runs at either rung, so
+/// the plain form is the whole of what the tier held).
+#[test]
+#[ignore = "evidence-only: SYM-10 Phase 1.2, the derived-frame row's refusal rendered"]
+fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
+    use geom_core::sym::report::{
+        ShapeOutcome, name_param, start_shape_report, take_shape_report,
+    };
+    let (derived, _, _) = boss_on_widened_box(5.0e-2);
+    let analyzed = analyzed_box(&derived, &AnalysisPolicy::default());
+    let box_ = ParamBox::of(&analyzed);
+    for name in box_.axes().keys() {
+        name_param(&name.0);
+    }
+    let n = SymRules::none();
+    for (label, rules) in [
+        ("none", n),
+        (
+            "A0",
+            SymRules {
+                const_fold: true,
+                ..n
+            },
+        ),
+    ] {
+        let opts = EvalOptions {
+            param_box: Some(Arc::new(box_.clone())),
+            profile_lift: ProfileLift::Pinned,
+            ..EvalOptions::default()
+        };
+        start_shape_report();
+        let (fails, counts) = geom_core::sym::with_session_rules(budget(), rules, || {
+            let ev: Evaluation<geom_core::Sym<Interval>> =
+                evaluate(&derived, None, &CancelToken::new(), &opts, Tol::witness());
+            failures(&ev)
+        });
+        let shapes = take_shape_report();
+        println!("=== derived-frame 5e-2 Pinned {label}");
+        println!("    counts {counts:?}");
+        println!("    plant fires {:?}", geom_core::sym::sym10_plant_fires());
+        println!("    refusals {}", fails.len());
+        for f in &fails {
+            println!("      {}", head(f, 400));
+        }
+        let mut seen: std::collections::BTreeSet<&str> = Default::default();
+        for s in &shapes {
+            if matches!(
+                s.outcome,
+                ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+            ) && seen.insert(s.predicate)
+            {
+                println!("--- blocked {} {:?}", s.predicate, s.outcome);
+                println!("    enclosure {:?} sizes {:?}", s.enclosure, s.sizes);
+                if let Some(f) = &s.form {
+                    let c = |needle: &str| f.matches(needle).count();
+                    println!(
+                        "    plain census select {} | max {} | min {} | abs {} | sqrt {} | copysign {} | terms(top) {}",
+                        c("select("),
+                        c("max("),
+                        c("min("),
+                        c("abs("),
+                        c("sqrt("),
+                        c("copysign("),
+                        f.split(" + ").count()
+                    );
+                    println!("    plain  {}", head(f, 1500));
+                }
+            }
+        }
+    }
+}

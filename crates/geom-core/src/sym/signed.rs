@@ -42,7 +42,7 @@ use core::f64::consts::PI;
 
 use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
-use super::{INDET_PI, IndetMap, SymBudget, SymOp};
+use super::{AtomInfo, INDET_PI, IndetMap, Session, SymBudget, SymOp, manifest};
 use crate::ring_interval::RingInterval;
 
 /// The most terms a candidate root may grow to before `poly_sqrt` gives
@@ -321,6 +321,225 @@ pub(super) fn fold(
     if !positive {
         out = out.neg()?;
     }
+    out.gated = true;
+    Some(out)
+}
+
+
+// ------------------------------------------------------------------
+// SYM-10 measurement plants (Phase 1): the decision read over a DEEP
+// enclosure, and the certified order read at min/max.
+// ------------------------------------------------------------------
+
+/// How many atom levels the deep enclosure descends before declining.
+const ENCLOSE_DEPTH: usize = 8;
+
+fn ring_sqrt(x: RingInterval) -> RingInterval {
+    if x.is_poison() || x.hi() < 0.0 {
+        return RingInterval::poison();
+    }
+    let lo = if x.lo() <= 0.0 { 0.0 } else { x.lo().sqrt().next_down() };
+    let hi = x.hi().sqrt().next_up();
+    RingInterval::from_bounds(lo, hi)
+}
+
+fn ring_abs(x: RingInterval) -> RingInterval {
+    if x.is_poison() {
+        return x;
+    }
+    if x.lo() >= 0.0 {
+        x
+    } else if x.hi() <= 0.0 {
+        -x
+    } else {
+        RingInterval::from_bounds(0.0, x.hi().max(-x.lo()))
+    }
+}
+
+fn ring_min(a: RingInterval, b: RingInterval) -> RingInterval {
+    if a.is_poison() || b.is_poison() {
+        return RingInterval::poison();
+    }
+    RingInterval::from_bounds(a.lo().min(b.lo()), a.hi().min(b.hi()))
+}
+
+fn ring_max(a: RingInterval, b: RingInterval) -> RingInterval {
+    if a.is_poison() || b.is_poison() {
+        return RingInterval::poison();
+    }
+    RingInterval::from_bounds(a.lo().max(b.lo()), a.hi().max(b.hi()))
+}
+
+/// The enclosure of one indeterminate: a parameter's bracket, π, or a
+/// `sqrt`/`abs`/`min`/`max` atom over arguments this function can
+/// enclose in turn. `None` for anything else.
+fn enclose_indet(
+    id: u128,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<RingInterval> {
+    if id == INDET_PI {
+        return Some(RingInterval::from_bounds(PI.next_down(), PI.next_up()));
+    }
+    if let Some(&(lo, hi)) = params.get(&id) {
+        return Some(RingInterval::from_bounds(lo, hi));
+    }
+    if depth >= ENCLOSE_DEPTH {
+        return None;
+    }
+    let atom = atoms.get(&id)?;
+    let arg = |k: usize| -> Option<RingInterval> {
+        enclose_form_deep(atom.args[k].as_deref()?, params, atoms, depth + 1)
+    };
+    let out = match atom.op {
+        SymOp::Sqrt => ring_sqrt(arg(0)?),
+        SymOp::Abs => ring_abs(arg(0)?),
+        SymOp::Min => ring_min(arg(0)?, arg(1)?),
+        SymOp::Max => ring_max(arg(0)?, arg(1)?),
+        _ => return None,
+    };
+    (!out.is_poison()).then_some(out)
+}
+
+fn enclose_deep(
+    p: &Poly,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<RingInterval> {
+    let mut acc = RingInterval::zero();
+    for (m, c) in p.terms() {
+        let mut term = rat_enclosure(c);
+        for &(id, e) in m {
+            let x = enclose_indet(id, params, atoms, depth)?;
+            term = term * x.powi(i32::try_from(e).ok()?);
+        }
+        acc = acc + term;
+    }
+    (!acc.is_poison()).then_some(acc)
+}
+
+fn enclose_form_deep(
+    f: &Form,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<RingInterval> {
+    if f.poisoned {
+        return None;
+    }
+    let n = enclose_deep(&f.num, params, atoms, depth)?;
+    let d = enclose_deep(&f.den, params, atoms, depth)?;
+    let q = n / d;
+    (!q.is_poison()).then_some(q)
+}
+
+/// The sign class of an enclosure: `Some(true)` for `> 0`, `Some(false)`
+/// for `< 0`, `None` where it touches or straddles zero.
+fn strict_sign(r: RingInterval) -> Option<bool> {
+    if r.is_poison() {
+        None
+    } else if r.lo() > 0.0 {
+        Some(true)
+    } else if r.hi() < 0.0 {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// `p` with every manifestly POSITIVE indeterminate of its content
+/// divided out — a factor that is `> 0` wherever it has a value does
+/// not move the sign of the product, or its zero set.
+fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
+    let Some(first) = p.monos().next() else {
+        return p.clone();
+    };
+    let mut g: Mono = first.clone();
+    for m in p.monos() {
+        g.retain(|&(id, _)| m.iter().any(|&(j, _)| j == id));
+        for (id, e) in &mut g {
+            *e = (*e).min(exp_of(m, *id));
+        }
+        if g.is_empty() {
+            return p.clone();
+        }
+    }
+    g.retain(|&(id, _)| manifest::positive_indet_pub(id, sess));
+    if g.is_empty() {
+        return p.clone();
+    }
+    let mut terms: Vec<(Mono, Rat)> = Vec::with_capacity(p.terms().len());
+    for (m, c) in p.terms() {
+        let mut rest = Mono::with_capacity(m.len());
+        for &(id, e) in m {
+            let d = exp_of(&g, id);
+            if e > d {
+                rest.push((id, e - d));
+            }
+        }
+        terms.push((rest, c.clone()));
+    }
+    terms.sort_by(|(a, _), (b, _)| a.cmp(b));
+    Poly::from_sorted_terms(terms).unwrap_or_else(|| p.clone())
+}
+
+/// The certified sign of a polynomial over the box, after stripping:
+/// `Some(Some(true))` strictly positive, `Some(Some(false))` strictly
+/// negative, `Some(None)` where the enclosure's upper end is `≤ 0` or
+/// lower end `≥ 0` is reported through `weak`; `None` not enclosable.
+fn signed_poly(p: &Poly, sess: &Session) -> Option<(RingInterval, bool)> {
+    let stripped = strip_positive_content(p, sess);
+    let r = enclose_deep(&stripped, &sess.params, &sess.atoms, 0)?;
+    Some((r, stripped.terms().len() != p.terms().len() || stripped != *p))
+}
+
+/// **The decision read** for `Select(d, when_le, when_gt)`: `Some(true)`
+/// where `d ≤ 0` is CERTIFIED at every point of the box, `Some(false)`
+/// where `d > 0` is, `None` otherwise (straddling, poisoned, not
+/// enclosable). Manifestly positive factors are stripped from both
+/// halves before the enclosure: the sign of `P/Q` with `Q > 0` is the
+/// sign of `P`, and so is its zero set.
+pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
+    if d.poisoned || sess.params.is_empty() {
+        return None;
+    }
+    // The denominator: manifestly positive, or certified one-signed.
+    let den_positive = if manifest::positive(&Form::poly(d.den.clone()), sess) {
+        true
+    } else {
+        let (r, _) = signed_poly(&d.den, sess)?;
+        strict_sign(r)?
+    };
+    let (n, _) = signed_poly(&d.num, sess)?;
+    if n.is_poison() {
+        return None;
+    }
+    // d ≤ 0 everywhere: num ≤ 0 with den > 0, or num ≥ 0 with den < 0.
+    if (n.hi() <= 0.0 && den_positive) || (n.lo() >= 0.0 && !den_positive) {
+        return Some(true);
+    }
+    // d > 0 everywhere: num > 0 with den > 0, or num < 0 with den < 0.
+    if (n.lo() > 0.0 && den_positive) || (n.hi() < 0.0 && !den_positive) {
+        return Some(false);
+    }
+    None
+}
+
+/// **The certified order read** at `min`/`max`: the arm the comparison
+/// `a ≤ b` selects wherever that comparison is certified over the box.
+pub(super) fn order(op: SymOp, a: &Form, b: &Form, sess: &Session, budget: SymBudget) -> Option<Form> {
+    let diff = a.add(&b.neg()?, budget)?;
+    if diff.poisoned {
+        return None;
+    }
+    let a_le_b = decision(&diff, sess)?;
+    let mut out = match (op, a_le_b) {
+        (SymOp::Max, true) | (SymOp::Min, false) => b.clone(),
+        (SymOp::Max, false) | (SymOp::Min, true) => a.clone(),
+        _ => return None,
+    };
     out.gated = true;
     Some(out)
 }
