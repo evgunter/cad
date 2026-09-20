@@ -2,9 +2,11 @@
 id: escalation-channel-misses-op-minted-indeterminates
 kind: issue
 title: k_stats: the escalation channel misses op-minted Indeterminates (eight sites), two raw sign_within calls, and the unbracketed mate solve
-status: open
+status: review
+pr: 2928
+branch: props/escalation-channel
 opened: 2026-09-05
-refs: [k-stats-escalation-channel-and-redo, 1969]
+refs: [k-stats-escalation-channel-and-redo, mate-lane-escalations-reach-no-nodes-log, contact-verify-mints-indeterminates-outside-the-funnel, 1969]
 ---
 
 ## What
@@ -73,3 +75,50 @@ Paths that never open a bracket still pay the `RefCell` borrow and an
 empty-stack check per decision; gating that on a `Cell<bool>` is a
 live optimization orthogonal to any feature. Unscheduled; recorded
 here rather than in the module doc.
+
+## Landed (PR 2928): family 1 closed, families 2 and 3 measured
+
+**Family 1 is closed, by making the mint impossible rather than by
+asking each site to record.** `geom_core::k_stats` gained three gate
+doors — `decide_positive`, `decide_nonzero` and `gate_measured` — which
+classify (or, for the last, check that a value is a measurement at all)
+AND apply the caller's requirement, so the rejection is minted and
+recorded by `record_escalation`, the module's one write to the
+escalation channel. A caller never holds a definite sign long enough to
+reject it in private. All eight sites go through a door; none builds an
+`Indeterminate`, and `kstats_escalation_channel.rs` carries both halves:
+four rows driving gates through the public API, and a source census
+asserting that shipped `geom-brep` code builds no `Indeterminate` at
+all — so a ninth site cannot reintroduce the shape silently.
+
+A gated rejection records BOTH channels: the classifier's definite
+verdict (it really did decide) and the gate's escalation beside it. The
+verdict channel is therefore byte-identical across this seam.
+
+**Family 2 has no residue, measured rather than assumed.**
+`topo/src/seqgen.rs`'s raw `sign_within` is a test-support candidate
+filter over `Body<f64>` only, never instantiated at the recording
+scalar, and its own comment argues the bypass; nothing escalates out of
+it. `editor-core/src/expr.rs`'s `refuse_non_finite` no longer calls
+`sign_within` at all — it goes through `k_stats::check_unlogged` under
+the name `expr_non_finite`, deliberately outside the verdict log
+(logging it refused every M10-6 min-clearance box on a vector mismatch),
+and its refusal reaches the caller as `EvalError::NonFiniteResult`, never
+as an `Indeterminate`. Neither is a hole in the channel.
+
+**Family 3 is open and re-filed**, because closing family 1 does not
+close it: the whole-document mate solve runs before any node's bracket
+opens, so the doors above change nothing for it.
+`work/msolve/mate-lane-escalations-reach-no-nodes-log.md` carries it,
+on the program whose ground it lands on, together with
+`mate/coset.rs`'s own hand-built mint — the same shape as the eight,
+one crate over.
+
+**A fifth sibling family, filed not widened**:
+`topo/src/boolean/contact_verify.rs` holds four more mint-after-a-
+definite-sign sites, two of which are mis-typed (a definite contradiction
+wearing `MarginDiag::Invalid`).
+`work/curved/contact-verify-mints-indeterminates-outside-the-funnel.md`.
+
+**The `RefCell`-cost note above is untouched** by this unit and stays
+recorded here.
