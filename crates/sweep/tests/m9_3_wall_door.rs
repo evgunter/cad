@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::slab as plate;
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
@@ -23,12 +24,6 @@ use topo::{
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-/// The plate: 4×4×1, z ∈ [0, 1].
-/// `m5_pr9_boss_union::plate`'s box, spelled again here.
-fn plate() -> Body<f64> {
-    sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
 }
 
 /// A radius-`r` three-arc cylinder at (2, 2), z ∈ [z0, z0 + h] (the
@@ -364,7 +359,7 @@ fn tangent_door_contradicts_escalates_and_admits() {
 /// refusal is the typed class door, not a silent carry.
 #[test]
 fn tangent_outside_the_witness_lane_refuses_by_class() {
-    let a = plate();
+    let a = plate::<f64>();
     // A second plate floating above (planar faces only, gap 1).
     let b = {
         let lp = ProfileLoop::polygon([p2(1.0, 1.0), p2(3.0, 1.0), p2(3.0, 3.0), p2(1.0, 3.0)]);

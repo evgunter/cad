@@ -80,18 +80,74 @@ dispatchable in parallel with VGEOM and VSEAM from its opening day.
    discarded free-move placement as unrecoverable, which is the row's
    own argument for taking it before the other.
 5. **The rest, unordered** —
-   `a-disabled-control-says-why-in-four-shapes`,
    `a-fold-row-composes-a-producer-with-a-dead-door`,
    `document-news-has-no-home`,
-   `tone-is-a-value-in-frame-and-a-comment-in-two-panes`,
-   `viewer-preview-names-a-verb-by-its-variant-identifier`.
+   `tone-is-a-value-in-frame-and-a-comment-in-two-panes`.
 
-**Not scheduled, and why.** `document-news-has-no-home` and
-`a-disabled-control-says-why-in-four-shapes` are both censuses of a
-class before they are fixes, and the VIEW register's rule about a
-population applies to each: re-derive the population by subject before
-naming a door, because the count in the row is evidence only as of its
-filing.
+**Not scheduled, and why.** `document-news-has-no-home` is a census of
+a class before it is a fix, and the VIEW register's rule about a
+population applies: re-derive the population by subject before naming a
+door, because the count in the row is evidence only as of its filing.
+`a-disabled-control-says-why-in-four-shapes` was the other, and it has
+now RUN — see the group below.
+
+### 6. The disabled-control family, after the census (2026-09-19)
+
+`a-disabled-control-says-why-in-four-shapes` ran first of all the rows
+here, because its rule decides the disposition of three others and
+deciding any of them alone would settle the class from its easiest
+instance. It is `review` at PR #2908, with a style review, a
+correctness review and a fix pass against their union.
+
+**What it established** (subject to the fix pass landing): a control a
+reader cannot use owes the sentence a click would have been answered
+with, **where there is such a sentence** — and the tree has a third
+case the rule as first written did not name, a chrome-policy gate where
+the operation would SUCCEED and the control declines anyway
+(`pane/create.rs`'s bore-against-radius arm, whose own literal says *"a
+larger bore would swap the roles rather than refuse"*).
+
+**It overturned both predictions its own row made.** Neither
+`pane/create.rs`'s `blocked: Option<&'static str>` field nor
+`platform::NO_CHOOSER_BACKEND` is a hit — the first gates a draft, the
+second sits on buttons that push no op — and the genuine hits were
+mostly elsewhere. That is the argument for running a census before a
+fix, stated by the one case where it paid.
+
+**The family's order now:**
+
+1. `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words`
+   — the sharpest of the three hits: `Session::step` refuses
+   `Refusal::NothingToDo` on exactly the conditions the two buttons
+   gate on, the buttons carry no words at all, and the review
+   established that those buttons are the only hand — no keyboard
+   route pushes `Undo`/`Redo` — so the refusal's sentence is
+   unreachable from the chrome entirely. `app.rs` is VSEAM's: announce.
+2. `the-range-button-re-mints-the-ratified-affordance` — a third
+   spelling of `Refusal::affordance`, whose doc says it has one home,
+   in a panel that calls the helper fifty lines up. Its second conjunct
+   hands a *"computed slot"* sentence to a slot that is not computed;
+   whether that state is reachable is open and the row says so.
+3. `the-new-document-button-states-its-refusal-twice` — **answer 1,
+   read the refusal**, which is what the census's rule gives it. Its
+   stated cost (*"the refusal's sentence is written for a status line"*)
+   is the objection `Refusal::exists_wording` exists to answer.
+
+**Not in the family, though the row guessed it was.**
+`environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
+is a different class — a value that knows a fact and carries none of
+its words — and it stands on its own argument. It also reaches
+`platform.rs` and `prefs.rs`, which are in no program's territory
+(`work/view/viewer-src-files-no-successor-claims`), so it is not
+dispatchable here until that is sorted.
+
+**Filed out of the census and not this program's:**
+`two-pickers-spell-one-not-well-typed-sentence-twice` (the words are
+vnews' by VGEOM's cession, the `pane/profile.rs` half is nobody's) and
+`a-disabled-controls-reason-has-one-home` on VDOC — which asks for a
+GENERALISATION, not a first statement: `crates/viewer/README.md`
+already carries the clause for two families and names the test that
+holds it.
 
 ### What re-deriving the order against the tree changed (2026-09-19)
 
@@ -101,27 +157,32 @@ at this program's first dispatch moved four of them. Recorded here
 rather than fixed silently, because the order is the thing a later
 session reads first.
 
-- **`converged-recourse-has-no-home` leaves group 1.** The group calls
-  it *"the third crosses a crate and announces"*; announcing is not
-  what it needs. Both shapes the row states — a `pub const` beside
-  `EditError`, or a `recourse()` method on it — **add API surface to
-  `crates/editor-core`**, and the authorisation this program inherits
-  is scoped to `EditError`'s `Display` WORDING (Ev, in-chat,
-  2026-09-04). The row itself says so: *"Widening it to add an item was
-  refused on the spot rather than taken quietly."* `crates/editor-core`
-  is EDIT's and MSOLVE's. So this is a hand-off or an `[ev]` question,
-  not a lane here, and the row's own closing line — *"ride it on
-  whichever unit next touches `EditError`'s surface with an
-  authorisation wider than `Display` wording"* — names EDIT as the
-  program that will have one.
-- **`viewer-preview-names-a-verb-by-its-variant-identifier` cannot
-  land from here alone**, for the reason the row already gives: the fix
-  is `impl Display for Verb` in `crates/profile`, now **PATHS'**
-  territory as S-BOOL's successor, and forwarding the word from the
-  viewer instead would mint a fourth spelling. Its viewer-side citation
-  has also gone stale — the `PreviewError` render is `pane/profile.rs`
-  now, not `pane/create.rs:582-586` — and that file is claimed by no
-  successor (`work/view/viewer-src-files-no-successor-claims`).
+- **`converged-recourse-has-no-home` left group 1 and then left this
+  program — it is EDIT's now** (moved 2026-09-19; Ev granted the move
+  and the standing authority to re-home a unit between tracks without a
+  ruling). The group called it *"the third crosses a crate and
+  announces"*; announcing is not what it needed. Both shapes the row
+  states — a `pub const` beside `EditError`, or a `recourse()` method on
+  it — **add API surface to `crates/editor-core`**, and the
+  authorisation this program inherits is scoped to `EditError`'s
+  `Display` WORDING (Ev, in-chat, 2026-09-04). `EditError` is declared
+  in `crates/editor-core/src/edit.rs`, which is EDIT's territory. Only
+  the viewer arm stays here: a forward at one site in
+  `session/refuse.rs` once `editor-core` exposes the recourse, landing
+  with the EDIT unit that exposes it.
+- **`viewer-preview-names-a-verb-by-its-variant-identifier` is CLOSED
+  — it was already discharged when this program inherited it.**
+  `profile::path::Verb` has had a `Display` since
+  `work/fix/verb-and-dimension-render-through-debug` (FIX, PR 2347,
+  2026-09-11), and `PreviewError`'s arm in `crates/viewer/src/sketch.rs`
+  forwards to it — `{verb}`, not `{verb:?}`. **This entry first said the
+  row "cannot land from here alone" and routed it to PATHS**, which was
+  wrong: the orchestrator re-derived the row's citation and not its
+  premise. The correction is kept visible rather than overwritten
+  because the rule it breaks — *a row's premise ages against the tree
+  exactly like a citation does* — is the one handed to every lane this
+  program dispatches, and the register's own instances of it are mostly
+  the orchestrator's.
 - **`tone-is-a-value-in-frame-and-a-comment-in-two-panes` keeps its
   place and loses a citation.** `pane/features.rs`'s hand-picked
   `ui.weak` / `ui.colored_label` pair is there as described, with the

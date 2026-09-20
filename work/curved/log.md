@@ -371,3 +371,45 @@ left and 1b closes. Finding filed against the ratified §5:
 unreachable on real fixtures; a sharper `sup‖C″‖` candidate would move
 mesh chord counts) — ruled after the dual. Dual: ordinal 2205, byte
 240 ⇒ R1 Opus, R2 Fable.
+
+## Spiric PR-1b dual adjudicated (2026-09-20)
+
+R2 (Fable) killed once by a 429 and resumed after the reset; both arms
+MERGEABLE-AFTER-FIXES (R1 Opus 2 MAJOR/7 MINOR/7 NOTE, rubric
+4/4/2/4/4; R2 Fable 1 MAJOR/5 MINOR/7 NOTE, rubric 4/4/3/5/5). Every
+PR number reproduced on both sides; both hand re-derived the images;
+both confirmed the filed STEP finding and the sharper `sup‖C″‖`
+candidate (76×, not rescuing `ε/4`). Bilateral headline: two new
+predicates decide dimensionless quantities through `over_lever`
+(divide) where the spec says levered — false audit rows, no verdict
+moved. Also bilateral: the identity's chart-equals-carrier premise
+gated by nothing (a drifted chart certifies with envelope 0), three
+silent mutants, the "bit-equal" doc. R1 alone: `mirror_v` on a
+`SpiricImage::Wall` yields a wrong locus and the every-kind
+involution census was not extended — code-class, unreachable in-tree,
+a tally CANDIDATE (R2 reached the site from the style side); pair
+EXCLUDED under 3(e) (R2's 429). Adjudication on the PR (comment
+5746969779); fourteen items; fix pass dispatched. Spec note for the
+ledger at deletion: §3's `nurbs_tighten` sentence was wrong (the
+harmonic arm does not skip; the lane refused, correctly).
+
+## The cut (2026-09-20)
+
+Ev, in-chat: "i sure put a lot on your plate … do you think it'd make
+sense to break them up into smaller tracks, leaving only a chunk sized
+to be finished in this session in the original curved and trim?" —
+yes, and "you can do the split — no need for an [ev] pr since it is
+mostly moving issues around". Done in one commit: **REACH**
+(`work/reach/`, band 6000–6099) takes the boolean lanes and S-BOOL's
+residue, 49 items; **TANG** (`work/tang/`, 6100–6199) the
+declared-tangency and germ/pierce lanes and the pinch design, 8;
+**CHART** (`work/chart/`, 6200–6299) the three SSI drive-bys with
+TRIM's chart-side residue. CURVED keeps four items: the spiric unit
+(PR-1b in its fix pass), the equator-seam re-author, the C5 demo
+half and a ledger fix; its exit is the spiric carrier delivered and
+the elbow hollowed. Plans and program files re-cut; the former lane
+list and the S-BOOL fence are in this plan's history. **Protocol v7**
+(Ev, 2026-09-19, recorded in the A/B log's banding entry) read at the
+cut: the dual runs on triaged-in units only from here; the
+equator-seam unit is E–M and runs opus/opus outside it unless its
+spec finds a decision.

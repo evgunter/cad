@@ -443,10 +443,8 @@ fn face(name: StableName) -> FaceName {
 /// crossing on the WIRE, which the door is public for.
 fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
     let (doc, doc_ref, ids) = instances_and_ref_of_a_stored_part(label, 2);
-    let (doc, crossing_mate) = insert(doc, mate(ids[0], ids[1], [0.0, 0.0, 0.0]));
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: crossing_mate,
             class: ContactClass::Rest,
             outer: face(in_part(ids[0])),
             inner: face(part_face()),
@@ -570,7 +568,6 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     };
     let crossing = InterfaceCrossing::Mate {
-        mate: RecipeNodeId(7),
         class: ContactClass::Rest,
         outer: face(reference(3)),
         inner: face(reference(5)),
@@ -579,7 +576,6 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         serde_json::to_value(&crossing).expect("a crossing serializes"),
         serde_json::json!({
             "Mate": {
-                "mate": 7,
                 "class": "rest",
                 "outer": { "kind": "Face", "node": 3, "path": [{ "Cap": "Start" }] },
                 "inner": { "kind": "Face", "node": 5, "path": [{ "Cap": "Start" }] },

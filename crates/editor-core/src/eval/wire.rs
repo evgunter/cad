@@ -434,11 +434,11 @@ where
     // declaration against the placed faces; this is the structural
     // half, and it is the half that names the crossing.
     for crossing in &interface.crossings {
-        let crate::node::InterfaceCrossing::Mate { mate, inner, .. } = crossing;
+        let crate::node::InterfaceCrossing::Mate { outer, inner, .. } = crossing;
         if part.names.lookup(inner).is_none() {
             return Err(NodeErrorKind::CrossingUnverified {
                 instance: id,
-                mate: *mate,
+                outer: Box::new(outer.clone()),
                 name: Box::new((**inner).clone()),
             });
         }

@@ -1368,16 +1368,18 @@ fn severed_operand_scene(
         node: local,
         path: vec![RoleSeg::Cap(CapEnd::Start)],
     };
-    let (doc, mate) = step(
+    // The `b` head resolves to no member, which the insert door
+    // refuses: it is authored the way such a head arises after insert
+    // (`insert_mate_with_stranded_head`).
+    let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
         doc,
-        DocEdit::InsertNode {
-            node: seat(
-                crate::fixture::head_at(xf, in_part(top, CapEnd::Start)),
-                crate::fixture::head(local_face),
-            ),
-        },
+        seat(
+            crate::fixture::head_at(xf, in_part(top, CapEnd::Start)),
+            crate::fixture::head(local_face),
+        ),
+        MateSide::B,
+        top,
     );
-    let mate = mate.unwrap();
     let mut cut: std::collections::BTreeSet<RecipeNodeId> = [top, xf].into_iter().collect();
     if mate_in_cut {
         // The mate moves into the cut and its operand stays behind:
@@ -1537,21 +1539,26 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
     );
     let a = in_part(base, CapEnd::End);
     let nested = in_copy(outer, j, in_copy(inner, i, in_part(top, CapEnd::Start)));
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat(
-                crate::fixture::head(a.clone()),
-                crate::fixture::head_at(part, nested.clone()),
-            ),
-        },
+    let node = seat(
+        crate::fixture::head(a.clone()),
+        crate::fixture::head_at(part, nested.clone()),
     );
-    let mate = mate.unwrap();
-    let poses = solve(&doc, &opts, Tol::witness());
-    let ev = run(&doc, &opts);
     let what = format!("Part({k}) naming ({j}, {i}), via transform: {via_transform}");
+    // A `Part` that disagrees with the name is a fact about the mate
+    // alone, so the edit door refuses it where the mate is authored
+    // with the solve's own fault; a seating one enters and solves.
+    let inserted = doc.apply(
+        &DocEdit::InsertNode { node },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
     match expect {
         PartCase::Seats => {
+            let applied = inserted.unwrap_or_else(|err| panic!("{what}: {err:?}"));
+            let mate = applied.record.minted.expect("an insert mints an id");
+            let doc = applied.doc;
+            let poses = solve(&doc, &opts, Tol::witness());
+            let ev = run(&doc, &opts);
             assert!(
                 poses.fault(mate).is_none(),
                 "{what}: {:?}",
@@ -1576,22 +1583,21 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_transform: bool, expect: PartCas
             );
         }
         PartCase::Refuses { named } => {
-            let fault = poses.fault(mate).cloned();
+            let err = inserted.expect_err("a disagreeing Part refuses at the door");
+            let EditError::MateRefused { fault, .. } = &err else {
+                panic!("{what}: expected MateRefused, got {err:?}");
+            };
             assert!(
                 matches!(
-                    fault,
-                    Some(MateFault::PartSelectsAnotherCopy {
+                    **fault,
+                    MateFault::PartSelectsAnotherCopy {
                         part: p,
                         named: n,
                         selected,
                         ..
-                    }) if p == part && n == named && selected == k
+                    } if p == part && n == named && selected == k
                 ),
                 "{what}: expected PartSelectsAnotherCopy(named {named}, selected {k}), got {fault:?}"
-            );
-            assert!(
-                ev.node_error(mate).is_some(),
-                "{what}: the mate node fails typed at the evaluation"
             );
         }
     }

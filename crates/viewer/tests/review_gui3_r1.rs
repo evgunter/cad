@@ -13,7 +13,7 @@
 //! The triangle and `r1_depth` are R1's own so that its document reads
 //! apart from the unit suites' in one aggregated binary. The sugar
 //! that carries no claim is shared:
-//! `common::{len, scl, tempdir, xy_frame}`.
+//! `common::{ang, edited, inserted, len, scl, tempdir, xy_frame}`.
 //!
 //! Shapes per `memories/test-suite-cost.md`: every row here is a
 //! static-witness row (deterministic fixtures authored through the
@@ -26,11 +26,11 @@
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, LoopProgram, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId, apply,
+    ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 
-use crate::common::{len, scl, tempdir, xy_frame};
+use crate::common::{ang, edited, inserted, len, scl, tempdir, xy_frame};
 use viewer::evalseam::EvalDone;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
@@ -56,36 +56,11 @@ fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
     })
 }
 
-fn applied(
-    doc: &Doc<ProfileProgram>,
-    edit: DocEdit<ProfileProgram>,
-    tol: Tol,
-) -> Doc<ProfileProgram> {
-    apply(doc, &edit, tol, &pncad::document::RefusingReach)
-        .expect("the fixture edit applies")
-        .doc
-}
-
-fn insert(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let out = apply(
-        doc,
-        &DocEdit::InsertNode { node },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the insert applies");
-    (out.doc, out.record.minted.expect("an insert mints an id"))
-}
-
 /// A wedge whose extrude distance is `r1_depth * 3`: a driven slot
 /// over one parameter, R1's own derivation of the affordance fixture.
 fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-wedge", tol);
-    let doc = applied(
+    let (doc, _) = edited(
         &doc,
         DocEdit::SetDocParam {
             name: depth_param(),
@@ -93,9 +68,9 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, plane) = insert(&doc, xy_frame(), tol);
-    let (doc, profile) = insert(&doc, triangle(plane, 0.03), tol);
-    let (doc, extrude) = insert(
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, triangle(plane, 0.03), tol);
+    let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -327,7 +302,7 @@ fn r1_a_user_cancel_keeps_the_last_completed_result_on_screen() {
 fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-literal-first", tol);
-    let doc = applied(
+    let (doc, _) = edited(
         &doc,
         DocEdit::SetDocParam {
             name: depth_param(),
@@ -335,9 +310,9 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         },
         tol,
     );
-    let (doc, plane) = insert(&doc, xy_frame(), tol);
-    let (doc, profile) = insert(&doc, triangle(plane, 0.03), tol);
-    let (doc, extrude) = insert(
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, triangle(plane, 0.03), tol);
+    let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -394,9 +369,9 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
 fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-gesture-fence", tol);
-    let (doc, plane) = insert(&doc, xy_frame(), tol);
-    let (doc, profile) = insert(&doc, triangle(plane, 0.03), tol);
-    let (doc, extrude) = insert(
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, triangle(plane, 0.03), tol);
+    let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -461,9 +436,9 @@ fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
 fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-poison-chain", tol);
-    let (doc, plane) = insert(&doc, xy_frame(), tol);
-    let (doc, profile) = insert(&doc, triangle(plane, 0.03), tol);
-    let (doc, extrude) = insert(
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, triangle(plane, 0.03), tol);
+    let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -476,10 +451,10 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
         input,
         translation: [len(0.001), len(0.0), len(0.0)],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        rotation_angle: ang(0.0),
     };
-    let (doc, child) = insert(&doc, transform(extrude), tol);
-    let (doc, grandchild) = insert(&doc, transform(child), tol);
+    let (doc, child) = inserted(&doc, transform(extrude), tol);
+    let (doc, grandchild) = inserted(&doc, transform(child), tol);
 
     let mut session = DocSession::inline(doc, tol);
     session.pump();

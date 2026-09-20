@@ -2,9 +2,10 @@
 id: solid-of-face-has-eleven-hand-written-walks-outside-it
 kind: issue
 title: Body::solid_of_face: the hand-written face to shell to solid walks outside it are seventeen, not eleven
-status: open
+status: closed
 opened: 2026-09-19
-refs: [the-face-to-solid-walk-is-spelled-per-test-file, shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim, listing-a-solids-faces-is-spelled-four-times-in-topo-src]
+closed: 2026-09-20
+refs: [the-face-to-solid-walk-is-spelled-per-test-file, shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim, listing-a-solids-faces-is-spelled-four-times-in-topo-src, two-spellings-of-the-face-to-solid-owner-index]
 ---
 
 
@@ -315,3 +316,64 @@ class is
 | the verbatim fixture family | 5 helpers | dup | `work/dup/shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim.md` |
 | `faces_of` ×3 + `SolidFaces::of` | 4 | dup | `work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md` |
 | the unguarded census sentence | class | dup | `work/dup/a-doors-rustdoc-carries-an-unguarded-census-sentence.md` |
+
+
+## Re-taken 2026-09-20 at `b29fe8bd1`; the class did not move
+
+Two instruments, every tracked file, **no path argument**, at the merge
+base of the `faces_of` unit — three days and one merge-forward after
+the census above was taken at `b932d5cac`.
+
+- **The denominator-first classification, re-run.** Every textual
+  `.solid` FIELD read (excluding `.solid(` calls): **173 occurrences on
+  150 lines** in tracked `.rs`, against the 149 the row recorded. The
+  figure moved; **the class did not.** Classifying each backwards by
+  whether a shell resolution stands in the 16 lines above gives 75
+  candidates, of which the members are the same set this row already
+  names. Nothing new in `topo/src`.
+- **The row's instrument 2 (face-anchored window), reconstructed and
+  re-run**: **12 hits over 1780 tracked `.rs` files**, against 14 over
+  1771. The two that left are `props.rs` and `euler_ring.rs`'s
+  `fused_two_shell_body` — both recorded above as **folded**, so the
+  delta is exactly the fold and nothing else.
+
+### One family the earlier census passed over, now measured
+
+`crates/topo/src/movefac.rs` carries six `.solid` reads and appears in
+neither the row's list nor its non-member list. All six were read:
+`move_shells_to_new_solid`'s `owner_of`, its plan/commit pair and its
+rows take the shell key as an ARGUMENT or from the shell arena, never
+from a face. Not members. The same for `shell.rs`'s `data.solid`
+(~:1319, a `body.shells()` iterator) and `census.rs`'s
+`EntityId::Shell(s) => get_shell(s).map(|d| d.solid)` (~:3286, a shell
+key out of an `EntityId`). Recorded so the next lane does not re-find
+them as the class, which is what this row already did for
+`revolve_ring.rs` and `verbs_tubewall.rs`.
+
+### Citations that had rotted (numbers, not names)
+
+`kfmrh`'s two walks anchor at ~:769 and ~:774; their `.solid` reads are
+at ~:787 and ~:794. The names are right and the numbers are allowed to
+rot (`CLAUDE.md` §Citations); they are corrected here only because the
+next lane re-running the 8-line-window instrument needs the real gaps,
+which are **18 for walk 1 and 20 for walk 2** — not the one figure the
+row gave (14), and not the single 17 this section gave at its first
+attempt, which read walk 1's `.solid` off the `})?` line at ~:786 and
+then quoted one gap for two walks that differ by two. **A correction
+that is itself a number is the third of its kind on this program**;
+give both, or give the larger.
+
+## Closed
+
+Closed 2026-09-20 with the `faces_of` unit, which was the last bucket
+this row still owed. Every remaining bucket has a file of its own:
+
+| bucket | file |
+| --- | --- |
+| `scope_of_moves` kept and guarded | done in this row, guarded by `offset_together::scope_walks::the_two_hops_refuse_differently` |
+| `kfmrh` ×2, `fusion_remake_shell`, the `euler_ring` write | recorded above; no work owed, and `Body::solid_of_face`'s rustdoc states each as a POPULATION with no count |
+| `topo/tests` + `sweep/tests` | `work/tint/the-face-to-solid-walk-is-spelled-per-test-file.md` |
+| the verbatim fixture family | `work/dup/shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim.md` |
+| `faces_of` ×3 + `SolidFaces::of` | `work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md` — folded onto `Body::faces_of_solid` |
+| the unguarded census sentence | `work/dup/a-doors-rustdoc-carries-an-unguarded-census-sentence.md` |
+| the face-to-solid OWNER INDEX, spelled twice | `work/dup/two-spellings-of-the-face-to-solid-owner-index.md` — new, found by the `faces_of` census |

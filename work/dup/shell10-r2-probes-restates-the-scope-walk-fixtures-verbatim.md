@@ -10,9 +10,10 @@ opened: 2026-09-19
 ## Finding
 
 - **Where**: `crates/topo/src/shell10_r2_probes.rs` (`two_boxes`,
-  `faces_of`, `moves_of`, `break_a_loop`, `SQUARE`) against
+  `moves_of`, `break_a_loop`, `SQUARE`) against
   `crates/topo/src/offset_together.rs`'s `mod scope_walks` (the same
-  five, ~:960–1010).
+  four, ~:960–1010). A fifth, `faces_of`, left the family on
+  2026-09-20 — see below.
 - **Importance**: medium
 - **Confidence**: sure — the duplication is **self-declared in prose at
   the copy site**. `shell10_r2_probes.rs`'s module doc says: *"The
@@ -28,10 +29,22 @@ somewhere both modules reach (`test_support_fixtures` is the obvious
 candidate; `quad_prism` and `graft_disjoint`, which both copies build
 on, are already crate-visible), or the probe module imports them.
 
-`faces_of` is the member of this family the `solid_of_face` fold
-touched — it folded the walk INSIDE both copies onto the door and left
-both copies standing, because the home decision is this row's and not
-that unit's.
+`faces_of` **has left this family**: the `solid_of_face` fold first
+rewrote the walk inside both copies, and the `faces_of` unit
+(`work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md`,
+2026-09-20) then deleted both helpers outright onto
+`Body::faces_of_solid`. What remains here is `two_boxes`, `moves_of`,
+`break_a_loop` and `SQUARE`.
+
+That fold left one thing for this row to collect. `Body::faces_of_solid`
+refuses (`Option`), so every former `faces_of(body, solid)` call site
+in these two modules now carries an `.expect`, and they collapse to one
+the day this family gets a single home with a local adapter over the
+door — this row's decision. **The count, the measurement date and the
+argument about whether it is a duplication at all live in one place**,
+`work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md`'s
+X4 section; restating them here is the accumulation this program has a
+row about (`orient-module-prose-accumulation`).
 
 The prose disclosure is the finding's own instrument: the reviewer
 brief's Q1 sweep (`rg -n 'verbatim|re-derived|ported from|mirror of'`)

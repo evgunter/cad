@@ -1549,3 +1549,203 @@ no CI run and none retroactively (the first merge commit got none), and
 `cargo check` does not run clippy, so a doc-only edit still needs a
 clippy pass — one lazy-list-continuation in a lifted paragraph failed
 six jobs.
+
+**PROPS cut into four (2026-09-20).** Ev asked whether the slate — 66
+open rows — should be cut into new programs, leaving behind only what
+this orchestrator would finish itself, and agreed to the shape put
+back. Twenty-eight rows left in three programs, none with an
+orchestrator seated yet: **QUAD** (8, `props/quad.rs`'s four engines,
+the triplicated convergence block, the budget firing from six sites
+under three round budgets, and the rounds dial that is an `[ev]`
+question), **ENCL** (12, the offset fit and the patch bound and the
+certificate family — S-CERT's second successor, since S-CERT exited
+into this program at #1924 and this is the half of that inheritance
+PROPS is not finishing), and **FRAME** (8, the four doors that turn a
+direction into a basis and no rule saying which to reach for).
+
+Each carries a charter, lanes with the reading order argued, and its
+band; the log entry in each says the cut was Ev's call and names the
+worked precedents its first orchestrator should read before
+specifying — for QUAD the budget-faces unit, for ENCL the mignitude
+floor, for FRAME the sign-hull unit and the SYM row that holds it.
+
+What stays here and why: the closed-form flux arms in
+`props/curved.rs`, where three units landed in the week before the cut
+so the context is live; the verdict and escalation channel; the
+geom-core scalar and spline doors; and the sign-hull unit to its
+landing, because Ev ruled it and it is mid-flight. FRAME inherits the
+rest of its family at that point, the way this program inherited from
+S-CERT at its exit walk.
+
+**The cut does not partition the ground, deliberately.** Ev, same
+conversation: the overlap checker is too overbearing, shared ground is
+fine, and what units owe each other is awareness when they are working
+at the same time. So `props/*` is claimed by this program and by QUAD,
+`geom-core/src/*` by this program and by FRAME, each `keep_out` says
+so in those words, and no glob was contorted to keep the at-rest check
+quiet. The check itself is a separate change, opened as an `[ev]` PR.
+
+**Two units dispatched after the cut (2026-09-20).** With the slate
+down to 37 rows, the two that carry the most:
+
+- **curved-residues** (`props/curved-residues`, M/NUMERIC, dual) — the
+  three the sphere unit measured and declined to serve: the cone apex
+  cap, which is issue 1250's shape on the other singular chart and
+  needs the closure guard the sphere unit's own MAJOR taught (an
+  unguarded fold answers the UNBOUNDED complement with the cap's
+  area); the shape door's sense-free residue, which is RULED as a
+  measurement first — the door gates `mesh`'s walk, so if anything
+  legitimate stops meshing the lane stops and reports rather than
+  widening a meshing gate on a props unit's judgement; and the
+  rim-level rule that throws by feeding NaN into `classify`, with its
+  sibling reading of the unreachable state explicitly left open.
+- **escalation-channel** (`props/escalation-channel`, H/STRUCTURAL,
+  dual) — the hole the k-stats unit's own dual found in the channel it
+  built: eight shipped sites ask the funnel, get a DEFINITE sign, then
+  mint their own `Indeterminate`, so a caller sees an escalation the
+  frame's log does not. The red-first row was written by that dual and
+  is handed over rather than invented. The unit's one design question
+  is whether such an escalation is RECORDED by the minting site or
+  made IMPOSSIBLE, because a channel that needs every future site to
+  remember has the same hole one commit later. The forty-variant
+  deletion sweep follows it and is scoped by what the channel then
+  carries.
+
+Disk note: the machine reached 93% and the sign-hull lane's 6.5 GB
+build cache was freed (its tree kept; it is held on SYM's fold and
+rebuilds when it resumes). A 5.4 GB target directory under
+`/home/evan/cad-lanes/cont-to-target` belongs to no worktree this
+session owns and was last touched 2026-09-17; it was left alone and is
+reported to Ev rather than deleted.
+
+**Sign-hull prepared for SYM's return (2026-09-20).** Ev unpaused SYM.
+Our side was not ready: `props/sign-hull` had drifted **2032 commits**
+behind main and the PR was `dirty`, which matters more than it sounds
+— a conflicting PR gets no CI run at all and none retroactively, so
+the branch had been invisible to CI since 2026-09-16. A merge-forward
+lane is running now so that when the fold lands the only new variable
+is the fold, rather than a two-thousand-commit merge underneath it.
+
+Its success condition is stated precisely rather than as "green":
+exactly three rows red — SYM's tilted-derived-boss acceptance row, the
+refusal-is-not-a-freeze row, and the walk-ledger golden — and any
+fourth red is a finding to report rather than re-bless. Among the
+conflicts is a directory rename (`work/blend/` became `work/carve/` at
+BLEND's cut), so every row this unit filed is re-checked against
+`territory` and moved to whoever owns that ground now — three of those
+owners did not exist when the unit filed them, PROPS having cut QUAD,
+ENCL and FRAME out of itself in the meantime.
+
+The original lane could not be resumed: it ran in the cloud session and
+its transcript did not survive the machine move, so the merge went to a
+fresh lane with the context written out. Worth noting for the next
+handoff — a held unit's lane is not durable across a session move, only
+its branch and its record are.
+
+**Sign-hull is a clean target again, and SYM has taken the fold
+(2026-09-20).** The merge-forward landed at `c4bb5502a`: PR back to
+`MERGEABLE` from `CONFLICTING`, run 35494595889 at 31 green / 4 red,
+and the red list **exactly** the three SYM rows plus `gate ok` because
+of them — verified at step level rather than by job colour. SYM has
+adopted the filed row on main, extended it with its own measurement,
+and taken it as **SYM-10** with a spec and a block slot; its reading
+is three pieces (a `max(A, B) → A` on a manifestly non-negative
+difference, a manifest upper bound for the conditioning floor, and
+rule C's certified-sign read extended to `SymOp::Select`), with Phase 1
+rendering whether they reach the row before any rule is written. Told
+them on the PR that the branch is now measurable and that if Phase 1
+says the three pieces do not reach it, the fork returns to Ev rather
+than sitting.
+
+**Independent confirmation worth keeping.** SYM measured the obvious
+fix — patch the symbolic scalar to return the chosen arm and mint no
+node — and got what our dual got: all three rows still red, the
+tilted-boss refusal one face EARLIER and ~45% WIDER. Two programs,
+two arms, same conclusion: the opacity is the candidate's form and not
+the decision above it.
+
+**Three things the merge caught that a textual resolution would have
+shipped.** A union of the test aggregators would have RESURRECTED a
+deleted suite — main's side still listed the row that measured rule
+(c′), which no longer exists — so the resolution was derived from main
+rather than from both sides. The `seat4` digests were moved by BOTH
+sides for orthogonal reasons (main through the name table, this branch
+through each carrier's stored `u_ref`), so the merged tree's value is a
+FOURTH number neither side holds and no textual resolution can
+produce; the lane refused to invent one, pushed a placeholder and read
+the true value off hosted CI, which prints before asserting — twice,
+because the row asserts on the first digest and never reaches the
+second print. And git's rename heuristic proposed `work/bool/` →
+`work/curved/` for a filed row whose sites `territory` gives to
+**PATHS**; taking the suggestion would have filed a profile-lattice row
+on the curved-boolean program's slate. The lane ran `territory` on
+every row this unit filed rather than only the two that conflicted,
+which is the habit that caught it.
+
+**A finding filed on VDOC**: three sentences in main's viewer rows,
+added while this unit was held, are falsified by it — the door's seam
+named as the equator, a fixture header's stated reason for five of its
+thirteen members, and a falsifiability clause whose witness point
+`(1, 1, 0)` is now a point where the two constructions AGREE. None sits
+on an assertion path, so nothing reds and nothing would ever have
+caught it. Filed with a witness that does still separate the rules
+rather than hand-written geometry the lane could not run.
+
+**Escalation-channel built, and in the dual (2026-09-20).** PR #2928 at
+`aef477d21`, hosted run 35496898199 green. On the spec's one open design
+question — is an op-minted `Indeterminate` RECORDED by its site or made
+IMPOSSIBLE — the unit chose impossible, and the argument is the right
+one: a recording door leaves the mint where it is and asks every future
+site to remember a second call, whose failure mode is silent and is
+*exactly* the empty log the bug produces today. So the requirement
+travels into the funnel as three gate doors (`decide_positive`,
+`decide_nonzero` with a `NonzeroSign` that has no zero arm to forget,
+and `gate_measured`), all minting through one write to the channel, and
+a caller never holds a definite sign long enough to reject it in
+private. The handed red-first row went red exactly as designed before it
+went green.
+
+Two things the unit found that the item had wrong, and both are the
+useful kind. The item's own recipe was **blind to a field name and a
+type spelling**: the class is **82 variants across nine crates**, not
+the "forty-odd across five" the spec inherited from it. And the sweep
+retired **none of them** — not for want of trying, but because the
+escalation log is a *per-bracket side channel* that drops what it is
+given when no frame is open, so for nine consumer crates and every
+library caller the enum is the only channel carrying the escalation and
+retiring a variant would delete information rather than move it. The
+spec said "retire only what the measurement says is a pure wrapper";
+the measurement says none is.
+
+**The zero is the receipt.** This spec's posture paragraph asserted that
+recorded-verdict populations WOULD move. They did not — verdicts
+byte-identical by construction, and no corpus document reaches a gated
+arm. That is the spec asserting a premise again rather than requiring a
+decide, the same fault the sphere spec shipped a MAJOR through; here it
+cost nothing because the unit measured instead of obeying, and the
+reviewers are told to adjudicate the contradiction rather than take
+either side's word.
+
+Filed rather than widened, per §6: `work/msolve/` (family 3, measured
+NOT closed by family 1, plus a `mate/coset.rs` mint of the same shape)
+and `work/curved/` (four `contact_verify` sites, two of them **mis-typed**
+— a definite `Positive` residual dressed as `MarginDiag::Invalid`, which
+says "the margin was poison" about a margin that was measured).
+
+**Dual dispatched at ordinal 2407**, byte 186 ⇒ R1 opus / R2 fable,
+concurrent on the frozen head, briefs stored with sha256 on
+`props/b2-block` before either lane started. The three claims the
+reviewers adjudicate rather than inherit are the three above: whether
+the doors close the hole structurally or only at the eight sites, the
+corrected population and the blind spots it still admits, and the zero.
+
+**An orchestrator error, disclosed at the claim rather than tidied.**
+The two lanes dispatched after the program cut were assigned no block
+slot at dispatch and both ran on opus. Escalation-channel is B3 slot 1
+and correct; curved-residues is not slot 2, because slot 2 is fable by
+the 2026-09-08 draw and drawing a fresh block now to fit an arm already
+in flight is precisely the rigging the draw-before-dispatch rule
+prevents. So curved-residues records the arm that actually ran, marked
+not a drawn assignment, fills no slot, and the next two PROPS units are
+fable — one for the owed slot, one to repay the extra opus row. The
+ratio is restored, not just noted.

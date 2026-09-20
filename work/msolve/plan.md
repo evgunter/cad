@@ -123,6 +123,11 @@ and a transform moves one. The alternatives weighed and rejected are in
     and reaches every consumer of `MateFrame`. Spec last, on top of
     MSOLVE-6's reach road (the same `PartCache` answers both the
     extent and the face pose). LIB's façade and Python half follow it.
+    Ratified by Ev on `[ev]` PR 2895 (2026-09-20); dispatches from
+    main after MSOLVE-10.
+    Spec `docs/MSOLVE-9-SPEC.md` and the A11 sentence drafted
+    2026-09-19 on an `[ev]` PR; dispatches after Ev's sign-off and
+    after MSOLVE-8.
 
 **Routed onto this slate 2026-09-13 … 09-17 by DOCM's exit sweep,
 CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
@@ -174,10 +179,11 @@ CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
     in its kernel half: `FromFace { face, reference }` names a roll
     reference, and its spec states the convention the row says is
     undocumented; the affordance itself is CHROME's viewer seam and
-    is handed there when MSOLVE-9's convention is ratified. The item
-    is parked on MSOLVE-10 and closes when both halves are recorded.
-    Spec `docs/MSOLVE-10-SPEC.md` (2026-09-20): the solve's own
-    per-mate admission asked at the door through the reach it holds.
+    is handed there when MSOLVE-9's convention is ratified. Closed
+    on PR 2913 with both halves recorded: MSOLVE-10 merged
+    2026-09-20 (spec into the ledger at the unit head), the reviews
+    settling the principle that the doors decide edits and the solve
+    decides states.
 
 The exit walk waits on 10–12 and 14–16: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
