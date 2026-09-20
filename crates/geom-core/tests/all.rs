@@ -161,9 +161,6 @@ mod rate_pair_doors;
 #[path = "cert3_evidence.rs"]
 mod cert3_evidence;
 
-#[path = "onb_signed_zero_evidence.rs"]
-mod onb_signed_zero_evidence;
-
 #[path = "m10_7_r2_sym_probes.rs"]
 mod m10_7_r2_sym_probes;
 

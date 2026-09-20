@@ -146,8 +146,9 @@ pub struct FreezeSite {
     pub walk: Walk,
     /// Why the walk was asked.
     pub origin: Origin,
-    /// The kids' forms, in slot order; `None` for an absent slot.
-    pub kids: [Option<FormSize>; 2],
+    /// The kids' forms, in slot order; `None` for an absent slot. Three
+    /// slots, the third read by the arity-3 ops alone.
+    pub kids: [Option<FormSize>; 3],
 }
 
 /// One walk's totals under one origin.
@@ -366,7 +367,7 @@ fn degree(s: FormSize) -> u32 {
 
 /// Records one node the walk visited: its kids' forms and what came of
 /// it — a form, or a freeze whose cause is the last note.
-pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 2], made: Option<&Form>) {
+pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 3], made: Option<&Form>) {
     if !active() {
         return;
     }
@@ -374,6 +375,7 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 2], made: Option<
     let sizes = [
         (arity >= 1).then(|| size_of(kids[0])),
         (arity >= 2).then(|| size_of(kids[1])),
+        (arity >= 3).then(|| size_of(kids[2])),
     ];
     let tag = op.tag();
     let cause = NOTE.take();
@@ -426,7 +428,7 @@ pub(super) fn record_unrecorded(walk: Walk) {
             cause: FreezeCause::Unrecorded,
             walk,
             origin,
-            kids: [None, None],
+            kids: [None, None, None],
         });
     });
 }

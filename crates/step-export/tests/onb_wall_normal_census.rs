@@ -1,17 +1,20 @@
-//! **Wall-normal `z` census over the STEP-export fixture corpus**, and
-//! the byte-movement list that follows from it.
+//! **The frame-seam census over the STEP-export fixture corpus**, and
+//! the `DIRECTION` records the frames are written to.
 //!
-//! `Vec3::orthonormal_basis` hulls the frame at `Interval` whenever the
-//! normal's `z` encloses zero. One proposed narrowing canonicalises the
-//! zero at `f64` (`copysign(1, n.z + 0)`), which moves `f64` bits — and
-//! therefore committed `DIRECTION` records — on exactly those planar
-//! faces whose stored normal has `z = -0.0` today. This counts them,
-//! and names the fixture and record for each one it finds.
+//! `Vec3::orthonormal_basis` crosses the normal with the world axis its
+//! own components choose — `e_z` when `|n.z| ≤ max(|n.x|, |n.y|)/2` —
+//! and the equality is its one discontinuity. The classification lives
+//! in `test_utils::seam_census`, shared with the other two corpus
+//! instruments; its docs say what a count of normals on the seam does
+//! and does not measure. A plane's `u_ref` is written verbatim into the
+//! `AXIS2_PLACEMENT_3D` of its `PLANE` record, so the frames these
+//! fixtures store are committed bytes; the second table locates the
+//! record each one is written to, which is the receipt a re-bless of a
+//! byte-golden fixture is owed.
 //!
-//! `#[ignore]`d: asserts nothing, gates nothing, prints. The corpus is
-//! `common::fixture_corpus()` — the same bodies the byte-golden
-//! fixtures are written from, so a body added there is censused here
-//! without editing this file.
+//! [`no_fixture_face_sits_on_the_frame_seam`] ASSERTS this corpus's
+//! zero; the two instruments below it print the tables and are
+//! `#[ignore]`d.
 //!
 //! ```text
 //! cargo test -p step-export --test all \
@@ -27,71 +30,94 @@ use crate::common;
 use geom::Surface;
 use geom_core::{Tol, Vec3};
 use step_export::{StepOptions, step_string};
+use test_utils::seam_census::SeamClasses;
 
-/// The four classes the ruling asks for.
-#[derive(Default, Clone, Copy)]
-struct ZClasses {
-    pos_zero: usize,
-    neg_zero: usize,
-    tiny: usize,
-    other: usize,
-}
-
-impl ZClasses {
-    fn add(&mut self, z: f64) {
-        if z == 0.0 {
-            if z.is_sign_negative() {
-                self.neg_zero += 1;
-            } else {
-                self.pos_zero += 1;
-            }
-        } else if z.abs() < 1e-12 {
-            self.tiny += 1;
-        } else {
-            self.other += 1;
-        }
-    }
-
-    fn planes(&self) -> usize {
-        self.pos_zero + self.neg_zero + self.tiny + self.other
-    }
-}
-
-/// **Table 2 (step-export row)** — planar faces per fixture, by the
-/// class of the stored normal's `z`.
+/// **This corpus's half of the measurement that decided the
+/// comparison, asserted**: no fixture body has a planar face on the
+/// seam `|n.z| = max(|n.x|, |n.y|)/2`, so no `DIRECTION` record these
+/// byte-golden fixtures commit can be a hulled frame's. The instrument
+/// below prints the per-fixture table.
 #[test]
-#[ignore = "wall-normal census instrument; run explicitly"]
-fn wall_normal_z_census_over_the_fixture_corpus() {
-    println!("| fixture | planes | z = +0.0 | z = -0.0 | 0 < |z| < 1e-12 | other |");
-    println!("| --- | --- | --- | --- | --- | --- |");
-    let mut total = ZClasses::default();
+fn no_fixture_face_sits_on_the_frame_seam() {
+    let mut total = SeamClasses::default();
+    let mut fixtures = 0usize;
     for (name, body) in common::fixture_corpus() {
-        let mut c = ZClasses::default();
+        let mut c = SeamClasses::default();
         for (_, surface) in body.surfaces() {
             if let Surface::Plane { normal, .. } = surface {
-                c.add(normal.z);
+                c.add((normal.x, normal.y, normal.z));
             }
         }
-        total.pos_zero += c.pos_zero;
-        total.neg_zero += c.neg_zero;
-        total.tiny += c.tiny;
-        total.other += c.other;
+        assert_eq!(
+            c.on_seam,
+            0,
+            "{name}: {} of its {} planar faces are on the frame seam",
+            c.on_seam,
+            c.planes()
+        );
+        total.merge(c);
+        fixtures += 1;
+    }
+    println!(
+        "step-export corpus ({fixtures} fixtures): {} planar faces, {} on the seam, \
+         {} on the three-component order's tie set",
+        total.planes(),
+        total.on_seam,
+        total.three_way_tie
+    );
+    // The floor is below the measured 81 planar faces over 17 fixture
+    // bodies because which bodies build is ε-dependent; the zero above
+    // is not.
+    assert!(
+        fixtures >= 17 && total.planes() >= 60,
+        "the fixture corpus shrank: {fixtures} fixtures, {} planar faces",
+        total.planes()
+    );
+    assert!(
+        total.three_way_tie * 2 > total.planes(),
+        "the three-component order's tie set no longer covers most of the corpus: \
+         {} of {}",
+        total.three_way_tie,
+        total.planes()
+    );
+}
+
+/// Planar faces per fixture, by whether the normal sits on the axis
+/// order's tie set and by which axis wins.
+#[test]
+#[ignore = "tie census instrument; run explicitly"]
+fn axis_tie_census_over_the_fixture_corpus() {
+    println!(
+        "| fixture | planes | on the seam | off it | e_z arm | e_y arm | on a three-way tie |"
+    );
+    println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
+    let mut total = SeamClasses::default();
+    for (name, body) in common::fixture_corpus() {
+        let mut c = SeamClasses::default();
+        for (_, surface) in body.surfaces() {
+            if let Surface::Plane { normal, .. } = surface {
+                c.add((normal.x, normal.y, normal.z));
+            }
+        }
+        total.merge(c);
         println!(
-            "| {name} | {} | {} | {} | {} | {} |",
+            "| {name} | {} | {} | {} | {} | {} | {} |",
             c.planes(),
-            c.pos_zero,
-            c.neg_zero,
-            c.tiny,
-            c.other
+            c.on_seam,
+            c.off_seam,
+            c.e_z_arm,
+            c.e_y_arm,
+            c.three_way_tie
         );
     }
     println!(
-        "| **step-export corpus** | {} | {} | {} | {} | {} |",
+        "| **step-export corpus** | {} | {} | {} | {} | {} | {} |",
         total.planes(),
-        total.pos_zero,
-        total.neg_zero,
-        total.tiny,
-        total.other
+        total.on_seam,
+        total.off_seam,
+        total.e_z_arm,
+        total.e_y_arm,
+        total.three_way_tie
     );
 }
 
@@ -163,71 +189,59 @@ fn u_ref_records(text: &str, normal: [f64; 3], u_ref: [f64; 3]) -> String {
     }
 }
 
-/// The frame `Vec3::orthonormal_basis` mints today, respelled locally
-/// so the counterfactual can sit beside it. `canonicalise` is option
-/// (c'): `s = copysign(1, n.z + 0)`, which IEEE turns `-0.0` into
-/// `+0.0` before the sign is read.
-fn b1(n: Vec3<f64>, canonicalise: bool) -> Vec3<f64> {
-    let s = 1.0f64.copysign(if canonicalise { n.z + 0.0 } else { n.z });
-    let r = 1.0 / (1.0 + n.z.abs());
-    Vec3::new(1.0 - n.x.powi(2) * r, -((n.x * n.y) * r), -(s * n.x))
-}
-
-fn same_bits(a: Vec3<f64>, b: Vec3<f64>) -> bool {
-    a.x.to_bits() == b.x.to_bits()
-        && a.y.to_bits() == b.y.to_bits()
-        && a.z.to_bits() == b.z.to_bits()
-}
-
-/// **Table 3 (STEP half)** — which committed `DIRECTION` records move
-/// under the canonicalising narrowing.
+/// Every planar face's stored frame, with the `DIRECTION` record it is
+/// written to — the receipt a re-bless of these byte-golden fixtures is
+/// owed, and the check that the stored frame really is the one
+/// `orthonormal_basis` mints (a frame stored from elsewhere would not
+/// move when the constructor does).
 ///
-/// A plane's `u_ref` is written verbatim into the `AXIS2_PLACEMENT_3D`
-/// of its `PLANE` record (`writer.rs`'s plane arm), so a `u_ref` that
-/// moves moves committed bytes. Under (c') `s` changes on exactly the
-/// planes whose normal has `z = -0.0`, and `b1.z = -(s * n.x)` is the
-/// only component carrying `s` — so this walks those planes, checks the
-/// stored frame really is the one `orthonormal_basis` mints (a frame
-/// stored from elsewhere would not move at all), and prints the record
-/// as written today beside the frame (c') would write.
+/// The plane's LOCUS is the invariant across a frame change: the origin
+/// and the normal are printed beside the frame so a reader can see they
+/// did not move.
 #[test]
-#[ignore = "byte-movement instrument; run explicitly"]
-fn direction_records_that_move_under_the_canonicalised_sign() {
+#[ignore = "frame-record instrument; run explicitly"]
+fn the_direction_records_every_stored_frame_is_written_to() {
     let tol = Tol::witness();
-    let (mut neg_zero, mut moved) = (0usize, 0usize);
+    let (mut planes, mut minted_here) = (0usize, 0usize);
     println!(
-        "| fixture | normal | stored u_ref | minted here? | u_ref under (c') | `u_ref` DIRECTION record(s) |"
+        "| fixture | normal | stored u_ref | minted by the constructor? | on a tie? | `u_ref` DIRECTION record(s) |"
     );
-    println!("| --- | --- | --- | --- | --- | --- |");
+    println!("| --- | --- | --- | --- | --- | --- | --- |");
     for (name, body) in common::fixture_corpus() {
         let text = step_string(&body, &StepOptions::default(), tol).expect("fixture exports");
         for (_, surface) in body.surfaces() {
             let Surface::Plane { normal, u_ref, .. } = surface else {
                 continue;
             };
-            if !(normal.z == 0.0 && normal.z.is_sign_negative()) {
-                continue;
+            planes += 1;
+            let minted = same_bits(*u_ref, normal.orthonormal_basis().0);
+            if minted {
+                minted_here += 1;
             }
-            neg_zero += 1;
-            let today = b1(*normal, false);
-            let minted = same_bits(*u_ref, today);
-            let under = b1(*normal, true);
+            let mut m = [normal.x.abs(), normal.y.abs(), normal.z.abs()];
+            m.sort_by(f64::total_cmp);
             let line = u_ref_records(
                 &text,
                 [normal.x, normal.y, normal.z],
                 [u_ref.x, u_ref.y, u_ref.z],
             );
-            if minted && !same_bits(today, under) {
-                moved += 1;
-            }
             println!(
-                "| {name} | ({:?}, {:?}, {:?}) | ({:?}, {:?}, {:?}) | {minted} | ({:?}, {:?}, {:?}) | {line} |",
-                normal.x, normal.y, normal.z, u_ref.x, u_ref.y, u_ref.z, under.x, under.y, under.z
+                "| {name} | ({:?}, {:?}, {:?}) | ({:?}, {:?}, {:?}) | {minted} | {} | {line} |",
+                normal.x,
+                normal.y,
+                normal.z,
+                u_ref.x,
+                u_ref.y,
+                u_ref.z,
+                m[0] == m[1]
             );
         }
     }
-    if neg_zero == 0 {
-        println!("| **(none)** | — | — | — | — | no planar face stores `n.z = -0.0` |");
-    }
-    println!("planes with n.z = -0.0: {neg_zero}; DIRECTION records that move under (c'): {moved}");
+    println!("planar faces: {planes}; frames the constructor mints: {minted_here}");
+}
+
+fn same_bits(a: Vec3<f64>, b: Vec3<f64>) -> bool {
+    a.x.to_bits() == b.x.to_bits()
+        && a.y.to_bits() == b.y.to_bits()
+        && a.z.to_bits() == b.z.to_bits()
 }

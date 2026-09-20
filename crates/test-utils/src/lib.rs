@@ -22,6 +22,9 @@
 //!   only, code with literals, prose alone) plus the traversals and
 //!   balanced-text operations that read them. The readers still
 //!   outside it are enumerated in `tests/reader_census.rs`.
+//! - [`seam_census`], the classification of a planar normal against
+//!   `Vec3::orthonormal_basis`'s seam, which three corpus instruments
+//!   in three crates each need and none of them owns.
 //! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
 //!   sampling guard actually exercised, printed every run and asserted,
 //!   so a run that exercised nothing goes red instead of green.
@@ -50,6 +53,7 @@ pub mod census;
 pub mod f6;
 pub mod fuzz;
 pub mod roster;
+pub mod seam_census;
 pub mod source;
 pub mod tightness;
 pub mod vacuity;

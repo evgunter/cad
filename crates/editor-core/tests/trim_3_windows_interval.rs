@@ -405,12 +405,11 @@ fn a_cylinder_band_answers_through_a_cut_root() {
         (0.12 - k_eps()..1.0).contains(&d),
         "the reported approach is the built 0.12: {d}"
     );
-    assert!(
-        v.geometry.a_chart_axis.is_none(),
-        "the first side is the cylinder, so its witness carries no planar re-chart and its \
-         `u` is an azimuth: {:?}",
-        v.geometry.a_chart_axis
-    );
+    // The row asserted `a_chart_axis.is_none()` here — "the first side
+    // is the cylinder, so its witness carries no planar re-chart".
+    // PROPS's sign-hull unit retired the planar re-chart outright, so
+    // NO witness carries one and the field itself is gone; the claim
+    // that is left is the one below about `u` being an azimuth.
     println!(
         "[E7] witness uv = {:?} {:?} -> {:?} d = {d}",
         v.geometry.a_uv, v.geometry.a_point, v.geometry.b_point
@@ -537,11 +536,9 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
         (0.1 - k_eps()..0.3).contains(&d),
         "the reported approach is the built 0.1, found on the wall's own lattice: {d}"
     );
-    assert!(
-        v.geometry.a_chart_axis.is_none(),
-        "the first side is the cylinder, so its `u` is an azimuth: {:?}",
-        v.geometry.a_chart_axis
-    );
+    // `a_chart_axis.is_none()` stood here, for the same reason as
+    // above: with the planar re-chart retired the field names nothing
+    // and the azimuth claim below carries the row.
     assert!(
         v.geometry.a_uv.0 < 0.0,
         "and the azimuth is on the walk's own branch, the wrong side of zero — a root \

@@ -346,7 +346,7 @@ fn sqrt_atom(arg: Form, sess: &mut Session) -> u128 {
     sess.atoms.entry(id).or_insert_with(|| AtomInfo {
         op: SymOp::Sqrt,
         payload: 0,
-        args: [Some(Arc::new(arg)), None],
+        args: [Some(Arc::new(arg)), None, None],
     });
     id
 }
@@ -484,7 +484,7 @@ mod tests {
                 AtomInfo {
                     op,
                     payload: 0,
-                    args: [Some(Arc::new(x.clone())), Some(Arc::new(x.clone()))],
+                    args: [Some(Arc::new(x.clone())), Some(Arc::new(x.clone())), None],
                 },
             );
         }

@@ -349,12 +349,17 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (1, 610, 609, 224),
+        (1, 580, 579, 228),
         "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
          a drop rule that lets an in-band or poison margin separate, or a description \
          tightened at the 0.05 scale, changes these counts while leaving every verdict \
          in the suite alone (measured, TRIM-3 PR-2's fix pass). Stable across the three \
-         eps rows: {}",
+         eps rows. RE-BASELINED from (1, 610, 609, 224) by PROPS's sign-hull unit: the \
+         engine reads the carrier's STORED chart now that a planar frame decides, and \
+         that chart is the old re-chart turned a quarter turn about the normal — the \
+         same window as a point set, halved along the other axis first, so the sweep \
+         reaches the same verdict in 579 splits instead of 609 and proves four more \
+         cells outside. Nothing about the drop rule moved: {}",
         tight.serialize()
     );
 }
@@ -922,10 +927,13 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (10, 930, 920, 292),
+        (10, 972, 962, 296),
         "the measured receipt, pinned; like the L-plate row's it is what catches a drop \
          rule that changes without changing a verdict. Stable across the three eps \
-         rows: {}",
+         rows. RE-BASELINED from (10, 930, 920, 292) by PROPS's sign-hull unit, for the \
+         reason that row states: the stored chart is the retired re-chart turned a \
+         quarter turn, so the subdivision halves the other axis first. The verdict and \
+         both claims above it are unchanged: {}",
         whole.serialize()
     );
     let inner = Selection {
@@ -1144,11 +1152,16 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
 
 // ------------------------------------------------ claim 9: the basis
 
-/// **PIN (the filed finding, verified).** `Vec3::orthonormal_basis` at
-/// `Interval` for a normal with `n.z = 0` returns a sign-hulled frame:
-/// both basis vectors carry a `[-1, 1]` factor.
+/// **The finding this file pinned, now fixed.** The frame of a normal
+/// with `n.z = 0` — every vertical wall of an extruded prism — used to
+/// come back sign-hulled at `Interval`, because the construction opened
+/// with `copysign(1, n.z)` and the enclosure arm of `copysign` must
+/// hull at any zero-containing sign. The construction crosses the
+/// normal with a world axis chosen by `|n.z| ≤ max(|n.x|, |n.y|)/2`
+/// now,
+/// and transfers no sign at all, so a wall's frame is EXACT.
 #[test]
-fn the_orthonormal_basis_is_sign_hulled_at_interval_when_nz_is_zero() {
+fn the_orthonormal_basis_is_exact_at_interval_when_nz_is_zero() {
     let (zero, one) = (
         Interval::from_bounds(0.0, 0.0),
         Interval::from_bounds(1.0, 1.0),
@@ -1156,17 +1169,20 @@ fn the_orthonormal_basis_is_sign_hulled_at_interval_when_nz_is_zero() {
     let n = Vec3::new(one, zero, zero);
     let (b1, b2) = n.orthonormal_basis();
     println!("[r1] basis of +x at Interval: b1 = {b1:?}, b2 = {b2:?}");
-    assert!(
-        b1.z.lo() <= -1.0 && b1.z.hi() >= 1.0,
-        "b1.z is the two-sided hull: {:?}",
-        b1.z
-    );
-    assert!(
-        b2.y.lo() <= -1.0 && b2.y.hi() >= 1.0,
-        "b2.y is the two-sided hull: {:?}",
-        b2.y
-    );
-    // And a normal with n.z definitely positive is framed cleanly.
+    for (e, want, which) in [
+        (b1.x, 0.0, "b1.x"),
+        (b1.y, 1.0, "b1.y"),
+        (b1.z, 0.0, "b1.z"),
+        (b2.x, 0.0, "b2.x"),
+        (b2.y, 0.0, "b2.y"),
+        (b2.z, 1.0, "b2.z"),
+    ] {
+        assert!(
+            e.lo() == want && e.hi() == want,
+            "{which} of +x at Interval is not the exact {want}: {e:?}"
+        );
+    }
+    // And a normal at the pole is framed cleanly too.
     let (c1, _) = Vec3::new(zero, zero, one).orthonormal_basis();
     assert!(c1.x.lo() > 0.5 && c1.x.hi() < 1.5, "{c1:?}");
 }
