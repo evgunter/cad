@@ -123,8 +123,11 @@ posture under §Process.
    against DOCM, EDIT's now) is **merged** (PR #2905, E-class, wave
    15: `Doc::has_minted`, the counter stays private; VIEW's layer-3
    row unblocked); `a-committed-profile-program-has-no-whole-program-edit`
-   is on `[ev]` #2904 (V2 and DM7 both move; block EDIT-B2 slot 2
-   banks for it);
+   was ruled (B) by Ev on `[ev]` #2904 and is **spec'd** as a kernel
+   unit (`docs/EDIT-PROGRAM-SPEC.md`, v6 dual, block EDIT-B2 slot 2,
+   wave 17: `SetProgram` carries the program and each step's
+   provenance, the door reports strands and rebinds kept names;
+   V2 and DM7 re-worded on the ruling);
    `nodepick-name-doors-take-a-second-evaluation-unpaired` is
    **merged** (PR #2773, middle tier). The pairing row went to PROPS
    with EDIT's door built.
