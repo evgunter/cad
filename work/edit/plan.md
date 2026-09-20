@@ -138,6 +138,10 @@ posture under §Process.
    `param-ref-refusals-spell-two-facts-four-ways` is spec'd and
    **dispatched** (middle tier, wave 10); and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
+   `converged-recourse-has-no-home` (re-homed from VNEWS 2026-09-19:
+   the "declare it first" clause written in two crates) is ruled and
+   **spec'd** (E-class, wave 16: one `pub const` beside `EditError`,
+   both renderings through it, the tripwire test becomes the pin).
    Two prose rows filed by waves 10–11 were ruled and **merged** as one
    E-class unit (PR #2879, wave 13, `edit/prose-one-home`):
    `doc-param-refusals-keep-two-conventions-inside-one-enum` (the
