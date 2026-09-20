@@ -71,3 +71,48 @@ because `Subject`'s three-arms-are-three-facts contract is stated in
 this file.
 
 Signed: (WIRE implementer lane `wire-n1`)
+
+## Ruled (FIX orchestrator, 2026-09-20): reading (a), `refused` refuses
+
+This row named three readings and declined to pick one. The seat picks
+**(a)**: `Subject::refused` returns `Subject::NoBodyRoots` for the
+no-body arm itself, and the hand-routing comes out of **both**
+production callers.
+
+**Why this is FIX's to rule and not a re-homing.** Ev ruled in chat on
+2026-09-20 that this program takes no design decisions — a row whose
+blocking question is a design decision goes to the track owning the
+surface. Here FIX **is** that track: `crates/editor-core/src/checks.rs`
+is FIX's by `paths` and territory names no other owner, `Subject`'s
+three-arms-are-three-facts contract is stated in that file, and no
+README or design page in the companion table states it (checked:
+`Subject::refused` appears in no `docs/` or `crates/*/README.md` text).
+So this is a door decision on this program's own code, which is what
+the seat is for, and it leaves a written fix rather than an open
+question.
+
+**The argument.** (b) and (c) both leave the defect constructible and
+only describe it: a `debug_assert!` is absent in release, and a doc
+sentence is the thing that was already missing. (a) is the only reading
+that makes the routing a property of the door, and the predicate it
+asserts on already has one home —
+`product::ProductErrorKind::means_no_body`, given it by WIRE's
+`nobodyroots-classification-has-two-homes` (PR 2629). A door that
+routes on that predicate cites the classification instead of
+re-deriving it, which is the same move the four consumers WIRE
+converted already made.
+
+**What the lane still establishes rather than assumes.**
+
+- `refused` is `pub`. Its callers are the four this row's grep names,
+  two production and two test — re-derive with
+  `git grep 'Subject::refused' -- crates/` at your merge base, because
+  an earlier draft of this row named three callers from memory and got
+  all three wrong.
+- Whether either production caller's existing arm becomes dead once the
+  door routes, and delete it if so — leaving both the guard and the
+  hand-routing is the half-fix shape.
+- The pin: a row that goes red if `refused(&NoBodyRoots)` ever yields
+  `Unavailable` again. Instruction 3 applies — say whether any existing
+  row discriminates the old routing from the new one, and if none does,
+  that is part of the defect.

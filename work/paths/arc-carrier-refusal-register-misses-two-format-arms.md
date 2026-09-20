@@ -49,3 +49,28 @@ land without it noticing: nothing in CI compares that list against
 `paths` globs. It is filed here because FIX took the two units that
 moved the arms it omits, not because FIX's charter claims the
 document; a taker should say which way it read that.
+
+## Re-homed to PATHS, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** whether `docs/PATHS-DESIGN.md`'s typed-refusal register should be checked
+at all, or say in prose that it is not a claim.
+
+**Why PATHS.** `python3 scripts/work.py territory --files -` says `docs/PATHS-DESIGN.md` is
+**owned by paths**. This row was filed on FIX's slate because FIX took the two
+units that moved the arms the register omits, and its own Fence section says
+so — *"not because FIX's charter claims the document"*.
+
+The cheap half (add `NonFiniteDirection` and `UnderflowedDirection` to the
+register with the sentence distinguishing them from `ZeroDirection`) does not
+wait on the design half and could ride any PATHS unit that touches the
+document.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

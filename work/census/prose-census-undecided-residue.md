@@ -100,3 +100,29 @@ Nothing here checks a reason string: the pin compares
 `(file, display type, binding)` and a count, so a roster line's stated
 cause is honest only because someone read the site. That is worth
 knowing before the next taker trusts one.
+
+## Re-homed to CENSUS, 2026-09-20
+
+(FIX orchestrator) Ev, in chat, 2026-09-20: *"can you kick all the design decisions back to
+the track they actually belong to, leaving fix design-free?"* FIX is the
+program for rows whose fix is already written; a row whose blocking
+question is a DESIGN decision belongs to the track that owns the surface
+the decision is about.
+
+**The decision this row is blocked on:** three classes of undecided rendering, each with two directions and no
+decision: the positional `{:?}` resolver, the `Real` scalar's lane-dependent
+`Debug`, and bare type names with rival declarations.
+
+**Why CENSUS.** The roster is `crates/pncad-py/src/prose_census.rs`'s `UNDECIDED`, and what it
+cannot decide is CENSUS's charter. It arrives with the two other rows on that
+file.
+
+**Class 2 is the one with a reachability question underneath it**: if a
+`T`-generic refusal reaches `py::typed_err` under `--features interval`, the
+repair is ONE manual `Debug` impl on `geom-core`'s `Interval` rather than N site
+fixes — and nobody has traced it. `crates/geom-core/src/*` is PROPS's ground
+and `interval-transcendentals/` is a cargo root outside `--workspace`.
+
+Nothing about the finding is changed by the move: same id, same
+evidence, still `open`, and no part of its question is answered for
+you except where this note says Ev answered it.

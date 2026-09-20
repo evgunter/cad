@@ -2729,3 +2729,94 @@ Filed while sweeping, on FIX's slate:
 reach `Subject::Unavailable`.
 
 Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## Wave 4 opens with a sweep, not a dispatch: FIX goes design-free (2026-09-20)
+
+**Ev, in chat, at the third orchestrator handoff:** *"can you kick all
+the design decisions back to the track they actually belong to, leaving
+fix design-free?"*
+
+The seat's orientation found the reason the question was worth asking.
+Three waves closed the rows whose fix was written; what those waves
+FILED was residue, and residue is disclosed uncertainty — a question
+somebody has to answer. So the slate had inverted. Of nineteen open
+rows, five carried a written fix and fourteen carried a decision:
+whether a register should be checked, which of 55 hard-coded bands are
+deliberate, whether a sixth hand-written kind mirror should be minted,
+whether a compound bound gets ratified. None of those is a one-PR item
+whose body already contains the fix, and this program has no standing
+to answer any of them.
+
+### The routing, taken from the instrument
+
+`python3 scripts/work.py territory --files -` over every path the
+fourteen rows cite. Charter decided the four rows whose class has no
+single path-owner; territory decided the rest.
+
+| row | → | decision it was blocked on |
+|---|---|---|
+| `prose-census-undecided-residue` | CENSUS | three classes of undecided rendering, two directions each |
+| `census-cannot-type-a-nested-pattern-binding` | CENSUS | descend into nested patterns, or stay undecided with a truthful reason |
+| `collapsed-continuation-guard-belongs-in-the-prose-census` | CENSUS | what the guard claims (home settled, threshold measured) |
+| `a-new-kind-pair-arrives-unguarded-by-default` | CENSUS | the convention sentence, and whether two unfired guards earn ~230 lines |
+| `band-derivation-has-a-scalar-twin` | PRED | does the `(eps, K*eps)` pair get a door on `Tolerance` |
+| `fixed-band-literals-are-an-unscoped-class` | PRED | which of 55 fixed bands are deliberate |
+| `band-helper-duplicated-across-suites` | SUITE | the shared home for the `fn band()` wrapper |
+| `census-witness-string-repeats-the-subject` | TOPO | `ValidationError`'s witness shape |
+| `chart-coherence-ships-off-…` | TESS | two measurements that decide whether the default flips |
+| `graft-recertifies-through-the-narrow-lane` | REACH | reachability first, then whether the graft gets a `_via` door |
+| `node-error-kind-has-no-fieldless-projection` | WIRE | a sixth fieldless mirror, or carry the kind |
+| `normalize-without-the-length-question-two-more-sites` | CHART | where the repair goes, per the reviewer's reproduction |
+| `plain-transform-rigid-still-refuses-the-m7-8-class` | SHELL | convenience door + ratification, signpost, or asymmetry-is-correct |
+| `arc-carrier-refusal-register-misses-two-format-arms` | PATHS | whether the prose register is checked at all |
+
+Each moved file carries a `## Re-homed` section: the question, the
+routing basis, what Ev answered and what he did not, and the fences the
+row crosses. Each receiving program's `log.md` carries the arrival.
+Nothing was decided on anyone's behalf.
+
+### Two fence claims in this program's own `keep_out` were stale, and both had been used
+
+`crates/topo/src/census.rs` is recorded there as CURVED's. Territory
+says **REACH**, and CURVED's `paths` do not name the file. And
+`node-error-kind-has-no-fieldless-projection` was homed here *because*
+`crates/editor-core/src/mc.rs` was "in no open program's `paths`" —
+territory says **PROPS**, which also owns the row's other two consumer
+doors. That is the sixth and seventh correction to this dispatching
+seat, both of them the same failure: asserting a fence from prose
+rather than running the instrument the brief tells every lane to run.
+`keep_out` now leads with the warning instead of burying it.
+
+### Where FIX is the owning track, the seat ruled rather than re-homed
+
+Three rows sit on this program's own `paths`, so "the track it belongs
+to" is this one. Ruling them is what left the slate design-free without
+orphaning them; each ruling is on its item with its argument and with
+what the lane must still establish.
+
+- **`subject-refused` → reading (a)**: the door refuses, routing on
+  `ProductErrorKind::means_no_body`, hand-routing out of both
+  production callers. (b) and (c) leave the defect constructible and
+  only describe it. Checked first that no README or design page states
+  `Subject`'s contract — it is stated in `checks.rs`, so this is a code
+  decision and not a ratified-design change.
+- **`remap-name-misses` → carry the id.** The alternative has to
+  answer what a reader does when the outer name is nested and the miss
+  is two segments down, and there is no answer.
+- **`quantity-fmt-error` → fold**, `test-utils` into
+  `[dev-dependencies]`. The manifest's stated leaf property is about
+  what dependents carry; `proptest` already sits where this edge goes.
+
+### What this leaves, and the thing worth raising next
+
+Five rows, every one a written fix, dispatchable in one wave with no
+question outstanding. The program is what its charter says again.
+
+**And that makes a duplicate visible.** `work/door/` was opened on this
+program's precedent and carries the same charter in the same words —
+*"one-PR rows whose body already contains the fix: no design question,
+no ruling, no census to build first"*, claiming no paths and announcing
+every fence. FIX holds five rows, DOOR eleven. Two programs with one
+charter is the shape this tracker normally folds; it is recorded in
+`plan.md` as a handoff question rather than taken here, because folding
+a program is Ev's sequencing call and not a sweep's.
