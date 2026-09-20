@@ -740,23 +740,20 @@ const NEST_STEP: f64 = 0.04;
 /// part, outer, loose part)`.
 fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [RecipeNodeId; 6]) {
     use pncad::document::{
-        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram, apply,
+        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram,
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
     let shelf_i = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
     let post_i = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
     for (node, at) in [(shelf_i, asm::SHELF_AT), (post_i, asm::POST_B_AT)] {
-        let applied = apply(
-            &doc,
-            &DocEdit::SetPlacement {
+        common::edit_into(
+            &mut doc,
+            DocEdit::SetPlacement {
                 node,
                 frame: pncad::document::Frame::translation(at),
             },
             tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the placement applies");
-        doc = applied.doc;
+        );
     }
     let rule = |dir: [f64; 3]| PatternKind::Linear {
         direction: dir.map(scl),

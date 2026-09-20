@@ -53,13 +53,16 @@ opened: 2026-09-20
     `editor-core/tests/m10_{8,9,10}_pins_interval.rs`,
     `geom-core/src/linalg/mat.rs`, `test-utils/src/roster.rs`,
     `tools/k-lint/src/lib.rs`.
-- **Importance**: medium, and the instrument is why this is a row
-  rather than a sweep. It cannot tell a stale positive from a true
-  negative: a file saying *"nothing here is `#[ignore]`d"* and a file
-  saying *"two rows here are `#[ignore]`d"* match identically when the
-  file has no attribute. Every one of the eleven has to be read.
-- **Confidence**: sure about the two members; the eleven are
-  candidates, not findings.
+- **Importance**: medium, and no instrument closes it. None can tell a
+  stale positive from a true negative — a file saying *"nothing here is
+  `#[ignore]`d"* and one saying *"two rows here are `#[ignore]`d"* match
+  identically when the file carries no attribute — so every candidate
+  has to be read, which is why this row's deliverable is a
+  classification and not a sweep.
+- **Confidence**: sure about all three members, each read. The fourteen
+  candidates above are fully classified; what is NOT settled is the
+  third bucket, whose members make claims about other files' rows that
+  nothing here checks.
 - **Instruments, and why it takes two.** (1) Line-shaped: count
   `^\s*#\[ignore` attributes against `^\s*//[/!].*#\[ignore` prose
   per file. Cheap, and it MISSES every mention that wraps or omits the

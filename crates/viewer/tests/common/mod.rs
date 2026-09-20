@@ -15,11 +15,12 @@
 //! carry one — the plate helpers are functions of `PLATE_EXTENT`, so a
 //! row reading one measures the scene against its own constants;
 //! `framed` IS a call to `Camera::framing`; `near` fixes the tolerance
-//! a comparison passes at. Others are spelling and nothing more. Where
-//! the answer is not obvious from the signature the helper's own doc
-//! says it, because that is the only place it cannot go stale
-//! separately. A suite that keeps its own code instead of sharing says
-//! why in its own header.
+//! a comparison passes at. Others are spelling and nothing more. Three
+//! whose signatures do not show it say so in their own docs instead —
+//! `near`'s chosen bound, `body_volume`'s choice of WHICH document it
+//! reads, and `gallery_ring_at`'s note of the row that checks its work.
+//! A suite that keeps its own code instead of sharing says why in its
+//! own header.
 
 #![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]

@@ -42,7 +42,7 @@ use std::f64::consts::FRAC_PI_2;
 use common::asm;
 use pncad::document::{
     AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, apply, assemble, class_admission, parse_expr,
+    ProfileDoc, RecipeNodeId, assemble, class_admission, parse_expr,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, face_frame};
@@ -154,29 +154,23 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
     let rot_post = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
-    let applied = apply(
-        &doc,
-        &DocEdit::SetPlacement {
+    common::edit_into(
+        &mut doc,
+        DocEdit::SetPlacement {
             node: rot_post,
             frame: rotated,
         },
         tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the placement applies");
-    doc = applied.doc;
+    );
     let rot_shelf = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
-    let applied = apply(
-        &doc,
-        &DocEdit::SetPlacement {
+    common::edit_into(
+        &mut doc,
+        DocEdit::SetPlacement {
             node: rot_shelf,
             frame: Frame::translation(asm::SHELF_AT),
         },
         tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the placement applies");
-    doc = applied.doc;
+    );
     let path = ws.create(&doc, tol).expect("the rotated assembly stores");
 
     let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);

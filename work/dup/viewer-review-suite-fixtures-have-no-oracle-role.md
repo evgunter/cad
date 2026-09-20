@@ -169,6 +169,17 @@ wrapper were folded. A one-extent grow is weaker again (3 red against
 5): a symmetric plant cannot reach a row that only watches one axis,
 and a one-axis plant cannot reach one that watches area.
 
+**The columns are the wrong shape for what these plants measure, and
+widening them again would not fix it.** The halved plant also reds
+`combine_ops` (1) and `frame_policy` (2), both through `common::square`
+— which `rectangle` now backs — and neither appears in a column or a
+sentence above; `assembly_display` was the same omission one category
+earlier. The columns were chosen for the five suites this row is ABOUT,
+while a plant in a shared door reaches everything that door feeds, which
+is most of the crate. Read the totals for whether a fold is live and the
+per-suite figures only for the five named; the consumer set is wider
+than any column list here will be.
+
 **An instrument defect in the harness, named because it published a
 wrong number once.** The first `insert_into` run printed *"0 pass / 1
 fail"*: the plant makes `tree_badges` panic inside `common/mod.rs`, the
@@ -177,6 +188,15 @@ shard emits one of its own before the suite's. The true figure is **545
 / 81**, read off the last such line after a re-run. The per-suite counts
 were right throughout; only the total was wrong — which is method item
 18's shape, in the table whose job is to prove the folds live.
+
+**A reader does not have to re-run anything to check for it.** Every row
+of this table sums pass + fail to **626**, the baseline's row count, and
+the defect violates that by construction: the figure it substitutes is
+some other section's, so it sums to that section's total instead (the
+artefact read 0 + 1 = 1). So the sum IS the complete test for this
+defect, and it is cheaper than a re-run. The harness now reads the LAST
+`test result:` line, which fixes it going forward; the sum is how any
+table taken before that change gets confirmed.
 
 ### The zeros, answered by measurement rather than inference
 
@@ -247,9 +267,32 @@ and closures in `assembly_display.rs`, `mate_tool_flow.rs`,
 the `edited` class's third spelling and went the same way. While
 folding `review_gui4_r1`'s closure, two further copies of the same
 construction were found written INLINE in the same file and folded too.
+
+**And that was still not all of it.** A third pass over the same two
+files found three longhand copies of `edit_into`'s construction —
+`mate_tool_flow.rs` directly BELOW two `insert_into` calls this unit had
+just written, and two in `review_gui4_r1.rs` SANDWICHED BETWEEN them —
+all three `SetPlacement` edits, the same edit converted in
+`common/asm.rs` in the same commit. **Three consecutive passes each left
+a member of this class in a file the pass had open**, and the trap was
+named in this row's own prose before the second and third happened. The
+needle that closes it is the in-place half's own tell,
+`git grep -E '= applied\.doc' -- crates/viewer/tests/`, which is the
+converse of the `InsertNode` needle and finds what it cannot: a
+re-spelling of the WRITE-BACK rather than of the edit.
 Left: `docm9_range_vs_probe.rs`, for the interval-lane reason above.
-The class in `crates/viewer/tests/` is now 6 sites in 4 files, of which
-2 are the home and 1 is a caller passing an edit.
+**Re-taken after the last fold** (the figure first written here was
+taken before it and was wrong): `git grep -n 'DocEdit::InsertNode' --
+crates/viewer/tests/` returns **4 textual sites in 3 files**, and none
+of them is a private re-spelling any more —
+`common/mod.rs:125` is `inserted`'s own call, `common/mod.rs:400` is the
+`matches!` pattern inside `common::insert` asserting the session
+committed an insert (an assertion, not a construction),
+`msolve3_placer_refused.rs:76` is a caller handing an `InsertNode` edit
+to `common::edited`, and `docm9_range_vs_probe.rs:43` is the one member
+deliberately left. **The class itself is down to that single member.**
+The converse needle for the in-place half, `git grep -E '= applied\.doc'
+-- crates/viewer/tests/`, returns the same one file and nothing else.
 
 Not censused, and stated rather than implied: `crates/editor-core/tests/`
 (~480 `InsertNode` sites) and `crates/pncad/tests/all.rs` were not
