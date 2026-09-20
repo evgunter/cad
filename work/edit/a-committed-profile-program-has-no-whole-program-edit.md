@@ -2,7 +2,8 @@
 id: a-committed-profile-program-has-no-whole-program-edit
 kind: issue
 title: A committed profile's program can be edited only one argument at a time; no edit reshapes it or writes it whole
-status: open
+status: spec
+branch: edit/program-edit
 opened: 2026-09-18
 ---
 
@@ -148,4 +149,17 @@ kernel unit (v7: a broad design decision), block EDIT-B2 slot 2
 (FABLE), `docs/EDIT-PROGRAM-SPEC.md`; the viewer's drops (the lock,
 the order search, the two refusals) are VIEW's follow-up, announced
 in the spec.
+
+## Ruled and spec'd (2026-09-20, EDIT orchestrator) — kernel unit, v6 dual, block EDIT-B2 slot 2 (FABLE), branch `edit/program-edit`
+
+Spec: `docs/EDIT-PROGRAM-SPEC.md` (wave 17; deleted at merge and
+ledgered). Ev's ruling (B) above is the decision; the spec turns it
+into nine premises — the variant and its provenance, the insert door's
+own checks, the segment map read from the replay record, the
+report-and-rebind walk over both name carriers, the order contract's
+new clause, persistence, the Python door, the two ratified sentences
+re-worded on the ruling, and the viewer follow-up filed on VIEW's
+slate rather than crossed into. Pre-draw fields at the spec (L /
+STRUCTURAL, after the block byte — disclosed). The implementer is
+dispatched when the claim merges; the dual follows on its frozen head.
 
