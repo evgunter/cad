@@ -68,8 +68,8 @@ pub fn pellet<T: Decide>() -> Body<T> {
 /// spanning `z in [z0, z0 + 0.4]`.
 ///
 /// This fixture and its siblings below, through [`rounded_plate`],
-/// are the conic-pruning corpus's operand vocabulary, adopted from
-/// the CERT-N3 dual review with the corpus (`n3r1_prune`'s header).
+/// are the conic-pruning corpus's operand vocabulary. They originated
+/// in `s16_box_soundness` and were adopted from there.
 pub fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
 }

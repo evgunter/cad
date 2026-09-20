@@ -59,7 +59,7 @@ fn lens(z0: f64, h: f64) -> Body<f64> {
 fn lens_under_a_box() -> Body<f64> {
     let tol = Tol::witness();
     let mut body = lens(0.0, 1.0);
-    let b = sweep::test_support::brick((-0.2, 0.2), (-0.1, 0.1), (1.0, 2.0), Tol::witness());
+    let b = sweep::test_support::brick((-0.2, 0.2), (-0.1, 0.1), (1.0, 2.0), tol);
     topo::graft_disjoint(&mut body, &b, tol).expect("two disjoint solids in one body");
     body
 }
