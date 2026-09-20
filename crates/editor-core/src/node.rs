@@ -821,7 +821,6 @@ pub enum Datum {
 ///
 /// ```compile_fail,E0308
 /// let _ = editor_core::InterfaceCrossing::Mate {
-///     mate: editor_core::RecipeNodeId(0),
 ///     class: editor_core::ContactClass::Rest,
 ///     outer: named(editor_core::EntityKind::Edge),
 ///     inner: named(editor_core::EntityKind::Edge),
@@ -848,7 +847,6 @@ pub enum Datum {
 /// };
 ///
 /// let _ = editor_core::InterfaceCrossing::Mate {
-///     mate: editor_core::RecipeNodeId(0),
 ///     class: editor_core::ContactClass::Rest,
 ///     outer: face(),
 ///     inner: face(),
@@ -877,9 +875,14 @@ pub enum InterfaceCrossing {
     /// remainder's mate now reads, and re-wrapping is the split's
     /// rebind, so storing the wrapper twice would be storing a
     /// derivable fact.
+    ///
+    /// **No provenance.** A crossing carries what the seam needs and
+    /// nothing about where it came from: the mate the split observed
+    /// is not a field, because no door resolves it, nothing
+    /// recomputes from it, and an id the record cannot keep honest —
+    /// a later delete of the mate is not reported — is a reference
+    /// with no reader to protect.
     Mate {
-        /// The crossing mate, in the remainder.
-        mate: RecipeNodeId,
         /// The class the crossing declares.
         #[serde(with = "crate::persist::kernel_wire::contact_class")]
         class: crate::mate::ContactClass,
@@ -3494,9 +3497,8 @@ impl<P> Node<P> {
     }
 
     /// **The nodes a payload's references are READ AT that are not
-    /// also DAG inputs** — a mate's two operands, a declared pair's
-    /// two sites, and a provenance id the payload carries into this
-    /// document: an instance's crossing `mate`.
+    /// also DAG inputs** — a mate's two operands and a declared
+    /// pair's two sites.
     ///
     /// The insert door checks these are live exactly as it checks a
     /// payload name's head, and for the same reason: a never-existed
@@ -3517,42 +3519,29 @@ impl<P> Node<P> {
             // consumer's operand is the EVALUATION's refusal, not the
             // insert door's.
             Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a.at, b.at]).collect(),
-            // An instance's crossing `mate`, in record order: the
-            // remainder-side mate the split observed crossing its
-            // cut. It is PROVENANCE rather than an operand — nothing
-            // recomputes from it, and what reads it is prose (the
-            // `CrossingUnverified` refusal names it, and the binding
-            // republishes it) — but it is an id this payload carries
-            // INTO this document, so the typo rule is the same one:
-            // an id that never existed here is a typo, refused at
-            // this door. A later delete of it is not reported, as a
-            // read site's is not: the record then names a mate the
-            // document no longer holds, which is exactly what the id
-            // always denoted.
-            Node::InstantiatePart { interface, .. } => interface
-                .crossings
-                .iter()
-                .map(|crossing| {
-                    let InterfaceCrossing::Mate { mate, .. } = crossing;
-                    *mate
-                })
-                .collect(),
             // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
             // is classified here or does not compile — the promise
-            // the twins above already keep. Two groups: the
+            // the twins above already keep. Three groups: the
             // name-free variants, which reference nothing that could
             // have a read site (one home for that list,
-            // [`name_free_node`]); and the named variants whose
+            // [`name_free_node`]); the named variants whose
             // references are read at a node the DAG ALREADY CARRIES
             // — a blend's and a shell's at the body they consume, a
             // derived frame's and a measure's at an `at` that
             // [`Node::inputs`] reports — so the input check covers
-            // the site and there is nothing extra to name here.
+            // the site and there is nothing extra to name here; and
+            // an instance, whose interface record holds NO node id at
+            // all ([`InterfaceCrossing::Mate`] argues why). A crossing
+            // is a class and two face names: the `outer` is a payload
+            // name, checked as one by the reading twin's list, and the
+            // `inner` is spelled in the part's id space, which no door
+            // here may read.
             name_free_node!()
             | Node::Fillet { .. }
             | Node::Chamfer { .. }
             | Node::Shell { .. }
             | Node::Datum(Datum::FaceFrame { .. })
+            | Node::InstantiatePart { .. }
             | Node::Measure { .. } => Vec::new(),
         }
     }
