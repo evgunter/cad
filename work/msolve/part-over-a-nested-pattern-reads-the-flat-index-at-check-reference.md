@@ -2,9 +2,11 @@
 id: part-over-a-nested-pattern-reads-the-flat-index-at-check-reference
 kind: issue
 title: check_reference treats a Node::Part above a pattern as naming its structural copy, but over a nested pattern's Instances a Part(k) selects the flat body k = j·M + i, so a mate read at such a Part refuses typed whenever k differs from j
-status: open
+status: closed
 opened: 2026-09-08
 refs: [2173, MSOLVE-2]
+closed: 2026-09-19
+pr: 2885
 ---
 
 (EVAL orchestrator) From EVAL-6 (PR 2173), which built ruling 2137:
@@ -37,3 +39,21 @@ whether the walk should name a copy by `(j, i)` rather than by a
 flat `Part`. The four-case row lands in
 `msolve1_transform_aware.rs` with the fix. Citations accurate at
 `829b37e21`.
+
+## Closed (2026-09-19, PR 2885)
+
+Closed by citation under MSOLVE-7. The decomposition landed with
+EVAL-6's fix pass (the four-case row `msolve1_transform_aware::a12_a_
+part_over_a_nested_pattern_agrees_in_the_flat_index`). The check's
+own account of the index space is `check_reference`'s doc in
+`crates/editor-core/src/mate/member.rs` — the paragraph beginning
+"a `Part` standing above a pattern": a pattern's value is laid out
+placement-major, copy `(j, i)` of a pattern over a pattern is flat
+body `j·M + i` by `names::flat_body_index` (the evaluator's own
+layout), and the name's copy chain below the `Part` folds through
+every pattern level down to the next `Part` into the flat index the
+`Part` must select, so the two readers cannot drift. The unit changed
+no word of it. The `(j, i)` question is ruled in the spec
+(`docs/MSOLVE-7-SPEC.md` §3): the walk keeps naming by the flat
+`Part` — `Part(k)` is the document's vocabulary and a `(j, i)`
+spelling would be a second vocabulary for one selection.

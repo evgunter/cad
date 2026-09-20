@@ -25,7 +25,7 @@ test_utils::loud_skip_marker!(
 );
 
 #[cfg(feature = "interval")]
-mod certified {
+pub(crate) mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
@@ -51,20 +51,48 @@ mod certified {
 
     const R: f64 = 0.35;
 
-    fn plate() -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            p2(0.0, 0.0),
-            p2(3.0, 0.0),
-            p2(3.0, 3.0),
-            p2(0.0, 3.0),
+    /// The 3x3x0.8 plate. **`pub(crate)` because
+    /// `review_arceval_r1_probes`'s E2 row re-runs this fixture to pin
+    /// the same constant from a second file**: the two rows say they use
+    /// the same plate, and this is what makes that so rather than saying
+    /// it.
+    pub(crate) fn plate() -> Body<Interval> {
+        sweep::test_support::block(3.0, 3.0, 0.8, Tol::witness())
+    }
+
+    /// A ball of radius `r` about the origin: a half-disc lamina —
+    /// semicircle out of `(0, -r)`, straight diameter back — revolved
+    /// a full turn about `+y`.
+    ///
+    /// **`pub(crate)` for the same reason [`plate`] is**: this is the
+    /// other operand of the sphere-recut fixture, and
+    /// `review_arceval_r1_probes` builds bodies from it too. It takes
+    /// `r` because that suite's E1 row varies it; this file only ever
+    /// wants 1.
+    pub(crate) fn ball(r: f64) -> Body<Interval> {
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+            ProfileVertex::new(p2(0.0, -r), iv(1.0)),
+            ProfileVertex::new(p2(0.0, r), iv(0.0)),
         ]);
-        extrude(
-            &validated(vec![lp]),
-            Extrusion::Distance(iv(0.8)),
+        let axis = RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(iv(0.0), iv(1.0)),
+        };
+        revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
+            .unwrap()
+            .body
+    }
+
+    /// The sphere-recut fixture's cutter: the unit [`ball`] at
+    /// `(1.5, 1.5, 0.5)`. With [`plate`] it is the whole fixture, and
+    /// `review_arceval_r1_probes`'s E2 row builds it from here too.
+    pub(crate) fn recut_ball() -> Body<Interval> {
+        topo::transform_rigid(
+            &ball(1.0),
+            &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
             Tol::witness(),
         )
         .unwrap()
-        .body
     }
 
     /// The three-arc cylindrical boss at (1.2, 1.7), sketched at `z0`.
@@ -257,7 +285,7 @@ mod certified {
     // drawing default-ε only, so no run compared this constant until a
     // later branch drew (interval, 1e-12). Re-stated, not loosened, as
     // the constant's own doc requires.
-    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
+    pub(crate) const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
 
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
     /// the sphere class now goes ALL the way through at the certified
@@ -286,25 +314,7 @@ mod certified {
     /// is a designed outcome, not a red.
     #[test]
     fn interval_sphere_subtract_decides_definitely_after_the_recut() {
-        // The half-disc lamina: a semicircle out of (0, -1) and the
-        // straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), iv(1.0)),
-            ProfileVertex::new(p2(0.0, 1.0), iv(0.0)),
-        ]);
-        let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
-        };
-        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
-            .unwrap()
-            .body;
-        let ball = topo::transform_rigid(
-            &ball,
-            &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
-            Tol::witness(),
-        )
-        .unwrap();
+        let ball = recut_ball();
 
         let cut = topo::subtract(&plate(), &ball, Tol::witness());
         if Tol::witness().eps() < RECUT_MAPPED_ENCLOSURE_HI {

@@ -504,3 +504,44 @@ refuses; one `PartReach::with_resolver` at every resolver-only door;
 Spec into the ledger at the unit head. Closes the lever item and the
 reconcile fork. Next: MSOLVE-7 (member.rs residue + the `MatePrimitive`
 wire hole), then MSOLVE-8, -9, -10 per `plan.md`.
+
+## MSOLVE-7 reviews adjudicated, fix pass dispatched (2026-09-19)
+
+PR 2885, head `6e27dac6a`. Correctness arm: C1–C4 HOLD (the offset
+is the document's nominal parameter bit for bit and follows a
+`SetDocParamValue`; the dangling-transform seat is the transform on
+both roads; 219 mate rows unchanged at three ε; the stray key refuses
+at the load door and loaded before the attribute). One MINOR: a
+transform over a DATUM as a circular pattern's axis is reachable
+through `apply`, and there the derivation still seats `WrongOperand`
+at the pattern while the evaluation seats it at the transform — the
+unit's own "live transform" row asserts one road on a fixture the
+evaluation refuses. Ruled: the unit's thesis is one seat, so that
+shape is seated at the transform through the one classifier, not a
+copied rule, with both roads on the row. Style: no MAJOR; the
+evaluator builds its nominal environment and then calls the solve,
+which builds a second (the class this unit closes, open at its own
+boundary — ruled: a crate-private solve entry that takes the
+evaluator's environment); the eight-parameter `solve_cluster` behind
+a clippy allow (ruled: a per-solve context, which the spec's "no
+cache that outlives the solve" never forbade); the seated pair spelled
+three ways; `node_value_kind` taking an id and its node; the A1 scan
+row's vacuous-green shapes; the environment sentence restated six
+times beside its new home; debug-string asserts; a stale
+`PlacerRefused::placer` doc. Thirteen items to the lane; two rows to
+file (the maintenance half of `solve.rs`, the `null` spelling of a
+unit variant).
+## MSOLVE-7 MERGED (2026-09-19, PR 2885)
+
+The member walk's residue: one nominal environment per solve, handed
+in by the evaluator; the axis operand's refusals seated where the
+evaluation seats them through one classifier; the flat index's
+account closed by citation; the mate wire's one `deny_unknown_fields`
+hole closed. Reviews on `6e27dac6a` (correctness PASS with one MINOR,
+style no MAJOR); the thirteen-item fix pass landed in one push over
+one merge with main. Orchestrator spot-check on the diff: `evaluate`
+→ `solve_with_env`; the `Solve` context; `node_value_kind` by id
+tracking the placer; seven both-roads seat rows; the A1 pin naming
+its functions. Spec into the ledger at the unit head. Closes the four
+items; four rows filed (three here, one on WIRE). Next: MSOLVE-8
+(`docs/MSOLVE-8-SPEC.md`, on the orchestrator branch), then -9, -10.

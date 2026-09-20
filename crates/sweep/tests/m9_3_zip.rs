@@ -20,16 +20,10 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// A rectangular plate [0,6]×[0,4], z ∈ [z0, z0 + 1].
+/// `r1_probes_m9_3::plate6`'s box: a rectangular plate [0,6]×[0,4],
+/// z ∈ [z0, z0 + 1].
 fn plate(z0: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(6.0, 0.0), p2(6.0, 4.0), p2(0.0, 4.0)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    sweep::test_support::brick((0.0, 6.0), (0.0, 4.0), (z0, z0 + 1.0), Tol::witness())
 }
 
 /// A radius-0.5 three-arc cylinder at (cx, 2), z ∈ [z0, z0 + h].

@@ -59,7 +59,7 @@ fn gallery_ring(tol: Tol) -> DocSession {
 /// The same fixture as a document, for the rows that open every
 /// document the same way.
 fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
-    let text = include_str!("gallery_ring.pncad");
+    let text = crate::common::GALLERY_RING;
     // The fixture is stamped at the ε it was born at; `doc_io.rs` owns
     // the re-stamp and the proof that ε is its only ε-dependent byte.
     // Here the document only has to LOAD, so the born-at ε is fine and
