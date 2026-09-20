@@ -3932,6 +3932,33 @@ no A/B row.
 
 - `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)
 
+## Per-merge deletion — EDIT-RADIUS's spec (2026-09-20)
+
+Recoverable at `git show 370e560e7:docs/EDIT-RADIUS-SPEC.md` (PR
+#2892's frozen review head; the spec was not amended on the branch —
+its two corrected premises are argued in the PR body and recorded in
+the unit row's `## Built`). EDIT's second kernel unit of block
+EDIT-B2, ruled by the EDIT orchestrator on the row's own analysis and
+DM8: the replay record gains a per-radius emission record
+(`ReplayStructure.radii`) and DM8's map reads it in place of "one
+radius, one segment", the key's feed widening with the attach so
+"attached ⊆ keyed" holds by construction. Its central premises held —
+the record's shape and home, the emission at the moment the bulge is
+set, the map through the one checked permutation, the feed's
+inclusion, DM8's sentence re-worded not re-decided — and two fell
+before the build, each corrected by the implementer against the
+tree: premise 2's "the current step is the emitter" names, for a
+fused verb's carrier arc, an `At`/`Toward` holding no radius (every
+role addresses the fused verb's own step); and the three-radii row's
+"two `Sweep` specs" is unrepresentable (`arc_fillet_arc(Sweep, r,
+Radius)` is the chain). None fell to the dual, which was
+APPROVE-WITH-FIXES on both arms with no MAJOR; its findings and the
+fix pass that built their union are the unit row's `## Built` and
+its `### Fix pass`. The rule above; the unit's record is its row's
+`## Closed`, its row in `MODEL-AB-LOG.md` (ordinals 4806/4807, sample
+#223; block EDIT-B2 slot 1 concluded) and the MERGED entry in
+`work/edit/log.md`.
+
 ## Per-merge deletion — EDIT-DECL's spec (2026-09-19)
 
 Recoverable at `git show df47b36ab:docs/EDIT-DECL-SPEC.md` (PR
@@ -4056,3 +4083,23 @@ and its MERGED entry in `work/msolve/log.md` (no A/B row: the program
 runs none).
 
 - `MSOLVE-6-SPEC.md` — MSOLVE-6, the mate's lever is the mated parts' own extent (#2116)
+
+## Per-merge deletion — MSOLVE-7's spec (2026-09-19)
+
+Recoverable at `git show dcf5e149d5f7ef97154473f499011b54f27e03c3:docs/MSOLVE-7-SPEC.md`
+(the MSOLVE-7 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held; three of its sentences did
+not survive measurement. It named `fold_pair` as `derived_offset`'s
+caller, which is `pair_left_factor` (the lane took the better
+letter). It said a delete's dependents cascade, which the door
+measures as a `DeleteWouldDangle` refusal — the condition is
+unreachable either way, as the spec said. And its §2 seated only the
+dangling-input shape at the transform, while a transform over a
+DATUM as the axis is reachable through `apply` and was seated at the
+pattern on one road and the transform on the other; the fix pass
+seated it at the transform through the one classifier, which is the
+spec's thesis carried one shape further. The rule above; the unit's
+record is its item's `## Closed` section and its MERGED entry in
+`work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-7-SPEC.md` — MSOLVE-7, the member walk's residue: one environment, one seat, one account, one attribute (#2885)

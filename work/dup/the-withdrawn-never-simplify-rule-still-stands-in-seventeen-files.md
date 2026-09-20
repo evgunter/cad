@@ -2,8 +2,10 @@
 id: the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files
 kind: issue
 title: Ev withdrew the reviewer-suite no-simplify rule; nineteen files under crates/ still state it, in two sentences that need different dispositions
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-09-19
+pr: 2886
 ---
 
 
@@ -161,3 +163,185 @@ the thing Ev withdrew.
 - Whether `work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md`,
   which the memory cites as the cause of the withdrawal, still exists
   anywhere; it is not at that path on `main`.
+
+## Closed 2026-09-19 — the denominator was the citation, and three of this row's numbers were wrong
+
+### The sentence census, re-taken at `5b4979ef2`
+
+Instrument: every tracked file (`git ls-files`, **no path argument**),
+each file's comment markers stripped and the whole file collapsed to one
+whitespace-normalised string before matching — so a sentence that wraps
+across `//!` lines is one token, which is the defect that beat this row
+three times. `do not\s*"?simplify"?` returns **six** files: the three
+`topo` carriers of the SURVIVING rule
+(`src/review_m1_pr3.rs`, `src/review_m1_pr4.rs`,
+`tests/review_m1_pr5.rs`) and three tracker files. **The sixteen
+group-A carriers no longer contain the sentence**: it was removed by the
+carrier PR that `the-pr-17-promotion-attribution-is-half-checked`
+records, and `work/comb/S36.md` already logs the removal. So this row's
+title — *nineteen files under `crates/`* — was stale when this unit
+opened, and so was its claim that `review_m1_pr3.rs`'s header still
+says *"the programs are kept"*: that header now reads *"the useful ones
+enter the permanent suite as ORDINARY rows … nothing here is a
+protected class"*, which is the corrected text.
+
+Two false positives the instrument returns and a reader must discard:
+`local-scripts/monitors/github-away-channel.sh` (*"Do not 'simplify'
+this back to one feed"*) and `tools/tess-lint/src/main.rs` (*"do NOT
+simplify a demo's geometry"*). Same words, unrelated subject — which is
+the answer to this row's second unmeasured item: **the withdrawn rule
+has no carrier outside `crates/`.**
+
+### The citation census — 35 files, each dispositioned
+
+Same instrument, needle `review-and-dependency-policy`. Blind spot: a
+file that states the withdrawn ground **without naming the memory** is
+invisible to it (`review_gui0_r1`/`_r2` state their own grounds and do
+not cite; both were read by hand and neither grounds itself in what the
+file is).
+
+**All three counts below are FILES, not citation sites.** Two files
+carry more than one site — `crates/viewer/Cargo.toml` (four) and
+`work/tcost/plan.md` (two) — and neither changes a file count. 35 = 28
++ 7.
+
+- **Cites a SURVIVING clause — 28 files, no action.** Named in full,
+  because a number and a list that are not the same object is where a
+  census loses things:
+  1. `.github/workflows/ci.yml` — dependency age
+  2. `Cargo.toml` — dependency age
+  3. `benches/Cargo.toml` — dependency age
+  4. `crates/pncad-py/Cargo.toml` — dependency age
+  5. `crates/viewer/Cargo.toml` — dependency age, four sites
+  6. `crates/editor-core/tests/m10_2_r1_probes.rs` — retirement licence
+  7. `crates/step-export/tests/rev_probe.rs` — retirement licence
+     (accurate in substance; it attributes *"a row that asserts nothing
+     is never a gate"* to this memory when that sentence is
+     `test-suite-cost`'s — mis-shelved, not withdrawn)
+  8. `crates/topo/src/review_m1_pr3.rs` — the surviving rule, scoped to
+     the derivations
+  9. `crates/topo/src/review_m1_pr4.rs` — same
+  10. `crates/topo/tests/review_m1_pr5.rs` — same
+  11. `memories/MEMORY.md` — the index line, corrected text
+  12. `memories/orchestration-model.md` — ordinary-rows rule
+  13. `memories/review-and-dependency-policy.md` — the memory itself
+  14. `memories/test-suite-cost.md` — retirement, cross-reference
+  15. `docs/REVIEW-STYLE-DISPATCH.md` — the causal-story rule
+  16. `work/view/log.md` — the causal-story rule
+  17. `work/sym/logs/sym-4-review-brief-r1.md` — bare pointer
+  18. `work/sym/logs/sym-4-review-brief-r2.md` — bare pointer
+  19. `work/sym/logs/sym-5-review-brief-r1.md` — bare pointer
+  20. `work/sym/logs/sym-5-review-brief-r2.md` — bare pointer
+  21. `work/comb/S36.md` — records the correction
+  22. `work/dup/log.md` — records the correction
+  23. `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`
+      — cites the surviving clause
+  24. `work/dup/the-pr-17-promotion-attribution-is-half-checked.md` —
+      quotes the withdrawn clause as withdrawn
+  25. `work/dup/the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files.md`
+      — this row
+  26. `work/dup/viewer-review-suites-cite-the-withdrawn-independence-reading.md`
+      — the viewer row
+  27. `work/tcost/plan-states-the-withdrawn-reviewer-independence-rule.md`
+      — the sibling row, which quotes its carrier
+  28. `work/tint/tint-plan-states-the-withdrawn-reviewer-independence-rule.md`
+      — the sibling row, which quotes its carrier
+- **Cites a WITHDRAWN clause — 7 files.**
+  - `crates/viewer/tests/common/mod.rs`, `review_gui2_r1.rs`,
+    `review_gui2_r2.rs`, `review_gui3_r1.rs` — the viewer row's four.
+    **Fixed in this PR**, per file, on the surviving ground.
+  - `crates/sweep/examples/p1b_r2_ab.rs` — cites *"`memories/
+    review-and-dependency-policy`'s promotion rule"*, a named clause
+    the memory no longer has. **Fixed in this PR**: the
+    assertion-free-never-gates claim now cites `test-suite-cost`, which
+    is where it lives, and the policy memory is cited for the
+    ordinary-row rule, which is what it says.
+  - `work/tcost/plan.md` (two sites) and `work/tint/plan.md` — already
+    owned by `work/tcost/plan-states-the-withdrawn-reviewer-independence-rule`
+    and `work/tint/tint-plan-states-the-withdrawn-reviewer-independence-rule`.
+    Not touched: one file, one item.
+
+### The three surviving `topo` carriers keep their code, on the surviving ground
+
+`review_m1_pr3.rs`, `review_m1_pr4.rs` and `tests/review_m1_pr5.rs`
+scope *do not "simplify" them to match the implementation('s comments)*
+to the **derivations** — ledgers, anchor rules, orbit orders,
+slot/generation semantics, the splice taxonomy, the separating-curve
+argument — and each names what the derivation was computed from
+instead (Mäntylä ch. 9/11, the pinned PR 1/2/3 surgeries). That is the
+surviving clause's test answered in the file: the thing the row would
+otherwise read is the implementation's own commentary, and a wrong
+convention there would be invisible to a row that read it. No edit.
+Their headers already carry the corrected citation.
+
+### The first unmeasured item: it cannot be settled from git here
+
+*Was any group-A header ratified by Ev, file by file?* The check does
+not reach a conclusion in this checkout, and the reason is not only the
+shallow grafts that
+`the-ratification-check-claude-md-prescribes-is-unreliable-here`
+measured. Reading the oldest commits on those paths oldest-first, the
+promotions (`d3d61be50`, `633d98c68`, `eff70cfc6`, all 2026-07-16/18)
+are authored **`Evan Ryan Gunter <evgunter@gmail.com>`** and their
+messages are plainly lane work (*"tests: promote salvaged M0
+adversarial-review demos into CI"*, *"PR 2 fix pass: …"*). `CLAUDE.md`
+says that address *"signs every commit already"*; across the carrier
+paths, 160 commits are authored `Claude` and 69 carry Ev's name or
+address. **So the author field is not a discriminator**, and
+`git log`'s answer to "did Ev write this" is the same account-conflation
+trap `the-pr-17-promotion-attribution-is-half-checked` names on the
+GitHub side. This is a firmer result than *unmeasured*: the prescribed
+check cannot answer the question in this repo at all.
+
+### The third unmeasured item: the cited issue existed and was deleted
+
+`work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md` is not in
+the tree, was deleted by `499122b10` (*"work: code-quality leaves the
+tracker (DOC-LEDGER sweep 11)"*), and is readable at `81b5a3cfb`:
+`kind: issue`, opened 2026-09-03, **closed 2026-09-04** — the day of
+the withdrawal — raised by TCOST-10's style review over
+`crates/geom-brep/tests/shared/mod.rs` and
+`crates/sweep/tests/common/cavity.rs`. The memory still cites the dead
+path; that is `the-policy-memory-cites-a-tracker-file-that-left-the-tree`,
+filed for Ev because `memories/` is his.
+
+## The third instrument, run on the style review's instruction (2026-09-19)
+
+The citation census's declared blind spot — *a file stating the
+withdrawn ground without naming the memory* — was closed by hand-reading
+two files, which is not an instrument. Method item 8 says a disclosed
+blind spot is an instruction to run another one, so one was run:
+enumerate the **class-shaped ground** itself over every tracked file,
+markers stripped and text joined — a generalisation over what a file IS
+(*"a/the/every review suite"* plus a property, *"reviewer suites
+are/keep/derive"*, *"derives what it needs independently"*, *"the
+independence is/worth…"*, *"protected class"*, *"promoted as-is"*,
+*"keep verbatim"*, *"like every other fixture here"*). **28 files.**
+
+Discarding the homonyms — six files where *"independence"* is a
+numeric quantity (a `|det|`, an order-independence claim) — the live
+carriers the citation census could not see were **two**, and both are
+real:
+
+- `crates/viewer/tests/review_gui3_r2.rs` — *"this suite's own, like
+  every other fixture here (a review suite derives what it needs
+  independently)"*, over a **fourth** copy of the `xy_frame` body, plus
+  private `len`/`scl`/`tempdir`. Fixed: ground restated on what its
+  rows assert, sugar shared.
+- `crates/viewer/src/camera.rs` — in **`src/`**, and it lets the
+  withdrawn reading decide a public error vocabulary rather than a test
+  fixture. Filed as
+  `a-viewer-error-arm-is-not-split-because-a-review-suite-pins-it`.
+
+`review_gui4_r1` and `review_gui4_r2` were read too and are **not**
+carriers: both ground their own derivation on a named self-consistency
+defect in the shipped oracle (*"the solve derives the placement FROM
+the authored alignment, so that assertion holds for any alignment the
+tool mints"*), and `gui4_r1` carries a measured mutation for it. That
+is the surviving clause, not the withdrawn one.
+
+**Blind spot of the third instrument**: it matches a ground phrased as
+a generalisation. A file declining a change for the same bad reason,
+phrased entirely about one named suite, would not match — and nothing
+tells that apart from a legitimate instance-specific argument except
+reading it.

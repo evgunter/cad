@@ -2338,10 +2338,8 @@ mod tests {
     //! build takes.
 
     use bvh::Ray;
-    use geom_core::{Point2, Point3, Tol, Vec3};
+    use geom_core::{Point3, Tol, Vec3};
     use mesh::tessellate_with;
-    use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
-    use sweep::{Extrusion, extrude};
     use test_utils::fuzz;
     use topo::Body;
 
@@ -2351,18 +2349,7 @@ mod tests {
     };
 
     fn unit_prism() -> Body<f64> {
-        let square = ProfileLoop::polygon([
-            Point2::new(0.0, 0.0),
-            Point2::new(1.0, 0.0),
-            Point2::new(1.0, 1.0),
-            Point2::new(0.0, 1.0),
-        ]);
-        let profile = Profile::new(SketchPlane::xy(), vec![square])
-            .validate(Tol::witness())
-            .expect("a square validates");
-        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-            .expect("a square extrudes")
-            .body
+        sweep::test_support::cube(1.0, Tol::witness())
     }
 
     /// A patch the memo holds no entry for is built every time and

@@ -2,11 +2,12 @@
 id: sweep-test-support-brick-is-still-a-second-box-construction
 kind: issue
 title: sweep::test_support::brick still builds the box a second way; one measured thing blocks the delegation and two scope it
-status: review
+status: closed
 opened: 2026-09-18
 refs: [brick-has-two-constructions-and-two-homes]
 branch: dup/sweep-brick-delegation
 pr: 2877
+closed: 2026-09-19
 ---
 
 ## Finding
@@ -215,3 +216,35 @@ the fold rather than about a fixture nothing executes.
 
 The residue the unit's own structural needle turned up is
 `work/dup/private-extruded-box-builders-outside-the-brick-door.md`.
+
+## Closed (2026-09-19, PR #2877)
+
+`brick`, `block` and `cube` are `topo::test_support::brick`. **One
+construction of the axis-aligned box in the tree.**
+
+All three sections of this row were stated as costs and **none had ever
+been run**:
+
+- **§3** — the delegation moves **zero** of the 17 committed `.step`
+  bytes, with the probe proved live (a `+0.001` mutation moves 5).
+- **§1's first premise** — *"at least one call site passes a genuinely
+  `T`-typed value"*. Not one does. All four are an `f64` constant lifted
+  at the call site, which is what the door now does internally, and two
+  of the four were invisible to this row because they sit behind
+  `interval` and `probe`.
+- **§1's second premise** — *"a change to what that paragraph says"*.
+  The header claims genericity **in the scalar**, which a door returning
+  `Body<T>` from `f64` extents keeps; `corners`, twenty lines below in
+  the same file, already takes `f64` pairs at every scalar.
+- **§2** was already corrected here on 2026-09-19 and Ev cleared the
+  manifest change.
+
+The row's numerical objection to the other direction is **true of the
+formulation it names and false of the approach**: `prism_ops` evaluates
+its map only at the profile's corners, so a selector map is exact. That
+option was built, measured arena-identical, and rejected for a better
+reason — it serves zero call sites.
+
+Residue: `work/dup/private-extruded-box-builders-outside-the-brick-door.md`.
+The `(s1, s2)` blind spot this row inherited is now measured and lives
+on `work/carve/intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself.md`.

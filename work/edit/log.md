@@ -678,3 +678,49 @@ DM8's map reads it in place of "one radius, one segment", and the
 key's feed widens so attached ⊆ keyed holds by construction; PATHS's
 and BLEND's seams announced. The implementer is dispatched; the dual
 follows on its frozen head. Ev has not yet replied on `[ev]` #2869.
+
+## 2026-09-20 — eleventh sitting: wave 14 merged (EDIT-RADIUS), two `[ev]` answers, one row filed
+
+Merged: EDIT-RADIUS (#2892, kernel unit, block EDIT-B2 slot 1, v6
+dual, ordinals 4806/4807 claimed on #2893, sample #223 — the replay
+record says which segment each radius drew: `ReplayStructure.radii`, a
+fillet arc credited to the step that bound its radius and a carrier
+arc to the fused verb's own step, DM8's map reading it through the one
+checked permutation both of its doors now share; the finding's own
+`FilletArc { Via }` arrival authored green; the spec's premise 2 and
+its three-radii row corrected by the implementer before the build.
+The dual: R1 fable 0/4/6, R2 opus 0/5/3, both APPROVE-WITH-FIXES, no
+MAJOR, tally +0; convergent on the guided fence's `Carrier2` blind
+spot, the exact-fit close's fillet arc that nothing re-read (the PR's
+stated reason for not filing measured false by both), the refusal
+sentence's doubled word and two false PR-body sentences; R2 alone on
+`segment_radii`'s carrier arm skipping the span check the chain arm
+goes through — the factoring minting the class it closed, one arm
+out. The fix pass built the union under eleven rulings: one checked
+walk for both arms with a typed refusal for a carrier record carrying
+emissions, the exact-fit arm through `record_fillet_arc` (the door now
+refuses the doubled-bulge mutant outright — the PATHS row both
+reviewers filed is closed by the PR, the duplicate folded), one
+address spelling and one `Option` for the pending fillet, the two mode
+vocabularies pinned against each other, a `Radius`-arrival chain in
+the coverage corpus with its interval relay pinned and explained, the
+§5 preamble one home; one red CI run on the way, the lane not having
+built `--features interval` locally). The spec is deleted and
+ledgered; the slot-1 line is on `edit/b2-block`; slot 2 (FABLE) banks.
+**Sample-number correction, disclosed on the row**: the next free
+sample was #223, not #217 — EDIT-DECL's "#216, prior highest #215"
+of the eighth sitting was written against a stale count while BOOL4
+held #217 and other programs #218–#222; #216 is unique and stands.
+
+Ev: `[ev]` #2869 ratified and merged (Ev's condition — "if there is no
+architecturally nicer way to do all of these" — answered per item on
+the PR: only the crossing mate id might have a nicer shape, and it is
+filed as `crossing-mate-id-is-provenance-that-nothing-reads`, #2890).
+`[ev]` #2889 opened on `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+(compose each candidate's `t` interval with its triangle's certified
+deviation, by patch surface kind); Ev asked what was being proposed
+and restated ε (kernel-to-real) against δ (tessellation-to-kernel);
+answered that the proposal is about δ alone, with the user-visible
+consequence (a pick within the sag of an edge between two curved
+faces refuses) and the three alternatives restated. Awaiting Ev's
+reading.

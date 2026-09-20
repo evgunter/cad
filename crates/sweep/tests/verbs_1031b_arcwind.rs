@@ -92,26 +92,7 @@ fn teapot_cup(tol: Tol) -> Body<f64> {
 
 /// A cutter box: `x in [0.02, 0.2]`, `y in [-0.01, 0.1]`, `z in [0, 0.3]`.
 fn cutter(tol: Tol) -> Body<f64> {
-    let lp: ProfileLoop<f64> = Open
-        .at(Point2::new(0.02, -0.01))
-        .line_to(Point2::new(0.2, -0.01), tol)
-        .expect("south")
-        .line_to(Point2::new(0.2, 0.1), tol)
-        .expect("east")
-        .line_to(Point2::new(0.02, 0.1), tol)
-        .expect("north")
-        .line_to(Start, tol)
-        .expect("west")
-        .into();
-    sweep::extrude(
-        &Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol)
-            .expect("a rectangle is a valid profile"),
-        sweep::Extrusion::Distance(0.3),
-        tol,
-    )
-    .expect("a rectangle extrudes")
-    .body
+    sweep::test_support::brick((0.02, 0.2), (-0.01, 0.1), (0.0, 0.3), tol)
 }
 
 /// **The differential**: the UNMERGED cup is a non-maximal operand and

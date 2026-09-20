@@ -9,7 +9,8 @@ use core::f64::consts::PI;
 use crate::common::approx::band;
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material, implicit_residual};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane};
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -22,16 +23,6 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(p2(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
-}
-
-fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp: ProfileLoop<f64> = RawLoop::polygon([p2(x0, y0), p2(x1, y0), p2(x1, y1), p2(x0, y1)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(z1 - z0), tol)
         .unwrap()
         .body
@@ -158,7 +149,7 @@ fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
     let tol = Tol::witness();
     let cap = topo::union(
         &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
-        &boxx(-0.3, 0.3, -0.3, 0.3, 1.0, 3.0),
+        &brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
         tol,
     )
     .expect_err("the planar cap pierce has no join arm");
@@ -174,7 +165,7 @@ fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
     // is the part that moved.
     let wall = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &boxx(-1.1, 1.1, -0.3, 0.3, -0.3, 0.3),
+        &brick((-1.1, 1.1), (-0.3, 0.3), (-0.3, 0.3), tol),
         tol,
     )
     .expect_err("the curved wall pierce has no join arm");
@@ -233,8 +224,12 @@ fn r1_the_cone_fixture_names_its_own_door() {
         .unwrap()
         .body
     };
-    let err = topo::union(&frustum, &boxx(-1.0, 1.0, -0.05, 0.05, 0.25, 0.35), tol)
-        .expect_err("no arm for a cone pierce");
+    let err = topo::union(
+        &frustum,
+        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+        tol,
+    )
+    .expect_err("no arm for a cone pierce");
     // Measured, not assumed.
     assert!(
         matches!(
@@ -258,7 +253,7 @@ fn r1_the_cone_fixture_names_its_own_door() {
 #[test]
 fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     let tol = Tol::witness();
-    let bar = boxx(-3.0, 3.0, -1.0, 1.0, -0.3, 0.3);
+    let bar = brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), tol);
     let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
     let err = topo::union(&pipe, &bar, tol).expect_err("a tangency keeps the pierce door");
     let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
