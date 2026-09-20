@@ -1191,9 +1191,14 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Tol::witness(),
         None,
     ) {
-        Err(SplitError::NameStraddlesCut { name }) => {
+        Err(SplitError::NameStraddlesCut { name, missing }) => {
             assert_eq!(*name, straddler);
-            let msg = format!("{}", SplitError::NameStraddlesCut { name });
+            assert_eq!(
+                missing, None,
+                "the straddle classification weighs the whole derivation set, so it singles \
+                 out no one node"
+            );
+            let msg = format!("{}", SplitError::NameStraddlesCut { name, missing });
             assert!(
                 msg.contains("both sides"),
                 "the message states the fault: {msg}"
@@ -1242,10 +1247,26 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Tol::witness(),
         None,
     ) {
-        Err(SplitError::PartNameReachesRemainder { node, name }) => {
+        Err(SplitError::PartNameReachesRemainder {
+            node,
+            name,
+            missing,
+        }) => {
             assert_eq!(node, decl);
             assert_eq!(*name, reaching);
-            let msg = format!("{}", SplitError::PartNameReachesRemainder { node, name });
+            assert_eq!(
+                missing, kept_e,
+                "and the node outside the cut that it reaches, which the carrier id does not \
+                 say"
+            );
+            let msg = format!(
+                "{}",
+                SplitError::PartNameReachesRemainder {
+                    node,
+                    name,
+                    missing
+                }
+            );
             assert!(
                 msg.contains(&format!("node {}", decl.0)) && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
@@ -1444,10 +1465,21 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         [0.0, 1.0, 0.0],
         vec![square(10.0, 0.0, 0.5)],
     );
+    // The stranded reference is NESTED: the name is minted at the
+    // SURVIVING body and embeds the extra node's name in a path
+    // segment, so the node the delete strands is a segment DOWN from
+    // the name any refusal can report — and the two come apart.
     let stranded = StableName {
         kind: EntityKind::Edge,
-        node: extra,
-        path: vec![RoleSeg::OutputBody],
+        node: part_doc.order()[BODY_POSITION],
+        path: vec![RoleSeg::FromA(
+            StableName {
+                kind: EntityKind::Edge,
+                node: extra,
+                path: vec![RoleSeg::OutputBody],
+            }
+            .into(),
+        )],
     };
     let anchor = StableName {
         kind: EntityKind::Edge,
@@ -1457,8 +1489,8 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     let (part_doc, _) = insert(
         part_doc,
         // Both sides are READ at the surviving body; the stranded
-        // side's NAME is the extra node's, which is what the delete
-        // below strands.
+        // side's name EMBEDS the extra node's name, which is what the
+        // delete below strands.
         Node::declare_rest(vec![(
             SitedRef::new(anchor.node, stranded.clone()),
             SitedRef::at_mint(anchor),
@@ -1473,9 +1505,17 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     );
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     match inline(&host, inst, &resolver, Tol::witness()) {
-        Err(InlineError::StrandedPartName { name }) => {
+        Err(InlineError::StrandedPartName { name, missing }) => {
             assert_eq!(*name, stranded);
-            let msg = format!("{}", InlineError::StrandedPartName { name });
+            assert_ne!(
+                missing, name.node,
+                "the node that stranded is inside a path segment, not the name's own mint"
+            );
+            assert_eq!(
+                missing, extra,
+                "so the refusal carries the deleted node, which the name alone does not name"
+            );
+            let msg = format!("{}", InlineError::StrandedPartName { name, missing });
             assert!(
                 msg.contains("no longer has"),
                 "the message states the fault: {msg}"
