@@ -70,3 +70,33 @@ carried here: `crates/sweep/tests/revolve_ring.rs` (~:58) and
 `crates/sweep/tests/verbs_tubewall.rs` (~:165) read `.solid` off a
 shell key a HANDLE already holds (`t.cavities[0]`, `t.shell`). No face
 is walked; the parent row's regex matched the handle field's name.
+
+## 2026-09-20: the `faces_of` half of this row now has a door
+
+`Body::faces_of_solid(solid) -> Option<Vec<FaceKey>>` landed on the
+dup side with `work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md`,
+and it is `pub` on `topo::Body` like `solid_of_face`. So the
+`faces_of(body, solid)` helper this row records beside `solid_of` in
+`shell8_common.rs`, `shell8_r1_probes.rs` and `shell8_r2_probes.rs` is
+no longer a "which file hosts the shared copy" question: all three
+bodies are the door, and the fix is to delete all three and call it.
+
+Two things a lane folding them should know, both measured on the
+`topo/src` side of the same fold:
+
+- The door answers **`None` for a solid key the body does not hold**,
+  so each call site grows an `.expect`, and deleting a one-line
+  wrapper multiplies the unwrap it used to hold once. Where a row asks
+  for the same solid's faces twice, bind it once rather than
+  re-asking. What that cost on the `topo/src` side is counted in
+  `work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md`'s
+  X4 section, dated; it is not restated here.
+- The `topo/src` copies carried `.expect("a live face names its solid")`
+  *inside* the filter, so a face whose shell had gone would panic;
+  these three compare `solid_of(body, k) == solid` and would silently
+  skip it. The door takes the second reading — the face belongs to no
+  solid, which is what `solid_of_face` already answers about it — and
+  no row in `topo` depended on the first.
+
+`crates/sweep/tests` was another lane's live ground on 2026-09-20, so
+the dup unit did not touch these three.
