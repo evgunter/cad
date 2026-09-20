@@ -113,6 +113,12 @@ posture under §Process.
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
+   `crossing-mate-id-is-provenance-that-nothing-reads` (filed from
+   Ev's condition on `[ev]` #2869) is ruled and **spec'd** (middle
+   tier, wave 15: the field goes; the crossing carries `class`,
+   `outer`, `inner`); `next-id-has-no-layer3-door` (VIEW's filing
+   against DOCM, EDIT's now) is ruled and **spec'd** (E-class, wave
+   15: a `has_minted` predicate on `Doc`, the counter stays private);
    `nodepick-name-doors-take-a-second-evaluation-unpaired` is
    **merged** (PR #2773, middle tier). The pairing row went to PROPS
    with EDIT's door built.
