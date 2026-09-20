@@ -14,7 +14,7 @@ when the block concludes (PROPS-B1's shape, #1978).
 | slot | unit | pre-draw difficulty (logged at spec) | arm |
 |---|---|---|---|
 | 0 | sphere-pole-side — `docs/PROPS-SPHERE-POLE-SIDE-SPEC.md` (`rimless-polar-cap-refuses-degenerateface` + `two-face-sphere-split-measures-zero-volume`) | H / NUMERIC | OPUS — spec 2026-09-08, dispatch waits on disk |
-| 1 | escalation-channel — `docs/PROPS-ESCALATION-CHANNEL-SPEC.md` (`escalation-channel-misses-op-minted-indeterminates` + `indeterminate-error-arms-sweep`) | H / STRUCTURAL | OPUS — dispatched 2026-09-20, PR #2928 in the dual at ordinal 2407 |
+| 1 | escalation-channel — `docs/PROPS-ESCALATION-CHANNEL-SPEC.md` (`escalation-channel-misses-op-minted-indeterminates` + `indeterminate-error-arms-sweep`) | H / STRUCTURAL | OPUS — CONCLUDED 2026-09-20 at merge 3502371ec, ordinal 2407, sample #225 (both arms APPROVE-WITH-FIXES; no tally candidate — both MAJOR-class findings bilateral, the one severity divergence R1 MAJOR / R2 MINOR on the same proven fact) |
 | 2 | (still owed to FABLE — see the deviation below) | — | FABLE |
 
 Dual reviews draw their R1/R2 parity byte at review dispatch and record
