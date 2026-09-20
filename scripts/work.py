@@ -682,20 +682,34 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     # board
     out.append("## Programs")
     out.append("")
-    out.append("| area | program | pri | load | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
-    out.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    bands = " | ".join(PRIORITIES)
+    out.append(f"| area | program | pri | {bands} | load | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
+    out.append("|---|---|---|" + "---|" * len(PRIORITIES) + "---|---|---|---|---|---|---|---|---|---|")
+    totals = {b: 0 for b in PRIORITIES}
     for p in sorted(programs, key=lambda q: (_prio_key(q), str(q.get("area") or ""), q.id)):
         rows = by_program.get(p.id, [])
         c = {s: sum(1 for r in rows if r.status == s) for s in ITEM_STATUS}
         ev = sum(1 for r in rows if r.status != "closed" and r.get("needs_ev") is not None)
-        out.append(f"| {p.get('area') or '—'} | `{p.id}` | {p.get('priority') or '—'} | "
+        # Band counts are over LIVE rows, whatever their status: a parked P0 is
+        # still P0 work this track holds, and the status columns beside them
+        # already say which rows are dispatchable.
+        live_rows = [r for r in rows if r.status != "closed"]
+        band = {b: sum(1 for r in live_rows if str(r.get("priority")) == b) for b in PRIORITIES}
+        for b in PRIORITIES:
+            totals[b] += band[b]
+        cells = " | ".join(str(band[b] or "") for b in PRIORITIES)
+        out.append(f"| {p.get('area') or '—'} | `{p.id}` | {p.get('priority') or '—'} | {cells} | "
                    f"{_fmt_load(rows, p)} | {p.status} | {c['open']} | {c['spec']} | "
                    f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} | "
                    f"{ev or ''} |")
+    out.append(f"| | **all programs** | | " + " | ".join(f"**{totals[b]}**" for b in PRIORITIES) + " | | | | | | | | | | |")
     out.append("")
-    out.append("`load` is the DISPATCHABLE weight against the track's budget "
-               "(`work/README.md`, Track size); bold is over. `pri` is the "
-               "band of the track's spine, never a ceiling on its rows.")
+    out.append("`P0`–`P4` count this program's LIVE rows in each band "
+               "(`work/README.md`, Priority); a row is counted whatever its "
+               "status, and the status columns say which of them are "
+               "dispatchable. `load` is the DISPATCHABLE weight against the "
+               "track's budget (Track size); bold is over. `pri` is the band "
+               "of the track's spine, never a ceiling on its rows.")
     out.append("")
 
     # per-program slates
