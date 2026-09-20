@@ -14,8 +14,26 @@ when the block concludes (PROPS-B1's shape, #1978).
 | slot | unit | pre-draw difficulty (logged at spec) | arm |
 |---|---|---|---|
 | 0 | sphere-pole-side — `docs/PROPS-SPHERE-POLE-SIDE-SPEC.md` (`rimless-polar-cap-refuses-degenerateface` + `two-face-sphere-split-measures-zero-volume`) | H / NUMERIC | OPUS — spec 2026-09-08, dispatch waits on disk |
-| 1 | (next kernel unit in dispatch order) | — | OPUS |
-| 2 | (next kernel unit in dispatch order) | — | FABLE |
+| 1 | escalation-channel — `docs/PROPS-ESCALATION-CHANNEL-SPEC.md` (`escalation-channel-misses-op-minted-indeterminates` + `indeterminate-error-arms-sweep`) | H / STRUCTURAL | OPUS — dispatched 2026-09-20, PR #2928 in the dual at ordinal 2407 |
+| 2 | (still owed to FABLE — see the deviation below) | — | FABLE |
 
 Dual reviews draw their R1/R2 parity byte at review dispatch and record
 it in the row; ordinals claim at review dispatch on main.
+
+## Deviation, disclosed 2026-09-20 (orchestrator error)
+
+The orchestrator dispatched **two** implementer lanes together after the
+program cut — escalation-channel and curved-residues — and assigned
+neither to a slot at dispatch. Both ran on **OPUS**. escalation-channel
+is slot 1 and correct. **curved-residues is not slot 2**: slot 2 is
+FABLE by the 2026-09-08 draw (byte 32), and drawing a fresh block now
+to fit an arm already in flight is exactly the rigging the
+draw-before-dispatch rule exists to prevent.
+
+So curved-residues records its row with the arm that actually ran
+(OPUS), marked **not a drawn assignment**, and does not fill any slot.
+PROPS-B3 slot 2 stays owed to FABLE, and the **next two** PROPS
+implementer units are FABLE — one for the owed slot, one to repay the
+extra opus row — so the 2:1 ratio is restored rather than merely noted.
+Recorded here and in the ordinal claim on main so a tally reader sees
+it without reading this branch.
