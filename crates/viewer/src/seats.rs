@@ -81,7 +81,6 @@
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 
-use crate::frame::LIST_SEPARATOR;
 use crate::session::{NodeKindWanted, admits};
 use crate::vocab::vocabulary;
 
@@ -349,9 +348,17 @@ impl Seats {
 /// vocabulary a lost-pick notice is composed from, and two copies is
 /// how the two drift.
 ///
-/// The seats are the items of a list ONE line carries, which is what
-/// [`LIST_SEPARATOR`] is for, so the mark is taken from there rather
-/// than spelled again here.
+/// **The `"; "` below is this line's own mark and is deliberately not
+/// [`crate::frame::LIST_SEPARATOR`]**, which it shares a spelling
+/// with. That constant is what ONE notice puts between the items of a
+/// list of its own — items a counted preamble introduces, inside an
+/// enclosing sentence. This is a panel label, not a notice: it reaches
+/// no [`crate::frame::Message`], nothing counts the seats and no
+/// preamble introduces them, so there is no enclosing sentence for
+/// them to be the items of. Reading the constant here would put a line
+/// outside that population under its edits, which is the failure that
+/// took the startup notices off it (`crates/viewer/README.md`, "The
+/// third consumer was the second level misread").
 pub fn seat_line(seats: &[(Seat, Option<RecipeNodeId>)]) -> String {
     if seats.iter().all(|(_, held)| held.is_none()) {
         return "no picks yet".to_owned();
@@ -363,5 +370,5 @@ pub fn seat_line(seats: &[(Seat, Option<RecipeNodeId>)]) -> String {
             None => format!("{}: —", seat.name()),
         })
         .collect::<Vec<_>>()
-        .join(LIST_SEPARATOR)
+        .join("; ")
 }
