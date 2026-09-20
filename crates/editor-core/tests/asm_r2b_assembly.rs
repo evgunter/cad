@@ -731,10 +731,7 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
 /// be on something that is there. A split mints exactly this shape:
 /// the crossing mate is a node in the remainder, and its
 /// remainder-side head is the `outer`.
-fn remainder_with_a_neighbour(
-    label: &str,
-    doc_ref: editor_core::DocRef,
-) -> (ProfileDoc, FaceName) {
+fn remainder_with_a_neighbour(label: &str, doc_ref: editor_core::DocRef) -> (ProfileDoc, FaceName) {
     let (doc, neighbour) = insert(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         Node::instantiate_part(doc_ref),
