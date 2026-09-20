@@ -154,3 +154,45 @@ reason-elsewhere` is **not decided** by this rule and is untouched by
 it; the two classes are disjoint at `NO_CHOOSER_BACKEND`, and that row
 stands on its own argument. Evidence appended to both rows rather than
 left in a PR body.
+
+## 2026-09-19 (later) — two rows leave the slate, one of them already dead
+
+Ev, in-chat: `converged-recourse-has-no-home` may move to another
+track, **and in general this orchestrator may re-home a unit between
+tracks without asking.** Recorded here because it is a standing grant
+of authority, not a ruling on one row.
+
+- **`converged-recourse-has-no-home` → `work/edit/`.** `EditError` is
+  declared in `crates/editor-core/src/edit.rs` and that file is EDIT's
+  territory; EDIT is DOCM's successor for the surface the row needs
+  widened, and the row's own closing line names EDIT's slate by
+  description. The viewer arm — one forward in `session/refuse.rs` —
+  stays this program's and lands with whichever EDIT unit exposes the
+  recourse, as an announced crossing.
+- **`viewer-preview-names-a-verb-by-its-variant-identifier` → CLOSED,
+  and this program never should have carried it.** Checking the tree
+  before routing it: `profile::path::Verb` has a `Display`
+  (`crates/profile/src/path/program.rs`, in the macro beside
+  `Verb::ALL`) and `PreviewError`'s arm in `crates/viewer/src/sketch.rs`
+  reads `{verb}`, not `{verb:?}`. `work/fix/verb-and-dimension-render-
+  through-debug` (FIX, PR 2347) closed both halves on 2026-09-11 and
+  its closing note even records deleting the `prose_census` `UNDECIDED`
+  entry for this exact site. The row travelled through VIEW's re-scope
+  eight days dead.
+
+**The orchestrator's own miss, recorded because the register says to.**
+This morning's §Order subsection re-derived this row's CITATION —
+correctly; the `PreviewError` render really had moved out of
+`pane/create.rs` — and concluded it needed `impl Display for Verb` in
+`crates/profile`. It did not re-derive the row's PREMISE, which had
+been false for eight days. That is the register's own rule
+(*"a row's premise ages against the tree exactly like a citation
+does"*, from #2388's dispatch) missed by the session that quoted it to
+four lanes the same hour. The cheap instrument that would have caught
+it is the one the lanes were told to run and the orchestrator did not:
+a TRACKER pass beside the tree pass — `grep -rl` the defect's subject
+across `work/` and read what the hits say, which here was a closed FIX
+row naming the site.
+
+**Slate after this sitting: twelve rows**, four of them wave-1 lanes in
+flight.

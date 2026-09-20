@@ -2,11 +2,10 @@
 id: layer3-recipenodeid-aliases-across-rewinds
 kind: issue
 title: Layer-3 state holding RecipeNodeIds aliases across history rewinds (id reuse)
-status: parked
+status: open
 opened: 2026-08-31
 github: 1384
 refs: [1375]
-blocked_on: [next-id-has-no-layer3-door]
 ---
 
 ## From GitHub issue 1384
@@ -53,6 +52,20 @@ The door is DOCM's to open — `crates/editor-core` is that program's
 territory — and it is filed as
 `work/view/next-id-has-no-layer3-door.md` on this slate with the
 announce owed to DOCM, rather than assumed.
+
+## Unblocked (2026-09-20, `edit/minted-id-door`)
+
+The missing door is open: `Doc::has_minted(&self, id: RecipeNodeId)
+-> bool` (`crates/editor-core/src/doc.rs`), true exactly when the id
+is below the document's mint counter. It is the predicate the section
+above argued for rather than the counter itself — `next_id` stays
+`pub(crate)`, so layer 3 can ask *could this document have minted
+this id* and cannot read where the counter stands, which keeps the
+monotonicity argument in editor-core. DI1's parenthetical names it
+now. The walk this unit owes is therefore `History::entry` up the
+history until an entry's `doc()` answers `false`; the last entry that
+answered `true` is the minting one, and liveness (`Doc::node`) is the
+second question, asked after descent. The holder sweep can start.
 
 ## Home
 
