@@ -108,6 +108,7 @@ unfalsifiable by text.
 | `sweep/tests/shell10_r1_probes.rs` (`all_faces`, ~:29) | **not a member** — no solid filter; an instrument-window over-fire |
 | `sweep/tests/shell8_r2_probes.rs` (~:407) | **not a member** — a pairwise cross-solid comparison, not a list |
 | `demos/tour/src/heatsink.rs` (~:473), `sweep/tests/shell5_r1_dump.rs` (~:81), `topo/src/review_m1_pr1.rs` (~:466), `topo/src/review_m1_pr2/degenerates_and_sequences.rs` (~:702), `topo/src/seqgen.rs` (~:724, ~:1598) | **not members** — window over-fires; a count assertion, a dump line, a name lookup, and two face-pair searches |
+| `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md` (~:209) | **not code.** The arena-scan instrument reads every tracked file, so it fires on this program's own prose describing the shape. Listed because a hit dropped without a disposition is how a census loses things |
 | the twelve `Solid::shells → Shell::faces` walks the third instrument found | **not members, and a different job.** None materialises "the faces of this solid": each consumes faces inline for something else (a point cloud, a bounding box, an arena count, an owner map). Two of them ARE a duplication of each other, one level out, and are filed: `work/dup/two-spellings-of-the-face-to-solid-owner-index.md` |
 
 ### The decision the row asked for, made
