@@ -37,16 +37,27 @@ The red is
 is wholly unasserted.
 
 **The `-> None` row is not a control, and reading it as one was the
-defect this row carried first.** `-> None` changes the return VALUE,
-which is the same experiment as `.last()` → `.first()` with a wider
-swing: both show the value is unasserted and neither can tell *called
-and unasserted* from *never called*. This row nonetheless wrote *"the
-site is unasserted entirely"* off it — a conclusion that happened to be
-true, by the shape of this tree rather than by the measurement. The
-general rule, which the program's 2026-09-20 log entry anticipates in
-its "a claim about a measurement" paragraph: **to prove a site is
-REACHED, plant something no answer can satisfy; to prove its answer is
-unasserted, plant a different answer. One plant cannot do both.**
+defect this row carried first.** This row wrote *"the site is
+unasserted entirely"* off a pair of return-value plants — a conclusion
+that happened to be true, by the shape of this tree rather than by the
+measurement. The
+general rule — **the single home for it**, and the program's method
+item 19; rows that need it point here rather than restating it:
+
+> To prove a site is REACHED, plant something no answer can satisfy; to
+> prove its answer is unasserted, plant a different answer. **One plant
+> cannot do both.** And **a plant that replaces a function's body with
+> its own null return value is not a control — it is the SAME
+> experiment with a wider swing.**
+
+That last clause is the one that matters, because it is what made the
+first reading look rigorous: `-> None` is a bigger change than
+`.first()` and feels like a different kind of probe, so a rule phrased
+only as *"plant a different answer"* does not obviously exclude it.
+The program's 2026-09-20 log entry anticipates the shape in its "a
+claim about a measurement" paragraph — a measurement that was real,
+ran, came back green, and whose sentence about what it discriminated
+was false.
 
 The restore harness rewrote the pre-plant bytes after every run and
 the diff against `HEAD` carried only the lane's own uncommitted work,

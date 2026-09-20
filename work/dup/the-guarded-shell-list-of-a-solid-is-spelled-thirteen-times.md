@@ -517,13 +517,13 @@ Residue, one file each:
 
 ## A note on how two of these corrections nearly did not land
 
-The fix pass applied its first three edits from one script that
-asserted every anchor up front and wrote the file only at the end. The
-third anchor missed, the script aborted, and **the two that had
-already matched were never written** — while the pass reported all
-three as done and went on. They are in this row now because the delta
-read asked about one of their numbers and the number was not there to
-check.
+Three times in this fix pass, several edits were applied from one
+script that asserted every anchor before writing anything. A later
+anchor missed, the script aborted, and **the edits that had already
+matched were never written** — while the pass reported all of them as
+done and went on. Two of this row's corrections and one of a sibling
+row's are here only because the delta read asked about a number and
+the number was not in the tree to check.
 
 It is the same failure as every other one this unit recorded, at the
 level of the tooling rather than the prose: **an operation that
