@@ -221,6 +221,37 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     offered as proof that a number cannot be trusted is still a
     number.**
 
+19. **A null plant needs a DIVERGENT control, not a null control.** A
+    lane planted a reversed order at a site and got nothing red. Instead
+    of publishing *"the order is unasserted"* it ran a control — the
+    whole function body replaced by `None` — got nothing red again, and
+    concluded the site was unasserted entirely, so the order plant had
+    measured nothing. That was the right instinct and **the wrong
+    control**: returning the null value is the *same experiment*, and it
+    cannot tell *called and unasserted* from *never called*. The
+    reviewer ran the discriminating one — body → `panic!` — and got
+    **732 / 1**: the site IS reached, by exactly one row, and its answer
+    is wholly unasserted. The conclusion survived by luck of the tree,
+    not by the control. So: when a plant reds nothing, prove the site is
+    **executed** with a plant that cannot be absorbed by any assertion —
+    `panic!`, `unreachable!`, an abort — and only then reason about what
+    is unasserted. A row that claims a site is dark owes that line in
+    its table.
+    (2026-09-20, `dup/shells-of-solid-door`; the sharpening is the
+    reviewer's.)
+
+20. **Briefed reading must be on the branch the lane will cut from.**
+    Twice in one sitting the orchestrator pointed lanes at text that
+    existed only on `dup/orchestrator`: a log entry, and then method
+    items 16–18 themselves, cited in three briefs while `main`'s
+    `plan.md` stopped at 15. One lane said so and read it out of the
+    orchestrator's checkout; the others said nothing, so whether they
+    read it is unknown — **the failure is silent at the lane's end**. A
+    dangling citation in a brief is item 15's shape with the
+    orchestrator as the hand it passes through: before a brief cites a
+    file, section or numbered item, check it is on the branch the
+    worktree is cut from, not merely on the branch that wrote it.
+
 ## Review posture
 
 Test-side, S-TINT's posture: one style review per unit, and a full
