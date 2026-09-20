@@ -36,11 +36,10 @@ fn doc_with_a_crossing() -> ProfileDoc {
         })
         .expect("a crossing's references are face names")
     };
-    // Two of the crossing's three references into this document are
-    // checked at the insert door — the `outer` is a payload name and
-    // the `mate` is a read site — so the record rides a LAST
-    // instance, behind the two mate ends and the mate itself. That is
-    // the shape a split leaves behind.
+    // The crossing's one reference INTO this document — its `outer` —
+    // is a payload name the insert door checks is live, so the record
+    // rides a LAST instance, behind the two mate ends and the mate
+    // itself. That is the shape a split leaves behind.
     let mut host = ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness());
     // Inserts alone — a Join at most, never a moved gauge — so the
     // reach is never asked and the refusing one serves.
@@ -82,7 +81,6 @@ fn doc_with_a_crossing() -> ProfileDoc {
     );
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: RecipeNodeId(2),
             class: ContactClass::Rest,
             outer: face(RecipeNodeId(0), CapEnd::End),
             // The `inner` is spelled in the PART's id space, and the
@@ -149,8 +147,8 @@ fn an_empty_record_stays_absent_from_the_wire() {
 /// document's LAST node, so a fixture change breaks the surgery loudly
 /// instead of landing it on a neighbour.
 fn crossing_of(wire: &mut serde_json::Value, instance: RecipeNodeId) -> &mut serde_json::Value {
-    &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]["interface"]
-        ["crossings"][0]["Mate"]
+    &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]["interface"]["crossings"]
+        [0]["Mate"]
 }
 
 /// The fixture, saved, with the id of the instance carrying its

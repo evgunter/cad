@@ -1469,7 +1469,6 @@ mod tests {
                 },
                 interface: InterfaceRecord {
                     crossings: vec![InterfaceCrossing::Mate {
-                        mate: RecipeNodeId(1),
                         class: ContactClass::Rest,
                         outer: FaceName::new(crossed.clone()).expect("the fixture spells a face"),
                         inner: FaceName::new(name(12, EntityKind::Face))

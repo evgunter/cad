@@ -1593,7 +1593,6 @@ pub fn split(
         // what the mate carries, so the split neither unwraps a head
         // nor re-asks the question its type already answered.
         crossings.push(InterfaceCrossing::Mate {
-            mate: id,
             class: *class,
             outer: outer.clone(),
             inner,

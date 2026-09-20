@@ -720,29 +720,27 @@ fn row5_a_a_proper_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     );
 }
 
-/// **A remainder document holding the two ends of a seated mate, the
-/// remainder-side face name a crossing keeps, and that mate's id** —
-/// the fixture every hand-built record below starts from.
+/// **A remainder document holding the two ends of a seated mate and
+/// the remainder-side face name a crossing keeps** — the fixture
+/// every hand-built record below starts from.
 ///
-/// Both of a crossing's references into this document are checked at
-/// the insert door: the `outer` is a payload name
-/// (`Node::payload_names` lists it, and the door checks its node is
-/// live) and the `mate` is a read site (`Node::payload_read_sites`,
-/// the typo rule). So a record cannot go into an empty document —
-/// the face the mate kept has to be on something that is there, and
-/// the mate has to be a node that exists. A split mints exactly this
-/// shape: the crossing mate is a node in the remainder, and its
+/// A crossing's one reference into this document is checked at the
+/// insert door: the `outer` is a payload name (`Node::payload_names`
+/// lists it, and the door checks its node is live). So a record
+/// cannot go into an empty document — the face the mate kept has to
+/// be on something that is there. A split mints exactly this shape:
+/// the crossing mate is a node in the remainder, and its
 /// remainder-side head is the `outer`.
 fn remainder_with_a_neighbour(
     label: &str,
     doc_ref: editor_core::DocRef,
-) -> (ProfileDoc, FaceName, RecipeNodeId) {
+) -> (ProfileDoc, FaceName) {
     let (doc, neighbour) = insert(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         Node::instantiate_part(doc_ref),
     );
     let (doc, seated) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, mate) = step(
+    let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
             node: rest_mate(neighbour, seated, 1.0),
@@ -750,7 +748,7 @@ fn remainder_with_a_neighbour(
     );
     let outer = FaceName::new(in_part(neighbour, CapEnd::End))
         .expect("a crossing's references are face names");
-    (doc, outer, mate.expect("the mate mints"))
+    (doc, outer)
 }
 
 /// INVARIANT (A4's "does it actually fit" + A13 clause 4): an
@@ -783,10 +781,9 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
-    let (doc, outer, crossing_mate) = remainder_with_a_neighbour("asm-r2b-row5b", doc_ref);
+    let (doc, outer) = remainder_with_a_neighbour("asm-r2b-row5b", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: crossing_mate,
             class: ContactClass::Rest,
             outer,
             inner: inner.clone(),
@@ -862,10 +859,9 @@ fn row5_c_inline_dissolves_the_crossing_record() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
-    let (doc, outer, crossing_mate) = remainder_with_a_neighbour("asm-r2b-row5c", doc_ref);
+    let (doc, outer) = remainder_with_a_neighbour("asm-r2b-row5c", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: crossing_mate,
             class: ContactClass::Rest,
             outer,
             inner,
@@ -1098,10 +1094,9 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
         path: vec![RoleSeg::Cap(CapEnd::End)],
     })
     .expect("a crossing's references are face names");
-    let (host, outer, crossing_mate) = remainder_with_a_neighbour("asm-r2b-row6", doc_ref);
+    let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6", doc_ref);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: crossing_mate,
             class: ContactClass::Rest,
             outer,
             inner,
@@ -1496,12 +1491,20 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
 
 /// Sanity: `NodeErrorKind::CrossingUnverified` is reachable as a typed
 /// value, so the D-5 refusal is nameable by a caller (the pncad
-/// binding lifts these by name).
+/// binding lifts these by name) — and it says WHICH crossing by the
+/// reference the remainder keeps, the only key a record has.
 #[test]
 fn the_crossing_refusal_is_a_named_node_error() {
     let e = NodeErrorKind::CrossingUnverified {
         instance: RecipeNodeId(1),
-        mate: RecipeNodeId(2),
+        outer: Box::new(
+            FaceName::new(StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(2),
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
+            })
+            .expect("a crossing's references are face names"),
+        ),
         name: Box::new(StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(3),
@@ -1510,6 +1513,10 @@ fn the_crossing_refusal_is_a_named_node_error() {
     };
     let msg = e.to_string();
     assert!(msg.contains("re-verify"), "{msg}");
+    assert!(
+        msg.contains("minted by node 2"),
+        "the refusal names the crossing by its `outer`: {msg}"
+    );
 }
 
 // ---------------------------------------------------------------------
