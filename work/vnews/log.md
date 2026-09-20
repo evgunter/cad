@@ -48,3 +48,54 @@ No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`
 if the posture ever changes; under the inherited posture it records no
 row.
+
+## 2026-09-19 — opened for work; wave 1 dispatched (four lanes)
+
+First dispatch. The session read `work/README.md`,
+`docs/prompts/implementer-discipline.md`,
+`docs/prompts/reviewer-style-lane.md` and `work/view/plan.md`'s
+register in full before writing a brief, and re-derived every wave-1
+row's premise and fix site against the tree rather than against the
+row. Four of the fourteen rows moved as a result; `plan.md` §Order's
+new subsection records which and why.
+
+**Review tier per unit, with its reason** (protocol v7 item 5, and
+`plan.md` §Review posture as amended in this commit). This program runs
+no duals, so no unit draws an ordinal and the band 5200–5299 stays
+empty:
+
+| unit | tier | why |
+|---|---|---|
+| `seat-line-spells-the-list-mark-as-a-literal` | style | one constant substituted for its own value; the two halves of each item cannot contain the mark, so there is no wrong answer available |
+| `is-instance-collapses-absent-and-wrong-kind` | style | the door's shape is the defect and its one caller early-returns for both states, so nothing observable changes; the sweep is adjudication, not a claim about behaviour |
+| `tone-is-a-value-in-frame-and-a-comment-in-two-panes` | style | a rule stated in a comment becomes a value read from one; the rendering is asserted where it matters and a wrong tone reads as a wrong colour, not a wrong fact |
+| `a-disabled-control-says-why-in-four-shapes` | **style + correctness arm** | a census whose failure mode is a population that looks complete and is not — a confident wrong answer, which is this program's stated trigger — and its rule decides three other rows |
+
+**Wave 1 is file-disjoint by construction.** `seats.rs` ·
+`display.rs` + `pane/properties.rs` · `tree.rs` + `pane/features.rs` ·
+no source file at all. **No lane touches `frame.rs`**, which is
+deliberate: six of the remaining rows edit it and serializing them is
+cheaper than conflicting.
+
+**Filed by this sitting:**
+
+- `work/view/viewer-src-files-no-successor-claims` — eleven
+  `crates/viewer/src` files are claimed by none of the four re-scope
+  successors, three of them live sites for rows the split handed out.
+  Filed on VIEW's slate because the allocation was VIEW's act and
+  finishing it is a precondition of its exit walk, the shape
+  `the-lane-register-has-no-home-after-views-directory-goes` already
+  has.
+- `crates/viewer/src/tree.rs` claimed into this program's `paths` in
+  this commit, because `tone-…`'s fix lands there and it was in
+  nobody's territory. The other ten unclaimed files are left for that
+  row to sort rather than swept up here.
+
+**Two rows are not this program's to land, and the order said they
+were.** `converged-recourse-has-no-home` needs an `editor-core`
+authorisation wider than the `Display` wording Ev granted, so it is
+EDIT's or an `[ev]` question; `viewer-preview-names-a-verb-by-its-
+variant-identifier` needs `impl Display for Verb` in `crates/profile`,
+which is PATHS'. Both stay `open` here rather than `parked`: neither
+waits on a trigger the tracker can see fire, and saying so in the plan
+is the honest record.
