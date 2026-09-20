@@ -186,7 +186,10 @@ after the merge and each reds its row.
   the split; the three suites the review named
   (`docm7_union_declare`, `asm_r2a_mate_solve`, `r2_m10_2_probes`)
   turned out to be copies of the WRITE walk, not the read-only one,
-  and all three now call `doctored`.
+  and all three now call `doctored`. The suites that cut the same
+  save by LINE rather than by brace are a second rule for one
+  question and S-DUP's ground; filed as
+  `work/dup/wire-surgery-header-split-is-spelled-nine-more-times-by-line.md`.
 - **One home for the "no provenance" argument.** The variant's doc in
   `node.rs` argues it; `payload_read_sites`' group comment, the
   `pncad.pyi`/`py/refactor.rs` pair (one sentence, identically
