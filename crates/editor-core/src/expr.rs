@@ -1218,6 +1218,16 @@ pub enum EvalError {
     UnknownParam(ParamName),
     /// A parameter bound with a different dimension than the ref
     /// recorded at construction.
+    ///
+    /// The dimension fact at EVALUATION, where the edit and load
+    /// doors spell it `{Slot,Payload}DocParamDimension`. It is named
+    /// by the fact alone because the address is not this arm's to
+    /// carry: the wrapper supplies it
+    /// ([`crate::eval::NodeErrorKind::Expr`] a node and a slot,
+    /// [`crate::eval::NodeErrorKind::PayloadExpr`] a node and a
+    /// payload), and it forwards this refusal unaltered.
+    /// [`crate::edit::EditError`]'s enum doc is where that convention
+    /// and its two families are stated.
     ParamDimensionMismatch {
         /// The parameter name.
         name: ParamName,

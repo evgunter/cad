@@ -20,9 +20,9 @@ use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, ValuePayload,
+    ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
 };
-use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, wall};
+use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, vname, wall};
 use geom_core::Tol;
 use topo::validate_pseudomanifold;
 
@@ -65,14 +65,6 @@ fn block(
             distance: len(dz),
         },
     )
-}
-
-fn vname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
-        node,
-        path: vec![seg],
-    }
 }
 
 fn boolean_value(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> &BooleanValue<f64> {
@@ -170,7 +162,10 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     // certified 3' pass.
     let (doc_declared, mover) = block(doc, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
     let (va, vb) = kiss_vertex_names(a, b, base);
-    let (doc_declared, decl) = insert(doc_declared, Node::declare_rest(vec![(va, vb)]));
+    let (doc_declared, decl) = insert(
+        doc_declared,
+        Node::declare_rest(vec![(SitedRef::new(base, va), SitedRef::new(base, vb))]),
+    );
     let (doc_declared, u2) = insert(
         doc_declared,
         Node::Boolean {
@@ -312,8 +307,8 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     let (doc, decl) = insert(
         doc,
         Node::declare_rest(vec![(
-            floor1.clone(),
-            fname(b2, RoleSeg::Cap(CapEnd::Start)),
+            SitedRef::new(s1, floor1.clone()),
+            SitedRef::new(b2, fname(b2, RoleSeg::Cap(CapEnd::Start))),
         )]),
     );
     let (doc, s2) = insert(
@@ -404,7 +399,10 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     ghost.path = vec![RoleSeg::Cap(CapEnd::End), RoleSeg::Cap(CapEnd::End)]; // …not any more
     let (doc, decl) = insert(
         base.clone(),
-        Node::declare_rest(vec![(ghost.clone(), fname(b, RoleSeg::Cap(CapEnd::End)))]),
+        Node::declare_rest(vec![(
+            SitedRef::new(a, ghost.clone()),
+            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+        )]),
     );
     let (doc, u) = boolean_with(doc, decl);
     let ev = run(&doc);
@@ -461,7 +459,10 @@ fn declare_resolution_failures_are_typed_n5_errors() {
             },
         ),
     );
-    let (doc, decl) = insert(base.clone(), Node::declare_rest(vec![(va, vb)]));
+    let (doc, decl) = insert(
+        base.clone(),
+        Node::declare_rest(vec![(SitedRef::new(a, va), SitedRef::new(b, vb))]),
+    );
     let (doc, u) = boolean_with(doc, decl);
     let k = failed_kind(&run(&doc), u);
     assert!(k.contains("DeclareUnsupportedPair"), "{k}");
@@ -481,12 +482,12 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
         doc,
         Node::declare_rest(vec![
             (
-                fname(a, RoleSeg::Cap(CapEnd::End)),
-                fname(b, RoleSeg::Cap(CapEnd::End)),
+                SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+                SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
             ),
             (
-                fname(a, RoleSeg::Cap(CapEnd::Start)),
-                fname(b, RoleSeg::Cap(CapEnd::Start)),
+                SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::Start))),
+                SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::Start))),
             ),
         ]),
     );
@@ -543,50 +544,23 @@ fn skipped_declared_merge_recipe_door_is_tier3_green() {
 }
 
 /// Review F4: the remaining Declare eval doors, each typed.
+///
+/// `DeclareBothOperands` used to be the third: a name carried by BOTH
+/// operands — two placements of one prototype, whose tables are
+/// identical because a transform adds no segment (N1) — left the door
+/// with no side to pick. A declared entity now names the operand it is
+/// read at, so that state is a declaration the door READS rather than
+/// one it refuses, and the arm is gone.
+/// `docm7_union_declare`'s
+/// `the_pair_boolean_declares_between_two_placements_of_one_prototype`
+/// is the row in its place.
 #[test]
-fn declare_doors_both_operands_node_gone_and_ambiguous() {
+fn declare_doors_node_gone_and_ambiguous() {
     use editor_core::DocEdit;
     let failed_kind = |ev: &editor_core::Evaluation<f64>, node| match ev.nodes.get(&node) {
         Some(NodeResult::Failed(e)) => format!("{:?}", e.kind),
         other => panic!("expected Failed, got {other:?}"),
     };
-
-    // --- DeclareBothOperands: the same body value feeds both sides,
-    // so the name resolves in BOTH operand tables — refused, never a
-    // side guess (reviewer's probe adopted).
-    let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let cap = fname(a, RoleSeg::Cap(CapEnd::End));
-    let (doc, decl) = insert(
-        doc,
-        Node::declare_rest(vec![(cap.clone(), fname(a, RoleSeg::Cap(CapEnd::Start)))]),
-    );
-    // The second operand is a TRANSFORM of the first, not the first
-    // twice: a node's inputs are pairwise distinct (DM5), so the
-    // one-node spelling is refused at the edit door now. A transform
-    // adds no role segment and keeps the minting node (N1), so the
-    // declared name still resolves in both operand tables — which is
-    // the state this row is about, reached without repeating an edge.
-    let (doc, placed) = insert(
-        doc,
-        Node::Transform {
-            input: a,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
-    );
-    let (doc, u) = insert(
-        doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a,
-            b: placed,
-            declare: Some(decl),
-        },
-    );
-    let k = failed_kind(&run(&doc), u);
-    assert!(k.contains("DeclareBothOperands"), "{k}");
 
     // --- NodeGone by DELETE (the reachable N5 dangling case): the
     // Declare names a third body's face; deleting that node AFTER the
@@ -598,9 +572,12 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     let (doc, c) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, decl) = insert(
         doc,
+        // Sited at the operands, as every declaration is; the NAME
+        // is the third body's, and rung 1 outranks the site's own
+        // table having no such row.
         Node::declare_rest(vec![(
-            fname(c, RoleSeg::Cap(CapEnd::End)),
-            fname(b, RoleSeg::Cap(CapEnd::End)),
+            SitedRef::new(a, fname(c, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
         )]),
     );
     let (doc, u) = insert(
@@ -613,7 +590,11 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
         },
     );
     let doc = doc
-        .apply(&DocEdit::DeleteNode { id: c }, Tol::witness())
+        .apply(
+            &DocEdit::DeleteNode { id: c },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .unwrap()
         .doc;
     let ev = run(&doc);
@@ -671,7 +652,10 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(tied.clone(), fname(mate, RoleSeg::Cap(CapEnd::End)))]),
+        Node::declare_rest(vec![(
+            SitedRef::new(us, tied.clone()),
+            SitedRef::new(mate, fname(mate, RoleSeg::Cap(CapEnd::End))),
+        )]),
     );
     let (doc, u2) = insert(
         doc,
@@ -737,7 +721,10 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
     let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(floor2, fname(b1, RoleSeg::Cap(CapEnd::Start)))]),
+        Node::declare_rest(vec![(
+            SitedRef::new(s1, floor2),
+            SitedRef::new(b1, fname(b1, RoleSeg::Cap(CapEnd::Start))),
+        )]),
     );
     let (doc, s2) = insert(
         doc,
@@ -830,7 +817,7 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
 
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let mut doc = doc;
-    let union_of = |doc: ProfileDoc, pair: (StableName, StableName)| {
+    let union_of = |doc: ProfileDoc, pair: (SitedRef, SitedRef)| {
         let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
         insert(
             doc,
@@ -844,8 +831,19 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
     };
     let with_tie;
     let all_unique;
-    (doc, with_tie) = union_of(doc, (tied.clone(), u1.clone()));
-    (doc, all_unique) = union_of(doc, (u1.clone(), u2.clone()));
+    // Both names are rows of the SUBTRACT's table, which is operand
+    // A — which is what makes each pair a same-operand face pair.
+    (doc, with_tie) = union_of(
+        doc,
+        (
+            SitedRef::new(us, tied.clone()),
+            SitedRef::new(us, u1.clone()),
+        ),
+    );
+    (doc, all_unique) = union_of(
+        doc,
+        (SitedRef::new(us, u1.clone()), SitedRef::new(us, u2.clone())),
+    );
     let ev = run(&doc);
 
     let refusal = |node: RecipeNodeId| -> String {
@@ -929,7 +927,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
         "the vanished probe must name no row, or it pins nothing"
     );
 
-    let union_of = |doc: ProfileDoc, pair: (StableName, StableName)| {
+    let union_of = |doc: ProfileDoc, pair: (SitedRef, SitedRef)| {
         let (doc, decl) = insert(doc, Node::declare_rest(vec![pair]));
         insert(
             doc,
@@ -944,10 +942,23 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
     let mut doc = doc;
     let with_gone;
     let with_absent;
-    (doc, with_gone) = union_of(doc, (tied.clone(), fname(ghost, RoleSeg::Cap(CapEnd::End))));
-    (doc, with_absent) = union_of(doc, (tied.clone(), absent));
+    (doc, with_gone) = union_of(
+        doc,
+        (
+            SitedRef::new(us, tied.clone()),
+            SitedRef::new(mate, fname(ghost, RoleSeg::Cap(CapEnd::End))),
+        ),
+    );
+    (doc, with_absent) = union_of(
+        doc,
+        (SitedRef::new(us, tied.clone()), SitedRef::new(us, absent)),
+    );
     let doc = doc
-        .apply(&DocEdit::DeleteNode { id: ghost }, Tol::witness())
+        .apply(
+            &DocEdit::DeleteNode { id: ghost },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect("the ghost block is deletable")
         .doc;
     let ev = run(&doc);

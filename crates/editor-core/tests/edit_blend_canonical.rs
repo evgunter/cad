@@ -82,6 +82,7 @@ fn saved_fillet(segments: &[u32]) -> String {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a canonical fillet inserts")
     .doc;
@@ -116,7 +117,12 @@ fn corrupt_selection(text: &str, from: u32, to: u32) -> String {
 fn an_unsorted_selection_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
     let raw = raw_fillet(solid, &[2, 0]);
-    match apply(&doc, &DocEdit::InsertNode { node: raw }, Tol::witness()) {
+    match apply(
+        &doc,
+        &DocEdit::InsertNode { node: raw },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(EditError::SelectionNotCanonical { at: 0, .. }) => {}
         other => panic!("an unsorted selection must refuse typed, got {other:?}"),
     }
@@ -128,6 +134,7 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
             node: raw_fillet(solid, &[0, 2]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a canonical selection inserts");
 }
@@ -142,7 +149,12 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
         distance: fixture::len(0.0625),
         selection: vec![edge(solid, 2), edge(solid, 0)],
     };
-    match apply(&doc, &DocEdit::InsertNode { node: raw }, Tol::witness()) {
+    match apply(
+        &doc,
+        &DocEdit::InsertNode { node: raw },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(EditError::SelectionNotCanonical { at: 0, .. }) => {}
         other => panic!("an unsorted chamfer selection must refuse typed, got {other:?}"),
     }
@@ -155,7 +167,12 @@ fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
 fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
     let raw = raw_fillet(solid, &[0, 0, 2]);
-    match apply(&doc, &DocEdit::InsertNode { node: raw }, Tol::witness()) {
+    match apply(
+        &doc,
+        &DocEdit::InsertNode { node: raw },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(EditError::SelectionNotCanonical { at: 0, .. }) => {}
         other => panic!("a repeated selection entry must refuse typed, got {other:?}"),
     }
@@ -238,9 +255,14 @@ fn an_empty_selection_is_canonical() {
         selection: Vec::new(),
     };
     assert!(empty.input_fault().is_none());
-    let doc = apply(&doc, &DocEdit::InsertNode { node: empty }, Tol::witness())
-        .expect("an empty selection is not this door's refusal")
-        .doc;
+    let doc = apply(
+        &doc,
+        &DocEdit::InsertNode { node: empty },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("an empty selection is not this door's refusal")
+    .doc;
     let fillet = *doc.order().last().expect("the fillet is the last node");
     let ev = evaluate::<f64>(
         &doc,
@@ -285,6 +307,7 @@ fn both_doors_forward_one_sentence() {
             node: raw_fillet(solid, &[0, 4, 2]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(e @ EditError::SelectionNotCanonical { .. }) => e.to_string(),
         other => panic!("expected the edit door's refusal, got {other:?}"),
@@ -350,6 +373,7 @@ fn the_insert_door_reports_a_non_zero_position() {
             node: raw_fillet(solid, &[0, 4, 2]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::SelectionNotCanonical { at, .. }) => {
             assert_eq!(at, 1, "the break is between entries 1 and 2");
@@ -392,6 +416,7 @@ fn a_rebind_leaves_a_canonical_selection() {
                 ),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("a canonical three-edge fillet inserts");
         let id = applied.record.minted.expect("the fillet is minted");
@@ -405,6 +430,7 @@ fn a_rebind_leaves_a_canonical_selection() {
             to: edge(solid, 0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the rebind applies")
     .doc;

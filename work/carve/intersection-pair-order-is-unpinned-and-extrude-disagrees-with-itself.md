@@ -25,10 +25,11 @@ refs: [brick-has-two-constructions-and-two-homes]
 **The rule that is not a rule.** `topo`'s test-side
 `describe_as_intersections` sets `s1 = surface(face(he_plus))` and
 `s2 = surface(face(he_minus))`, and that holds on **12 of 12** edges of
-the Euler-built box. On the extruded box built by
-`sweep::test_support::brick` it holds on **8 of 12**: the four
-bottom-rim edges (bottom cap against a side wall) carry the pair
-swapped, while the four struts and the four top-rim edges agree.
+the Euler-built box. On an extruded box — `sweep::test_support::prism_at`
+over a rectangle, which is what `sweep::test_support::brick` was when
+this row was opened — it holds on **8 of 12**: the four bottom-rim
+edges (bottom cap against a side wall) carry the pair swapped, while
+the four struts and the four top-rim edges agree.
 
 **`he_plus` and `he_minus` are identical between the two bodies** — the
 measurement compared them edge for edge — so this is not two different
@@ -59,6 +60,36 @@ forgets, the bug is a cap rim on an extruded body and nothing else.
 And **two bodies that are the same solid are not `Debug`-equal**, so
 any row that compares bodies by dump trips on a difference that means
 nothing — which is exactly how this was found.
+
+## Measured 2026-09-19: nothing reads the order, by mutation
+
+The claim above — *"nothing reads the order today"* — was read off
+three consumers by eye. `brick-has-two-constructions-and-two-homes`'s
+measurement disclosed that as a blind spot in its own words: *"Whether
+the (s1, s2) order matters is read, not measured. No mutation was
+planted to prove a swapped pair changes no verdict."*
+
+It is measured now. `describe_as_intersections` — the step every
+`topo::test_support` box, prism and cube builder ends with — was
+changed to write `Intersection { s1: s2, s2: s1, witness }`, swapping
+the pair on **every** edge of **every** fixture in the tree, and
+`cargo test --workspace` was re-run at the merge base of
+`dup/sweep-brick-delegation` (`07ba310ef`, default features):
+
+**8231 passed, 0 failed, 75 binaries — identical to the unmutated
+run.** Not one row in the workspace can see the pair order.
+
+So the hazard this row names is the whole of it: the order is free, and
+the day a consumer starts depending on it, nothing existing will say
+so. That is an argument for fork (2) — a type that cannot carry an
+order — over fork (1), since a ratified order with no guard behind it
+would be the same unenforced convention under a better name.
+
+**What the mutation could not see**: default features only (the
+`interval` and `probe` lanes were not re-run under it), and the
+`sweep` extrude machinery's own `Intersection` writes were not mutated
+— only `topo`'s test-side describer. A consumer that reads the order
+on an extruded body specifically is outside this measurement.
 
 ## The fork
 

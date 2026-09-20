@@ -112,18 +112,27 @@ pub struct ProfileValue<T: geom_core::Real> {
     /// sweep's own wall record uses, so a consumer pairs the two by
     /// position and derives nothing.
     ///
-    /// `None` at a position is an answer: that segment is a straight
-    /// one, or an arc whose radius the program does not author as a
-    /// scalar (a `bulge`, a `via`), or one of several segments a fused
-    /// step emitted (`ProfileProgram::segment_radii` says why each
-    /// answers nothing).
+    /// `None` at a position is an answer, and it has four causes:
+    /// the segment is a straight one; it is an arc whose radius the
+    /// program does not author as a scalar at all — a `bulge`, a
+    /// `via`, a `center`; or it is a segment a radius EXTENDED rather
+    /// than drew. The last is the §4 item 4 vertex-move exemption: an
+    /// `arc_fillet`'s incoming spec whose carrier the arriving leg is
+    /// already on moves that leg's end vertex instead of emitting a
+    /// segment, so the radius is authored, enters the content key,
+    /// and reaches no wall — the shape
+    /// `edit_step_segments::every_attached_radius_was_keyed_first`
+    /// authors as `keyed_but_never_attached()`.
+    /// (`ProfileProgram::segment_radii` says why each answers
+    /// nothing.)
     ///
     /// **Why it rides the VALUE.** It is the expression side of the
     /// per-edge flow source, and the node that HOLDS those expressions
     /// is this one — a sweep downstream attaches them to the walls it
     /// mints and has no other way to ask. Answering it needs the
-    /// replay's per-step spans, which live on `ProfilePre` and are
-    /// dropped with it, so the ANSWER is carried and the record is
+    /// replay's records — the per-step spans and the per-radius
+    /// emissions — which live on `ProfilePre` and are dropped with it,
+    /// so the ANSWER is carried and the record is
     /// not: whether the record itself belongs on the value is PP1/PP2's
     /// open question
     /// (`work/wire/section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made.md`),

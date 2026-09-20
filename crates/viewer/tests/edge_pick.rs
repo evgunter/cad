@@ -26,7 +26,7 @@ use crate::common;
 
 use pncad::document::{Evaluation, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{HitTestError, Resolution, RunCtx, resolve};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
@@ -81,6 +81,27 @@ fn eval_of(session: &DocSession) -> &Evaluation<f64> {
 }
 
 /// Every drawn edge of the plate, with the polyline it is drawn as.
+/// How far along `ray` the nearest drawn surface sits, or `None` for
+/// a miss.
+///
+/// The door answers one face, nothing, or a certified TIE between
+/// several — and a tie is still a surface: the tied answers pairwise
+/// overlap, so the smallest of their parameters is what "is anything
+/// in front" reads.
+fn nearest_surface(
+    index: &PickIndex,
+    eval: &Evaluation<f64>,
+    ray: &pncad::select::Ray,
+) -> Option<f64> {
+    match index.pick_for(eval, ray, &DisplayView::none()) {
+        Ok(hit) => hit.map(|hit| hit.t),
+        Err(HitTestError::Ambiguous { hits }) => {
+            hits.iter().map(|hit| hit.t).min_by(f64::total_cmp)
+        }
+        Err(other) => panic!("no refusal: {other}"),
+    }
+}
+
 fn drawn_edges(index: &PickIndex, node: RecipeNodeId) -> Vec<(EdgeId, Vec<Point3<f64>>)> {
     index
         .edges_in(node, 0)
@@ -427,10 +448,14 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
             Point3::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5),
         );
         let ray = camera.ray_through(cursor, pane()).expect("un-projects");
-        let Some(front) = index
-            .pick_for(eval, &ray, &DisplayView::none())
-            .expect("no refusal")
-        else {
+        // **A certified tie is still a surface in front.** The ray
+        // through an edge's own pixel lands ON that edge, so it very
+        // often meets both faces sharing it and the door names both
+        // rather than choosing. The question this row asks is how near
+        // the nearest surface is, and every tied answer answers it —
+        // so the nearest of them is read, which is what the viewer's
+        // own occlusion probe does.
+        let Some(front) = nearest_surface(&index, eval, &ray) else {
             continue;
         };
         // How far along the ray the edge's own midpoint sits.
@@ -443,7 +468,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         // number is the point: it says the two populations this row
         // sorts are far enough apart that any sane threshold separates
         // them.
-        if front.t >= depth * (1.0 - 1.0e-6) {
+        if front >= depth * (1.0 - 1.0e-6) {
             continue; // visible at its own pixel — not this row's subject
         }
         checked += 1;
@@ -453,8 +478,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         assert_ne!(
             picked.as_ref().map(viewer::pickindex::EdgePick::id),
             Some(id),
-            "an edge {depth} deep behind a surface at {} was picked through the solid",
-            front.t
+            "an edge {depth} deep behind a surface at {front} was picked through the solid"
         );
     }
     assert!(
@@ -925,10 +949,12 @@ fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge()
     // the filter exists to keep reachable.
     assert_eq!(
         index
-            .face_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
+            .faces_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
             .expect("un-projects")
-            .map(|under| under.name),
-        Some(face.name.clone()),
+            .into_iter()
+            .map(|under| under.name)
+            .collect::<Vec<_>>(),
+        vec![face.name.clone()],
         "the filtered answer is the ray path's own face, unnarrowed"
     );
 
@@ -1021,5 +1047,95 @@ fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face()
             .expect("un-projects")
             .is_none(),
         "and hovers nothing, so the picture agrees with the click"
+    );
+}
+
+/// **A cursor the FACE pick ties on still picks the edge.**
+///
+/// A cursor on a shared edge is the pixel a user aims an edge with,
+/// and it is also where the face pick ties — the ray meets both faces
+/// the edge belongs to and the arithmetic orders neither. Seeding the
+/// edge search on the face ANSWER therefore refuses the edge pick
+/// exactly where an edge is what the cursor means; the seed is a
+/// depth instead (`PickIndex::front_of`), and only the face answer
+/// refuses.
+///
+/// The fixture is the shipped plate's own drawn edges, swept at every
+/// segment midpoint: the sweep both finds the tied cursors and pins
+/// the edge door over all of them. The premise is asserted, so a
+/// plate that stopped producing tied cursors reds here rather than
+/// passing vacuously.
+#[test]
+fn a_cursor_the_face_pick_ties_on_still_picks_the_edge() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let eval = eval_of(&session);
+    let mut tied_cursors = 0usize;
+    let mut edge_refused = 0usize;
+    let mut edge_missed = 0usize;
+    let mut cursors = 0usize;
+    let mut edges_hit = std::collections::BTreeSet::new();
+    let mut edges_all = 0usize;
+    let mut example = String::new();
+    for (id, points) in drawn_edges(&index, extrude) {
+        edges_all += 1;
+        for pair in points.windows(2) {
+            let mid = Point3::new(
+                (pair[0].x + pair[1].x) * 0.5,
+                (pair[0].y + pair[1].y) * 0.5,
+                (pair[0].z + pair[1].z) * 0.5,
+            );
+            let cursor = pixel_of(&camera, mid);
+            cursors += 1;
+            let faces = index
+                .faces_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
+                .expect("the cursor un-projects");
+            if faces.len() < 2 {
+                continue;
+            }
+            tied_cursors += 1;
+            edges_hit.insert(format!("{id:?}"));
+            match index.edge_at_for(eval, &camera, pane(), cursor, &DisplayView::none()) {
+                Ok(Some(pick)) => {
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick answered {pick:?}");
+                    }
+                }
+                Ok(None) => {
+                    edge_missed += 1;
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick answered NOTHING");
+                    }
+                }
+                Err(error) => {
+                    edge_refused += 1;
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick REFUSED: {error}");
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "# tied cursors {tied_cursors} of {cursors}, on {} of {edges_all} drawn edges; the \
+         edge pick refuses at {edge_refused} of them and answers nothing at {edge_missed}; \
+         {example}",
+        edges_hit.len()
+    );
+    assert!(
+        tied_cursors > 0,
+        "the row's premise: the plate's drawn edges produce cursors the face pick ties on \
+         ({cursors} cursors over {edges_all} edges)"
+    );
+    assert_eq!(
+        edge_refused, 0,
+        "a cursor the face pick ties on takes the EDGE pick down with it: {example}"
+    );
+    assert_eq!(
+        edge_missed, 0,
+        "the cursor is on a drawn edge's own midpoint, so the edge door answers it: {example}"
     );
 }

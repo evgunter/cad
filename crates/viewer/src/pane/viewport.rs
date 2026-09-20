@@ -611,15 +611,16 @@ impl ViewerBehavior<'_> {
         // nothing else would draw it. Not behind the datum toggle: a
         // profile is authored content, not construction geometry.
         //
-        // `except: None`: the one form that previews is the create
-        // form, whose profile is not a node while it is being
-        // composed, and which comes to rest when its add is accepted
-        // (`Drafts::accepted`) — so the node it became is drawn here
-        // once the evaluation holding it lands, and never also as the
-        // preview. A form that previews an edit of a committed profile
-        // must pass that node here, or it is drawn twice.
+        // `except`: the profile the edit door is previewing, if any
+        // ([`ViewerBehavior::profile_edited`]) — drawn by its live
+        // preview below and not also as it was committed, which would
+        // show two shapes where there is one. The create door's
+        // profile is not a node while it is composed, and comes to
+        // rest when its add is accepted (`Drafts::accepted`), so it
+        // has nothing to leave out.
         if let Some((doc, evaluation)) = self.session.landed_pair() {
-            let committed = sketch::committed(doc, evaluation, self.delta.get(), None);
+            let committed =
+                sketch::committed(doc, evaluation, self.delta.get(), self.profile_edited);
             *self.profiles_undrawn = committed.undrawn.len();
             for profile in &committed.drawn {
                 for polyline in &profile.loops {
@@ -642,7 +643,15 @@ impl ViewerBehavior<'_> {
         // the form; one that replayed but does not VALIDATE draws
         // anyway, which is the case where looking at it is the whole
         // point.
-        if let Some(Ok(drawn)) = self.profile_preview {
+        // Both doors of the one profile editor draw the same way: the
+        // add-profile form's loops and an edit's, each where it lands.
+        let previews = self
+            .profile_previews
+            .as_ref()
+            .into_array()
+            .into_iter()
+            .filter_map(|preview| preview.as_ref()?.as_ref().ok());
+        for drawn in previews {
             let plane = drawn.plane;
             // The marks are sized in pixels, read at each vertex's own
             // depth — the same door the datum glyphs go through. A
@@ -746,20 +755,24 @@ impl ViewerBehavior<'_> {
         // freshness rule, this only declines to do the work when no
         // question is outstanding at all.
         let outstanding = self.id_log.outstanding();
-        let from_ray = outstanding.and_then(|_| {
-            let index = on_screen?;
-            let eval = self.session.evaluation()?;
-            index
-                .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
-                .ok()
-                .flatten()
-        });
+        let from_ray: Vec<_> = outstanding
+            .and_then(|_| {
+                let index = on_screen?;
+                let eval = self.session.evaluation()?;
+                index
+                    .faces_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
+                    .ok()
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .map(|face| face.name)
+            .collect();
         if let Some(report) = on_screen.and_then(|index| {
             idpass::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
-                from_ray.as_ref().map(|face| &face.name),
+                &from_ray,
             )
         }) {
             self.notices.push(report.notice());
@@ -1295,10 +1308,11 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report = idpass::disagreement(&index, nothing, Some(serial), Some(&named))
-            .expect("nothing-under-the-cursor against a named face is a disagreement");
+        let report =
+            idpass::disagreement(&index, nothing, Some(serial), std::slice::from_ref(&named))
+                .expect("nothing-under-the-cursor against a named face is a disagreement");
         assert_eq!(report.from_gpu, None, "the id pass answered nothing");
-        assert_eq!(report.from_ray, Some(named), "the ray answered a face");
+        assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 
         assert!(
             drawn_index(Some(&index), None).is_none(),

@@ -24,8 +24,8 @@
 //! plus both subtracts).
 
 use editor_core::{
-    BooleanOp, CapEnd, Dimension, DocEdit, EntityKind, Expr, Node, RecipeNodeId, RoleSeg, SlotId,
-    StableName,
+    BooleanOp, CapEnd, Dimension, DocEdit, EntityKind, Expr, Node, RecipeNodeId, RoleSeg, SitedRef,
+    SlotId, StableName,
 };
 
 use crate::fixture::len;
@@ -95,8 +95,8 @@ pub fn document() -> CorpusDoc {
         path: vec![RoleSeg::FromB(cap(slot1, CapEnd::Start).into())],
     };
     let decl = r.insert(Node::declare_rest(vec![(
-        cavity_floor,
-        cap(slot2, CapEnd::Start),
+        SitedRef::new(sub1, cavity_floor),
+        SitedRef::new(slot2, cap(slot2, CapEnd::Start)),
     )]));
     let sub2 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,

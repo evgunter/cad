@@ -94,3 +94,47 @@ such a row is CHROME's. Nothing here asks CHROME for more than the
 count and the list it already owed. Appended from outside CHROME's
 fence, as the earlier sections were, only to keep the definition true
 of the kernel the affordance reads.
+
+## Widened (2026-09-19, PR #2874)
+
+The delete door has a THIRD row now — `Maintenance::OrphanedDeclare
+{ declare }`, a `Declare` whose last consumer the delete removed — and
+what the affordance owes is the NET of strands AND orphans over the
+doomed set, by the same end-state definition this row already uses.
+
+The orphan's transient is the declare case again, and it is the
+CASCADE door's to cancel, not `apply`'s. `apply` is a function of
+`(document, edit)` and answers what one delete did; over an ACTION —
+`cascade_delete_order`'s whole sequence — the net is the cascade
+door's answer, and **nothing in the tree computes it today**. In the
+viewer that door is `Session::commit_action`, which composes exactly
+this loop; Python has no cascade door at all, so `pncad.pyi`'s
+`orphaned_declare` paragraph states the transient in one sentence
+rather than pointing at a door the external consumer cannot reach.
+
+The cancellation is one line, and the reviewer measured it: the
+subject of a transient orphan row is ALWAYS in the doomed set, so
+`rows.filter(|row| !matches!(row, OrphanedDeclare { declare } if
+doomed.contains(declare)))` is the whole of it. Pinned by
+`dm7_delete_strands::the_orphan_transient_is_cancellable_at_the_cascade_door`
+(written on `review/orphan-rv` as
+`rv_the_orphan_transient_is_cancellable_at_the_cascade_door` and
+adopted into the unit's suite), whose last assertion is that the net
+is empty and that nothing computes it. The sites that would compose
+it are `Session::commit_action` in `crates/viewer` and any future
+cascade affordance.
+
+The pre-click count adds, to the strand number above, the `Declare`s
+**outside** `doomed` every one of whose consumers is **inside** it. A
+`Declare` is its consumer's INPUT, so `cascade_delete_order` — which
+walks dependents — never pulls one in on the consumer's account: a
+cascade of the union leaves the declaration behind and the count is
+1. A cascade of the DECLARATION is the transient: the `Declare` is
+the target, so it is inside `doomed`, and the count is 0 while the
+rows the run produced say 1. That difference is the whole of what the
+filter cancels.
+
+Appended from outside CHROME's fence, as the earlier sections were,
+only to keep the definition true of the kernel the affordance reads.
+Nothing here asks CHROME for more than the count and the list it
+already owed.

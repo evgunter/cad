@@ -10,7 +10,8 @@ use std::fmt::Write as _;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, EvalOutcome, Evaluation, Expr,
-    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SitedRef, SlotId, ValuePayload,
+    evaluate,
 };
 use editor_core::{CapEnd, RoleSeg};
 use fixture::{
@@ -103,8 +104,8 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let (doc, decl) = insert(
         doc,
         Node::declare_rest(vec![(
-            fixture::fname(a, RoleSeg::Cap(CapEnd::Start)),
-            fixture::fname(b, RoleSeg::Cap(CapEnd::Start)),
+            SitedRef::new(a, fixture::fname(a, RoleSeg::Cap(CapEnd::Start))),
+            SitedRef::new(b, fixture::fname(b, RoleSeg::Cap(CapEnd::Start))),
         )]),
     );
     let (doc, s) = insert(
@@ -711,12 +712,13 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             },
         );
         // M4 PR 5: the pip's outer cap lies ON the cube's top —
-        // declared (the rotational variant maps the SAME names).
+        // declared (the rotational variant maps the SAME names). The
+        // B side is read at the TRANSFORM, the subtract's operand.
         let (doc, decl) = insert(
             doc,
             Node::declare_rest(vec![(
-                fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
-                fixture::fname(pip, RoleSeg::Cap(CapEnd::Start)),
+                SitedRef::new(cube, fixture::fname(cube, RoleSeg::Cap(CapEnd::End))),
+                SitedRef::new(tr, fixture::fname(pip, RoleSeg::Cap(CapEnd::Start))),
             )]),
         );
         let (doc, sub) = insert(
@@ -862,6 +864,7 @@ fn wire_doors_refuse_typed() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(

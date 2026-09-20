@@ -87,6 +87,7 @@
 //! small to say" is always an escalation, never a classification.
 
 use geom::Surface;
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
@@ -126,6 +127,33 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
+/// The crate's **collapsed-arm gate**, the same wrapper one door over
+/// ([`geom_core::k_stats::decide_positive`]): for a predicate whose
+/// question is only validly posed through a definitely-positive margin
+/// — a folded lever arm, a metered span. The gate's refusal of a
+/// definite non-positive sign is the funnel's escalation, recorded on
+/// the open frame, so no caller here mints an [`Indeterminate`] the
+/// verdict log cannot see.
+pub(crate) fn decide_positive<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_positive(name, margin, band)
+}
+
+/// The crate's **collapsed-discriminant gate**
+/// ([`geom_core::k_stats::decide_nonzero`]): for a predicate that reads
+/// a side off the margin's sign and has none to read at a definite
+/// zero.
+pub(crate) fn decide_nonzero<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<NonzeroSign, Indeterminate> {
+    geom_core::k_stats::decide_nonzero(name, margin, band)
+}
+
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at
 /// the on-locus point `p` (module docs). Margin: `sin θ · r` in meters,
 /// θ the tangent-plane angle from implicit gradients, `r` the folded
@@ -162,16 +190,7 @@ pub fn classify_dihedral<T: Decide>(
     // true magnitude, unreachable Negative) arm escalates as Invalid —
     // "the question was never validly posed here" — and an in-band or
     // poisoned arm escalates through `decide` itself via `?`.
-    match decide("dihedral_arm", Margin::of(arm), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("dihedral_arm"),
-            });
-        }
-    }
+    decide_positive("dihedral_arm", Margin::of(arm), band)?;
     let margin = Margin::levered(sin_theta, arm);
     Ok(match decide("dihedral_wedge", margin, band)? {
         Sign::Positive => DihedralClass::Transverse,
@@ -516,19 +535,16 @@ pub fn classify_material_pairing<T: Decide>(
 ) -> Result<MaterialPairing, Indeterminate> {
     let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
     let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
-    match decide(
-        "material_wedge_side",
-        Margin::levered(n_plus.dot(n_minus), arm),
-        band,
-    )? {
-        Sign::Positive => Ok(MaterialPairing::Aligned),
-        Sign::Negative => Ok(MaterialPairing::Opposed),
-        Sign::Zero => Err(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+    Ok(
+        match decide_nonzero(
+            "material_wedge_side",
+            Margin::levered(n_plus.dot(n_minus), arm),
             band,
-            predicate: Some("material_wedge_side"),
-        }),
-    }
+        )? {
+            NonzeroSign::Positive => MaterialPairing::Aligned,
+            NonzeroSign::Negative => MaterialPairing::Opposed,
+        },
+    )
 }
 
 /// **The cusp/slit discriminant**: the jet's relative transverse

@@ -12,8 +12,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, Dimension, DimensionError, Expr, LoopProgram, ParamName, RecipeNodeId,
-    RecordedProgramError, SlotId,
+    BooleanOp, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, ParamName, ProfileProgram,
+    RecipeNodeId, RecordedProgramError, SlotId,
 };
 use pncad::geom_core::Point2;
 use pncad::profile::{Step, Target};
@@ -24,7 +24,7 @@ use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
 use crate::session::{DatumSpec, ProfileShape, SessionOp};
-use crate::sketch;
+use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
 ///
@@ -209,6 +209,149 @@ pub(crate) struct Drafts {
     /// ([`BlendKindChoice::size_label`]), and a second field would be
     /// a second place for the same quantity to be typed into.
     pub(crate) blend_size: f64,
+    /// **The path editor opened on a committed profile** — the
+    /// add-profile form's step list, held for the edit door
+    /// ([`Drafts::profile_edit`] loads it). `None` while no profile is
+    /// selected, and dropped the moment the selection leaves the node
+    /// it was loaded from ([`Drafts::abandon_profile_edit_off`]).
+    pub(crate) profile_edit: Option<ProfileEdit>,
+}
+
+/// **One value per door of the profile editor** — the add-profile
+/// form (`create`) and the same editor opened on a committed profile
+/// (`edit`). What the frame loop takes per door — the loops, the
+/// preview, whether the door drew — is one of these, so the two doors
+/// run one pipeline rather than a pipeline and its twin.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ProfileDoors<T> {
+    /// The add-profile form's.
+    pub(crate) create: T,
+    /// The edit door's.
+    pub(crate) edit: T,
+}
+
+impl<T> ProfileDoors<T> {
+    /// Each door's value through `f`.
+    pub(crate) fn map<U>(self, mut f: impl FnMut(T) -> U) -> ProfileDoors<U> {
+        ProfileDoors {
+            create: f(self.create),
+            edit: f(self.edit),
+        }
+    }
+
+    /// Each door's value beside `other`'s for the same door.
+    pub(crate) fn zip<U>(self, other: ProfileDoors<U>) -> ProfileDoors<(T, U)> {
+        ProfileDoors {
+            create: (self.create, other.create),
+            edit: (self.edit, other.edit),
+        }
+    }
+
+    /// Borrowed.
+    pub(crate) fn as_ref(&self) -> ProfileDoors<&T> {
+        ProfileDoors {
+            create: &self.create,
+            edit: &self.edit,
+        }
+    }
+
+    /// Both doors' values, create first.
+    pub(crate) fn into_array(self) -> [T; 2] {
+        [self.create, self.edit]
+    }
+}
+
+/// What one door's editor would preview: the frame it draws on (the
+/// form's pick, `None` until one is made) and its loops.
+#[derive(Clone, Debug)]
+pub(crate) struct DoorLoops {
+    /// The frame the loops are drawn on.
+    pub(crate) frame: Option<RecipeNodeId>,
+    /// The loops, in description order.
+    pub(crate) loops: Vec<ProfileShape>,
+}
+
+impl DoorLoops {
+    /// Whether `other` previews the same thing — the same frame and
+    /// loops that lower alike ([`sketch::authors_same_loops`]).
+    pub(crate) fn previews_as(&self, other: &Self) -> bool {
+        self.frame == other.frame && sketch::authors_same_loops(&self.loops, &other.loops)
+    }
+}
+
+/// **A committed profile's program, held in the add-profile form's
+/// currency** — the kernel's [`Step`] at plain numbers, one list per
+/// loop — so the one editor that authors a new profile edits this one.
+///
+/// It keeps the program it was loaded FROM, which is what an edit is
+/// measured against ([`sketch::program_edits`]) and what tells the
+/// holder the document has moved under it.
+#[derive(Debug)]
+pub(crate) struct ProfileEdit {
+    /// The profile node.
+    pub(crate) node: RecipeNodeId,
+    /// The committed program the loops were loaded from.
+    base: ProfileProgram,
+    /// The loops as the editor holds them, in description order.
+    pub(crate) loops: Vec<Vec<Step<f64>>>,
+}
+
+impl ProfileEdit {
+    /// The frame the profile is drawn on — a reference the edit door
+    /// does not rewrite.
+    pub(crate) fn plane(&self) -> RecipeNodeId {
+        self.base.plane
+    }
+
+    /// The committed program the loops were loaded from — what
+    /// `SessionOp::EditProfile` carries so the door can refuse numbers
+    /// loaded from a program the document no longer holds.
+    pub(crate) fn base(&self) -> &ProfileProgram {
+        &self.base
+    }
+
+    /// The held loops as the shapes the preview and the lowering take.
+    pub(crate) fn shapes(&self) -> Vec<ProfileShape> {
+        sketch::path_shapes(&self.loops)
+    }
+
+    /// The held loops lowered in `notation` — what
+    /// `SessionOp::EditProfile` carries.
+    ///
+    /// # Errors
+    ///
+    /// [`sketch::loop_program`]'s: a non-finite field.
+    pub(crate) fn programs(
+        &self,
+        notation: sketch::Notation,
+    ) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+        sketch::loop_programs(&self.shapes(), notation)
+    }
+
+    /// **Whether applying would write anything** — the edit door's own
+    /// question ([`sketch::program_edits`]) asked of the loaded
+    /// program. A held state that does not lower, or does not have the
+    /// committed program's structure, counts as moved: applying it is
+    /// how the refusal is said.
+    pub(crate) fn moved(&self) -> bool {
+        let untouched = self
+            .programs(sketch::Notation::CANONICAL)
+            .ok()
+            .and_then(|loops| sketch::program_edits(&self.base, &loops).ok())
+            .is_some_and(|edits| edits.is_empty());
+        !untouched
+    }
+
+    /// Put the loops back to the program they were loaded from.
+    ///
+    /// # Errors
+    ///
+    /// Never in practice — the base was loadable once — but typed
+    /// rather than assumed: [`sketch::held_loops`]'s refusal.
+    pub(crate) fn revert(&mut self, doc: &Doc<ProfileProgram>) -> Result<(), HeldRefusal> {
+        self.loops = sketch::held_loops(doc, self.node)?;
+        Ok(())
+    }
 }
 
 impl Default for Drafts {
@@ -267,6 +410,7 @@ impl Default for Drafts {
             pattern_step: core::f64::consts::FRAC_PI_2,
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
+            profile_edit: None,
         }
     }
 }
@@ -327,6 +471,13 @@ impl Drafts {
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
+    ///
+    /// The edit door needs nothing here: an accepted
+    /// `SessionOp::EditProfile` changes the program its draft was
+    /// loaded from, and the draft rebases onto the new one on its own
+    /// (`Drafts::sync_profile_edit`, at the top of the next frame) —
+    /// untouched again, and still open on the node, which is where the
+    /// person is still working.
     pub(crate) fn accepted(&mut self, op: &SessionOp) {
         if matches!(op, SessionOp::AddProfile { .. }) {
             self.profile_shape = None;
@@ -342,6 +493,120 @@ impl Drafts {
         }
     }
 
+    /// **The edit draft for the profile `node`** — the held one when
+    /// it is this node's and the document still holds the program it
+    /// was loaded from, a fresh load otherwise.
+    ///
+    /// A draft of another node, or of a program the document no longer
+    /// holds (an undo, a redo, an apply, a slot edit from elsewhere),
+    /// is replaced: its numbers were an edit of something that is not
+    /// there any more, and applying them would write them over a
+    /// program nobody was looking at. Compared by the program's VALUE,
+    /// which is blind to notation, so a unit rewrite keeps the draft.
+    ///
+    /// # Errors
+    ///
+    /// [`HeldRefusal`] when the node is not a profile the editor can
+    /// hold — and the held draft is dropped with it, so nothing stale
+    /// survives the refusal.
+    pub(crate) fn profile_edit(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        node: RecipeNodeId,
+    ) -> Result<&mut ProfileEdit, HeldRefusal> {
+        let current = match doc.node(node) {
+            Some(Node::Profile(program)) => Some(program),
+            _ => None,
+        };
+        let fresh = self
+            .profile_edit
+            .as_ref()
+            .is_some_and(|held| held.node == node && current == Some(&held.base));
+        if !fresh {
+            self.profile_edit = None;
+            let loops = sketch::held_loops(doc, node)?;
+            let Some(base) = current else {
+                unreachable!("`held_loops` loaded feature {} as a profile", node.0)
+            };
+            self.profile_edit = Some(ProfileEdit {
+                node,
+                base: base.clone(),
+                loops,
+            });
+        }
+        let Some(held) = self.profile_edit.as_mut() else {
+            unreachable!("the edit draft was kept or loaded just above")
+        };
+        Ok(held)
+    }
+
+    /// **Bring the held edit draft up to the document, before anything
+    /// reads it this frame**: dropped when the selection has left its
+    /// node ([`Self::abandon_profile_edit_off`]), reloaded when the
+    /// document no longer holds the program it was loaded from (an
+    /// undo, a redo, an apply), dropped when that reload refuses. It
+    /// never LOADS a draft that is not held — opening one is the
+    /// pane's act ([`Self::profile_edit`]).
+    pub(crate) fn sync_profile_edit(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        selected: Option<RecipeNodeId>,
+    ) {
+        self.abandon_profile_edit_off(selected);
+        if let Some(node) = self.profile_edit.as_ref().map(|held| held.node) {
+            // A refusal drops the draft (`profile_edit`'s contract) and
+            // is said by the pane when it next draws.
+            let _refused = self.profile_edit(doc, node).is_err();
+        }
+    }
+
+    /// **What each door of the profile editor holds for its preview**:
+    /// the add-profile form's frame pick and loops, and the loops of a
+    /// committed profile opened for editing, on its own frame (`None`
+    /// while none is open).
+    pub(crate) fn door_loops(&self) -> ProfileDoors<Option<DoorLoops>> {
+        ProfileDoors {
+            create: Some(DoorLoops {
+                frame: self.profile_plane,
+                loops: self.profile_loops(),
+            }),
+            edit: self.profile_edit.as_ref().map(|edit| DoorLoops {
+                frame: Some(edit.plane()),
+                loops: edit.shapes(),
+            }),
+        }
+    }
+
+    /// **The committed profile the edit door is drawing in place of
+    /// its committed loops** — the draft's node, when the edit door's
+    /// preview this frame REPLAYED (`edit_preview`, taken from
+    /// [`Self::door_loops`]'s `edit`). The committed-profile pass
+    /// leaves it out (`sketch::committed`'s `except`), so the node
+    /// shows only its live preview; a preview that refused draws
+    /// nothing, and then the committed drawing stays up.
+    pub(crate) fn edited_in_place(
+        &self,
+        edit_preview: Option<&Result<sketch::ProfilePreview, sketch::PreviewError>>,
+    ) -> Option<RecipeNodeId> {
+        self.profile_edit
+            .as_ref()
+            .filter(|_| matches!(edit_preview, Some(Ok(_))))
+            .map(|edit| edit.node)
+    }
+
+    /// **Drop the edit draft unless `selected` is its node** — the
+    /// selection moving off a profile abandons what was typed into it,
+    /// as every draft here is abandoned by selecting elsewhere.
+    pub(crate) fn abandon_profile_edit_off(&mut self, selected: Option<RecipeNodeId>) {
+        if self
+            .profile_edit
+            .as_ref()
+            .is_some_and(|held| Some(held.node) != selected)
+        {
+            self.profile_edit = None;
+        }
+    }
+
     /// The loop PROGRAMS the add-profile form would author right now:
     /// [`Drafts::profile_loops`] lowered in this form's notation, which
     /// is what the op carries.
@@ -351,10 +616,7 @@ impl Drafts {
     /// A non-finite field, or a path that is not a program's shape
     /// ([`sketch::loop_program`]'s refusals).
     pub(crate) fn profile_programs(&self) -> Result<Vec<LoopProgram>, RecordedProgramError> {
-        self.profile_loops()
-            .iter()
-            .map(|shape| sketch::loop_program(shape, self.notation()))
-            .collect()
+        sketch::loop_programs(&self.profile_loops(), self.notation())
     }
 
     /// A `Length` literal from a draft field, remembering the form's
@@ -506,14 +768,16 @@ impl std::fmt::Display for CommitFault {
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
 
     use pncad::document::{
         CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram,
         RecipeNodeId, apply, evaluate,
     };
-    use pncad::geom_core::Tol;
+    use pncad::geom_core::{Point2, Tol};
+    use pncad::profile::{Step, Target};
 
-    use super::Drafts;
+    use super::{Drafts, ProfileEdit};
     use crate::forms::{DatumKindChoice, ShapeKind};
     use crate::seats::Seat;
     use crate::session::SessionOp;
@@ -587,8 +851,15 @@ mod tests {
             v: [scalar(0.0), scalar(1.0), scalar(0.0)],
         });
         let insert = |doc: &Doc<ProfileProgram>, node| {
-            let applied =
-                apply(doc, &DocEdit::InsertNode { node }, tol).expect("the fixture's edit applies");
+            // A part-less fixture: no mate, no cluster, so the reach
+            // is the refusing one and is never asked.
+            let applied = apply(
+                doc,
+                &DocEdit::InsertNode { node },
+                tol,
+                &pncad::document::RefusingReach,
+            )
+            .expect("the fixture's edit applies");
             let id = applied.record.minted.expect("an insert mints an id");
             (applied.doc, id)
         };
@@ -647,5 +918,197 @@ mod tests {
             ..Drafts::default()
         };
         assert!(matches!(drafts.datum_spec(), Ok(None)));
+    }
+
+    /// A document holding one frame and the profile the add-profile
+    /// form's DEFAULT path authors on it, lowered by the form's own
+    /// `profile_programs` and inserted through the edit door the
+    /// create button's op reaches. Answers the document, the drafts
+    /// that authored it, and the profile node.
+    fn authored_by_the_form() -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
+        use crate::forms::ShapeKind;
+        use crate::session::DatumSpec;
+
+        let len = |m: f64| Expr::literal(m, Dimension::Length).expect("finite");
+        let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+        let doc = Doc::empty_derived("drafts-edit", Tol::witness());
+        let frame = datum_node(DatumSpec::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        });
+        let doc = apply(
+            &doc,
+            &DocEdit::InsertNode { node: frame },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("a frame inserts")
+        .doc;
+        let plane = *doc.order().last().expect("the frame");
+        let drafts = Drafts {
+            profile_shape: Some(ShapeKind::Path),
+            profile_plane: Some(plane),
+            ..Drafts::default()
+        };
+        let loops = drafts.profile_programs().expect("the default path lowers");
+        let node = Node::Profile(ProfileProgram { plane, loops });
+        let doc = apply(
+            &doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("the form's default path is a profile")
+        .doc;
+        let profile = *doc.order().last().expect("the profile");
+        (doc, drafts, profile)
+    }
+
+    /// `doc` with the slot writes the edit door would make for `edit`'s
+    /// held loops — [`sketch::program_edits`], applied in order.
+    fn applied(
+        doc: &Doc<ProfileProgram>,
+        edit: &ProfileEdit,
+        notation: sketch::Notation,
+    ) -> Doc<ProfileProgram> {
+        let loops = edit.programs(notation).expect("finite");
+        let Some(Node::Profile(current)) = doc.node(edit.node) else {
+            panic!("the edited node is a profile")
+        };
+        let edits = sketch::program_edits(current, &loops).expect("same shape");
+        assert_eq!(edits.len(), 1, "one argument moved: {edits:?}");
+        edits.into_iter().fold(doc.clone(), |doc, (slot, expr)| {
+            apply(
+                &doc,
+                &DocEdit::SetParam {
+                    node: edit.node,
+                    slot,
+                    expr,
+                },
+                Tol::witness(),
+                &pncad::document::RefusingReach,
+            )
+            .expect("the edit door takes it")
+            .doc
+        })
+    }
+
+    /// **The create form's profile opens in the edit door untouched**:
+    /// the draft holds the form's own steps, says nothing moved, and
+    /// what its Apply would send writes no argument.
+    #[test]
+    fn the_forms_profile_opens_untouched_and_would_write_nothing() {
+        let (doc, mut drafts, profile) = authored_by_the_form();
+        let authored = drafts.profile_loops();
+        let notation = drafts.notation();
+        let edit = drafts
+            .profile_edit(&doc, profile)
+            .expect("the editor holds the form's profile");
+        assert!(!edit.moved(), "a fresh load has nothing to apply");
+        assert!(sketch::authors_same_loops(&edit.shapes(), &authored));
+        let loops = edit.programs(notation).expect("finite");
+        let Some(Node::Profile(current)) = doc.node(profile) else {
+            panic!("a profile")
+        };
+        assert_eq!(sketch::program_edits(current, &loops), Ok(Vec::new()));
+    }
+
+    /// **The draft follows the document, not the other way round.** A
+    /// moved number is held until applied; the applied program is the
+    /// new base, so the draft is untouched again; going back to the
+    /// earlier document (an undo) replaces the draft with the program
+    /// held there; and a selection that leaves the node drops it.
+    #[test]
+    fn the_edit_draft_reloads_on_undo_and_is_abandoned_off_selection() {
+        let (before, mut drafts, profile) = authored_by_the_form();
+        let notation = drafts.notation();
+        let moved_to = Step::LineTo(Target::Point(Point2::new(0.02, 0.0)));
+        let same_step = |a: Step<f64>, b: Step<f64>| {
+            sketch::authors_same_loops(
+                &sketch::path_shapes(&[vec![Step::At(Point2::origin()), a]]),
+                &sketch::path_shapes(&[vec![Step::At(Point2::origin()), b]]),
+            )
+        };
+        let edit = drafts.profile_edit(&before, profile).expect("held");
+        edit.loops[0][1] = moved_to;
+        assert!(edit.moved());
+        // Held across frames while the document stands still.
+        let edit = drafts.profile_edit(&before, profile).expect("held");
+        assert!(edit.moved(), "the typed number survived a second read");
+        let after = applied(&before, edit, notation);
+        let edit = drafts.profile_edit(&after, profile).expect("held");
+        assert!(!edit.moved(), "the applied program is the new base");
+        assert!(same_step(edit.loops[0][1], moved_to));
+        // Undo: the document the history steps back to.
+        let edit = drafts.profile_edit(&before, profile).expect("held");
+        assert!(!edit.moved());
+        assert!(
+            !same_step(edit.loops[0][1], moved_to),
+            "the undone number is gone from the draft"
+        );
+        // Revert puts typed numbers back.
+        edit.loops[0][2] = Step::LineTo(Target::Point(Point2::new(0.03, 0.03)));
+        assert!(edit.moved());
+        edit.revert(&before).expect("revertible");
+        assert!(!edit.moved());
+        drafts.abandon_profile_edit_off(Some(profile));
+        assert!(drafts.profile_edit.is_some(), "still selected, still held");
+        drafts.abandon_profile_edit_off(None);
+        assert!(drafts.profile_edit.is_none(), "selection left, draft gone");
+        // A node the editor cannot hold leaves nothing stale behind.
+        assert!(drafts.profile_edit(&before, RecipeNodeId(0)).is_err());
+        assert!(drafts.profile_edit.is_none());
+    }
+
+    /// **The profile being edited shows only its live preview.** The
+    /// edit door's replayed preview stands in for the node, which the
+    /// committed-profile pass then leaves out; a preview that refused
+    /// stands in for nothing, and the committed drawing stays.
+    #[test]
+    fn the_edited_profile_is_drawn_only_as_its_preview() {
+        let tol = Tol::witness();
+        let chord = 1.0e-4;
+        let (doc, mut drafts, profile) = authored_by_the_form();
+        let evaluation = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let drawn = |except| {
+            sketch::committed(&doc, &evaluation, chord, except)
+                .drawn
+                .iter()
+                .map(|profile| profile.node)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            drawn(None),
+            vec![profile],
+            "the control: drawn when nothing edits it"
+        );
+        drafts.profile_edit(&doc, profile).expect("held");
+        let held = drafts.door_loops().edit.expect("the edit door holds loops");
+        let plane = held.frame.expect("its own frame");
+        let placement = sketch::frame_placement(&doc, &evaluation, plane).expect("placed");
+        let preview = sketch::preview(placement, &held.loops, tol, chord);
+        assert!(
+            matches!(&preview, Ok(p) if !p.loops.is_empty()),
+            "the live preview draws"
+        );
+        let except = drafts.edited_in_place(Some(&preview));
+        assert_eq!(except, Some(profile));
+        assert!(drawn(except).is_empty(), "the committed loops are left out");
+        // A preview that refuses stands in for nothing.
+        if let Some(edit) = drafts.profile_edit.as_mut() {
+            edit.loops[0] = vec![Step::At(Point2::origin())];
+        }
+        let held = drafts.door_loops().edit.expect("held");
+        let refused = sketch::preview(placement, &held.loops, tol, chord);
+        assert!(refused.is_err(), "a one-point chain does not replay");
+        assert_eq!(drafts.edited_in_place(Some(&refused)), None);
+        assert_eq!(drafts.edited_in_place(None), None, "no preview taken");
     }
 }

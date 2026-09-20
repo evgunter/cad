@@ -191,7 +191,8 @@ fn a_replayed_history_is_the_files_log_step_for_step() {
             expr: common::len(0.03),
         },
     ];
-    let history = History::replayed(doc, &edits, tol).expect("the log replays");
+    let history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
+        .expect("the log replays");
     assert_eq!(history.len(), 3);
     assert_eq!(history.path_edits().len(), 2);
     assert_eq!(

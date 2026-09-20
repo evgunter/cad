@@ -305,7 +305,9 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     );
     // M4 PR 5: the slide's flush planes are declared (the disjoint
     // position keeps the same coplanarity, so ONE declare serves both).
-    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
+    // The B side is read at the TRANSFORM, the boolean's operand;
+    // a transform carries `b0`'s names verbatim (N1).
+    let (doc, decl) = fixture::declare_x_offset_flush_at(doc, (a, a), (transform, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
