@@ -240,10 +240,14 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 #652). Re-deriving:
 
 ```sh
-# code half — every funnel site, all ten spellings, both crates.
+# code half — every funnel site, all twelve spellings, both crates.
 # It also matches doc-comment prose and `fn` definitions; the ledger
 # above says which, and they are subtractions, not sites.
-grep -rnE '\b(decide|decide_flagged|decide_invariant|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+# `decide_positive` / `decide_nonzero` are `decide` with the caller's
+# sign requirement folded in, so their sites are rows of this table
+# like any other; `gate_measured` is deliberately absent — it classifies
+# no margin and has no comparand to dimension.
+grep -rnE '\b(decide|decide_flagged|decide_invariant|decide_positive|decide_nonzero|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
@@ -266,11 +270,14 @@ disclosed rather than discovered.
 **Eight names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 248 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate` —
-seven through `predicate: Some("…")` (`carrier_kind`,
+six through `predicate: Some("…")` (`carrier_kind`,
 `contact_tangent_independent`, `contact_rest_senses_opposed`,
-`contact_rest_ladder_invariant`, `transversality`,
-`plane_nurbs_transversality_reported`, `validate_probe`) and one
-through an `invalid(band, "…")` helper (`bool_contfp_boundary`).
+`contact_rest_ladder_invariant`, `transversality`, `validate_probe`),
+one through an `invalid(band, "…")` helper (`bool_contfp_boundary`),
+and one — `plane_nurbs_transversality_reported` — as the name argument
+of a `k_stats::gate_measured` call, which records the escalation on the
+open frame but classifies nothing, so it is outside this table for the
+same reason the other seven are.
 None decides anything, none appears in the M7 baseline, and none has a
 comparand to dimension.
 
