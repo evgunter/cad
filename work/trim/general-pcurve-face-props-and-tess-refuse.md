@@ -2,12 +2,13 @@
 id: general-pcurve-face-props-and-tess-refuse
 kind: unit
 title: Volume, area and tessellation still refuse typed on a face carrying a General pcurve (P-2 residue)
-status: open
+status: closed
 opened: 2026-08-29
 github: 1179
 refs: [498]
-branch: trim/2-quadrature
-pr: 2564
+branch: trim/2-tess
+pr: 2863
+closed: 2026-09-20
 ---
 
 ## From GitHub issue 1179
@@ -116,3 +117,70 @@ spec §2) — its seam is TESS's ground now (S-MESH exited 2026-09-16),
 announced at dispatch. Record: MODEL-AB-LOG row T2Q; adjudication
 comment 5734849876. Seam gate: Ev ruled PROPS paused (in-chat,
 2026-09-19); merged on that ruling.
+
+## PR-2 open (2026-09-19)
+
+PR-2 (tessellation, spec §2) is open on `trim/2-tess`. The two arms
+flip on the `General` variant only:
+
+- `crates/mesh/src/chords.rs`, `nurbs_tighten`'s `General` arm — the
+  per-axis UV speed sups `(s_u, s_v)` now come from the image's
+  differenced control net (`general_uv_speeds`), the convexity fact
+  that stands where the `IsoLine` arm has its exact `|pl|` and the
+  harmonic arm its amplitude sum. Rational, degree-0 and
+  discontinuous-knot images refuse typed at their own notes.
+- `crates/mesh/src/trimmed.rs`, the trim walk — `Pcurve::General` is
+  admitted on a NURBS chart; the polygon vertex is
+  `cache.pcurve().eval(ts[idx])` at the shared chord parameters, the
+  same read every admitted variant takes. `General` off a NURBS chart
+  keeps a typed refusal.
+
+**The tessellation half of the site trace above is now measured on the
+other side.** Re-taken on this head before any code, at
+ε ∈ {1e-6, 1e-9, 1e-12}, δ = 1e-5·scale: `mesh::tessellate` refused
+`UnsupportedCurve` at `chords.rs::nurbs_tighten`'s `General` arm with
+the note this file quotes, identical at all three, and the oracle prism
+answered `Ok` with 143 360 positions / 6 patches. After the two arms
+the degree-2 body answers `Ok` at all three ε and
+`validate::check_mesh` passes on it — row E2,
+`sweep/tests/m8_4_intersection_iso.rs::a_degree_two_widening_tessellates_against_the_oracle`.
+`trimmed.rs`'s `General` arm, which the trace recorded as real but not
+reached, is reached now.
+
+**What the counts say, attributed per patch** (the fix pass's headline
+correction; the first version of this note explained the whole-mesh
+difference by the widened chart's grid density, which execution
+refutes). The `General`-faced wall's patch is the oracle wall's patch
+EXACTLY — same triangle count, same distinct-id count — and the seam's
+chord schedule is the same on both bodies. The whole-mesh difference
+is one substitution: the P-2 route restates a flat wall as the
+`Surface::Plane` it exactly is, so that wall takes the planar CDT lane
+where the oracle's takes the described-NURBS lane, and that accounts
+for every position of it. E2 asserts the per-patch equality and the
+deficit identity; it carries no band.
+
+E2 is a **schedule-and-watertightness** row, not a curvature one: this
+fixture's `General` image runs `u ∈ [2 − 2.2e-16, 2]`
+(`work/trim/curved-trim-e2e-fixture-waits-for-a-producer.md`). The
+curvature evidence for the new sup is the unit row
+`mesh::chords::tests::general_uv_speeds_dominate_the_sampled_image_speeds`.
+
+`Fitted` keeps both refusals (spec §8 ruling 3): no producer, and a
+flipped arm with no row is a claim.
+
+The residue this PR leaves behind is filed:
+`work/trim/chord-count-arithmetic-is-plain-f64-across-every-speed-arm.md`
+(TESS's, the count arithmetic's rounding direction across every speed
+arm, with the domination-idiom propagation note).
+
+## Closed (2026-09-20)
+
+PR-2 (#2863) merged (ordinal 2504, sample #224; block TRIM-B2 slot 1
+concluded): `mesh::tessellate` answers a NURBS face carrying a
+`General` pcurve — the certified UV speed sup and the trim walk's
+`General` arm. With PR-1 (#2564, the quadrature) the item's title is
+retired: volume, area and tessellation all answer. Records: MODEL-AB-LOG
+rows T2Q and T2T; adjudications 5734849876 and 5743420032. Left on the
+program from this unit: `curved-trim-e2e-fixture-waits-for-a-producer`,
+`trimmed-quadrature-composite-rounds`,
+`chord-count-arithmetic-is-plain-f64-across-every-speed-arm` (TESS's).
