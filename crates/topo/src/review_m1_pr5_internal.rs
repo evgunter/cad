@@ -301,9 +301,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     (
         "cyl_wall_sheet",
         "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line`, `mef` and \
-         `set_face_surface` (asserting), and then through `set_surface_source` and \
-         `mint_pcurves` — which do not assert, and are on this list below for writing \
-         fields tier 1 does not constrain",
+         `set_face_surface` (asserting), and then through `set_surface_source` \
+         and `mint_pcurves` — which do not assert, and are on this list \
+         below for writing fields tier 1 does not constrain. Its rim planes go in \
+         through the crate-internal `add_surface`, which promises nothing on its own: \
+         each plane is an orphan surface until the `mev` naming it mints the rim edge, \
+         and that operator's postcondition is what covers it",
     ),
     // ---- Writes fields tier 1 does not constrain. ----
     (

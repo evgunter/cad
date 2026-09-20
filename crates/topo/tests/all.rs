@@ -61,6 +61,7 @@
 use topo::test_support as common;
 
 mod fixture;
+mod probe_support;
 
 #[path = "bool4_material_containment.rs"]
 mod bool4_material_containment;

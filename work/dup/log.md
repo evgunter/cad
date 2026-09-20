@@ -1872,3 +1872,48 @@ down, carry the scope.
   committed, in a row, on line 139. Merging on that summary would have
   landed a wrong count in the tracker of the program whose subject is
   counts that do not survive re-taking.
+
+## 2026-09-20 — the `src` cylinder sheet: one construction, and the scar was not what held it apart
+
+`dup/src-cyl-sheet`, three rows as one unit. `crates/topo/src` held
+four spellings of the cylinder-wall sheet (`census::cyl_sheet`,
+`census::cyl_sheet_b`, `chart_region::cyl_sheet`, and the door PR #2887
+minted) and now holds one, with 316 lines gone.
+
+**The finding: a "visibility scar" that was measured, named and wrong.**
+PR #2887 measured one difference between the `src` pair and the
+`tests/` door — the rim plane's minting route — and read it as a
+`pub(crate)` scar. There are two. The scar is inert in both directions
+(1 lib row, 0 of 566 integration). The other, where the cylinder key
+lives, reds **1** integration row one way and **6** census rows the
+other, and it is what actually kept the families apart. The scar's own
+stated reason was false of the door the moment the door existed: it
+lives in `src` and could always call `add_surface`; the scaffolds were
+the `tests/` closures' workaround, carried into `src` with a
+justification that the move had already dissolved.
+
+**Method item 12, in a shape worth naming: a justification that
+survives its own premise.** The sentence was true of the code it was
+written about and false of the code it was written INTO, in one commit,
+by the lane that wrote both. Item 12's earlier instances were text
+going stale over time; this one was stale on arrival, and no re-reading
+of the diff would have caught it — only building the thing the sentence
+said was impossible. **The instrument for that class is the plant, not
+the read.**
+
+**A mutation is not a proof when a suite can swallow it.** The fold's
+proof plant reds 22 of 566 — and the two rows built on
+`try_wall_sheet`'s `catch_unwind` stand down and report ok. A wrapper
+whose premise is one failure mode catches every failure mode, so those
+two rows are green over a correct builder and over a broken one alike.
+Filed on S-TINT. **Item 11 needs the corollary: after a plant, check
+the rows you EXPECTED to red and did not, not only the count.**
+
+Counts that moved, per item 15: the parent's "617 integration rows
+green at both lanes" is the INTERVAL lane's count; the default lane is
+566 and the probe lane 571, so a figure quoted without its feature row
+names a set nobody can reproduce. The `try_wall_sheet` row's "token-
+identical (one md5)" and "their doc comments differ in substance" were
+both false at the merge base — and backwards: the doc comments were
+byte-identical, the bodies were not, and `r1`'s copy cites a map that
+lives in `r2`.

@@ -2,8 +2,11 @@
 id: topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one
 kind: issue
 title: census.rs and chart_region.rs build the same cylinder sheet twice, and the tests/ door is that construction with a pub(crate) scar
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-09-20
+branch: dup/src-cyl-sheet
+refs: [try-wall-sheet-stands-down-on-any-panic, the-canonical-unit-cylinder-literal-has-no-reachable-home]
 ---
 
 
@@ -64,3 +67,75 @@ into it.
 builders, which is this program's charter and not `curved`'s; it is
 filed here so the class stays with the other members, and `curved`
 owns the file whenever it wants the row.
+
+## Closed
+
+Folded. Re-measured 2026-09-20 at merge base `cd9fdfd6b`, by dumping
+and diffing rather than reading: each spelling reproduced verbatim in a
+throwaway in-crate probe, every vertex, edge, half-edge, loop, face,
+shell, solid, point (by bit pattern), curve and surface row formatted
+with its key, sorted and diffed.
+
+**The pair is one construction.** `census.rs`'s `cyl_sheet` against
+`chart_region.rs`'s, at the arguments their own call sites use: 66 dump
+lines, **65 identical**. The one that differs is the second sheet's
+face SENSE, which `census.rs` sets to `false` and `chart_region.rs`
+leaves at the `mef` default — the `sense` parameter, not a second
+construction. At equal `sense` the diff is empty, which is the parent
+row's measurement reproduced.
+
+**The parent's "one difference, and it is a visibility scar" is wrong,
+and this is the correction it asked for.** There are TWO differences
+between the `src` pair and the `tests/` door, and only one of them is
+the scar:
+
+| | measured | verdict |
+| --- | --- | --- |
+| rim plane minted by `add_surface` (`src`) vs a scaffold `mvfs` + `set_face_surface` (the door) | planting `add_surface` at the door reds **1** row — the door's own arena row — and **0** of the 566 default-lane integration rows | inert, a fossil |
+| the cylinder key on the SEED face's surface slot (the door) vs a bare arena key (`src`) | planting the seed-face form at the door's callers reds **1** integration row (`split_edge_pcurve_rows::a_split_on_a_curved_chart_leaves_every_half_edge_a_row`); planting it in `census.rs` reds **6** census rows | load-bearing, in BOTH directions |
+
+So what blocks a single spelling is not visibility at all. The scar's
+stated reason — *"a caller outside this crate cannot reach
+`add_surface`"* — was never true of the door, which is in `src` and
+could always call it; the scaffolds are what the `tests/` closures had
+to do before the parent moved them into `src`, and the doc kept
+asserting a constraint the move had dissolved. **That paragraph is
+deleted and the scaffolds with it.**
+
+### Where the shared body went
+
+`crates/topo/src/test_support_fixtures.rs`, beside `CylFrame`: one
+`cyl_wall_sheet_keyed`, with the measured axis as its parameter
+(`CylKey::OnSeed` | `Bare` | `Shared(key)`). Three spellings collapse
+onto it — the public `cyl_wall_sheet` (`OnSeed`, pcurves minted), the
+in-crate `unit_cyl_sheet` (canonical frame, bare key, sense set, no
+mint) and `census.rs`'s `cyl_sheet_b` — and `crates/topo/src` now holds
+**one** cylinder-sheet construction where it held four.
+
+What it cost: the door's bodies lose their two scaffold solids, so its
+arena row re-baselines from `(3, 4, 6)` to `(1, 2, 4)` and its
+lone-vertex-face count from 2 to 0. Nothing else moved — 566 default,
+617 interval, 571 probe, all green, identical to the merge base.
+
+The fold is bit-identical up to one thing, stated because it is real:
+the descending rim's carrier axis reads `Vec3 { -0.0, -0.0, -1.0 }`
+where the deleted copies wrote the literal `Vec3::new(0.0, 0.0, -1.0)`.
+The shared body computes `-frame.axis`, which is what the `tests/`
+family has always produced. Two curve rows per body; numerically equal,
+and no row reads the sign of a zero.
+
+### The proof
+
+Planting the descending rim's axis reversal away in the shared body
+reds **15 lib rows** (11 `census`, 2 `chart_region`, the door's arena
+row, and the measurement probe) and **22 of 566** integration rows
+(`mate5_cyl_eps_rung` 8, `r1_mate5_probe` 7, `r2_probes` 4,
+`split_edge_pcurve_rows` 3). Every folded site is live.
+
+Two rows are NOT in that list and are the finding that came out of it:
+`r1_mate5_probe::probe1_…` and `r2_probes::r2_tilted_disjoint_…`
+swallow the planted break through `try_wall_sheet`'s `catch_unwind` and
+report ok. Row: `work/tint/try-wall-sheet-stands-down-on-any-panic.md`.
+
+Residue also filed:
+`work/dup/the-canonical-unit-cylinder-literal-has-no-reachable-home.md`.

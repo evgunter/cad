@@ -279,3 +279,30 @@ their subject in prose; this unit's own row now catches both at the
 door, and the suite-level claim is
 `topo-cylinder-sheet-geomsources-are-asserted-by-nothing`. The fourth
 is what dates the scar above.
+
+## Corrected 2026-09-20, by the successor unit
+
+Two sentences above are wrong, both measured wrong by
+`topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one`
+on branch `dup/src-cyl-sheet`, and they are left standing here with
+this note rather than edited, because the reasoning that produced them
+is the useful part.
+
+- *"One difference, and it is a visibility scar rather than a design"*
+  — there are **two** differences between the `src` and `tests/`
+  families. The rim-plane door is the scar and is inert (1 lib row, 0
+  integration, in both directions). The second — whether the cylinder
+  key sits in the SEED face's surface slot or in a bare arena key — is
+  load-bearing on both sides: 1 integration row reds one way, 6 census
+  rows the other. That axis, not visibility, is what kept the two
+  families apart, and it is now a parameter of the shared builder.
+- *"The `tests/` members mint a scaffold face per rim ONLY because
+  `Body::add_surface` is `pub(crate)` and a `tests/` binary cannot
+  reach it"* — true of the closures this unit folded, and **not true of
+  the door it folded them into**, which lives in `src` and could always
+  have called `add_surface`. The reason was correct at the moment it
+  was written down and stopped being correct in the same commit. The
+  scaffolds are gone and so is the paragraph.
+
+The one-directional claim this row's own text was careful about — the
+scar inert *to the `tests/` side* — reproduced exactly.
