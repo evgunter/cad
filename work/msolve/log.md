@@ -678,3 +678,16 @@ unit head. Closes `mate-clocking-has-no-gui-path` (both halves
 recorded); files `mate-band-fault-unreachable-on-a-mate`. Next:
 MSOLVE-9 dispatches from main; the exit walk's rows 10–11 close.
 
+
+## MSOLVE-9 dispatched (2026-09-20)
+
+Lane on `msolve/9-from-face` from main at `354ba67f6` (MSOLVE-10
+in), spec as ratified on PR 2895, with the orchestrator's notes on
+what MSOLVE-10 changed under it: a `FromFace` side is resolved at the
+insert door through the reach the door holds before `mate_coset`
+reads the frame and before the lever is formed, and DECLINED on
+replay exactly as the rider's lever is (the datum alone decided, the
+next solve decides the face); a face that moves or vanishes after
+insert is the solve's at evaluation (the doors decide edits, the
+solve decides states). Exit walk: row 11 MET on PR 2913, row 10 in
+flight. The walk goes to Ev as PROPOSED when MSOLVE-9 merges.
