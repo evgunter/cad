@@ -153,45 +153,71 @@ fn r2_the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take() {
 /// reads negative at the point.** `E = (x + 1)² − x² − 2x − 1 +
 /// 1e-30·(1 + y²)` is the polynomial `1e-30 + 1e-30·y²` as a form —
 /// a positive constant plus a non-negative term, so rule F folds
-/// `copysign(1, E)` to `1` — but at `x = 1e8` the `f64` evaluation of
+/// `copysign(1, E)` to `1` — but at `x ≈ 1e8` the `f64` evaluation of
 /// the first four terms is roundoff of order one and can be negative,
-/// so the value channel's `copysign(1, E)` is `−1` there. The tier's
-/// `Zero` for `copysign(1, E) − 1` is CORRECT as an identity of reals
-/// (E > 0 everywhere); what this row shows is that the shared value
-/// check `sym_rule_f_rows::sound` (`|value| ≤ 1e-12` for a theorem)
-/// would call that true theorem UNSOUND — the oracle trusts the `f64`
-/// channel at the point, and this is the point it should not.
+/// so the value channel's `copysign(1, E)` is `−1` there and the margin
+/// `copysign(1, E) − 1` is a DEFINITE `−2`. The tier's discharge says
+/// the same margin is identically zero — CORRECT as an identity of
+/// reals (E > 0 everywhere) — and `Sym<f64>`'s `sign_within` then
+/// fires its contradiction `debug_assert!` ("the numeric channel proved
+/// this margin nonzero and the form says it is identically zero"). At
+/// `f64` the value channel is not an enclosure, so the contradiction is
+/// the channel's roundoff and not the rule's; what rule F adds is that a
+/// one-ulp error in the SIGN argument becomes a whole `2.0` at the
+/// margin. At `Sym<Interval>` the enclosure of `E` straddles zero, the
+/// value channel cannot decide, and the tier answers `theorem`.
 #[test]
 fn r2_adversary_a_positive_form_whose_value_channel_reads_negative() {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
     let tiny = 1.0e-30;
+    let mut contradicted = 0;
     let mut flipped = 0;
     for &x0 in &[1.0e8, 3.0e8, 5.0e8, 7.0e8, 1.0e9, 1.3e9] {
-        let resid = || {
+        let resid = move || {
             let x = p("x", x0);
             let y = p("y", 0.5);
             let e = (x + one()).powi(2) - x.powi(2) - Sym::from_f64(2.0) * x - one()
                 + Sym::from_f64(tiny) * (one() + y.powi(2));
             one().copysign(e) - one()
         };
-        let (l, v) = how(SymRules::shipped(), resid);
-        println!("  x = {x0:e}: copysign(1, E) − 1 → {l}, value {v:e}");
-        assert_eq!(
-            l, "theorem",
-            "E is manifestly positive; the fold is an identity of reals"
-        );
-        if v != 0.0 {
-            flipped += 1;
+        let value = {
+            let x = x0;
+            let e = (x + 1.0).powi(2) - x.powi(2) - 2.0 * x - 1.0 + tiny * (1.0 + 0.25);
+            1.0f64.copysign(e) - 1.0
+        };
+        // Each point on its own thread: a panic inside `with_session_rules`
+        // leaves that thread's session installed, and the next point
+        // would then refuse to nest.
+        let outcome = std::thread::spawn(move || {
+            catch_unwind(AssertUnwindSafe(|| how(SymRules::shipped(), resid)))
+        })
+        .join()
+        .expect("the probe thread itself joins");
+        match outcome {
+            Ok((l, v)) => {
+                println!("  x = {x0:e}: copysign(1, E) − 1 → {l}, value {v:e}");
+                assert_eq!(l, "theorem", "E is manifestly positive");
+                if v != 0.0 {
+                    flipped += 1;
+                }
+            }
+            Err(_) => {
+                println!(
+                    "  x = {x0:e}: the f64 margin is {value:e} (definite) and the form is zero — \
+                     Sym<f64>'s contradiction assertion FIRED"
+                );
+                contradicted += 1;
+            }
         }
     }
-    println!("  value channel read −1 at {flipped} of 6 points");
+    println!(
+        "  contradiction assertion fired at {contradicted} of 6 points, value ≠ 0 at {flipped}"
+    );
     assert!(
-        flipped > 0,
+        contradicted + flipped > 0,
         "the adversary was meant to make the f64 channel disagree at least once"
     );
-    // The same at `Sym<Interval>` over a box around one of those points:
-    // the enclosure of `E` straddles zero, so the value channel's
-    // `copysign(1, E)` is the hull `[−1, 1]` and cannot decide; the tier
-    // answers `theorem`, which is the truth.
+    // The same at `Sym<Interval>` over a box around one of those points.
     let l = how_over(SymRules::shipped(), || {
         let x = over("x", 1.0e8 - 1.0, 1.0e8 + 1.0);
         let y = over("y", 0.4, 0.6);
