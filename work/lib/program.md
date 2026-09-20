@@ -9,6 +9,7 @@ prefix: lib/
 ab_band: 300-399
 paths: [crates/pncad/*, crates/pncad-py/*, docs/LIBRARY-DESIGN.md, docs/RECIPE-DOORS-DESIGN.md, docs/GUIDE.md]
 keep_out: [kernel crates are VERBS and SEAT ground (LIB carries recipe doors and bindings only), the viewer is GUI-era ground, the analysis lane is M10's, evaluate's signature and the resolver door are design conversations before they are units]
+priority: P3
 ---
 
 Makes the kernel usable as a library under `docs/LIBRARY-DESIGN.md` (the

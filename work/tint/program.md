@@ -10,6 +10,7 @@ tag: (S-TINT orchestrator)
 ab_band: 3500-3599
 paths: [crates/*/tests/*, crates/test-utils/*]
 keep_out: [cost is S-TCOST's question and no row here is justified by a cpu-second or a wall-second — a row that turns out to be a cost lever goes back by git mv, scripts/ci-filter.py and slowest-tests.py and base-test-listing.sh are S-TCOST's and so is the per-file gate mechanism they carry, .github/workflows/* is CIW's, scripts/gates/* is code-quality Track K's and tools/* is INSTR's, a fix that has to land in crates/*/src (a doctest moved out of tests/, a helper that must be pub) is announced to the program that owns that crate before it lands, no test is deleted for being slow and no fixed seed and no #[ignore] on a row that gates — S-TCOST's keep-outs bind here unchanged, changes to memories/ are Ev's call and a rule this program finds wrong is an [ev] PR and never a lane's edit]
+priority: P3
 ---
 
 **A row that cannot go red is not a test, and a guard that cannot go red

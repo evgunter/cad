@@ -65,6 +65,26 @@ RULING_STATUS = ("open", "closed")
 PROGRAM_STATUS = ("open", "closed")
 AREAS = ("kernel", "api", "gui", "infra")
 
+# The priority bands (work/README.md, "Priority"). P0 is most urgent. A band
+# says WHAT to do, never WHEN: dispatch order is priority together with cost
+# and with whether design work is open, which is the orchestrator's judgement
+# and is deliberately not a field.
+PRIORITIES = ("P0", "P1", "P2", "P3", "P4")
+
+# The cost class, as the 2026-09-03 cut defined it (docs/WORK-TRACKS-2026-09.md):
+# E the fix is written in the item, D a design question is open, H the intent is
+# clear and getting it right is technically hard. The weights are what make one
+# budget say "about 6 hard rows or about 30 easy ones" in a single number.
+COSTS = ("E", "D", "H")
+COST_WEIGHT = {"E": 1.0, "D": 2.5, "H": 5.0}
+DEFAULT_BUDGET = 30            # points; 30 E, 12 D, or 6 H
+UNPRICED_WEIGHT = COST_WEIGHT["D"]   # an unscored row is priced mid-range
+
+# A row counts against its track's budget only while it is DISPATCHABLE. A row
+# in flight, parked, deferred or closed is not a claim on the next sitting's
+# attention, which is what the budget measures.
+DISPATCHABLE = ("open", "spec")
+
 # key -> (type, kinds that may carry it). Types: str, int, date, ref,
 # reflist (ids or ints), strlist, enum:<name>.
 SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
@@ -82,6 +102,8 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "branch": ("str", ("unit", "issue", "ruling")),
     "needs_ev": ("flag", ("unit", "issue", "ruling", "program")),
     "track": ("str", ("unit", "issue", "ruling")),
+    "priority": ("enum:priority", KINDS),
+    "cost": ("enum:cost", ("unit", "issue", "ruling")),
     "github": ("int", ("unit", "issue", "ruling")),
     "area": ("enum:area", ("program",)),
     "prefix": ("str", ("program",)),
@@ -90,6 +112,7 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "paths": ("strlist", ("program",)),
     "keep_out": ("strlist", ("program",)),
     "blocks": ("strlist", ("program",)),
+    "budget": ("int", ("program",)),
 }
 REQUIRED = ("id", "kind", "title", "status", "opened")
 LIST_TYPES = ("reflist", "strlist")   # the fields `set` accepts a bare scalar for
@@ -310,6 +333,10 @@ def _check_type(item: Item, key: str, typ: str, value: object) -> list[str]:
         return [] if value in KINDS else [f"{w} must be one of {KINDS}"]
     if typ == "enum:area":
         return [] if value in AREAS else [f"{w} must be one of {AREAS}"]
+    if typ == "enum:priority":
+        return [] if value in PRIORITIES else [f"{w} must be one of {PRIORITIES}"]
+    if typ == "enum:cost":
+        return [] if value in COSTS else [f"{w} must be one of {COSTS}"]
     if typ == "enum:status":
         vocab = PROGRAM_STATUS if item.kind == "program" else RULING_STATUS if item.kind == "ruling" else ITEM_STATUS
         return [] if value in vocab else [f"{w} must be one of {vocab} for kind {item.kind}"]
@@ -323,6 +350,35 @@ def _listed(item: Item, key: str) -> list[object]:
     the run that was about to say so."""
     v = item.get(key)
     return v if isinstance(v, list) else []
+
+
+def _load(rows: list[Item]) -> float:
+    """The weighted DISPATCHABLE load a slate is carrying, in budget points.
+    An unpriced row is charged the middle weight rather than nothing, so a
+    track cannot come in under budget by declining to price itself."""
+    total = 0.0
+    for r in rows:
+        if r.status not in DISPATCHABLE:
+            continue
+        c = r.get("cost")
+        total += COST_WEIGHT.get(str(c), UNPRICED_WEIGHT)
+    return total
+
+
+def _budget(p: Item) -> int:
+    b = p.get("budget")
+    return b if isinstance(b, int) and not isinstance(b, bool) else DEFAULT_BUDGET
+
+
+def _fmt_load(rows: list[Item], p: Item) -> str:
+    load, cap = _load(rows), _budget(p)
+    n = f"{load:g}/{cap}"
+    return f"**{n}**" if load > cap else n
+
+
+def _prio_key(it: Item) -> int:
+    v = it.get("priority")
+    return PRIORITIES.index(str(v)) if str(v) in PRIORITIES else len(PRIORITIES)
 
 
 def _say_fired(vs: list[object], resolves: dict[int, Item]) -> str:
@@ -616,15 +672,20 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     # board
     out.append("## Programs")
     out.append("")
-    out.append("| area | program | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
-    out.append("|---|---|---|---|---|---|---|---|---|---|---|")
-    for p in programs:
+    out.append("| area | program | pri | load | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
+    out.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    for p in sorted(programs, key=lambda q: (_prio_key(q), str(q.get("area") or ""), q.id)):
         rows = by_program.get(p.id, [])
         c = {s: sum(1 for r in rows if r.status == s) for s in ITEM_STATUS}
         ev = sum(1 for r in rows if r.status != "closed" and r.get("needs_ev") is not None)
-        out.append(f"| {p.get('area') or '—'} | `{p.id}` | {p.status} | {c['open']} | {c['spec']} | "
+        out.append(f"| {p.get('area') or '—'} | `{p.id}` | {p.get('priority') or '—'} | "
+                   f"{_fmt_load(rows, p)} | {p.status} | {c['open']} | {c['spec']} | "
                    f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} | "
                    f"{ev or ''} |")
+    out.append("")
+    out.append("`load` is the DISPATCHABLE weight against the track's budget "
+               "(`work/README.md`, Track size); bold is over. `pri` is the "
+               "band of the track's spine, never a ceiling on its rows.")
     out.append("")
 
     # per-program slates
@@ -647,13 +708,14 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
             out.append("No open items.")
             out.append("")
             continue
-        out.append("| item | kind | status | title | blocked on | PR |")
-        out.append("|---|---|---|---|---|---|")
-        for r in sorted(rows, key=lambda i: (ITEM_STATUS.index(i.status) if i.status in ITEM_STATUS else 9, i.id)):
+        out.append("| pri | item | kind | cost | status | title | blocked on | PR |")
+        out.append("|---|---|---|---|---|---|---|---|")
+        for r in sorted(rows, key=lambda i: (_prio_key(i), ITEM_STATUS.index(i.status) if i.status in ITEM_STATUS else 9, i.id)):
             blocked = ", ".join(_fmt_ref(b) for b in _listed(r, "blocked_on"))
             pr = f"#{r.get('pr')}" if r.get("pr") is not None else ""
             ev = " **[ev]**" if r.get("needs_ev") is not None else ""
-            out.append(f"| `{r.id}` | {r.kind} | {r.status}{ev} | {r.get('title')} | {blocked} | {pr} |")
+            out.append(f"| {r.get('priority') or '—'} | `{r.id}` | {r.kind} | {r.get('cost') or '—'} | "
+                       f"{r.status}{ev} | {r.get('title')} | {blocked} | {pr} |")
         out.append("")
 
     if only_program:
@@ -994,7 +1056,7 @@ def selftest() -> int:
         text = render(root, today=far)
         if "| parked | deferred | closed |" not in text:
             failures.append("render: the programs table has no deferred column")
-        if "`MESH-2` | issue | deferred" not in text:
+        if "`MESH-2` | issue | — | deferred" not in text:
             failures.append("render: a deferred row does not read deferred on its program's slate")
         if "MESH-2" in text.split("## Untouched")[1]:
             failures.append("render: a deferred row is listed stale for going untouched")

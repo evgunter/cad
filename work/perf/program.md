@@ -10,6 +10,7 @@ tag: (PERF orchestrator)
 ab_band: 3400-3499
 paths: [benches/*, docs/perf-data/*, docs/PERF-SCAN-2026-08.md]
 keep_out: [the parallel subdivision driver is M10's, per-frame rendering and hover-picking are viewer ground, the evaluate memo door from Python is LIB's binding]
+priority: P4
 ---
 
 The performance program: a standing register of unbuilt performance

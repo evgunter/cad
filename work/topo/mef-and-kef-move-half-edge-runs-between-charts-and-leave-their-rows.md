@@ -5,6 +5,8 @@ title: mef and kef move a RUN of half-edges between loops of different faces; th
 status: open
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete]
+priority: P0
+cost: H
 ---
 
 Found and measured by the class sweep of
