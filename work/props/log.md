@@ -1584,3 +1584,109 @@ at the same time. So `props/*` is claimed by this program and by QUAD,
 `geom-core/src/*` by this program and by FRAME, each `keep_out` says
 so in those words, and no glob was contorted to keep the at-rest check
 quiet. The check itself is a separate change, opened as an `[ev]` PR.
+
+**Two units dispatched after the cut (2026-09-20).** With the slate
+down to 37 rows, the two that carry the most:
+
+- **curved-residues** (`props/curved-residues`, M/NUMERIC, dual) — the
+  three the sphere unit measured and declined to serve: the cone apex
+  cap, which is issue 1250's shape on the other singular chart and
+  needs the closure guard the sphere unit's own MAJOR taught (an
+  unguarded fold answers the UNBOUNDED complement with the cap's
+  area); the shape door's sense-free residue, which is RULED as a
+  measurement first — the door gates `mesh`'s walk, so if anything
+  legitimate stops meshing the lane stops and reports rather than
+  widening a meshing gate on a props unit's judgement; and the
+  rim-level rule that throws by feeding NaN into `classify`, with its
+  sibling reading of the unreachable state explicitly left open.
+- **escalation-channel** (`props/escalation-channel`, H/STRUCTURAL,
+  dual) — the hole the k-stats unit's own dual found in the channel it
+  built: eight shipped sites ask the funnel, get a DEFINITE sign, then
+  mint their own `Indeterminate`, so a caller sees an escalation the
+  frame's log does not. The red-first row was written by that dual and
+  is handed over rather than invented. The unit's one design question
+  is whether such an escalation is RECORDED by the minting site or
+  made IMPOSSIBLE, because a channel that needs every future site to
+  remember has the same hole one commit later. The forty-variant
+  deletion sweep follows it and is scoped by what the channel then
+  carries.
+
+Disk note: the machine reached 93% and the sign-hull lane's 6.5 GB
+build cache was freed (its tree kept; it is held on SYM's fold and
+rebuilds when it resumes). A 5.4 GB target directory under
+`/home/evan/cad-lanes/cont-to-target` belongs to no worktree this
+session owns and was last touched 2026-09-17; it was left alone and is
+reported to Ev rather than deleted.
+
+**Sign-hull prepared for SYM's return (2026-09-20).** Ev unpaused SYM.
+Our side was not ready: `props/sign-hull` had drifted **2032 commits**
+behind main and the PR was `dirty`, which matters more than it sounds
+— a conflicting PR gets no CI run at all and none retroactively, so
+the branch had been invisible to CI since 2026-09-16. A merge-forward
+lane is running now so that when the fold lands the only new variable
+is the fold, rather than a two-thousand-commit merge underneath it.
+
+Its success condition is stated precisely rather than as "green":
+exactly three rows red — SYM's tilted-derived-boss acceptance row, the
+refusal-is-not-a-freeze row, and the walk-ledger golden — and any
+fourth red is a finding to report rather than re-bless. Among the
+conflicts is a directory rename (`work/blend/` became `work/carve/` at
+BLEND's cut), so every row this unit filed is re-checked against
+`territory` and moved to whoever owns that ground now — three of those
+owners did not exist when the unit filed them, PROPS having cut QUAD,
+ENCL and FRAME out of itself in the meantime.
+
+The original lane could not be resumed: it ran in the cloud session and
+its transcript did not survive the machine move, so the merge went to a
+fresh lane with the context written out. Worth noting for the next
+handoff — a held unit's lane is not durable across a session move, only
+its branch and its record are.
+
+**Sign-hull is a clean target again, and SYM has taken the fold
+(2026-09-20).** The merge-forward landed at `c4bb5502a`: PR back to
+`MERGEABLE` from `CONFLICTING`, run 35494595889 at 31 green / 4 red,
+and the red list **exactly** the three SYM rows plus `gate ok` because
+of them — verified at step level rather than by job colour. SYM has
+adopted the filed row on main, extended it with its own measurement,
+and taken it as **SYM-10** with a spec and a block slot; its reading
+is three pieces (a `max(A, B) → A` on a manifestly non-negative
+difference, a manifest upper bound for the conditioning floor, and
+rule C's certified-sign read extended to `SymOp::Select`), with Phase 1
+rendering whether they reach the row before any rule is written. Told
+them on the PR that the branch is now measurable and that if Phase 1
+says the three pieces do not reach it, the fork returns to Ev rather
+than sitting.
+
+**Independent confirmation worth keeping.** SYM measured the obvious
+fix — patch the symbolic scalar to return the chosen arm and mint no
+node — and got what our dual got: all three rows still red, the
+tilted-boss refusal one face EARLIER and ~45% WIDER. Two programs,
+two arms, same conclusion: the opacity is the candidate's form and not
+the decision above it.
+
+**Three things the merge caught that a textual resolution would have
+shipped.** A union of the test aggregators would have RESURRECTED a
+deleted suite — main's side still listed the row that measured rule
+(c′), which no longer exists — so the resolution was derived from main
+rather than from both sides. The `seat4` digests were moved by BOTH
+sides for orthogonal reasons (main through the name table, this branch
+through each carrier's stored `u_ref`), so the merged tree's value is a
+FOURTH number neither side holds and no textual resolution can
+produce; the lane refused to invent one, pushed a placeholder and read
+the true value off hosted CI, which prints before asserting — twice,
+because the row asserts on the first digest and never reaches the
+second print. And git's rename heuristic proposed `work/bool/` →
+`work/curved/` for a filed row whose sites `territory` gives to
+**PATHS**; taking the suggestion would have filed a profile-lattice row
+on the curved-boolean program's slate. The lane ran `territory` on
+every row this unit filed rather than only the two that conflicted,
+which is the habit that caught it.
+
+**A finding filed on VDOC**: three sentences in main's viewer rows,
+added while this unit was held, are falsified by it — the door's seam
+named as the equator, a fixture header's stated reason for five of its
+thirteen members, and a falsifiability clause whose witness point
+`(1, 1, 0)` is now a point where the two constructions AGREE. None sits
+on an assertion path, so nothing reds and nothing would ever have
+caught it. Filed with a witness that does still separate the rules
+rather than hand-written geometry the lane could not run.
