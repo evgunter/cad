@@ -368,6 +368,97 @@ fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     assert_eq!(plain, named);
 }
 
+// ---- A `FromFace` side at the door, and on replay ----
+
+/// **A `FromFace` side asks `face_pose` once per such side at the
+/// door, an `Authored` side asks nothing, and a rider still asks the
+/// reach once per part**: the door asks each read exactly where the
+/// solve asks it — the face before the table reads the frame, the
+/// lever only for the rider.
+#[test]
+fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
+    let (doc, ids, opts) = instances("msolve10-from-face-asks", 2);
+    let store_reach = mate_reach::<f64>(&opts, Tol::witness());
+    let counting = Counting::over(&store_reach);
+    let cap = |end: CapEnd| editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: fixture::resolver::PART_BODY,
+        path: vec![editor_core::RoleSeg::Cap(end)],
+    };
+    let face = |end: CapEnd| {
+        MateFrame::from_face(editor_core::FaceName::new(cap(end)).expect("a face"), None)
+    };
+    // One face side, one authored side, no rider: one face ask, no
+    // reach ask.
+    let one_side = Alignment {
+        a: face(CapEnd::End),
+        ..seat(None)
+    };
+    at_the_door(&doc, &counting, mate(ids[0], ids[1], one_side)).expect("admitted");
+    assert_eq!(counting.faces(), 1, "one face side, one ask");
+    assert_eq!(counting.0.get(), 0, "no rider, no reach");
+    // Two face sides, no rider: two face asks, still no reach ask.
+    let both = Alignment {
+        a: face(CapEnd::End),
+        b: face(CapEnd::Start),
+        ..seat(None)
+    };
+    at_the_door(&doc, &counting, mate(ids[0], ids[1], both)).expect("admitted");
+    assert_eq!(counting.faces(), 3, "two face sides, two asks");
+    assert_eq!(counting.0.get(), 0, "no rider, no reach");
+    // Two authored sides: no face ask. With a rider: the reach once
+    // per part.
+    at_the_door(&doc, &counting, mate(ids[0], ids[1], seat(Some(0.0)))).expect("admitted");
+    assert_eq!(counting.faces(), 3, "an authored side asks nothing");
+    assert_eq!(counting.0.get(), 2, "a rider asks the reach once per part");
+}
+
+/// **A logged `FromFace` insert replays with no store and loads**:
+/// replay declines the face as it declines the rider — the datum
+/// alone is decided, the face is not read, the next solve decides it
+/// — so a file the door admitted loads without the parts it was
+/// admitted against.
+#[test]
+fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
+    let (doc, ids, opts) = instances("msolve10-from-face-replay", 2);
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let snapshot = doc.clone();
+    let cap = editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: fixture::resolver::PART_BODY,
+        path: vec![editor_core::RoleSeg::Cap(CapEnd::End)],
+    };
+    let alignment = Alignment {
+        a: MateFrame::from_face(editor_core::FaceName::new(cap).expect("a face"), None),
+        ..seat(Some(0.0))
+    };
+    let edit = DocEdit::InsertNode {
+        node: mate(ids[0], ids[1], alignment),
+    };
+    let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
+    let log = vec![LoggedEdit {
+        edit: edit.clone(),
+        maintenance: applied.cluster_rows(),
+    }];
+    let text = save(&snapshot, &log, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("a FromFace insert replays with no store");
+    assert_eq!(loaded.doc.order(), applied.doc.order());
+    assert_eq!(loaded.edits, log);
+    // And the same entry through the door with no reach at all —
+    // replay's own arm — is admitted, the face declined.
+    let admitted = snapshot
+        .apply(&edit, Tol::witness(), &RefusingReach)
+        .map(|applied| applied.doc.order().len());
+    assert!(
+        matches!(
+            admitted,
+            Err(EditError::MateRefused { ref fault, .. })
+                if matches!(**fault, MateFault::FaceUnresolved { .. })
+        ),
+        "the LIVE door with the refusing reach refuses, since it holds a reach: {admitted:?}"
+    );
+}
+
 // ---- The history and the log ----
 
 /// **A refused insert leaves no entry**: the document is the one it
