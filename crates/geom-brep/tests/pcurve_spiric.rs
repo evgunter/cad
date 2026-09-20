@@ -154,23 +154,31 @@ fn the_minted_wall_and_cap_images_certify_with_a_zero_envelope() {
 /// sides and reads WHICH check answers, because that is what
 /// distinguishes the door from its predecessor:
 ///
-/// - `η = 5e-9` is INSIDE check 1's window, so check 1 admits it and
+/// - `η = 0.8·ε/(R + r)` is INSIDE check 1's window, so check 1 admits it and
 ///   the refusal comes from check 4 — the envelope, where the drift
 ///   this gate admitted is priced. Under the retired `over_lever`
 ///   door the window was `|η| ≤ ε·(R + r) ≈ 1.6e-10` and this same
 ///   input refused at check 1 as `UnsupportedCarrier`, 37× early.
-/// - `η = 1e-7` is outside either window and refuses `UnsupportedCarrier`.
+/// - `η = 50·ε/(R + r)` is past the escalation threshold either way
+///   and refuses `UnsupportedCarrier`.
 ///
 /// And the price itself is the second half of the fix: the envelope's
 /// `sense` term carries BOTH channels. `v` moves by `η·reach` at
 /// `|∂S/∂v| = r`; `u` moves by `η·|atan2(f, d)| ≤ η·π` at the chart's
 /// outer arm — the `u` half the over-strict gate used to mask, and the
-/// reason `η = 5e-9` costs `≈ 3e-9 > ε` rather than `≈ 3e-10`.
+/// reason the admitted `η` costs `≈ 2.5·ε` rather than `≈ 0.1·ε`.
+///
+/// Every magnitude is a multiple of the run's ε — CI gates three of
+/// them and a hard-coded drift is a row that holds at one.
 #[test]
 fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
-    let window = tol().eps() / ARM;
+    // Every magnitude below is a multiple of the RUN's ε, because CI
+    // gates three of them (1e-9, 1e-6, 1e-12) and a hard-coded drift
+    // is a row that only holds at one.
+    let eps = tol().eps();
+    let window = eps / ARM;
     assert!(
-        (6.0e-9..7.0e-9).contains(&window),
+        (window / eps - 6.09).abs() < 0.01,
         "the levered window is eps/(R+r): {window:e}"
     );
 
@@ -180,7 +188,7 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
     // answer: `UnsupportedCarrier` is check 1's refusal, and under the
     // retired `over_lever` door that is exactly what this input got,
     // 37× early.
-    let e = certify(wall(1.0 + 5e-9, 0.0), &torus(), band())
+    let e = certify(wall(1.0 + 0.8 * window, 0.0), &torus(), band())
         .expect_err("a drift this size is a displacement over eps");
     assert!(
         !matches!(e, PcurveCertifyError::UnsupportedCarrier),
@@ -196,22 +204,25 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
 
     // A drift small enough that the price fits under eps certifies,
     // and its envelope is NOT zero — the term is live, not decorative.
-    let ok = certify(wall(1.0 + 1e-10, 0.0), &torus(), band())
+    // Small enough that the azimuth price `arm·η·π` fits under ε.
+    let afford = 0.1 * eps / ARM;
+    let ok = certify(wall(1.0 + afford, 0.0), &torus(), band())
         .expect("a drift the envelope can afford certifies");
     let env = ok.certificate().envelope;
     assert!(
-        env > 0.0 && env <= tol().eps(),
+        env > 0.0 && env <= eps,
         "the admitted drift is priced and affordable: {env:e}"
     );
-    // The u channel dominates: r·η·reach ≈ 6e-12 alone would be four
-    // orders under what the certificate stores.
+    // The u channel DOMINATES the price: `r·η·reach` alone is an order
+    // under `arm·η·π`, so a term that carried only the minor angle
+    // would not reach this floor.
     assert!(
-        env >= ARM * 1e-10 * core::f64::consts::PI,
+        env >= ARM * afford * core::f64::consts::PI,
         "the azimuth half of the sense price is in the envelope: {env:e}"
     );
 
     // Outside both windows.
-    let e = certify(wall(1.0 + 1e-7, 0.0), &torus(), band())
+    let e = certify(wall(1.0 + 50.0 * window, 0.0), &torus(), band())
         .expect_err("a definite sense residue is not a unit sign");
     assert!(matches!(e, PcurveCertifyError::UnsupportedCarrier), "{e:?}");
 }
@@ -236,42 +247,49 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
         s
     };
 
+    // Every drift below is a multiple of the RUN's ε: `inside` is
+    // within check 1's Zero window and `definite` is past the
+    // escalation threshold, at all three ε cells CI gates.
+    let eps = tol().eps();
+    let inside = 0.5 * eps;
+    let definite = 50.0 * eps;
+
     // Each of the four premises, drifted inside the band: certifies,
     // envelope strictly positive and at least the drift itself.
     let cases: [(&str, f64, Surface<f64>); 4] = [
         (
             "major",
-            5e-10,
-            drifted(&|s| {
+            inside,
+            drifted(&move |s| {
                 if let Surface::Torus { major_radius, .. } = s {
-                    *major_radius += 5e-10;
+                    *major_radius += inside;
                 }
             }),
         ),
         (
             "minor",
-            5e-10,
-            drifted(&|s| {
+            inside,
+            drifted(&move |s| {
                 if let Surface::Torus { minor_radius, .. } = s {
-                    *minor_radius += 5e-10;
+                    *minor_radius += inside;
                 }
             }),
         ),
         (
             "center",
-            5e-10,
-            drifted(&|s| {
+            inside,
+            drifted(&move |s| {
                 if let Surface::Torus { center, .. } = s {
-                    *center = Point3::new(center.x, center.y + 5e-10, center.z);
+                    *center = Point3::new(center.x, center.y + inside, center.z);
                 }
             }),
         ),
         (
             "tilt",
             0.0,
-            drifted(&|s| {
+            drifted(&move |s| {
                 if let Surface::Torus { axis, .. } = s {
-                    *axis = Vec3::new(1e-9, 1.0, 0.0).normalize();
+                    *axis = Vec3::new(0.5 * eps / ARM, 1.0, 0.0).normalize();
                 }
             }),
         ),
@@ -293,7 +311,7 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
             "{what}: the chart's drift is priced, got {env:e}"
         );
         assert!(
-            env <= tol().eps(),
+            env <= eps,
             "{what}: and the price is affordable, got {env:e}"
         );
     }
@@ -302,17 +320,17 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
     for (what, surface) in [
         (
             "major",
-            drifted(&|s| {
+            drifted(&move |s| {
                 if let Surface::Torus { major_radius, .. } = s {
-                    *major_radius += 5e-9;
+                    *major_radius += definite;
                 }
             }),
         ),
         (
             "center",
-            drifted(&|s| {
+            drifted(&move |s| {
                 if let Surface::Torus { center, .. } = s {
-                    *center = Point3::new(center.x, center.y + 5e-9, center.z);
+                    *center = Point3::new(center.x, center.y + definite, center.z);
                 }
             }),
         ),
@@ -347,9 +365,11 @@ impl<T, E> UnwrapErrMsg<E> for Result<T, E> {
 /// can see.
 #[test]
 fn a_cap_image_with_the_wrong_f_coefficient_reds_on_the_exactness_term() {
-    // 1e-8 of scale on an `f` whose range tops out near R + r: the
-    // term is |Δk₁|·f_max ≈ 1.6e-9, over eps and under escalation.
-    let e = certify(cap(1.0 + 1e-8), &cap_plane(), band())
+    // The term is `|Δk₁|·f_max` with `f_max` near `R + r`, so a scale
+    // error of `50·ε/(R + r)` buys a displacement of `50·ε` — over the
+    // band at every ε cell CI gates.
+    let eps = tol().eps();
+    let e = certify(cap(1.0 + 50.0 * eps / ARM), &cap_plane(), band())
         .expect_err("a wrong f coefficient is a real displacement");
     assert!(
         matches!(
@@ -360,11 +380,12 @@ fn a_cap_image_with_the_wrong_f_coefficient_reds_on_the_exactness_term() {
     );
     // And a scale small enough to afford certifies with the term's own
     // number in the envelope rather than a zero.
-    let c = certify(cap(1.0 + 1e-10), &cap_plane(), band())
+    let small = 0.1 * eps / ARM;
+    let c = certify(cap(1.0 + small), &cap_plane(), band())
         .expect("a tiny scale error is priced, not refused");
     let env = c.certificate().envelope;
     assert!(
-        env >= 1e-10 * (R - RR),
+        env >= small * (R - RR),
         "the |k1 - m|·f_max term is in the envelope: {env:e}"
     );
 }
@@ -378,12 +399,13 @@ fn a_cap_image_with_the_wrong_f_coefficient_reds_on_the_exactness_term() {
 /// door still refuses.
 #[test]
 fn a_hundredfold_structural_band_still_refuses_at_the_envelope() {
-    let wide_band = Band::linear_at(tol(), 100.0 * tol().eps()).expect("a 100x band");
-    // `major` off by 5e-9: definite at the shipped band, Zero at this
-    // one — so check 1 admits it here and only check 4 can refuse.
+    let eps = tol().eps();
+    let wide_band = Band::linear_at(tol(), 100.0 * eps).expect("a 100x band");
+    // `major` off by `50·ε`: definite at the shipped band, Zero at
+    // this one — so check 1 admits it here and only check 4 can refuse.
     let mut image = wall(1.0, 0.0);
     if let Pcurve::Spiric { ref mut major, .. } = image {
-        *major += 5e-9;
+        *major += 50.0 * eps;
     }
     let e = certify(image, &torus(), wide_band)
         .expect_err("check 4 prices what the wider check 1 admitted");

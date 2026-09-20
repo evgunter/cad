@@ -3373,3 +3373,97 @@ mod recourse_tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::float_cmp)]
+mod polar_shift_tests {
+    use super::shift_polar_branch;
+    use geom_brep::{Pcurve, SpiricImage};
+    use geom_core::{Point2, Vec2};
+
+    /// **The meridional branch shift, at its own door.** The wall arm
+    /// this lane added is the `v` twin of `Pcurve::shift_branch`, and
+    /// a body cannot exercise it: a spiric rim's parameter span is the
+    /// revolved PROFILE arc's, so the one spiric-bearing body's rims
+    /// span 1.78 rad and the loop walk's `k` is 0 on every row it has.
+    /// The arm's value is therefore pinned HERE, directly, rather than
+    /// left resting on a shift nothing computes — which is exactly the
+    /// state a planted `k·period → 0` survived.
+    ///
+    /// What the row asserts, per variant: a wall's `v0` takes the
+    /// whole-period shift and its `u0`, `sense` and the three carrier
+    /// scalars do not; a harmonic image's `p0.y` takes it; a CAP image
+    /// does not move at all (a plane chart has no periodic channel) —
+    /// and neither does any other variant.
+    #[test]
+    fn the_meridional_shift_moves_a_wall_images_v0_and_nothing_else() {
+        let period = core::f64::consts::TAU;
+        let wall = Pcurve::Spiric {
+            major: 0.09375,
+            minor: 0.0703125,
+            offset: 0.0078125,
+            image: SpiricImage::Wall {
+                u0: 0.25,
+                v0: 0.5,
+                sense: -1.0,
+            },
+        };
+        let Pcurve::Spiric {
+            major,
+            minor,
+            offset,
+            image: SpiricImage::Wall { u0, v0, sense },
+        } = shift_polar_branch(&wall, 3.0, period)
+        else {
+            panic!("the wall arm keeps its variant and its image kind");
+        };
+        assert_eq!(v0, 0.5 + 3.0 * period, "v0 takes the whole-period shift");
+        assert_eq!(u0, 0.25, "the azimuth constant is the other door's");
+        assert_eq!(sense, -1.0, "the sign is not a branch");
+        assert_eq!((major, minor, offset), (0.09375, 0.0703125, 0.0078125));
+
+        // A cap lives on a plane chart, which has no periodic channel:
+        // the shift is meaningless there and the image is answered as
+        // it was, not moved.
+        let cap = Pcurve::Spiric {
+            major: 0.09375,
+            minor: 0.0703125,
+            offset: 0.0078125,
+            image: SpiricImage::Cap {
+                p0: Point2::new(0.1, 0.2),
+                pm: Vec2::new(1.0, 0.0),
+                pa: Vec2::new(0.0, 0.0703125),
+            },
+        };
+        assert_eq!(
+            format!("{:?}", shift_polar_branch(&cap, 3.0, period)),
+            format!("{cap:?}"),
+            "a plane chart's image has no meridional branch to shift"
+        );
+
+        // The harmonic arm, unchanged by this lane and asserted beside
+        // the new one so the two cannot drift apart unnoticed.
+        let harmonic = Pcurve::Harmonic {
+            p0: Point2::new(0.3, 0.4),
+            pa: Vec2::new(1.0, 0.25),
+            pb: Vec2::new(-0.5, 1.0),
+            pl: Vec2::new(0.125, -0.375),
+        };
+        let Pcurve::Harmonic { p0, pa, pb, pl } = shift_polar_branch(&harmonic, 3.0, period) else {
+            panic!("the harmonic arm keeps its variant");
+        };
+        assert_eq!(p0.y, 0.4 + 3.0 * period);
+        assert_eq!(p0.x, 0.3);
+        assert_eq!((pa, pb, pl), (harmonic_pa(), harmonic_pb(), harmonic_pl()));
+    }
+
+    fn harmonic_pa() -> Vec2<f64> {
+        Vec2::new(1.0, 0.25)
+    }
+    fn harmonic_pb() -> Vec2<f64> {
+        Vec2::new(-0.5, 1.0)
+    }
+    fn harmonic_pl() -> Vec2<f64> {
+        Vec2::new(0.125, -0.375)
+    }
+}

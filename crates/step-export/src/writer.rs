@@ -30,7 +30,7 @@ use geom_core::Tol;
 /// than an unbounded search because a file whose one curve carries a
 /// thousand spans is already past the point where an approximation is
 /// the right answer, and a runaway loop is not a tolerance report.
-const SPIRIC_MAX_NODES: usize = 1024;
+const SPIRIC_MAX_NODES: usize = 2048;
 
 /// The node-count FLOOR of the spiric export lane: a cubic
 /// interpolation needs `degree + 1` points, so four node intervals
