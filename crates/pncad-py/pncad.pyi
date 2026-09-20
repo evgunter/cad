@@ -5616,15 +5616,16 @@ class InterfaceCrossing:
 
     Both are FACE names. A crossing is written out of the two heads of
     a mate and each head names a face, so the kind is fixed by the
-    record's type and neither getter can answer anything else."""
+    record's type and neither getter can answer anything else.
+
+    Those two and the class are the whole of it: a crossing carries no
+    provenance, and the kernel's `InterfaceCrossing::Mate` says why."""
 
     @property
     def variant(self) -> str:
         """`mate` — a crossing is whatever KIND of edge crossed, and
         mates are the only kind that can."""
 
-    @property
-    def mate(self) -> NodeId: ...
     @property
     def class_(self) -> ContactClass: ...
     @property

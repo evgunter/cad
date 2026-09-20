@@ -724,3 +724,52 @@ answered that the proposal is about δ alone, with the user-visible
 consequence (a pick within the sag of an edge between two curved
 faces refuses) and the three alternatives restated. Awaiting Ev's
 reading.
+
+## 2026-09-20 — twelfth sitting: Ev ruled the pick certificate, wave 15 merged, the whole-program edit put to Ev
+
+Ev: `[ev]` #2889 ruled (b) — "referring to the tesselation is probably
+correct? it's what the user can see", confirmed on the PR: the pick is
+a question about the picture the user sees, the tessellation IS what
+is picked, so the certified `t` interval stops at the triangle by
+design. `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+closed by design with one sentence at `crossing`'s "what the bounds
+bound" paragraph; no kernel unit; merged (#2889). `[ev]` #2904 opened
+(the seventh): `a-committed-profile-program-has-no-whole-program-edit`
+is a design change on two ratified pages — V2's "structure changes
+only by re-authoring" and DM7's "reported at the delete" — because
+every holder of a profile name holds a `ProfileEdgeRef` by index and a
+reshaped program re-denotes those indices silently. Recommendation
+(B): `SetProgram { node, loops, provenance }`, the door reporting
+strands for dropped or changed steps and rewriting names on kept steps
+to their new index as its own `Maintenance` arm; alternatives (A)
+refuse-when-referenced, (C) program only (rejected), (D) leave V2.
+Awaiting Ev; block EDIT-B2 slot 2 (FABLE) banks for it.
+
+Wave 15 cut (#2902) and merged. `next-id-has-no-layer3-door` (E-class,
+#2905): `Doc::has_minted(id)` is the counter's one public reading,
+the counter stays private, four rows each red under `<` → `<=`; DI1's
+parenthetical names the door (a description the code moved,
+ratification `087779036`); the parked VIEW row
+`layer3-recipenodeid-aliases-across-rewinds` is `open` again with its
+`blocked_on` cleared — the walk is VIEW's. `crossing-mate-id-is-provenance-that-nothing-reads`
+(middle tier, #2906): `InterfaceCrossing::Mate` is `{ class, outer,
+inner }`, the refusal names the crossing by `outer`, a file carrying
+the old field refuses typed at the load door, no codec touched; the
+review was MERGEABLE 0/2/3 (two unguarded claims, both probed:
+the one refusal site handing in `outer`, each crossing field feeding
+the content key); the fix pass gave the read-only wire walk one home
+beside `doctored` (the three copies the review took for read-only
+were write-walk copies and now call it), the "no provenance" argument
+one home, and the Python census a written rule for a same-named
+property spelling an arm — an additive roster and guard listing four
+members, which run against the merge base names the very accident
+this unit fixed; Ev's 2026-09-09 census rule untouched; one row filed
+on S-DUP's slate (the by-line header split at sixteen more sites).
+The split walk that writes the record stays unreachable (AQ8), said
+so on the row.
+
+The slate: C6/D366 stay visibility rows; the two pick rows stand as
+the mechanism's stated classes; `focus-marking` and `layer3` are
+VIEW's work; `a-committed-profile-program` is on `[ev]` #2904. No
+lane is live.
+

@@ -30,14 +30,39 @@
 /// surgery whose path missed writes the file back unchanged, and a row
 /// over it would pass while measuring nothing.
 ///
-/// One body, read by every suite that doctors a save; the five
-/// byte-identical copies it replaces are the reason it lives here.
+/// One body, read by every suite that doctors a save: the copies it
+/// replaces — each cutting the file for itself, and each free to cut
+/// it somewhere else — are the reason it lives here.
 pub fn doctored(text: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
-    let split = text.find('{').expect("the JSON body follows the id header");
-    let (header, body) = text.split_at(split);
-    let mut wire: serde_json::Value = serde_json::from_str(body).expect("the body parses");
+    let (header, mut wire) = split_body(text);
     edit(&mut wire);
     let out = format!("{header}{wire}");
     assert_ne!(out, text, "the corruption really landed");
     out
+}
+
+/// **A saved document's JSON body, parsed** — the READ-ONLY half of
+/// the same surgery.
+///
+/// A row that only READS one place of the wire — which keys an object
+/// carries, what a reference was written as — needs the two steps
+/// [`doctored`] begins with (find the body after the id header, parse
+/// it) and none of its write-back. Spelling those two again beside
+/// such a row is how the split this module exists to own comes back
+/// one suite at a time, so the read-only walk lives here too and both
+/// halves cut the file in the same place by construction.
+///
+/// It wears no door's name: what it answers is the file's own wire
+/// form, and which object inside it a row is about is the row's
+/// business.
+pub fn wire_body(text: &str) -> serde_json::Value {
+    split_body(text).1
+}
+
+/// The id header and the parsed body — the one place a save's two
+/// parts are told apart.
+fn split_body(text: &str) -> (&str, serde_json::Value) {
+    let split = text.find('{').expect("the JSON body follows the id header");
+    let (header, body) = text.split_at(split);
+    (header, serde_json::from_str(body).expect("the body parses"))
 }

@@ -3504,7 +3504,6 @@ fn asm_r2b_child_crossing_probe() {
     let (doc, ids) = asm_r2a_mated_assembly("asm-r2b-probe-asm", doc_ref);
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
-            mate: ids[0],
             class: ContactClass::Rest,
             outer: face(CapEnd::End),
             inner: face(CapEnd::Start),
