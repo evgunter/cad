@@ -41,9 +41,12 @@ widened by that one door, announced on SCALAR's tracker, which closed
 `MateFault` names its two consumers and the `Band` /
 `PosesOfAnotherDocument` asymmetry, no `subject()`. Reviews on
 `f3896c554`: correctness C1/C3/C4 HOLD, C2 PARTIAL with one MAJOR
-(a second decision on the planar-pair line moved ten door-built
-documents from UNDER to Indeterminate at the boundary — fixed by the
-one decision above); style no MAJOR; the twenty-two-item fix pass
+(a second decision on the planar-pair line, two ulps from
+`parallel`'s, refused ten door-built documents under its own name
+where `parallel` had said non-parallel; under the one decision above
+those pairs, one to two ulps inside K·ε, escalate under
+`mate_axes_parallel` itself — the band's own answer — and the row pins
+every verdict against the one spelling); style no MAJOR; the twenty-two-item fix pass
 landed, with the lane's first deviation (a re-minted axis under
 `point_at`'s name, past the spec's stop clause) reversed. Filed here:
 `lever-refusal-respells-reach-refusal`, `near-parallel-planes-refuse-
