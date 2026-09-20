@@ -72,12 +72,15 @@ MSOLVE-10 (`docs/MSOLVE-10-SPEC.md`).
 admission (`admit_mate`, `crates/editor-core/src/mate/solve.rs`) of a
 mate being inserted and refuses `EditError::MateRefused` carrying the
 solve's fault unaltered, so a mate the coset table refuses on its own
-datum never enters the document: the walk's head, one member twice,
+datum is refused at the insert door: the walk's head, one member twice,
 the class, each frame, the table's static gaps, the clocking rider on
 a coincidence decided over the mate's own lever through the reach the
 door holds. The viewer tool refuses the static gaps before any
 geometry (`MateToolError::TableRefused`); the decided rider is met at
-`perform`, typed. The rows: `crates/editor-core/tests/
+`perform`, typed. The doors decide edits and the solve decides
+states: a mate that comes to carry such a fault after insert (a
+stranded head, a re-pointed `Part`, a loaded snapshot) is the
+solve's at evaluation. The rows: `crates/editor-core/tests/
 msolve10_door_admission.rs` (A1, A2 over a corpus, A4's counting
 reach, the history, replay), `crates/viewer/tests/story_assembly.rs`
 stage 11a and `mate_tool_flow.rs`, and

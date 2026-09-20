@@ -175,7 +175,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     // The second is a planar rest alone, which leaves its pair free
     // to slide and spin, so the solve refuses UNDER naming that mate
     // — a verdict about the pair, which the edit door admits (a mate
-    // the table refuses on its own datum never enters the document).
+    // the table refuses on its own datum is refused at the insert).
     let add_mate = |session: &mut DocSession, post, alignment| {
         common::insert(
             session,
@@ -490,8 +490,9 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 
 /// **A run-tolerance refusal reaches every instance in the DOCUMENT,
 /// blames none of them, and points the eye nowhere** — and no mate
-/// can be authored under it, since the edit door asks the solve's own
-/// admission, which begins with the band.
+/// can be INSERTED under it, since the edit door asks the solve's own
+/// admission, which begins with the band (a loaded snapshot can still
+/// hold one).
 ///
 /// `MateFault::Band` is the one fault arm that reaches rows without
 /// naming a subject, so it is the one arm `blamed_mates` answers empty
@@ -550,24 +551,13 @@ fn child_band_refusal_rows() {
         pin: content_pin(&part, tol).expect("the pin computes"),
     };
     let mut asm = ProfileDoc::empty_derived("band-asm", tol);
-    let insert = |doc: &mut ProfileDoc, node: Node<_>| -> RecipeNodeId {
-        let applied = apply(
-            doc,
-            &DocEdit::InsertNode { node },
-            tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the insert applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("an insert mints an id")
-    };
-    let a = insert(&mut asm, Node::instantiate_part(doc_ref));
-    let b = insert(&mut asm, Node::instantiate_part(doc_ref));
+    let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     // A third instance, which no mate could touch: every instance is
     // its own singleton cluster here, and the row that decides whether
     // this refusal is a cluster's or the run's is that ALL of them
     // refuse.
-    let lone = insert(&mut asm, Node::instantiate_part(doc_ref));
+    let lone = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     let face_of = |instance| {
         common::head(StableName {
             kind: EntityKind::Face,
@@ -580,9 +570,11 @@ fn child_band_refusal_rows() {
         axis: [0.0, 0.0, 1.0],
         reference: [1.0, 0.0, 0.0],
     };
-    // DOOR 2a — a mate cannot be authored where no band exists: the
-    // edit door refuses it with the solve's own `Band`, so no
-    // document holds a mate under this tolerance.
+    // DOOR 2a — a mate cannot be INSERTED where no band exists: the
+    // edit door refuses it with the solve's own `Band`. A snapshot
+    // loaded under this tolerance can still hold one, and the solve
+    // records `Band` against it the way it does against every
+    // instance below.
     let refused = apply(
         &asm,
         &DocEdit::InsertNode {
@@ -607,7 +599,7 @@ fn child_band_refusal_rows() {
         matches!(
             &refused,
             pncad::document::EditError::MateRefused { fault, .. }
-                if matches!(**fault, MateFault::Band { .. })
+                if matches!(fault.as_ref(), MateFault::Band { .. })
         ),
         "{refused:?}"
     );

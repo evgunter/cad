@@ -205,12 +205,46 @@ pub fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, Recip
     (doc, minted.unwrap())
 }
 
+/// **The insert door's verdict on a mate**, through `reach`: the door
+/// asks the solve's own per-mate admission — a frame with no definite
+/// direction, the table's gaps, a rider on a coincidence decided over
+/// the mated parts' extent — so a mate the solve refuses on its own
+/// datum comes out of the door as its fault. `Ok` is the document
+/// with the mate and its id; `Err` the id the door named and the
+/// solve's fault. A rider needs the store's reach; everything else
+/// decides on the datum alone, so [`RefusingReach`] serves.
+pub fn at_the_door(
+    doc: &ProfileDoc,
+    reach: &dyn MateReach,
+    node: Node<ProfileProgram>,
+) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, editor_core::MateFault)> {
+    match doc.apply(&DocEdit::InsertNode { node }, Tol::witness(), reach) {
+        Ok(applied) => {
+            let id = applied.record.minted.expect("an insert mints an id");
+            Ok((applied.doc, id))
+        }
+        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node, *fault)),
+        Err(other) => panic!("the door refused otherwise: {other:?}"),
+    }
+}
+
+/// [`at_the_door`] for a mate the door refuses on the datum alone,
+/// through the refusing reach: the fault it carries.
+pub fn door_refusal(doc: &ProfileDoc, node: Node<ProfileProgram>) -> editor_core::MateFault {
+    match at_the_door(doc, &RefusingReach, node) {
+        Err((_, fault)) => fault,
+        Ok(_) => panic!("the door admitted a mate it refuses on its own datum"),
+    }
+}
+
 /// **A mate one of whose heads resolves to NO member**, authored the
-/// one way the doors leave open. The insert door asks the solve's own
+/// way such a head arises. The insert door asks the solve's own
 /// per-mate admission, so a head that resolves to no member at insert
 /// is refused there (`EditError::MateRefused`); a head can stop
-/// resolving only through a LATER edit (N5), and this is the shortest
-/// such road. The mate enters with that head on copy 1 of a scratch
+/// resolving only through a LATER edit (N5) — a rebind, a shrunk
+/// pattern (`SetStructuralParam` on its count), a re-pointed `Part`,
+/// a deleted operand — and this is the shortest road to a head on
+/// LIVE geometry. The mate enters with that head on copy 1 of a scratch
 /// pattern over `anchor`, the instance its OTHER head stands on — two
 /// members over one instance, so it welds nothing and no cluster
 /// moves — then `DocEdit::Rebind` moves the head onto the name `node`

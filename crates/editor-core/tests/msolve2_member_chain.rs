@@ -32,7 +32,9 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
-use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
+use fixture::{
+    ang, door_refusal, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform,
+};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
@@ -1289,25 +1291,6 @@ fn a3e_a_part_naming_a_split_half_stops_the_walk() {
         matches!(fault, MateFault::DanglingHead { head, .. } if head == part),
         "the walk stops at the Part itself: {fault:?}"
     );
-}
-
-/// The edit door's refusal of `node` on the solve's own per-mate
-/// admission — a head that resolves to no member is a fact about the
-/// mate alone, met where it is authored — carrying the fault the solve
-/// would have recorded. Through the refusing reach: no walk refusal
-/// needs a lever.
-fn door_refusal(doc: &ProfileDoc, node: Node<ProfileProgram>) -> MateFault {
-    let err = doc
-        .apply(
-            &DocEdit::InsertNode { node },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect_err("the door refuses the mate on its own datum");
-    let editor_core::EditError::MateRefused { fault, .. } = err else {
-        panic!("expected MateRefused, got {err:?}");
-    };
-    *fault
 }
 
 // ---- what the gate reads, and what it does not ----

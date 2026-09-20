@@ -110,8 +110,8 @@ fn add_seat(
 /// rest alone on `post`, which leaves its pair free to slide and spin,
 /// so the solve refuses UNDER naming that one mate. A verdict about
 /// the PAIR, which the edit door admits — a mate the coset table
-/// refuses on its own datum never enters the document, so no row
-/// here can build a refused cluster out of one.
+/// refuses on its own datum is refused at the insert, so no row here
+/// can build a refused cluster out of one through the session.
 fn add_rest(
     session: &mut DocSession,
     bench: &common::asm::Bench,

@@ -273,9 +273,9 @@ class TestBenchLayout(BenchWorkspace):
         against that copy. `placed_union` fuses the family into one
         body first, so no copy is left to stand a member on and the
         head refuses `DanglingHead` — at the insert, which asks the
-        solve's own admission of the mate, so the mate never enters —
-        the same face, the same placements, and only the node between
-        them differs.
+        solve's own admission of the mate and refuses it — the same
+        face, the same placements, and only the node between them
+        differs.
 
         So the two spellings are NOT interchangeable at the mate door,
         and the direction is the one the substitution was paying: the

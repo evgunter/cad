@@ -6,11 +6,14 @@
 //! The solve decides some things about a mate from its datum alone —
 //! the walk's members, the class, each frame's direction, the table's
 //! row for the primitive and rider, and the rider on a coincidence,
-//! decided over the mate's own lever — and it would decide them the
-//! same way at every evaluation. The edit door asks that admission of
-//! a mate being inserted and refuses `EditError::MateRefused` carrying
-//! the solve's fault unaltered, so such a mate never enters the
-//! document. What stays the solve's is every verdict about a PAIR.
+//! decided over the mate's own lever — and records them against the
+//! mate whenever it reads the datum. The edit door asks that admission
+//! of a mate being inserted and refuses `EditError::MateRefused`
+//! carrying the solve's fault unaltered: THE DOORS DECIDE EDITS AND
+//! THE SOLVE DECIDES STATES. What stays the solve's is every verdict
+//! about a PAIR, and every state a mate comes to hold after insert —
+//! a stranded head, a re-pointed `Part`, a doctored snapshot — which
+//! the next evaluation refuses.
 //!
 //! These rows go through ordinary doors with a `PartStore`: the rider
 //! beyond the band refuses at insert with the solve's lever, the rider
@@ -33,7 +36,7 @@ use editor_core::{
     load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, solve, step, step_with};
+use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -147,24 +150,6 @@ impl MateReach for Counting<'_> {
     fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
         self.0.set(self.0.get() + 1);
         self.1.reach(part)
-    }
-}
-
-/// The door's verdict on `node` through `reach`: the document with
-/// the mate and its id, or the id the door named with the solve's
-/// fault it carried.
-fn at_the_door(
-    doc: &ProfileDoc,
-    reach: &dyn MateReach,
-    node: Node<editor_core::ProfileProgram>,
-) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, MateFault)> {
-    match doc.apply(&DocEdit::InsertNode { node }, Tol::witness(), reach) {
-        Ok(applied) => {
-            let id = applied.record.minted.expect("an insert mints an id");
-            Ok((applied.doc, id))
-        }
-        Err(EditError::MateRefused { node, fault }) => Err((node, *fault)),
-        Err(other) => panic!("the door refused otherwise: {other:?}"),
     }
 }
 
@@ -468,6 +453,187 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
         "{:?}",
         poses.fault(rider)
     );
+}
+
+/// **A snapshot is a state, and a state the doors did not decide is
+/// the solve's**: the load door's snapshot walk asks only that a
+/// mate's alignment be finite, so a doctored snapshot carrying a
+/// planar rest WITH a rider — the table's gap, refused at every
+/// insert — LOADS, and the next evaluation refuses it `TableLacks` at
+/// the solve, where the door refuses its twin identically. The door
+/// decides edits; it does not re-decide what a file says.
+#[test]
+fn a3_a_doctored_snapshot_carrying_a_table_gap_loads_and_the_solve_refuses_it() {
+    let (doc, ids, opts) = instances("msolve10-a3-snapshot", 2);
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let rest = Alignment {
+        primitive: MatePrimitive::PlanarRest { offset: 0.0 },
+        ..seat(None)
+    };
+    let (doc, mate_id) = at_the_door(&doc, &reach, mate(ids[0], ids[1], rest)).expect("admitted");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    // `clocking` is skipped on the wire when `None`, so the rider is
+    // ADDED to the snapshot's one alignment rather than replacing a
+    // null: the object that carries `primitive` and `sense` and no
+    // `clocking` yet.
+    let mut added = 0_usize;
+    fn add_rider(v: &mut serde_json::Value, added: &mut usize) {
+        match v {
+            serde_json::Value::Object(map) => {
+                if map.contains_key("primitive")
+                    && map.contains_key("sense")
+                    && !map.contains_key("clocking")
+                {
+                    map.insert("clocking".to_owned(), serde_json::json!(0.3));
+                    *added += 1;
+                }
+                for value in map.values_mut() {
+                    add_rider(value, added);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    add_rider(item, added);
+                }
+            }
+            _ => {}
+        }
+    }
+    let doctored = wire::doctored(&text, |w| add_rider(w, &mut added));
+    assert_eq!(added, 1, "the snapshot's one alignment gained the rider");
+    let loaded = load(&doctored, Tol::witness()).expect("a snapshot is a state the load admits");
+    let Some(Node::Mate { alignment, .. }) = loaded.doc.node(mate_id) else {
+        panic!("the mate is in the snapshot");
+    };
+    assert_eq!(alignment.clocking, Some(0.3));
+    let poses = solve(&loaded.doc, &opts, Tol::witness());
+    let fault = poses.fault(mate_id).expect("the solve refuses the state");
+    assert!(
+        matches!(fault, MateFault::TableLacks { mate, what } if *mate == mate_id && what.contains("planar rest")),
+        "{fault:?}"
+    );
+    assert_eq!(poses.role(mate_id), Some(MateRole::Refused));
+    let twin = loaded.doc.node(mate_id).expect("live").clone();
+    let (named, door) =
+        at_the_door(&loaded.doc, &reach, twin).expect_err("the door refuses the twin");
+    assert_eq!(
+        renamed(door, named, mate_id),
+        *fault,
+        "the door's word is the solve's"
+    );
+}
+
+/// **A mate on a pair the fold never reads is refused on the datum
+/// alone**: two members over ONE instance — the instance and a copy
+/// of it — form a pair `solve_cluster` never folds, so the solve
+/// records NOTHING against such a mate whatever its datum says (it
+/// declares, fault-free), while the insert door refuses a table gap
+/// and a contradictory rider on it all the same. Which pairs the fold
+/// reads is a cluster fact the door does not decide; the datum is
+/// malformed by itself. The two documents are reached the only way
+/// they can be, through a doctored snapshot.
+#[test]
+fn a2_a_mate_on_a_pair_the_fold_never_reads_is_refused_on_the_datum_alone() {
+    for (label, rider_on, expect) in [
+        (
+            "msolve10-unread-gap",
+            MatePrimitive::PlanarRest { offset: 0.0 },
+            "table gap",
+        ),
+        (
+            "msolve10-unread-rider",
+            MatePrimitive::FrameCoincidence,
+            "rider",
+        ),
+    ] {
+        let (doc, ids, opts) = instances(label, 1);
+        let (doc, copies) = insert(
+            doc,
+            Node::Pattern {
+                input: ids[0],
+                count: editor_core::Expr::count(2),
+                kind: editor_core::PatternKind::Linear {
+                    direction: [fixture::scl(1.0), fixture::scl(0.0), fixture::scl(0.0)],
+                    spacing: len(3.0),
+                },
+            },
+        );
+        let reach = mate_reach::<f64>(&opts, Tol::witness());
+        let (doc, mate_id) = at_the_door(
+            &doc,
+            &reach,
+            with_a(
+                mate(
+                    ids[0],
+                    ids[0],
+                    Alignment {
+                        primitive: rider_on,
+                        ..seat(None)
+                    },
+                ),
+                fixture::head(fixture::in_copy(copies, 1, in_part(ids[0], CapEnd::End))),
+            ),
+        )
+        .expect("two members over one instance are a pair the door admits");
+        let text = save(&doc, &[], Tol::witness()).expect("saves");
+        let mut added = 0_usize;
+        let doctored = wire::doctored(&text, |w| {
+            fn add(v: &mut serde_json::Value, added: &mut usize) {
+                match v {
+                    serde_json::Value::Object(map) => {
+                        if map.contains_key("primitive")
+                            && map.contains_key("sense")
+                            && !map.contains_key("clocking")
+                        {
+                            map.insert(
+                                "clocking".to_owned(),
+                                serde_json::json!(core::f64::consts::FRAC_PI_2),
+                            );
+                            *added += 1;
+                        }
+                        for value in map.values_mut() {
+                            add(value, added);
+                        }
+                    }
+                    serde_json::Value::Array(items) => {
+                        for item in items {
+                            add(item, added);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            add(w, &mut added);
+        });
+        assert_eq!(added, 1, "{label}");
+        let loaded = load(&doctored, Tol::witness()).expect("a snapshot is a state");
+        let poses = solve(&loaded.doc, &opts, Tol::witness());
+        assert_eq!(
+            poses.fault(mate_id),
+            None,
+            "{label}: the fold never reads this pair, so the solve records nothing"
+        );
+        assert_eq!(poses.role(mate_id), Some(MateRole::Declaring), "{label}");
+        let twin = loaded.doc.node(mate_id).expect("live").clone();
+        let (_, fault) =
+            at_the_door(&loaded.doc, &reach, twin).expect_err("the door refuses the datum");
+        match expect {
+            "table gap" => assert!(
+                matches!(fault, MateFault::TableLacks { .. }),
+                "{label}: {fault:?}"
+            ),
+            _ => assert!(
+                matches!(
+                    fault,
+                    MateFault::Contradictory {
+                        predicate: "mate_clocking_redundant",
+                        ..
+                    }
+                ),
+                "{label}: {fault:?}"
+            ),
+        }
+    }
 }
 
 // ---- A2: the door and the solve agree over a corpus ----

@@ -149,10 +149,11 @@ class EditError(PncadError):
     own door. The one exception is `mate_refused`, the edit door
     asking the solve's own per-mate admission of a mate being
     inserted: `fault` carries the solve's `MateFault` about that mate
-    WHOLE — the same value `SolvedPoses.fault` would answer for it at
-    every evaluation — so its lever, its clash and its recourse are
-    read off the type a caller already knows, and `inner_variant` is
-    that fault's word (`mate_table_lacks`, `mate_contradictory`, …).
+    WHOLE — the value `SolvedPoses.fault` answers for a mate the solve
+    refuses on the same datum — so its lever, its clash and its
+    recourse are read off the type a caller already knows, and
+    `inner_variant` is that fault's word (`mate_table_lacks`,
+    `mate_contradictory`, …).
     """
 
     variant: str
@@ -3162,15 +3163,17 @@ class Doc:
         raises `mate_refused` with `inner_variant == "mate_unleverable"`;
         everything else is unaffected.
 
-        A mate the solve would refuse on its own datum at every
-        evaluation — no member at its head, one member named twice, a
-        class outside the vocabulary, a frame with no definite
-        direction, a primitive-and-rider pair the coset table has no
-        row for, a rider that contradicts the coincidence it rides —
-        raises `EditError` with variant `mate_refused` here and never
-        enters the document; `fault` is the solve's own `MateFault`.
-        A verdict about a PAIR (under-determined, contradicting another
-        mate) stays the solve's."""
+        A mate the solve refuses on its own datum — no member at its
+        head, one member named twice, a class outside the vocabulary,
+        a frame with no definite direction, a primitive-and-rider pair
+        the coset table has no row for, a rider that contradicts the
+        coincidence it rides — raises `EditError` with variant
+        `mate_refused` at this insert; `fault` is the solve's own
+        `MateFault`. The doors decide edits and the solve decides
+        states: a verdict about a PAIR (under-determined, contradicting
+        another mate), and a per-mate fault a mate comes to carry after
+        insert (a stranded head, a re-pointed `Part`, a loaded
+        snapshot), are the solve's at evaluation."""
 
     @property
     def last_maintenance(self) -> list[Maintenance]:
@@ -4969,9 +4972,9 @@ class MatePrimitive:
 
     @staticmethod
     def clocking() -> MatePrimitive:
-        """Clocking with no carrying primitive: refused where a mate
-        carrying it is inserted (`EditError`, variant
-        `mate_refused`)."""
+        """Clocking with no carrying primitive: refused at the insert
+        of a mate carrying it (`EditError`, variant `mate_refused`)
+        and at every solve that reads the datum."""
     @property
     def variant(self) -> str: ...
     @property
@@ -4986,10 +4989,11 @@ class Alignment:
 
     `clocking` is a RIDER, never a primitive: on `coaxial` it cuts the
     residual to prismatic; on `frame_coincidence` it is
-    redundant-or-contradictory and gets decided, over the mated parts'
-    extent, where the mate is inserted (`Doc.insert` with `resolver`);
-    on a planar rest the table has no entry and the insert refuses
-    typed (`EditError`, variant `mate_refused`)."""
+    redundant-or-contradictory and gets decided over the mated parts'
+    extent — at the insert (`Doc.insert` with `resolver`, variant
+    `mate_refused`) and at every solve that reads the datum, not
+    re-decided on replay; on a planar rest the table has no entry and
+    the same doors refuse typed."""
 
     def __init__(
         self,

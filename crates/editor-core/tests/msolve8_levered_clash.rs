@@ -30,7 +30,7 @@ use editor_core::{
     RecipeNodeId, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, run, solve, square, step};
+use fixture::{FIXTURE_MATE_AXIS, at_the_door, insert, len, on_frame, run, solve, square, step};
 use geom_core::k_stats::{Bracket, Recorded};
 use geom_core::linalg::{Affine3, Mat3, UnitVec3, Vec3};
 use geom_core::predicate::Band;
@@ -139,29 +139,6 @@ fn add(doc: ProfileDoc, node: Node<editor_core::ProfileProgram>) -> (ProfileDoc,
     (doc, id.expect("the insert minted an id"))
 }
 
-/// The edit door's verdict on a mate, through the rig's reach: the
-/// door asks the solve's own per-mate admission — a frame with no
-/// definite direction, a rider on a coincidence decided over the
-/// parts' extent — so a mate the solve would refuse on its own datum
-/// never enters, and its fault comes out of the door instead. `Ok` is
-/// the document and the mate's id; `Err` the id the door named and
-/// the fault.
-fn at_the_door(
-    doc: &ProfileDoc,
-    o: &EvalOptions,
-    node: Node<editor_core::ProfileProgram>,
-) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, MateFault)> {
-    let reach = mate_reach::<f64>(o, Tol::witness());
-    match doc.apply(&DocEdit::InsertNode { node }, Tol::witness(), &reach) {
-        Ok(applied) => {
-            let id = applied.record.minted.expect("an insert mints an id");
-            Ok((applied.doc, id))
-        }
-        Err(editor_core::EditError::MateRefused { node, fault }) => Err((node, *fault)),
-        Err(other) => panic!("the door refused otherwise: {other:?}"),
-    }
-}
-
 /// The part's reach, through the evaluation's own door.
 fn reach_of(r: &Rig) -> f64 {
     mate_reach::<f64>(&r.o, Tol::witness())
@@ -209,7 +186,7 @@ fn two_mates(
     first: Alignment,
     second: Alignment,
     reversed: bool,
-) -> (Rig, RecipeNodeId, RecipeNodeId, Option<MateFault>) {
+) -> (Rig, RecipeNodeId, RecipeNodeId, Option<(Site, MateFault)>) {
     let r = rig(label, 2);
     let (a, b) = if reversed {
         (r.ids[1], r.ids[0])
@@ -219,14 +196,31 @@ fn two_mates(
     let (doc, held) = add(r.doc, mate(a, b, first));
     // The second mate meets its own admission at the door and the
     // pair's verdict at the solve: whichever refuses is the fault.
-    let (doc, added, fault) = match at_the_door(&doc, &r.o, mate(a, b, second)) {
+    let (doc, added, fault) = match at_the_door(
+        &doc,
+        &mate_reach::<f64>(&r.o, Tol::witness()),
+        mate(a, b, second),
+    ) {
         Ok((doc, added)) => {
-            let fault = solve(&doc, &r.o, Tol::witness()).fault(added).cloned();
+            let fault = solve(&doc, &r.o, Tol::witness())
+                .fault(added)
+                .cloned()
+                .map(|fault| (Site::Solve, fault));
             (doc, added, fault)
         }
-        Err((added, fault)) => (doc, added, Some(fault)),
+        Err((added, fault)) => (doc, added, Some((Site::Door, fault))),
     };
     (Rig { doc, ..r }, held, added, fault)
+}
+
+/// **Which door a mate's refusal came out of** — the insert door,
+/// which decides the mate's own datum, or the solve, which decides
+/// the pair. A row pins the site beside the fault, so a refusal that
+/// moved between them cannot pass as the same fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Site {
+    Door,
+    Solve,
 }
 
 /// The residual lever a contradictory refusal carries, with the
@@ -288,7 +282,8 @@ fn c1_rotation_identity_value_and_arm() {
         None,
     );
     let (r, held, added, fault) = two_mates("msolve8-c1-rot-id", first, second, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_rotation_identity");
     let q = representative(&first).linear * representative(&second).linear.inverse();
     assert_eq!(
@@ -335,7 +330,8 @@ fn c1_axis_fixed_value_and_arm() {
         None,
     );
     let (r, _, _, fault) = two_mates("msolve8-c1-axis-fixed", first, second, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_axis_fixed");
     let q = representative(&first).linear * representative(&second).linear.inverse();
     let n = second.a.axis(Tol::witness()).unwrap().get();
@@ -371,7 +367,8 @@ fn c1_two_axis_reach_value_and_arm() {
         None,
     );
     let (r, _, _, fault) = two_mates("msolve8-c1-reach", first, second, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_rotation_two_axis_reachable");
     let tol = Tol::witness();
     let a1 = first.a.axis(tol).unwrap().get();
@@ -418,7 +415,8 @@ fn c1_length_none_and_roll_arm() {
         None,
     );
     let (_, _, _, fault) = two_mates("msolve8-c1-len-plane", f1, f2, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let MateFault::Contradictory {
         predicate, clash, ..
     } = &fault
@@ -447,7 +445,8 @@ fn c1_length_none_and_roll_arm() {
         None,
     );
     let (_, _, _, fault) = two_mates("msolve8-c1-len-axis", c1, c2, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let MateFault::Contradictory {
         predicate, clash, ..
     } = &fault
@@ -472,7 +471,12 @@ fn c1_length_none_and_roll_arm() {
         Some(0.3),
     );
     let (r, _, _, fault) = two_mates("msolve8-c1-roll", big, rider, false);
-    let fault = fault.expect("the rider refuses");
+    let (site, fault) = fault.expect("the rider refuses");
+    assert_eq!(
+        site,
+        Site::Door,
+        "the rider is decided in its own coset, at the insert door"
+    );
     let MateFault::Contradictory {
         predicate, clash, ..
     } = &fault
@@ -573,7 +577,12 @@ fn the_three_residual_clashes_survive_the_inverted_authored_order() {
     ];
     for (label, predicate, first, second) in rows {
         let (_, _, _, fault) = two_mates(label, first, second, true);
-        let fault = fault.expect("the pair refuses");
+        let (site, fault) = fault.expect("the pair refuses");
+        assert_eq!(
+            site,
+            Site::Solve,
+            "{label}: a verdict about the pair is the solve's"
+        );
         assert!(
             !matches!(
                 fault,
@@ -998,21 +1007,30 @@ fn c2_inverted_coset_never_refuses() {
                     };
                     match at_the_door(
                         &r.doc,
-                        &r.o,
+                        &mate_reach::<f64>(&r.o, tol),
                         mate(a, b, al(prim, sense, *f, z_up_at([0.2, 0.0, 0.0]), None)),
                     ) {
-                        Ok((doc, m)) => solve(&doc, &r.o, tol).fault(m).cloned(),
-                        Err((_, fault)) => Some(fault),
+                        Ok((doc, m)) => solve(&doc, &r.o, tol)
+                            .fault(m)
+                            .cloned()
+                            .map(|fault| (Site::Solve, fault)),
+                        Err((_, fault)) => Some((Site::Door, fault)),
                     }
                 };
                 match (verdict(false), verdict(true)) {
                     (None, None) => solved += 1,
-                    (Some(MateFault::Under { .. }), Some(MateFault::Under { .. })) => {}
                     (
-                        Some(MateFault::Frame { error: direct, .. }),
-                        Some(MateFault::Frame {
-                            error: inverted, ..
-                        }),
+                        Some((Site::Solve, MateFault::Under { .. })),
+                        Some((Site::Solve, MateFault::Under { .. })),
+                    ) => {}
+                    (
+                        Some((Site::Door, MateFault::Frame { error: direct, .. })),
+                        Some((
+                            Site::Door,
+                            MateFault::Frame {
+                                error: inverted, ..
+                            },
+                        )),
                     ) => {
                         assert_eq!(direct, inverted, "{f:?} {prim:?} {sense:?}");
                         refused_at_the_read += 1;
@@ -1038,7 +1056,7 @@ fn c2_inverted_coset_never_refuses() {
 /// refuse before a solve when it does — and the mate an author then
 /// tries to add: the edit door asks the solve's own admission, which
 /// begins with the band, so under a tolerance that admits none the
-/// mate is refused `Band` where it is authored and never enters.
+/// mate is refused `Band` at the insert door.
 fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc_ref = DocRef {
         id: DocumentId::derive(&format!("{label}-part")),
@@ -1059,9 +1077,10 @@ fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, ids)
 }
 
-/// `Band` is met at the door: every mate refuses there with the
-/// solve's own `Band` fault, before any mate and so any instance's
-/// pose is a question, and the document holds none.
+/// `Band` is met at the insert door: every mate refuses there with
+/// the solve's own `Band` fault, so no INSERT lands one — a snapshot
+/// loaded under this tolerance still can — and the solve reaches
+/// every instance the document holds.
 fn band_refuses_every_mate(doc: &ProfileDoc, ids: &[RecipeNodeId]) {
     let tol = Tol::witness();
     assert!(
@@ -1127,7 +1146,7 @@ fn band_refuses_every_mate(doc: &ProfileDoc, ids: &[RecipeNodeId]) {
 /// `Tolerance::init` commits once — which is how this binary runs
 /// under nextest.
 #[test]
-fn c4_band_reaches_every_row_overflow() {
+fn c4_band_refuses_every_mate_at_the_door_and_reaches_every_instance_overflow() {
     Tolerance::init(Tolerance {
         eps: 1e308,
         k: 10.0,
@@ -1139,7 +1158,7 @@ fn c4_band_reaches_every_row_overflow() {
 
 /// **`Band` reaches every row: K·ε rounds back onto ε.**
 #[test]
-fn c4_band_reaches_every_row_empty() {
+fn c4_band_refuses_every_mate_at_the_door_and_reaches_every_instance_empty() {
     Tolerance::init(Tolerance {
         eps: 5e-324,
         k: 1.0 + f64::EPSILON,

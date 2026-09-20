@@ -9,10 +9,12 @@ appearance attributes and metadata. All mutation goes through the typed
 (`src/edit.rs`) — pure over the document and the mated parts' reach — which
 returns a new document with the cluster-record maintenance the edit performed;
 undo is keeping the prior value, and replay re-applies the recorded maintenance
-without a solve. A mate entering the document passes the solve's own per-mate
+without a solve. A mate being inserted passes the solve's own per-mate
 admission at that door (`EditError::MateRefused`, the solve's fault unaltered),
 so what the coset table refuses about a mate alone is met where the mate is
-authored, and only a verdict about a pair waits for the solve.
+authored; the doors decide edits and the solve decides states, so a verdict
+about a pair, and a per-mate fault a mate comes to carry after insert (a
+stranded head, a re-pointed `Part`, a loaded snapshot), are met at evaluation.
 The evaluation service (`src/eval/`), `evaluate(doc, prior, cancel, opts, tol)
 -> Evaluation<T>`, runs the live nodes in a deterministic topological order,
 reuses prior results by content key (`src/eval/memo.rs`: bit-exact inputs plus

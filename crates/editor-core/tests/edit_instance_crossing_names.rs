@@ -91,8 +91,6 @@ fn crossing(mate: RecipeNodeId, outer: StableName, inner: FaceName) -> Interface
     }
 }
 
-/// A mate whose two heads are the named faces, read at their own
-/// mints.
 /// A two-copy pattern over `instance`: what lets a mate stand on ONE
 /// instance twice without naming one member twice — the instance and
 /// a copy of it are two members, so the edit door admits the mate
@@ -115,6 +113,8 @@ fn copies_of(instance: RecipeNodeId) -> Node<ProfileProgram> {
     }
 }
 
+/// A mate whose two heads are the named faces, read at their own
+/// mints.
 fn mate(a: StableName, b: StableName) -> Node<ProfileProgram> {
     Node::Mate {
         a: fixture::head(a),

@@ -22,7 +22,7 @@ use editor_core::{
     RoleSeg, StableName, assemble, clusters,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
-use fixture::{in_copy, insert, len, on_frame, relations, run, scl, solve, step};
+use fixture::{door_refusal, in_copy, insert, len, on_frame, relations, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -704,27 +704,6 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         "a pattern of a non-instance stands no member: {fault2:?}"
     );
     let _ = store2;
-}
-
-/// The edit door's refusal of `node` on the solve's own per-mate
-/// admission: the fault it carries, which is what the solve would
-/// have recorded against the mate. Through the refusing reach, since
-/// none of the refusals here needs a lever.
-fn door_refusal(
-    doc: &ProfileDoc,
-    node: Node<editor_core::ProfileProgram>,
-) -> editor_core::MateFault {
-    let err = doc
-        .apply(
-            &DocEdit::InsertNode { node },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect_err("the door refuses the mate on its own datum");
-    let editor_core::EditError::MateRefused { fault, .. } = err else {
-        panic!("expected MateRefused, got {err:?}");
-    };
-    *fault
 }
 
 /// INVARIANT: two DISTINCT copies of one pattern are a pair like any

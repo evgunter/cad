@@ -20,7 +20,7 @@ use editor_core::{
     clusters, load, product, relative_freedom_components, save,
 };
 use fixture::resolver::{PART_BODY, PartStore, with_resolver};
-use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, run, solve, square, step};
+use fixture::{FIXTURE_MATE_AXIS, door_refusal, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
@@ -1539,26 +1539,6 @@ fn row7a_a_standalone_clocking_refuses_typed() {
     };
     assert!(what.contains("standalone clocking"), "{what}");
     assert!(fault.to_string().contains("coset table"), "{fault}");
-}
-
-/// The edit door's refusal of `node` on the solve's own per-mate
-/// admission, through the refusing reach: the fault it carries, which
-/// is what the solve would have recorded against the mate.
-fn door_refusal(
-    doc: &ProfileDoc,
-    node: Node<editor_core::ProfileProgram>,
-) -> editor_core::MateFault {
-    let err = doc
-        .apply(
-            &DocEdit::InsertNode { node },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .expect_err("the door refuses the mate on its own datum");
-    let EditError::MateRefused { fault, .. } = err else {
-        panic!("expected MateRefused, got {err:?}");
-    };
-    *fault
 }
 
 #[test]

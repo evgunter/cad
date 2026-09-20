@@ -26,7 +26,9 @@ use editor_core::{
     content_pin, mate_reach, product, split,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step};
+use fixture::{
+    ang, at_the_door, axis_in_plane, insert, len, on_frame, on_frame_keeping, run, solve, step,
+};
 use geom_core::predicate::{Band, Sign};
 use geom_core::{Decide, Point3, Tol};
 
@@ -142,35 +144,25 @@ fn coincidence(fa: MateFrame, fb: MateFrame, clocking: f64) -> Alignment {
     }
 }
 
-/// The edit door's verdict on `node`, through the store's reach: the
-/// door asks the solve's own per-mate admission, and a clocking rider
-/// on a coincidence — a zero one included — is decided over the mated
-/// parts' extent, so the reach is the store's (`fixture::step_with`),
-/// never the refusing one. `Ok` is the document with the mate and its
-/// id; `Err` the id the door named and the solve's own fault.
-fn at_the_door(
+/// [`at_the_door`] through the store's reach — the door decides a
+/// clocking rider on a coincidence over the mated parts' extent, so a
+/// rider (a zero one included) needs the parts in hand where the mate
+/// is authored.
+fn at_the_store(
     doc: &ProfileDoc,
     opts: &EvalOptions,
     node: Node<editor_core::ProfileProgram>,
 ) -> Result<(ProfileDoc, RecipeNodeId), (RecipeNodeId, MateFault)> {
-    let reach = mate_reach::<f64>(opts, Tol::witness());
-    match doc.apply(&DocEdit::InsertNode { node }, Tol::witness(), &reach) {
-        Ok(applied) => {
-            let id = applied.record.minted.expect("an insert mints an id");
-            Ok((applied.doc, id))
-        }
-        Err(EditError::MateRefused { node, fault }) => Err((node, *fault)),
-        Err(other) => panic!("the door refused otherwise: {other:?}"),
-    }
+    at_the_door(doc, &mate_reach::<f64>(opts, Tol::witness()), node)
 }
 
-/// [`at_the_door`] for a mate the door admits.
+/// [`at_the_store`] for a mate the door admits.
 fn mated(
     doc: ProfileDoc,
     opts: &EvalOptions,
     node: Node<editor_core::ProfileProgram>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    at_the_door(&doc, opts, node).unwrap_or_else(|(_, fault)| panic!("the door admits: {fault}"))
+    at_the_store(&doc, opts, node).unwrap_or_else(|(_, fault)| panic!("the door admits: {fault}"))
 }
 
 /// The reach of every instance in `ids`, through the public door:
@@ -263,7 +255,7 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
     // The rider is decided where the mate is authored, over the same
     // lever the solve forms: the door refuses it with the solve's
     // own fault.
-    let (_, fault) = at_the_door(&doc, &opts, clocked(ids[0], ids[1], alignment))
+    let (_, fault) = at_the_store(&doc, &opts, clocked(ids[0], ids[1], alignment))
         .expect_err("a quarter-turn rider contradicts the coincidence");
     let MateFault::Contradictory {
         clash: Clash::Levered(Lever::Roll {
@@ -325,7 +317,7 @@ fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) 
     // The verdict is reached where the mate is authored: an admitted
     // rider enters and the solve places the pair; a refused one
     // carries the solve's own fault out of the door.
-    let fault = match at_the_door(&doc, &opts, clocked(ids[0], ids[1], alignment)) {
+    let fault = match at_the_store(&doc, &opts, clocked(ids[0], ids[1], alignment)) {
         Ok((doc, mate)) => {
             let poses = solve(&doc, &opts, Tol::witness());
             assert_eq!(
@@ -650,7 +642,7 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
         b,
         coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), theta),
     );
-    let (doc, mate) = match at_the_door(&doc, &opts_small, node) {
+    let (doc, mate) = match at_the_store(&doc, &opts_small, node) {
         Ok(admitted) => {
             assert_eq!(small_verdict, Verdict::Parallel, "admitted, so parallel");
             admitted
@@ -663,6 +655,15 @@ fn a5_a_part_change_that_flips_the_verdict_moves_the_mates_memo() {
                         | (Verdict::Indeterminate, MateFault::Indeterminate { .. })
                 ),
                 "the door's refusal is the small part's verdict: {small_verdict:?} vs {fault:?}"
+            );
+            // The flip's premise — parallel at the small scale — does
+            // not hold at this ε, so the row's claim has no subject
+            // here and this is where it ends, having pinned that the
+            // door and the band agree about why.
+            assert_ne!(small_verdict, Verdict::Parallel);
+            eprintln!(
+                "a5 memo: the band refuses at the small scale at this ε \
+                 ({small_verdict:?}; large {large_verdict:?}), so the flip is not reachable"
             );
             return;
         }
@@ -858,7 +859,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_refuses_typed() {
 /// (deleting the pair's mate) and a GaugeRewrite (deleting the gauge
 /// instance) each ask `2 × 2 = 4`.
 #[test]
-fn a6_a_gauge_preserving_edit_never_asks_the_reach() {
+fn a6_a_gauge_preserving_edit_asks_only_its_own_admission() {
     let (doc, [a, b], mate, opts, _log) = seated("msolve6-a6-preserving");
     let counting = Counting(
         core::cell::Cell::new(0),

@@ -1549,3 +1549,38 @@ no CI run and none retroactively (the first merge commit got none), and
 `cargo check` does not run clippy, so a doc-only edit still needs a
 clippy pass — one lazy-list-continuation in a lifted paragraph failed
 six jobs.
+
+**PROPS cut into four (2026-09-20).** Ev asked whether the slate — 66
+open rows — should be cut into new programs, leaving behind only what
+this orchestrator would finish itself, and agreed to the shape put
+back. Twenty-eight rows left in three programs, none with an
+orchestrator seated yet: **QUAD** (8, `props/quad.rs`'s four engines,
+the triplicated convergence block, the budget firing from six sites
+under three round budgets, and the rounds dial that is an `[ev]`
+question), **ENCL** (12, the offset fit and the patch bound and the
+certificate family — S-CERT's second successor, since S-CERT exited
+into this program at #1924 and this is the half of that inheritance
+PROPS is not finishing), and **FRAME** (8, the four doors that turn a
+direction into a basis and no rule saying which to reach for).
+
+Each carries a charter, lanes with the reading order argued, and its
+band; the log entry in each says the cut was Ev's call and names the
+worked precedents its first orchestrator should read before
+specifying — for QUAD the budget-faces unit, for ENCL the mignitude
+floor, for FRAME the sign-hull unit and the SYM row that holds it.
+
+What stays here and why: the closed-form flux arms in
+`props/curved.rs`, where three units landed in the week before the cut
+so the context is live; the verdict and escalation channel; the
+geom-core scalar and spline doors; and the sign-hull unit to its
+landing, because Ev ruled it and it is mid-flight. FRAME inherits the
+rest of its family at that point, the way this program inherited from
+S-CERT at its exit walk.
+
+**The cut does not partition the ground, deliberately.** Ev, same
+conversation: the overlap checker is too overbearing, shared ground is
+fine, and what units owe each other is awareness when they are working
+at the same time. So `props/*` is claimed by this program and by QUAD,
+`geom-core/src/*` by this program and by FRAME, each `keep_out` says
+so in those words, and no glob was contorted to keep the at-rest check
+quiet. The check itself is a separate change, opened as an `[ev]` PR.

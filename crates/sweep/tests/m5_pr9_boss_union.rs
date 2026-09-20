@@ -8,6 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::slab as plate;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
@@ -17,11 +18,6 @@ use topo::Body;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-/// The plate: a 4×4×1 block, z ∈ [0, 1].
-fn plate() -> Body<f64> {
-    sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
 }
 
 /// The boss: a radius-0.5 disc centered at (2, 2) authored as THREE

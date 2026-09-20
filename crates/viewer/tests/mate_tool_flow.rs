@@ -188,9 +188,8 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 /// about the CHOICE alone, so the tool refuses them the way it refuses
 /// a class outside the vocabulary — here with the picks' instance
 /// deleted out from under the tool, which the pick door would refuse
-/// were it reached. The sentence is the table's: the edit door refuses
-/// the same alignment with `MateFault::TableLacks` spelling the same
-/// `what`, so the tool's word and the door's are one word.
+/// were it reached. The sentence is the table's by construction: the
+/// tool reads `table_gap`, the same home the coset table reads.
 ///
 /// The rider on a frame coincidence is not static — the table DECIDES
 /// it over the mate's lever — so the tool proposes it and the edit
@@ -226,42 +225,15 @@ fn the_tool_refuses_the_tables_static_gaps_before_any_geometry() {
         panic!("a standalone clocking refuses at the tool");
     };
     assert_ne!(rest, clocking, "two gaps, two sentences");
-
-    // The door's word for the same two alignments, on the LIVE bench,
-    // is the same word.
-    let (doc, _) = session.landed_pair().expect("landed");
-    let door = |primitive: MatePrimitive, clocking: Option<f64>| -> &'static str {
-        let err = pncad::document::apply(
-            doc,
-            &pncad::document::DocEdit::InsertNode {
-                node: pncad::document::Node::Mate {
-                    a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-                    b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-                    class: ContactClass::Rest,
-                    alignment: pncad::document::Alignment {
-                        primitive,
-                        clocking,
-                        ..asm::seat_alignment(asm::POST_B_AT[0], None)
-                    },
-                },
-            },
-            tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect_err("the door refuses the same gap");
-        let pncad::document::EditError::MateRefused { fault, .. } = err else {
-            panic!("the door carries the solve's fault, got {err:?}");
-        };
-        let pncad::document::MateFault::TableLacks { what, .. } = *fault else {
-            panic!("the table's own gap, got {fault:?}");
-        };
-        what
-    };
-    assert_eq!(
-        door(MatePrimitive::PlanarRest { offset: 0.0 }, Some(0.3)),
-        rest
-    );
-    assert_eq!(door(MatePrimitive::Clocking, None), clocking);
+    // And a choice the table has a row for reaches the pick door,
+    // which is what "before any geometry" means here.
+    assert!(matches!(
+        tool.proposal(doc, eval, &gone.eval_options(), tol, asm::seat()),
+        Err(MateToolError::NotAnInstancePick {
+            side: MateSide::B,
+            ..
+        })
+    ));
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
@@ -823,68 +795,58 @@ const NEST_STEP: f64 = 0.04;
 /// part, outer, loose part)`.
 fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [RecipeNodeId; 6]) {
     use pncad::document::{
-        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram, apply,
+        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram,
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
-    let insert = |doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>| {
-        let applied = apply(
-            doc,
-            &DocEdit::InsertNode { node },
-            tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the insert applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("an insert mints an id")
-    };
-    let shelf_i = insert(&mut doc, Node::instantiate_part(bench.shelf));
-    let post_i = insert(&mut doc, Node::instantiate_part(bench.post));
+    let shelf_i = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
+    let post_i = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
     for (node, at) in [(shelf_i, asm::SHELF_AT), (post_i, asm::POST_B_AT)] {
-        let applied = apply(
-            &doc,
-            &DocEdit::SetPlacement {
+        common::edit_into(
+            &mut doc,
+            DocEdit::SetPlacement {
                 node,
                 frame: pncad::document::Frame::translation(at),
             },
             tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the placement applies");
-        doc = applied.doc;
+        );
     }
     let rule = |dir: [f64; 3]| PatternKind::Linear {
         direction: dir.map(scl),
         spacing: len(NEST_STEP),
     };
-    let inner = insert(
+    let inner = common::insert_into(
         &mut doc,
         Node::Pattern {
             input: post_i,
             count: Expr::count(2),
             kind: rule([1.0, 0.0, 0.0]),
         },
+        tol,
     );
-    let part = insert(
+    let part = common::insert_into(
         &mut doc,
         Node::Part {
             of: inner,
             select: PartSelect::Instance(Expr::count(1)),
         },
+        tol,
     );
-    let outer = insert(
+    let outer = common::insert_into(
         &mut doc,
         Node::Pattern {
             input: part,
             count: Expr::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
+        tol,
     );
-    let loose = insert(
+    let loose = common::insert_into(
         &mut doc,
         Node::Part {
             of: inner,
             select: PartSelect::Instance(Expr::count(0)),
         },
+        tol,
     );
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
     let path = ws.create(&doc, tol).expect("the nested assembly stores");

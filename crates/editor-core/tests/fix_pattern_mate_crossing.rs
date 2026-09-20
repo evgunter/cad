@@ -406,11 +406,11 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 /// there the head is a `Pattern`, so a gate matching
 /// `Node::InstantiatePart` skips it for the right answer by accident;
 /// here the head IS an `InstantiatePart` and only the walk knows the
-/// reference resolves to nothing. No door produces this document any
+/// reference resolves to nothing. No EDIT produces this document any
 /// more — the insert door asks the walk, and the name-repair door
 /// moves a head read at its own mint WITH its name — so the seam
-/// never meets it; what the row pins is that the door is the walk's
-/// verdict, not a head's kind.
+/// meets it only through a loaded snapshot; what the row pins is that
+/// the door is the walk's verdict, not a head's kind.
 #[test]
 fn a_stranded_operand_over_an_instance_head_refuses_at_the_door() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
