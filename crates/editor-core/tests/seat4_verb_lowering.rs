@@ -212,10 +212,24 @@ fn both_blends_evaluate_in_one_document() {
 /// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
 /// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
 /// green across the change untouched.
+///
+/// RE-BLESSED once more at the merge with `main` of 2026-09-19, and
+/// this one is a COMPOSITION rather than a third cause: main's
+/// `RoleSeg::CornerArc -> EndArc` (`8060537f7`) moved these two
+/// digests through the name table while this branch moved them
+/// through each planar carrier's stored `u_ref`. Both feed
+/// `digest(&ev)`, so the merged tree's number is neither side's — the
+/// conflict at this line had main's `0x0514…`/`0x131a…` against this
+/// branch's `0x7d42…`/`0x6ffa…`, and the value measured on the merged
+/// tree is a fourth pair. Neither re-bless is retracted; the
+/// id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) stayed
+/// green across the merge, which is the locus receipt for the half
+/// this branch is answerable for.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("die_fillet", 0x0514_022b_3d04_f5c7_u64),
+        ("die_fillet", 0x58c6_f02c_26fe_29bd_u64),
         ("die_chamfer", 0x131a_d58c_f63c_4589),
     ] {
         let doc = corpus::documents()
