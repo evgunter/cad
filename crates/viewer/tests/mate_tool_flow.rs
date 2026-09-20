@@ -740,68 +740,58 @@ const NEST_STEP: f64 = 0.04;
 /// part, outer, loose part)`.
 fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [RecipeNodeId; 6]) {
     use pncad::document::{
-        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram, apply,
+        Doc, DocEdit, DocumentId, Expr, Node, PartSelect, PatternKind, ProfileProgram,
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
-    let insert = |doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>| {
-        let applied = apply(
-            doc,
-            &DocEdit::InsertNode { node },
-            tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the insert applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("an insert mints an id")
-    };
-    let shelf_i = insert(&mut doc, Node::instantiate_part(bench.shelf));
-    let post_i = insert(&mut doc, Node::instantiate_part(bench.post));
+    let shelf_i = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
+    let post_i = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
     for (node, at) in [(shelf_i, asm::SHELF_AT), (post_i, asm::POST_B_AT)] {
-        let applied = apply(
-            &doc,
-            &DocEdit::SetPlacement {
+        common::edit_into(
+            &mut doc,
+            DocEdit::SetPlacement {
                 node,
                 frame: pncad::document::Frame::translation(at),
             },
             tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the placement applies");
-        doc = applied.doc;
+        );
     }
     let rule = |dir: [f64; 3]| PatternKind::Linear {
         direction: dir.map(scl),
         spacing: len(NEST_STEP),
     };
-    let inner = insert(
+    let inner = common::insert_into(
         &mut doc,
         Node::Pattern {
             input: post_i,
             count: Expr::count(2),
             kind: rule([1.0, 0.0, 0.0]),
         },
+        tol,
     );
-    let part = insert(
+    let part = common::insert_into(
         &mut doc,
         Node::Part {
             of: inner,
             select: PartSelect::Instance(Expr::count(1)),
         },
+        tol,
     );
-    let outer = insert(
+    let outer = common::insert_into(
         &mut doc,
         Node::Pattern {
             input: part,
             count: Expr::count(2),
             kind: rule([0.0, 1.0, 0.0]),
         },
+        tol,
     );
-    let loose = insert(
+    let loose = common::insert_into(
         &mut doc,
         Node::Part {
             of: inner,
             select: PartSelect::Instance(Expr::count(0)),
         },
+        tol,
     );
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
     let path = ws.create(&doc, tol).expect("the nested assembly stores");
