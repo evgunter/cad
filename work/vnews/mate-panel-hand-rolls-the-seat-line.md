@@ -54,13 +54,33 @@ and leaves two compositions), routing the mate panel through
 something other than `(Seat, Option<RecipeNodeId>)`, since these are
 faces), and lifting just the empty-state sentence and the mark.
 
-**A third inconsistency is visible at the same three lines and is not
-the same defect**: the one-pick arm says *"pick a: face of node N"* and
-the two-pick arm says *"pick a: node N"*, so the same pick is described
-two ways depending on how many there are. Whichever fix lands should
-settle that word too.
+## The noun for a pick drifts, and it has two members
+
+**Not the same defect as the duplication, and it outlives it**: the
+word for what a seat holds is spelled three ways across what the docs
+call one vocabulary. The fix that lands should settle the word, not
+just the composition.
+
+- **In this panel**, the one-pick arm says *"pick a: **face of node**
+  N"* and the two-pick arm says *"pick a: **node** N"*, so the same
+  pick is described two ways depending on how many there are.
+- **Inside `seats.rs` itself**, which the module doc calls one
+  vocabulary composed in one place so the two cannot drift:
+  `seat_line` renders a held pick as *"{role}: **feature** N"* while
+  `SeatEvent::PickLost`'s `Display` — three hundred lines up, and the
+  sentence `seat_line`'s own doc names as the reason the line is
+  composed here — says *"the {role} pick (**node** N) is no longer in
+  the document"*. Same value, same module, same `RecipeNodeId`, two
+  nouns.
+
+The second is the stronger evidence: the file that exists to stop this
+drift has it internally, so a rule stated in a doc comment is doing
+the work a shared composer should. Population re-derived at
+2026-09-20 and stated as of then; a third spelling may have landed
+since.
 
 ## Home
 
-VNEWS's: `crates/viewer/src/pane/create.rs`. The file is a double
-claim (also `chrome`, `view`, `vseam`).
+VNEWS's: `crates/viewer/src/pane/create.rs`, and
+`crates/viewer/src/seats.rs` for the noun-drift half.
+`pane/create.rs` is a double claim (also `chrome`, `view`, `vseam`).
