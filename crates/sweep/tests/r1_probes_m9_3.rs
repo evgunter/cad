@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::plate6;
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::test_support::brick;
@@ -18,11 +19,6 @@ use topo::{
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-/// A 6×4 plate, z ∈ [z0, z0 + 1].
-fn plate6(z0: f64) -> Body<f64> {
-    brick((0.0, 6.0), (0.0, 4.0), (z0, z0 + 1.0), Tol::witness())
 }
 
 fn cyl_at(cx: f64, z0: f64, h: f64, r: f64) -> Body<f64> {

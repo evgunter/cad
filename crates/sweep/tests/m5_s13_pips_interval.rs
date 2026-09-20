@@ -19,6 +19,7 @@ test_utils::loud_skip_marker!(
 
 #[cfg(feature = "interval")]
 mod certified {
+    use crate::common::operands::slab;
     use core::f64::consts::PI;
     use geom_core::Tol;
 
@@ -39,13 +40,6 @@ mod certified {
         Profile::new(SketchPlane::xy(), loops)
             .validate(Tol::witness())
             .unwrap()
-    }
-
-    /// The 4 × 4 × 1 slab of the finding row.
-    /// `m5_pr9_boss_union::plate`'s box, spelled again here at the
-    /// interval scalar.
-    fn slab() -> Body<Interval> {
-        sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
     }
 
     /// A radius-`r` ball at `centre` (horizontal polar axis — the §1

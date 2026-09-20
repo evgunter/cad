@@ -55,3 +55,40 @@ Two shapes, and the first needs DOCM:
 
 Ride it on whichever unit next touches `EditError`'s surface with an
 authorisation wider than `Display` wording.
+
+## Re-homed to EDIT, 2026-09-19
+
+Filed on VIEW's slate, carried to VNEWS by the 2026-09-17 re-scope, and
+moved here by VNEWS' orchestrator at its first dispatch (Ev, in-chat
+2026-09-19, granting the move without a ruling; the general authority to
+re-home a unit between tracks came with it).
+
+**Why it could not be dispatched from VNEWS.** Both shapes above — a
+`pub const` beside `EditError`, or a `recourse()` accessor on it — add
+API surface to `crates/editor-core`. The authorisation VNEWS inherits
+is Ev's amendment of 2026-09-04, scoped to `EditError`'s user-facing
+`Display` **wording** (the `edit: ` prefix and the `{:?}`-quoted
+payloads) and to nothing else. This row's own text records that
+widening it "was refused on the spot rather than taken quietly", so the
+row was correct about its own blocker and the tracker was not.
+
+**Why EDIT.** `EditError` is declared at `crates/editor-core/src/edit.rs`
+and `edit.rs` is EDIT's territory; the clause this row is about is
+written there and again in the viewer's `session/refuse.rs`. EDIT is
+DOCM's successor for exactly this surface, and this row's closing
+instruction — *"ride it on whichever unit next touches `EditError`'s
+surface with an authorisation wider than `Display` wording"* — names
+EDIT's slate by description.
+
+**What stays VNEWS'.** Only the viewer arm: once `editor-core` exposes
+the recourse once, `crates/viewer/src/session/refuse.rs` renders it
+rather than repeating the clause. That is a forward at one site and
+needs no row of its own — it lands with whichever EDIT unit exposes
+the recourse, as an announced crossing into `session/refuse.rs`
+(VNEWS' and VSEAM's, written on both sides).
+
+**The tripwire is still the only thing holding the copies in step**:
+`crates/viewer/tests/panel_edits.rs::refusals_render_as_sentences`
+asserts both renderings carry the clause. Verify it still does before
+relying on it — that file is VDOC's, S-TCOST's and S-TINT's ground and
+the row is three programs' from where you will be standing.

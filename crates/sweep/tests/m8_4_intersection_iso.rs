@@ -933,3 +933,159 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         "E3 records a refusal on both; a success here would be a different unit's news"
     );
 }
+
+/// The distinct mesh-vertex ids and triangle count of the patch on
+/// the face carrying `key`'s surface — the per-patch reading E2
+/// compares, rather than a whole-mesh position count that sums six
+/// unrelated faces.
+fn patch_size(body: &Body<f64>, m: &mesh::Mesh, key: topo::SurfaceKey) -> (usize, usize) {
+    let (fk, _) = body
+        .faces()
+        .find(|(_, f)| f.surface == key)
+        .expect("the surface has a face");
+    let p = m
+        .patches
+        .iter()
+        .find(|p| p.face == fk)
+        .expect("the face has a patch");
+    let mut ids = std::collections::BTreeSet::new();
+    for t in &p.triangles {
+        ids.extend(t.iter().copied());
+    }
+    (p.triangles.len(), ids.len())
+}
+
+/// **E2 — the degree-2 body TESSELLATES, and its `General`-faced wall
+/// is the oracle's wall exactly** (`docs/TRIM-2-SPEC.md` §2, §3's e2e
+/// table).
+///
+/// The same body E1 measures. Its `Intersection` seam carries a
+/// `General` chart image, which until TRIM-2 PR-2 stopped the CHORD
+/// pass dead — `TessellateError::UnsupportedCurve` at
+/// `mesh::chords::nurbs_tighten`'s `General` arm, before any face lane
+/// ran, at all three ε. Two arms flip that: the chord pass now sizes
+/// the seam's UV steps from the image's own differenced control net,
+/// and the trim walk reads the image at the shared chord parameters.
+///
+/// # What is compared, and why not the whole mesh
+///
+/// The comparison is PER PATCH. The widened wall and the oracle's
+/// unwidened wall are the same surface over the face's `u ∈ [1, 2]`
+/// (linear precision places the extra columns), the seam's chord
+/// schedule is the same, and the two patches come out with the same
+/// triangle and id counts — an EQUALITY, which is stronger than the
+/// spec's "within the chord schedule's own ±" and is what this row
+/// asserts.
+///
+/// The two bodies' whole-mesh position counts are NOT equal, and the
+/// difference is not the `General` image's doing at all: the P-2 route
+/// restates one flat wall as the `Surface::Plane` it exactly is, so
+/// that wall takes the planar CDT lane while the oracle's takes the
+/// described-NURBS lane. That one substitution is the entire deficit,
+/// and the row asserts the identity rather than banding it.
+///
+/// # What this row is evidence FOR, and what it is not
+///
+/// The fixture's `General` image runs `u ∈ [2 − 2.2e-16, 2]` — a chart
+/// image degenerate to within an ulp of the iso line beside it
+/// (`work/trim/curved-trim-e2e-fixture-waits-for-a-producer.md`: the
+/// only at-rest producer mints a 33-foot interpolant of a boundary
+/// locus). So this is a SCHEDULE and WATERTIGHTNESS row, not a
+/// curvature one. The curvature evidence for the speed bound is the
+/// unit row
+/// `mesh::chords::tests::general_uv_speeds_dominate_the_sampled_image_speeds`,
+/// which carries an interior-maximum leg.
+///
+/// It is also not a bound on how wrong the sup may be: a sup too small
+/// by a factor of ~2 still MESHES here, because grid sizing targets
+/// δ/2 and that margin absorbs a boundary UV step of a few `h_v`
+/// before any certificate is exceeded. A grosser one meets
+/// `CertificateExceeded`. The domination row is where a degraded sup
+/// dies; this row sees a schedule that CHANGED, which is what the
+/// per-patch equality tests.
+#[test]
+fn a_degree_two_widening_tessellates_against_the_oracle() {
+    let eps = Tol::witness().get().eps;
+    // The spec's cell: 1e-5 of the model, which is what E1's scale
+    // buys (the fixture is 1/1024 across, so an ABSOLUTE 1e-5 would
+    // be a hundredth of the body and size every wall at its floor).
+    let delta = 1e-5 * INTERIOR_COLUMN_SCALE;
+    let (mut body, he, key) = degree_two_body();
+    topo::mint_pcurves(&mut body, Tol::witness())
+        .unwrap_or_else(|e| panic!("the degree-2 chart mints at rest: {e:?}"));
+    assert!(
+        matches!(body.pcurve(he).unwrap().pcurve(), Pcurve::General(_)),
+        "E2 is about the General image; the seam carries {:?}",
+        body.pcurve(he).unwrap().pcurve()
+    );
+    let got = mesh::tessellate(&body, delta, Tol::witness())
+        .unwrap_or_else(|e| panic!("E2: the General-imaged body tessellates: {e:?}"));
+    let oracle = prism(INTERIOR_COLUMN_SCALE);
+    let want = mesh::tessellate(&oracle, delta, Tol::witness())
+        .expect("the oracle prism tessellates on its own charts");
+
+    // The `General`-faced wall against the oracle's four walls, which
+    // are all one another's equals — so "the oracle's wall" is not a
+    // pick.
+    let (gt, gi) = patch_size(&body, &got, key);
+    let oracle_walls: Vec<(usize, usize)> = oracle
+        .faces()
+        .filter(|(_, f)| matches!(oracle.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .map(|(_, f)| patch_size(&oracle, &want, f.surface))
+        .collect();
+    println!(
+        "E2 @ eps={eps:e} delta={delta:e}: General-faced wall {gt} tris / {gi} ids; \
+         oracle walls {oracle_walls:?}; whole mesh {} vs {} positions, {} vs {} patches",
+        got.positions.len(),
+        want.positions.len(),
+        got.patches.len(),
+        want.patches.len()
+    );
+    assert_eq!(
+        oracle_walls.len(),
+        4,
+        "the oracle prism has four described-NURBS walls"
+    );
+    assert!(
+        oracle_walls.iter().all(|w| *w == oracle_walls[0]),
+        "the oracle's four walls are one another's equals: {oracle_walls:?}"
+    );
+    assert_eq!(
+        (gt, gi),
+        oracle_walls[0],
+        "E2: the widened chart's face IS the oracle wall's surface over u ∈ [1, 2], \
+         and its seam's chord schedule is the same, so its patch must come out with \
+         the same triangle and id counts"
+    );
+    assert_eq!(
+        got.patches.len(),
+        want.patches.len(),
+        "E2: the same six faces, so the same patch count"
+    );
+
+    // The whole-mesh deficit, named and asserted rather than banded:
+    // it is exactly the flat wall the P-2 route restated as a plane,
+    // meshed by the planar CDT lane instead of the described-NURBS
+    // one. Nothing about the `General` image enters it.
+    let (plane_key, _) = seam_plane(&body, he);
+    let (_, plane_ids) = patch_size(&body, &got, plane_key);
+    println!(
+        "E2 @ eps={eps:e}: the plane-restated wall carries {plane_ids} ids where the \
+         oracle's described wall carries {}; deficit {} = {}",
+        oracle_walls[0].1,
+        want.positions.len() - got.positions.len(),
+        oracle_walls[0].1 - plane_ids
+    );
+    assert_eq!(
+        want.positions.len() - got.positions.len(),
+        oracle_walls[0].1 - plane_ids,
+        "E2: the WHOLE difference between the two meshes is the restated flat wall's \
+         planar lane standing in for a described-NURBS one"
+    );
+
+    // Watertightness is the claim the trim walk's arm must not move:
+    // the 3-D positions are the carrier's chord points, shared with
+    // the neighbour by id, and only this face's UV shape changed.
+    mesh::validate::check_mesh(&got)
+        .unwrap_or_else(|e| panic!("E2: the General-imaged body's mesh is watertight: {e:?}"));
+}

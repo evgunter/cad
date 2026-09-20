@@ -2,7 +2,7 @@
 id: a-disabled-control-says-why-in-four-shapes
 kind: issue
 title: A control a reader cannot use says why in four shapes, and two of them are not on_disabled_hover_text at all
-status: open
+status: spec
 opened: 2026-09-11
 refs: [environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere, gesture-drags-have-no-cancel-door]
 ---
