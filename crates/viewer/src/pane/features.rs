@@ -5,6 +5,7 @@
 use eframe::egui;
 
 use crate::app::{GLYPH_ROOT, ViewerBehavior, chrome};
+use crate::frame::Tone;
 use crate::session::{Selection, SessionOp};
 use crate::tree::{RowStatus, TreeRow};
 
@@ -72,24 +73,23 @@ impl ViewerBehavior<'_> {
                     });
                 }
             }
-            match &row.status {
-                RowStatus::Ok => {}
-                // Nothing to act on HERE: the row was never run, or it
-                // shows someone else's failure and points at the row
-                // that owns it. Quiet, so the eye passes over it.
-                RowStatus::Unevaluated | RowStatus::Poisoned { .. } => {
-                    ui.weak(row.status.badge());
-                }
-                // The ACTIONABLE rows — the nodes whose own operation
-                // refused — are the ones that take the colour, so a
-                // document with six rows downstream of one broken
-                // feature sends the eye to the one. There can be more
-                // than one: a `MateFault::Contradictory` naming two
-                // different mates blames both, and both go red
-                // (`tree::blamed_mates`).
-                RowStatus::Failed { .. } => {
-                    ui.colored_label(chrome(self.theme.unresolved), row.status.badge());
-                }
+            // A healthy row is silent HERE — the pane's own decision,
+            // not the status axis: every other surface that reads a
+            // badge prints `ok` too, and a tree of unmarked rows is
+            // what makes the marked ones carry.
+            //
+            // Which of the rest is loud is `RowStatus::tone()`'s and
+            // is not re-derived here. The two spellings are the ones
+            // `app::draw_badge` gives a badge's tone, and
+            // `Theme::unresolved`'s contract is that the colour is
+            // REDUNDANT: the badge says its own word either way.
+            if !matches!(row.status, RowStatus::Ok) {
+                let badge = egui::RichText::new(row.status.badge());
+                let badge = match row.status.tone() {
+                    Tone::Advisory => badge.weak(),
+                    Tone::Actionable => badge.color(chrome(self.theme.unresolved)),
+                };
+                ui.label(badge);
             }
         });
         // The line under the row: the payload's own words where the

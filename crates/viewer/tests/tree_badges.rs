@@ -21,6 +21,7 @@ use crate::common;
 use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
+use viewer::frame::Tone;
 use viewer::session::{DocSession, SessionOp};
 use viewer::tree::{self, RowStatus};
 
@@ -67,6 +68,46 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
         other => panic!("expected Poisoned, got {other:?}"),
     }
     assert_eq!(poisoned.status.badge(), "POISONED");
+}
+
+/// **Only the row that refused is actionable**, over rows a real
+/// evaluation produced rather than hand-built statuses: the colour
+/// rule the Features pane draws is `RowStatus::tone()`'s answer, so a
+/// wrong tone is a wrong colour and this is where it goes red.
+#[test]
+fn only_the_row_whose_own_operation_refused_is_actionable() {
+    let tol = Tol::witness();
+    let (doc, extrude, moved) = common::broken_document(tol);
+    // A second, unrelated body, so an `Ok` row is in the population.
+    let (doc, other_profile) = common::framed_square(&doc, 0.02, tol);
+    let mut session = DocSession::inline(doc, tol);
+
+    // Unpumped: nothing has been evaluated, so nothing is actionable.
+    assert!(
+        session
+            .tree_rows()
+            .iter()
+            .all(|row| row.status.tone() == Tone::Advisory),
+        "a document nobody has evaluated yet gives a reader nothing to act on"
+    );
+
+    session.pump();
+    let rows = session.tree_rows();
+    let tone_of = |id| common::status_of(&rows, id).tone();
+    assert_eq!(tone_of(extrude), Tone::Actionable, "the node that refused");
+    assert_eq!(
+        tone_of(moved),
+        Tone::Advisory,
+        "a poisoned row points at the cause; the cause is where a reader acts"
+    );
+    assert_eq!(tone_of(other_profile), Tone::Advisory, "a healthy row");
+    assert_eq!(
+        rows.iter()
+            .filter(|row| row.status.tone() == Tone::Actionable)
+            .count(),
+        1,
+        "one broken feature makes one loud row, whatever it poisons"
+    );
 }
 
 #[test]

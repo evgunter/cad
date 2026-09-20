@@ -77,6 +77,8 @@ use pncad::document::{
     RecipeNodeId,
 };
 
+use crate::frame::Tone;
+
 /// A node's status, as the tree draws it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RowStatus {
@@ -121,6 +123,33 @@ impl RowStatus {
             Self::Failed { .. } => "FAILED",
             Self::Poisoned { .. } => "POISONED",
             Self::Unevaluated => "—",
+        }
+    }
+
+    /// **Whether this row is one a reader may need to act on** — the
+    /// module header's *which row a failure sends the eye to*, as a
+    /// value.
+    ///
+    /// Only a node whose OWN operation refused is
+    /// [`Tone::Actionable`]. A row that was never run has nothing to
+    /// act on yet, and a poisoned row shows someone else's failure and
+    /// points at the row that owns it, so both stay
+    /// [`Tone::Advisory`] and the eye goes to the one row a reader can
+    /// do something about — a document with six rows downstream of one
+    /// broken feature has one loud row, not seven. There can be more
+    /// than one: a `MateFault::Contradictory` naming two different
+    /// mates blames both, and both are actionable ([`blamed_mates`]).
+    ///
+    /// **Total, where [`RowStatus::message`] is not**, because an `Ok`
+    /// row still has a [`badge`](RowStatus::badge) — a report, nothing
+    /// to act on. Whether a given surface DRAWS that badge is the
+    /// surface's own decision and not this axis: the Features pane
+    /// stays silent on a healthy row, and the end-to-end walk prints
+    /// every row's badge including `ok`.
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::Ok | Self::Unevaluated | Self::Poisoned { .. } => Tone::Advisory,
+            Self::Failed { .. } => Tone::Actionable,
         }
     }
 
