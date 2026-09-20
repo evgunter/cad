@@ -50,7 +50,7 @@
 //! ```
 //!
 //! returns exactly the kept copies inside this crate and nothing else.
-//! Its hits and the two module lists below name the same set; a hit
+//! Its hits and the modules' own lists name the same set; a hit
 //! missing from a list, or a list entry with no hit, is the rule
 //! broken. (Copies OUTSIDE `crates/sweep` are out of the recipe's
 //! scope by construction — [`oracles`]'s list names the ones it knows

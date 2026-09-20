@@ -282,6 +282,8 @@ fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
 #[test]
 fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
     let outer = cylinder(0.0, 1.0);
+    // The nested box only as a FAR operand: its lift carries no claim
+    // here, so the `z` it shares with section 1 decides nothing.
     let beside = nested_box(3.0, 0.2);
     let body = assembly(&outer, &beside);
     // The whole verdict, not a filtered slice of it. Filtering to

@@ -42,10 +42,6 @@ use sweep::test_support::{block, brick};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The 4 x 4 x 1 slab, `z in [0, 1]` — the plainest operand a boolean
 /// row puts something else against.
 pub fn slab<T: Decide>() -> Body<T> {
@@ -60,8 +56,8 @@ pub fn plate6<T: Decide>(z0: f64) -> Body<T> {
 /// The pellet: `x in [0.9, 1.1]`, `y in [1.25, 1.35]`,
 /// `z in [0.3, 0.7]`, volume `0.2 * 0.1 * 0.4 = 0.008`.
 ///
-/// It sits strictly inside the concave notch of the mixed-turn-arcs
-/// body the S10 and S11 sense rows build, and every point of it is
+/// It sits strictly inside the concave notch of
+/// `m5_s10_face_sense::mixed_turn_arcs`, and every point of it is
 /// genuinely OUTSIDE that body — the notch floor at `x = 1` is
 /// `y ~ 1.0858` — so the two solids are disjoint.
 pub fn pellet<T: Decide>() -> Body<T> {
@@ -71,9 +67,9 @@ pub fn pellet<T: Decide>() -> Body<T> {
 /// A small axis-aligned box of half-width `h` centred at `(cx, 0, .)`,
 /// spanning `z in [z0, z0 + 0.4]`.
 ///
-/// This and the four below are the conic-pruning corpus's operand
-/// vocabulary, adopted from the CERT-N3 dual review with the corpus
-/// (`n3r1_prune`'s header).
+/// This fixture and its siblings below, through [`rounded_plate`],
+/// are the conic-pruning corpus's operand vocabulary, adopted from
+/// the CERT-N3 dual review with the corpus (`n3r1_prune`'s header).
 pub fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
 }
@@ -113,7 +109,7 @@ pub fn rounded_plate() -> Body<f64> {
     ];
     let lp = ProfileLoop::new(
         pts.iter()
-            .map(|&((x, y), b)| ProfileVertex::new(p2(x, y), b))
+            .map(|&((x, y), b)| ProfileVertex::new(Point2::new(x, y), b))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
