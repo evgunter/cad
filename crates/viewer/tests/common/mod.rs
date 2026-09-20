@@ -416,9 +416,9 @@ pub fn corpus_delta() -> DisplayTolerance {
 /// refusal — a failed or poisoned root is an ordinary editing state,
 /// and a suite whose subject is that refusal reads it here.
 ///
-/// The four arguments are `pane::viewport`'s: the landed document and
-/// evaluation, the picture key that names the generation and the δ,
-/// and the session's tolerance.
+/// It is built from what `pane::viewport` builds it from: the landed
+/// document and evaluation, a picture key naming the generation and
+/// the δ, and the session's tolerance.
 pub fn index_at(
     session: &DocSession,
     delta: DisplayTolerance,

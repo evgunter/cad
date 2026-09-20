@@ -151,9 +151,9 @@ fn evaluation(session: &DocSession) -> &Evaluation<f64> {
 
 /// A ray straight down the −z axis through `(x, y)`, starting above
 /// anything these fixtures build.
-/// A ray straight down at `(x, y)` from five metres up — the gallery
-/// ring is metres across, so the plate suites' one metre is not clear
-/// of it.
+/// A ray straight down at `(x, y)` from five metres up. The height is
+/// this suite's claim about its own fixture, which reaches higher than
+/// the plate the shared door's default was chosen for.
 fn down_at(x: f64, y: f64) -> Ray {
     common::down_from(x, y, 5.0)
 }

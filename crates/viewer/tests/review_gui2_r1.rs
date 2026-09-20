@@ -101,8 +101,9 @@ fn index_at(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
     common::index_of(session, delta)
 }
 
-/// A ray straight down at `(x, y)` from above everything here: the
-/// blocks are millimetres thick, so half a metre clears them all.
+/// A ray straight down at `(x, y)` from above everything here. The
+/// height is this suite's claim about its own fixture, so it stays in
+/// this file rather than riding the shared door's default.
 fn down(x: f64, y: f64) -> Ray {
     common::down_from(x, y, 0.5)
 }
