@@ -3,6 +3,7 @@ id: crossing-mate-id-is-provenance-that-nothing-reads
 kind: issue
 title: An interface crossing's mate id is provenance nothing reads: checked at insertion today, deletable tomorrow
 status: review
+pr: 2906
 branch: edit/crossing-drops-mate-id
 opened: 2026-09-19
 ---
