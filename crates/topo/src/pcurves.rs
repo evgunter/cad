@@ -2746,6 +2746,12 @@ pub(crate) mod staleness_posture {
             ),
             // ---- Neither: the primitives. Their stale rows are what
             // the tier-3 pcurve pass exists to catch. ----
+            (
+                "cyl_wall_sheet_keyed",
+                Neither,
+                "a fixture builder composed of `Neither` operators, minting no row of its \
+             own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
+            ),
             ("mvfs", Neither, "Euler operator"),
             ("mev", Neither, "Euler operator"),
             ("mev_line", Neither, "Euler operator (sugar over `mev`)"),

@@ -6,7 +6,7 @@ status: closed
 opened: 2026-09-19
 closed: 2026-09-20
 branch: dup/src-cyl-sheet
-refs: [try-wall-sheet-stands-down-on-any-panic, the-canonical-unit-cylinder-literal-has-no-reachable-home]
+refs: [try-wall-sheet-stands-down-on-any-panic, geom-brep-inline-canonical-frame-surfaces]
 pr: 2925
 ---
 
@@ -129,7 +129,7 @@ and no row reads the sign of a zero.
 
 Planting the descending rim's axis reversal away in the shared body
 reds **15 lib rows** (11 `census`, 2 `chart_region`, the door's arena
-row, and the measurement probe) and **22 of 566** integration rows
+row, and its key-arms row) and **22 of 566** integration rows
 (`mate5_cyl_eps_rung` 8, `r1_mate5_probe` 7, `r2_probes` 4,
 `split_edge_pcurve_rows` 3). Every folded site is live.
 
@@ -140,3 +140,68 @@ report ok. Row: `work/tint/try-wall-sheet-stands-down-on-any-panic.md`.
 
 Residue also filed:
 `work/dup/the-canonical-unit-cylinder-literal-has-no-reachable-home.md`.
+
+## Fix pass, 2026-09-20 — the guard reach the first cut removed
+
+**The first cut moved the Euler sequence out of the surface the tier-1
+mutation-door guard can read, and then edited that guard's prose to
+describe the code that had left.** `crate::source_walk`'s `public_fns`
+takes `pub fn` and rejects `pub(crate) fn` (its preceding token is
+`)`), so hoisting `mvfs`/`mev`/`mev_line`/`mef`/`set_face_surface`/
+`add_surface` from `pub fn cyl_wall_sheet` into
+`pub(crate) fn cyl_wall_sheet_keyed` took the whole sequence out of
+`mutation_doors`'s population. Nothing reddened only because
+`cyl_wall_sheet` is on `review_m1_pr5_internal::ALLOWED` and an
+allowlisted door's body is never text-checked — so the surgery-posture
+read, too, was left reading a three-line delegation.
+
+Restored rather than disclosed: `cyl_wall_sheet_keyed` is `pub`, is
+re-exported through `topo::test_support` beside the door it carries,
+and is named by **both** tables — `ALLOWED` for tier 1 and
+`pcurves::staleness_posture::DECLARED` as `Neither` — which is what
+`the_two_door_tables_cover_the_same_surface` requires of every door.
+Its `ALLOWED` entry carries the `add_surface` argument that had been
+written into `cyl_wall_sheet`'s; `cyl_wall_sheet`'s now describes its
+own three lines. The section comment above that group claimed a union
+of two halves over all its entries and is now false of one of them, so
+it names the exception instead of asserting over it.
+
+**`source_walk::DOORS_MEASURED` was one behind before this unit**: the
+constant read 52 and the walk found 53 at the merge base, inside the
+floor's two of slack. It reads 54 now, re-measured with the door this
+unit added.
+
+Still outside the walk, and stated rather than fixed: `unit_cyl_sheet`
+is `pub(crate)`, so the `set_face_sense` it calls is read through the
+walk's own **delegation** blind spot, which `mutation_doors` already
+documents. Nothing moved there — it composes doors, it does not contain
+a sequence that used to be visible.
+
+### The generalisation, corrected
+
+The first version of this said the gate keys on visibility. **It does
+not — it keys on the `cfg` mount**, and `witness-not-ambient` is the
+proof in the other direction: a `pub(crate) fn` inside
+`#[cfg(test)] mod tests` is still skipped, while
+`cyl_wall_sheet_keyed` is *lower* visibility than the `pub fn` it was
+cut from and faces the gate anyway. The rule is:
+
+> A construction hoisted out of a `#[cfg(test)]` mount into a shared
+> one enters every gate that skips `cfg(test)`, and which gates it now
+> faces is not a function of its visibility.
+
+The tier-1 door walk is the one case where visibility does decide, and
+it decides the opposite way — which is why a fold has to check both
+directions rather than one.
+
+### Residue re-routed
+
+`the-canonical-unit-cylinder-literal-has-no-reachable-home` was
+**deleted before it reached the board**: the class is already
+`work/tint/geom-brep-inline-canonical-frame-surfaces`, open since
+2026-09-03. Its evidence — the in-`src` `#[cfg(test)]` half that row's
+`crates/geom-brep/tests/` scope never covered, the 204/17 denominators,
+and the second candidate home `CylFrame` is — went into that row
+instead. Filing a duplicate on the program whose charter is duplicates
+is item 14 one level up, and it was caught by a reader and not by the
+lane.

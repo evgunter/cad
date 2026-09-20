@@ -8,6 +8,7 @@ closed: 2026-09-20
 branch: dup/src-cyl-sheet
 parent: topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one
 pr: 2925
+refs: [the-radial-repairs-catastrophic-cancellation-claim-is-unmeasured]
 ---
 
 
@@ -85,3 +86,25 @@ S-TINT's to open against the door that now states the read. This unit
 did not open it, because it has no measurement of where the two
 diverge and method item 8 says a disclosed blind spot is an instruction
 to measure, not a licence to file a guess.
+
+## Fix pass, 2026-09-20
+
+**"ONE frame and ONE window" undercounted the windows.**
+`cross_description_pair` has two call sites, `census.rs`'s
+`a_cross_description_cylinder_patch_record_certifies` and
+`a_refuted_cross_description_cylinder_record_is_stale_typed`, and both
+were dumped: **both bit-identical**. The conclusion is unchanged and
+the count under it was wrong — a row closing on "one window" having
+measured one of two, in the program whose subject is counts that do not
+survive re-taking.
+
+**The declined row is filed after all**, and the reasoning above was
+half right. Not guessing a threshold was right. Leaving the question
+unowned was not: this row is closed and the ledger deletes it at
+program close, the projection read is now gone from the tree, and what
+remains is `CylFrame::radial`'s rustdoc asserting that the projection
+*"cancels catastrophically for a tilted frame or a small radius"* with
+nothing under it. That is the row —
+`work/tint/the-radial-repairs-catastrophic-cancellation-claim-is-unmeasured`
+— and it carries **no number**, which is what item 8 asks for when a
+lane has no measurement: the file, not a guess in it.

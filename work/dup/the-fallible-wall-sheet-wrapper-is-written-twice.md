@@ -93,3 +93,29 @@ planting a broken builder under it reds 22 rows elsewhere and leaves
 its own two green, standing down. That is a row that cannot go red, not
 a duplication, and it is filed as
 `work/tint/try-wall-sheet-stands-down-on-any-panic.md`.
+
+## Fix pass, 2026-09-20 — the fold re-minted the adapter it folded
+
+X4, caught by a reader. `probe_support`'s `try_wall_sheet` was written
+wrapping `cyl_wall_sheet(body, frame, Some(src_id), (u0, u1), (v0, v1),
+Tol::witness())` — **verbatim the body of `r2_probes.rs`'s
+`wall_sheet`**, the same seven parameters in the same order. Before the
+fold `try_wall_sheet` *called* `wall_sheet`; after it they were two
+independent copies of one adapter inside one test binary, so a change
+to either's tolerance or source convention would not have reached the
+other.
+
+`wall_sheet` is now `probe_support`'s too, `try_wall_sheet` wraps it,
+and `r2_probes` imports both. Its **ten** call sites are unchanged —
+the Finding's *"eleven"* counted the definition — and
+`r1_mate5_probe`'s `sheet` is three lines over the same adapter instead
+of a second copy of the door's argument list.
+
+**The direct `cyl_wall_sheet(` sites the reviewer asked about are a
+different shape and are filed, not folded.**
+`r1_mate5_probe.rs`'s `sheet` and five in `mate5_cyl_eps_rung.rs`
+return `(Body<f64>, FaceKey)` — they make the body rather than taking
+one — and `mate5_cyl_eps_rung.rs` was outside this unit's fence. Row:
+`work/dup/the-fresh-body-cylinder-sheet-wrapper-is-written-six-times`.
+That file's `interval_lane` pair is in neither class: it builds
+`Body<Interval>`, and both adapters are `f64`-only.

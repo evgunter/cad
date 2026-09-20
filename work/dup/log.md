@@ -1899,7 +1899,11 @@ by the lane that wrote both. Item 12's earlier instances were text
 going stale over time; this one was stale on arrival, and no re-reading
 of the diff would have caught it — only building the thing the sentence
 said was impossible. **The instrument for that class is the plant, not
-the read.**
+the read.** The reviewer found the sharper half: the paragraph **named
+its own escape in its own parenthetical** — *"a caller inside it does
+not have to (`crate::census`'s own sheets call `add_surface`
+directly…)"* — and kept the scaffolds anyway. It did not go stale; it
+contradicted itself at the moment it was written.
 
 **A mutation is not a proof when a suite can swallow it.** The fold's
 proof plant reds 22 of 566 — and the two rows built on
@@ -1907,7 +1911,12 @@ proof plant reds 22 of 566 — and the two rows built on
 whose premise is one failure mode catches every failure mode, so those
 two rows are green over a correct builder and over a broken one alike.
 Filed on S-TINT. **Item 11 needs the corollary: after a plant, check
-the rows you EXPECTED to red and did not, not only the count.**
+the rows you EXPECTED to red and did not, not only the count.** And the
+reviewer's half, which is the cheaper instrument and was sitting in the
+same terminal: **the panic hook prints a full backtrace to stderr
+before the row passes**, so the hole is not silent — it is loud and
+reported green. *A passing row that emitted a panic backtrace is a
+swallowed failure*, and that reads off a run nobody had to design.
 
 Counts that moved, per item 15: the parent's "617 integration rows
 green at both lanes" is the INTERVAL lane's count; the default lane is
@@ -1917,3 +1926,36 @@ identical (one md5)" and "their doc comments differ in substance" were
 both false at the merge base — and backwards: the doc comments were
 byte-identical, the bodies were not, and `r1`'s copy cites a map that
 lives in `r2`.
+
+### Fix pass — four classes, and one of them is this program's own subject
+
+A reader found eight. Three are worth the log.
+
+- **A fold can move code out of a guard's reach, and the guard stays
+  green.** `source_walk::public_fns` reads `pub fn` and rejects
+  `pub(crate) fn`, so hoisting the sheet's Euler sequence into a
+  `pub(crate)` shared body took it out of the tier-1 mutation-door
+  population entirely — invisibly, because the `pub fn` it was cut from
+  is allowlisted and an allowlisted door's body is never read. The lane
+  then **edited that allowlist's prose to describe the code that had
+  left**. Restored: the shared body is a `pub` door named by both door
+  tables. **The generalisation the lane wrote was wrong in the axis**:
+  the gates key on the `cfg` MOUNT, not on visibility — a `pub(crate)
+  fn` under `#[cfg(test)]` is still skipped — and the door walk is the
+  one place visibility decides, and it decides the other way. A fold
+  out of a `#[cfg(test)]` mount has to be checked in both directions.
+- **A fold that re-mints the thing it folded, inside the home it just
+  made.** The shared stand-down wrapper was written spelling the door's
+  argument list rather than calling the adapter already beside it —
+  token-for-token the adapter it had just homed. Before the fold one
+  called the other; after it they were two copies in one binary. This
+  is X4 at its most ordinary and no census would have found it: the
+  duplicate was minted by the fix.
+- **A duplicate row, filed by the duplication program.** The lane
+  opened a canonical-cylinder row against a class S-TINT has carried
+  since 2026-09-03; neither referenced the other and they proposed
+  different homes. Deleted before it reached the board and its evidence
+  appended to the open row. **Item 14 applies to the tracker, not just
+  to code**: grep the other program's directory before filing, which
+  `work/README.md` already says and which is easy to skip when the
+  finding feels new.

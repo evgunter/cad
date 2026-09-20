@@ -281,10 +281,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // them: each writes only through doors that EITHER declare the
     // tier-1 postcondition themselves (`mvfs`, `mev`, `mef`, which are
     // therefore not on this list and cannot be) OR appear on it below
-    // for writing fields tier 1 does not constrain. The union is the
-    // claim; neither half alone is true of all four entries, and an
-    // entry names the doors it composes so a reader can check which
-    // half each one lands in. ----
+    // for writing fields tier 1 does not constrain — with one
+    // exception, the raw `add_surface` in `cyl_wall_sheet_keyed`,
+    // which that entry carries itself. No one half is true of every
+    // entry, and an entry names the doors it composes so a reader can
+    // check which half each one lands in. ----
     (
         "prism_ops",
         "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
@@ -299,14 +300,21 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "calls `prism_ops` at the unit square, then `describe_as_intersections`",
     ),
     (
+        "cyl_wall_sheet_keyed",
+        "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line` and `mef` \
+         (asserting), places the cylinder key through `set_face_surface` and records it \
+         through `set_surface_source`, both on this list below for writing fields tier 1 \
+         does not constrain. Its rim planes go in through `add_surface`, which is on \
+         NEITHER half: crate-internal raw insertion that makes no promise at all. What \
+         covers it is the `mev` that follows — a plane is an orphan surface until the rim \
+         edge naming it exists, and that operator's postcondition is taken over a body \
+         that holds both",
+    ),
+    (
         "cyl_wall_sheet",
-        "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line`, `mef` and \
-         `set_face_surface` (asserting), and then through `set_surface_source` \
-         and `mint_pcurves` — which do not assert, and are on this list \
-         below for writing fields tier 1 does not constrain. Its rim planes go in \
-         through the crate-internal `add_surface`, which promises nothing on its own: \
-         each plane is an orphan surface until the `mev` naming it mints the rim edge, \
-         and that operator's postcondition is what covers it",
+        "fixes `cyl_wall_sheet_keyed`'s key placement and then calls `mint_pcurves`, \
+         which does not assert and is on this list below. The Euler sequence is the keyed \
+         door's and so is the argument for it, one entry up",
     ),
     // ---- Writes fields tier 1 does not constrain. ----
     (

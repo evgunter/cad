@@ -6,38 +6,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::probe_support::try_wall_sheet;
+use crate::probe_support::{try_wall_sheet, wall_sheet};
 use geom_core::{Band, Point3, Tol};
-use topo::test_support::{CylFrame, cyl_wall_sheet};
-use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, declared_pair_overlap};
+use topo::test_support::CylFrame;
+use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, declared_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
     Band::linear(tol).unwrap()
 }
-
-/// This suite's spelling of the shared door: the frame, the source and
-/// the two chart windows, flat, so a row that turns on how A's window
-/// and B's differ can be read as two adjacent lines.
-fn wall_sheet(
-    body: &mut Body<f64>,
-    frame: CylFrame,
-    src_id: u64,
-    u0: f64,
-    u1: f64,
-    v0: f64,
-    v1: f64,
-) -> FaceKey {
-    cyl_wall_sheet(
-        body,
-        frame,
-        Some(src_id),
-        (u0, u1),
-        (v0, v1),
-        Tol::witness(),
-    )
-}
-
 fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
     match r {
         Ok(ChartOverlap::PositiveArea) => "PositiveArea".into(),

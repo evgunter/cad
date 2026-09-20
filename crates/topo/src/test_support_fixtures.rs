@@ -18,7 +18,9 @@
 //! [`cyl_wall_sheet`] is the other family, and neither sentence is true
 //! of it: its rims are `Curve3::Circle` carriers described as the
 //! cylinder cut by a plane, and its faces are on the cylinder its
-//! [`CylFrame`] names, so there is no `FaceGeometry` to choose. Only
+//! [`CylFrame`] names, so there is no `FaceGeometry` to choose. It has
+//! an axis of its own instead, [`CylKey`], and it is not about a
+//! face's geometry but about WHICH face carries the cylinder key. Only
 //! its two meridian struts are chords. A suite wanting a curved chart
 //! comes here; a suite wanting a polyhedron does not.
 //!
@@ -895,7 +897,7 @@ pub enum CylKey {
 /// no validity promise on its own: the plane is an orphan surface
 /// until the rim edge naming it exists, and the `mev` that mints that
 /// edge is the op whose postcondition covers it.
-pub(crate) fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
     body: &mut Body<T>,
     frame: CylFrame,
     key: CylKey,
@@ -1011,9 +1013,12 @@ pub(crate) fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFitte
 /// on a bare key — `cyl` mints one when `None` and shares one when
 /// `Some` — with the wall face's sense set and no pcurve minted.
 ///
-/// This crate's own `#[cfg(test)]` modules build cylinder fixtures on
-/// this spelling; `tests/` binaries reach [`cyl_wall_sheet`], which
-/// differs in [`CylKey`] and in minting.
+/// `crate::census` and `crate::chart_region` build their wall-sheet
+/// pairs through this spelling — which is what it is for, a window and
+/// a sense over the canonical frame. It is not the only in-crate route
+/// to a sheet: a fixture wanting another frame calls
+/// [`cyl_wall_sheet_keyed`] directly, as `crate::census`'s own
+/// divergent-description sheet does.
 pub(crate) fn unit_cyl_sheet(
     body: &mut Body<f64>,
     cyl: Option<crate::geometry::SurfaceKey>,
@@ -1040,15 +1045,16 @@ pub(crate) fn unit_cyl_sheet(
 /// `source`, when given, is the recipe node id recorded on the
 /// cylinder key as `GeomSource::minted(source, 0)`.
 ///
-/// The sheet is the seed face's complement (`CylKey::OnSeed`), so the
+/// The sheet is the seed face's complement ([`CylKey::OnSeed`]), so the
 /// cylinder key lives in the seed face's surface slot and the returned
 /// face shares it. The descending rim runs on the REVERSED axis so its
 /// own parameter still increases, which is how the split lane mints
 /// one.
 ///
-/// `cyl_wall_sheet_keyed` is the construction; this door fixes the
-/// key placement, the sense and the mint, and is what a `tests/` binary
-/// can name.
+/// [`cyl_wall_sheet_keyed`] is the construction; this door fixes the
+/// key placement and runs the pcurve pass over the result. The wall
+/// face's sense is left where `mef` put it — [`unit_cyl_sheet`] is the
+/// spelling that writes one.
 pub fn cyl_wall_sheet<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
     body: &mut Body<T>,
     frame: CylFrame,
@@ -1134,6 +1140,60 @@ mod tests {
             axes[0],
             [-axes[1][0], -axes[1][1], -axes[1][2]],
             "the descending rim reverses the axis"
+        );
+    }
+
+    /// **[`CylKey`]'s two minting arms, held rather than said.** Its
+    /// doc tells a caller how many of the body's faces stand on the
+    /// cylinder, which is what `crate::census`'s conformal arm pairs
+    /// and what the split rows walk — and the door-level row above
+    /// exercises one arm only, so the other would be prose with
+    /// nothing under it.
+    #[test]
+    fn the_key_arms_put_the_cylinder_on_one_face_or_on_two() {
+        let on_cylinder = |body: &Body<f64>| -> usize {
+            body.faces()
+                .filter(|(_, f)| {
+                    matches!(body.get_surface(f.surface), Some(Surface::Cylinder { .. }))
+                })
+                .count()
+        };
+
+        let mut seeded = Body::<f64>::new();
+        cyl_wall_sheet_keyed(
+            &mut seeded,
+            CylFrame::canonical(1.0),
+            CylKey::OnSeed,
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        assert_eq!(
+            on_cylinder(&seeded),
+            2,
+            "OnSeed: the seed face and the wall cut from it"
+        );
+
+        let mut bare = Body::<f64>::new();
+        let (wall, cyl) = cyl_wall_sheet_keyed(
+            &mut bare,
+            CylFrame::canonical(1.0),
+            CylKey::Bare,
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        assert_eq!(
+            on_cylinder(&bare),
+            1,
+            "Bare: the wall alone, the seed face left on its mvfs placeholder"
+        );
+        assert_eq!(
+            bare.get_face(wall).unwrap().surface,
+            cyl,
+            "the returned face is on the key the door reports"
         );
     }
 

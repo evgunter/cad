@@ -11,6 +11,32 @@ use geom_core::Tol;
 use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{Body, FaceKey};
 
+/// These suites' spelling of the shared door: the frame, the source
+/// and the two chart windows, flat, so a row that turns on how A's
+/// window and B's differ can be read as two adjacent lines.
+///
+/// One spelling, not one per suite: [`try_wall_sheet`] wraps THIS, so
+/// a change to the tolerance or the source convention reaches the
+/// fallible spelling too.
+pub(crate) fn wall_sheet(
+    body: &mut Body<f64>,
+    frame: CylFrame,
+    src_id: u64,
+    u0: f64,
+    u1: f64,
+    v0: f64,
+    v1: f64,
+) -> FaceKey {
+    cyl_wall_sheet(
+        body,
+        frame,
+        Some(src_id),
+        (u0, u1),
+        (v0, v1),
+        Tol::witness(),
+    )
+}
+
 /// The cylinder-wall sheet builder, fallible at the MINT: a tilted
 /// frame's chart images mint as exact structure only by bit-lottery
 /// above ~10·ε of tilt (`r2_probes`' `r2_diag_mintable_tilts` maps it;
@@ -39,14 +65,7 @@ pub(crate) fn try_wall_sheet(
     v1: f64,
 ) -> Option<FaceKey> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        cyl_wall_sheet(
-            body,
-            frame,
-            Some(src_id),
-            (u0, u1),
-            (v0, v1),
-            Tol::witness(),
-        )
+        wall_sheet(body, frame, src_id, u0, u1, v0, v1)
     }))
     .ok()
 }

@@ -4023,11 +4023,6 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
-    /// The canonical unit cylinder these fixtures are charted on.
-    fn cyl_surface() -> Surface<f64> {
-        CylFrame::canonical(1.0).surface()
-    }
-
     /// Two overlapping opposed-sense wall sheets on one cylinder key.
     fn conformal_pair() -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
@@ -4856,7 +4851,7 @@ mod tests {
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         });
-        let cyl = body.add_surface(cyl_surface());
+        let cyl = body.add_surface(CylFrame::canonical(1.0).surface());
         let arc = body
             .mev(
                 MevSite::Lone {

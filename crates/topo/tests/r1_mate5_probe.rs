@@ -4,9 +4,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::probe_support::try_wall_sheet;
+use crate::probe_support::{try_wall_sheet, wall_sheet};
 use geom_core::{Band, Tol};
-use topo::test_support::{CylFrame, cyl_wall_sheet};
+use topo::test_support::CylFrame;
 use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, declared_pair_overlap};
 
 fn band() -> Band {
@@ -147,14 +147,7 @@ fn probe2_band_fast_path_exactness_gate_is_f64_only() {
 
 fn sheet(frame: CylFrame, src: u64, u0: f64, u1: f64, v0: f64, v1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let f = cyl_wall_sheet(
-        &mut body,
-        frame,
-        Some(src),
-        (u0, u1),
-        (v0, v1),
-        Tol::witness(),
-    );
+    let f = wall_sheet(&mut body, frame, src, u0, u1, v0, v1);
     (body, f)
 }
 

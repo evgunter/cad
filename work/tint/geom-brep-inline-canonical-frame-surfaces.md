@@ -150,3 +150,51 @@ confirmed non-canonical by the same parser, so none of those is in the
 per-site judgement the row asks for now has a worked precedent on both
 sides (absorbed in `offa_r1_probes`/`pcurve_parameter_finding`, kept-and-
 re-framed in `review_m5_pr7_adversarial`).
+
+## Widened (2026-09-20, the `dup/src-cyl-sheet` lane) — the class is not confined to `crates/geom-brep/tests/`
+
+This lane opened a second row for the same class and is closing it into
+this one instead; what follows is that row's evidence. The duplicate
+was `work/dup/the-canonical-unit-cylinder-literal-has-no-reachable-home`,
+deleted in PR #2925 before it ever sat on the board, which is the
+`work/README.md` rule (*"if a row already covers your finding, add your
+evidence to it rather than opening a second"*) applied by the program
+whose charter is duplicates.
+
+**Every re-derivation above scopes itself to `crates/geom-brep/tests/`,
+and the class is wider than that.** Sweeping every tracked file for a
+brace-matched `Surface::Cylinder {` whose body names the world origin,
+`Vec3::unit_z()` and `Vec3::unit_x()` finds canonical-frame cylinders
+in `src/` too, and **every one of them is inside a `#[cfg(test)]`
+module**, so they are this row's question and not production code:
+
+- `crates/geom-brep/src/certify.rs` x4, `crates/geom-brep/src/pcurve_cache.rs`,
+  `crates/geom/src/surfaces.rs`, `crates/topo/src/boolean/boxes.rs`,
+  `crates/topo/src/chord_join.rs` x2, and
+  `crates/topo/src/chart_region_r2_probes.rs` (a module `lib.rs` mounts
+  under `cfg(test)`).
+
+The tests-side hits the same sweep returns are already yours — it
+reaches 7 of the sites this row's 40 covers — so what is new is the
+`src` half and the consequence below.
+
+**A second candidate home, and the reason the two cannot simply merge.**
+This row routes to `crates/geom-brep/tests/shared/surf.rs`.
+`topo::test_support::CylFrame::canonical(radius)` **is** this
+convention, with `surface()` rendering it, and PR #2925 folded two
+in-`src` spellings onto it — but `CylFrame` lives in `topo`, which is
+ABOVE `geom-brep` and `geom`, so the majority of the sites here cannot
+reach it. A taker owes a decision between the two, not a choice of one
+in ignorance of the other: either the frame type belongs lower (`geom`
+owns `Surface`), or `shared/surf.rs` and `CylFrame` are two homes for
+two reachability classes and each says so.
+
+**Denominator, so the next re-derivation has one.** 204 literal
+`Surface::Cylinder` constructions in 94 files across every tracked
+file, of which 17 are canonical-frame. The other 187 were not
+classified and many are production code, where a fixture vocabulary is
+not the answer.
+
+**Blind spot this sweep adds to the ones above**: it says nothing about
+the RADIUS. A home taking `radius` serves all 17; one fixing it at 1
+serves only some.
