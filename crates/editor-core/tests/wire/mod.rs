@@ -30,8 +30,9 @@
 /// surgery whose path missed writes the file back unchanged, and a row
 /// over it would pass while measuring nothing.
 ///
-/// One body, read by every suite that doctors a save; the five
-/// byte-identical copies it replaces are the reason it lives here.
+/// One body, read by every suite that doctors a save: the copies it
+/// replaces — each cutting the file for itself, and each free to cut
+/// it somewhere else — are the reason it lives here.
 pub fn doctored(text: &str, edit: impl FnOnce(&mut serde_json::Value)) -> String {
     let (header, mut wire) = split_body(text);
     edit(&mut wire);
