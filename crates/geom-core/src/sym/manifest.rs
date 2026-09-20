@@ -262,7 +262,7 @@ pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
     sess.atoms.entry(id).or_insert_with(|| AtomInfo {
         op: SymOp::Abs,
         payload: 0,
-        args: [Some(Arc::new(y.clone())), None],
+        args: [Some(Arc::new(y.clone())), None, None],
     });
     Some(Form::poly(Poly::indet(id)))
 }
