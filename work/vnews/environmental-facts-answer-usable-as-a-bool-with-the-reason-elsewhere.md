@@ -71,3 +71,27 @@ so the rule ranges over the facts:
 Enumerating them is part of the work, not a preamble to it: the rule
 above is what makes the list falsifiable, and it has not been run past
 the four named here.
+
+## Evidence added by the `is_instance` lane (2026-09-19)
+
+That lane's sweep ranged over every `-> bool` door under
+`crates/viewer/src` (66 of them), which is a different rule from this
+row's and therefore a cross-check on it rather than a substitute. Two
+things it settled, both narrowing rather than widening the population:
+
+- **`platform::running_under_wsl` is not a member.** It is
+  `std::env::var_os("WSL_DISTRO_NAME").is_some() ||
+  std::env::var_os("WSL_INTEROP").is_some()` — two reads that cannot
+  fail, so its `false` stands over one state and there is no unusable
+  arm and no reason to carry. The sweep rule above lists *"the WSL
+  probe"* as a candidate; this is the answer for it.
+- **`platform::ChooserBackend::usable` is the only `-> bool` in the
+  crate that hides an environmental reason**, on that 66-door pass.
+  The other bool doors over a lookup either carry no reason at all
+  (`is_hidden`, `holds`, `current_for`) or have their typed reason on a
+  door beside them (`pickcache::indexing` next to `pickcache::error`,
+  `session::select::Selection::live` next to the unresolved verdict) —
+  which is the shape this row is asking `ChooserBackend` to take.
+
+Neither touches the row's open decision, which is which of the two
+shapes the fix takes.

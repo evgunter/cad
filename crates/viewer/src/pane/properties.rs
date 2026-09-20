@@ -375,11 +375,15 @@ impl ViewerBehavior<'_> {
     }
 
     /// The selected instance's display controls: the hide toggle and
-    /// the free-move probe. Draws nothing for a non-instance node —
-    /// the section is about per-instance display state, which other
-    /// nodes do not have.
+    /// the free-move probe. Draws nothing for a node the document does
+    /// not admit display state on — the section is about per-instance
+    /// display state, which neither another kind of node nor an id the
+    /// document no longer holds has.
     pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
-        if !crate::display::is_instance(self.session.doc(), node) {
+        // Both admission refusals draw the same thing — nothing — so
+        // the fault is discarded HERE, where the panel is the party
+        // deciding the absent id and the wrong kind are one answer.
+        if crate::display::instance_check(self.session.doc(), node).is_err() {
             return;
         }
         ui.separator();

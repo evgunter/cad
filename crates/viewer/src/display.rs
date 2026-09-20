@@ -147,19 +147,17 @@ pub enum AdmissionFault {
     /// discards on, so the difference is the whole content of the
     /// sentence the status line then shows.
     ///
-    /// **It is decided in [`drawn_targets`], so every door downstream
+    /// **It is decided in [`instance_check`], so every door downstream
     /// of it answers this arm** and not only the prune:
-    /// [`DisplayState::set_hidden`], the free-move admission
-    /// ([`free_move_check`], and so [`DisplayState::begin_free_move`]),
-    /// and the properties panel's own copy of that test. A user who
+    /// [`drawn_targets`], which runs it first;
+    /// [`DisplayState::set_hidden`]; the free-move admission
+    /// ([`free_move_check`], and so [`DisplayState::begin_free_move`]);
+    /// and the properties panel, which runs the same test. A user who
     /// aims a display operation at an id the document does not hold
     /// now reads *node N is not in the document* where they read *node
     /// N is not a part instance*, which is the better sentence at every
     /// one of those doors — the id denotes nothing, and saying only
     /// that it is not an instance implies something is there.
-    ///
-    /// [`is_instance`] is NOT where this is decided and still collapses
-    /// the two states into `false`.
     NoSuchNode {
         /// The id named.
         node: RecipeNodeId,
@@ -333,7 +331,8 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Re
         .collect()
 }
 
-/// Whether `node` is a live `InstantiatePart`.
+/// **`node` is a live `InstantiatePart`**, or the typed refusal that
+/// says which of the two ways it is not.
 ///
 /// **The question is per-instance DISPLAY state**, not membership: hide
 /// and free-move are keyed on the node with the identity a user hides
@@ -348,8 +347,27 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Re
 /// a copy is a member (the solve places it) while having no per-copy
 /// display state of its own. An authoring door that gates on this
 /// predicate refuses heads the solve already places.
-pub fn is_instance(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    matches!(doc.node(node), Some(Node::InstantiatePart { .. }))
+///
+/// **The two refusals are spelled apart** for
+/// [`AdmissionFault::NoSuchNode`]'s reason: an absent id and a
+/// wrong-kind node are different news to a person, and a `bool` is a
+/// type that cannot carry the difference. A caller for which both mean
+/// the same thing — the properties panel, which draws no per-instance
+/// section either way — says so by discarding the fault at the call
+/// site rather than by being handed a door that discarded it first.
+///
+/// # Errors
+///
+/// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`].
+pub fn instance_check(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<(), AdmissionFault> {
+    match doc.node(node) {
+        Some(Node::InstantiatePart { .. }) => Ok(()),
+        Some(_) => Err(AdmissionFault::NotAnInstance { node }),
+        None => Err(AdmissionFault::NoSuchNode { node }),
+    }
 }
 
 /// For each product root, the instances whose geometry it draws: the
@@ -453,13 +471,9 @@ pub fn drawn_targets(
     doc: &Doc<ProfileProgram>,
     instance: RecipeNodeId,
 ) -> Result<BTreeSet<RecipeNodeId>, AdmissionFault> {
-    match doc.node(instance) {
-        // Absent and wrong-kind are two different answers, and the
-        // caller that reports rather than refuses needs them apart.
-        None => return Err(AdmissionFault::NoSuchNode { node: instance }),
-        Some(Node::InstantiatePart { .. }) => {}
-        Some(_) => return Err(AdmissionFault::NotAnInstance { node: instance }),
-    }
+    // Absent and wrong-kind are two different answers, and the caller
+    // that reports rather than refuses needs them apart.
+    instance_check(doc, instance)?;
     let mut targets = BTreeSet::new();
     for (root, instances) in instances_by_root(doc) {
         if !instances.contains(&instance) {

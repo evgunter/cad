@@ -1081,7 +1081,7 @@ fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
 ///
 /// The value drag's stranding trace above does not carry over to this
 /// gesture and this row does not claim it does: the probe's field is
-/// drawn off the shown document (`display::is_instance` and
+/// drawn off the shown document (`display::instance_check` and
 /// `display::free_move_check`), not off the landed evaluation, and a
 /// document change while a probe is in flight is pruned rather than
 /// stranded. What holds here is the other half of the item — the
