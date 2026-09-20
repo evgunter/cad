@@ -186,61 +186,12 @@ fn plant_detached_box(
     body.mfkrh_plug(planted.ring).unwrap().face
 }
 
-/// Structural ops cube (chord lines, placeholder surfaces): tiers 1-2.
-fn ops_cube_public() -> (Body<f64>, topo::MvfsCreated) {
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(1.0, 0.0, 0.0),
-            Tol::witness(),
-        )
-        .unwrap();
-    let fan = |he| MevSite::Fan { he1: he, he2: he };
-    let e_bc = body
-        .mev_line(fan(e_ab.he_minus), pt(1.0, 1.0, 0.0), Tol::witness())
-        .unwrap();
-    let e_cd = body
-        .mev_line(fan(e_bc.he_minus), pt(0.0, 1.0, 0.0), Tol::witness())
-        .unwrap();
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bot = body
-        .mef_chord(
-            MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_aa = body
-        .mev_line(fan(e_ab.he_plus), pt(0.0, 0.0, 1.0), Tol::witness())
-        .unwrap();
-    let e_bb = body
-        .mev_line(fan(e_bc.he_plus), pt(1.0, 0.0, 1.0), Tol::witness())
-        .unwrap();
-    let e_cc = body
-        .mev_line(fan(e_cd.he_plus), pt(1.0, 1.0, 1.0), Tol::witness())
-        .unwrap();
-    let e_dd = body
-        .mev_line(fan(f_bot.he_plus), pt(0.0, 1.0, 1.0), Tol::witness())
-        .unwrap();
-    let chord = |he1, he2| MefSite::Chords { he1, he2 };
-    let f_front = body
-        .mef_chord(chord(e_aa.he_minus, e_bb.he_minus), Tol::witness())
-        .unwrap();
-    body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), Tol::witness())
-        .unwrap();
-    body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), Tol::witness())
-        .unwrap();
-    body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
-        .unwrap();
-    (body, seed)
+/// [`common::declined_cube`] at `f64`, reduced to the two things this
+/// suite's rows take: the body, and the seed whose face survives as the
+/// top cap. Chord lines and one placeholder surface, so tiers 1-2 only.
+fn declined_cube_and_seed() -> (Body<f64>, topo::MvfsCreated) {
+    let c = common::declined_cube::<f64>(Tol::witness());
+    (c.body, c.seed)
 }
 
 /// TARGET 5: a three-component shell. movefac's partition cardinality
@@ -250,7 +201,7 @@ fn ops_cube_public() -> (Body<f64>, topo::MvfsCreated) {
 #[test]
 fn movefac_three_component_partition_matches_pass11() {
     let build = || {
-        let (mut body, seed) = ops_cube_public();
+        let (mut body, seed) = declined_cube_and_seed();
         let inner1 = plant_detached_box(&mut body, seed.face, pt(0.2, 0.2, 1.3));
         let inner2 = plant_detached_box(&mut body, seed.face, pt(0.6, 0.6, 1.3));
         (body, seed, inner1, inner2)
@@ -309,7 +260,7 @@ fn movefac_three_component_partition_matches_pass11() {
 /// edge-glue) probed and pinned.
 #[test]
 fn movefac_empty_outer_face_is_own_component() {
-    let (mut body, seed) = ops_cube_public();
+    let (mut body, seed) = declined_cube_and_seed();
     let topo::LoopBoundary::Cycle { first } = body
         .get_loop(body.get_face(seed.face).unwrap().outer)
         .unwrap()
@@ -356,7 +307,7 @@ fn movefac_empty_outer_face_is_own_component() {
 /// bookkeeping.
 #[test]
 fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
-    let (mut body, seed) = ops_cube_public();
+    let (mut body, seed) = declined_cube_and_seed();
     let inner = plant_detached_box(&mut body, seed.face, pt(0.2, 0.2, 1.3));
     let shells = body.movefac(seed.shell).unwrap();
     assert_eq!(shells.len(), 2);
@@ -424,8 +375,8 @@ fn cross_shell_kfmrh_connected_sum_and_genus_addition() {
 /// scaffold into an EdgeCurve or silently skip it.
 #[test]
 fn null_scaffold_fail_loud_audit() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let he = cube
         .body
@@ -498,8 +449,8 @@ fn null_scaffold_fail_loud_audit() {
 /// child intervals abutting exactly, and volume unchanged bitwise.
 #[test]
 fn split_edge_double_split_preserves_tier3_and_volume() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     let vol0 = topo::mass_properties(&cube.body, Tol::witness())
         .unwrap()
         .volume;
@@ -550,8 +501,8 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
 /// carrier(t_a + (t_b - t_a)/2) - derived independently here.
 #[test]
 fn split_edge_intersection_witness_bitwise_remint() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
     let edge = cube.mevs[0].edge;
     let parent = cube
@@ -611,8 +562,8 @@ fn split_edge_intersection_witness_bitwise_remint() {
 #[test]
 fn split_edge_interiority_band_edges() {
     let eps = geom_core::Tol::witness().get().eps;
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     let edge = cube.mevs[0].edge; // line, params [0, 1], scale 1 m
     let before = dump(&cube.body);
     for t in [
@@ -650,8 +601,8 @@ fn split_edge_interiority_band_edges() {
 /// NegativeVolume and nothing else, volume negated bitwise.
 #[test]
 fn revert_on_split_body_involution_and_posture() {
-    let mut cube = geometric_cube::<f64>();
-    describe_as_intersections(&mut cube.body);
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
     cube.body
         .split_edge(cube.mevs[0].edge, 0.5, Tol::witness())
         .unwrap();
@@ -693,7 +644,7 @@ fn revert_on_split_body_involution_and_posture() {
 /// documented same-face no-op.
 #[test]
 fn ring_move_laringmv_roundtrip_and_noop() {
-    let (mut body, seed) = ops_cube_public();
+    let (mut body, seed) = declined_cube_and_seed();
     let inner = plant_detached_box(&mut body, seed.face, pt(0.3, 0.3, 1.4));
     body.movefac(seed.shell).unwrap();
     let fused = body.kfmrh(seed.face, inner).unwrap();
@@ -737,15 +688,18 @@ fn cycle_verts_of(
 /// Subdivides the geometric cube's top face into 4 quadrants around an
 /// interior square (center face), all planar and tier-3 valid. Returns
 /// (cube, center_face, interior square vertex keys).
-fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey; 4]) {
-    let mut cube = geometric_cube::<f64>();
+fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey; 4]) {
+    let mut cube = geometric_cube::<f64>(Tol::witness());
     let top = cube.seed.face;
-    let top_plane = plane(&[
-        pt(0.0, 0.0, 1.0),
-        pt(1.0, 0.0, 1.0),
-        pt(1.0, 1.0, 1.0),
-        pt(0.0, 1.0, 1.0),
-    ]);
+    let top_plane = plane(
+        &[
+            pt(0.0, 0.0, 1.0),
+            pt(1.0, 0.0, 1.0),
+            pt(1.0, 1.0, 1.0),
+            pt(0.0, 1.0, 1.0),
+        ],
+        Tol::witness(),
+    );
     let (a1, b1, c1, d1) = (
         cube.mevs[3].vertex, // A'
         cube.mevs[4].vertex, // B'
@@ -884,12 +838,15 @@ fn annulus_top_cube() -> (common::GeoCube<f64>, topo::FaceKey, [topo::VertexKey;
 /// plane description bit-equals the canonical top plane (f64 lane) —
 /// the test-side stand-in for the recipe layer's post-op stamping.
 fn stamp_top_sources(body: &mut topo::Body<f64>) {
-    let canon = plane(&[
-        pt(0.0, 0.0, 1.0),
-        pt(1.0, 0.0, 1.0),
-        pt(1.0, 1.0, 1.0),
-        pt(0.0, 1.0, 1.0),
-    ]);
+    let canon = plane(
+        &[
+            pt(0.0, 0.0, 1.0),
+            pt(1.0, 0.0, 1.0),
+            pt(1.0, 1.0, 1.0),
+            pt(0.0, 1.0, 1.0),
+        ],
+        Tol::witness(),
+    );
     let geom::Surface::Plane {
         origin: co,
         normal: cn,
@@ -1009,7 +966,7 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
 #[test]
 fn merge_coplanar_uref_and_signed_zero_teeth() {
     let diagonal_split = |surface: fn(&geom::Surface<f64>) -> geom::Surface<f64>| {
-        let mut cube = geometric_cube::<f64>();
+        let mut cube = geometric_cube::<f64>(Tol::witness());
         let top = cube.seed.face;
         let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
         let f = cube.body.get_face(top).unwrap();
@@ -1147,7 +1104,7 @@ fn f64_debug_channel_injectivity_probes() {
 /// garbage; tier 3 refuses downstream.)
 #[test]
 fn merge_coplanar_nan_payload_debug_collision() {
-    let mut cube = geometric_cube::<f64>();
+    let mut cube = geometric_cube::<f64>(Tol::witness());
     let top = cube.seed.face;
     let (a1, c1) = (cube.mevs[3].vertex, cube.mevs[5].vertex);
     let f = cube.body.get_face(top).unwrap();
@@ -1210,12 +1167,15 @@ fn merge_coplanar_nan_payload_debug_collision() {
 #[test]
 fn merge_coplanar_full_plateau_atomicity() {
     let (mut cube, center, _) = annulus_top_cube();
-    let top_plane = plane(&[
-        pt(0.0, 0.0, 1.0),
-        pt(1.0, 0.0, 1.0),
-        pt(1.0, 1.0, 1.0),
-        pt(0.0, 1.0, 1.0),
-    ]);
+    let top_plane = plane(
+        &[
+            pt(0.0, 0.0, 1.0),
+            pt(1.0, 0.0, 1.0),
+            pt(1.0, 1.0, 1.0),
+            pt(0.0, 1.0, 1.0),
+        ],
+        Tol::witness(),
+    );
     cube.body
         .set_face_surface(center, FaceSurface::New(top_plane))
         .unwrap();
@@ -1282,7 +1242,7 @@ fn interval_debug_channel_faithfulness_probe() {
 #[test]
 fn interval_split_edge_lane() {
     use geom_core::{Interval, Real};
-    let build = || geometric_cube::<Interval>();
+    let build = || geometric_cube::<Interval>(geom_core::Tol::witness());
     let mut cube = build();
     assert_eq!(validate_closed(&cube.body), Ok(()));
     let edge = cube.mevs[0].edge;
@@ -1320,7 +1280,7 @@ fn interval_split_edge_lane() {
 /// same-key demand for section faces).
 #[test]
 fn null_edge_cannot_be_laundered_through_set_edge_curve() {
-    let mut cube = geometric_cube::<f64>();
+    let mut cube = geometric_cube::<f64>(Tol::witness());
     let he = cube
         .body
         .get_vertex(cube.mevs[0].vertex)
@@ -1351,7 +1311,7 @@ fn null_edge_cannot_be_laundered_through_set_edge_curve() {
     assert_eq!(dump(&cube.body), before);
     cube.body.kev(created.he_plus).unwrap();
     // mfkrh Inherit = same surface key as the demoting face.
-    let (mut body, seed) = ops_cube_public();
+    let (mut body, seed) = declined_cube_and_seed();
     let inner = plant_detached_box(&mut body, seed.face, pt(0.3, 0.3, 1.4));
     body.movefac(seed.shell).unwrap();
     let fused = body.kfmrh(seed.face, inner).unwrap();

@@ -46,3 +46,13 @@ Those are different recipe faults with different repairs.
 fix is SHELL's call, including whether `NotAFace` grows a `found` field
 (it would be a message change, so it owes an assertion sweep) or gains
 a sibling for the wrong-body case.
+
+## Its sibling on this slate
+
+`work/shell/clearance-window-selection-asks-how-many-before-what` (WIRE
+filed it 2026-09-15) is the same four lines, asked the other way: the
+`let Some(Entry::Unique(ent))` ABOVE this match refuses `Unresolved`
+for a TIED name, so neither of this row's two words is reached for one,
+and a tie is reported as a name that resolved to nothing. Its repair —
+ask the kind before splitting on `Unique`/`Tied` — changes which arm
+the wrong-body case here reaches, so the two want deciding together.

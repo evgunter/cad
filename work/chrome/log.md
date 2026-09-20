@@ -947,3 +947,152 @@ lives with the unit that made them refuse — and does not touch
 the trigger is a VIEW branch, and `blocked_on` takes an item or a PR
 number, not a promise in a conversation. When VIEW names the row or the
 PR, these get parked on it properly.
+
+## `datums.rs`, the substitution sweep (branch `chrome/datums-substitution-sweep`)
+
+The whole file rather than one row. `datums.rs` held **five** members
+of the class *a value the function did not compute, returned in the
+shape of one it did*, two of them filed:
+
+- `View::metres_per_pixel_at`'s `.max(f64::MIN_POSITIVE)` — now
+  `Option<f64>`. The ripple stayed inside the file: all three scale
+  doors are private and `grid_pitch` and `datum_view` keep their
+  signatures.
+- `rule_patch`'s `((last - first) as usize)` under an INCLUSIVE range
+  — now an exclusive range over bounds checked finite, with
+  `last < first` ruling none. Three distinct zeros the cast merged,
+  not the two the row named.
+- `half_patch_at`'s `viewport_px.max(1.0)` — floor dropped; a viewport
+  that is not a positive number of pixels reaches the product check
+  and is refused there.
+- `datum_view`'s `height_px.max(1.0)` — floor dropped.
+- `datum_view`'s `width_px.max(height)` — unfiled and unnamed by the
+  dispatch: `f64::max` answers with the other operand against a NaN,
+  so a width that is not a number was reported as the HEIGHT.
+
+Swept and closed by argument, not changed: `unit`'s zero-length
+fallback and `basis`'s seed choice (a `UnitVec3` cannot hold a
+non-finite direction — `topo::query::UnitVec3Error::NonFiniteLength`
+is refused at construction), and `grid_pitch`'s `best = decade` seed
+(`decade` is itself a rung of the ladder, so the seed is a member of
+the answer set rather than a substitute for one; brute-forced over the
+subnormal band and the top of the normal range with no non-positive or
+non-finite rung).
+
+Filed on the way: `datum-view-propagates-rather-than-refusing-by-name`
+and `a-datum-the-view-cannot-scale-vanishes-without-a-word`, both
+needing an edit in `pane/viewport.rs`, which is VIEW's.
+
+### Fix pass on the same branch, after the style review
+
+Nineteen findings; six changed the tree.
+
+- **The flagship row certified a wrong drawing.** A datum at
+  `f64::MAX` on the `z = 0` plane, looked at from the origin, drew
+  **27 zero-length segments** per plane-like kind: the patch's ends
+  `cv ± half` both round to `cv` at that magnitude, so the extent is
+  lost and every segment's two endpoints coincide. Finite, in the
+  right plane, not lines — and a row asserting only `is_finite` gets
+  EASIER as that degrades. `rule_patch` now asks the emitted geometry
+  whether it is geometry and commits a direction's ruling whole or not
+  at all; the row asserts positive segment length and carries a
+  near-datum control so a total refusal cannot satisfy it.
+- **`MAX_GRID_LINES`' effective maximum moved from 97 to 96** and
+  nothing said so. Now stated on the closing row: the const's doc said
+  96 all along and was false by one before this change.
+- `PATCH_COVER` gained `patch_cover()`, on `Camera::pitch_limit`'s
+  argument — a loose bound in a test is a hand-synced copy with a
+  fudge factor.
+- `reach`, the instrument three refusal rows measure with, folded with
+  `f64::max` and would have reported a drawing containing `NaN` as
+  reaching however far its finite positions did.
+- `View`'s two field docs now carry the contract the sweep changed,
+  instead of a justification sitting a screen away on `datum_view`.
+- `unit`'s comment claimed a cross-product bound of `1/√3`; the bound
+  on the cross is `√(2/3)` and `1/√3` bounds the COMPONENT. That
+  comment is one of the two sites the sweep closed by argument.
+
+Filed rather than fixed: `max-grid-lines-truncates-a-ruling-and-calls-it-one`,
+`four-spellings-of-one-finiteness-predicate-in-datums-rs` (the sweep
+added the third and fourth), and
+`viewer-substituted-value-class-is-crate-wide`, which carries the
+population the next sweep should start from — six unslated members in
+`sketch.rs`, `scene.rs`, `bounds.rs`, `camera.rs` and `app.rs`, all
+VIEW's ground this week.
+
+## 2026-09-15 — the slate lands, and two rows go to VIEW rather than wait on it
+
+Seven PRs merged: the orchestrator re-cut (2640), the memory deletion
+(2641), the citation repoint and its own fix pass (2642), the carve-out
+corrections (2643), the datums substitution sweep (2644), the Band
+refusal's first coverage (2684), and the bounds honesty pass with its
+CI fix (2683).
+
+**Two rows and one boundary question moved to VIEW's slate, rather than
+being held for VIEW's agreement.** That correction is worth recording
+because the instinct behind the delay was wrong in a specific way.
+
+`datum-view-propagates-rather-than-refusing-by-name` and
+`a-datum-the-view-cannot-scale-vanishes-without-a-word` both act in
+`pane/viewport.rs`, ceded to VIEW. CHROME had been holding them to
+`park` them on VIEW's viewport-adapter lane, which needed a trigger id
+CHROME could not identify — nineteen open VIEW rows cite that file,
+none matches the statements VIEW described narrowing, and none of the
+three rows in `review` cites those lines. **The search was the wrong
+activity.** `work/README.md` says a finding goes onto the slate of the
+program whose ground it lands on, and that a lane does not need the
+owner's permission to put it there. Re-homing beats parking: VIEW
+sequences its own work and nothing waits on a handshake. The
+`datums.rs` halves stay CHROME's and are inside CHROME's fence.
+
+**And unit 5 exposed a real gap in the carve-out**, filed as
+`work/view/the-file-level-carve-out-cannot-express-a-row-whose-work-
+crosses-a-call-site`. The division is **by file**, and
+`body-seat-reads-through-the-placer-chain`'s fix crosses it **through a
+call site**: `denotes_body`'s only production caller is
+`session/refuse.rs`, VIEW's. A CHROME lane can write the whole fix and
+cannot make the crate build. This will recur for any CHROME row whose
+fix changes a signature in its own half, so the row asks for a standing
+rule rather than a per-instance negotiation. `plan.md`'s unit 5 now
+says it is not dispatchable as written.
+
+**Where the program stands.** More rows are open than when the session
+began, and that is the honest outcome rather than a failure — the
+program's own 2026-09-04 entry already made this argument, and it holds
+again: the alternative was not fewer defects but the same defects
+unrecorded. Every row filed today carries a `file:line`, a population
+where one was measurable, and a stated blind spot where it was not.
+
+**The session's one durable lesson, stated once.** Every unit was
+corrected by the layer below it, and five of those corrections changed
+the answer rather than a detail: the orchestrator's diagnosis of the
+datums defect, its cluster-scoping of the Band fault, its claim that
+the README documented POISONED attribution, its count of the shifted
+citations, and its "file, don't fix" on ground that was never ceded.
+None was reachable by asking whether the code was right. Each was found
+by someone opening a file to check whether the **words** were true —
+which is what the style-review posture is for, and is now evidenced
+rather than asserted. The sixth came from CI, which ran a configuration
+the local battery did not and caught an assertion that held at one eps
+row only because the floor happens to sit at zero there.
+
+## 2026-09-19 — Ev's arrow rows landed (PR 2856)
+
+Orchestrated from a session taking Ev's high-priority GUI rows across
+the paused viewer programs. One unit took both rows. It was not an
+A/B-protocol unit, by Ev's instruction. The implementer started on
+Fable, hit the account's Fable limit mid-work and was finished on
+Opus from the dead lane's uncommitted diff. The review was style-only,
+per Ev: small diff, low correctness risk. The fix pass took six of its
+nine findings:
+- the grid floor is derived from the ladder, not restated as `2.5`
+- a runtime sweep of `grid_pitch`
+- one home for the pitch band (`MIN_CELL_PX`'s "three to thirteen"
+  was wrong; it is about 4.2..10.5)
+- a tip-separation check on the doubled head
+- the unvaried spacing knob dropped
+- a history aside removed
+
+Declined: the integration tests' hand-copied barb counts. The
+constants are private, so the copy cannot be avoided.
+`TIP_MARK_PX` was left alone and put to Ev in chat.

@@ -12,9 +12,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::wire::{doctored, wire_body};
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, InterfaceCrossing,
-    InterfaceRecord, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, load, save,
+    Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
+    EntityKind, FaceName, InterfaceCrossing, InterfaceRecord, MateFrame, MatePrimitive, Node,
+    PersistError, ProfileDoc, RecipeNodeId, RefusingReach, RoleSeg, SitedFace, StableName, apply,
+    load, save,
 };
 use geom_core::Tol;
 
@@ -25,28 +28,71 @@ fn doc_with_a_crossing() -> ProfileDoc {
         id: DocumentId::derive("asm-r2b-schema-part"),
         pin: ContentPin([9u8; 32]),
     };
-    let face = |node, cap| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::Cap(cap)],
+    let face = |node, cap| {
+        FaceName::new(StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![RoleSeg::Cap(cap)],
+        })
+        .expect("a crossing's references are face names")
     };
+    // The crossing's one reference INTO this document — its `outer` —
+    // is a payload name the insert door checks is live, so the record
+    // rides a LAST instance, behind the two mate ends and the mate
+    // itself. That is the shape a split leaves behind.
+    let mut host = ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness());
+    // Inserts alone — a Join at most, never a moved gauge — so the
+    // reach is never asked and the refusing one serves.
+    let push = |doc: &ProfileDoc, node| {
+        apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("the fixture's nodes insert")
+        .doc
+    };
+    host = push(&host, Node::instantiate_part(doc_ref));
+    host = push(&host, Node::instantiate_part(doc_ref));
+    let sited = |node, cap| SitedFace {
+        at: node,
+        name: face(node, cap),
+    };
+    let frame = MateFrame {
+        origin: [0.0, 0.0, 0.0],
+        axis: [0.0, 0.0, 1.0],
+        reference: [1.0, 0.0, 0.0],
+    };
+    host = push(
+        &host,
+        Node::Mate {
+            a: sited(RecipeNodeId(0), CapEnd::End),
+            b: sited(RecipeNodeId(1), CapEnd::Start),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: frame,
+                b: frame,
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Aligned,
+                clocking: None,
+            },
+        },
+    );
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            mate: RecipeNodeId(0),
             class: ContactClass::Rest,
             outer: face(RecipeNodeId(0), CapEnd::End),
-            inner: face(RecipeNodeId(1), CapEnd::Start),
+            // The `inner` is spelled in the PART's id space, and the
+            // value is chosen to make that visible: `RecipeNodeId(7)`
+            // is not a live node of this document at all, so a wire
+            // that round-trips it round-trips a reference NO door
+            // here resolves — which is the distinction the record
+            // exists to carry across the seam.
+            inner: face(RecipeNodeId(7), CapEnd::Start),
         }],
     };
-    apply(
-        &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema"), Tol::witness()),
-        &DocEdit::InsertNode {
-            node: Node::instantiate_part_with(doc_ref, record),
-        },
-        Tol::witness(),
-    )
-    .expect("an instance with a record inserts")
-    .doc
+    push(&host, Node::instantiate_part_with(doc_ref, record))
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was
@@ -83,6 +129,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
             node: Node::instantiate_part(doc_ref),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("an instance inserts")
     .doc;
@@ -91,6 +138,82 @@ fn an_empty_record_stays_absent_from_the_wire() {
         !text.contains("crossings"),
         "an authored instance crosses nothing, and says nothing: {text}"
     );
+}
+
+/// The saved fixture's one crossing, as the wire object it is — the
+/// path the two rows below read and corrupt.
+///
+/// BY PATH, not by search: the instance carrying the record is the
+/// document's LAST node, so a fixture change breaks the surgery loudly
+/// instead of landing it on a neighbour.
+fn crossing_of(wire: &mut serde_json::Value, instance: RecipeNodeId) -> &mut serde_json::Value {
+    &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]["interface"]["crossings"]
+        [0]["Mate"]
+}
+
+/// The fixture, saved, with the id of the instance carrying its
+/// record.
+fn saved_crossing() -> (String, RecipeNodeId) {
+    let doc = doc_with_a_crossing();
+    let instance = *doc.order().last().expect("the fixture has nodes");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    (text, instance)
+}
+
+/// **A crossing is THREE fields on the wire** — the class it declares
+/// and its two references, and nothing else.
+///
+/// A crossing carries no provenance — `InterfaceCrossing::Mate`'s own
+/// doc argues why — and this is that absence as BYTES: a field no door
+/// reads is a cost every file with a record would pay. Read off the
+/// SAVED document rather than a serialized value, because a file is
+/// what the row below corrupts and what a stale writer produces.
+#[test]
+fn a_crossing_is_three_fields_on_the_wire() {
+    let (text, instance) = saved_crossing();
+    let mut wire = wire_body(&text);
+    let mut keys: Vec<String> = crossing_of(&mut wire, instance)
+        .as_object()
+        .expect("a crossing is an object")
+        .keys()
+        .cloned()
+        .collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        ["class", "inner", "outer"],
+        "the crossing's wire form is its class and its two references"
+    );
+}
+
+/// **A file whose crossing carries a FOURTH field refuses at the load
+/// door**, in the door's own `Unreadable` class.
+///
+/// `InterfaceCrossing` is `deny_unknown_fields`, so its shape is
+/// CLOSED on the wire: a file carrying a field this build does not
+/// know is refused rather than read with the field dropped. The
+/// refusal is TYPED BY THE DOOR — serde_json classifies the failure
+/// `Data`, and `persist`'s one seam maps that class to
+/// `PersistError::Unreadable` — while the sentence inside it is
+/// serde's own.
+#[test]
+fn a_file_whose_crossing_carries_a_fourth_field_refuses_at_the_load_door() {
+    let (text, instance) = saved_crossing();
+    let corrupt = doctored(&text, |wire| {
+        let crossing = crossing_of(wire, instance);
+        assert!(
+            crossing.get("mate").is_none(),
+            "the surgery adds a field the format does not have: {crossing}"
+        );
+        crossing["mate"] = serde_json::json!(2);
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Unreadable { detail, .. }) => assert!(
+            detail.contains("mate"),
+            "the refusal names the field the file carried: {detail:?}"
+        ),
+        other => panic!("a crossing carrying a fourth field must refuse at load, got {other:?}"),
+    }
 }
 
 // The content-key half of ASM-4's obligation is pinned in

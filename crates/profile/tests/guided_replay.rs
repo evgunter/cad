@@ -273,6 +273,7 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
             candidate: 1 - d.candidate,
             ..d.clone()
         }],
+        ..structure.clone()
     };
     let flipped = replay_guided(&program, &other, tol())
         .expect("the other pocket is a valid fillet of the same legs");
@@ -392,6 +393,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
             candidate: 1 - d.candidate,
             ..d.clone()
         }],
+        ..structure.clone()
     };
     match replay_guided(&lifted, &other, tol()) {
         // The other pocket built: same arity, and the two are
@@ -454,6 +456,7 @@ fn a_flipped_fit_sign_refuses_typed_naming_it() {
             },
             ..d.clone()
         }],
+        ..structure.clone()
     };
     let err = replay_guided(&program, &lie, tol()).expect_err("the fit sign is contradicted");
     let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
@@ -469,6 +472,100 @@ fn a_flipped_fit_sign_refuses_typed_naming_it() {
         StructureRefusalKind::Flipped {
             recorded: DecisionValue::Sign(_),
             found: DecisionValue::Sign(_),
+        }
+    ));
+}
+
+/// **A record whose per-step segment span this pass did not reproduce
+/// refuses TYPED, naming the step** — the span is consumed the way a
+/// fillet decision is, not carried along unread.
+///
+/// The span a lane could actually move is the one a fit gate decides
+/// (an exact fit emits the arc alone where an overrun emits a straight
+/// leg before it), and under guidance the fit signs come from the
+/// record, so the elaboration cannot drift there on its own. What this
+/// row pins is that the comparison HAPPENS: a record claiming a step
+/// reached one more segment than it did is refused rather than
+/// accepted, which is the state in which a future arm could emit a
+/// different chain under a record that says otherwise.
+#[test]
+fn a_lying_step_span_refuses_typed_naming_the_step() {
+    let program = vesica_lens(0.0);
+    let (_, structure) = replay_recording(&program, tol()).expect("the lens replays");
+    let step = structure
+        .steps
+        .iter()
+        .position(|s| !s.is_empty())
+        .expect("some step of the lens produced a segment");
+    let mut lie = structure.clone();
+    lie.steps[step] = profile::StepSpan::new(
+        structure.steps[step].start(),
+        structure.steps[step].end() + 1,
+    );
+    let err = replay_guided(&program, &lie, tol()).expect_err("the span is contradicted");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::StepSpan { step });
+    assert!(matches!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Span(_),
+            found: DecisionValue::Span(_),
+        }
+    ));
+    // Both sides reach the sentence as words, through the span's own
+    // `Display` — the vocabulary rule the refusal payloads all follow.
+    let rendered = refusal.to_string();
+    for want in [
+        format!("the segments step {step} produced"),
+        structure.steps[step].to_string(),
+        lie.steps[step].to_string(),
+    ] {
+        assert!(rendered.contains(&want), "{rendered:?} is missing {want:?}");
+    }
+    assert!(
+        !rendered.contains("StepSpan"),
+        "the Debug spelling leaked into the sentence: {rendered}"
+    );
+}
+
+/// **A lying span on a `circle_split` record refuses typed, naming the
+/// step** — the CARRIER case, which is why the comparison sits at
+/// `replay_guided` rather than inside the guide.
+///
+/// The row above is authored on a chain, and a chain reaches the guide.
+/// A complete-loop carrier form never takes a guide at all: it mints
+/// its `ClosedLoop` and its `ReplayStructure::carrier(n)` directly, so
+/// a record and an elaboration that disagreed about the subdivision
+/// count would pass unread if the check lived one level in.
+#[test]
+fn a_lying_step_span_on_a_carrier_form_refuses_typed() {
+    let program = vec![profile::Step::CircleSplit {
+        centre: p2(0.0, 0.0),
+        radius: 1.0,
+        n: 4,
+        phase: 0.0,
+    }];
+    let (loop_, structure) = replay_recording(&program, tol()).expect("the carrier replays");
+    assert_eq!(structure.steps.len(), 1, "one authored step");
+    assert_eq!(
+        structure.steps[0],
+        profile::StepSpan::new(0, loop_.vertices().len()),
+        "the carrier's one step reaches every segment"
+    );
+    let mut lie = structure.clone();
+    lie.steps[0] = profile::StepSpan::new(0, loop_.vertices().len() - 1);
+    let err = replay_guided(&program, &lie, tol()).expect_err("the span is contradicted");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::StepSpan { step: 0 });
+    assert!(matches!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Span(_),
+            found: DecisionValue::Span(_),
         }
     ));
 }
@@ -587,14 +684,25 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
 /// identifier where a word belongs is the defect being guarded.
 #[test]
 fn structure_refusal_renders_its_payloads_as_words_not_debug() {
-    use profile::{CornerGate, LoopRole, SegmentShape, StructureRefusal};
+    use profile::{CornerGate, LoopRole, RadiusRole, SegmentShape, StructureRefusal};
 
     // Each converted vocabulary, rendered on its own. The paired
     // `Debug` spelling is asserted absent: it is what a reverted arm
     // would emit, and it differs from the prose in case alone for
     // `LoopRole`, which a substring check would miss.
-    let rows: [(String, &str, &str); 6] = [
+    let rows: [(String, &str, &str); 9] = [
         (CornerGate::Admitted.to_string(), "admitted", "Admitted"),
+        (RadiusRole::Fillet.to_string(), "fillet", "Fillet"),
+        (
+            RadiusRole::Carrier.to_string(),
+            "incoming carrier",
+            "Carrier",
+        ),
+        (
+            RadiusRole::Carrier2.to_string(),
+            "arrival carrier",
+            "Carrier2",
+        ),
         (
             CornerGate::RefusedAdvance.to_string(),
             "refused (corner not ahead of the incoming anchor)",
@@ -674,4 +782,149 @@ fn structure_refusal_renders_its_payloads_as_words_not_debug() {
         "{g}"
     );
     assert!(!g.contains("Admitted"), "the gate reverted to Debug: {g}");
+}
+
+/// **A record whose radius emissions this pass did not reproduce
+/// refuses TYPED, naming the emission** — the emission record is
+/// consumed the way the spans are, not carried along unread.
+///
+/// What this pins is that the guided pass reports ITS OWN emissions
+/// and that the comparison happens: an arm that handed the caller back
+/// the record it was given would agree with any lie, including one
+/// crediting a fillet arc to a step that never held a radius, and the
+/// consumer two layers up would then stamp a wall with an expression
+/// nothing drew it from.
+///
+/// The fence row above buys the positive half over the whole coverage
+/// corpus: every recorded program is replayed guided against its own
+/// record, and a reproduced emission list that differed anywhere would
+/// refuse there. That half reaches all three roles —
+/// `path_program::every_radius_role_is_reached_by_the_corpus` is what
+/// holds it to that — and the row below authors the sharpest of them
+/// on its own so the refusal side is pinned there too.
+#[test]
+fn a_lying_radius_emission_refuses_typed_naming_the_emission() {
+    let program = vesica_lens(0.0);
+    let (_, structure) = replay_recording(&program, tol()).expect("the lens replays");
+    assert!(
+        !structure.radii.is_empty(),
+        "the lens draws a fillet arc, so its record names one"
+    );
+    let mut lie = structure.clone();
+    lie.radii[0].step += 1;
+    let err = replay_guided(&program, &lie, tol()).expect_err("the emission is contradicted");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::RadiusEmission { at: 0 });
+    assert!(matches!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Emission(_),
+            found: DecisionValue::Emission(_),
+        }
+    ));
+    // Both sides reach the sentence as words, through the emission's
+    // own `Display` — the vocabulary rule the refusal payloads follow.
+    let rendered = refusal.to_string();
+    for want in [lie.radii[0].to_string(), structure.radii[0].to_string()] {
+        assert!(rendered.contains(&want), "{rendered:?} is missing {want:?}");
+    }
+    assert!(
+        !rendered.contains("RadiusEmission"),
+        "the Debug spelling leaked into the sentence: {rendered}"
+    );
+}
+
+/// **A record naming MORE radius emissions than the pass made is
+/// refused at the record's own shape** — the same arm a short fillet
+/// list draws, because no single emission moved.
+#[test]
+fn a_record_with_an_extra_radius_emission_refuses_at_its_shape() {
+    let program = vesica_lens(0.0);
+    let (_, structure) = replay_recording(&program, tol()).expect("the lens replays");
+    let mut lie = structure.clone();
+    let extra = *lie.radii.first().expect("the lens records one");
+    lie.radii.push(extra);
+    let err = replay_guided(&program, &lie, tol()).expect_err("the record is longer");
+    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
+        panic!("expected a structure refusal, got {:?}", err.kind);
+    };
+    assert_eq!(refusal.decision, Decision::RecordShape);
+    assert_eq!(
+        refusal.kind,
+        StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Count(structure.radii.len() + 1),
+            found: DecisionValue::Count(structure.radii.len()),
+        }
+    );
+}
+
+/// **A guided pass reproduces an ARRIVAL carrier emission, and every
+/// way of moving it is refused.**
+///
+/// `Carrier2` is the role only a radius-bearing arrival spec reaches,
+/// and `ArrivalSpec` admits a radius in second position for
+/// `Radius` alone — so `arc_fillet_arc(Sweep, r, Radius)` is the one
+/// replayable shape in the language that records all three roles at
+/// once. The three lies are the three independent ways a reproduced
+/// emission can differ from a recorded one: its ROLE, its SEGMENT,
+/// and its ORDER in the list.
+#[test]
+fn a_guided_pass_reproduces_and_checks_an_arrival_carrier_emission() {
+    use profile::{ArcSide, Radius, RadiusRole, Start, Sweep};
+    let three = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, tol())
+        .unwrap()
+        .line(4.0, tol())
+        .unwrap()
+        .tangent()
+        .arc_fillet_arc(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            0.25,
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            tol(),
+        )
+        .unwrap()
+        .at(p2(2.0, 6.0))
+        .toward(-1.0, 0.0, tol())
+        .unwrap()
+        .line(2.0, tol())
+        .unwrap()
+        .line_to(Start, tol())
+        .unwrap();
+    let program = three.program.clone();
+    let (_, recorded) = replay_recording(&program, tol()).expect("the fused chain replays");
+    assert!(
+        recorded
+            .radii
+            .iter()
+            .any(|e| e.role == RadiusRole::Carrier2),
+        "the fixture records an arrival carrier: {:?}",
+        recorded.radii
+    );
+    replay_guided(&program, &recorded, tol()).expect("guided against its own record");
+    let at = recorded
+        .radii
+        .iter()
+        .position(|e| e.role == RadiusRole::Carrier2)
+        .expect("the arrival carrier is recorded");
+    let mut lie = recorded.clone();
+    lie.radii[at].role = RadiusRole::Carrier;
+    replay_guided(&program, &lie, tol()).expect_err("a swapped role is refused");
+    let mut moved = recorded.clone();
+    moved.radii[at].segment += 1;
+    replay_guided(&program, &moved, tol()).expect_err("a moved segment is refused");
+    let mut reordered = recorded.clone();
+    reordered.radii.swap(0, at);
+    replay_guided(&program, &reordered, tol())
+        .expect_err("the same emissions in a different ORDER are refused");
 }

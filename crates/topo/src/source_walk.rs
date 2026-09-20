@@ -419,7 +419,7 @@ pub(crate) enum SurgeryPosture {
 /// door the walk may silently lose before anything reds; left far
 /// enough behind, the floor stops being evidence about the walk at all.
 /// Lowering it is only ever correct when doors were deleted.
-const DOORS_MEASURED: usize = 48;
+const DOORS_MEASURED: usize = 52;
 
 /// Every public mutation door into a [`crate::Body`] declared in this
 /// crate's `src/`: a public `fn` whose parameter list takes
@@ -437,6 +437,19 @@ const DOORS_MEASURED: usize = 48;
 /// `review_m1_pr5_internal::the_two_door_tables_cover_the_same_surface`.
 /// **This paragraph is the one statement of that decision**; the two
 /// guards point here rather than restating it.
+///
+/// **The test-support fixture builders are in this population, and
+/// stated here once for the same reason.** `crate::test_support_fixtures`
+/// (not linked: it is gated on the test arms) declares `pub fn`s taking
+/// `&mut Body` — `pub` only because a `tests/` binary is a separate
+/// crate and reaches them through `topo::test_support`. No shipped
+/// build compiles them; they are here because this walk reads
+/// `topo/src` as text, which is the over-counting the visibility
+/// bullet below describes, and each of them is a composition of
+/// operators that are themselves doors in this population. Narrowing
+/// the walk to exclude them was refused: it would shrink a guard's
+/// population precisely so that new code escapes it. Each guard's
+/// table says only what its own classification makes of them.
 ///
 /// **What this walk cannot see**, and every guard built on it
 /// inherits:

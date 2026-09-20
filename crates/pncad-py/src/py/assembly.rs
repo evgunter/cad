@@ -39,8 +39,7 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
-    assembly_error_tag, attribution_tag, entity_kind_tag, mint_refusal_tag, product_error_tag,
-    refused_ref_tag,
+    assembly_error_tag, attribution_tag, mint_refusal_tag, product_error_tag, refused_ref_tag,
 };
 use pncad::document as d;
 use pncad::tolerance::Tol;
@@ -158,13 +157,7 @@ pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyR
 /// A mispaired `(doc, evaluation)` as the gather's own refusal — the
 /// one the memo path cannot inherit from a gather it does not reach.
 fn mispaired_product(py: Python<'_>, m: d::Mispaired) -> PyErr {
-    product_err(
-        py,
-        &d::ProductError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        },
-    )
+    product_err(py, &m.into())
 }
 
 /// The product, with the stable names its entities answer to —
@@ -210,10 +203,12 @@ pub(crate) fn product_named(
 ///
 /// Payload attributes present on every arm, `None` where inapplicable:
 /// `at` (the operand a reference is read at when it is spelled there
-/// but the operand is not a product root), `width` (how many entities
-/// a tie holds) and `kind` (what a non-face reference did name).
+/// but the operand is not a product root) and `width` (how many
+/// entities a tie holds). There is no `kind`: a mate head is a face
+/// by its type, so no refusal here reports what a head named
+/// instead.
 ///
-/// Each of the three is an exhaustive match with no wildcard, so a
+/// Each accessor is an exhaustive match with no wildcard, so a
 /// refusal arm added kernel-side is a compile error here rather than
 /// a reference every accessor silently answers `None` about.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -223,7 +218,7 @@ pub(crate) struct RefusedRef(d::RefusedRef);
 #[pymethods]
 impl RefusedRef {
     /// The stable tag: `ref_vanished`, `ref_read_below_a_root`,
-    /// `ref_ambiguous`, `ref_not_a_face`.
+    /// `ref_ambiguous`.
     #[getter]
     fn variant(&self) -> &'static str {
         refused_ref_tag(&self.0)
@@ -237,9 +232,7 @@ impl RefusedRef {
     fn at(&self) -> Option<NodeId> {
         match self.0 {
             d::RefusedRef::ReadBelowARoot { at } => Some(NodeId(at)),
-            d::RefusedRef::Vanished
-            | d::RefusedRef::Ambiguous { .. }
-            | d::RefusedRef::NotAFace { .. } => None,
+            d::RefusedRef::Vanished | d::RefusedRef::Ambiguous { .. } => None,
         }
     }
 
@@ -249,28 +242,7 @@ impl RefusedRef {
     fn width(&self) -> Option<u32> {
         match self.0 {
             d::RefusedRef::Ambiguous { width } => Some(width),
-            d::RefusedRef::Vanished
-            | d::RefusedRef::ReadBelowARoot { .. }
-            | d::RefusedRef::NotAFace { .. } => None,
-        }
-    }
-
-    /// What the reference did name, when it resolved to something
-    /// that is not a face: `face`, `edge`, `vertex` or `body`.
-    ///
-    /// The roster is spelled out because this docstring is the only
-    /// place a Python caller can read it — `pncad.pyi` names the
-    /// attribute and not its words. The same four words are the
-    /// `pncad.EntityKind` members, capitalised.
-    // The map is `crate::tags::entity_kind_tag`, whose words
-    // `TAG_INVENTORY` pins.
-    #[getter]
-    fn kind(&self) -> Option<&'static str> {
-        match self.0 {
-            d::RefusedRef::NotAFace { kind } => Some(entity_kind_tag(kind)),
-            d::RefusedRef::Vanished
-            | d::RefusedRef::ReadBelowARoot { .. }
-            | d::RefusedRef::Ambiguous { .. } => None,
+            d::RefusedRef::Vanished | d::RefusedRef::ReadBelowARoot { .. } => None,
         }
     }
 
@@ -813,15 +785,9 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
 #[pyfunction]
 pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Assembly> {
     let tol = Tol::witness();
-    evaluation.paired_with(doc).map_err(|m| {
-        assembly_err(
-            py,
-            &d::AssemblyError::Product(Box::new(d::ProductError::EvaluationOfAnotherDocument {
-                expected: m.expected,
-                found: m.found,
-            })),
-        )
-    })?;
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| assembly_err(py, &d::AssemblyError::Product(Box::new(m.into()))))?;
     let assembly = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
         .map_err(|err| assembly_err(py, &err))?;

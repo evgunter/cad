@@ -1,22 +1,50 @@
-//! Wire (serde) representations for the two types that must NOT
-//! deserialize field-by-field:
+//! **What the document types cannot say for themselves.** Everything
+//! else in the recipe derives serde where it is declared; four things
+//! cannot, and this module is exactly those four.
+//!
+//! # Two expression languages that must NOT deserialize field-by-field
 //!
 //! - [`Expr`] persists as a plain AST tree and is REBUILT through the
 //!   dimension-checking smart constructors on load — a corrupt or
 //!   hand-edited file can never smuggle an ill-dimensioned tree (or a
 //!   non-finite literal) past the construction door. The cached
 //!   dimension is deliberately not persisted: it re-derives.
-//! - [`ProfileProgram`] persists STRUCTURALLY (the `plane` NODE ID —
-//!   twelve placement columns until the sketch plane became a node —
-//!   plus per-loop step lists whose continuous args are [`Expr`]s) and
-//!   its kernel-foreign tags (`ArcSweep`) via wire mirrors — the
-//!   kernel crates gain no serde dependency (G1 layering). Crucially,
-//!   deserialization can NEVER mint a `profile::ProfileLoop`: the wire
-//!   rebuilds the PROGRAM only; loops exist only through the replay
-//!   driver at evaluation (serde is transport, the driver is the door
-//!   — LIB-SWITCH §4h, the strict-door rule at the program layer).
-
-use profile::ArcSweep;
+//! - [`MeasureExpr`] is the same rule over the leaves the measurement
+//!   language adds, and a SEPARATE wire form for the reason the type is
+//!   separate: a shared one would make a primitive leaf representable
+//!   in a slot expression.
+//!
+//! # One FIELD that must not, inside a type that otherwise does
+//!
+//! [`ProfileProgram`](crate::program::ProfileProgram) derives serde on
+//! its own declaration — its loop programs are the document vocabulary
+//! and persist as themselves. Its `plane` does not: a document written
+//! before the sketch plane became a node carries a placement object
+//! there, and [`plane_ref`] is the visitor that refuses it in terms
+//! naming what moved. What the derive still buys unchanged is the
+//! strict door at the program layer: deserialization can NEVER mint a
+//! `profile::ProfileLoop`. The wire rebuilds the PROGRAM only; loops
+//! exist through the replay driver at evaluation and nowhere else
+//! (serde is transport, the driver is the door — LIB-SWITCH §4h).
+//!
+//! # Two KERNEL-FOREIGN tags
+//!
+//! `profile::ArcSweep` and `profile::ArcSide` ride a
+//! [`ProgramArcData`](crate::program::ProgramArcData) field. The orphan
+//! rule puts them out of reach of a derive here and G1 layering keeps
+//! serde out of the kernel crate, so they persist through the
+//! [`arc_sweep`] and [`arc_side`] adapters, both minted from one macro.
+//!
+//! # What is NOT here, and the consequence
+//!
+//! The document's own step vocabulary. `ProgramStep`, `ProgramTarget`,
+//! `ProgramArcData` and `LoopProgram` derive serde where they are
+//! declared, so the document form IS the persisted form: there is one
+//! spelling of a verb in this crate and nothing to keep in step with
+//! anything. What that costs is that a RENAME in `program.rs` is a
+//! FORMAT change — held by two rows in
+//! `tests/switch_program_vocabulary.rs` and `tests/wire_rv_bytes.rs`,
+//! which is what used to be bought by the vocabulary stopping here.
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -24,7 +52,6 @@ use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
 use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::node::RecipeNodeId;
-use crate::program::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
 /// expression is its constructor calls).
@@ -159,403 +186,87 @@ impl<'de> Deserialize<'de> for Expr {
     }
 }
 
-/// A structural travel-sense tag (`profile::ArcSweep`'s wire mirror;
-/// the kernel crate stays serde-free).
-#[derive(Debug, Serialize, Deserialize)]
-enum WireWinding {
-    /// Counterclockwise.
-    Ccw,
-    /// Clockwise.
-    Cw,
-}
-
-impl WireWinding {
-    fn from_sweep(w: ArcSweep) -> Self {
-        match w {
-            ArcSweep::Ccw => WireWinding::Ccw,
-            ArcSweep::Cw => WireWinding::Cw,
-        }
-    }
-    fn into_sweep(self) -> ArcSweep {
-        match self {
-            WireWinding::Ccw => ArcSweep::Ccw,
-            WireWinding::Cw => ArcSweep::Cw,
-        }
-    }
-}
-
-/// A structural side tag (`profile::ArcSide`'s wire mirror).
-#[derive(Debug, Serialize, Deserialize)]
-enum WireSide {
-    /// Centre on the left of travel.
-    Left,
-    /// Centre on the right of travel.
-    Right,
-}
-
-impl WireSide {
-    fn from_side(s: profile::ArcSide) -> Self {
-        match s {
-            profile::ArcSide::Left => WireSide::Left,
-            profile::ArcSide::Right => WireSide::Right,
-        }
-    }
-    fn into_side(self) -> profile::ArcSide {
-        match self {
-            WireSide::Left => profile::ArcSide::Left,
-            WireSide::Right => profile::ArcSide::Right,
-        }
-    }
-}
-
-/// A step target on the wire (`Start` is structural).
-#[derive(Debug, Serialize, Deserialize)]
-enum WireTarget {
-    /// The entry vertex — the closing form.
-    Start,
-    /// The entry vertex with the seam's TANGENT JOINT declared — the
-    /// seam's own declaration, structural (no expressions) and without
-    /// a payload, because the arriving leg is the later-authored one
-    /// and there is one thing to declare there (PATHS-DESIGN §6).
-    StartArriving,
-    /// An authored point (two Length expressions; every `Expr` field
-    /// on this wire rebuilds through the dimension door — per-ROLE
-    /// dimension agreement is the shared validator's walk).
-    Point([Expr; 2]),
-}
-
-impl WireTarget {
-    fn from_target(t: &ProgramTarget) -> Self {
-        match t {
-            ProgramTarget::Start => WireTarget::Start,
-            ProgramTarget::StartArriving => WireTarget::StartArriving,
-            ProgramTarget::Point(p) => WireTarget::Point(p.clone()),
-        }
-    }
-    fn into_target(self) -> ProgramTarget {
-        match self {
-            WireTarget::Start => ProgramTarget::Start,
-            WireTarget::StartArriving => ProgramTarget::StartArriving,
-            WireTarget::Point(p) => ProgramTarget::Point(p),
-        }
-    }
-}
-
-/// One chain step on the wire — `ProgramStep`'s structural mirror, and
-/// the vocabulary's last stop. A verb reaching here is a FORMAT
-/// change, not a mapping (the checked-in corpus regenerates; see the
-/// persist module docs), so this enum going quietly short is worse
-/// than its being a third spelling — a spelling can be reconciled
-/// later; a format that has reached someone's disk (Band 4, once a
-/// document ships) cannot.
+/// **One kernel-foreign two-variant tag's persistence, minted from its
+/// two words.**
 ///
-/// It cannot go short of `ProgramStep`: [`WireStep::from_step`] and
-/// [`WireStep::into_step`] are exhaustive on `ProgramStep` and on
-/// `WireStep` respectively, so neither can gain a variant the other
-/// lacks. What those two matches cannot see is a verb `profile`'s
-/// transition table gained and `ProgramStep` never learned, or an arm
-/// that maps one verb onto another's wire shape; both are checked by
-/// the round-trip census in `tests/switch_program_vocabulary.rs`.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-enum WireStep {
-    /// `.at(p)`.
-    At([Expr; 2]),
-    /// `.angle(θ)`.
-    Angle(Expr),
-    /// `.toward(dx, dy)`.
-    Toward {
-        /// x component.
-        dx: Expr,
-        /// y component.
-        dy: Expr,
-    },
-    /// `.tangent()`.
-    Tangent,
-    /// `.cusp()`.
-    Cusp,
-    /// `.turn(δ)`.
-    Turn(Expr),
-    /// `line(len)`.
-    Line(Expr),
-    /// `line_to(target)`.
-    LineTo(WireTarget),
-    /// `continue_to(target)` — the declared point-target straight
-    /// continuation.
-    ContinueTo(WireTarget),
-    /// `arc_to(spec)` — the unified §2c arc-spec record.
-    ArcTo(WireArcData),
-    /// `tangent_arc_to(target)`.
-    TangentArcTo(WireTarget),
-    /// `arc_continue(target)` — the declared-subdivision step.
-    ArcContinue([Expr; 2]),
-    /// `.fillet(r)`.
-    Fillet(Expr),
-    /// `fillet_arc(r, spec)`.
-    FilletArc {
-        /// The fillet radius.
-        radius: Expr,
-        /// The arc-arrival spec.
-        spec: WireArcData,
-    },
-    /// `arc_fillet(spec, r)`.
-    ArcFillet {
-        /// The fused incoming-arc spec.
-        spec: WireArcData,
-        /// The fillet radius.
-        radius: Expr,
-    },
-    /// `arc_fillet_arc(spec, r, spec₂)`.
-    ArcFilletArc {
-        /// The fused incoming-arc spec.
-        spec: WireArcData,
-        /// The fillet radius.
-        radius: Expr,
-        /// The arc-arrival spec.
-        spec2: WireArcData,
-    },
-    /// `.to(anchor)`.
-    FarEndTo([Expr; 2]),
-    /// `.to(Start)`.
-    CloseTo,
-}
-
-/// An arc spec on the wire (`ProgramArcData`'s structural mirror), and
-/// the arc-mode vocabulary's last stop — a mode reaching here is a
-/// format change for the same reason a verb is.
+/// A tag like `profile::ArcSweep` is the kernel's type, so this crate
+/// cannot derive serde for it (the orphan rule) and G1 layering says
+/// the kernel crate does not gain the derive either. What is left is a
+/// `#[serde(with = …)]` adapter: a private local enum carrying the
+/// persisted spelling, plus the two functions the attribute names.
 ///
-/// It cannot go short of `ProgramArcData`: [`WireArcData::from_spec`]
-/// and [`WireArcData::into_spec`] are exhaustive on the document type
-/// and on this one. What those two cannot see is a mode `profile`'s
-/// vocabulary gained and `ProgramArcData` never learned, or an arm
-/// mapping one mode onto another's wire shape; both are checked by
-/// the mode census in `tests/switch_program_vocabulary.rs`.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-enum WireArcData {
-    /// `Radius { r, side }`.
-    Radius {
-        /// The carrier radius.
-        r: Expr,
-        /// Which side of the tangent the centre sits on.
-        side: WireSide,
-    },
-    /// `Bulge { p, b }`.
-    Bulge {
-        /// The authored endpoint.
-        target: WireTarget,
-        /// The authored bulge.
-        b: Expr,
-    },
-    /// `Via { q, p }`.
-    Via {
-        /// The through-point.
-        q: [Expr; 2],
-        /// The authored endpoint.
-        target: WireTarget,
-    },
-    /// `Center { c, winding, p }`.
-    Center {
-        /// The carrier centre.
-        c: [Expr; 2],
-        /// Travel sense.
-        winding: WireWinding,
-        /// The authored anchor/endpoint.
-        target: WireTarget,
-    },
-    /// `Sweep { r, side, angle }`.
-    Sweep {
-        /// The carrier radius.
-        r: Expr,
-        /// Which side the centre sits on.
-        side: WireSide,
-        /// The swept central angle.
-        angle: Expr,
-    },
-    /// `ArcLen { r, side, len }`.
-    ArcLen {
-        /// The carrier radius.
-        r: Expr,
-        /// Which side the centre sits on.
-        side: WireSide,
-        /// The arc length.
-        len: Expr,
-    },
+/// That adapter is the same six lines for every such tag, so it is
+/// written once here rather than per tag. Each invocation below is the
+/// module name, the kernel type and the two variant words — which is
+/// all that ever differs — so a third tag pair is one more line and
+/// cannot drift from the shape of the other two.
+///
+/// **What it does not cover:** a tag with other than two variants, or
+/// one whose persisted word differs from its Rust variant name. Both
+/// would need the macro grown rather than another invocation, and
+/// neither exists on this wire.
+macro_rules! foreign_tag {
+    ($(
+        $(#[$meta:meta])*
+        $module:ident => $tag:path { $a:ident, $b:ident }
+    )*) => {
+        $(
+            $(#[$meta])*
+            pub(crate) mod $module {
+                use super::*;
+                use $tag as Tag;
+
+                /// The persisted spelling of the tag.
+                #[derive(Debug, Serialize, Deserialize)]
+                enum Wire {
+                    /// The first form.
+                    $a,
+                    /// The second form.
+                    $b,
+                }
+
+                /// Writes the tag.
+                ///
+                /// # Errors
+                ///
+                /// The serializer's own.
+                pub(crate) fn serialize<S: Serializer>(
+                    t: &Tag,
+                    ser: S,
+                ) -> Result<S::Ok, S::Error> {
+                    match t {
+                        Tag::$a => Wire::$a,
+                        Tag::$b => Wire::$b,
+                    }
+                    .serialize(ser)
+                }
+
+                /// Reads the tag. Total: the wire enum has no form the
+                /// kernel enum lacks, so anything that parses converts.
+                ///
+                /// # Errors
+                ///
+                /// The deserializer's own — a word outside the two.
+                pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+                    de: D,
+                ) -> Result<Tag, D::Error> {
+                    Ok(match Wire::deserialize(de)? {
+                        Wire::$a => Tag::$a,
+                        Wire::$b => Tag::$b,
+                    })
+                }
+            }
+        )*
+    };
 }
 
-impl WireArcData {
-    fn from_spec(s: &crate::program::ProgramArcData) -> Self {
-        use crate::program::ProgramArcData as S;
-        match s {
-            S::Radius { r, side } => WireArcData::Radius {
-                r: r.clone(),
-                side: WireSide::from_side(*side),
-            },
-            S::Bulge { target, b } => WireArcData::Bulge {
-                target: WireTarget::from_target(target),
-                b: b.clone(),
-            },
-            S::Via { q, target } => WireArcData::Via {
-                q: q.clone(),
-                target: WireTarget::from_target(target),
-            },
-            S::Center { c, winding, target } => WireArcData::Center {
-                c: c.clone(),
-                winding: WireWinding::from_sweep(*winding),
-                target: WireTarget::from_target(target),
-            },
-            S::Sweep { r, side, angle } => WireArcData::Sweep {
-                r: r.clone(),
-                side: WireSide::from_side(*side),
-                angle: angle.clone(),
-            },
-            S::ArcLen { r, side, len } => WireArcData::ArcLen {
-                r: r.clone(),
-                side: WireSide::from_side(*side),
-                len: len.clone(),
-            },
-        }
-    }
+foreign_tag! {
+    /// `profile::ArcSweep` on the wire: a travel sense.
+    arc_sweep => profile::ArcSweep { Ccw, Cw }
 
-    fn into_spec(self) -> crate::program::ProgramArcData {
-        use crate::program::ProgramArcData as S;
-        match self {
-            WireArcData::Radius { r, side } => S::Radius {
-                r,
-                side: side.into_side(),
-            },
-            WireArcData::Bulge { target, b } => S::Bulge {
-                target: target.into_target(),
-                b,
-            },
-            WireArcData::Via { q, target } => S::Via {
-                q,
-                target: target.into_target(),
-            },
-            WireArcData::Center { c, winding, target } => S::Center {
-                c,
-                winding: winding.into_sweep(),
-                target: target.into_target(),
-            },
-            WireArcData::Sweep { r, side, angle } => S::Sweep {
-                r,
-                side: side.into_side(),
-                angle,
-            },
-            WireArcData::ArcLen { r, side, len } => S::ArcLen {
-                r,
-                side: side.into_side(),
-                len,
-            },
-        }
-    }
-}
-
-impl WireStep {
-    fn from_step(s: &ProgramStep) -> Self {
-        use ProgramStep as P;
-        match s {
-            P::At(p) => WireStep::At(p.clone()),
-            P::Angle(e) => WireStep::Angle(e.clone()),
-            P::Toward { dx, dy } => WireStep::Toward {
-                dx: dx.clone(),
-                dy: dy.clone(),
-            },
-            P::Tangent => WireStep::Tangent,
-            P::Cusp => WireStep::Cusp,
-            P::Turn(e) => WireStep::Turn(e.clone()),
-            P::Line(e) => WireStep::Line(e.clone()),
-            P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
-            P::ContinueTo(t) => WireStep::ContinueTo(WireTarget::from_target(t)),
-            P::ArcTo(spec) => WireStep::ArcTo(WireArcData::from_spec(spec)),
-            P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
-            P::ArcContinue(p) => WireStep::ArcContinue(p.clone()),
-            P::Fillet(e) => WireStep::Fillet(e.clone()),
-            P::FilletArc { radius, spec } => WireStep::FilletArc {
-                radius: radius.clone(),
-                spec: WireArcData::from_spec(spec),
-            },
-            P::ArcFillet { spec, radius } => WireStep::ArcFillet {
-                spec: WireArcData::from_spec(spec),
-                radius: radius.clone(),
-            },
-            P::ArcFilletArc {
-                spec,
-                radius,
-                spec2,
-            } => WireStep::ArcFilletArc {
-                spec: WireArcData::from_spec(spec),
-                radius: radius.clone(),
-                spec2: WireArcData::from_spec(spec2),
-            },
-            P::FarEndTo(p) => WireStep::FarEndTo(p.clone()),
-            P::CloseTo => WireStep::CloseTo,
-        }
-    }
-
-    fn into_step(self) -> ProgramStep {
-        use ProgramStep as P;
-        match self {
-            WireStep::At(p) => P::At(p),
-            WireStep::Angle(e) => P::Angle(e),
-            WireStep::Toward { dx, dy } => P::Toward { dx, dy },
-            WireStep::Tangent => P::Tangent,
-            WireStep::Cusp => P::Cusp,
-            WireStep::Turn(e) => P::Turn(e),
-            WireStep::Line(e) => P::Line(e),
-            WireStep::LineTo(t) => P::LineTo(t.into_target()),
-            WireStep::ContinueTo(t) => P::ContinueTo(t.into_target()),
-            WireStep::ArcTo(spec) => P::ArcTo(spec.into_spec()),
-            WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
-            WireStep::ArcContinue(p) => P::ArcContinue(p),
-            WireStep::Fillet(e) => P::Fillet(e),
-            WireStep::FilletArc { radius, spec } => P::FilletArc {
-                radius,
-                spec: spec.into_spec(),
-            },
-            WireStep::ArcFillet { spec, radius } => P::ArcFillet {
-                spec: spec.into_spec(),
-                radius,
-            },
-            WireStep::ArcFilletArc {
-                spec,
-                radius,
-                spec2,
-            } => P::ArcFilletArc {
-                spec: spec.into_spec(),
-                radius,
-                spec2: spec2.into_spec(),
-            },
-            WireStep::FarEndTo(p) => P::FarEndTo(p),
-            WireStep::CloseTo => P::CloseTo,
-        }
-    }
-}
-
-/// One loop program on the wire: a chain, or a carrier form.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-enum WireLoopProgram {
-    /// A chain-vocabulary step list.
-    Chain(Vec<WireStep>),
-    /// `circle(centre, r)`.
-    Circle {
-        /// The centre.
-        centre: [Expr; 2],
-        /// The radius.
-        radius: Expr,
-    },
-    /// `circle_split(centre, r, n, phase)` (`n` structural).
-    CircleSplit {
-        /// The centre.
-        centre: [Expr; 2],
-        /// The radius.
-        radius: Expr,
-        /// The subdivision count.
-        n: u32,
-        /// The first vertex's angle.
-        phase: Expr,
-    },
+    /// `profile::ArcSide` on the wire: which side of the tangent the
+    /// carrier's centre sits on.
+    arc_side => profile::ArcSide { Left, Right }
 }
 
 /// The profile's `plane`, read so that a document written before the
@@ -567,7 +278,7 @@ enum WireLoopProgram {
 /// changed shape, which is the whole job of an `Unreadable` refusal
 /// (a reader has to know what to regenerate). The visitor's `expecting`
 /// is where that sentence goes.
-fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error> {
+pub(crate) fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error> {
     struct PlaneRef;
     impl serde::de::Visitor<'_> for PlaneRef {
         type Value = RecipeNodeId;
@@ -583,98 +294,6 @@ fn plane_ref<'de, D: Deserializer<'de>>(de: D) -> Result<RecipeNodeId, D::Error>
         }
     }
     de.deserialize_u64(PlaneRef)
-}
-
-/// The profile payload's wire shape (module docs): the FRAME NODE it
-/// is drawn on + loop PROGRAMS. No derived value is on this wire —
-/// segments, bulges and joints are all replay products (V3: caches are
-/// not persisted).
-///
-/// **`plane` was four placement columns and is now a node id.** That
-/// is a BREAKING change to the format, which this format's one door
-/// handles by refusing typed: a document written before it names a
-/// `plane` object where this build expects a number, and `plane_ref`'s
-/// visitor refuses that shape — naming the placement in its own
-/// `expecting` — onto [`super::PersistError::Unreadable`] with the
-/// regenerate recourse. `deny_unknown_fields` on this struct is not
-/// what fires: `plane` is a field this build knows, so the refusal is
-/// the field type's and not the attribute's.
-/// No migration, by the module header's ruling — nothing has shipped,
-/// and every checked-in document is regenerable.
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct WireProfile {
-    /// The frame datum node this profile is drawn on.
-    #[serde(deserialize_with = "plane_ref")]
-    plane: RecipeNodeId,
-    /// The loop programs: outer first, then holes, description order.
-    loops: Vec<WireLoopProgram>,
-}
-
-impl Serialize for ProfileProgram {
-    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        let wire = WireProfile {
-            plane: self.plane,
-            loops: self
-                .loops
-                .iter()
-                .map(|lp| match lp {
-                    LoopProgram::Chain(steps) => {
-                        WireLoopProgram::Chain(steps.iter().map(WireStep::from_step).collect())
-                    }
-                    LoopProgram::Circle { centre, radius } => WireLoopProgram::Circle {
-                        centre: centre.clone(),
-                        radius: radius.clone(),
-                    },
-                    LoopProgram::CircleSplit {
-                        centre,
-                        radius,
-                        n,
-                        phase,
-                    } => WireLoopProgram::CircleSplit {
-                        centre: centre.clone(),
-                        radius: radius.clone(),
-                        n: *n,
-                        phase: phase.clone(),
-                    },
-                })
-                .collect(),
-        };
-        wire.serialize(ser)
-    }
-}
-
-impl<'de> Deserialize<'de> for ProfileProgram {
-    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        let wire = WireProfile::deserialize(de)?;
-        let loops = wire
-            .loops
-            .into_iter()
-            .map(|lp| match lp {
-                WireLoopProgram::Chain(steps) => {
-                    LoopProgram::Chain(steps.into_iter().map(WireStep::into_step).collect())
-                }
-                WireLoopProgram::Circle { centre, radius } => {
-                    LoopProgram::Circle { centre, radius }
-                }
-                WireLoopProgram::CircleSplit {
-                    centre,
-                    radius,
-                    n,
-                    phase,
-                } => LoopProgram::CircleSplit {
-                    centre,
-                    radius,
-                    n,
-                    phase,
-                },
-            })
-            .collect();
-        Ok(ProfileProgram {
-            plane: wire.plane,
-            loops,
-        })
-    }
 }
 
 /// The persisted MEASUREMENT expression (ERROR-DESIGN E3): the same

@@ -103,12 +103,223 @@ pub struct FilletDecision {
     pub fit_out: Sign,
 }
 
+/// The segments one authored step produced: a half-open range of
+/// PRE-CANONICAL segment indices, in the chain the replay emitted.
+///
+/// A step is not one segment. An entry verb and a verb that only binds
+/// a direction produce none; a fillet arrival produces the trimmed
+/// straight leg AND the arc; a complete-loop carrier form produces the
+/// whole loop. The range is the honest shape for all three, and it is
+/// contiguous because the chain grows only at its head: segment `k`
+/// leaves vertex `k`, so a step produces exactly the segments whose
+/// end vertices it pushed, plus the seam segment when it is the
+/// closing step.
+///
+/// `start <= end` always: the fields are private and
+/// [`StepSpan::new`] is the only constructor, so a backwards span
+/// cannot be built at all rather than being papered over where it is
+/// read.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StepSpan {
+    /// The first segment index this step produced.
+    start: usize,
+    /// One past the last — equal to `start` where the step produced no
+    /// segment at all.
+    end: usize,
+}
+
+impl StepSpan {
+    /// The span `start..end`.
+    ///
+    /// # Panics
+    ///
+    /// If `end < start`. A backwards span is not a shape this type
+    /// admits: every reader below then takes `end - start` and
+    /// `start..end` at face value, and a caller that could produce one
+    /// has a broken derivation rather than an empty step. The fields
+    /// are private so this is the only way in.
+    #[must_use]
+    pub fn new(start: usize, end: usize) -> Self {
+        assert!(
+            start <= end,
+            "a step's segment span runs forwards: {start}..{end} does not"
+        );
+        Self { start, end }
+    }
+
+    /// The first segment index this step produced.
+    #[must_use]
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// One past the last — equal to [`StepSpan::start`] where the step
+    /// produced no segment.
+    #[must_use]
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    /// How many segments the step produced.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.end - self.start
+    }
+
+    /// Whether the step produced no segment.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.end == self.start
+    }
+
+    /// The segment indices, ascending.
+    pub fn iter(&self) -> impl Iterator<Item = usize> + use<> {
+        self.start..self.end
+    }
+}
+
+impl core::fmt::Display for StepSpan {
+    /// The span as prose — the spelling a user-facing message uses, so
+    /// a rendered span never leans on `Debug`. An empty span says so in
+    /// words: a printed `3..3` reads as a range rather than as nothing.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.is_empty() {
+            f.write_str("no segment")
+        } else if self.len() == 1 {
+            write!(f, "segment {}", self.start)
+        } else {
+            write!(f, "segments {}..{}", self.start, self.end)
+        }
+    }
+}
+
+/// Which of an authored step's radius arguments drew an arc.
+///
+/// A step holds up to three: a fused verb authors an incoming arc
+/// carrier, the fillet it opens, and an arrival arc carrier, each from
+/// its own argument. The role is what separates them, and it is
+/// profile-side vocabulary — a document layer that addresses arguments
+/// by name translates it at its own end rather than this crate growing
+/// that vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RadiusRole {
+    /// The fillet's own radius (`fillet(r)`, and the `r` of every fused
+    /// verb).
+    Fillet,
+    /// The INCOMING arc spec's carrier radius — a plain arc leg's, or
+    /// the arc a fused verb authors before its fillet.
+    Carrier,
+    /// The ARRIVAL arc spec's carrier radius (`fillet_arc`'s spec,
+    /// `arc_fillet_arc`'s spec₂).
+    Carrier2,
+}
+
+impl RadiusRole {
+    /// Every role the vocabulary declares, declaration order.
+    ///
+    /// The anchor a coverage census reads, exactly as [`crate::Verb`]'s
+    /// and [`crate::ArcMode`]'s are: a role the vocabulary gains is in
+    /// this list the moment the match below is made total again, so a
+    /// census over it cannot fall behind the record.
+    pub const ALL: [RadiusRole; 3] = [Self::Fillet, Self::Carrier, Self::Carrier2];
+}
+
+impl core::fmt::Display for RadiusRole {
+    /// The role as prose — the spelling a user-facing message uses, so
+    /// a rendered role never leans on `Debug`.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Fillet => "fillet",
+            Self::Carrier => "incoming carrier",
+            Self::Carrier2 => "arrival carrier",
+        })
+    }
+}
+
+/// **Which segment one authored radius drew.**
+///
+/// The step a radius is AUTHORED on is not always the step its arc is
+/// credited to: a `fillet(r)` binds a radius and emits nothing, and the
+/// arc it opens is emitted by the arrival step. So a span alone cannot
+/// say which radius drew which segment, and this says it: the authored
+/// step whose radius argument drew the arc, which of that step's radius
+/// roles it was, and the segment the arc IS.
+///
+/// `segment` is a PRE-CANONICAL index, the numbering [`StepSpan`] uses:
+/// segment `k` leaves vertex `k` of the chain the replay emitted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RadiusEmission {
+    /// The authored step holding the radius argument, in program order.
+    pub step: usize,
+    /// Which of that step's radius arguments it was.
+    pub role: RadiusRole,
+    /// The segment the arc that radius drew occupies.
+    pub segment: usize,
+}
+
+impl core::fmt::Display for RadiusEmission {
+    /// The emission as prose, in the vocabulary of its own parts — a
+    /// refusal that reports two of these is read by a person.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "step {}'s {} radius drew segment {}",
+            self.step, self.role, self.segment
+        )
+    }
+}
+
 /// The structure one replay selected, for one loop: its fillet
-/// resolutions in the order the program reached them.
+/// resolutions in the order the program reached them, which
+/// segments each authored step became, and which segment each
+/// authored radius drew.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ReplayStructure {
     /// The fillet resolutions, in resolution order.
     pub fillets: Vec<FilletDecision>,
+    /// Per authored step, in program order, the segments it produced.
+    ///
+    /// A decision like the fillets beside it rather than a measurement:
+    /// WHICH arm of the transition table ran, and so how many segments
+    /// it emitted, is structure — a fit gate that suppresses a
+    /// zero-length straight piece is exactly where the count moves — so
+    /// a guided pass re-verifies the span at its own scalar instead of
+    /// re-deriving it.
+    pub steps: Vec<StepSpan>,
+    /// Every arc an authored radius drew, in emission order.
+    ///
+    /// A decision like the spans beside it, and recorded the same way:
+    /// WHICH arm emitted the arc — the binder's radius or the arrival
+    /// spec's, onto which segment — is what the emission pass chose,
+    /// and a pass that re-derived it from the geometry would be
+    /// reading the answer off the thing the record exists to describe.
+    /// An arc no radius argument authored (a bulge, a through-point, a
+    /// centre) contributes no entry: there is no address to name.
+    ///
+    /// Not the same fact as `Core`'s fillet-arc list: that one is a
+    /// close-time tangency re-read keyed by vertex, this is the
+    /// authored ADDRESS of every radius-drawn arc.
+    pub radii: Vec<RadiusEmission>,
+}
+
+impl ReplayStructure {
+    /// The record of a COMPLETE-LOOP CARRIER form (`circle`,
+    /// `circle_split`): one authored step that produced every segment
+    /// of the loop, and no fillet resolution anywhere in the form.
+    ///
+    /// `radii` is empty and that is not an omission: a carrier form's
+    /// whole boundary is one arc carrier at the loop's one radius, so
+    /// the answer is per LOOP and needs no per-segment address — the
+    /// shape this record exists for is the chain, where two segments of
+    /// one loop are drawn at two different radii.
+    #[must_use]
+    pub fn carrier(segments: usize) -> Self {
+        Self {
+            fillets: Vec::new(),
+            steps: vec![StepSpan::new(0, segments)],
+            radii: Vec::new(),
+        }
+    }
 }
 
 /// A segment's structural shape — the part of a classification that is
@@ -258,6 +469,21 @@ pub enum Decision {
         /// The canonical segment index.
         segment: usize,
     },
+    /// The segments one authored step produced.
+    StepSpan {
+        /// The step's index in program order.
+        step: usize,
+    },
+    /// Which segment one authored radius drew.
+    ///
+    /// Addressed by POSITION in the emission list rather than by step:
+    /// a step holds up to three radii and each draws its own arc, so
+    /// the step alone does not name one of them, and the position is
+    /// what both sides of the comparison have in common.
+    RadiusEmission {
+        /// The emission's index, in emission order.
+        at: usize,
+    },
     /// A loop's declared tangent-joint set after canonicalization.
     TangentJoints {
         /// The loop's input index.
@@ -306,6 +532,10 @@ pub enum DecisionValue {
     Set(Vec<usize>),
     /// A loop role.
     Role(LoopRole),
+    /// The segments one authored step produced.
+    Span(StepSpan),
+    /// Which segment one authored radius drew.
+    Emission(RadiusEmission),
 }
 
 /// Why a guided pass could not reproduce the recorded structure.
@@ -414,6 +644,10 @@ impl core::fmt::Display for Decision {
             Self::SegmentShape { loop_, segment } => {
                 write!(f, "loop {loop_}'s canonical segment {segment}")
             }
+            Self::StepSpan { step } => write!(f, "the segments step {step} produced"),
+            Self::RadiusEmission { at } => {
+                write!(f, "which segment the radius at emission {at} drew")
+            }
             Self::TangentJoints { loop_ } => write!(f, "loop {loop_}'s declared tangent joints"),
             Self::GuideNotInstalled => {
                 write!(f, "the guide's installation into the chain's core")
@@ -442,6 +676,8 @@ impl core::fmt::Display for DecisionValue {
             Self::Inside(b) => write!(f, "inside = {b}"),
             Self::Set(v) => write!(f, "indices {v:?}"),
             Self::Role(r) => write!(f, "{r}"),
+            Self::Span(s) => write!(f, "{s}"),
+            Self::Emission(e) => write!(f, "{e}"),
         }
     }
 }
@@ -591,13 +827,29 @@ impl<T: Real> Guide<T> {
     /// the prefix of its input the elaboration genuinely reached, so a
     /// program with fewer resolutions than the record describes is
     /// visible to the caller as the shorter record it produced.
-    pub(crate) fn into_record(self) -> ReplayStructure {
+    ///
+    /// `spans` and `radii` are what THIS pass emitted, whichever arm it
+    /// ran under: a guided pass reports the spans and the radius
+    /// emissions it reproduced rather than the ones it was handed,
+    /// because the caller's comparison is only worth making against a
+    /// value the pass actually produced.
+    pub(crate) fn into_record(
+        self,
+        spans: Vec<StepSpan>,
+        radii: Vec<RadiusEmission>,
+    ) -> ReplayStructure {
         match self {
-            Self::Recording(s) => s,
+            Self::Recording(mut s) => {
+                s.steps = spans;
+                s.radii = radii;
+                s
+            }
             Self::Guided {
                 mut record, next, ..
             } => {
                 record.fillets.truncate(next);
+                record.steps = spans;
+                record.radii = radii;
                 record
             }
         }

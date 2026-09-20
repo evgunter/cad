@@ -128,7 +128,9 @@ pub(super) fn build_sectors<T: Decide>(
             .ok_or_else(|| corrupt(operand, vertex))?;
         match curve.carrier() {
             geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => Ok(p_end - p_base),
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+            geom::Curve3::Circle { .. }
+            | geom::Curve3::Ellipse { .. }
+            | geom::Curve3::Spiric { .. } => {
                 let (t0, t1) = curve.params();
                 let tangent = if he == edge.he_plus {
                     curve.carrier().deriv(t0)
@@ -522,7 +524,7 @@ pub(super) struct PairRecord {
 ///
 /// Sense-invariant given the sector: `start`/`end` are traversal-
 /// derived and `normal` already carries the sense, and `revert` flips
-/// both together — a second `sense_sign` factor here would cancel
+/// both together — a second sense fold here would cancel
 /// [`sector_face`]'s and turn every membership test inside out.
 pub(super) fn within<T: Decide>(
     s: &BoolSector<T>,

@@ -16,10 +16,10 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{Alignment, Frame, RecipeNodeId, SitedRef, product};
+use pncad::document::{Alignment, Frame, RecipeNodeId, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
-use viewer::display::DisplayFault;
+use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::frame;
 use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
@@ -49,8 +49,8 @@ fn seat_alignment() -> Alignment {
 /// the session's one committed-edit door.
 fn add_seat_mate(session: &mut DocSession, bench: &asm::Bench, a_instance: RecipeNodeId) {
     let outcome = session.perform(SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(a_instance, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(a_instance, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
@@ -259,23 +259,17 @@ fn fused_geometry_refuses_both_display_ops_typed() {
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the store opens");
     let mut doc =
         pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive("gui4-fused"), tol);
-    let insert = |doc: &mut pncad::document::ProfileDoc,
-                  node: pncad::document::Node<pncad::document::ProfileProgram>| {
-        let applied =
-            pncad::document::apply(doc, &pncad::document::DocEdit::InsertNode { node }, tol)
-                .expect("the insert applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("an id")
-    };
-    let a = insert(
+    let a = common::insert_into(
         &mut doc,
         pncad::document::Node::instantiate_part(bench.post),
+        tol,
     );
-    let b = insert(
+    let b = common::insert_into(
         &mut doc,
         pncad::document::Node::instantiate_part(bench.post),
+        tol,
     );
-    let weld = insert(
+    let weld = common::insert_into(
         &mut doc,
         pncad::document::Node::Boolean {
             op: pncad::document::BooleanOp::Union,
@@ -283,6 +277,7 @@ fn fused_geometry_refuses_both_display_ops_typed() {
             b,
             declare: None,
         },
+        tol,
     );
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
@@ -310,11 +305,11 @@ fn fused_geometry_refuses_both_display_ops_typed() {
         ("probe b", SessionOp::BeginFreeMove { instance: b }),
     ] {
         match session.perform(op).refusal {
-            Some(Refusal::Display(DisplayFault::FusedGeometry {
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::FusedGeometry {
                 instance,
                 root,
                 others,
-            })) => {
+            }))) => {
                 assert!(instance == a || instance == b);
                 assert_eq!(root, weld, "the refusal names the fusing root");
                 assert_eq!(others.len(), 1, "…and the other instance");
@@ -339,8 +334,8 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         "disjoint instances certify outright (A5's disjoint half)"
     );
     session.perform(SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: seat_alignment(),
     });
@@ -378,7 +373,9 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     assert!(
         matches!(
             outcome.refusal,
-            Some(Refusal::Display(DisplayFault::NoSuchNode { .. }))
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NoSuchNode { .. }
+            )))
         ),
         "an id the document does not hold is NOT the wrong-kind refusal — \
          the two are spelled apart because a user holding display state on \
@@ -419,7 +416,10 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
             instance: constrained,
         });
         match outcome.refusal {
-            Some(Refusal::Display(DisplayFault::MateConstrained { instance, mates })) => {
+            Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::MateConstrained {
+                instance,
+                mates,
+            }))) => {
                 assert_eq!(instance, constrained);
                 assert_eq!(mates.len(), 1, "the refusal lists the constraining mate");
             }
@@ -440,7 +440,9 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     assert!(
         matches!(
             outcome.refusal,
-            Some(Refusal::Display(DisplayFault::NotAnInstance { .. }))
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NotAnInstance { .. }
+            )))
         ),
         "{:?}",
         outcome.refusal
@@ -452,7 +454,9 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     assert!(
         matches!(
             outcome.refusal,
-            Some(Refusal::Display(DisplayFault::NoSuchNode { .. }))
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NoSuchNode { .. }
+            )))
         ),
         "an id the document does not hold is NOT the wrong-kind refusal — \
          the two are spelled apart because a user holding display state on \
@@ -642,8 +646,8 @@ fn a_landing_mate_discards_the_probe_value() {
     // The mate lands on post_b: ONE committed edit, and the probe is
     // superseded IN THE SAME OUTCOME.
     let outcome = session.perform(SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
@@ -662,7 +666,7 @@ fn a_landing_mate_discards_the_probe_value() {
     // The PAYLOAD, not the variant: the variant is what the op this row
     // just performed already implies, and what would go red if `prune`
     // paired the right fault with the wrong instance is this.
-    let DisplayFault::MateConstrained { instance, mates } = &superseded.cause else {
+    let AdmissionFault::MateConstrained { instance, mates } = &superseded.cause else {
         panic!(
             "a mate landing supersedes with its own fault: {}",
             superseded.cause
@@ -747,7 +751,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     };
     assert_eq!(dropped.instance, bench.post_b);
     assert!(
-        matches!(dropped.cause, DisplayFault::FusedGeometry { .. }),
+        matches!(dropped.cause, AdmissionFault::FusedGeometry { .. }),
         "and the outcome carries WHY the part is drawn again: {}",
         dropped.cause
     );
@@ -783,7 +787,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     };
     assert_eq!(dropped.instance, bench.post_b);
     assert!(
-        matches!(dropped.cause, DisplayFault::NoSuchNode { .. }),
+        matches!(dropped.cause, AdmissionFault::NoSuchNode { .. }),
         "an absent node is spelled apart from a wrong-kind one, because \
          the sentence the user reads is the difference: {}",
         dropped.cause

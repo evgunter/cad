@@ -58,22 +58,27 @@
 //! - **A field read through a METHOD.** `self.origin()` and
 //!   `self.bit_eq(other)` are calls, and no reader can tell a getter
 //!   from any other call without resolving it. A hand-list moved one
-//!   level down into a helper is invisible here, and
-//!   `crates/profile/src/lib.rs`'s `SketchPlane` is the live instance —
-//!   `work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md`.
+//!   level down into a helper is invisible here.
+//!   `crates/profile/src/lib.rs`'s `SketchPlane` is the standing
+//!   example: `PartialEq` delegates to an inherent `bit_eq` that reads
+//!   twelve stored coordinates, this reader sees a call and answers
+//!   [`Verdict::NoFieldRead`], and it answers that whether those
+//!   twelve are bound by name or not. What holds `bit_eq` is the
+//!   patterns written INSIDE it and nothing here.
 //! - **A field of an INNER type, read through a tuple index.**
 //!   `self.0.name` is a hand-list one level down: `self.0` ties this
 //!   impl to nothing but the newtype's own single field, and the named
-//!   field belongs to a declaration this reader never sees. Live
-//!   today: `crates/editor-core/src/names/role.rs`'s `NameRef` reads
-//!   `self.0.name` in `PartialEq`, `Hash`, `Ord` and `Debug`, and
-//!   `Held`'s
-//!   second field `stamp` is outside all four with no E0027 anywhere
-//!   — benign, because the stamp is a documented cache (D9), and a
-//!   third field on `Held` would land outside them just as quietly.
-//!   That is the same shape as the method case one line up, reached
-//!   through a field rather than a call, and it is filed beside it in
-//!   `work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md`.
+//!   field belongs to a declaration this reader never sees. The
+//!   standing example is
+//!   `crates/editor-core/src/names/role.rs`'s `NameRef`, which has
+//!   five walks over the shared `Held` — of which **this reader looks
+//!   at two**, `Debug` and `PartialEq`, because [`TRAITS`] is those
+//!   two; it reports both as [`Verdict::NoFieldRead`], `self.0` being
+//!   a tuple index it stops at, and never looks at `Display`, `Hash`
+//!   or `Ord` at all. Each of the five destructures `Held`, so `Held`'s
+//!   fields are held by E0027 and not by anything on this page. That
+//!   is the same shape as the method case one line up, reached through
+//!   a field rather than a call.
 //! - **A read through a LOCAL that is not `self`.** `let me = self;`
 //!   then `me.a` is a hand-list this reader follows, because the
 //!   binding is one `let` away in the same body ([`self_aliases`]);
@@ -131,8 +136,8 @@
 use std::path::Path;
 
 use test_utils::source::{
-    ItemBody, angle_end, balanced_end, boundary_after, boundary_before, code_only, item_body,
-    repo_root, rust_sources, skip_ws, word_at,
+    ItemBody, balanced_end, boundary_after, boundary_before, code_only, impl_head, item_body,
+    repo_root, rust_sources, skip_ws, type_base, word_at,
 };
 
 /// The repository's own directories, skipped by NAME: a build
@@ -157,7 +162,16 @@ enum Verdict {
     /// here on; this census has nothing further to say about it.
     Destructured,
     /// Reads no field by name — a newtype's `self.0`, an enum's
-    /// `match self`, a delegation. Nothing to fall behind.
+    /// `match self`, a delegation. Nothing THIS READER can attribute
+    /// to a declaration falls behind one.
+    ///
+    /// **The qualifier is load-bearing**, and the header's
+    /// *What this cannot see* list is where it is argued: a delegation
+    /// and a `self.0.<name>` both land here, and both can be reading
+    /// named fields one level down. The verdict says what this walk
+    /// saw, not what the impl does. Whether either shape should get a
+    /// verdict of its own is
+    /// `work/tint/census-answers-no-field-read-for-a-walk-that-reads-a-field.md`.
     ///
     /// **"No census here", not "the census is the empty set".** An
     /// `eq` that reads nothing and answers `true`
@@ -204,10 +218,12 @@ struct Site {
 ///
 /// Every entry is a SECOND FINDING stacked on the first, never an
 /// exemption — the shape `reader_census.rs` calls `Unconverted` and for
-/// the same reason. They sit outside the fence of the unit that built
-/// this census, which swept the types whose `Debug` it touched, so they
-/// are filed rather than swept and this constant is what keeps them
-/// from going quiet in the meantime.
+/// the same reason. An entry sits here because the repair belongs to
+/// another program's row rather than to whoever is passing, and this
+/// constant is what keeps the finding from going quiet in the
+/// meantime. It shrinks as those rows land: one repair, one entry
+/// deleted, in the diff that makes the walk stop reporting the impl
+/// hand-listed.
 ///
 /// **It is also this walk's per-file sight anchor.** An entry that
 /// matches no live site reds — so a reader that goes blind to
@@ -218,17 +234,18 @@ struct Site {
 /// whole of the argument.** A suppression that names less than the
 /// impl is a suppression that grows: `(path, trait)` alone covers
 /// every impl of that trait the file will ever hold, so a hand-listed
-/// `impl PartialEq for ProbeQ` appended to `coset.rs` — an arrival of
-/// exactly the defect class this census exists to detect — lands
-/// green, suppressed by an entry written about `Coset`. Five files
-/// were open that way. The self type closes it because a homogeneous
-/// trait has AT MOST ONE impl per type, so the key names one impl and
-/// cannot cover a second.
+/// `impl PartialEq for ProbeQ` appended to `clearance.rs` — an arrival
+/// of exactly the defect class this census exists to detect — lands
+/// green, suppressed by an entry written about `GeometryWitness`. The
+/// self type closes it because a homogeneous trait has AT MOST ONE
+/// impl per type, so the key names one impl and cannot cover a second.
 ///
-/// It also stops the suppression reaching a COMPLIANT sibling:
-/// `coset.rs` holds `PartialEq for Subgroup`, an exhaustive enum walk
-/// with nothing wrong with it, under the same `(path, trait)` as the
-/// offender.
+/// It also stops the suppression reaching a COMPLIANT sibling under
+/// the same `(path, trait)` as the offender — the case the entries
+/// deleted from this list left behind, where `coset.rs`'s
+/// `PartialEq for Subgroup`, an exhaustive enum walk with nothing
+/// wrong with it, shared a file and a trait with the one that was
+/// suppressed.
 ///
 /// **What it costs is a spelling in the key.** The self type is read
 /// as WRITTEN — `SignCertificate<'_, T>`, lifetimes and parameters and
@@ -237,43 +254,12 @@ struct Site {
 /// [`every_known_hand_listed_impl_is_still_found`] reds until it is
 /// re-typed. That is the loud direction and it is the price of the
 /// key. Not keyed by LINE, which rots on every edit above it.
-const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 5] = [
-    (
-        "crates/editor-core/src/clearance.rs",
-        "PartialEq",
-        "GeometryWitness",
-        "work/shell/geometrywitness-eq-ignores-the-two-chart-axes-its-uv-fields-are-stated-in.md",
-    ),
-    (
-        "crates/editor-core/src/expr.rs",
-        "PartialEq",
-        "Lit",
-        "work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md",
-    ),
-    (
-        "crates/editor-core/src/mate/coset.rs",
-        "PartialEq",
-        "Coset",
-        "work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md",
-    ),
-    (
-        "crates/editor-core/src/program.rs",
-        "PartialEq",
-        "ProfileProgram",
-        "work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md",
-    ),
-    // Ruled out of CENSUS-DEBUG's hit list on the terminator — it uses
-    // `write!`, not `debug_struct(…).finish()` — and in the class by
-    // THIS census's question, which is about the tie to the
-    // declaration rather than about what the renderer claims. It
-    // renders in braced struct shape and reads `self.runs` by name.
-    (
-        "crates/topo/src/props.rs",
-        "Debug",
-        "SignCertificate<'_, T>",
-        "work/census/hand-listed-partialeq-siblings-outside-the-census-debug-fence.md",
-    ),
-];
+const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 1] = [(
+    "crates/editor-core/src/clearance.rs",
+    "PartialEq",
+    "GeometryWitness",
+    "work/shell/geometrywitness-eq-ignores-the-two-chart-axes-its-uv-fields-are-stated-in.md",
+)];
 
 /// **Every file holding a hand-written `Debug` or `PartialEq`** —
 /// sorted, hand-synced, and **it is not the guard**.
@@ -292,22 +278,36 @@ const KNOWN_HAND_LISTED: [(&str, &str, &str, &str); 5] = [
 /// census's subject is arrival and a compliant arrival should cost one
 /// line, not a re-count.
 ///
-/// **The residue, stated as it actually stands.** A blindness that
-/// hides some but not all of one file's impls moves nothing in THIS
-/// row: every file still contributes its first impl, so the set is
-/// unchanged. What catches the worst case is
-/// [`every_known_hand_listed_impl_is_still_found`], and only for the
-/// five impls [`KNOWN_HAND_LISTED`] names — each by self type, so it
-/// reds wherever in its file the impl sits and not by the accident of
-/// its being second. Measured: a classifier returning after the first
-/// impl of each file reds that row and leaves this one and
-/// [`every_hand_written_walk_is_held_to_its_declaration`] green.
+/// **The residue, stated as it actually stands, and it has grown.** A
+/// blindness that hides some but not all of one file's impls moves
+/// nothing in THIS row: every file still contributes its first impl,
+/// so the set is unchanged. [`every_known_hand_listed_impl_is_still_found`]
+/// used to catch the worst case for the impls [`KNOWN_HAND_LISTED`]
+/// named, by self type, so it red wherever in its file the impl sat.
+/// **It no longer catches it at all.** Measured, on this tree and on
+/// the tree before the four CENSUS rows landed: a classifier that
+/// stops after the first Debug-or-PartialEq impl of each file red that
+/// row before and is entirely green now, because the single remaining
+/// entry names its file's ONLY such impl and so survives the
+/// blindness. The anchor was never per-impl sight; it was the accident
+/// that ONE of five entries — `mate/coset.rs`, which holds
+/// `PartialEq for Subgroup` above `PartialEq for Coset` — had a
+/// compliant sibling above it, and that entry is one of the four this
+/// unit repaired. The other four entries were each their file's first
+/// and only such impl, so they never carried per-impl sight at all.
+/// (An earlier draft of this paragraph said FOUR of five, and a style
+/// review executed the mutation and read the failure, which names one
+/// entry.)
 ///
-/// **For the other 17 files nothing would name it.** `hull.rs`,
-/// `knots.rs` and `surfaces/nurbs.rs` each hold a second impl that
-/// would vanish unremarked under the same blindness. What closes that
-/// is a per-impl population, which is the tally this row declines
-/// above; the trade is recorded rather than hidden.
+/// **So no row here sees a partial blindness inside a file**, for this
+/// file's 22 or any of them: `hull.rs`, `knots.rs` and
+/// `surfaces/nurbs.rs` each hold a second impl that would vanish
+/// unremarked. What closes it is a per-impl population, which is the
+/// tally this row declines above. The trade is recorded rather than
+/// hidden, and that a SUPPRESSION LIST was standing in for it — so
+/// that the instrument weakens exactly as the rows it names are
+/// repaired — is
+/// `work/tint/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
 ///
 /// **A new line is the arrival this row exists to detect.** Adding one
 /// is a deliberate act and the message below says which acts are
@@ -337,38 +337,8 @@ const IMPL_FILES_TODAY: [&str; 22] = [
     "crates/viewer/src/session.rs",
 ];
 
-/// The offset of the first whole-word `for` in `head` at bracket depth
-/// zero, or `None`.
-///
-/// **Depth matters and is not decoration.** A bound like
-/// `impl<T: Fn(&str) -> bool> …` and a higher-ranked
-/// `for<'a> Trait<'a>` both put a `for`-shaped token where it ends no
-/// trait; reading either as the separator answers a trait that is not
-/// one. Round and square brackets are counted, angle brackets are not —
-/// the generic list is stepped over by [`angle_end`] before this runs,
-/// so a `for<'a>` inside a WHERE clause is past the body already.
-fn top_level_for(head: &str) -> Option<usize> {
-    let (mut paren, mut bracket) = (0usize, 0usize);
-    for (at, c) in head.char_indices() {
-        match c {
-            '(' => paren += 1,
-            ')' => paren = paren.saturating_sub(1),
-            '[' => bracket += 1,
-            ']' => bracket = bracket.saturating_sub(1),
-            'f' if paren == 0 && bracket == 0 && word_at(head, at, "for") => {
-                // `for<'a>` is a binder, not the separator.
-                let after = skip_ws(head, at + 3);
-                if !head[after..].starts_with('<') {
-                    return Some(at);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-/// What an impl head names: the trait, and the self type as written.
+/// The trait this census's subject list names, and the self type the
+/// impl is for.
 struct Head {
     /// One of [`TRAITS`].
     trait_name: &'static str,
@@ -380,70 +350,24 @@ struct Head {
 /// The trait and self type this impl head names, or `None` when the
 /// head is an inherent impl or names some other trait.
 ///
-/// **The generic list is stepped over first.** `impl<P: PartialEq>
-/// Doc<P>` names the trait in a BOUND and implements nothing; reading
-/// the whole head for the word would call it a `PartialEq` impl and
-/// then red on a body that is not one.
+/// **The head itself is [`impl_head`]'s answer**, shared with the
+/// minting census in `crates/pncad-py/src/tests.rs`, which reads the
+/// same construct for a different key. What is this census's own is
+/// the filter below: only a trait in [`TRAITS`] is its subject.
+///
+/// **The trait's generic arguments are kept, and that is deliberate.**
+/// `PartialEq<Other>` does not match `PartialEq`, so a heterogeneous
+/// impl answers `None` rather than reading as a homogeneous one — the
+/// residue this file's header names, not an accident of the walk.
 fn head_of(code: &str, impl_at: usize, body_start: usize) -> Option<Head> {
-    let mut at = skip_ws(code, impl_at + "impl".len());
-    if code[at..].starts_with('<') {
-        at = angle_end(code, at)? + 1;
-    }
-    let head = code.get(at..body_start)?;
-    let for_at = top_level_for(head)?;
-    // The trait, with any path qualification: `core::fmt::Debug`.
-    let named = head[..for_at].trim().rsplit("::").next()?.trim();
+    let head = impl_head(code, impl_at, body_start)?;
+    let named = head.trait_path?;
+    let named = named.rsplit("::").next()?.trim();
     let trait_name = TRAITS.into_iter().find(|t| named == *t)?;
     Some(Head {
         trait_name,
-        self_type: self_type(&head[for_at + "for".len()..]),
+        self_type: head.self_type,
     })
-}
-
-/// The self type written after the `for`, whitespace collapsed.
-///
-/// **A spelling, never a resolution.** What it is for is the key of
-/// [`KNOWN_HAND_LISTED`] and the concrete name a destructure may be
-/// written with; neither wants the declaration, and reaching for it is
-/// what this census does not do.
-///
-/// A `where` clause is a bound on the impl and not part of the type,
-/// and an UNTERMINATED head runs past the body's own brace — so both
-/// end the type.
-fn self_type(after_for: &str) -> String {
-    let mut end = after_for.len();
-    let mut from = 0usize;
-    while let Some(off) = after_for[from..].find("where") {
-        let at = from + off;
-        from = at + "where".len();
-        if word_at(after_for, at, "where") {
-            end = at;
-            break;
-        }
-    }
-    if let Some(brace) = after_for[..end].find('{') {
-        end = brace;
-    }
-    after_for[..end]
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// The bare name of a self type: no generic arguments, no path.
-///
-/// `SignCertificate<'_, T>` is destructured as `SignCertificate { … }`
-/// and `crate::mate::Coset` as `Coset { … }`, so this is the word a
-/// pattern would carry.
-fn self_base(self_type: &str) -> &str {
-    self_type
-        .split('<')
-        .next()
-        .unwrap_or_default()
-        .rsplit("::")
-        .next()
-        .unwrap_or_default()
-        .trim()
 }
 
 /// Every local in `body` that is another name for `self`, `self`
@@ -719,7 +643,7 @@ fn sites_in(path: &str, text: &str) -> Vec<Site> {
             path: path.to_string(),
             line: test_utils::source::line(&code, at),
             trait_name: head.trait_name,
-            verdict: verdict(&body, self_base(&head.self_type)),
+            verdict: verdict(&body, type_base(&head.self_type)),
             self_type: head.self_type,
         });
     }

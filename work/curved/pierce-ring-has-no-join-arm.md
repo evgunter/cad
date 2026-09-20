@@ -75,6 +75,46 @@ pose, and the run/chord pairing is the first thing to read there.
   needs this one too.
 - The planar cap row in `verbs_pierce.rs`, which has been refusing at
   the join since #1068.
+- **A user's blind pocket in a cylinder's end cap** (2026-09-18, Ev,
+  in a scratch document of theirs that is not in version control;
+  the recipe below is the whole reproduction, cut to the nodes the
+  failing one reads, lengths in m):
+
+  | node | recipe |
+  |---|---|
+  | 8 | `Datum Frame { origin (0,0,0), u (1,0,0), v (0,0,1) }` (the XZ frame; normal −y) |
+  | 9 | `Profile { plane 8, Circle { centre (0,0), radius 0.04 } }` |
+  | 10 | `Extrude { profile 9, distance −0.5 }` (cylinder along +y, y ∈ [0, 0.5]) |
+  | 15 | `Profile { plane 8, Chain [At (0, 0.02), LineTo (0, −0.02), LineTo (0.008, −0.02), Tangent, TangentArcTo (0.01, 0), ArcTo Bulge { target Start, b 0.6 }] }` (a letter-ish outline) |
+  | 16 | `Extrude { profile 15, distance 0.01 }` (y ∈ [−0.01, 0]) |
+  | 17 | `Transform { input 16, translation (0, 0.005, 0), rotation 0 about z }` (y ∈ [−0.005, 0.005]) |
+  | 19 | `Boolean { op Subtract, a 10, b 17, declare None }` |
+
+  The tool's section with the y = 0 cap is a closed loop strictly
+  inside the disc (x ∈ [0, 0.01], z ∈ [−0.02, 0.02]). Node 19 refuses:
+  `boolean op: joining refused: split join: null face FaceKey(12v1)
+  has a side-mixed section loop (kernel bug)`, from the backstop in
+  `crates/topo/src/boolean/join.rs:1854` — the site whose comment says
+  no witness that reaches it is known; this pose and the cap row above
+  are two. Everyday CAD feature, far more common than the
+  box-through-cap row: engraving, a keyway, a sunk pocket in a face.
+  The pose and three controls, each replayed through
+  `editor_core::persist::load` + `evaluate`:
+
+  | variant | result |
+  |---|---|
+  | as drawn (lines + arcs) | `SectionLoopMixed` |
+  | node 15 a plain rectangle (0, ±0.02)–(0.01, ±0.02) | `SectionLoopMixed`: the arcs are not the cause |
+  | node 9 a square (±0.04, ±0.04), so node 10 is a box; either node 15 | **OK**: a ring in a line-bounded planar face joins |
+  | node 17 translated (0.035, 0.005, 0), so the pocket crosses the rim | a different door: the curved pierce arm's typed frontier (`boolean/reduce.rs`, "a Circle carrier … stay at this typed frontier") |
+
+  So the missing arm is specifically the ring in an **arc-bounded**
+  planar face, the planar-cap door of the table above.
+  The user reads the refusal as `… side-mixed section loop (kernel
+  bug)`: `SplitJoinError`'s `Display` (`crates/topo/src/chord_join.rs:357`)
+  still says "kernel bug", though the variant doc was amended to name
+  the pierce ring as a legitimate typed destination. The message
+  should say that too until this arm lands.
 
 ## Home
 

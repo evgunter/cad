@@ -45,7 +45,7 @@ fn the_selection_reaches_the_wire_canonical() {
             },
         },
     ] {
-        doc = apply(&doc, &edit, Tol::witness())
+        doc = apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("the fixture builds")
             .doc;
     }
@@ -70,6 +70,7 @@ fn the_selection_reaches_the_wire_canonical() {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the fillet node inserts")
     .doc;
@@ -83,10 +84,14 @@ fn the_selection_reaches_the_wire_canonical() {
 
     // A non-canonical selection on the wire is a CORRUPT file: refused
     // at the shared validator, never quietly re-sorted (a repair would
-    // move the node's content key behind the caller's back).
+    // move the node's content key behind the caller's back). The form
+    // is one predicate on `Node::input_fault`, so the load door names it
+    // in the arm it names every other structural fault in;
+    // `edit_blend_canonical` is where the two doors are pinned together.
     let corrupt = text.replacen("\"segment\": 0", "\"segment\": 9", 1);
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::BlendSelectionNotCanonical {
+        Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
+            fault: editor_core::InputFault::SelectionNotCanonical { at: 0 },
             ..
         })) => {}
         other => panic!("a non-canonical selection must refuse typed, got {other:?}"),

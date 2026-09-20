@@ -43,3 +43,19 @@ PR-2 retires wall 1; this item is the unit that can.
 CURVED — the operand gate is the curved-operand-reach lane
 (`work/curved/plan.md` §Lanes "Torus lane completion"); filed by the
 orchestrator at the spec's ratification.
+
+## HIGH PRIORITY — Ev asked for it (2026-09-17)
+
+**Ev asked for this in chat on 2026-09-17 and wants it treated as
+high priority.** Ev hit it as a user: unioning the two halves of a
+dumbbell (torus-faced bells against planar faces) in the viewer
+refused with "face … of operand A is a torus and its box MAY INTERSECT
+face … (plane) of operand B … it has no seam lane for the (torus,
+plane) germ pair", and the viewer offers no way around it. The refusal
+names the germ-pair JOIN dispatch (only (Plane, Plane),
+(Plane, Cylinder) and (Plane, Sphere) are wired) as what blocks, so
+admitting the torus operand here needs that join arm as well as the
+gate change. Whoever takes this should confirm that before scoping.
+The viewer-side rows this surfaced are
+`work/view/a-refusal-offers-no-action-in-the-viewer.md` and
+`work/view/a-derived-pick-index-failure-outshouts-its-cause.md`.

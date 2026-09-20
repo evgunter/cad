@@ -93,7 +93,7 @@ pub use enters::{
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
     circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_residual,
+    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
@@ -127,9 +127,10 @@ pub use props::{
     require_one_chart_branch,
 };
 pub use ssi::{
-    Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain,
-    SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode, certify_rung3, cylinder_sphere_ssi,
-    idealized_trace_r3, plane_nurbs_ssi, trace_plane_nurbs_uncertified,
+    ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS,
+    SsiBranch, SsiCertificate, SsiDomain, SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode,
+    certify_rung3, cylinder_sphere_ssi, idealized_trace_r3, plane_nurbs_ssi,
+    trace_plane_nurbs_uncertified,
 };
 pub use tangent::{
     TangentJet, TangentSpanBounds, tangent_certificate_lane, tangent_jet, tangent_span_bounds,

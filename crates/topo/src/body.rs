@@ -866,6 +866,112 @@ impl<T: Real> Body<T> {
         self.shells.get(key)
     }
 
+    /// The solid owning `face` — through its shell's back-pointer — or
+    /// `None` where the face or its shell does not resolve. A foreign
+    /// key is not caught (see the [module docs](self)), and this door
+    /// composes TWO lookups, so a foreign face key does not stop at
+    /// the first hop: it resolves to whatever face the arena's slot
+    /// holds and answers about the shell THAT face names.
+    ///
+    /// **`None` is the only refusal this door can make**, and it is a
+    /// `&self` read, so three shapes of caller keep a hand-written
+    /// walk. Each is a population, not an exception:
+    ///
+    /// - **A refusal that distinguishes the hops.**
+    ///   `offset_together::scope_of_moves` names the caller's own
+    ///   stale face key on hop 1 and the body's incoherence on hop 2;
+    ///   [`Body::kfmrh`](crate::Body::kfmrh) does it twice, with
+    ///   `StaleKey` naming an `EntityId::Face` on hop 1 and an
+    ///   `EntityId::Shell` on hop 2.
+    ///   `offset_together::scope_walks::the_two_hops_refuse_differently`
+    ///   reds on either way of collapsing `scope_of_moves`'s two.
+    /// - **A caller still using the intermediate shell key.**
+    ///   `seqgen::fusion_remake_shell` refuses uniformly, but its
+    ///   shell key is live past the `.solid` read, so this door cannot
+    ///   replace that walk — only add a second resolution of a face
+    ///   key the function has already resolved.
+    /// - **A write.** `euler_ring`'s corruption fixtures set
+    ///   `Shell::solid` through `get_shell_mut`.
+    ///
+    /// **No census is claimed here.** How many hand-written spellings
+    /// remain, where, and under which instrument they were counted is
+    /// measured in
+    /// `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`
+    /// — dated there, held true by no mechanical guard, and
+    /// re-measured by a lane rather than by this sentence.
+    #[must_use]
+    pub fn solid_of_face(&self, face: FaceKey) -> Option<SolidKey> {
+        self.get_face(face)
+            .and_then(|d| self.get_shell(d.shell))
+            .map(|s| s.solid)
+    }
+
+    /// The faces of `solid`, in slot-index order (deterministic per D9
+    /// — the order [`Body::faces`] yields), or `None` where the solid
+    /// key does not resolve. A foreign key is not caught (see the
+    /// [module docs](self)), and here that costs more than at a
+    /// single-entity lookup: a foreign `SolidKey` landing on a live
+    /// slot passes the resolution and this door hands back **another
+    /// solid's face list** as though it were the caller's.
+    ///
+    /// [`Body::solid_of_face`]'s inverse, and
+    /// [`crate::query::all_faces`] restricted to one solid. It selects
+    /// on the FACES' own back-pointers rather than walking
+    /// [`Solid::shells`]: on a tier-1 valid body the two answer the
+    /// same SET — the ownership partition and the back-pointers are
+    /// validated against each other — and differ in ORDER, this door
+    /// answering in arena order and a shell walk in shell-then-face-
+    /// list order. A caller that needs the shells kept apart walks
+    /// them; a caller that wants "the faces of this solid" to hand to
+    /// a key-taking verb asks here.
+    ///
+    /// **The empty list and the absent solid are different answers**,
+    /// which is why this refuses rather than returning a bare `Vec`: a
+    /// solid with no faces is a body state, a solid key that does not
+    /// resolve is a caller's mistake, and a door that answered `vec![]`
+    /// to both would hide the second inside the first.
+    ///
+    /// A face whose own shell does not resolve is absent from the list
+    /// rather than refused — it belongs to no solid, which is what
+    /// [`Body::solid_of_face`] already answers about it.
+    #[must_use]
+    pub fn faces_of_solid(&self, solid: SolidKey) -> Option<Vec<FaceKey>> {
+        self.get_solid(solid)?;
+        Some(
+            self.faces()
+                .filter(|&(k, _)| self.solid_of_face(k) == Some(solid))
+                .map(|(k, _)| k)
+                .collect(),
+        )
+    }
+
+    /// The face owning `he`'s loop — through the half-edge's
+    /// [`HalfEdge::parent_loop`] back-pointer and that loop's
+    /// [`Loop::face`] — or `None` where either key is stale. A foreign
+    /// key is not caught (see the [module docs](self)), and this door
+    /// composes TWO lookups, so a foreign half-edge key does not stop
+    /// at the first hop: it resolves to whatever half-edge the arena's
+    /// slot holds and answers about the loop THAT half-edge names.
+    ///
+    /// Every spelling in this crate that STOPS at the face and refuses
+    /// uniformly across the two hops reads through here. Six more
+    /// compose a further hop past the face (`.surface`, `Face::shell`)
+    /// and are deferred with that decision, not kept for a reason.
+    /// **`None` is the only refusal this door can make**, so a caller
+    /// whose own refusal distinguishes the hops — naming which key
+    /// went stale — keeps its own walk: collapsing it here would
+    /// replace a refusal that identifies an entity with one that does
+    /// not. That is a population, not an exception. It is sixteen
+    /// sites in this crate alone, and they are enumerated with their
+    /// postures in
+    /// `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`;
+    /// a lane adding a seventeenth reads that list, not this sentence.
+    #[must_use]
+    pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
+        self.get_loop(self.get_half_edge(he)?.parent_loop)
+            .map(|l| l.face)
+    }
+
     /// The face at `key`, or `None` if the key is stale (a foreign key is
     /// not caught — see the [module docs](self)).
     pub fn get_face(&self, key: FaceKey) -> Option<&Face> {
@@ -1240,6 +1346,8 @@ impl<T: Real> Default for Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::EntityId;
+    use crate::ReplaceFaceError;
     use crate::fixtures::{mvfs_state, pillow, prov};
     use geom_core::Tol;
 
@@ -1301,6 +1409,106 @@ mod tests {
         assert_eq!(shell.faces, vec![t.face_a, t.face_b]);
         assert_eq!(shell.solid, t.solid);
         assert_eq!(body.get_solid(t.solid).unwrap().shells, vec![t.shell]);
+    }
+
+    /// [`Body::faces_of_solid`] is [`Body::faces`] restricted to one
+    /// solid: same order, same set as the shell walk, and the three
+    /// answers it can give — a list, the empty list, and `None` —
+    /// kept apart.
+    #[test]
+    fn faces_of_solid_restricts_the_face_arena_to_one_solid() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let second = body.mvfs(origin()).unwrap();
+
+        // Arena order, and a restriction: `faces` yields all three.
+        assert_eq!(body.faces().count(), 3);
+        assert_eq!(
+            body.faces_of_solid(t.solid).unwrap(),
+            vec![t.face_a, t.face_b]
+        );
+        assert_eq!(
+            body.faces_of_solid(second.solid).unwrap(),
+            vec![second.face]
+        );
+
+        // A solid with no faces answers the empty list; a solid key
+        // the body does not hold answers `None`.
+        let barren = body.add_solid(Solid { shells: vec![] }, prov());
+        assert_eq!(body.faces_of_solid(barren).unwrap(), Vec::<FaceKey>::new());
+        assert_eq!(body.faces_of_solid(SolidKey::default()), None);
+    }
+
+    /// The door's ORDER is the ARENA's, not the shell walk's, and the
+    /// two are only the same sequence while a solid has one shell.
+    ///
+    /// The fixture puts a solid's two shells out of step with the face
+    /// arena — shell 1 holds the first face, shell 2 the third and
+    /// then the second — which is the decoupling an operator that
+    /// moves a face between one solid's shells produces. Arena order
+    /// is then `[fa, fb, fc]` and the shell walk `[fa, fc, fb]`: same
+    /// SET, different SEQUENCE. A shell-walking implementation of this
+    /// door passes every assertion in the row above and fails here.
+    ///
+    /// **The body is deliberately not tier-1 valid, and wider than the
+    /// story above**: the pillow's two faces share every edge, so
+    /// splitting them across two shells breaks the same-shell rule for
+    /// an edge's two faces — which a real operator would not do. What
+    /// this row asserts is ORDERING and nothing else; it never
+    /// validates, and no claim here depends on the body being sound.
+    #[test]
+    fn faces_of_solid_answers_arena_order_where_the_shell_walk_would_not() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let second = body.mvfs(origin()).unwrap();
+
+        // One solid, two shells: adopt the minted shell (its own solid
+        // goes, rather than staying behind empty), and move `face_b`
+        // into it so the shells interleave with the arena.
+        body.get_shell_mut(second.shell).unwrap().solid = t.solid;
+        body.get_solid_mut(t.solid)
+            .unwrap()
+            .shells
+            .push(second.shell);
+        // Paired, as `kvfs` pairs them: an arena removal that leaves
+        // the provenance entry behind is `LeakedProvenance`.
+        body.solids.remove(second.solid);
+        body.solid_provenance.remove(second.solid);
+        body.get_shell_mut(t.shell)
+            .unwrap()
+            .faces
+            .retain(|&f| f != t.face_b);
+        body.get_shell_mut(second.shell)
+            .unwrap()
+            .faces
+            .push(t.face_b);
+        body.get_face_mut(t.face_b).unwrap().shell = second.shell;
+        assert_eq!(body.solids().count(), 1, "one solid");
+        assert_eq!(
+            body.get_solid(t.solid).unwrap().shells.len(),
+            2,
+            "two shells"
+        );
+
+        let walk: Vec<FaceKey> = body
+            .get_solid(t.solid)
+            .unwrap()
+            .shells
+            .iter()
+            .flat_map(|&sh| body.get_shell(sh).unwrap().faces.clone())
+            .collect();
+        assert_eq!(walk, vec![t.face_a, second.face, t.face_b], "the fixture");
+
+        let door = body.faces_of_solid(t.solid).unwrap();
+        assert_eq!(door, vec![t.face_a, t.face_b, second.face]);
+        assert_ne!(door, walk, "the two orders are distinguishable here");
+        assert_eq!(
+            door.iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>(),
+            walk.into_iter().collect::<std::collections::BTreeSet<_>>(),
+            "same set, different sequence"
+        );
     }
 
     #[test]
@@ -1414,6 +1622,61 @@ mod tests {
         // a0 has no mate (a corrupt bijection the validator reports).
         t.body.get_edge_mut(t.edges[0]).unwrap().he_plus = t.hes_a[1];
         assert_eq!(t.body.mate(t.hes_a[0]), None);
+    }
+
+    #[test]
+    fn face_of_half_edge_walks_and_refuses_on_either_stale_key() {
+        let mut t = pillow(Tol::witness());
+        // Both halves of e0 reach their own face, and they differ.
+        let fa = t.body.face_of_half_edge(t.hes_a[0]).unwrap();
+        let fb = t.body.face_of_half_edge(t.hes_b[0]).unwrap();
+        assert_eq!(fa, t.face_a);
+        assert_eq!(fb, t.face_b);
+        assert_ne!(fa, fb);
+        // A stale half-edge key.
+        assert_eq!(t.body.face_of_half_edge(HalfEdgeKey::default()), None);
+        // A live half-edge whose loop back-pointer is stale: the second
+        // hop is the one that refuses, and it refuses the same way.
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
+        assert_eq!(t.body.face_of_half_edge(t.hes_a[0]), None);
+    }
+
+    /// All three refusal postures over the one door, because a fold
+    /// that flattened any of them into another leaves every other row
+    /// green.
+    #[test]
+    fn the_walk_consumers_keep_their_own_refusal() {
+        let mut t = pillow(Tol::witness());
+        // `Option`: the edge door names WHICH faces, in
+        // `he_plus`-then-`he_minus` order. `is_some()` would pass on an
+        // `(f_plus, f_plus)` — the typo a re-spelling of two
+        // near-identical lines makes — so the pair is asserted.
+        let e = t.body.get_edge(t.edges[0]).unwrap().clone();
+        assert_eq!(e.he_plus, t.hes_a[0]);
+        assert_eq!(e.he_minus, t.hes_b[0]);
+        assert_eq!(
+            crate::replace_face::edge_faces(&t.body, t.edges[0]),
+            Some((t.face_a, t.face_b))
+        );
+        assert_ne!(t.face_a, t.face_b);
+        let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
+        t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
+        assert_eq!(crate::replace_face::edge_faces(&t.body, t.edges[0]), None);
+        // Typed `Result`, entity-AGNOSTIC: the same staleness is a
+        // REFUSAL, not a `None` a caller may drop.
+        assert!(matches!(
+            crate::offset_together::faces_at_vertex(&t.body, v),
+            Err(ReplaceFaceError::Corrupt)
+        ));
+        // Typed `Result` that NAMES the entity. This is the arm the
+        // door cannot express, so it is the arm a fold would flatten
+        // silently; the agnostic arm above is never at risk.
+        assert!(matches!(
+            crate::sector_face::resolve(&t.body, v, t.hes_b[0]),
+            Err(crate::sector_face::SectorFaceError::Corrupt(
+                EntityId::Loop(_)
+            ))
+        ));
     }
 
     #[test]

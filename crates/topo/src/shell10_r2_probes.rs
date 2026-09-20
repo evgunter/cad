@@ -36,16 +36,9 @@ fn two_boxes() -> (Body<f64>, SolidKey, SolidKey) {
     (body, first, second)
 }
 
-fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(_, d)| body.get_shell(d.shell).unwrap().solid == solid)
-        .map(|(k, _)| k)
-        .collect()
-}
-
 fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<ChartMove<f64>> {
     let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for face in faces_of(body, solid) {
+    for face in body.faces_of_solid(solid).expect("a live solid") {
         let key = body.get_face(face).unwrap().surface;
         match out.iter_mut().find(|(k, _)| *k == key) {
             Some((_, v)) => v.push(face),
@@ -58,7 +51,7 @@ fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<ChartMove<f
 }
 
 fn break_a_loop(body: &mut Body<f64>, solid: SolidKey) {
-    let face = faces_of(body, solid)[0];
+    let face = body.faces_of_solid(solid).expect("a live solid")[0];
     let outer = body.get_face(face).unwrap().outer;
     let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
         panic!("a box face bounds a cycle");
@@ -98,22 +91,24 @@ fn r2_the_door_panics_on_an_out_of_scope_malformed_solid() {
 #[test]
 fn r2_a_re_scope_up_holds_the_solid_it_was_aimed_at() {
     let (body, first, second) = two_boxes();
+    let firsts = body.faces_of_solid(first).expect("a live solid");
+    let seconds = body.faces_of_solid(second).expect("a live solid");
     let mut scope = Scope::of_solids(&body, &[first]).unwrap();
-    for f in faces_of(&body, second) {
+    for &f in &seconds {
         assert!(!scope.holds_face(f));
         assert_eq!(scope.solid_of(f), None);
     }
     scope
         .re_scope(&body, &[second])
         .expect("the walk of the difference");
-    for f in faces_of(&body, second) {
+    for &f in &seconds {
         assert!(
             scope.holds_face(f),
             "a re-scope UP holds the new solid's faces"
         );
         assert_eq!(scope.solid_of(f), Some(second));
     }
-    for f in faces_of(&body, first) {
+    for &f in &firsts {
         assert!(!scope.holds_face(f), "and no longer names the old one");
         assert_eq!(
             scope.solid_of(f),
@@ -121,5 +116,5 @@ fn r2_a_re_scope_up_holds_the_solid_it_was_aimed_at() {
             "though its maps still hold it"
         );
     }
-    assert_eq!(scope.faces_in_scope(), faces_of(&body, second));
+    assert_eq!(scope.faces_in_scope(), seconds);
 }

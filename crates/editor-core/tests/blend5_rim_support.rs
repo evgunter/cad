@@ -37,10 +37,10 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, ProfileVertexRef, RecipeNodeId,
+    RimSupport, RoleSeg, evaluate,
 };
-use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
+use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey, SurfaceKey};
@@ -113,23 +113,6 @@ fn filleted_mouth() -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
-}
-
-/// The edge key a uniquely-named edge answers to.
-fn edge_key(t: &NameTable, n: &StableName) -> EdgeKey {
-    match t.lookup(n) {
-        Some(Entry::Unique(r)) => match r.key {
-            EntityKey::Edge(k) => k,
-            other => panic!("{n:?} names {other:?}, not an edge"),
-        },
-        other => panic!("{n:?} is not uniquely named: {other:?}"),
-    }
-}
-
 /// The surfaces of the two faces a trim edge separates: the band's
 /// torus, and the SUPPORT the arc lies on.
 fn neighbours(body: &Body<f64>, e: EdgeKey) -> (Surface<f64>, Surface<f64>) {
@@ -169,7 +152,7 @@ fn trims(ev: &Evaluation<f64>, id: RecipeNodeId) -> Vec<(RimSupport, Surface<f64
     t.iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(RoleSeg::BandTrim { support, .. }) => {
-                Some((*support, support_surface(body, edge_key(t, n))))
+                Some((*support, support_surface(body, edge_of(t, "a trim arc", n))))
             }
             _ => None,
         })
@@ -185,19 +168,18 @@ fn a_closed_rim_carve_names_its_whole_output() {
     let (doc, fillet) = filleted_mouth();
     let ev = run(&doc);
     let t = table(&ev, fillet);
-    let count = |f: fn(&RoleSeg) -> bool| t.iter().filter(|(n, _)| f(&n.path[0])).count();
     assert_eq!(
-        count(|s| matches!(s, RoleSeg::BandFace(_))),
+        fixture::count(t, |s| matches!(s, RoleSeg::BandFace(_))),
         1,
         "one band face rounds the rim"
     );
     assert_eq!(
-        count(|s| matches!(s, RoleSeg::BandTrim { .. })),
+        fixture::count(t, |s| matches!(s, RoleSeg::BandTrim { .. })),
         2,
         "one trimline per support"
     );
     assert_eq!(
-        count(|s| matches!(s, RoleSeg::BandSlit(_))),
+        fixture::count(t, |s| matches!(s, RoleSeg::BandSlit(_))),
         1,
         "the band's slit keeps it ring-free"
     );
@@ -362,11 +344,7 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
             angle: ang(std::f64::consts::TAU),
         },
     );
-    let arc = |seg: RoleSeg| StableName {
-        kind: EntityKind::Edge,
-        node: revolve,
-        path: vec![seg],
-    };
+    let arc = |seg: RoleSeg| fixture::ename(revolve, seg);
     // The BASE rim (disk meets the lower cone): the one whose two
     // links disagree on slot order, and which has a planar support.
     let pv = ProfileVertexRef {
@@ -391,9 +369,10 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let mut by_role: Vec<(RimSupport, SurfaceKey)> = t
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
-            Some(RoleSeg::BandTrim { support, .. }) => {
-                Some((*support, support_surface_key(body, edge_key(t, n))))
-            }
+            Some(RoleSeg::BandTrim { support, .. }) => Some((
+                *support,
+                support_surface_key(body, edge_of(t, "a trim arc", n)),
+            )),
             _ => None,
         })
         .collect();

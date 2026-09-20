@@ -69,21 +69,47 @@ fn the_apex_crossing_bowtie_refuses_at_the_door() {
     refuses_the_branch_premise("bow tie", &body, [f0, f1]);
 }
 
-/// **The props-side finding is NOT closed by this door, and this row
-/// says so with the measurement** (issue 1598). `mass_properties` does
-/// not cite the branch predicate — citing it there would retract
-/// CERT-1, whose three rows measure pole-crossing arcs exactly — so
-/// the half-cap body still answers, and what it answers is 0.0 for a
-/// closed unit sphere: its two faces are bounded by the same two edges
-/// traversed opposite ways, so one parse hands both the same levels
-/// and their fluxes cancel. Tier 3 catches it only through check 6.
+/// **The props-side finding is closed by the INTERIOR-SIDE premise,
+/// not by this door** (issue 1598). `mass_properties` still does not
+/// cite the branch predicate — citing it there would retract CERT-1,
+/// whose three rows measure pole-crossing arcs exactly — and the
+/// half-cap A still measures, exactly as before. What changed is the
+/// complement: its rim sits at the extent's `lo` while its traversal
+/// says the face's interior lies BELOW that rim, all the way to the
+/// south pole, so the chart rectangle the levels fold is not its
+/// domain and the closed form refuses `props_rim_interior_side` by
+/// name. The body answered `0.0` for a closed unit sphere — two faces
+/// bounded by the same two edges traversed opposite ways, one parse,
+/// equal and opposite fluxes — and now it answers the refusal, naming
+/// the face it came from.
 #[test]
-fn mass_properties_still_answers_zero_on_the_half_cap() {
-    let (body, _, _) = pole_crossing_half_cap();
-    let mp = topo::mass_properties(&body, Tol::witness()).expect("props answers");
+fn mass_properties_reports_the_interior_side_refusal_on_the_half_cap() {
+    let (body, cap, rest) = pole_crossing_half_cap();
+    let got = topo::mass_properties(&body, Tol::witness());
+    let Err(topo::MassPropsError::Face { face, source }) = got else {
+        panic!("issue 1598: the closed sphere must refuse, not measure; got {got:?}");
+    };
+    assert_eq!(face, rest, "the L-shaped complement is the refusing face");
     assert_eq!(
-        mp.volume, 0.0,
-        "issue 1598: equal-and-opposite flux from one parse, on a closed sphere"
+        source,
+        PropsError::NotIsoRectangle {
+            what: "props_rim_interior_side"
+        }
+    );
+    // Face A is untouched: the half-cap's own closed form measures it
+    // exactly, which is what kept this defect out of reach of a branch
+    // door (CERT-1's rows admit the pole-crossing arc on purpose).
+    let face_a = body.get_face(cap).expect("the half-cap");
+    let surface = body.get_surface(face_a.surface).expect("its sphere");
+    let (outer, _) = topo::props::loop_edges(&body, face_a.outer).expect("its loop");
+    let band = geom_core::Band::linear(Tol::witness()).expect("band");
+    let fc = geom_brep::props::curved_face(surface, &outer, face_a.sense, band)
+        .expect("the half-cap still measures");
+    let exact = core::f64::consts::PI * (1.0 - 0.5);
+    assert!(
+        (fc.area - exact).abs() < 1e-12 * exact,
+        "half-cap area {} vs exact {exact}",
+        fc.area
     );
 }
 

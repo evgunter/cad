@@ -26,9 +26,17 @@
 //! bound is the quotient-rule assembly over the homogeneous nets).
 //! The NURBS lane's certificate is the
 //! hull-derived Hessian interpolation bound (`crate::nurbs_cert`:
-//! derivation, covered-vs-refused inventory); its boundary pcurves
-//! are the closed-form images (`Harmonic`, `IsoLine` — every
-//! loft/sweep wall boundary stores `IsoLine`). Conic trims on
+//! derivation, covered-vs-refused inventory). Its boundary pcurves
+//! are the four forms whose UV steps the chord pass can size, and
+//! each has exactly one mint: `Harmonic` (the analytic charts' form,
+//! reaching a NURBS chart only across a shared edge), `IsoLine`
+//! (every loft/sweep wall boundary), `IsoArc` (the M8-3 arc rim's
+//! rational-quadratic parameter) and `General` (the P-2 route's
+//! interior-column `Intersection` image, and nothing else on this
+//! head). The first three are closed forms of the image; `General` is
+//! a spline, sized from its own differenced control net
+//! (`crate::chords::general_uv_speeds`) rather than a formula. Conic
+//! trims on
 //! cone/sphere/torus charts refuse typed naming that frontier (their
 //! pcurves mint since M6-3; the trimmed-lane geometry for them is
 //! unwritten). A **fitted** (rung-3) chart image still refuses typed
@@ -149,7 +157,10 @@ pub(crate) fn has_trim_carrier(body: &Body<f64>, fk: FaceKey) -> Result<bool, Te
             .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        if matches!(curve.carrier(), Curve3::Ellipse { .. } | Curve3::Nurbs(_)) {
+        if matches!(
+            curve.carrier(),
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. }
+        ) {
             return Ok(true);
         }
     }
@@ -919,13 +930,18 @@ fn trim_frontier(
             .and_then(|e| body.get_curve_geom(e.curve))
             .and_then(|g| g.certified())
             .ok_or(TessellateError::MissingEntity { what: "edge curve" })?;
-        if matches!(curve.carrier(), Curve3::Ellipse { .. } | Curve3::Nurbs(_)) {
+        if matches!(
+            curve.carrier(),
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. }
+        ) {
             return Ok(TessellateError::UnsupportedCurve {
                 edge: ek,
-                note: "conic/B-spline trim on a cone/sphere/torus chart — those charts \
-                       mint stored pcurves, but the only trimmed-face tessellation \
-                       lanes written are the cylinder chart's and the NURBS chart's; \
-                       the remaining analytic charts have no trimmed lane",
+                note: "conic/B-spline/spiric trim on a plane/cone/sphere/torus chart — \
+                       the only trimmed-face tessellation lanes written are the \
+                       cylinder chart's and the NURBS chart's; the remaining analytic \
+                       charts have no trimmed lane (the spiric-bounded torus wall and \
+                       plane cap of a hollowed partial revolve land here: \
+                       `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`)",
             });
         }
     }
@@ -937,9 +953,13 @@ fn trim_frontier(
 /// The pcurve-driven UV polygon of the face's outer loop: per
 /// half-edge, `pcurve.eval` at the shared chord parameters (module
 /// docs; each traversal contributes all but its last point).
-/// `nurbs_chart` widens the accepted image forms to `IsoLine` (the
-/// NURBS chart's minted form); `Fitted` refuses typed on every chart
-/// (module docs).
+/// `nurbs_chart` widens the accepted image forms to `IsoLine`,
+/// `IsoArc` and `General`; `Fitted` refuses typed on every chart
+/// (module docs). It is the SPLINE-chart flag, not a `Surface::Nurbs`
+/// test: the caller sets it from `Lane::Nurbs`, which an
+/// approximating surface takes too (it meshes on its fit, and the fit
+/// is a NURBS chart), so every "NURBS chart" below means "NURBS or
+/// approximating chart".
 fn trim_polygon(
     body: &Body<f64>,
     fk: FaceKey,
@@ -972,14 +992,16 @@ fn trim_polygon(
                        mint in the split/boolean pipelines",
             });
         };
-        // Trim-loop tessellation walks a chart image's CLOSED FORM
-        // (module docs): `Harmonic` on every chart, `IsoLine` on the
-        // NURBS chart (its minted form; an `IsoLine` on a cylinder
-        // chart is not minted at rest — the harmonic form with zero
-        // trigonometric channels owns that image). A fitted (rung-3)
-        // image refuses typed on every chart rather than silently
-        // approximating a spline boundary the chord pass could not
-        // have sized (`crate::chords`' boundary-tightening contract).
+        // Trim-loop tessellation walks the forms whose UV steps the
+        // chord pass can size (module docs): `Harmonic` on every
+        // chart; `IsoLine`, `IsoArc` and `General` on a spline chart
+        // (NURBS or approximating — see the flag's doc). Each is one
+        // mint's form: an `IsoLine` on a cylinder chart is not minted
+        // at rest, the harmonic form with zero trigonometric channels
+        // owns that image. A fitted (rung-3) image refuses typed on
+        // every chart rather than silently approximating a spline
+        // boundary the chord pass could not have sized
+        // (`crate::chords`' boundary-tightening contract).
         match cache.pcurve() {
             Pcurve::Harmonic { .. } => {}
             Pcurve::IsoLine { .. } if nurbs_chart => {}
@@ -1015,16 +1037,35 @@ fn trim_polygon(
                            layer (the cut-loft unit)",
                 });
             }
-            // The general curve-in-UV arm (U2): the trim walk reads
-            // closed-form chart images, and this class has none —
-            // refused typed under its own name, never folded into the
-            // fitted arm's message.
+            // The general curve-in-UV arm (U2) on a spline chart: the
+            // image is a spline rather than a closed form, and the
+            // walk needs neither — it reads `eval` at the SHARED chord
+            // parameters, which `Pcurve::eval` answers for this
+            // variant, and the chord pass sizes those parameters from
+            // the image's own certified UV speed
+            // (`crate::chords::general_uv_speeds`).
+            //
+            // **Watertightness does not move.** The 3-D positions are
+            // the carrier's chord points, minted once per edge and
+            // consumed by both adjacent faces by ID; what this arm
+            // adds is only THIS face's UV shape for those same ids, so
+            // the neighbour's polyline still names the same vertices
+            // in the same order. The corner's certificate is the
+            // crate's documented `δ + ε`: the triangle corner sits at
+            // `C(t_i)`, within the image's certified `envelope ≤ ε` of
+            // `S(P(t_i))`.
+            Pcurve::General(_) if nurbs_chart => {}
+            // Off a spline chart the class has no meaning: no mint
+            // produces a spline chart image for an analytic carrier.
+            // `EdgeDescriptionSpec::chart_image` is public and will
+            // ACCEPT one, so this arm is what meets a hand-declared
+            // cache rather than a shape the at-rest mint pass yields.
             Pcurve::General(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: he.edge,
                     note: "trimmed face half-edge carries a GENERAL curve-in-UV pcurve \
-                           — the trim walk and the chord pass's boundary tightening \
-                           read closed-form chart images",
+                           on an analytic chart — the class is a spline chart's image \
+                           and no mint produces it elsewhere",
                 });
             }
         }

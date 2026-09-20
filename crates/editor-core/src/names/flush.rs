@@ -115,7 +115,7 @@ use crate::names::interrogate;
 use crate::names::interrogate::InterrogateError;
 use crate::names::role::{EntityKind, StableName};
 use crate::names::table::{EntityKey, EntityRef, Entry};
-use crate::node::{Node, RecipeNodeId};
+use crate::node::{Node, RecipeNodeId, SitedRef};
 
 /// The contact class a declaration asserts (CONTACT-DESIGN C4) — a
 /// RE-EXPORT of the kernel's vocabulary, never a parallel enum.
@@ -152,12 +152,21 @@ pub use topo::flush::{FlushEvidence, FlushRung};
 /// never itself a declaration (SELECT-DESIGN §3a).
 ///
 /// The kernel's [`topo::flush::FlushFinding`] with this seat's pair
-/// vocabulary: names, never keys (G1). `.0` is from the detector's `a`
-/// node, `.1` from `b`. The body seat's finding
+/// vocabulary: SITED names, never keys (G1). `.0` is from the
+/// detector's `a` node, `.1` from `b`. The body seat's finding
 /// ([`topo::flush::FacePairFinding`]) is the same type over face keys
 /// — findings are names at the document door, keys at the body door,
 /// one verifier under both.
-pub type FlushFinding = topo::flush::FlushFinding<(StableName, StableName)>;
+///
+/// **Each side is a [`SitedRef`]**, and that is what makes a finding
+/// declarable without re-deriving anything: a declared pair names
+/// sited entities (DM4), and a finding already knows where each of
+/// its names was read — the query's two nodes, or the refusing
+/// node's operands. [`declare_node`] therefore copies the pair
+/// through, and a carried same-operand finding sites both sides at
+/// the one operand that holds them, which no caller downstream could
+/// have recovered from the names alone.
+pub type FlushFinding = topo::flush::FlushFinding<(SitedRef, SitedRef)>;
 
 // ---------------------------------------------------------------
 // (a) Detect.
@@ -196,7 +205,9 @@ pub fn find_flush_candidates<T: Decide>(
     let mut out = Vec::new();
     for (na, ca) in &fa {
         for (nb, cb) in &fb {
-            if let Some(finding) = pair_verdict(na, ca, nb, cb, band)? {
+            // The query's two nodes ARE the sites: a name from
+            // `a`'s table is read at `a`, one from `b`'s at `b`.
+            if let Some(finding) = pair_verdict((a, na), ca, (b, nb), cb, band)? {
                 out.push(finding);
             }
         }
@@ -253,9 +264,9 @@ fn face_candidates<T: Decide>(v: &NodeValue<T>) -> Result<FaceCandidates<'_, T>,
 /// all combinations flush (with one relation) ⇒ a finding; none ⇒
 /// no finding; mixed ⇒ `TiedDisagrees` naming the tied side.
 fn pair_verdict<T: Decide>(
-    na: &StableName,
+    (at_a, na): (RecipeNodeId, &StableName),
     ca: &[(&Body<T>, FaceKey)],
-    nb: &StableName,
+    (at_b, nb): (RecipeNodeId, &StableName),
     cb: &[(&Body<T>, FaceKey)],
     band: Band,
 ) -> Result<Option<FlushFinding>, SelectRefusal> {
@@ -298,7 +309,10 @@ fn pair_verdict<T: Decide>(
         // evidence, and takes the classification from the door that
         // decides it (`topo::flush::finding`).
         (m, Some(relation)) if m == total => Ok(Some(finding(
-            (na.clone(), nb.clone()),
+            (
+                SitedRef::new(at_a, na.clone()),
+                SitedRef::new(at_b, nb.clone()),
+            ),
             FlushEvidence {
                 relation,
                 rung: if all_shared_source {
@@ -436,7 +450,16 @@ pub fn declare_all<P: Clone + crate::ProfilePayload>(
     tol: Tol,
 ) -> Result<(Applied<P>, RecipeNodeId), DeclareError> {
     let node = declare_node(findings)?;
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).map_err(DeclareError::Edit)?;
+    // A `Declare` node is neither an instance nor a mate, so inserting
+    // one moves no cluster's gauge: the maintenance never asks the
+    // reach, and the refusing one is the honest value here.
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &crate::mate::RefusingReach,
+    )
+    .map_err(DeclareError::Edit)?;
     let id = applied.record.minted.ok_or(DeclareError::NoMintedId)?;
     // The acceptance travels WHOLE: a caller that holds a document
     // and the maintenance of its last accepted edit swaps both in

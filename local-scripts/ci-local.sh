@@ -293,6 +293,15 @@ fi
 # halves: it prints paths another program owns and never fails.
 # HOSTED MIRROR: mirror / work tracker lint (work/ items resolve and docs/ holds no plan or log)
 # HOSTED MIRROR: mirror / work tracker territory (advisory)
+# The reach decider is tier-blind on the hosted half for a reason of its own,
+# and it is the reason every OTHER selftest there is not. Hosted, it answers
+# whether a change set reaches the checkers at all, and the selftest rows above
+# it are skipped when the answer is no; gating its own fixture on its own
+# answer would let a bug that always answered `false` skip the fixture that
+# catches it. Here there is nothing to gate — this half runs every row on every
+# tier — so what the local mirror owes is the fixture, which is a developer's
+# way to find that bug before pushing it.
+# HOSTED MIRROR: mirror / the checker selftests' own inputs (does this diff reach them?)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -317,6 +326,7 @@ tier_blind_rows() {
   python3 scripts/work.py --selftest || rc=1
   python3 scripts/work.py lint || rc=1
   python3 scripts/work.py territory --base "$BASE" || rc=1
+  python3 scripts/ci-reach.py --selftest || rc=1
   return $rc
 }
 echo

@@ -8,13 +8,15 @@
 use crate::fixture;
 
 use crate::corpus::body_of;
+use crate::wire::doctored;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
-    EvalOptions, Evaluation, NameTable, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileEdgeRef, ProfileVertexRef, Qualifier, RecipeNodeId, RoleSeg, StableName, ValuePayload,
+    EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileEdgeRef,
+    ProfileVertexRef, RecipeNodeId, ResolveError, RoleSeg, SitedRef, StableName, ValuePayload,
     evaluate,
 };
-use fixture::{ang, fname, insert, len, on_frame, scl, step, wall};
+use fixture::{ang, fname, insert, len, on_frame, scl, step, table, wall};
+pub(crate) use fixture::{flush_pairs, member_face};
 use geom_core::Tol;
 
 /// Evaluates, and holds every table the run produced to the N3
@@ -32,12 +34,6 @@ pub(crate) fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     );
     fixture::assert_no_nested_merged(&ev);
     ev
-}
-
-pub(crate) fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
 }
 
 pub(crate) fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<&NodeErrorKind> {
@@ -84,30 +80,6 @@ fn placed(doc: ProfileDoc, input: RecipeNodeId, dx: f64) -> (ProfileDoc, RecipeN
     )
 }
 
-/// One ENTITY of one member, as the UNION's own name space spells it —
-/// the row `member_view` puts into that member's operand table.
-fn member_entity(
-    union: RecipeNodeId,
-    member: RecipeNodeId,
-    of: StableName,
-    kind: EntityKind,
-) -> StableName {
-    StableName {
-        kind,
-        node: union,
-        path: vec![RoleSeg::FromMember {
-            member,
-            of: of.into(),
-        }],
-    }
-}
-
-/// The same, for the face case every row but the carried-contact one
-/// wants.
-pub(crate) fn member_face(union: RecipeNodeId, member: RecipeNodeId, of: StableName) -> StableName {
-    member_entity(union, member, of, EntityKind::Face)
-}
-
 /// A node's contact records, read out of its boolean value.
 fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
     match &ev.value(id).expect("the node evaluated").payload {
@@ -116,55 +88,18 @@ fn contacts_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::ContactRecords {
     }
 }
 
-/// The four flush pairs of two blocks that share their y-range and
-/// z-range and differ along x only, in one union's member space: the
-/// y-walls and both caps — `declare_x_offset_flush`'s pairs, lifted.
-pub(crate) fn flush_pairs(
-    union: RecipeNodeId,
-    (m1, e1): (RecipeNodeId, RecipeNodeId),
-    (m2, e2): (RecipeNodeId, RecipeNodeId),
-) -> Vec<(StableName, StableName)> {
-    let mut out = Vec::new();
-    for seg in [
-        wall(0),
-        wall(2),
-        RoleSeg::Cap(CapEnd::Start),
-        RoleSeg::Cap(CapEnd::End),
-    ] {
-        out.push((
-            member_face(union, m1, fname(e1, seg.clone())),
-            member_face(union, m2, fname(e2, seg)),
-        ));
-    }
-    out
-}
-
-/// **A union carrying a declaration, built through the doors that
-/// exist.**
+/// **A union carrying a declaration, in the two edits it takes.**
 ///
-/// A member-space name carries the UNION's own node id, so the
-/// `Declare` that names one cannot be inserted before the union it
-/// names: the insert door admits a payload name only when its node is
-/// already live (`EditError::DeclareNamesMissingNode`, pinned by
-/// [`a_declare_cannot_name_a_union_that_does_not_exist_yet`]). And no
-/// edit rewires a live node's inputs (DM6). So the order that works is
-/// a FIRST union, whose space the declaration is written in, the
-/// second union carrying the edge, one `Rebind` per name onto it, and
-/// the first deleted. `pairs` is asked for its names twice — once in
-/// each union's space — because that is what the rebinds move.
+/// A declared pair names SITED entities — the face IN the member, with
+/// the member beside it — so it names only what exists BEFORE the
+/// union. The `Declare` goes in first and the union carrying its edge
+/// second; nothing is rebound and no intermediate union is built.
 pub(crate) fn declared_union(
     doc: ProfileDoc,
     members: &[RecipeNodeId],
-    pairs: impl Fn(RecipeNodeId) -> Vec<(StableName, StableName)>,
+    pairs: Vec<(SitedRef, SitedRef)>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, first) = insert(
-        doc,
-        Node::Union {
-            members: members.to_vec(),
-            declare: None,
-        },
-    );
-    let (doc, decl) = insert(doc, Node::declare_rest(pairs(first)));
+    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -172,23 +107,6 @@ pub(crate) fn declared_union(
             declare: Some(decl),
         },
     );
-    let mut doc = doc;
-    // One rebind per DISTINCT name. A name can appear in more than one
-    // pair — a chain of contacts declares the middle member's faces
-    // twice — and the second `Rebind` of one name would refuse
-    // `RebindNoReferences`, the first having already moved every
-    // reference to it.
-    let mut moved: Vec<StableName> = Vec::new();
-    for ((fa, fb), (ta, tb)) in pairs(first).into_iter().zip(pairs(union)) {
-        for (from, to) in [(fa, ta), (fb, tb)] {
-            if moved.contains(&from) {
-                continue;
-            }
-            moved.push(from.clone());
-            doc = step(doc, DocEdit::Rebind { from, to }).0;
-        }
-    }
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: first });
     (doc, union, decl)
 }
 
@@ -223,19 +141,14 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
             failure(&ev, plain)
         );
     };
-    let member_of = |n: &StableName| match n.path.first() {
-        Some(RoleSeg::FromMember { member, .. }) => Some(*member),
-        _ => None,
-    };
-    let named: Vec<Option<RecipeNodeId>> =
-        vec![member_of(&finding.pair.0), member_of(&finding.pair.1)];
+    let named: Vec<RecipeNodeId> = vec![finding.pair.0.at, finding.pair.1.at];
     assert!(
-        named.contains(&Some(m1)) && named.contains(&Some(m2)),
+        named.contains(&m1) && named.contains(&m2),
         "the refusal names both members: {named:?}"
     );
-    // Declared in member space: the same two placements fuse.
-    let (doc, union, _) =
-        declared_union(doc, &[m1, m2], |u| flush_pairs(u, (m1, proto), (m2, proto)));
+    // Declared at the members: the same two placements fuse, in two
+    // edits — the `Declare` and the union that consumes it.
+    let (doc, union, _) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
     let ev = run(&doc);
     assert!(
         failure(&ev, union).is_none(),
@@ -248,23 +161,66 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
     assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
 }
 
-/// **The pair boolean cannot spell this contact at all**, which is
-/// what the member-keyed channel adds.
+/// **The pair boolean declares between two placements of one
+/// prototype**, which the site is what makes possible.
 ///
 /// A transform contributes no role segment (N1), so two placements of
-/// one prototype carry IDENTICAL tables: every name the author could
-/// write resolves in BOTH operands, and the pair boolean's declaration
-/// door declines to pick a side. The union's names carry the member
-/// EDGE, so the same intent is unambiguous there.
+/// one prototype carry IDENTICAL tables: every name an author could
+/// write resolves in BOTH operands, and a bare name could not say
+/// which. A SITED name does — it names the operand it is read at — so
+/// the pair boolean fuses the two placements from one `Declare`, in
+/// one pass, with no member keying anywhere.
 #[test]
-fn the_pair_boolean_cannot_declare_between_two_placements_of_one_prototype() {
-    let doc = ProfileDoc::empty_derived("docm7_pair_gap", Tol::witness());
+fn the_pair_boolean_declares_between_two_placements_of_one_prototype() {
+    let doc = ProfileDoc::empty_derived("docm7_pair_sited", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
+    // The four flush planes, each named ONCE in the prototype's
+    // vocabulary and sited at the two placements that carry it.
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(fname(proto, wall(0)), fname(proto, wall(0)))]),
+        Node::declare_rest(flush_pairs((m1, proto), (m2, proto))),
+    );
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: m1,
+            b: m2,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    assert!(
+        failure(&ev, pair).is_none(),
+        "the sited declaration refused: {:?}",
+        failure(&ev, pair)
+    );
+    let volume = topo::mass_properties(body_of(&ev, pair), Tol::witness())
+        .expect("the fused body has mass")
+        .volume;
+    assert_eq!(volume, 1.5, "the fused volume is the two blocks' union");
+}
+
+/// **A site that is neither operand refuses typed.** The site IS the
+/// side, so a site the consumer does not have is a declaration it
+/// cannot read: there is no table to resolve the name in, and the
+/// door says that rather than guessing a side.
+#[test]
+fn a_site_that_is_neither_operand_refuses() {
+    let doc = ProfileDoc::empty_derived("docm7_pair_site", Tol::witness());
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, m1) = placed(doc, proto, 0.0);
+    let (doc, m2) = placed(doc, proto, 0.5);
+    // Sited at the PROTOTYPE, whose table holds the name — but which
+    // is neither operand of the boolean below.
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(proto, fname(proto, wall(0))),
+            SitedRef::new(m2, fname(proto, wall(0))),
+        )]),
     );
     let (doc, pair) = insert(
         doc,
@@ -279,9 +235,9 @@ fn the_pair_boolean_cannot_declare_between_two_placements_of_one_prototype() {
     assert!(
         matches!(
             failure(&ev, pair),
-            Some(NodeErrorKind::DeclareBothOperands { .. })
+            Some(NodeErrorKind::DeclareSiteNotAnOperand { at }) if *at == proto
         ),
-        "expected the side-picking refusal, got {:?}",
+        "expected the site refusal, got {:?}",
         failure(&ev, pair)
     );
 }
@@ -318,7 +274,7 @@ fn a_declared_union_is_the_pair_booleans_body() {
             declare: Some(decl),
         },
     );
-    let (doc, union, _) = declared_union(doc, &[a, b], |u| flush_pairs(u, (a, a), (b, b)));
+    let (doc, union, _) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
     let ev = run(&doc);
     let (folded, paired) = (body_of(&ev, union), body_of(&ev, pair));
     assert_eq!(folded.faces().count(), paired.faces().count());
@@ -357,8 +313,7 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    let (doc, union, _) =
-        declared_union(doc, &[m1, m2], |u| flush_pairs(u, (m1, proto), (m2, proto)));
+    let (doc, union, _) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
     let ev = run(&doc);
     let t = table(&ev, union);
     // Four merged faces: the two y-walls and the two caps.
@@ -375,8 +330,13 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     // And each merged row's constituents are the declared names, as a
     // sorted set — so a selector spelled against the merged face is
     // exactly this name, and it resolves.
-    for (a, b) in flush_pairs(union, (m1, proto), (m2, proto)) {
-        let mut set = vec![a, b];
+    for (a, b) in flush_pairs((m1, proto), (m2, proto)) {
+        // The row is the union's, so the constituents are the two
+        // sited names in the union's own member space.
+        let mut set = vec![
+            member_face(union, a.at, a.name),
+            member_face(union, b.at, b.name),
+        ];
         set.sort();
         let name = StableName {
             kind: EntityKind::Face,
@@ -424,14 +384,20 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
 /// which is what "records no fold position" means.
 #[test]
 fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
+    // `b` is a TRANSFORM of its own extrude, so the pair's b-side has
+    // `at != name.node`: the site is the transform, the name is the
+    // extrude's (N1 — a pass-through op mints nothing). A routing that
+    // read the name's minting node instead of the site would look for
+    // `b0`, which is in no member list here, and refuse.
     let build = |order: [usize; 3]| {
         let doc = ProfileDoc::empty_derived("docm7_routing", Tol::witness());
         let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-        let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+        let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, b) = placed(doc, b0, 0.5);
         let all = [a, far, b];
         let members: Vec<RecipeNodeId> = order.iter().map(|i| all[*i]).collect();
-        let (doc, union, _) = declared_union(doc, &members, |u| flush_pairs(u, (a, a), (b, b)));
+        let (doc, union, _) = declared_union(doc, &members, flush_pairs((a, a), (b, b0)));
         (doc, union, a, b)
     };
     // Members (a, far, b): the declared pair belongs to step 3.
@@ -514,14 +480,16 @@ fn a_declared_name_that_denotes_nothing_refuses() {
     let doc = ProfileDoc::empty_derived("docm7_vanished", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    // A member-space name whose INNER name is a wall the prototype
-    // does not have: the member routes, the lookup finds nothing.
-    let (doc, union, _) = declared_union(doc, &[a, b], |u| {
+    // A name the member's table does not carry — a wall the block
+    // does not have: the site routes, the lookup finds nothing.
+    let (doc, union, _) = declared_union(
+        doc,
+        &[a, b],
         vec![(
-            member_face(u, a, fname(a, wall(0))),
-            member_face(u, b, fname(b, wall(7))),
-        )]
-    });
+            SitedRef::new(a, fname(a, wall(0))),
+            SitedRef::new(b, fname(b, wall(7))),
+        )],
+    );
     let ev = run(&doc);
     assert!(
         matches!(
@@ -541,7 +509,7 @@ fn a_declared_member_removed_by_set_members_refuses() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, b, far], |u| flush_pairs(u, (a, a), (b, b)));
+    let (doc, union, _) = declared_union(doc, &[a, b, far], flush_pairs((a, a), (b, b)));
     // The declaration survives the edit as written; it is the next
     // evaluation that refuses it.
     let (doc, _) = step(
@@ -562,41 +530,66 @@ fn a_declared_member_removed_by_set_members_refuses() {
     );
 }
 
-/// **An accumulation entity paired with a member the fold had already
-/// joined has no step**, and is refused rather than re-read as a
-/// same-operand claim.
+/// **A row the fold MINTS cannot be declared at all** — the class
+/// `an_accumulation_entity_paired_with_an_earlier_member_refuses`,
+/// `the_unions_own_body_row_is_refused_as_unroutable_not_as_vanished`,
+/// `a_fold_row_routed_before_the_step_that_mints_it_has_no_step` and
+/// `two_fold_rows_are_carried_at_the_first_step_that_has_both` used to
+/// measure as four evaluation refusals, now unrepresentable by type.
+///
+/// A declared entity is SITED at a node the declaration can name, and
+/// the union's own rows — a `Seam`, a `Merged`, a `Fragment`, the
+/// output body — exist only in the union's own evaluation, after the
+/// `Declare` that would name them. There is no node to site them at.
+///
+/// In Rust the type says so and nothing can be built; a FILE can still
+/// spell anything, so this is the row: a `Declare` whose pair side is
+/// a bare name — the old shape, which is what a fold row would have to
+/// arrive as — does not load.
 #[test]
-fn an_accumulation_entity_paired_with_an_earlier_member_refuses() {
-    let doc = ProfileDoc::empty_derived("docm7_unroutable", Tol::witness());
+fn a_declared_pair_side_that_is_a_bare_name_does_not_load() {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty_derived("docm7_bare_side", tol);
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, b], |u| {
-        // A merge of the two members' y-walls — a row the fold could
-        // only mint at step 1 — paired with member `a`, which joined
-        // at step 1 as operand A. No step has both as its two sides.
-        let mut set = vec![
-            member_face(u, a, fname(a, wall(0))),
-            member_face(u, b, fname(b, wall(0))),
-        ];
-        set.sort();
-        vec![(
-            StableName {
-                kind: EntityKind::Face,
-                node: u,
-                path: vec![RoleSeg::Merged(set)],
-            },
-            member_face(u, a, fname(a, wall(2))),
-        )]
+    let (doc, _union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
+    // Doctored BY PATH, through the wire's own structure, so a field
+    // rename breaks the probe instead of silently moving it.
+    let bare_sided = doctored(&text, |wire| {
+        let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+        let bare = side["name"].clone();
+        assert!(
+            !bare.is_null(),
+            "a sited side carries a name beside its site"
+        );
+        *side = bare;
     });
-    let ev = run(&doc);
-    assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::UnionDeclareStep { .. })
-        ),
-        "expected the unroutable-pair refusal, got {:?}",
-        failure(&ev, union)
-    );
+    let refused = editor_core::persist::load(&bare_sided, tol)
+        .expect_err("a declared side without its site loaded");
+    // The `Unreadable` DETAIL is serde's own, and stays serde's: a
+    // shape mismatch has no analogue of the mate head's constructor
+    // sentence, which refuses a name of the wrong KIND. What the row
+    // holds it to is that the message names the SITE SHAPE — the two
+    // fields a side has — so a reader is told what was expected and
+    // not merely that the file is unreadable.
+    let said = refused.to_string();
+    for word in ["`at`", "`name`", "unknown field"] {
+        assert!(
+            said.contains(word),
+            "the refusal does not say {word}: {said}"
+        );
+    }
+    // The other half of the same shape: an EXTRA field on a side is
+    // refused too, which is what `deny_unknown_fields` buys.
+    let surprised = doctored(&text, |wire| {
+        let side = &mut wire["snapshot"]["nodes"][decl.0.to_string()]["Declare"]["pairs"][0][0][0];
+        side["surprise"] = serde_json::Value::from(1);
+    });
+    let said2 = editor_core::persist::load(&surprised, tol)
+        .expect_err("an unknown field on a site loaded")
+        .to_string();
+    assert!(said2.contains("`surprise`"), "{said2}");
 }
 
 /// **The edit door refuses a `declare` input that is not a `Declare`**
@@ -618,6 +611,7 @@ fn the_edit_door_refuses_a_union_declare_that_is_not_a_declare() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -663,33 +657,60 @@ fn a_snapshot_whose_union_declare_is_not_a_declare_does_not_load() {
     assert!(said.contains("not a declaration"), "{said}");
 }
 
-/// **A `Declare` cannot name a union that does not exist yet.**
+/// **The insert door refuses a `Declare` whose NAME's node or whose
+/// SITE is not live** — the two halves of the payload, each checked by
+/// the door that owns it (`Node::payload_names`,
+/// `Node::payload_read_sites`).
 ///
-/// A member-space name carries the union's own node id, and the insert
-/// door admits a payload name only when its node is live. This is the
-/// door that makes [`declared_union`]'s two-pass shape the only way to
-/// author the edge today; it is pinned so the constraint is a measured
-/// fact rather than a claim in a comment.
+/// A declaration names what exists BEFORE its consumer, so neither
+/// half can point forward the way a member-space name used to: this
+/// row measures the door that keeps it that way.
 #[test]
-fn a_declare_cannot_name_a_union_that_does_not_exist_yet() {
+fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     let doc = ProfileDoc::empty_derived("docm7_forward", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    // The id the union WOULD get, one past the last live node.
+    // An id no node has yet — one past the last live node.
     let future = RecipeNodeId(doc.order().last().expect("a node").0 + 1);
     let refused = doc.apply(
         &DocEdit::InsertNode {
             node: Node::declare_rest(vec![(
-                member_face(future, a, fname(a, wall(0))),
-                member_face(future, b, fname(b, wall(0))),
+                SitedRef::new(a, fname(future, wall(0))),
+                SitedRef::new(b, fname(b, wall(0))),
             )]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(refused, Err(EditError::DeclareNamesMissingNode { .. })),
         "expected the payload-name door's refusal, got {refused:?}"
     );
+    // The read-site door, on EACH side in turn. A door that yielded
+    // only the first site of a pair would pass the first of these and
+    // admit the second.
+    for sides in [
+        (
+            SitedRef::new(future, fname(a, wall(0))),
+            SitedRef::new(b, fname(b, wall(0))),
+        ),
+        (
+            SitedRef::new(a, fname(a, wall(0))),
+            SitedRef::new(future, fname(b, wall(0))),
+        ),
+    ] {
+        let refused = doc.apply(
+            &DocEdit::InsertNode {
+                node: Node::declare_rest(vec![sides]),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        );
+        assert!(
+            matches!(refused, Err(EditError::ReadSiteMissingNode { at }) if at == future),
+            "expected the read-site door's refusal, got {refused:?}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -715,7 +736,7 @@ fn a_declare_on_the_edge_is_not_a_declare_in_the_member_list() {
     let doc = ProfileDoc::empty_derived("docm7_key", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], |u| flush_pairs(u, (a, a), (b, b)));
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
     let (doc, miswired) = insert(
         doc,
         Node::Union {
@@ -760,12 +781,14 @@ fn the_declare_edge_recomputes_the_union_alone() {
     // Disjoint members, so the undeclared union evaluates; the second
     // document declares a contact that does not exist, which is what
     // makes the union recompute and refuse while its members do not.
-    let (doc, _union, _) = declared_union(base, &[a, b], |u| {
+    let (doc, _union, _) = declared_union(
+        base,
+        &[a, b],
         vec![(
-            member_face(u, a, fname(a, wall(0))),
-            member_face(u, b, fname(b, wall(2))),
-        )]
-    });
+            SitedRef::new(a, fname(a, wall(0))),
+            SitedRef::new(b, fname(b, wall(2))),
+        )],
+    );
     let ev = evaluate::<f64>(
         &doc,
         Some(&prior),
@@ -794,7 +817,7 @@ fn a_declared_union_replays_bit_identically() {
     let doc = ProfileDoc::empty_derived("docm7_wire", tol);
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, b], |u| flush_pairs(u, (a, a), (b, b)));
+    let (doc, union, _) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("the document loads");
     assert!(
@@ -811,107 +834,7 @@ fn a_declared_union_replays_bit_identically() {
 }
 
 // ---------------------------------------------------------------------
-// The diagnosis class: what this node denotes but no step has.
-// ---------------------------------------------------------------------
-
-/// **The union's own body row is no step's operand**, and says so.
-///
-/// `OutputBody` is a row this node PUBLISHES — the undeclared union of
-/// the same members carries it — so "no table derives this name any
-/// more" would be false. What is true is that a step's output body is
-/// not one of that step's two inputs, which is `UnionDeclareStep`.
-#[test]
-fn the_unions_own_body_row_is_refused_as_unroutable_not_as_vanished() {
-    let doc = ProfileDoc::empty_derived("docm7_output_body", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, b], |u| {
-        vec![(
-            StableName {
-                kind: EntityKind::Body,
-                node: u,
-                path: vec![RoleSeg::OutputBody],
-            },
-            member_face(u, b, fname(b, wall(0))),
-        )]
-    });
-    let ev = run(&doc);
-    assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::UnionDeclareStep { .. })
-        ),
-        "expected the unroutable refusal, got {:?}",
-        failure(&ev, union)
-    );
-    // The name it refused IS one this node publishes: the same two
-    // members with no declaration at all carry an `OutputBody` row.
-    let far = ProfileDoc::empty_derived("docm7_output_body_bare", Tol::witness());
-    let (far, p) = block(far, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (far, q) = block(far, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (far, bare) = insert(
-        far,
-        Node::Union {
-            members: vec![p, q],
-            declare: None,
-        },
-    );
-    let ev2 = run(&far);
-    assert!(
-        table(&ev2, bare)
-            .iter()
-            .any(|(n, _)| n.path.as_slice() == [RoleSeg::OutputBody]),
-        "a union publishes an OutputBody row"
-    );
-}
-
-/// **A fold row routed to a step that does not hold it yet is
-/// unroutable, not vanished.**
-///
-/// The bucket a fold row is sent to is bounded by the LATEST member it
-/// mentions, and that bound is not tight: a row whose path mentions
-/// only member 0 can be minted at any later step. Paired with a member
-/// that joins at the earlier bucket, it routes there — and the
-/// accumulation at that step has no such row. The name is this node's
-/// and the fold does mint rows of that shape, so the honest answer is
-/// that no step has both names as operands.
-#[test]
-fn a_fold_row_routed_before_the_step_that_mints_it_has_no_step() {
-    let doc = ProfileDoc::empty_derived("docm7_early_bucket", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
-    // `[FromMember{a}, Fragment(OrderAlong)]`: the shape the fold mints
-    // for a fragment of member 0's own entity. It mentions member 0 and
-    // nothing else, so it is bounded to bucket 1 — where the
-    // accumulation, three disjoint blocks, carries no fragment at all.
-    let fragment_of_a = |u: RecipeNodeId| StableName {
-        kind: EntityKind::Face,
-        node: u,
-        path: vec![
-            RoleSeg::FromMember {
-                member: a,
-                of: fname(a, wall(0)).into(),
-            },
-            RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
-        ],
-    };
-    let (doc, union, _) = declared_union(doc, &[a, far, c], |u| {
-        vec![(fragment_of_a(u), member_face(u, c, fname(c, wall(0))))]
-    });
-    let ev = run(&doc);
-    assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::UnionDeclareStep { .. })
-        ),
-        "expected the unroutable refusal, got {:?}",
-        failure(&ev, union)
-    );
-}
-
-// ---------------------------------------------------------------------
-// A2's two owed rows: the carried record, and two fold rows.
+// The carried record.
 // ---------------------------------------------------------------------
 
 /// **Two names in ONE member are that member's carried contact, fed at
@@ -929,29 +852,23 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far2) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
-    let vertex = StableName {
-        kind: EntityKind::Vertex,
-        node: a,
-        path: vec![RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
-            },
-        )],
-    };
-    let face = fname(a, RoleSeg::Cap(CapEnd::Start));
-    let carried = |u: RecipeNodeId| {
-        vec![(
-            member_entity(u, a, vertex.clone(), EntityKind::Vertex),
-            member_face(u, a, face.clone()),
-        )]
-    };
-    // The pair boolean's reading of the same claim, for reference.
-    let (doc, pdecl) = insert(
-        doc,
-        Node::declare_rest(vec![(vertex.clone(), face.clone())]),
+    let vertex = fixture::cap_vertex(
+        a,
+        CapEnd::End,
+        ProfileVertexRef {
+            loop_index: 0,
+            vertex: 0,
+        },
     );
+    let face = fname(a, RoleSeg::Cap(CapEnd::Start));
+    // Two entities of ONE member, sited there: the same pair reads as
+    // that member's carried contact wherever the member sits.
+    let carried = vec![(
+        SitedRef::new(a, vertex.clone()),
+        SitedRef::new(a, face.clone()),
+    )];
+    // The pair boolean's reading of the same claim, for reference.
+    let (doc, pdecl) = insert(doc, Node::declare_rest(carried.clone()));
     let (doc, pair) = insert(
         doc,
         Node::Boolean {
@@ -962,8 +879,9 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
         },
     );
     // Member `a` as operand B of the LAST step.
-    let (doc, last, _) = declared_union(doc, &[far, a], carried);
-    // Member `a` as member 0 of a two-step fold: fed at step 1.
+    let (doc, last, _) = declared_union(doc, &[far, a], carried.clone());
+    // Member `a` as member 0 of a two-step fold: fed at the first step,
+    // where it is operand A.
     let (doc, first, _) = declared_union(doc, &[a, far, far2], carried);
     let ev = run(&doc);
     for id in [pair, last, first] {
@@ -979,102 +897,77 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
         1,
         "the union fed it as operand B's carried record at the last step"
     );
+    // Fed at the FIRST step and consumed there: the value's records
+    // are the LAST step's, which is exactly what the pair chain this
+    // fold replaces publishes. Asserted against that chain rather
+    // than against zero, so the row says what the record IS.
+    let (doc, chain0) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b: far,
+            declare: Some(pdecl),
+        },
+    );
+    let (doc, chain1) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: chain0,
+            b: far2,
+            declare: None,
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, chain1).is_none(), "{:?}", failure(&ev, chain1));
+    let (fold, chain) = (contacts_of(&ev, first), contacts_of(&ev, chain1));
     assert_eq!(
-        contacts_of(&ev, first).b_on_a.len(),
-        0,
-        "fed at step 1, consumed there, and the value is the last step's"
-    );
-}
-
-/// **Two fold rows are the accumulation's own carried contact, at the
-/// first step that has both** — deviation 8's arm, reached.
-///
-/// Two flush placements of one prototype, declared, mint `Merged` rows
-/// at step 1. A pair naming two of THOSE rows routes to the first step
-/// after them: with a third member there is such a step, both rows
-/// resolve in the accumulation, and the v1 vocabulary refuses a
-/// same-operand Face–Face pair — which is the proof the step held both.
-/// With no third member there is no step left, and it is unroutable.
-#[test]
-fn two_fold_rows_are_carried_at_the_first_step_that_has_both() {
-    let doc = ProfileDoc::empty_derived("docm7_two_rows", Tol::witness());
-    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, m1) = placed(doc, proto, 0.0);
-    let (doc, m2) = placed(doc, proto, 0.5);
-    let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    // The `Merged` row the declared contact mints, spelled as
-    // `collapse` spells it: the constituent SET, sorted.
-    let merged_row = |u: RecipeNodeId, seg: RoleSeg| {
-        let mut set = vec![
-            member_face(u, m1, fname(proto, seg.clone())),
-            member_face(u, m2, fname(proto, seg)),
-        ];
-        set.sort();
-        StableName {
-            kind: EntityKind::Face,
-            node: u,
-            path: vec![RoleSeg::Merged(set)],
-        }
-    };
-    let pairs = |u: RecipeNodeId| {
-        let mut v = flush_pairs(u, (m1, proto), (m2, proto));
-        v.push((merged_row(u, wall(0)), merged_row(u, wall(2))));
-        v
-    };
-    let (three, union3, _) = declared_union(doc.clone(), &[m1, m2, far], pairs);
-    let ev = run(&three);
-    match failure(&ev, union3) {
-        Some(NodeErrorKind::DeclareUnsupportedPair {
-            kinds,
-            cross_operand,
-        }) => {
-            assert_eq!(*kinds, (EntityKind::Face, EntityKind::Face));
-            assert!(!cross_operand, "both rows were found in ONE operand");
-        }
-        other => panic!("expected the same-operand vocabulary refusal, got {other:?}"),
-    }
-    let (two, union2, _) = declared_union(doc, &[m1, m2], pairs);
-    let ev = run(&two);
-    assert!(
-        matches!(
-            failure(&ev, union2),
-            Some(NodeErrorKind::UnionDeclareStep { .. })
-        ),
-        "with no step after the merge the pair is unroutable, got {:?}",
-        failure(&ev, union2)
+        (fold.b_on_a.len(), fold.a_on_b.len()),
+        (chain.b_on_a.len(), chain.a_on_b.len()),
+        "the fold publishes the last step's records, as the chain does"
     );
 }
 
 // ---------------------------------------------------------------------
-// The asymmetry the two-pass construction relies on.
+// One pass: the document replays as it is ordered.
 // ---------------------------------------------------------------------
 
-/// **A declared union's document LOADS, and cannot be rebuilt by
-/// re-inserting its nodes in order.**
+/// **A declared union's document replays in document order** — what
+/// the sited payload bought, measured as a document.
 ///
-/// The `Declare` carrying member-space names is written BEFORE the
-/// union it names (it has to be: the union's edge points at it), so the
-/// saved document holds a payload name pointing FORWARD in `order()`.
-/// The load door checks the mint counter and not the order, so the file
-/// round-trips; the edit door refuses a payload name whose node is not
-/// yet live, so replaying the same nodes in document order does not
-/// rebuild it. This node is the first to rely on that asymmetry, so it
-/// is stated as a row rather than left as an observation — the
-/// authoring consequence is filed as
-/// `work/chrome/a-declared-union-has-no-one-pass-authoring-path.md`.
+/// `a_declared_unions_document_loads_but_does_not_replay_in_order`
+/// pinned the opposite: a `Declare` carrying member-space names was
+/// written BEFORE the union it named, so the saved document held a
+/// payload name pointing FORWARD in `order()`; the file round-tripped
+/// because the load door checks the mint counter rather than the
+/// order, and re-inserting the same nodes in document order refused at
+/// the `Declare`. A sited declaration names only what precedes it, so
+/// the forward reference is gone and the asymmetry with it: the same
+/// document saves, loads, AND rebuilds edit by edit.
 #[test]
-fn a_declared_unions_document_loads_but_does_not_replay_in_order() {
+fn a_declared_unions_document_replays_in_document_order() {
     let doc = ProfileDoc::empty_derived("docm7_forward_ref", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], |u| flush_pairs(u, (a, a), (b, b)));
-    // The `Declare` precedes the union it names, and its payload names
-    // that union.
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    // The `Declare` precedes the union that consumes it, and names
+    // nothing that comes after itself.
     let positions = |id: RecipeNodeId| doc.order().iter().position(|n| *n == id);
     assert!(
         positions(decl) < positions(union),
         "the Declare comes first"
     );
+    let Some(Node::Declare { pairs }) = doc.node(decl) else {
+        panic!("the Declare survived as something else")
+    };
+    for r in pairs.iter().flat_map(|((x, y), _)| [x, y]) {
+        assert!(positions(r.at) < positions(decl), "a site points forward");
+        assert!(
+            positions(r.name.node) < positions(decl),
+            "a name points forward"
+        );
+    }
     // Saved and read back: the forward reference is fine on file.
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness())
@@ -1083,24 +976,339 @@ fn a_declared_unions_document_loads_but_does_not_replay_in_order() {
     assert_eq!(loaded.order(), doc.order());
     let ev = run(&loaded);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    // Rebuilding by re-inserting the nodes in document order refuses at
-    // the `Declare`, whose payload names a union that does not exist
-    // yet in the new document.
-    let fresh = ProfileDoc::empty_derived("docm7_forward_ref_replay", Tol::witness());
-    let mut replay = fresh;
-    let mut refused = None;
+    // Rebuilding by re-inserting the nodes in document order works:
+    // every payload name and every site is live by the time its
+    // carrier arrives.
+    let mut replay = ProfileDoc::empty_derived("docm7_forward_ref_replay", Tol::witness());
     for id in doc.order() {
         let node = doc.node(*id).expect("a live node").clone();
-        match replay.apply(&DocEdit::InsertNode { node }, Tol::witness()) {
-            Ok(applied) => replay = applied.doc,
-            Err(e) => {
-                refused = Some(e);
-                break;
-            }
-        }
+        replay = replay
+            .apply(
+                &DocEdit::InsertNode { node },
+                Tol::witness(),
+                &editor_core::RefusingReach,
+            )
+            .unwrap_or_else(|e| panic!("re-inserting {id:?} refused: {e:?}"))
+            .doc;
     }
+    assert_eq!(replay.order().len(), doc.order().len());
+    let ev = run(&replay);
+    let rebuilt = replay.order()[doc
+        .order()
+        .iter()
+        .position(|n| *n == union)
+        .expect("the union")];
     assert!(
-        matches!(refused, Some(EditError::DeclareNamesMissingNode { .. })),
-        "expected the edit door's forward-name refusal, got {refused:?}"
+        failure(&ev, rebuilt).is_none(),
+        "{:?}",
+        failure(&ev, rebuilt)
     );
+}
+
+// ---------------------------------------------------------------------
+// The refusal against a row the fold minted.
+// ---------------------------------------------------------------------
+
+/// **A union's undeclared contact against a MERGED row is refused
+/// `UndeclaredContact` sited at a CONSTITUENT of that merge**, with
+/// the whole flat set beside it.
+///
+/// Two placements of one prototype are declared flush, so their y=0
+/// walls fuse into one `Merged` row; a third block rests flush under
+/// that merged wall, undeclared. The merged row is the union's own,
+/// so no `SitedRef` names it — but every constituent is a member's
+/// face, and declaring the contact at any of them resolves back to
+/// the merged row through the look-through. The refusal therefore
+/// carries a pair the caller can declare verbatim, and names the
+/// constituents it chose between.
+#[test]
+fn a_union_refusal_against_a_merged_wall_is_sited_at_a_constituent() {
+    let doc = ProfileDoc::empty_derived("rv_r2_merged_refusal", Tol::witness());
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, m1) = placed(doc, proto, 0.0);
+    let (doc, m2) = placed(doc, proto, 0.5);
+    // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
+    let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
+    let (doc, union, _) = declared_union(doc, &[m1, m2, m3], flush_pairs((m1, proto), (m2, proto)));
+    let ev = run(&doc);
+    let what = failure(&ev, union);
+    let Some(NodeErrorKind::UndeclaredContact {
+        finding, merged, ..
+    }) = what
+    else {
+        panic!("the refusal a caller can act on, got {what:?}")
+    };
+    // The merged side is the ACCUMULATION's: the constituents are the
+    // two placements' own walls, in member order, and the finding's
+    // side is the first of them.
+    assert_eq!(
+        merged.0.iter().map(|r| r.at).collect::<Vec<_>>(),
+        vec![m1, m2],
+        "the constituents, in member order"
+    );
+    assert!(merged.1.is_empty(), "the joining member's side is its own");
+    assert_eq!(finding.pair.0, merged.0[0], "the finding takes the first");
+    assert_eq!(
+        finding.pair.1.at, m3,
+        "the other side is the joining member"
+    );
+    // Declared verbatim, the same document fuses: any constituent
+    // names the merged row through the look-through.
+    let mut pairs = flush_pairs((m1, proto), (m2, proto));
+    pairs.push((finding.pair.0.clone(), finding.pair.1.clone()));
+    let (doc, again, _) = declared_union(doc.clone(), &[m1, m2, m3], pairs);
+    let ev = run(&doc);
+    assert!(failure(&ev, again).is_none(), "{:?}", failure(&ev, again));
+}
+
+/// **The site is the OPERAND, not the minting node** — through a
+/// pass-through `Transform` (N1), and the name resolves in the
+/// transform's table.
+#[test]
+fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
+    let build = |site_at_extrude: bool| {
+        let doc = ProfileDoc::empty_derived("rv_r2_passthrough", Tol::witness());
+        let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, m1) = placed(doc, proto, 0.0);
+        let (doc, m2) = placed(doc, proto, 0.5);
+        let (a_at, b_at) = if site_at_extrude {
+            (proto, proto)
+        } else {
+            (m1, m2)
+        };
+        let pairs: Vec<(SitedRef, SitedRef)> = [
+            wall(0),
+            wall(2),
+            RoleSeg::Cap(CapEnd::Start),
+            RoleSeg::Cap(CapEnd::End),
+        ]
+        .into_iter()
+        .map(|seg| {
+            (
+                SitedRef::new(a_at, fname(proto, seg.clone())),
+                SitedRef::new(b_at, fname(proto, seg)),
+            )
+        })
+        .collect();
+        let (doc, decl) = insert(doc, Node::declare_rest(pairs));
+        let (doc, pair) = insert(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: m1,
+                b: m2,
+                declare: Some(decl),
+            },
+        );
+        (doc, pair, proto)
+    };
+    let (doc, pair, _) = build(false);
+    let ev = run(&doc);
+    assert!(failure(&ev, pair).is_none(), "{:?}", failure(&ev, pair));
+    let (doc, pair, proto) = build(true);
+    let ev = run(&doc);
+    assert!(
+        matches!(
+            failure(&ev, pair),
+            Some(NodeErrorKind::DeclareSiteNotAnOperand { at }) if *at == proto
+        ),
+        "expected the site refusal, got {:?}",
+        failure(&ev, pair)
+    );
+}
+
+/// **A name the sited operand does not carry refuses `Vanished`, and
+/// a dead minting node outranks it** — rungs 3 and 1 of N5.
+#[test]
+fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
+    let doc = ProfileDoc::empty_derived("rv_r2_rungs", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(a, fname(a, wall(0))),
+            SitedRef::new(b, fname(spare, wall(0))),
+        )]),
+    );
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    assert!(
+        matches!(
+            failure(&ev, pair),
+            Some(NodeErrorKind::DeclareResolve { error })
+                if matches!(**error, ResolveError::Vanished { .. })
+        ),
+        "expected rung 3, got {:?}",
+        failure(&ev, pair)
+    );
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: spare });
+    let ev = run(&doc);
+    assert!(
+        matches!(
+            failure(&ev, pair),
+            Some(NodeErrorKind::DeclareResolve { error })
+                if matches!(**error, ResolveError::NodeGone { .. })
+        ),
+        "expected rung 1, got {:?}",
+        failure(&ev, pair)
+    );
+}
+
+/// **A deleted SITE is refused at the next evaluation**, and with which
+/// arm.
+#[test]
+fn a_deleted_site_refuses_at_the_next_evaluation() {
+    let doc = ProfileDoc::empty_derived("rv_r2_deleted_site", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, _) = declared_union(doc, &[a, b, far], flush_pairs((a, a), (b, b)));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: union,
+            members: vec![a, far],
+        },
+    );
+    let ev = run(&doc);
+    assert!(
+        failure(&ev, union).is_some(),
+        "a site that left the member list must refuse"
+    );
+    let applied = doc
+        .apply(
+            &DocEdit::DeleteNode { id: b },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("a delete never refuses over a dangling reference (N5)");
+    let ev = run(&applied.doc);
+    assert!(
+        failure(&ev, union).is_some(),
+        "a deleted site refuses at the next evaluation, got {:?}",
+        failure(&ev, union)
+    );
+}
+
+/// **`Rebind` a declared name onto a name minted elsewhere while the
+/// site stays** — what refuses, and where.
+#[test]
+fn rebind_moves_the_name_and_leaves_the_site() {
+    let doc = ProfileDoc::empty_derived("rv_r2_rebind", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let from = fname(a, wall(0));
+    let to = fname(spare, wall(0));
+    let applied = doc
+        .apply(
+            &DocEdit::Rebind {
+                from: from.clone(),
+                to: to.clone(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the rebind applies");
+    let Some(Node::Declare { pairs }) = applied.doc.node(decl) else {
+        panic!("the Declare survived as something else")
+    };
+    let moved = pairs
+        .iter()
+        .flat_map(|((x, y), _)| [x, y])
+        .find(|r| r.name == to)
+        .expect("the name moved");
+    assert_eq!(moved.at, a, "the site stayed where it was authored");
+    let ev = run(&applied.doc);
+    assert!(
+        matches!(
+            failure(&ev, union),
+            Some(NodeErrorKind::DeclareResolve { error })
+                if matches!(**error, ResolveError::Vanished { .. })
+        ),
+        "expected rung 3, got {:?}",
+        failure(&ev, union)
+    );
+}
+
+/// **The site is the side, in the one direction that can tell**: a name
+/// the SITED operand does not carry, which the OTHER operand does,
+/// refuses `Vanished` — it is not silently read in the other table.
+///
+/// Every existing row sites each name at the operand whose table holds
+/// it, so a resolver that ignored the site and fell back to the other
+/// table would pass them all.
+#[test]
+fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
+    let doc = ProfileDoc::empty_derived("rv_r2_wrong_side", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    // Both sides name entities of `b`; the first is SITED at `a`,
+    // whose table does not carry it.
+    let (doc, decl) = insert(
+        doc,
+        Node::declare_rest(vec![(
+            SitedRef::new(a, fname(b, wall(0))),
+            SitedRef::new(b, fname(b, wall(2))),
+        )]),
+    );
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b,
+            declare: Some(decl),
+        },
+    );
+    let ev = run(&doc);
+    assert!(
+        matches!(
+            failure(&ev, pair),
+            Some(NodeErrorKind::DeclareResolve { error })
+                if matches!(**error, ResolveError::Vanished { .. })
+        ),
+        "a name read in the operand its site does not name: {:?}",
+        failure(&ev, pair)
+    );
+}
+
+/// **A `Declare` has no inputs at all** — its two sides are
+/// REFERENCES, not DAG edges (D3's name-reference carve-out), and the
+/// site is a node id the node reads at rather than one it consumes.
+///
+/// The content key leans on exactly this when it feeds both sites
+/// (`eval::content_key`'s `Declare` arm): a node id in a key is
+/// otherwise a Merkle link to an input (D8), and the arm's reason for
+/// feeding one anyway is that this node has none.
+#[test]
+fn a_declare_has_no_inputs() {
+    let doc = ProfileDoc::empty_derived("docm7_no_inputs", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, decl) = insert(doc, Node::declare_rest(flush_pairs((a, a), (b, b))));
+    let node = doc.node(decl).expect("the Declare is live");
+    assert!(
+        node.inputs().is_empty(),
+        "a Declare's sides are references, not edges: {:?}",
+        node.inputs()
+    );
+    // And the sites are what `payload_read_sites` answers with — the
+    // reading edges, which is the other half of the same fact.
+    let sites: Vec<RecipeNodeId> = node.payload_read_sites();
+    assert_eq!(sites.len(), 8, "two sites per pair, four pairs");
+    assert!(sites.iter().all(|at| *at == a || *at == b), "{sites:?}");
 }

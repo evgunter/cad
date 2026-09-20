@@ -320,6 +320,7 @@ use crate::entity::{
     VertexKey,
 };
 use crate::euler::EulerOpError;
+use crate::face_normal::plane_outward_normal;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
 use crate::props::{PropsQuadLane, ShellRole};
 use crate::replace_face::ReplaceFaceError;
@@ -2261,8 +2262,7 @@ fn offset_door<T: Decide>(
 /// The face a simultaneous-door refusal is about, where it names one
 /// or names an entity that touches one.
 fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Option<FaceKey> {
-    let face_of_he =
-        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
+    let face_of_he = |he| body.face_of_half_edge(he);
     match error {
         ReplaceFaceError::StaleFace { face }
         | ReplaceFaceError::TogetherNonPlanar { face, .. }
@@ -2473,8 +2473,7 @@ fn planar_faces<T: Real>(
         else {
             continue;
         };
-        // Outward is the chart normal on a positively-sensed face.
-        let normal = if data.sense { *normal } else { -*normal };
+        let normal = plane_outward_normal(data, *normal).vec();
         let v_ref = normal.cross(*u_ref);
         let mut box_u: Option<(T, T)> = None;
         let mut box_v: Option<(T, T)> = None;

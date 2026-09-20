@@ -27,6 +27,7 @@ use viewer::evalseam::{
     IndexRequest, IndexService, InlineEvaluator, InlineFitter, InlineIndexer,
 };
 use viewer::generation::Generation;
+use viewer::pickindex::PictureKey;
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Landing, Outstanding, SessionOp};
@@ -365,6 +366,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
             expr: common::len(0.02),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;
@@ -551,8 +553,7 @@ fn index_delta() -> DisplayTolerance {
 fn index_request(session: &DocSession, generation: Generation) -> IndexRequest {
     let (doc, _) = session.landed_pair().expect("a landed pair");
     IndexRequest {
-        generation,
-        delta: index_delta(),
+        key: PictureKey::of(generation, index_delta()),
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
@@ -576,15 +577,14 @@ fn the_index_seam_answers_with_the_key_it_was_asked_with() {
     assert!(seam.busy(), "asked, and not yet answered");
     let done = seam.poll().expect("the inline seam answers inside poll");
     assert!(!seam.busy());
-    assert_eq!(done.generation, generation);
-    assert_eq!(done.delta, index_delta());
+    assert_eq!(done.key, PictureKey::of(generation, index_delta()));
     let index = done.index.expect("the plate indexes");
     assert_eq!(
         index.generation(),
         generation,
         "the index is stamped with the generation the answer is filed under",
     );
-    assert!(index.current_for(Some(generation), index_delta()));
+    assert!(index.current_for(Some(PictureKey::of(generation, index_delta()))));
     assert!(seam.poll().is_none(), "and there is nothing else to take");
 }
 
@@ -620,7 +620,7 @@ fn the_threaded_index_seam_answers_only_the_newest_of_two_submits() {
         "the superseded build dies inside the seam rather than travelling \
          up to be discarded by key",
     );
-    assert_eq!(results[0].generation, second);
+    assert_eq!(results[0].key.generation(), second);
     assert!(results[0].index.is_ok());
 }
 
@@ -676,15 +676,17 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     // is only WAITING rather than dispatched — and the third asks for
     // the picture the worker is already building.
     let mut other = index_request(&session, generation);
-    other.delta = index_delta().scaled(2.0).expect("a positive delta");
+    other.key = PictureKey::of(
+        generation,
+        index_delta().scaled(2.0).expect("a positive delta"),
+    );
     seam.submit(other);
     seam.submit(index_request(&broken, generation));
 
     let results = drained(&mut seam, 1);
     assert!(!seam.busy());
     assert_eq!(results.len(), 1, "one answer for one picture");
-    assert_eq!(results[0].generation, generation);
-    assert_eq!(results[0].delta, index_delta());
+    assert_eq!(results[0].key, PictureKey::of(generation, index_delta()));
     assert!(
         results[0].index.is_ok(),
         "the answer in hand was kept, not thrown away and rebuilt",
@@ -837,4 +839,56 @@ fn the_fit_seams_traffic_is_send() {
     assert_send::<FitRequest>();
     assert_send::<FitDone>();
     assert_send::<FitSubject>();
+}
+
+/// **A panic raised inside an egui frame is not swallowed** — the fact
+/// the crash ruling rests on, executed rather than assumed.
+///
+/// A crashed worker is announced by panicking on the UI thread, at the
+/// point of detection (`evalseam`'s coalescing machine). That site is
+/// inside `<ViewerApp as eframe::App>::ui`, which runs inside
+/// `egui::Context::run`, which runs inside eframe's winit event loop.
+/// **If anything up that stack caught the unwind, the loudest thing
+/// this crate does would be a no-op** — strictly worse than the silence
+/// it replaced, because the loudness would be a lie.
+///
+/// This row executes the layer nearest the panic: it plants one inside
+/// a panel closure and asserts the unwind leaves `Context::run` rather
+/// than being absorbed by egui's own frame bookkeeping. **What it does
+/// NOT execute** is eframe and winit, which have no headless door here;
+/// those were established by reading, at the pinned versions the
+/// manifest names: `egui`, `eframe`, `egui-winit` and `egui-wgpu`
+/// 0.36.1 contain no `catch_unwind` at all (eframe's only panic
+/// machinery is `web/panic_handler.rs`, a `set_hook` on the wasm
+/// build), and `winit` 0.30.13 has none on the linux backends this
+/// crate builds against — it catches on macOS and Windows only, and
+/// both re-raise (`macos/event_loop.rs`'s two `resume_unwind` sites,
+/// `windows/event_loop.rs`'s one).
+///
+/// So the runtime value that would make this row false is a toolkit
+/// UPGRADE that adds a catch, which is exactly the change that would
+/// make the crash announcement worthless and exactly what nothing else
+/// here would notice.
+#[cfg(feature = "app")]
+#[test]
+fn a_panic_inside_an_egui_frame_is_not_swallowed() {
+    // `Context::run_ui` is eframe's own per-frame call, at this
+    // version, and its closure argument is where `eframe::App::ui` —
+    // and so `ViewerApp::ui`, and so the seam read — is invoked:
+    // `eframe-0.36.1/src/native/epi_integration.rs`'s
+    // `self.egui_ctx.run_ui(raw_input, |ui| …)`, mirrored in the wgpu
+    // and glow integrations and in the web runner. So this is the real
+    // door and not a door-shaped stand-in.
+    let ctx = egui::Context::default();
+    let escaped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = ctx.run_ui(egui::RawInput::default(), |_ui| {
+            panic!("the planted panic");
+        });
+    }));
+    let payload = escaped.expect_err("egui must not absorb a panic raised inside a frame");
+    assert_eq!(
+        payload.downcast_ref::<&str>().copied(),
+        Some("the planted panic"),
+        "and it must be the SAME panic, not one egui re-raised of its own",
+    );
 }

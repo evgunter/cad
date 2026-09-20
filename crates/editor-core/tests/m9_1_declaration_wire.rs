@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{CapEnd, ContactClass, DocEdit, Node, ProfileDoc, RoleSeg, load, save};
+use editor_core::{CapEnd, ContactClass, DocEdit, Node, ProfileDoc, RoleSeg, SitedRef, load, save};
 use geom_core::Tol;
 
 use crate::fixture;
@@ -73,7 +73,7 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_1_declaration_wire", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0, 1.0);
-    let cap = |node, end| fixture::fname(node, RoleSeg::Cap(end));
+    let cap = |node, end| SitedRef::new(node, fixture::fname(node, RoleSeg::Cap(end)));
     let node: Node<editor_core::ProfileProgram> = Node::Declare {
         pairs: vec![
             (
@@ -87,7 +87,11 @@ fn declaring_doc() -> (ProfileDoc, editor_core::RecipeNodeId) {
         ],
     };
     let applied = doc
-        .apply(&DocEdit::InsertNode { node }, Tol::witness())
+        .apply(
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
         .expect("the Declare inserts");
     let id = applied.record.minted.expect("an id is minted");
     (applied.doc, id)

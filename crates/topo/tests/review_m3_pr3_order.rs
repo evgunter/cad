@@ -11,7 +11,7 @@
 
 use crate::common;
 
-use common::prism;
+use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, SplitPart, SplitPlane, mass_properties, split, validate_closed};
@@ -33,8 +33,8 @@ fn tilted<T: geom_core::Decide>() -> SplitPlane<T> {
 
 #[test]
 fn tilted_plane_f64_and_replay() {
-    let fx = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 1.0);
-    let r = split(&fx.body, &tilted(), Tol::witness()).unwrap();
+    let fx = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let r = split(&fx, &tilted(), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -42,12 +42,12 @@ fn tilted_plane_f64_and_replay() {
     let (va, vb, v0) = (
         mass_properties(above, Tol::witness()).unwrap().volume,
         mass_properties(below, Tol::witness()).unwrap().volume,
-        mass_properties(&fx.body, Tol::witness()).unwrap().volume,
+        mass_properties(&fx, Tol::witness()).unwrap().volume,
     );
     assert!((vb - 2.0).abs() < 1e-9, "below {vb}");
     assert!((va + vb - v0).abs() <= 1e-12 * v0);
     // D9 byte-identical replay under the rotated frame.
-    let again = split(&fx.body, &tilted(), Tol::witness()).unwrap();
+    let again = split(&fx, &tilted(), Tol::witness()).unwrap();
     assert_eq!(format!("{above:?}"), format!("{:?}", body_of(&again.above)));
     assert_eq!(format!("{below:?}"), format!("{:?}", body_of(&again.below)));
 }
@@ -60,14 +60,24 @@ fn tilted_plane_f64_and_replay() {
 #[test]
 fn tilted_plane_interval_agrees_or_refuses_typed() {
     use geom_core::Interval;
-    let fx64 = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 1.0);
-    let r64 = split(&fx64.body, &tilted(), Tol::witness()).unwrap();
+    let fx64 = brick::<f64>(
+        (0.0, 4.0),
+        (0.0, 4.0),
+        (0.0, 1.0),
+        geom_core::Tol::witness(),
+    );
+    let r64 = split(&fx64, &tilted(), Tol::witness()).unwrap();
     let census64 = |b: &Body<f64>| (b.faces().count(), b.edges().count(), b.vertices().count());
     let c_above = census64(body_of(&r64.above));
     let c_below = census64(body_of(&r64.below));
 
-    let fx = prism::<Interval>(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 1.0);
-    match split(&fx.body, &tilted::<Interval>(), Tol::witness()) {
+    let fx = brick::<Interval>(
+        (0.0, 4.0),
+        (0.0, 4.0),
+        (0.0, 1.0),
+        geom_core::Tol::witness(),
+    );
+    match split(&fx, &tilted::<Interval>(), Tol::witness()) {
         Ok(r) => {
             let census =
                 |b: &Body<Interval>| (b.faces().count(), b.edges().count(), b.vertices().count());
@@ -90,6 +100,7 @@ fn orientation_flip_swaps_sides_only() {
     let fx = prism::<f64>(
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
         1.0,
+        Tol::witness(),
     );
     let plane = |sy: f64| SplitPlane {
         origin: Point3::new(0.0, 1.0, 0.0),

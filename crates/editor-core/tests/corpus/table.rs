@@ -151,7 +151,7 @@ pub fn document() -> CorpusDoc {
             assert!(
                 findings
                     .iter()
-                    .any(|f| matches!(f.pair.0.path.first(), Some(RoleSeg::Merged(_)))),
+                    .any(|f| matches!(f.pair.0.name.path.first(), Some(RoleSeg::Merged(_)))),
                 "leg {i}: no Merged-named wall in {findings:#?}"
             );
         }

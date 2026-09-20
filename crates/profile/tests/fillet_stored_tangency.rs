@@ -624,12 +624,17 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 }
 
 /// The corpus dump's hash at the default ε row (see
-/// [`the_corpus_stored_loops_dump_to_the_bit`]).
-const GOLDEN_DEFAULT: u64 = 0x6040_df69_8324_c34b;
+/// [`the_corpus_stored_loops_dump_to_the_bit`]). Re-derived when
+/// `coverage_corpus` gained the RADIUS-ARRIVAL fused chain (row 16):
+/// the dump grows that chain's own loop and the two carrier forms
+/// after it renumber, so the label lines move. No loop that was in
+/// the dump before changed a coordinate or a bulge — the new chain is
+/// an addition, not an edit, at every ε.
+const GOLDEN_DEFAULT: u64 = 0xb07a_e8ba_6ecd_7b4e;
 /// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0x15cc_cda3_d88f_d217;
+const GOLDEN_1E6: u64 = 0x1b29_8cb7_03c2_4bc2;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
-const GOLDEN_1E12: u64 = 0x809c_4b2b_98d6_bb9f;
+const GOLDEN_1E12: u64 = 0xb986_07f6_554a_e6ba;
 
 /// **The transition, bracketed.** Every other row here reads a turn a
 /// long way from the crossing; this one reads both sides of it at the

@@ -147,7 +147,7 @@ let tol = Tol::witness();
 #     let rect: ClosedLoop<f64> = Open
 #         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #         .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
@@ -206,6 +206,10 @@ let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
+// `apply`'s last argument is the mated parts' REACH — what an edit
+// that moves an assembly cluster's gauge levers its re-keying solve
+// through. This document has no instance and no mate, so no edit here
+// can move a gauge and the refusing reach is never asked.
 // The frame the square is drawn on — a dependency of the profile
 // exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {
@@ -214,17 +218,17 @@ let applied = apply(&doc, &DocEdit::InsertNode {
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
     }),
-}, tol)?;
+}, tol, &pncad::document::RefusingReach)?;
 let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
 let applied = apply(&doc, &DocEdit::InsertNode {
     node: Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
-}, tol)?;
+}, tol, &pncad::document::RefusingReach)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
     node: Node::Extrude { profile, distance: len(1.0) },
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 
-let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol);
+let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol, &pncad::document::RefusingReach);
 assert!(matches!(refused, Err(EditError::DeleteWouldDangle { .. })));
 assert_eq!(doc.len(), 3, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())

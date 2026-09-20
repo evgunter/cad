@@ -49,6 +49,7 @@ use crate::body::Body;
 use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
 use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
+use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
 use crate::readback::DanglingRef;
 use crate::validate::{ValidationError, validate_closed};
@@ -1692,14 +1693,10 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         declared: Option<&DeclaredCtx>,
     ) -> Result<Option<MergeRung>, MergeCoplanarError> {
-        let (Some((k1, sense1, sign1)), Some((k2, sense2, sign2))) = (
-            self.get_face(f1)
-                .map(|f| (f.surface, f.sense, f.sense_sign::<T>())),
-            self.get_face(f2)
-                .map(|f| (f.surface, f.sense, f.sense_sign::<T>())),
-        ) else {
+        let (Some(face1), Some(face2)) = (self.get_face(f1), self.get_face(f2)) else {
             return Ok(None);
         };
+        let (k1, k2) = (face1.surface, face2.surface);
         let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
             return Ok(None);
         };
@@ -1708,7 +1705,7 @@ impl<T: Decide> Body<T> {
         // — both of which certify the SURFACE, not the face — may
         // conclude the faces are one region. Falling through leaves
         // the declared rung to refuse loudly if the pair was declared.
-        let same_sense = sense1 == sense2;
+        let same_sense = face1.sense == face2.sense;
         // The hard rungs are KIND-AGNOSTIC since M5 PR 9 (C12.5, the
         // cosurface generalization): the same-key and same-source
         // tests never touch a numeric coordinate, so nothing about
@@ -1794,11 +1791,11 @@ impl<T: Decide> Body<T> {
             // pair on one plane lands there by construction.
             let p1 = PlaneDesc {
                 origin: o1,
-                normal: n1 * sign1,
+                normal: plane_outward_normal(face1, n1).vec(),
             };
             let p2 = PlaneDesc {
                 origin: o2,
-                normal: n2 * sign2,
+                normal: plane_outward_normal(face2, n2).vec(),
             };
             return match oriented_plane_eq(&p1, &p2, id, arm, band) {
                 Ok(PlaneRelation::SameOriented) => Ok(Some(MergeRung::DeclaredPair)),
@@ -2303,8 +2300,9 @@ impl<T: Decide> Body<T> {
     /// from an area and a perimeter that are both nothing.
     ///
     /// `normal` must be the face's OUTWARD normal (S10): the caller
-    /// multiplies the chart normal by `sense_sign` exactly once, and
-    /// the Newell sum here is left alone. That sum is built from the
+    /// folds the sense into the chart normal exactly once, through
+    /// `face_normal`'s door, and the Newell sum here is left alone.
+    /// That sum is built from the
     /// loop's STORED cycle order, which `revert` reverses in the same
     /// breath as it flips the sense bit, so it already changes sign on
     /// its own — threading the sense onto both factors would cancel
@@ -2345,7 +2343,9 @@ impl<T: Decide> Body<T> {
                     geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
                         Some(Carrier::Conic)
                     }
-                    geom::Curve3::Nurbs(_) => None,
+                    // A spiric is the honest remainder as a spline is:
+                    // its region has no conic-bulge winding here.
+                    geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
                 })
         };
         // A NURBS edge is the honest remainder — its region has no
@@ -2421,7 +2421,9 @@ impl<T: Decide> Body<T> {
                     geom::Curve3::Ellipse {
                         axis, major, minor, ..
                     } => (axis, major, minor),
-                    geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
+                    geom::Curve3::Line { .. }
+                    | geom::Curve3::Spiric { .. }
+                    | geom::Curve3::Nurbs(_) => {
                         return Ok((zero, chord()?));
                     }
                 };
@@ -2475,7 +2477,7 @@ impl<T: Decide> Body<T> {
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
         let normal = match self.get_surface(survivor.surface) {
-            Some(Surface::Plane { normal, .. }) => *normal * survivor.sense_sign::<T>(),
+            Some(Surface::Plane { normal, .. }) => plane_outward_normal(survivor, *normal).vec(),
             // The survivor is a plane at every call: `rings_made` is
             // non-empty only under a planar contract, since the curved
             // arm refuses `PeriodClosure` before any `kemr`. This arm
@@ -2503,7 +2505,7 @@ impl<T: Decide> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::fixtures::ops_cube;
+    use crate::test_support_fixtures::declined_cube;
 
     /// A shared edge of the ops cube, as the pair of faces meeting
     /// there — addressed exactly as the absorption scan addresses it,
@@ -2565,7 +2567,7 @@ mod tests {
     // ---- Fixtures whose REGIME is a property of the fixture ----
     //
     // A group's regime must be asserted, never inherited from an
-    // accident of the fixture: `ops_cube`'s faces sit on the `mvfs`
+    // accident of the fixture: `declined_cube`'s faces sit on the `mvfs`
     // NURBS placeholder, which has no regime at all — the door sets
     // the whole cube aside and no surgery runs. These two build the
     // regime deliberately, out of planes.
@@ -2575,7 +2577,7 @@ mod tests {
     /// structural rung groups the whole cube and, being planar and
     /// undeclared, it runs under [`GroupRegime::RefusesTheCall`].
     fn structural_planar_cube(tol: Tol) -> Body<f64> {
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         describe_shared_key(&mut body);
         body
     }
@@ -2613,7 +2615,7 @@ mod tests {
     /// The declared planar cube: [`GroupRegime::RecordsASkip`] with
     /// no curved face anywhere.
     fn declared_planar_cube(tol: Tol) -> (Body<f64>, Vec<(SurfaceKey, SurfaceKey)>) {
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let declared = declare_planes_pairwise(&mut body);
         (body, declared)
     }
@@ -2701,7 +2703,7 @@ mod tests {
             TearPoint::RingBecomesItsFacesOuter | TearPoint::RingsFaceLeavesTheShell => {
                 crate::fixtures::ops_holed_box(tol).body
             }
-            _ => ops_cube(tol).body,
+            _ => declined_cube::<f64>(tol).body,
         }
     }
 
@@ -2824,12 +2826,12 @@ mod tests {
     /// loop, which is the nesting the drain re-homes.
     fn cube_with_membrane(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
         let pt = geom_core::Point3::new;
-        let crate::fixtures::OpsCube {
+        let crate::test_support_fixtures::CubeOps {
             mut body,
             seed,
             mefs,
             ..
-        } = ops_cube(tol);
+        } = declined_cube::<f64>(tol);
         let strut = |body: &mut Body<f64>, at, x, y, z| {
             body.mev_line(
                 crate::euler::MevSite::Fan { he1: at, he2: at },
@@ -2944,7 +2946,7 @@ mod tests {
     /// membrane's `add_face` then reuses.
     fn cube_with_arena_first_membrane(tol: Tol) -> (Body<f64>, FaceKey) {
         let pt = geom_core::Point3::new;
-        let cube = ops_cube(tol);
+        let cube = declined_cube::<f64>(tol);
         let mut body = cube.body;
         let seed_face = cube.seed.face;
         let victim = body
@@ -3233,7 +3235,7 @@ mod tests {
     #[test]
     fn a_broken_vertex_orbit_refuses_rather_than_answering_no_tip() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let he = body
             .edges()
             .map(|(_, e)| e.he_plus)
@@ -3270,7 +3272,7 @@ mod tests {
     #[test]
     fn a_group_that_straddles_two_surface_kinds_has_no_regime() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let (rep, other) = adjacent_pair(&body);
         // Both surfaces are set here: the fixture's faces carry the
         // mvfs placeholder, and the row is about KINDS, not about
@@ -3341,14 +3343,14 @@ mod tests {
     }
 
     /// **A run of placeholders is set aside, not run.** The contract
-    /// of [`ops_cube`]'s six faces on their one placeholder key is
+    /// of [`crate::test_support_fixtures::declined_cube`]'s six faces on their one placeholder key is
     /// [`GroupContract::SetAside`] — no regime, because a placeholder
     /// is neither of the two kinds the regimes are written for — and
     /// the door names the faces.
     #[test]
     fn a_placeholder_run_has_no_regime_and_is_set_aside() {
         let tol = Tol::witness();
-        let body = ops_cube(tol).body;
+        let body = declined_cube::<f64>(tol).body;
         assert_eq!(contract_of(&body, false), GroupContract::SetAside);
     }
 
@@ -3398,7 +3400,7 @@ mod tests {
             Ok(MergeKind::Placeholder)
         );
         assert_eq!(MergeKind::of(&poisoned_net()), Err(PoisonedNet));
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
         body.set_face_surface(face, crate::euler::FaceSurface::New(poisoned_net()))
             .expect("a live face takes a surface");
@@ -3428,7 +3430,7 @@ mod tests {
     #[test]
     fn a_poisoned_net_refuses_before_any_surgery() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let (first, second) = adjacent_pair(&body);
         body.set_face_surface(first, crate::euler::FaceSurface::New(poisoned_net()))
             .expect("a live face takes a surface");
@@ -3450,10 +3452,10 @@ mod tests {
         assert_eq!(crate::fixtures::deep_snapshot(&body), before);
     }
 
-    /// [`ops_cube`] with its one shared key re-described as a
+    /// [`crate::test_support_fixtures::declined_cube`] with its one shared key re-described as a
     /// cylinder: one curved same-key run over the whole cube.
     fn curved_same_key_cube(tol: Tol) -> Body<f64> {
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let key = body.faces().next().expect("faces").1.surface;
         *body
             .surfaces
@@ -3547,11 +3549,11 @@ mod tests {
         assert_eq!(outcome.placeholders, vec![side]);
     }
 
-    /// [`ops_cube`] with its arena-first face re-described as a real
+    /// [`crate::test_support_fixtures::declined_cube`] with its arena-first face re-described as a real
     /// plane on its OWN key, the other five still on the shared
     /// placeholder.
     fn cube_with_one_described_face(tol: Tol) -> (Body<f64>, FaceKey) {
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
         body.set_face_surface(face, crate::euler::FaceSurface::New(flat_plane()))
             .expect("a live face takes a surface");
@@ -3774,7 +3776,7 @@ mod tests {
     }
 
     /// **The placeholder cube forms no merge group.** Every face of
-    /// `ops_cube` carries the `mvfs` seed's surface on one key, and
+    /// `declined_cube` carries the `mvfs` seed's surface on one key, and
     /// the structural rung reads one key as one surface — but that
     /// surface describes no locus, so there is nothing to glue: the
     /// door returns `Ok` with no group and no skip, names the six
@@ -3788,7 +3790,7 @@ mod tests {
     #[test]
     fn the_placeholder_cube_forms_no_group_and_its_faces_are_named() {
         let tol = Tol::witness();
-        let mut body = ops_cube(tol).body;
+        let mut body = declined_cube::<f64>(tol).body;
         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
         let before = crate::fixtures::deep_snapshot(&body);
         let outcome = body

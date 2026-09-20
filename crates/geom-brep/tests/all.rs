@@ -56,6 +56,12 @@ mod shared;
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
+#[path = "bool5_wedge_arm.rs"]
+mod bool5_wedge_arm;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
+#[path = "bool5r2_wedge_probes.rs"]
+mod bool5r2_wedge_probes;
 #[path = "budget_faces.rs"]
 mod budget_faces;
 #[path = "cert1_r1_probes.rs"]
@@ -75,6 +81,8 @@ mod curved_torus_arc_residual;
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
+#[path = "exhaust_lane_meters.rs"]
+mod exhaust_lane_meters;
 #[path = "imported_chart_arc_rim.rs"]
 mod imported_chart_arc_rim;
 #[path = "interior_iso_column.rs"]
@@ -103,6 +111,8 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_wall_frame_interval.rs"]
 mod onb_wall_frame_interval;
+#[path = "props_sphere_pole_side.rs"]
+mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
 
@@ -184,14 +194,7 @@ mod s81_one_rim_level_rule;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 #[path = "r2_probes.rs"]
 mod r2_probes;

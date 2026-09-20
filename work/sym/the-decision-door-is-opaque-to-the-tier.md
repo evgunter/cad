@@ -70,6 +70,41 @@ non-negative (`max(0, X) → X`), which is a fold this tier does not have
 shape is on the constructor's side and is PROPS's to weigh: squaring
 halves the exponent range a scale-invariant comparison otherwise has.
 
+## The `Select` atom is not the whole opacity (measured 2026-09-15, after this row was written)
+
+The first reading of this row suggests the fix is to stop minting the
+atom — choose the axis where the frame is minted and carry the index,
+so the tier sees `normalize(e_k × n)` for a FIXED `k`. That was
+measured, by patching `Sym<T>::select_le_zero` to return the chosen arm
+whole wherever the value channel decides, minting no node: exactly this
+row's premise for the symbolic lane and nothing else changed.
+
+**The rows stay red.** `m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does`
+still refuses — and refuses one face EARLIER and ~45% WIDER, at a side
+plane's `newell_plane_residual` `[−2.06e-8, 2.06e-8]` where the shipped
+construction refuses at the cap's `[−1.42e-8, 1.42e-8]`. The other two
+rows are unmoved.
+
+So what the tier cannot cancel is **the candidate's own form**, not the
+decision above it: `normalize(e_k × n)` is a cross product divided by a
+`sqrt` of a sum of squares, over a normal that already carries a `sqrt`
+atom, with the conditioning floor's `min`/`max` on top — where Duff's
+`1/(1 + |n.z|)` is a rational form rules A/C/E do cancel. Deciding the
+axis outside the evaluation is therefore a tidiness change at the tier
+and not a reach change, and the fold sketched above (rule A's square
+substitution, plus the `max(0, X) → X` this tier lacks) has to reach
+the CANDIDATE, not only the decision, to restore the row.
+
+One measurement that goes with it, because it bounds what is at stake:
+on the failing document the PLAIN numeric lane is unchanged under both
+constructions — the refusal set and the enclosure at the first refusal
+are identical character for character (`derived Guided 4`, first
+refusal `carrier_endpoint_end` at `[0, 1.5895373848295267e-9]`),
+checked by building both constructions and diffing the output. The
+frames themselves differ, of course; what does not differ is what the
+numeric lane concludes. This row is a loss of symbolic REACH, not a
+correctness regression.
+
 ## Home
 
 `crates/geom-core/src/sym.rs` (`combine`'s `SymOp::Select` arm),

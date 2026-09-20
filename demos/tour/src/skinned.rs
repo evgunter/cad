@@ -244,10 +244,22 @@ fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section {
     vec![polygon(&pts, tol).expect("the quad section")]
 }
 
-/// The prism's end sections (also `common/mod.rs::PRISM_SQUARE`).
+/// The prism's end sections.
+///
+/// **A stated copy of the kernel's corpus sections, and it stays one.**
+/// The kernel spells them once, in `sweep::test_support`, behind a
+/// dev-only feature; this is a `src/` binary linking the façade as an
+/// ordinary dependency, so it cannot reach that door — and should not
+/// want to. The tour is evidence about the public API from an outside
+/// consumer's seat (`memories/demo-purpose.md`), and a scene that
+/// reached into a test fixture would stop being evidence about the
+/// library. Nothing reddens if these numbers and the kernel's diverge,
+/// so they are a copy in the full sense; what they are checked against
+/// is this scene's own arithmetic ([`LOFT_PAIR_GAP`] is spaced off the
+/// flare below) and the rendered frame.
 const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 /// Its middle section: the NON-AFFINE trapezoid whose two bottom
-/// corners flare by ±d, d = 0.375 (also `common/mod.rs::PRISM_TRAPEZOID`).
+/// corners flare by ±d, d = 0.375.
 const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 
 /// How far along +x the non-uniform loft renders from its twin. The

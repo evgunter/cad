@@ -95,7 +95,8 @@ use geom::Curve3;
 use geom_brep::{SurfaceKey, SurfaceKind};
 use geom_core::k_stats::decide;
 use geom_core::{
-    Band, Bounds, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, UnitVec3, Vec2, Vec3,
+    Band, Bounds, Decide, Indeterminate, Margin, OrthoFrame, Point2, Point3, Real, Sign, UnitVec3,
+    Vec2, Vec3,
 };
 
 use crate::body::Body;
@@ -132,13 +133,21 @@ pub enum CurveKind {
     Circle,
     /// [`Curve3::Ellipse`].
     Ellipse,
+    /// [`Curve3::Spiric`].
+    Spiric,
     /// [`Curve3::Nurbs`].
     Nurbs,
 }
 
 impl CurveKind {
     /// Every kind, in declaration order.
-    pub const ALL: [Self; 4] = [Self::Line, Self::Circle, Self::Ellipse, Self::Nurbs];
+    pub const ALL: [Self; 5] = [
+        Self::Line,
+        Self::Circle,
+        Self::Ellipse,
+        Self::Spiric,
+        Self::Nurbs,
+    ];
 
     /// The kind of a carrier (exhaustive by construction — type docs).
     #[must_use]
@@ -147,6 +156,7 @@ impl CurveKind {
             Curve3::Line { .. } => Self::Line,
             Curve3::Circle { .. } => Self::Circle,
             Curve3::Ellipse { .. } => Self::Ellipse,
+            Curve3::Spiric { .. } => Self::Spiric,
             Curve3::Nurbs(_) => Self::Nurbs,
         }
     }
@@ -157,7 +167,8 @@ impl CurveKind {
             Self::Line => 0,
             Self::Circle => 1,
             Self::Ellipse => 2,
-            Self::Nurbs => 3,
+            Self::Spiric => 3,
+            Self::Nurbs => 4,
         }
     }
 }
@@ -332,9 +343,7 @@ pub fn face_surface_kind<T: Real>(body: &Body<T>, f: FaceKey) -> Option<SurfaceK
 /// The surface kind on one side of an edge, or `None` where the
 /// adjacency or its geometry is not there to read.
 fn face_kind_across<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<SurfaceKind> {
-    let h = body.get_half_edge(he)?;
-    let f = body.get_loop(h.parent_loop)?.face;
-    face_surface_kind(body, f)
+    face_surface_kind(body, body.face_of_half_edge(he)?)
 }
 
 /// EXACT: whether the edge's certified carrier kind is a member of
@@ -437,21 +446,12 @@ pub enum DatumValue<T: Real> {
     /// `(x, y)` pair on. The two are separate variants for that
     /// reason, not as a naming accident.
     ///
-    /// `u` and `v` are unit by their type and ORTHOGONAL by the
-    /// contract of whoever built the value — the evaluation layer
-    /// orthonormalizes and refuses a degenerate pair loudly, so a
-    /// frame reaching a consumer spans a plane. The normal is `u × v`,
-    /// computed rather than stored: storing it would be a second
-    /// opinion that could come to disagree with the pair.
-    Frame {
-        /// Sketch (0, 0) in world space.
-        origin: Point3<T>,
-        /// The first in-plane direction — sketch +x.
-        u: UnitVec3<T>,
-        /// The second in-plane direction — sketch +y, perpendicular to
-        /// `u`.
-        v: UnitVec3<T>,
-    },
+    /// The payload is the frame WITNESS: `u` (sketch +x) and `v`
+    /// (sketch +y) are unit and orthogonal as a property of the type,
+    /// decided where the frame was minted, and `w = u × v` is the
+    /// normal — carried by the witness rather than recomputed at each
+    /// reader, which is where two spellings would drift apart.
+    Frame(OrthoFrame<T>),
     /// **An axis that lives in a sketch frame**, carried in BOTH
     /// spellings — the frame's own 2-D coordinates, and the world
     /// line those coordinates name.
@@ -483,21 +483,6 @@ pub enum DatumValue<T: Real> {
         /// direction, unit.
         dir: UnitVec3<T>,
     },
-}
-
-impl<T: Real> DatumValue<T> {
-    /// A frame's normal, `u × v` — unit because a unit orthogonal pair
-    /// crosses to a unit vector, so this is a projection of the frame
-    /// and not a renormalization.
-    ///
-    /// Spelled here rather than at each reader for the reason the
-    /// variant's own doc gives: the normal is DERIVED, and a consumer
-    /// that recomputed it locally would be the place the two spellings
-    /// drift apart.
-    #[must_use]
-    pub fn frame_normal(u: UnitVec3<T>, v: UnitVec3<T>) -> Vec3<T> {
-        u.get().cross(v.get())
-    }
 }
 
 /// **The funnel site name** of the decided position predicate — the
@@ -534,7 +519,7 @@ pub fn datum_distance<T: Real>(datum: &DatumValue<T>, p: Point3<T>) -> T {
             (v - d * v.dot(d)).norm()
         }
         DatumValue::Point { position } => (p - *position).norm(),
-        DatumValue::Frame { origin, u, v } => (p - *origin).dot(DatumValue::frame_normal(*u, *v)),
+        DatumValue::Frame(f) => (p - f.origin()).dot(f.w().get()),
         // The world lift, by the same arithmetic the 3-D axis uses —
         // an axis is an axis to a measurement, whichever coordinates
         // it was written in.
@@ -651,6 +636,7 @@ impl core::fmt::Display for RimError {
                     Some(CurveKind::Line) => "a line",
                     Some(CurveKind::Circle) => "a circle",
                     Some(CurveKind::Ellipse) => "an ellipse",
+                    Some(CurveKind::Spiric) => "a spiric",
                     Some(CurveKind::Nurbs) => "a NURBS curve",
                 };
                 write!(
@@ -1031,13 +1017,13 @@ mod tests {
     use geom_core::{Tol, UnitVec3Error};
 
     use super::*;
-    use crate::fixtures::{plane_surface, prism};
+    use crate::fixtures::{plane_surface, raw_prism};
 
     /// A prism fixture with one wall re-surfaced as a PLANE, so the
     /// body carries two surface kinds (the fixture's placeholder
     /// Nurbs everywhere else) and circle-certified carriers.
     fn mixed() -> Body<f64> {
-        let mut p = prism(4, Tol::witness()).body;
+        let mut p = raw_prism(4, Tol::witness()).body;
         let face = all_faces(&p)[0];
         let plane = p.add_surface(plane_surface(
             Point3::origin(),
@@ -1375,7 +1361,11 @@ mod tests {
         [Plane, Cylinder, Cone, Sphere, Torus, Nurbs, Approx]
     );
 
-    census!(CurveKind, CurveKind::ALL, [Line, Circle, Ellipse, Nurbs]);
+    census!(
+        CurveKind,
+        CurveKind::ALL,
+        [Line, Circle, Ellipse, Spiric, Nurbs]
+    );
 
     /// **No two kinds share a bit position**, on either mirror: a
     /// duplicated `surface_bit` / `CurveKind::bit` arm would make two

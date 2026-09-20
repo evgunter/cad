@@ -3,8 +3,7 @@
 //! session scratchpad into CI per the standing convention. These are
 //! **independent derivations** — finite-difference oracles, Rodrigues
 //! rotations, hand-computed partials, the PR 2 bulge-arc and PR 3
-//! tier-3 consumption patterns — do not "simplify" them to match
-//! shipped fixtures; the independence is the regression value.
+//! tier-3 consumption patterns.
 //!
 //! Promotion adaptations (mechanical only): the standard test-lint
 //! allows below; everything else is verbatim. Grouped under

@@ -2,8 +2,9 @@
 id: tess-lint-ungated-columns-fold-silently
 kind: issue
 title: Six CSV columns reach the gate unparsed and unrefused, and a re-cut folds every ungated column's movement in silently
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-17
 ---
 
 
@@ -76,7 +77,8 @@ because the fold has no diff. This is `docs/TESS-BUDGET.md`'s
 DOES cover, which that passage does not reach.
 
 **A second consumer is affected and it is not obvious from here.**
-`tools/tess-lint/tests/baseline_sizing_census.rs` reads totals only, so
+The sizing census — `the_committed_baseline_sizes_this_much`, in
+`tools/tess-lint/tests/baseline_census.rs` — reads totals only, so
 all seven movers above are invisible to it; its "fourth thing a re-cut
 can be" says a re-cut whose only movers are `opt_cells` and
 `span_opt_cells` is an instrument-resolution change and never a
@@ -99,3 +101,64 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## What unit 5 closed, and what it did not (2026-09-16)
+
+**Arm 1 is closed.** The constructed case the row asserts was run
+first, against the real gate rather than against a fixture: one sized
+row of the committed baseline with `muu` set to `banana`, linted as the
+fresh file against that same baseline, parsed clean and printed
+*"clean — no scene grew and no face's sizing got wastefuller"* at exit
+0. `parse` now reads `muu`, `muv`, `mvv`, `mu1` and `mv1` through a
+`BOUND_COLUMNS` table under one `Admissible::NonNegative` — finite and
+non-negative, which is what a sup of a norm is; `mesh::nurbs_cert`'s
+`nurbs_cell_grid` refuses a face whose bound is non-finite in any of
+the five, and `tess_meter::split_scan` asserts the sign for the three
+Hessian sups — and `cells` through the `usize` read `dev_samples` and
+`triangles` take.
+The values are DROPPED after they are admitted: no rule reads them, and
+storing a number no rule reads is arm 2's defect rather than a cure for
+it. The same `banana` row is now harness breakage naming the column, at
+exit 1.
+
+Zero is admitted in all six, deliberately and per `CC5`: a ruled
+direction's `sup ‖S_uu‖` is zero, and `mu1 = 0` is a 3-D-degenerate
+direction `nurbs_cert` handles rather than refuses. For `cells` the
+warrant is narrower and is stated as such at the constant — no
+producer path that leaves the `Vec` empty was found and the baseline's
+minimum is one, so zero is admitted not because it was observed but
+because every argument for refusing it runs through the producer's
+code, which `CC4` refuses to lean on.
+
+The admissions table was also collapsed: `Certificate`, `Count` and
+the `Sup` this unit first added were three spellings of
+`finite && >= 0.0`, permutable among themselves with the whole suite
+green, and `Target`/`Aspect` were two spellings of
+`finite && > 0.0`. They are now `NonNegative(what)` and
+`Positive(what)` — one variant per policy, the quantity's name as
+data — and every harness message is byte-identical to before.
+
+**The class is closed too, not just the instance.** The six columns
+were invisible to the bracket assertions, each of which says its own
+block's neighbour is where it expects it to be — exactly as true with
+an unread run between two blocks.
+`every_header_column_is_claimed_by_exactly_one_site` covers the header
+instead, so a column that arrives claimed by nothing fails rather than
+folding in.
+
+**Arm 2 is not this unit's and is already scheduled.** `name` has no
+in-band value to refuse — an admission is not what it lacks — and what
+it lacks instead is a rule that reads it, which is unit 18 (`C15` +
+`c15-is-dischargeable-now-that-a-sized-scene-carries-names`, which
+re-keys rule 4 over the rows that carry a name). Nothing was filed for
+it: a second row would duplicate that unit.
+
+**Arm 3 is filed as `tess-lint-re-cut-folds-uncompared-columns`**, with
+the movement table moved there, because what it needs is a report that
+does not exist and a decision about who it is for — a gate run and a
+re-cut arrive at `tess-lint` identically today.
+
+**What `C15` cites this row for now lives in the crate.** `C15` names
+this row as *"the statement of record on which ungated columns reach a
+reader"*; that roster is now in `tools/tess-lint`'s module docs, beside
+the code, where it survives this program's directory being deleted.

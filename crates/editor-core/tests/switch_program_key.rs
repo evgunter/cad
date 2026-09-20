@@ -15,8 +15,8 @@
 
 use editor_core::{
     CancelToken, ContentKey, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    ParamName, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
-    parse_expr,
+    ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, evaluate, parse_expr,
 };
 use geom_core::Tol;
 
@@ -47,6 +47,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("valid program")
         .doc
@@ -65,6 +66,7 @@ fn with_frame(doc: ProfileDoc) -> ProfileDoc {
             }),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the frame inserts")
     .doc
@@ -136,6 +138,7 @@ fn resolved_values_feed_the_key() {
                     value: DocParam::continuous(Dimension::Length, value),
                 },
                 Tol::witness(),
+                &editor_core::RefusingReach,
             )
             .unwrap()
             .doc;
@@ -154,6 +157,7 @@ fn resolved_values_feed_the_key() {
                     }),
                 },
                 Tol::witness(),
+                &editor_core::RefusingReach,
             )
             .unwrap()
             .doc
@@ -188,6 +192,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                 value: DocParam::continuous(Dimension::Length, 1.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -206,6 +211,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -214,6 +220,122 @@ fn a_carrier_centre_respelled_keys_identically() {
         key_of(&parameterized),
         key_of(&literal),
         "a centre's spelling does not reach any stored field, so it must not enter the key"
+    );
+}
+
+/// A chain whose one arc is drawn at `radius`, closed back to its
+/// start: a straight leg, a tangent quarter-turn arc, and the closing
+/// leg.
+fn one_arc_chain(radius: Expr) -> LoopProgram {
+    LoopProgram::Chain(vec![
+        ProgramStep::At([lit_len(0.0), lit_len(0.0)]),
+        ProgramStep::Toward {
+            dx: lit_scl(1.0),
+            dy: lit_scl(0.0),
+        },
+        ProgramStep::Line(lit_len(4.0)),
+        ProgramStep::Tangent,
+        ProgramStep::ArcTo(ProgramArcData::Sweep {
+            r: radius,
+            side: profile::ArcSide::Left,
+            angle: Expr::literal(core::f64::consts::FRAC_PI_2, Dimension::Angle).unwrap(),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
+}
+
+/// A document declaring `r` at `value`, carrying one profile built from
+/// `loops` — the same two nodes every row here uses.
+fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
+    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness())
+        .apply(
+            &DocEdit::SetDocParam {
+                name: ParamName::new("r"),
+                value: DocParam::continuous(Dimension::Length, value),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .doc;
+    with_frame(doc)
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: PLANE,
+                    loops,
+                }),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .doc
+}
+
+/// **A CHAIN's arc radius is flow-bearing exactly as a carrier loop's
+/// is** — the v5 exception is about the ROLE, not about the loop form.
+///
+/// [`resolved_values_feed_the_key`] pins it for the one radius a
+/// carrier loop is drawn at. A chain has no such loop-wide radius: each
+/// arc step authors its own, and each reaches the wall its own arc
+/// sweeps, so each spelling is an input to a body downstream and two
+/// spellings of one value are two different bodies. Keying them
+/// identically would let the memo serve a body whose token names an
+/// expression the document no longer holds — for exactly the loops the
+/// carrier-radius pin cannot see.
+#[test]
+fn a_chain_arcs_radius_feeds_the_key() {
+    let parameterized = doc_with_r(
+        0.5,
+        vec![one_arc_chain(Expr::param(
+            ParamName::new("r"),
+            Dimension::Length,
+        ))],
+    );
+    let literal = doc_with_r(0.5, vec![one_arc_chain(lit_len(0.5))]);
+    assert_ne!(
+        key_of(&parameterized),
+        key_of(&literal),
+        "a chain arc's radius is flow-bearing: its SPELLING reaches the wall that arc \
+         sweeps, so two spellings of one value must not share a memo entry"
+    );
+}
+
+/// **A chain with no arc has no radius to feed**: every expression it
+/// holds is a coordinate or a length, and re-spelling one at the same
+/// value keys identically.
+///
+/// The bound on the row above, and the same bound
+/// [`a_carrier_centre_respelled_keys_identically`] puts on the carrier
+/// form's: what entered the key is the radius ROLE and nothing else. A
+/// feed that wrote every Length expression of a chain would red here.
+#[test]
+fn a_straight_chain_respelled_keys_identically() {
+    let straight = |length: Expr| {
+        LoopProgram::Chain(vec![
+            ProgramStep::At([lit_len(0.0), lit_len(0.0)]),
+            ProgramStep::Toward {
+                dx: lit_scl(1.0),
+                dy: lit_scl(0.0),
+            },
+            ProgramStep::Line(length),
+            ProgramStep::LineTo(ProgramTarget::Point([lit_len(2.0), lit_len(3.0)])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])
+    };
+    let parameterized = doc_with_r(
+        4.0,
+        vec![straight(Expr::param(
+            ParamName::new("r"),
+            Dimension::Length,
+        ))],
+    );
+    let literal = doc_with_r(4.0, vec![straight(lit_len(4.0))]);
+    assert_eq!(
+        key_of(&parameterized),
+        key_of(&literal),
+        "a leg's length reaches no stored field, so its spelling must not enter the key"
     );
 }
 

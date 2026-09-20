@@ -35,7 +35,7 @@ fn concave_loop_in_out() {
         (2.0, 1.0),
         (0.0, 1.0),
     ];
-    let fx = prism::<f64>(&profile, 1.0);
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let top = fx.body.get_face(fx.top_face).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let q = |x: f64, y: f64| Point3::new(x, y, 1.0);
@@ -54,7 +54,7 @@ fn concave_loop_in_out() {
 #[test]
 fn ray_graze_retries_deterministically() {
     let profile = [(0.0, 0.0), (4.0, 0.0), (3.0, 1.0), (4.0, 2.0), (0.0, 2.0)];
-    let fx = prism::<f64>(&profile, 1.0);
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let top = fx.body.get_face(fx.top_face).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let pil = |x: f64, y: f64| {
@@ -115,7 +115,7 @@ fn all_rays_graze_profile() -> Vec<(f64, f64)> {
 #[test]
 fn ray_exhausted_is_reachable() {
     let profile = all_rays_graze_profile();
-    let fx = prism::<f64>(&profile, 1.0);
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let top = fx.body.get_face(fx.top_face).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let err =
@@ -140,7 +140,11 @@ fn ray_exhausted_is_reachable() {
 /// band-width off the boundary (clean In — no boundary absorption).
 #[test]
 fn boundary_pre_pass_edges() {
-    let fx = prism::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 1.0);
+    let fx = prism::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        1.0,
+        Tol::witness(),
+    );
     let top = fx.body.get_face(fx.top_face).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let pil = |x: f64, y: f64| {
@@ -222,7 +226,7 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     // Returns how many of `probes` DECIDED, so the row cannot pass by
     // comparing two refusals.
     let agree = |profile: &[(f64, f64)], probes: &[(f64, f64)]| -> usize {
-        let fx = prism::<f64>(profile, 1.0);
+        let fx = prism::<f64>(profile, 1.0, Tol::witness());
         let top = fx.body.get_face(fx.top_face).unwrap();
         let mut definite = 0;
         for &(x, y) in probes {
@@ -277,6 +281,7 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     let fx = prism::<f64>(
         &[(0.0, 0.0), (4.0, 0.0), (3.0, 1.0), (4.0, 2.0), (0.0, 2.0)],
         1.0,
+        Tol::witness(),
     );
     let top = fx.body.get_face(fx.top_face).unwrap();
     let q = Point3::new(1.0, 1.0 + delta, 1.0);
@@ -304,6 +309,7 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     let fx = prism::<f64>(
         &[(0.0, 0.0), (4.0, 0.0), (3.0, 1.0), (4.0, 2.0), (0.0, 2.0)],
         2.0,
+        Tol::witness(),
     );
     let wall = fx.body.get_face(fx.side_faces[1]).unwrap(); // (4,0) → (3,1)
     let Some(geom::Surface::Plane { normal, .. }) = fx.body.get_surface(wall.surface) else {
@@ -332,7 +338,7 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     }
 
     // The typed arm: all-graze exhaustion must exhaust on both signs.
-    let fx = prism::<f64>(&all_rays_graze_profile(), 1.0);
+    let fx = prism::<f64>(&all_rays_graze_profile(), 1.0, Tol::witness());
     let top = fx.body.get_face(fx.top_face).unwrap();
     let centre = Point3::new(0.0, 0.0, 1.0);
     let up = point_in_loop(&fx.body, top.outer, n_z(), centre, band);

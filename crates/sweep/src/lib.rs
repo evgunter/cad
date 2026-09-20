@@ -79,7 +79,10 @@
 //!   the previous wall's chart (the ratified no-face-merging split,
 //!   D2, which is a CONVENTIONAL description and no longer the
 //!   scaffolding `MappedCurve` the mint left); Indeterminate ⇒
-//!   [`ExtrudeError::SliverJoin`] (escalate-never-guess).
+//!   [`ExtrudeError::SliverJoin`] (escalate-never-guess). The revolve's
+//!   latitude joins and the blend's CONTACT edges — a band's tangent
+//!   contact with its support, the corner ball's with its band — are
+//!   the rule's other two callers, each refusing typed at its own door.
 //! - **Cap–wall rims upgrade too** (the ratified rim decision — Ev,
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as

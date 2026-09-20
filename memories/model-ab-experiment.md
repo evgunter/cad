@@ -17,6 +17,9 @@ bugs / worse code than Fable at lower cost — measured, not vibed.
 
 What binds outside the log's own text:
 
+- **Not every unit enters the protocol.** Triage is per unit and the
+  orchestrator's call at spec time; what a unit gets on either side of
+  it, and how the call is recorded, are the log's v7 entry.
 - **Blinding vs the merge-only convention**: the harness's
   Co-Authored-By trailer NAMES THE MODEL, so implementer briefs say
   "NO Co-Authored-By trailer in lane commits (blinding overrides the

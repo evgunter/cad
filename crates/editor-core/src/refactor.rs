@@ -6,8 +6,10 @@
 //! [`inline`] is the inverse — it splices a referenced document's
 //! recipe into the host and deletes the instance. Both are PURE
 //! functions returning new document values, the ordinary recorded
-//! [`DocEdit`]s that produce them, and the cluster-record maintenance
-//! those edits performed — the input documents are untouched,
+//! [`DocEdit`]s that produce them, and the [`crate::Maintenance`]
+//! those edits performed — the cluster-record acts the mate graph's
+//! motion forced, and the payload names a departing cut node
+//! stranded. The input documents are untouched,
 //! so undo is this layer's undo everywhere else: keeping the prior
 //! value. There is no compound edit arm; atomicity is purity (no
 //! partially-refactored document is ever observable).
@@ -100,11 +102,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::doc::Doc;
+use crate::doc::{Doc, NameCarrier};
+use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::mate::ClusterMaintenance;
-use crate::names::{NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
+use crate::names::{FaceName, NameRef, Qualifier, RoleSeg, StableName, name_free_seg};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
@@ -332,9 +334,9 @@ impl core::fmt::Display for SplitError {
                 kept_node,
             } => write!(
                 f,
-                "split: parameter {:?} is referenced by cut node {} and kept node {} — one \
+                "split: parameter {param} is referenced by cut node {} and kept node {} — one \
                  parameter cannot silently become two documents' parameters",
-                param.0, cut_node.0, kept_node.0
+                cut_node.0, kept_node.0
             ),
             Self::PartNameReachesRemainder { node, name } => write!(
                 f,
@@ -493,8 +495,7 @@ impl core::fmt::Display for InlineError {
             ),
             Self::ParamConflict { param } => write!(
                 f,
-                "inline: parameter {:?} is declared by both documents with different values",
-                param.0
+                "inline: parameter {param} is declared by both documents with different values"
             ),
             Self::UnplaceableFrame { root } => write!(
                 f,
@@ -528,7 +529,7 @@ impl core::error::Error for InlineError {}
 /// What [`split`] produced: the two documents, the recorded edits
 /// that produce each (the part's from the empty document under the
 /// caller's id, the remainder's from the input document), and the
-/// cluster-record maintenance each edit list performed. Undo of the
+/// [`crate::Maintenance`] each edit list performed. Undo of the
 /// refactoring is the caller keeping the input value — the input is
 /// untouched.
 #[derive(Debug, Clone)]
@@ -540,29 +541,30 @@ pub struct SplitOutcome {
     pub part: ProfileDoc,
     /// The recorded edits producing `remainder` from the input.
     pub remainder_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `remainder_edits` performed, in
-    /// edit order: what the A11 registry did as the cut's names
+    /// The maintenance `remainder_edits` performed, in edit order
+    /// ([`Maintenance`]): what the A11 registry did as the cut's names
     /// re-anchored onto the instance (a kept mate that welded nothing
     /// while its far end was a local body welds the instance to its
     /// near end once the name is instance-qualified — a join) and as
     /// the cut nodes left (a cut cluster's mates and members going is
-    /// its splits and drops). An accepted edit travels whole, so the
+    /// its splits and drops), and every payload name a departing cut
+    /// node stranded behind it (DM7). An accepted edit travels whole, so the
     /// outcome carries what its edits DID beside what they produced: a
     /// caller holding a document with the maintenance of its last
     /// accepted edit swaps `remainder` and this in together.
-    pub remainder_maintenance: Vec<ClusterMaintenance>,
+    pub remainder_maintenance: Vec<Maintenance>,
     /// The recorded edits producing `part` from
     /// `Doc::empty(part_id)`.
     pub part_edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `part_edits` performed, in edit
-    /// order. The part is built by inserting the cut nodes, and a cut
+    /// The maintenance `part_edits` performed, in edit order
+    /// ([`Maintenance`]). The part is built by inserting the cut nodes, and a cut
     /// mate welds its two members as it lands, so a multi-member
     /// cluster cut whole re-forms in the part as one join per mate
     /// that welded two clusters still separate when it landed. That
     /// insert is the one part-side edit that moves a mate graph: the
     /// tolerance, parameter, witness, placement and root edits
     /// reconcile nothing.
-    pub part_maintenance: Vec<ClusterMaintenance>,
+    pub part_maintenance: Vec<Maintenance>,
     /// The remainder's new instantiate node.
     pub instance: RecipeNodeId,
     /// Cut-node ids → their part-document ids (minted in document
@@ -572,7 +574,7 @@ pub struct SplitOutcome {
 
 /// What [`inline`] produced: the host with the referenced document's
 /// recipe spliced in and the instance gone, plus the recorded edits
-/// that produce it and the cluster-record maintenance they performed.
+/// that produce it and the maintenance they performed.
 /// Undo is the caller keeping the input value.
 #[derive(Debug, Clone)]
 pub struct InlineOutcome {
@@ -580,23 +582,24 @@ pub struct InlineOutcome {
     pub doc: ProfileDoc,
     /// The recorded edits producing `doc` from the input.
     pub edits: Vec<DocEdit<ProfileProgram>>,
-    /// The cluster-record maintenance `edits` performed, in edit
-    /// order: the part's mates weld their spliced members as they
-    /// land, a wrapped name's re-anchoring moves what the instance
+    /// The maintenance `edits` performed, in edit order
+    /// ([`Maintenance`]): the part's mates weld their spliced members
+    /// as they land, a wrapped name's re-anchoring moves what the
+    /// instance
     /// welded onto the spliced node (a split, where the spliced node
     /// is no member), and the instance's delete drops or re-keys its
     /// cluster's row. An accepted edit travels whole; a caller holding
     /// a document with the maintenance of its last accepted edit swaps
     /// `doc` and this in together.
-    pub maintenance: Vec<ClusterMaintenance>,
+    pub maintenance: Vec<Maintenance>,
     /// Part-document node ids → their host ids (minted in the part's
     /// document order).
     pub node_map: NodeMap,
 }
 
 /// A document under reconstruction by recorded edits: the value so
-/// far, the edits that produce it, and the cluster-record maintenance
-/// those edits performed. The ONE place a refactoring takes an
+/// far, the edits that produce it, and the maintenance those edits
+/// performed. The ONE place a refactoring takes an
 /// accepted edit up, which is what keeps each [`apply`] result's
 /// document and maintenance together — the record's minted id goes
 /// back to the caller, and its `structural` bit is a fact of the edit
@@ -605,7 +608,7 @@ pub struct InlineOutcome {
 struct Recording {
     doc: ProfileDoc,
     edits: Vec<DocEdit<ProfileProgram>>,
-    maintenance: Vec<ClusterMaintenance>,
+    maintenance: Vec<Maintenance>,
 }
 
 impl Recording {
@@ -629,8 +632,9 @@ impl Recording {
         &mut self,
         edit: DocEdit<ProfileProgram>,
         tol: Tol,
+        reach: &dyn crate::mate::MateReach,
     ) -> Result<Option<RecipeNodeId>, EditError> {
-        let applied = apply(&self.doc, &edit, tol)?;
+        let applied = apply(&self.doc, &edit, tol, reach)?;
         self.doc = applied.doc;
         self.maintenance.extend(applied.maintenance);
         self.edits.push(edit);
@@ -653,17 +657,55 @@ impl Recording {
 ///
 /// The first local id the map lacks.
 fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNodeId> {
-    let node = *map.get(&name.node).ok_or(name.node)?;
-    let path = name
-        .path
-        .iter()
-        .map(|seg| remap_seg(seg, map))
-        .collect::<Result<_, _>>()?;
+    let (node, path) = remap_derivation(name.node, &name.path, map)?;
     Ok(StableName {
         kind: name.kind,
         node,
         path,
     })
+}
+
+/// The half of [`remap_name`] that a name's KIND is not part of: the
+/// minting node and the role path, rewritten through `map`.
+///
+/// Split out because that is exactly what a face name may have
+/// rewritten — `FaceName::map_derivation` hands this function the
+/// derivation and keeps the kind itself, which is what makes
+/// [`remap_face`] total without an arm for a kind change.
+///
+/// # Errors
+///
+/// The first local id the map lacks.
+fn remap_derivation(
+    node: RecipeNodeId,
+    path: &[RoleSeg],
+    map: &NodeMap,
+) -> Result<(RecipeNodeId, crate::names::RolePath), RecipeNodeId> {
+    let node = *map.get(&node).ok_or(node)?;
+    let path = path
+        .iter()
+        .map(|seg| remap_seg(seg, map))
+        .collect::<Result<_, _>>()?;
+    Ok((node, path))
+}
+
+/// [`remap_name`] for a FACE name — the ONE answer this crate gives to
+/// "remap a face name across the split", and the only in-crate place a
+/// [`FaceName`] is re-made from a rewritten one.
+///
+/// The kind is not rewritten and cannot be: `FaceName::map_derivation`
+/// is handed the derivation alone and keeps the kind itself, so the
+/// only thing that can go wrong is the thing [`remap_name`]'s own
+/// errors are about — a local id the map lacks. That is reported as
+/// [`RemapMiss::Name`], naming the face that could not cross, which is
+/// the vocabulary every caller of this walk already answers in.
+///
+/// # Errors
+///
+/// [`RemapMiss::Name`] for a face whose local ids the map lacks.
+fn remap_face(name: &FaceName, map: &NodeMap) -> Result<FaceName, RemapMiss> {
+    name.map_derivation(|node, path| remap_derivation(node, path, map))
+        .map_err(|_| RemapMiss::Name(Box::new((**name).clone())))
 }
 
 /// One segment of [`remap_name`]'s rewrite: the [`RoleSeg`] partition
@@ -750,7 +792,7 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
             vertex: one(vertex)?,
             support: one(support)?,
         },
-        R::CornerArc { vertex, edge } => R::CornerArc {
+        R::EndArc { vertex, edge } => R::EndArc {
             vertex: one(vertex)?,
             edge: one(edge)?,
         },
@@ -815,8 +857,16 @@ fn remap_rule(
 /// name-reference payloads — through `map`, for insertion into the
 /// other document. `InstantiatePart` crosses verbatim: its reference
 /// is a document seam, not a local id, and its interface record rides
-/// with it. The match is exhaustive so a future node kind must be
-/// classified here.
+/// with it BECAUSE the [`SplitError::PartNameReachesRemainder`]
+/// precondition has already refused any record whose `outer` names a
+/// kept node: a crossing `outer` is a payload name
+/// ([`crate::Node::payload_names`]), so [`crate::Doc::name_carriers`]
+/// reports it and the precondition sees it. No name of the REMAINDER
+/// reaches the part's space through this arm — the row is
+/// `edit_instance_crossing_names`'s
+/// `a_split_that_takes_an_instance_naming_a_kept_node_is_refused`.
+/// The match is exhaustive so a future node kind must be classified
+/// here.
 ///
 /// # Errors
 ///
@@ -829,6 +879,11 @@ fn remap_node(
         map.get(&n).copied().ok_or(RemapMiss::Input(n))
     };
     let nm = |n: &StableName| remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())));
+    // A mate head across the cut, through the one face remap
+    // (`remap_face`): its derivation is rewritten and its kind is the
+    // type's, so the only miss is the miss `nm` reports for a bare
+    // name.
+    let face = |n: &FaceName| remap_face(n, map);
     Ok(match node {
         // **An in-plane axis is not a leaf**: its frame is an input,
         // and a clone would carry the OTHER document's node number
@@ -1000,10 +1055,22 @@ fn remap_node(
             count: count.clone(),
             kind: remap_rule(kind, &id)?,
         },
+        // A declared pair's two halves remap like a mate's: the
+        // NAME through the name door and the SITE through the id
+        // door, because a site is a node id. Either one the cut
+        // severed makes the remap MISS loudly.
         Node::Declare { pairs } => Node::Declare {
             pairs: pairs
                 .iter()
-                .map(|((a, b), class)| Ok(((nm(a)?, nm(b)?), *class)))
+                .map(|((a, b), class)| {
+                    Ok((
+                        (
+                            crate::node::SitedRef::new(id(a.at)?, nm(&a.name)?),
+                            crate::node::SitedRef::new(id(b.at)?, nm(&b.name)?),
+                        ),
+                        *class,
+                    ))
+                })
                 .collect::<Result<_, RemapMiss>>()?,
         },
         Node::InstantiatePart { .. } => node.clone(),
@@ -1018,13 +1085,13 @@ fn remap_node(
             class,
             alignment,
         } => Node::Mate {
-            a: crate::node::SitedRef {
+            a: crate::node::SitedFace {
                 at: id(a.at)?,
-                name: nm(&a.name)?,
+                name: face(&a.name)?,
             },
-            b: crate::node::SitedRef {
+            b: crate::node::SitedFace {
                 at: id(b.at)?,
-                name: nm(&b.name)?,
+                name: face(&b.name)?,
             },
             class: *class,
             alignment: *alignment,
@@ -1096,6 +1163,7 @@ pub fn split(
     cut: &BTreeSet<RecipeNodeId>,
     part_id: DocumentId,
     tol: Tol,
+    resolver: Option<&std::sync::Arc<dyn PartResolver>>,
 ) -> Result<SplitOutcome, SplitError> {
     if cut.is_empty() {
         return Err(SplitError::EmptyCut);
@@ -1268,19 +1336,29 @@ pub fn split(
         }
     }
     // Cut-side name references must lie wholly within the cut: the
-    // part document cannot name the remainder's entities.
-    for &id in doc.order() {
-        if !cut.contains(&id) {
-            continue;
-        }
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            if !derivation_nodes(name).is_subset(cut) {
-                return Err(SplitError::PartNameReachesRemainder {
-                    node: id,
-                    name: Box::new(name.clone()),
-                });
+    // part document cannot name the remainder's entities. Read off
+    // the document's name-carrier enumeration, so a carrier added to
+    // `Carrier` is walked here without being remembered into this
+    // site — only its SIDE has to be decided, which is what the two
+    // arms below say.
+    for carrier in doc.name_carriers() {
+        match carrier {
+            NameCarrier::Payload { node, name } => {
+                if !cut.contains(&node) {
+                    continue;
+                }
+                if !derivation_nodes(name).is_subset(cut) {
+                    return Err(SplitError::PartNameReachesRemainder {
+                        node,
+                        name: Box::new(name.clone()),
+                    });
+                }
             }
+            // A store key is the document's, not either side's: no
+            // node carries it, so there is no cut-side instance of
+            // one to refuse. It is classified below instead, where
+            // the remainder's references are.
+            NameCarrier::Store { .. } => {}
         }
     }
     // Remainder-side references to cut entities re-anchor through the
@@ -1305,17 +1383,20 @@ pub fn split(
         rebinds.insert(name.clone());
         Ok(())
     };
-    for &id in doc.order() {
-        if cut.contains(&id) {
-            continue;
+    // Every name the document holds that is not carried by a cut
+    // node: the payload names of the kept nodes, then the store's
+    // keys, which no node carries and which therefore always
+    // classify.
+    for carrier in doc.name_carriers() {
+        match carrier {
+            NameCarrier::Payload { node, name } => {
+                if cut.contains(&node) {
+                    continue;
+                }
+                classify(name)?;
+            }
+            NameCarrier::Store { name } => classify(name)?,
         }
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            classify(name)?;
-        }
-    }
-    for name in doc.appearance().keys() {
-        classify(name)?;
     }
     // The deterministic id remap: cut nodes in document order mint
     // part ids 0, 1, 2, … (D9 — two runs agree byte for byte).
@@ -1328,10 +1409,14 @@ pub fn split(
         .collect();
 
     // ---- The part document, as recorded edits from empty ----
+    // The part side's edits are inserts into a document being built —
+    // a Join at most, never a moved gauge — so they lever through the
+    // caller's own seam; the remainder side, below, needs more.
+    let part_reach = crate::eval::PartReach::<f64>::with_resolver(resolver, tol);
     let mut part = Recording::start(Doc::empty(part_id, tol));
     let part_apply =
         |part: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), SplitError> {
-            part.apply(edit, tol)
+            part.apply(edit, tol, &part_reach)
                 .map(|_| ())
                 .map_err(|error| SplitError::PartEdit {
                     error: Box::new(error),
@@ -1477,7 +1562,7 @@ pub fn split(
     // `asm_r2b_assembly.rs` pins it. The mate itself stays in the
     // document (N5) and its names rebind like any other; it simply
     // says nothing about the seam.
-    let is_mate_edge_end = |r: &crate::node::SitedRef| crate::mate::member_of(doc, r).is_some();
+    let is_mate_edge_end = |r: &crate::node::SitedFace| crate::mate::member_of(doc, r).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {
@@ -1501,11 +1586,13 @@ pub fn split(
         // re-verification resolves against. `classify` above already
         // refused a name that straddles, so the remap is total here —
         // and it refuses typed rather than assuming so.
-        let inner = remap_name(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
-            name: Box::new(inner.clone()),
+        let inner = remap_face(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
+            name: Box::new((**inner).clone()),
         })?;
+        // The heads' own face names go through: the record carries
+        // what the mate carries, so the split neither unwraps a head
+        // nor re-asks the question its type already answered.
         crossings.push(InterfaceCrossing::Mate {
-            mate: id,
             class: *class,
             outer: outer.clone(),
             inner,
@@ -1514,11 +1601,26 @@ pub fn split(
 
     // ---- The remainder, as recorded edits from the input ----
     let mut remainder = Recording::start(doc.clone());
+    // **The remainder's reach knows the part this split is minting.**
+    // Rebinding a mate's heads onto the new instance one name at a time
+    // passes through documents where that mate stands on the new part,
+    // and the maintenance that re-keys the clusters those rebinds
+    // split solves through the mate's lever — the new part's own
+    // extent, which no store holds yet because this call is what
+    // creates it. The reach is therefore composed here: the part in
+    // hand answers its own reference, the caller's resolver answers
+    // every other, and an absent resolver refuses those typed.
+    let carving: std::sync::Arc<dyn PartResolver> = std::sync::Arc::new(WithPart {
+        doc_ref: DocRef { id: part_id, pin },
+        part: part.doc.clone(),
+        inner: resolver.cloned(),
+    });
+    let rem_reach = crate::eval::PartReach::<f64>::with_resolver(Some(&carving), tol);
     let rem_apply = |remainder: &mut Recording,
                      edit: DocEdit<ProfileProgram>|
      -> Result<Option<RecipeNodeId>, SplitError> {
         remainder
-            .apply(edit, tol)
+            .apply(edit, tol, &rem_reach)
             .map_err(|error| SplitError::RemainderEdit {
                 error: Box::new(error),
             })
@@ -1639,9 +1741,13 @@ pub fn split(
 pub fn inline(
     doc: &ProfileDoc,
     instance: RecipeNodeId,
-    resolver: &dyn PartResolver,
+    resolver: &std::sync::Arc<dyn PartResolver>,
     tol: Tol,
 ) -> Result<InlineOutcome, InlineError> {
+    // Deleting the instance moves its cluster's gauge, and the
+    // maintenance that re-keys the cluster levers through the parts
+    // the same resolver holds.
+    let reach = crate::eval::PartReach::<f64>::with_resolver(Some(resolver), tol);
     let Some(node) = doc.node(instance) else {
         return Err(InlineError::UnknownNode { id: instance });
     };
@@ -1651,15 +1757,13 @@ pub fn inline(
     else {
         return Err(InlineError::NotAnInstance { node: instance });
     };
-    for &by in doc.order() {
-        if by != instance
-            && let Some(consumer) = doc.node(by)
-            && consumer.inputs().contains(&instance)
-        {
-            return Err(InlineError::InstanceConsumed { node: instance, by });
-        }
+    // Who reads this node is `roots`' question, asked here for the
+    // witness the refusal names.
+    if let Some(by) = crate::roots::consumer(doc, instance) {
+        return Err(InlineError::InstanceConsumed { node: instance, by });
     }
     let part = resolver
+        .as_ref()
         .resolve(doc_ref, tol)
         .map_err(|failure| InlineError::Unresolved { failure })?;
     if part.epsilon().to_bits() != doc.epsilon().to_bits() {
@@ -1702,14 +1806,11 @@ pub fn inline(
             name: Box::new(name.clone()),
         })
     };
-    for &id in doc.order() {
-        let Some(node) = doc.node(id) else { continue };
-        for name in node.payload_names() {
-            classify(name)?;
-        }
-    }
-    for name in doc.appearance().keys() {
-        classify(name)?;
+    // Every name the host document holds, in both carriers — the
+    // classification is the same for each, so this asks the
+    // enumeration for the names and nothing else.
+    for carrier in doc.name_carriers() {
+        classify(carrier.name())?;
     }
     wrapped.sort();
     wrapped.dedup();
@@ -1729,7 +1830,7 @@ pub fn inline(
     let step =
         |current: &mut Recording, edit: DocEdit<ProfileProgram>| -> Result<(), InlineError> {
             current
-                .apply(edit, tol)
+                .apply(edit, tol, &reach)
                 .map(|_| ())
                 .map_err(|error| InlineError::Edit {
                     error: Box::new(error),
@@ -1855,8 +1956,8 @@ pub fn inline(
     // re-anchored — so the record's job ends here, CHECKED.
     for crossing in &interface.crossings {
         let InterfaceCrossing::Mate { inner, .. } = crossing;
-        remap_name(inner, &node_map).map_err(|_| InlineError::StrandedPartName {
-            name: Box::new(inner.clone()),
+        remap_face(inner, &node_map).map_err(|_| InlineError::StrandedPartName {
+            name: Box::new((**inner).clone()),
         })?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
@@ -1879,4 +1980,129 @@ pub fn inline(
         maintenance: current.maintenance,
         node_map,
     })
+}
+
+/// **The split's own resolver**: the part being minted, answered from
+/// the document in hand, and every other reference answered by the
+/// caller's resolver — or refused typed when there is none.
+#[derive(Debug)]
+struct WithPart {
+    /// The new part's reference: its id and the pin of the document
+    /// this split built.
+    doc_ref: DocRef,
+    /// That document.
+    part: ProfileDoc,
+    /// The caller's seam, for every other part.
+    inner: Option<std::sync::Arc<dyn PartResolver>>,
+}
+
+impl PartResolver for WithPart {
+    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
+        if doc_ref.id == self.doc_ref.id {
+            if doc_ref.pin != self.doc_ref.pin {
+                return Err(ResolveFailure::pin_mismatch(
+                    "the reference names another version of the part this split is minting",
+                ));
+            }
+            return Ok(self.part.clone());
+        }
+        match &self.inner {
+            Some(inner) => inner.resolve(doc_ref, tol),
+            None => Err(ResolveFailure::unresolved(
+                "the split was given no resolver, and the reference is not the part it is \
+                 minting",
+            )),
+        }
+    }
+}
+
+/// **A remap never changes a KIND.**
+///
+/// [`remap_name`] rewrites a name's derivation — its minting node and
+/// the node ids embedded in its role path — and copies the kind
+/// through untouched, for every [`crate::EntityKind`] and through a
+/// nested name-bearing segment. That is the fact [`remap_face`] rests
+/// on: it hands `FaceName::map_derivation` the derivation alone, so
+/// the kind is the type's rather than the rewrite's, and the two
+/// answers agree by construction.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod remap_keeps_the_kind {
+    use super::{NodeMap, RemapMiss, remap_face, remap_name};
+    use crate::names::{FaceName, NameRef, RoleSeg, StableName};
+    use crate::node::RecipeNodeId;
+    use crate::{CapEnd, EntityKind};
+
+    fn map() -> NodeMap {
+        [
+            (RecipeNodeId(0), RecipeNodeId(10)),
+            (RecipeNodeId(1), RecipeNodeId(11)),
+        ]
+        .into_iter()
+        .collect()
+    }
+
+    fn name(kind: EntityKind) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(0),
+            path: vec![
+                RoleSeg::Cap(CapEnd::End),
+                RoleSeg::FromA(NameRef::new(StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(1),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                })),
+            ],
+        }
+    }
+
+    /// The bare-name rewrite carries every kind through, and renumbers
+    /// the mint while it does.
+    #[test]
+    fn a_bare_name_remap_carries_every_kind_through() {
+        for kind in [
+            EntityKind::Body,
+            EntityKind::Face,
+            EntityKind::Edge,
+            EntityKind::Vertex,
+        ] {
+            let out = remap_name(&name(kind), &map()).expect("the map covers both ids");
+            assert_eq!(out.kind, kind, "remap_name must carry the kind through");
+            assert_eq!(out.node, RecipeNodeId(10), "and renumber the mint");
+            assert_eq!(
+                FaceName::new(out).is_ok(),
+                kind == EntityKind::Face,
+                "so what a rewritten name denotes is decided by the INPUT kind alone"
+            );
+        }
+    }
+
+    /// The face rewrite agrees with it: same derivation, same kind,
+    /// and no way to ask for a different one.
+    #[test]
+    fn a_face_remap_agrees_with_it_on_a_covered_map() {
+        let face = FaceName::new(name(EntityKind::Face)).expect("a face");
+        let out = remap_face(&face, &map()).unwrap_or_else(|_| panic!("the map covers both ids"));
+        assert_eq!(out.node, RecipeNodeId(10));
+        assert_eq!(out.kind, EntityKind::Face);
+        assert_eq!(
+            *out,
+            remap_name(&name(EntityKind::Face), &map()).expect("the map covers both ids"),
+            "the two rewrites are one rewrite"
+        );
+    }
+
+    /// Its ONE miss is the id miss, reported as the face that could
+    /// not cross — never a panic and never a kind refusal.
+    #[test]
+    fn its_one_miss_names_the_face_whose_id_the_map_lacks() {
+        let face = FaceName::new(name(EntityKind::Face)).expect("a face");
+        let empty = NodeMap::new();
+        match remap_face(&face, &empty) {
+            Err(RemapMiss::Name(missed)) => assert_eq!(*missed, *face),
+            Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
+            Ok(out) => panic!("an empty map covers no id, got {out}"),
+        }
+    }
 }

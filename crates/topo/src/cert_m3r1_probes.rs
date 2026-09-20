@@ -14,6 +14,15 @@
 //! addition — the sibling in-src probe module (`n2r1_probes.rs`) carries
 //! the identical line, and without it a `#[cfg(test)]` module inside
 //! `src/` is linted as production code.
+//!
+//! The cube this drives, its two construction steps and the chord-line
+//! and Newell-plane specs under them are [`crate::test_support_fixtures`]'s
+//! — the crate's shared Euler-op fixture family, named by path because
+//! this module is in-crate. Nothing box-shaped is built here. It is not
+//! the crate's only Euler-op box sequence:
+//! `crate::splitting::reassembly::quad_prism` is a second one under
+//! `src/`, filed on S-DUP's
+//! `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -23,167 +32,14 @@
 )]
 
 use crate::boolean::ContactRecords;
+use crate::test_support_fixtures::{describe_as_intersections, face_surface_of_he, geometric_cube};
 use crate::validate::{self, ValidationError};
-use crate::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+use crate::{Body, FaceSurface};
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Decide, Point3, Real, Tol};
+use geom_core::{Point3, Tol};
 use std::sync::Arc;
-
-struct GeoCube<T: Real> {
-    body: Body<T>,
-    seed: MvfsCreated,
-    mevs: [MevCreated; 7],
-    mefs: [MefCreated; 5],
-}
-
-fn line<T: Real>(p0: Point3<T>, p1: Point3<T>) -> EdgeCurveSpec<T> {
-    EdgeCurveSpec::line_between(p0, p1)
-}
-
-fn plane<T: Decide>(corners: &[Point3<T>]) -> Surface<T> {
-    newell_plane(corners, Band::linear(Tol::witness()).unwrap()).unwrap()
-}
-
-/// `topo/tests/common::geometric_cube`, copied verbatim (in-crate).
-fn geometric_cube<T: Decide>() -> GeoCube<T> {
-    let c = |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
-    let (a, b, cc, d) = (
-        c(0.0, 0.0, 0.0),
-        c(1.0, 0.0, 0.0),
-        c(1.0, 1.0, 0.0),
-        c(0.0, 1.0, 0.0),
-    );
-    let (a1, b1, c1, d1) = (
-        c(0.0, 0.0, 1.0),
-        c(1.0, 0.0, 1.0),
-        c(1.0, 1.0, 1.0),
-        c(0.0, 1.0, 1.0),
-    );
-    let mut body = Body::<T>::new();
-    let seed = body.mvfs(a).unwrap();
-    let e_ab = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            b,
-            line(a, b),
-            Tol::witness(),
-        )
-        .unwrap();
-    let strut = |body: &mut Body<T>, at, from, to| {
-        body.mev(
-            MevSite::Fan { he1: at, he2: at },
-            to,
-            line(from, to),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
-    let e_bc = strut(&mut body, e_ab.he_minus, b, cc);
-    let e_cd = strut(&mut body, e_bc.he_minus, cc, d);
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bottom = body
-        .mef(
-            MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
-            },
-            line(d, a),
-            FaceSurface::New(plane(&[a, d, cc, b])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_aa = strut(&mut body, e_ab.he_plus, a, a1);
-    let e_bb = strut(&mut body, e_bc.he_plus, b, b1);
-    let e_cc = strut(&mut body, e_cd.he_plus, cc, c1);
-    let e_dd = strut(&mut body, f_bottom.he_plus, d, d1);
-    let f_front = body
-        .mef(
-            MefSite::Chords {
-                he1: e_aa.he_minus,
-                he2: e_bb.he_minus,
-            },
-            line(a1, b1),
-            FaceSurface::New(plane(&[a, b, b1, a1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let f_right = body
-        .mef(
-            MefSite::Chords {
-                he1: e_bb.he_minus,
-                he2: e_cc.he_minus,
-            },
-            line(b1, c1),
-            FaceSurface::New(plane(&[b, cc, c1, b1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let f_back = body
-        .mef(
-            MefSite::Chords {
-                he1: e_cc.he_minus,
-                he2: e_dd.he_minus,
-            },
-            line(c1, d1),
-            FaceSurface::New(plane(&[cc, d, d1, c1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    let f_left = body
-        .mef(
-            MefSite::Chords {
-                he1: e_dd.he_minus,
-                he2: f_front.he_plus,
-            },
-            line(d1, a1),
-            FaceSurface::New(plane(&[d, a, a1, d1])),
-            Tol::witness(),
-        )
-        .unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(plane(&[a1, b1, c1, d1])))
-        .unwrap();
-    GeoCube {
-        body,
-        seed,
-        mevs: [e_ab, e_bc, e_cd, e_aa, e_bb, e_cc, e_dd],
-        mefs: [f_bottom, f_front, f_right, f_back, f_left],
-    }
-}
-
-/// `topo/tests/common::describe_as_intersections`, copied verbatim.
-fn describe_as_intersections<T: Decide>(body: &mut Body<T>) {
-    let band = Band::linear(Tol::witness()).unwrap();
-    let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
-    for (edge_key, edge) in edges {
-        let s1 = face_surface_of_he(body, edge.he_plus);
-        let s2 = face_surface_of_he(body, edge.he_minus);
-        let start = body.get_half_edge(edge.he_plus).unwrap().start;
-        let end = body.half_edge_end(edge.he_plus).unwrap();
-        let p0 = *body
-            .get_point(body.get_vertex(start).unwrap().point)
-            .unwrap();
-        let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
-        let witness = p0.lerp(p1, T::from_f64(0.5));
-        let (surf1, surf2) = (
-            body.get_surface(s1).unwrap().clone(),
-            body.get_surface(s2).unwrap().clone(),
-        );
-        match geom_brep::classify_dihedral(&surf1, &surf2, witness, p0.distance(p1), band).unwrap()
-        {
-            geom_brep::DihedralClass::Smooth => continue,
-            geom_brep::DihedralClass::Transverse => {}
-        }
-        let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        spec.description = EdgeDescriptionSpec::Intersection { s1, s2, witness };
-        body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap();
-    }
-}
 
 /// A DESCRIBED (non-placeholder) degree-2 NURBS patch on the plane
 /// `y = 0`, u along +x, v along +z (normal −y = the front wall's outward
@@ -204,15 +60,6 @@ fn nurbs_wall(bow: f64) -> Surface<f64> {
     Surface::Nurbs(Arc::new(n))
 }
 
-fn face_surface_of_he<T: Decide>(
-    body: &Body<T>,
-    he: crate::entity::HalfEdgeKey,
-) -> crate::geometry::SurfaceKey {
-    let he_data = body.get_half_edge(he).unwrap();
-    let loop_data = body.get_loop(he_data.parent_loop).unwrap();
-    body.get_face(loop_data.face).unwrap().surface
-}
-
 /// The unit cube with its front wall restated as a described NURBS and
 /// the wall's four edges re-described as plane × NURBS `Intersection`s
 /// through the lane door (M7-8). Returns the wall's surface key and the
@@ -222,10 +69,29 @@ fn m7_8_cube() -> (
     crate::geometry::SurfaceKey,
     Vec<crate::entity::EdgeKey>,
 ) {
-    let cube = geometric_cube::<f64>();
+    let cube = geometric_cube::<f64>(Tol::witness());
     let mut body = cube.body;
-    describe_as_intersections(&mut body);
+    describe_as_intersections(&mut body, Tol::witness());
     let front = cube.mefs[1].face;
+    // `mefs[1]` is the y = 0 wall by the bundle's ORDER, which is a
+    // property of `CubeOps` and not of anything the lengths pin: a
+    // reordering that kept `[MefCreated; 5]` full would move this probe
+    // onto another face and still pass everything below.
+    {
+        let plane = body
+            .get_surface(body.get_face(front).unwrap().surface)
+            .unwrap();
+        let Surface::Plane { origin, normal, .. } = plane else {
+            panic!("the cube's walls are planes");
+        };
+        assert!(
+            origin.y.abs() < 1e-12
+                && normal.y < -0.5
+                && normal.x.abs() < 1e-12
+                && normal.z.abs() < 1e-12,
+            "`CubeOps::mefs[1]` is the outward-−y wall this probe corrupts"
+        );
+    }
     let wall = body
         .set_face_surface(front, FaceSurface::New(nurbs_wall(0.0)))
         .unwrap();

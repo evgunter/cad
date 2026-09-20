@@ -5,40 +5,51 @@
 //! `profile`'s `transition_table!` declares each authoring verb once
 //! and projects four artifacts from that declaration — but all four
 //! are INSIDE `profile`. `editor-core` re-spells the same vocabulary
-//! twice more, because `profile` has neither expressions nor serde and
-//! by G1 layering must not gain them: `ProgramStep` (the Expr-valued
-//! document form) and `persist::wire`'s `WireStep` (the persisted
-//! form).
+//! ONCE more, because `profile` has neither expressions nor serde and
+//! by G1 layering must not gain them: `ProgramStep`, the Expr-valued
+//! document form, which is also the PERSISTED form — it derives serde
+//! where it is declared, so there is no third spelling to keep in step
+//! and no mapping between two of them to get wrong.
 //!
-//! Two of the three hops need no test, because the compiler already
-//! refuses them:
-//!
-//! - `WireStep` is produced and consumed by matches that are
-//!   exhaustive on `ProgramStep` and on `WireStep`, so neither can
-//!   gain a variant the other lacks;
-//! - `eval::feed_step`, `eval::feed_lane_step` and
-//!   `LoopProgram::from_recorded` are exhaustive on `profile::Step`, so
-//!   a verb the table gains breaks `editor-core` at compile —
-//!   measured: one added table verb, and exactly those THREE sites.
-//!   `feed_lane_step` (M10-P) is the lift's second key feed and joined
-//!   the list when it landed; it is named here rather than left to be
-//!   rediscovered, since the whole point of this list is that it is the
-//!   set a reader can trust to be complete.
+//! The kernel→document hop needs no test, because the compiler already
+//! refuses it: `eval::feed_step`, `eval::feed_lane_step` and
+//! `LoopProgram::from_recorded` are exhaustive on `profile::Step`, so
+//! a verb the table gains breaks `editor-core` at compile — measured:
+//! one added table verb, and exactly those THREE sites.
+//! `feed_lane_step` (M10-P) is the lift's second key feed and joined
+//! the list when it landed; it is named here rather than left to be
+//! rediscovered, since the whole point of this list is that it is the
+//! set a reader can trust to be complete.
 //!
 //! The hop the compiler does NOT check is the one that CONSTRUCTS.
-//! `res_step` matches `ProgramStep` and builds a `Step`, so both
+//! `res_step` matches `ProgramStep` and builds a `Step`, so the
 //! compile errors above can be discharged without the document
 //! vocabulary ever learning the verb — a refusal arm in
 //! `from_recorded`, a tag in `feed_step` and one in `feed_lane_step`,
-//! and the wire and the
-//! expression-slot vocabularies are quietly short. This suite is that
-//! hop's census, anchored on `profile::Verb::ALL`: the same anchor
-//! `profile`'s own replay-coverage census uses, read from the same
-//! declaration.
+//! and the document and expression-slot vocabularies are quietly
+//! short. This suite is that hop's census, anchored on
+//! `profile::Verb::ALL`: the same anchor `profile`'s own
+//! replay-coverage census uses, read from the same declaration.
+//!
+//! # The spelling, now that the document form is the format
+//!
+//! A verb added to `ProgramStep` still breaks the compile at three
+//! sites in `program.rs` — `step_slots`, `res_step` and `step_bit_eq`
+//! (measured: one added document verb, exactly those three) — so it
+//! cannot arrive unnoticed, and what carries it into the corpus, the
+//! round trip and the pin below is the `ALL_NAMES` census rather than
+//! any of them.
+//!
+//! What no match anywhere reports is a verb RENAMED. Every census here
+//! compares one projection of a declaration against another projection
+//! of the same declaration, so a rename moves both sides at once; and
+//! since the document form is the serde type, that rename is a change
+//! to the persisted format. `PERSISTED_SPELLING` at the foot of this
+//! file is the literal pin that a rename cannot move with itself.
 //!
 //! # The arc modes, one level down
 //!
-//! The same three spellings carry a second vocabulary INSIDE the
+//! The same two spellings carry a second vocabulary INSIDE the
 //! steps — the §2c arc modes — and a verb-keyed census is blind to
 //! it: every mode travels inside `ArcTo` and the three fused verbs,
 //! so the verb census above is green whatever the modes do.
@@ -47,7 +58,7 @@
 //! and both content-key hashers are exhaustive on `profile::ArcData`,
 //! so a mode the kernel gains breaks this crate at compile — and, as
 //! above, each break can be discharged where it stands while
-//! `res_spec` keeps constructing and the document, wire and slot
+//! `res_spec` keeps constructing and the document and slot
 //! vocabularies stay short. `profile` declares the mode set once and
 //! projects `ArcMode::ALL` from that declaration; the mode census
 //! below is keyed on it, and its witness is a MATCH on the tag, so a
@@ -103,6 +114,8 @@
 //! keep.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use std::collections::BTreeSet;
+
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, SlotId,
@@ -136,8 +149,9 @@ fn point(x: f64, y: f64) -> ProgramTarget {
 /// point: a mode the kernel vocabulary gains has no arm here, so this
 /// function stops compiling until the document vocabulary learns the
 /// mode too. Every downstream spelling follows from that one addition
-/// by exhaustiveness — the wire's two conversions, `spec_slots`'
-/// roles, and the kernel construction in `res_spec`.
+/// by exhaustiveness — `spec_slots`' roles, `spec_bit_eq`, and the
+/// kernel construction in `res_spec`. The wire needs no arm: the
+/// document type is the serde type.
 ///
 /// The witnesses spread the forms an arc spec can target across the
 /// modes that take one, so the corpus reaches them without a second
@@ -246,7 +260,6 @@ fn chain_steps() -> Vec<ProgramStep> {
     );
     steps.extend([
         ProgramStep::TangentArcTo(ProgramTarget::Start),
-        ProgramStep::ArcContinue(pt(3.0, 1.0)),
         ProgramStep::Fillet(len(0.2)),
     ]);
     // Every mode in the ARRIVAL (spec₂) position, then every mode in
@@ -282,6 +295,16 @@ fn chain_steps() -> Vec<ProgramStep> {
                 side: profile::ArcSide::Right,
             },
         },
+        // The travel sense the mode witnesses do not reach. Every
+        // other structural tag on this wire rides a generated block,
+        // but `mode_witness` has one `Center` and so one winding, and
+        // a tag the corpus never carries is a tag the persisted-
+        // spelling pin below says nothing about.
+        ProgramStep::ArcTo(ProgramArcData::Center {
+            c: pt(6.0, 3.0),
+            winding: profile::ArcSweep::Ccw,
+            target: point(7.0, 3.0),
+        }),
         ProgramStep::FarEndTo(pt(7.0, 2.0)),
         ProgramStep::CloseTo,
     ]);
@@ -383,7 +406,6 @@ fn step_members(step: &ProgramStep) -> StepMembers {
         | ProgramStep::Cusp
         | ProgramStep::Turn(_)
         | ProgramStep::Line(_)
-        | ProgramStep::ArcContinue(_)
         | ProgramStep::Fillet(_)
         | ProgramStep::FarEndTo(_)
         | ProgramStep::CloseTo => (vec![], vec![]),
@@ -599,7 +621,6 @@ fn every_target_form_is_a_document_program() {
             | profile::Step::Cusp
             | profile::Step::Turn(_)
             | profile::Step::Line(_)
-            | profile::Step::ArcContinue(_)
             | profile::Step::Fillet { .. }
             | profile::Step::FarEndTo(_)
             | profile::Step::CloseTo
@@ -688,7 +709,6 @@ fn every_arc_mode_is_a_document_program() {
             | profile::Step::LineTo(_)
             | profile::Step::ContinueTo(_)
             | profile::Step::TangentArcTo(_)
-            | profile::Step::ArcContinue(_)
             | profile::Step::Fillet { .. }
             | profile::Step::FarEndTo(_)
             | profile::Step::CloseTo
@@ -840,43 +860,6 @@ struct CorpusVocabulary {
     targets: Vec<String>,
 }
 
-/// **The one set comparison in this file**, reported rather than
-/// asserted, and printing only the direction that actually failed.
-///
-/// Both censuses below compare a declared set against a witnessed set
-/// and owe the same two answers. Writing that twice is a second copy of
-/// the comparator kept in step by hand — in a file whose subject is a
-/// second list kept in step by hand — so it is written once, and the
-/// two call sites differ only in the sentence each direction earns.
-///
-/// `pub(crate)` because the binary's other censuses owe the same two
-/// answers: `display_contract`'s F6 roster check is a third call site,
-/// not a third copy.
-pub(crate) fn set_difference(
-    declared: &[&str],
-    witnessed: &[&str],
-    subject: &str,
-    undeclared_says: &str,
-    unwitnessed_says: &str,
-) -> Option<String> {
-    let unwitnessed: Vec<&&str> = declared.iter().filter(|d| !witnessed.contains(d)).collect();
-    let undeclared: Vec<&&str> = witnessed.iter().filter(|w| !declared.contains(w)).collect();
-    if unwitnessed.is_empty() && undeclared.is_empty() {
-        return None;
-    }
-    // Only the failing direction is printed. A clean direction rendered
-    // as `[]` beside a real one is noise in a message whose entire
-    // purpose is that a reader can act on it without a local repro.
-    let mut out = format!("{subject}:");
-    if !unwitnessed.is_empty() {
-        out.push_str(&format!("\n    {unwitnessed:?} — {unwitnessed_says}"));
-    }
-    if !undeclared.is_empty() {
-        out.push_str(&format!("\n    {undeclared:?} — {undeclared_says}"));
-    }
-    Some(out)
-}
-
 /// One document vocabulary's complaint, or `None` where it is whole.
 ///
 /// The caller is the census; this only answers for one vocabulary, so
@@ -886,7 +869,7 @@ pub(crate) fn set_difference(
 /// whole file was opened to fix.
 fn unwitnessed_report(vocabulary: &str, declared: &[&str], witnessed: &[String]) -> Option<String> {
     let witnessed: Vec<&str> = witnessed.iter().map(String::as_str).collect();
-    set_difference(
+    test_utils::census::set_difference(
         declared,
         &witnessed,
         &format!("`{vocabulary}` declares members the corpus does not witness"),
@@ -955,7 +938,7 @@ fn every_document_vocabulary_member_is_witnessed() {
         .map(|(name, _)| *name)
         .collect();
     let supplied: Vec<&str> = witnesses.iter().map(|(name, _)| *name).collect();
-    if let Some(report) = set_difference(
+    if let Some(report) = test_utils::census::set_difference(
         &declared,
         &supplied,
         "the vocabularies `document_vocabulary!` declares are not the vocabularies this \
@@ -1162,4 +1145,172 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
             arg.dimension()
         );
     }
+}
+
+// ------------------------------------------------------------------
+// The persisted spelling
+// ------------------------------------------------------------------
+
+/// Every JSON object KEY and every JSON string the corpus's persisted
+/// form carries, read from the bytes and not from the declarations
+/// that produced them.
+///
+/// Externally-tagged enums put a variant's name in one of exactly
+/// those two places — an object key for a variant with a payload, a
+/// bare string for one without — and a struct variant's field names
+/// are object keys beside it. So this set IS the persisted vocabulary
+/// of everything the corpus reaches, with no per-variant walk to keep
+/// in step with the enums.
+fn persisted_tokens(program: &ProfileProgram) -> BTreeSet<String> {
+    fn walk(v: &serde_json::Value, out: &mut BTreeSet<String>) {
+        match v {
+            serde_json::Value::Object(map) => {
+                for (key, value) in map {
+                    out.insert(key.clone());
+                    walk(value, out);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    walk(item, out);
+                }
+            }
+            serde_json::Value::String(s) => {
+                out.insert(s.clone());
+            }
+            serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {
+            }
+        }
+    }
+    let mut out = BTreeSet::new();
+    walk(
+        &serde_json::to_value(program).expect("the program serializes"),
+        &mut out,
+    );
+    out
+}
+
+/// **The persisted spelling of the profile payload, pinned as
+/// literals.**
+///
+/// Every other census in this file compares one projection of a
+/// declaration against another projection of the same declaration, so
+/// renaming a variant moves both sides together and nothing reds. That
+/// is the right shape for a census of WHICH members a vocabulary has.
+/// It is the wrong shape for their SPELLING, because the document
+/// enums ARE the serde types: a renamed variant and a renamed field
+/// are changes to the FORMAT, and the format is not derivable from the
+/// declaration that changed with it.
+///
+/// So this list is written out, and that is the point of it — it is
+/// the one thing on this wire that a rename cannot move with itself.
+/// A red here is not repaired by copying the new tokens over: it says
+/// a document the previous build saved no longer reads the same. The
+/// repair is to decide the new spelling is right, regenerate the
+/// checked-in corpus (`PNCAD_BLESS=1`, `lib_dietool_crossing`'s
+/// header), and re-pin.
+///
+/// It covers what the corpus reaches, which is every member of all
+/// four document vocabularies (the censuses above are what make that
+/// true) plus the `Expr` records they carry.
+///
+/// **It is a SET, and that is its blind spot.** A swapped `Ccw`/`Cw`, a
+/// `spec`/`spec2` exchanged between two fused verbs, a reordered
+/// `Literal` record: each leaves this set identical while changing
+/// where every word goes. `tests/wire_rv_bytes.rs` pins the
+/// ARRANGEMENT byte for byte and is what kills those; this row is the
+/// one that localises a rename to the word. Neither subsumes the
+/// other, and a reader chasing a red uses which of the two fired to
+/// tell a rename from a rearrangement.
+const PERSISTED_SPELLING: &[&str] = &[
+    // The `Expr` record and its closed tables: the dimensionless
+    // literal's display symbol is the empty string.
+    "",
+    "Length",
+    "Literal",
+    "Scalar",
+    "dim",
+    "m",
+    "rad",
+    "unit",
+    "value",
+    // `ProfileProgram` and `LoopProgram`.
+    "Chain",
+    "Circle",
+    "CircleSplit",
+    "centre",
+    "loops",
+    "n",
+    "phase",
+    "plane",
+    "radius",
+    // `ProgramStep`, and the field names of the four that name theirs.
+    "Angle",
+    "ArcFillet",
+    "ArcFilletArc",
+    "ArcTo",
+    "At",
+    "CloseTo",
+    "ContinueTo",
+    "Cusp",
+    "FarEndTo",
+    "Fillet",
+    "FilletArc",
+    "Line",
+    "LineTo",
+    "Tangent",
+    "TangentArcTo",
+    "Toward",
+    "Turn",
+    "dx",
+    "dy",
+    "spec",
+    "spec2",
+    // `ProgramArcData` and its fields, then the two kernel-foreign
+    // tags its fields carry (`profile::ArcSide`, `profile::ArcSweep`).
+    "ArcLen",
+    "Bulge",
+    "Center",
+    "Radius",
+    "Sweep",
+    "Via",
+    "angle",
+    "b",
+    "c",
+    "len",
+    "q",
+    "r",
+    "side",
+    "target",
+    "winding",
+    "Ccw",
+    "Cw",
+    "Left",
+    "Right",
+    // `ProgramTarget`. (`Angle` above is a step verb and a dimension
+    // both; `Radius`/`Sweep` are arc modes and `Line`/`Fillet` verbs —
+    // this is a set of TOKENS, not a table keyed by vocabulary.)
+    "Point",
+    "Start",
+    "StartArriving",
+];
+
+#[test]
+fn the_persisted_spelling_of_the_program_is_pinned() {
+    let found = persisted_tokens(&corpus());
+    let pinned: BTreeSet<String> = PERSISTED_SPELLING
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect();
+    let added: Vec<&String> = found.difference(&pinned).collect();
+    let gone: Vec<&String> = pinned.difference(&found).collect();
+    assert!(
+        added.is_empty() && gone.is_empty(),
+        "the persisted spelling of the profile program moved. New on the wire: \
+         {added:?}. Gone from the wire: {gone:?}. A document the previous build saved \
+         no longer reads the same — decide whether the new spelling is right, then \
+         regenerate the checked-in corpus (`PNCAD_BLESS=1 cargo test -p editor-core \
+         --test all lib_dietool_crossing`, the same for `wire_rv_bytes`, and \
+         `corpus/die_composed_tour.rs`'s own line for the tour) and re-pin here."
+    );
 }

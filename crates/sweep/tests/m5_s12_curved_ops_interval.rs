@@ -18,29 +18,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-/// **Loud skip.** Without `--features interval` this binary is empty,
-/// and an empty binary reports "0 passed" — which reads like coverage
-/// in a battery summary. Announce the skip instead, so a lane that
-/// silently lost its certified rows is visible in the log.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): m5_s12_curved_ops_interval.rs \
-         contributes NO certified coverage in this run — the S12 rows \
-         (bitwise curved revert, definite curved subtract/intersect, the \
-         mixed-sense split's inherited bit, the S13 sphere re-cut row) \
-         run only in the interval lane."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of S12's curved ops",
+);
 
 #[cfg(feature = "interval")]
-mod certified {
+pub(crate) mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
+    use geom_core::{Affine3, Bounds, Interval, OrthoFrame, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
@@ -61,20 +51,48 @@ mod certified {
 
     const R: f64 = 0.35;
 
-    fn plate() -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            p2(0.0, 0.0),
-            p2(3.0, 0.0),
-            p2(3.0, 3.0),
-            p2(0.0, 3.0),
+    /// The 3x3x0.8 plate. **`pub(crate)` because
+    /// `review_arceval_r1_probes`'s E2 row re-runs this fixture to pin
+    /// the same constant from a second file**: the two rows say they use
+    /// the same plate, and this is what makes that so rather than saying
+    /// it.
+    pub(crate) fn plate() -> Body<Interval> {
+        sweep::test_support::block(3.0, 3.0, 0.8, Tol::witness())
+    }
+
+    /// A ball of radius `r` about the origin: a half-disc lamina —
+    /// semicircle out of `(0, -r)`, straight diameter back — revolved
+    /// a full turn about `+y`.
+    ///
+    /// **`pub(crate)` for the same reason [`plate`] is**: this is the
+    /// other operand of the sphere-recut fixture, and
+    /// `review_arceval_r1_probes` builds bodies from it too. It takes
+    /// `r` because that suite's E1 row varies it; this file only ever
+    /// wants 1.
+    pub(crate) fn ball(r: f64) -> Body<Interval> {
+        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
+            ProfileVertex::new(p2(0.0, -r), iv(1.0)),
+            ProfileVertex::new(p2(0.0, r), iv(0.0)),
         ]);
-        extrude(
-            &validated(vec![lp]),
-            Extrusion::Distance(iv(0.8)),
+        let axis = RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(iv(0.0), iv(1.0)),
+        };
+        revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
+            .unwrap()
+            .body
+    }
+
+    /// The sphere-recut fixture's cutter: the unit [`ball`] at
+    /// `(1.5, 1.5, 0.5)`. With [`plate`] it is the whole fixture, and
+    /// `review_arceval_r1_probes`'s E2 row builds it from here too.
+    pub(crate) fn recut_ball() -> Body<Interval> {
+        topo::transform_rigid(
+            &ball(1.0),
+            &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
             Tol::witness(),
         )
         .unwrap()
-        .body
     }
 
     /// The three-arc cylindrical boss at (1.2, 1.7), sketched at `z0`.
@@ -92,11 +110,11 @@ mod certified {
             ProfileVertex::new(at(1), bulge),
             ProfileVertex::new(at(2), bulge),
         ]);
-        let plane = SketchPlane::from_frame(
-            geom_core::Point3::new(iv(0.0), iv(0.0), iv(z0)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-        );
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+            iv(0.0),
+            iv(0.0),
+            iv(z0),
+        )));
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
@@ -213,11 +231,11 @@ mod certified {
             p2(4.0, 2.5),
             p2(2.0, 2.5),
         ]);
-        let plane = SketchPlane::from_frame(
-            geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.3)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-        );
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
+            iv(0.0),
+            iv(0.0),
+            iv(0.3),
+        )));
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();
@@ -267,7 +285,7 @@ mod certified {
     // drawing default-ε only, so no run compared this constant until a
     // later branch drew (interval, 1e-12). Re-stated, not loosened, as
     // the constant's own doc requires.
-    const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
+    pub(crate) const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
 
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
     /// the sphere class now goes ALL the way through at the certified
@@ -296,25 +314,7 @@ mod certified {
     /// is a designed outcome, not a red.
     #[test]
     fn interval_sphere_subtract_decides_definitely_after_the_recut() {
-        // The half-disc lamina: a semicircle out of (0, -1) and the
-        // straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), iv(1.0)),
-            ProfileVertex::new(p2(0.0, 1.0), iv(0.0)),
-        ]);
-        let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
-        };
-        let ball = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
-            .unwrap()
-            .body;
-        let ball = topo::transform_rigid(
-            &ball,
-            &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
-            Tol::witness(),
-        )
-        .unwrap();
+        let ball = recut_ball();
 
         let cut = topo::subtract(&plate(), &ball, Tol::witness());
         if Tol::witness().eps() < RECUT_MAPPED_ENCLOSURE_HI {

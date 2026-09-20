@@ -36,15 +36,13 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    StableName, content_pin, split,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EvalOptions, Expr,
+    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    content_pin, split,
 };
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::resolver::{PART_BODY, in_part};
+use fixture::{in_copy, insert, len, on_frame, scl, step};
 use geom_core::Tol;
-
-/// The extrude in a one-block part document (frame, profile, extrude).
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 /// The unit cube `[0,1]³`, as a whole part document.
 fn block(label: &str) -> ProfileDoc {
@@ -72,33 +70,14 @@ fn block_ref(label: &str) -> DocRef {
     DocRef { id: doc.id(), pin }
 }
 
-/// A face of `instance`'s part product — the plain member spelling.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
-}
-
-/// A face of pattern copy `i` — the `Instance(i)` spelling, the PATTERN
-/// node as head and the master's own name under the qualifier.
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
+/// The reach a cut of the four-legs document levers through: a store
+/// holding both blocks, since cutting the shelf off the legs moves the
+/// remainder's gauge and mints its frame from the solved pose.
+fn legs_reach() -> EvalOptions {
+    let mut store = fixture::resolver::PartStore::new();
+    store.insert(block("fix-xs-leg"), Tol::witness());
+    store.insert(block("fix-xs-top"), Tol::witness());
+    fixture::resolver::with_resolver(store)
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
@@ -112,8 +91,8 @@ fn mate_frame(origin: [f64; 3]) -> MateFrame {
 /// A determining `Rest` mate seating `b`'s bottom onto `a`.
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: mate_frame([0.0, 0.0, 1.0]),
@@ -216,6 +195,7 @@ fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
 #[test]
 fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let (doc, leg, pattern, top, mate) = four_legs("fix-xs-torn");
+    let o = legs_reach();
 
     // The gauge is the cluster's document-order-first instance and the
     // named instance is the first member on the far side of the tear,
@@ -238,6 +218,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
             &ids,
             DocumentId::derive("fix-xs-torn-part"),
             Tol::witness(),
+            o.resolver.as_ref(),
         )
         .expect_err("a torn cluster refuses");
         let editor_core::SplitError::TornCluster {
@@ -265,6 +246,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         &cut([pattern]),
         DocumentId::derive("fix-xs-severed-part"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect_err("a severed recipe edge refuses");
     let editor_core::SplitError::SeveredEdge {
@@ -287,6 +269,7 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
         &cut([leg, pattern, top, mate]),
         DocumentId::derive("fix-xs-whole-part"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect("a whole-cluster cut splits");
     assert!(
@@ -304,11 +287,13 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
 #[test]
 fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     let (doc, leg, pattern, top, mate) = four_legs("fix-xs-remap");
+    let o = legs_reach();
     let out = split(
         &doc,
         &cut([leg, pattern, top, mate]),
         DocumentId::derive("fix-xs-remap-part"),
         Tol::witness(),
+        o.resolver.as_ref(),
     )
     .expect("a whole-cluster cut splits");
 
@@ -324,7 +309,7 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     };
     assert_eq!(
         *a,
-        SitedRef::at_mint(in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End))),
+        crate::fixture::head(in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End))),
         "ids remap through the recorded map; the copy index does not"
     );
     let RoleSeg::Instance { i, .. } = a.name.path[0] else {
@@ -399,6 +384,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
         &cut([leg, inner, outer]),
         DocumentId::derive("fix-xs-nested-part"),
         Tol::witness(),
+        None,
     )
     .expect("nothing tears: the cut is a union of whole clusters");
     assert!(
@@ -445,7 +431,7 @@ fn a_stranded_operand_over_an_instance_head_contributes_no_crossing() {
     let Node::Mate { a, .. } = &mut node else {
         panic!("a seat is a mate");
     };
-    *a = SitedRef::new(stranger, a.name.clone());
+    *a = crate::fixture::head_at(stranger, (*a.name).clone());
     let (doc, mate) = step(doc, DocEdit::InsertNode { node });
     let mate = mate.unwrap();
 
@@ -472,6 +458,7 @@ fn a_stranded_operand_over_an_instance_head_contributes_no_crossing() {
         &cut([leg]),
         DocumentId::derive("fix-xs-stranded-part"),
         Tol::witness(),
+        None,
     )
     .expect("nothing tears: the cut is a union of whole clusters");
     assert!(

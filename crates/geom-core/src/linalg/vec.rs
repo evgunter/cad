@@ -5,6 +5,7 @@
 //! that add, negate, and scale. Locations are [`super::Point2`] /
 //! [`super::Point3`].
 
+use core::convert::Infallible;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::real::Real;
@@ -182,9 +183,32 @@ impl<T: Real> Vec3<T> {
 
     /// The same vector read at another scalar: `f` applied to each
     /// component, in `x, y, z` order (see [`Vec2::map`]).
+    ///
+    /// ONE body with [`Self::try_map`]: this is that walk under an `f`
+    /// that cannot refuse, so there is a single statement of which
+    /// component goes where and the two directions cannot disagree
+    /// about it.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec3<U> {
-        Vec3::new(f(self.x), f(self.y), f(self.z))
+        // An `f` that cannot refuse gives the error type `Infallible`,
+        // discharged by matching the empty enum.
+        self.try_map(|c| Ok::<U, Infallible>(f(c)))
+            .unwrap_or_else(|never| match never {})
+    }
+
+    /// The same vector read at another scalar where the read may
+    /// REFUSE: `f` applied to each component in `x, y, z` order, and
+    /// the FIRST refusal returned — no component after it is
+    /// consulted. Structural like [`Self::map`], which is this walk
+    /// with an `f` that cannot refuse: no arithmetic, so exact
+    /// whenever `f` is.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses with, at the first component it refuses
+    /// on.
+    pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<Vec3<U>, E> {
+        Ok(Vec3::new(f(self.x)?, f(self.y)?, f(self.z)?))
     }
 
     /// The zero vector (the additive identity).

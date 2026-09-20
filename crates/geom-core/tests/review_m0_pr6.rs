@@ -2,8 +2,7 @@
 //! 2026-07-15/16), salvaged from the M0 orchestrator session scratchpad
 //! and promoted into CI 2026-07-16 (archived at
 //! `references/review-artifacts-m0/pr6-review-demos/`). These are
-//! **independent derivations** — do not "simplify" them to match shipped
-//! fixtures; the independence is the regression value.
+//! **independent derivations**.
 //!
 //! M2-shaped consumer exercises: the generic functions are written
 //! against `Real` alone — the way real M2 evaluation code will be — and

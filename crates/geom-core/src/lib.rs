@@ -37,12 +37,12 @@ pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
-    Affine3, FrameError, FrameInput, FrameVector, Mat3, Point2, Point3, UnitVec3, UnitVec3Error,
-    Vec2, Vec3, decide_unit_direction,
+    Affine3, FrameError, FrameInput, FrameVector, Mat3, OrthoAxis, OrthoFrame, OrthoFrameError,
+    Point2, Point3, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
 };
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
-    IndeterminatePayload, InfSpeed, Margin, MarginDiag, Sign, SupSpeed,
+    IndeterminatePayload, InfSpeed, Margin, MarginDiag, MissingRecourse, Sign, SupSpeed,
 };
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real, is_finite_length,

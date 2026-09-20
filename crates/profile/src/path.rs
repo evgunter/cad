@@ -1192,25 +1192,6 @@ pub enum PathError<T: Real> {
         /// The number of vertices given.
         given: usize,
     },
-    /// An [`arc_continue`](PartialPath::arc_continue) reached with no
-    /// incoming ARC carrier: the declared-subdivision step splits the
-    /// carrier the chain is already running on, so a straight incoming
-    /// leg (or a tip with no incoming leg data) has nothing to split.
-    /// The straight case is not missing vocabulary and never needed a
-    /// verb of its own: `line(len)` off the directed point IS the
-    /// straight continuation, because the binding bits determine a line
-    /// carrier completely — subdivide a straight run by chaining it.
-    /// (Nothing about a line has to be learned from the incoming leg,
-    /// which is exactly the asymmetry with an arc.)
-    ArcContinueNeedsArcCarrier,
-    /// An [`arc_continue`](PartialPath::arc_continue) target that does
-    /// not lie on the incoming carrier (|target − centre| − r decided
-    /// nonzero): the authored data contradicts itself — refused, never
-    /// re-projected (an authored point never moves, §4 item 3).
-    ArcContinueOffCarrier {
-        /// The classified radial offset, meters.
-        offset: T,
-    },
     /// A director spelled as components named no direction: the norm of
     /// `(dx, dy)` is within ε_input of zero
     /// ([`PartialPath::toward`]). Only the components' ratio is read,
@@ -1427,10 +1408,6 @@ pub enum PathErrorKind {
     CircleSplitCount,
     /// [`PathError::PolygonTooFewVertices`].
     PolygonTooFewVertices,
-    /// [`PathError::ArcContinueNeedsArcCarrier`].
-    ArcContinueNeedsArcCarrier,
-    /// [`PathError::ArcContinueOffCarrier`].
-    ArcContinueOffCarrier,
     /// [`PathError::ZeroDirection`].
     ZeroDirection,
     /// [`PathError::NonFiniteDirection`].
@@ -1487,8 +1464,6 @@ impl<T: Real> PathError<T> {
             Self::DegenerateArcSpec { .. } => PathErrorKind::DegenerateArcSpec,
             Self::CircleSplitCount { .. } => PathErrorKind::CircleSplitCount,
             Self::PolygonTooFewVertices { .. } => PathErrorKind::PolygonTooFewVertices,
-            Self::ArcContinueNeedsArcCarrier => PathErrorKind::ArcContinueNeedsArcCarrier,
-            Self::ArcContinueOffCarrier { .. } => PathErrorKind::ArcContinueOffCarrier,
             Self::ZeroDirection { .. } => PathErrorKind::ZeroDirection,
             Self::NonFiniteDirection { .. } => PathErrorKind::NonFiniteDirection,
             Self::UnderflowedDirection { .. } => PathErrorKind::UnderflowedDirection,
@@ -1826,19 +1801,6 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  straight legs bounds nothing with fewer corners — author the missing \
                  vertices"
             ),
-            Self::ArcContinueNeedsArcCarrier => write!(
-                f,
-                "arc_continue subdivides the incoming ARC carrier; the incoming leg here is \
-                 straight (or absent), so there is no carrier to split — author the geometry \
-                 as its own legs instead"
-            ),
-            Self::ArcContinueOffCarrier { offset } => write!(
-                f,
-                "the arc_continue target does not lie on the incoming carrier (radial offset \
-                 {offset} m): a subdivision vertex is ON the carrier by definition — fix the \
-                 authored point rather than expecting a re-projection",
-                offset = num(offset)
-            ),
             Self::ZeroDirection { dx, dy } => write!(
                 f,
                 "a director spelled as components must name a direction (got \
@@ -1909,32 +1871,19 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  seam is authored at the back by the verb that targets Start \
                  (PATHS-DESIGN §2's entry rule)"
             ),
-            // The prefix is computed from the predicate, not hard-coded.
-            // Three of the four keys that reach this arm are NOT junction
-            // classifications — `path_leg_length` meters an authored
-            // extent and `path_continuation_target_offset` meters a
-            // declared target's lateral miss — and calling those "junction
-            // classification" told the reader the opposite of what the
-            // margin means. R1 and R2 both found this; the leg-length case
-            // was already wrong before this unit.
+            // A recourse is routed by the escalated predicate's NAME.
+            // A name in two layers gets the EARLIER layer's sentence, so
+            // a `fillet_*` name written into a later arm is dead code
+            // rather than a silent override of its own sentence; the
+            // layers' name sets are disjoint today, and
+            // `recourse_roster::the_dispatch_order_owns_each_name_in_exactly_one_layer`
+            // is what measures that rather than assuming it.
             //
-            // The two non-junction keys also compose their OWN recourse
-            // from `source.payload()` (D4 (iv)): the shared
-            // `COINCIDENCE_RECOURSE` tail on the bare `Indeterminate`
-            // Display says "declare the coincidence", which is meaningless
-            // at these sites — for the continuation the declaration IS the
-            // verb, and for a leg length there is no coincidence to
-            // declare, only a number to change.
-            //
-            // DISPATCH ORDER. The fillet gates are asked first, through
-            // `fillet_recourse_for` — the crate's one name-to-sentence
-            // map. Their names are disjoint from every key below (the
-            // `fillet_*` family against the `path_*` verbs, the
-            // stored-form read's segment and joint classifications, and
-            // the junction keys), so the order is not resolving a
-            // conflict; it states which layer owns a name, and a
-            // `fillet_*` name added to a later arm would now be dead
-            // rather than silently outranking its own sentence.
+            // A name no layer claims is not silently labelled: one the
+            // crate has DECIDED needs nothing beyond the shared clause is
+            // in `validate::SHARED_CLAUSE_ONLY` and renders with that
+            // clause alone; anything else renders
+            // `geom_core::MissingRecourse`, which names the hole.
             Self::Escalated { source } => {
                 if let Some(predicate) = source.predicate
                     && let Some(recourse) = fillet_recourse_for(predicate)
@@ -1988,7 +1937,15 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // the door minted the joint itself, so "declare the
                     // coincidence" is advice about a declaration the caller
                     // never wrote, and the levers are the two the stored
-                    // form actually has. The class this arm leaves is
+                    // form actually has. Three of these names —
+                    // `carrier_line_circle` and the two
+                    // `carrier_circles_*` — also carry a note at
+                    // `ProfileError::Escalated`, and the two sentences
+                    // differ on purpose: THERE the segment pair is the
+                    // caller's own, so the declare lever is theirs and
+                    // the note says how to pull it; HERE the loop is one
+                    // this door is about to store. The class this arm
+                    // leaves is
                     // `work/blend/every-escalation-carries-the-coincidence-recourse-first.md`
                     // — an escalation that renders the shared recourse
                     // before its own site's — and this is one instance
@@ -2016,12 +1973,37 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         predicate = source.predicate.unwrap_or("<unnamed>"),
                         payload = source.payload()
                     ),
-                    // The junction keys (`path_junction_turn`,
-                    // `path_junction_side`) keep the full `Indeterminate`
+                    // The junction keys keep the full `Indeterminate`
                     // Display, shared recourse and all: at a junction
                     // "declare the coincidence" is exactly the right advice,
-                    // and `.tangent()` is what declaring it means.
-                    _ => write!(f, "path junction classification: {source}"),
+                    // and `.tangent()` is what declaring it means. They are
+                    // NAMED here, because the label is a claim about the
+                    // two of them and about nothing else the funnel
+                    // decides.
+                    Some("path_junction_turn" | "path_junction_side") => {
+                        write!(f, "path junction classification: {source}")
+                    }
+                    // A name no arm above claims. If the crate has
+                    // decided it needs nothing beyond the shared clause
+                    // `{source}` already ends in, it is in
+                    // `validate::SHARED_CLAUSE_ONLY` and the refusal
+                    // stops there; otherwise the refusal names the hole,
+                    // through the one home every recourse table's
+                    // fall-through composes. The door names ITSELF where
+                    // `BlendError::Escalated` names a site: this variant
+                    // carries no site field, and adding one would move a
+                    // `PathError` shape.
+                    _ => match source
+                        .predicate
+                        .and_then(crate::validate::shared_clause_only)
+                    {
+                        Some(_) => write!(f, "escalated at the path door: {source}"),
+                        None => write!(
+                            f,
+                            "escalated at the path door: {source} — {}",
+                            geom_core::MissingRecourse(source.predicate)
+                        ),
+                    },
                 }
             }
             Self::Band(e) => write!(f, "path tolerance band: {e}"),
@@ -2222,12 +2204,28 @@ enum FirstSeg {
     Arc,
 }
 
-/// Chain-side bookkeeping for an opened fillet — the §4 item 4
-/// zero-fit knife-edge data. This is NOT part of the kernel's
-/// [`verbs::Pending`] state value: the kernel cannot name it, which is
-/// what keeps the verbs pure (§2c round 12).
+/// Chain-side bookkeeping for an opened fillet: the authored ADDRESS
+/// its radius arguments are recorded at (`bound_at`,
+/// `incoming_radius`) and the §4 item 4 zero-fit knife-edge data
+/// (`by_tangent`, `origin_incoming`, `extends_carrier`). This is NOT
+/// part of the kernel's [`verbs::Pending`] state value: the kernel
+/// cannot name it, which is what keeps the verbs pure (§2c round 12).
+/// It is held WITH the pending side it describes ([`Core::pending`]),
+/// so the two cannot be one without the other.
 #[derive(Clone, Debug)]
 struct PendingMeta<T: Real> {
+    /// **The authored step this fillet was BOUND at**, in program
+    /// order. The radius is that step's argument wherever the arc is
+    /// finally emitted: a `fillet(r)` binds on one step and its arc is
+    /// emitted by the arrival step, and the emission record names the
+    /// binder, because that is where the radius a reader would edit
+    /// lives.
+    bound_at: usize,
+    /// Whether the INCOMING side's carrier was authored by a radius
+    /// argument (a `Radius`, `Sweep` or `ArcLen` spec). A bulge, a
+    /// through-point or a centre authors the same carrier from no
+    /// radius at all, so the arc it emits has no address to record.
+    incoming_radius: bool,
     /// The ray was bound by `.tangent()` (or ray-extended off a leg
     /// end): its origin joint is already declared.
     by_tangent: bool,
@@ -2253,20 +2251,41 @@ pub struct Core<T: Real> {
     start_pos: Option<Point2<T>>,
     start_ang: Option<Dir<T>>,
     first_seg: FirstSeg,
-    pending: Option<verbs::Pending<T>>,
-    /// Chain-side knife-edge bookkeeping for `pending` (same lifetime).
-    pending_meta: Option<PendingMeta<T>>,
-    /// The carrier of the last emitted segment when it is an arc.
-    last_arc: Option<ArcData<T>>,
+    /// The opened fillet side and its chain-side bookkeeping. ONE
+    /// field because they are one fact with one lifetime: every door
+    /// that opens a fillet writes both, every resolution takes both,
+    /// and a side without its bookkeeping — or bookkeeping without its
+    /// side — is a state no door can leave the chain in because it is
+    /// unrepresentable, rather than one [`Core::take_pending`] has to
+    /// refuse.
+    pending: Option<(verbs::Pending<T>, PendingMeta<T>)>,
     /// Every fillet arc emitted into the chain, as the index of the
     /// vertex it LEAVES paired with the radius that was asked for —
     /// what [`Core::fillets_carry_their_tangency`] re-reads at the
     /// close, and the radius its sentence names.
+    ///
+    /// Not `radii` below in another spelling, and deliberately not
+    /// folded into it: this one is a CLOSE-TIME CHECK keyed by vertex
+    /// and carrying the scalar radius the sentence prints, that one is
+    /// the authored ADDRESS of every radius-drawn arc — fillet and
+    /// carrier alike — and carries no scalar at all.
     fillet_arcs: Vec<(usize, T)>,
+    /// Which segment each authored radius drew, in emission order —
+    /// recorded as the pass emits, and reported beside the spans
+    /// ([`Core::finish`]). See [`crate::structure::RadiusEmission`].
+    radii: Vec<crate::structure::RadiusEmission>,
     /// **Profiles-as-programs (v2)**: the authoring verbs, recorded as
     /// they lower. Each binder pushes exactly its own step, so one
     /// chain yields both the lowered loop and its program.
     program: Vec<Step<T>>,
+    /// The chain length each recorded step found, parallel to
+    /// `program`: `step_starts[j]` is `verts.len()` at the moment step
+    /// `j` was recorded, which is BEFORE its own emission — every row
+    /// records, then constructs, the ENTRY rows included
+    /// ([`Core::record`]). Two consecutive entries bracket the vertices
+    /// one step pushed, and so the segments it produced —
+    /// [`Core::step_spans`] does that arithmetic once, at the close.
+    step_starts: Vec<usize>,
     /// How this lowering treats the discrete decisions inside it:
     /// selecting freely and recording what it selected, or consuming a
     /// prior elaboration's selections and re-verifying each at this
@@ -2284,10 +2303,10 @@ impl<T: Real> Core<T> {
             start_ang: None,
             first_seg: FirstSeg::NotYet,
             pending: None,
-            pending_meta: None,
-            last_arc: None,
             fillet_arcs: Vec::new(),
+            radii: Vec::new(),
             program: Vec::new(),
+            step_starts: Vec::new(),
             guide: crate::structure::Guide::recording(),
         }
     }
@@ -2310,9 +2329,50 @@ impl<T: Real> Core<T> {
         &mut self.guide
     }
 
-    /// Records one authoring verb (record-as-you-lower).
+    /// Records one authoring verb (record-as-you-lower), with the
+    /// chain length it starts from — the left end of the span it is
+    /// about to produce.
+    ///
+    /// **Every row records BEFORE it constructs, the entry rows
+    /// included.** An entry verb has no core to record into until its
+    /// kernel mints one, so the kernel takes the step and records it
+    /// there ([`Open::at_kernel`], [`Open::director`]) rather than the
+    /// row recording into the path it just built. The uniformity is
+    /// what makes `step_starts[j]` mean one thing for every `j`.
     fn record(&mut self, step: Step<T>) {
         self.program.push(step);
+        self.step_starts.push(self.verts.len());
+    }
+
+    /// Which segments each recorded step produced, in program order.
+    ///
+    /// Segment `k` leaves vertex `k`, so a chain of `a` vertices has
+    /// completed `a - 1` of them — none at all while it is empty or
+    /// holds only its seed, which is what `completed` below says and
+    /// why it saturates. A step that ran while the chain grew from `a`
+    /// to `b` vertices therefore produced `completed(a)..completed(b)`.
+    /// The CLOSING step produces one more — the seam segment, which
+    /// leaves the chain's last vertex and needs no vertex of its own —
+    /// so the final span ends at the vertex count itself.
+    ///
+    /// `completed` is monotone and `step_starts` is non-decreasing (a
+    /// chain only grows), so `start <= end` holds for every span by
+    /// construction; [`StepSpan::new`] asserts it rather than this
+    /// clamping it back into range.
+    fn step_spans(&self) -> Vec<crate::structure::StepSpan> {
+        let completed = |verts: usize| verts.saturating_sub(1);
+        let closed = self.verts.len();
+        self.step_starts
+            .iter()
+            .enumerate()
+            .map(|(j, &a)| {
+                let end = match self.step_starts.get(j + 1) {
+                    Some(&b) => completed(b),
+                    None => closed,
+                };
+                crate::structure::StepSpan::new(completed(a), end)
+            })
+            .collect()
     }
 
     /// Seeds the entry vertex (the chain's provisional first vertex —
@@ -2350,24 +2410,18 @@ impl<T: Real> Core<T> {
             pos: p,
             bulge: T::zero(),
         });
-        self.last_arc = None;
         Ok(())
     }
 
     /// Appends an arc segment to `p` with `bulge` (the raw
-    /// `arc_to`), remembering the carrier for identity checks.
-    fn push_arc(
-        &mut self,
-        p: Point2<T>,
-        bulge: T,
-        carrier: ArcData<T>,
-    ) -> Result<(), PathError<T>> {
+    /// `arc_to`). The carrier is not kept: the chain remembers nothing
+    /// about an emitted arc beyond the tip's own incoming data.
+    fn push_arc(&mut self, p: Point2<T>, bulge: T) -> Result<(), PathError<T>> {
         self.set_leaving(bulge, FirstSeg::Arc)?;
         self.verts.push(ProfileVertex {
             pos: p,
             bulge: T::zero(),
         });
-        self.last_arc = Some(carrier);
         Ok(())
     }
 
@@ -2389,28 +2443,71 @@ impl<T: Real> Core<T> {
         }
     }
 
-    /// Records the fillet arc of `radius` about to be emitted, for the
-    /// close to re-read, and hands back the vertex index it recorded so
-    /// the caller emits onto the segment it just claimed. Called
-    /// immediately BEFORE the emission, where the chain's last vertex is
-    /// the incoming tangent point the arc leaves — the one spelling for
-    /// both emissions, the interior arc that pushes its end vertex and
-    /// the seam arc that retrims the entry vertex instead.
+    /// Records that the radius argument at `(step, role)` drew the arc
+    /// whose bulge is about to be set, and hands back the segment it
+    /// recorded — the one leaving the chain's last vertex, which is the
+    /// one spelling for every emission: the interior arc that pushes
+    /// its end vertex, the seam arc that retrims the entry vertex, and
+    /// the closing arc that does neither.
     ///
-    /// A fillet arc leaves a vertex, so a chain with no vertices cannot
-    /// be about to emit one; the door says so rather than recording
-    /// nothing and letting the close read a shorter list than the loop
+    /// **The one place a radius emission is addressed.** Called
+    /// immediately BEFORE the emission, so the index it reads is the
+    /// segment the arc becomes; an arc no radius argument authored
+    /// never comes here, because there is no address to record.
+    ///
+    /// An arc leaves a vertex, so a chain with no vertices cannot be
+    /// about to emit one; the door says so rather than recording
+    /// nothing and letting a reader see a shorter list than the loop
     /// has arcs.
-    fn record_fillet_arc(&mut self, radius: T) -> Result<usize, PathError<T>> {
-        let leaving = self
+    fn record_radius(
+        &mut self,
+        step: usize,
+        role: crate::structure::RadiusRole,
+    ) -> Result<usize, PathError<T>> {
+        let segment = self
             .verts
             .len()
             .checked_sub(1)
             .ok_or(PathError::UnderdeterminedLeg {
-                site: "a fillet arc emitted onto an empty chain",
+                site: "an arc emitted onto an empty chain",
             })?;
+        self.radii.push(crate::structure::RadiusEmission {
+            step,
+            role,
+            segment,
+        });
+        Ok(segment)
+    }
+
+    /// Records the fillet arc of `radius` about to be emitted: its
+    /// authored address, through [`Core::record_radius`] like every
+    /// other radius-drawn arc, AND the close-time tangency re-read the
+    /// address does not carry. Hands back the vertex index both were
+    /// recorded at, so the caller emits onto the segment it just
+    /// claimed.
+    ///
+    /// **Every fillet arc in the chain goes through here**, which is
+    /// what makes [`Core::fillets_carry_their_tangency`] a reading of
+    /// all of them rather than of the ones a site remembered to push.
+    fn record_fillet_arc(&mut self, radius: T, bound_at: usize) -> Result<usize, PathError<T>> {
+        let leaving = self.record_radius(bound_at, crate::structure::RadiusRole::Fillet)?;
         self.fillet_arcs.push((leaving, radius));
         Ok(leaving)
+    }
+
+    /// The step being lowered: the last one recorded, since every row
+    /// records before it constructs ([`Core::record`]).
+    ///
+    /// A chain with no recorded step has nothing under construction, so
+    /// an emission claiming one is an internal invariant break rather
+    /// than a step 0 to assume.
+    fn current_step(&self) -> Result<usize, PathError<T>> {
+        self.program
+            .len()
+            .checked_sub(1)
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "an arc emitted before any step was recorded",
+            })
     }
 
     /// Declares the SEAM joint — joint 0, the entry vertex — tangent,
@@ -2430,6 +2527,8 @@ impl<T: Real> Core<T> {
     /// Finishes the loop, returning it PAIRED with the program that
     /// produced it (see [`ClosedLoop`]).
     fn finish(mut self) -> ClosedLoop<T> {
+        let spans = self.step_spans();
+        let radii = core::mem::take(&mut self.radii);
         let structure = self.take_structure();
         ClosedLoop {
             loop_: ProfileLoop {
@@ -2437,7 +2536,7 @@ impl<T: Real> Core<T> {
                 tangent_joints: self.tangent,
             },
             program: self.program,
-            structure: structure.into_record(),
+            structure: structure.into_record(spans, radii),
         }
     }
 }
@@ -2829,12 +2928,29 @@ impl<T: Decide> Core<T> {
     /// and the joint it sits on is skipped here.
     ///
     /// **Only DECLARED joints are read**, and that is the whole reach.
-    /// A fillet's own joint is declared by construction at every door
-    /// but two: an exact outgoing fit onto a far-end anchor, and an
-    /// arc-carrier arrival whose run the fillet consumes — there the
-    /// direction leaving the arc is free, so the door declares nothing
-    /// and there is no claim for the stored form to fail. What an
-    /// undeclared joint CAN do is come back `Tangent` and draw
+    /// EVERY fillet arc the chain emits is in the list — the one door
+    /// that used to store its arc without recording it, the exact-fit
+    /// arc close, goes through [`Core::record_fillet_arc`] like the
+    /// rest — so what scopes the reading is the declaration set and
+    /// nothing else. A fillet's OUTGOING joint is declared by
+    /// construction at every door but three, and at each of the three
+    /// the direction leaving the arc is not the door's to claim:
+    ///
+    /// - an exact outgoing fit onto a far-end anchor, and an interior
+    ///   arc-carrier arrival whose run the fillet consumes — the side
+    ///   ends at the arc and the next direction is free;
+    /// - the exact-fit arc CLOSE, where the joint leaving the arc is
+    ///   the seam: its direction is the entry's own and the seam
+    ///   junction check beside it requires that joint TRANSVERSAL, so
+    ///   a declaration there would contradict the check rather than
+    ///   record a construction.
+    ///
+    /// The arc's INCOMING joint is declared at all three by
+    /// [`Core::emit_fillet_in`] wherever it emits a run, so a stored
+    /// form that stopped being the arc the resolver computed is read
+    /// at that joint even where the outgoing one is skipped.
+    ///
+    /// What an undeclared joint CAN do is come back `Tangent` and draw
     /// `UndeclaredTangency` from validation; that is a claim about the
     /// declaration set rather than about the stored form, it is the
     /// same at every scalar and tolerance, and `rejections.rs` is where
@@ -2945,21 +3061,16 @@ impl<T: Decide> Core<T> {
         Ok(self.finish())
     }
 
-    /// Takes the opened fillet and its chain-side bookkeeping together.
+    /// Takes the opened fillet and its chain-side bookkeeping, which
+    /// are one value: the only thing left to refuse is that no fillet
+    /// is open at all.
     fn take_pending(
         &mut self,
         site: &'static str,
     ) -> Result<(verbs::Pending<T>, PendingMeta<T>), PathError<T>> {
-        let pending = self
-            .pending
+        self.pending
             .take()
-            .ok_or(PathError::OverdeterminedJunction { site })?;
-        let meta = self.pending_meta.take().unwrap_or(PendingMeta {
-            by_tangent: false,
-            origin_incoming: None,
-            extends_carrier: false,
-        });
-        Ok((pending, meta))
+            .ok_or(PathError::OverdeterminedJunction { site })
     }
 
     /// Resolves a FUSED-incoming fillet (`Pending::Arc`) against a
@@ -2995,13 +3106,13 @@ impl<T: Decide> Core<T> {
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         };
         let trims = (arc.resolver)(self.guide_mut(), incoming, arrival, arc.radius, tol)?;
-        self.emit_fillet_in(&trims, meta.extends_carrier)?;
+        self.emit_fillet_in(&trims, meta.extends_carrier, &meta)?;
         match kind {
             ArrivalKind::Seam => {
                 // The fillet arc IS the closing segment; the entry
                 // vertex retrims to its end and joint 0 is the
                 // constructed seam tangency (the straight seam's rule).
-                let leaving = self.record_fillet_arc(arc.radius)?;
+                let leaving = self.record_fillet_arc(arc.radius, meta.bound_at)?;
                 self.set_leaving(trims.bulge, FirstSeg::Arc)?;
                 debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
@@ -3014,9 +3125,9 @@ impl<T: Decide> Core<T> {
                 }
                 self.tangent.push(0);
             }
-            ArrivalKind::Continues => self.emit_fillet_arc(&trims, true)?,
+            ArrivalKind::Continues => self.emit_fillet_arc(&trims, true, meta.bound_at)?,
             ArrivalKind::EndsAtAnchor => {
-                self.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive)?;
+                self.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive, meta.bound_at)?;
             }
         }
         Ok((trims.arc, trims.fit_out))
@@ -3151,7 +3262,7 @@ impl<T: Decide> Core<T> {
         // must declare manually). Seam: the arc IS the closing
         // segment; the entry vertex retrims to its end and joint 0 is
         // the constructed seam tangency.
-        let leaving = self.record_fillet_arc(pending.radius)?;
+        let leaving = self.record_fillet_arc(pending.radius, meta.bound_at)?;
         if kind == ArrivalKind::Seam {
             self.set_leaving(trims.bulge, FirstSeg::Arc)?;
             match self.verts.first_mut() {
@@ -3165,7 +3276,7 @@ impl<T: Decide> Core<T> {
             self.tangent.push(0);
             debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
         } else {
-            self.push_arc(trims.t2, trims.bulge, arc)?;
+            self.push_arc(trims.t2, trims.bulge)?;
             debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
             // The outgoing joint is declared only when something
             // tangent actually follows it (see [`ArrivalKind`]): a
@@ -3185,6 +3296,10 @@ impl<T: Decide> Core<T> {
     /// — along that side's own carrier when it has one, straight when
     /// it does not — and declares the joint it lands on.
     ///
+    /// `meta` carries the address the emitted segment is recorded at:
+    /// the binder's own step, recorded only where a radius argument
+    /// authored that incoming carrier (`PendingMeta::incoming_radius`).
+    ///
     /// Bit-identity note: this is `fillet_corner`'s emission verbatim
     /// (`arc_to_center(t1, centre, sweep)` / `line_to(t1)`, then
     /// `declare_tangent()`), which is what lets a migrated site
@@ -3195,24 +3310,26 @@ impl<T: Decide> Core<T> {
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
         merge: bool,
+        meta: &PendingMeta<T>,
     ) -> Result<(), PathError<T>> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
                 None if merge => self.extend_leg_to(t.t1)?,
                 None => self.push_line(t.t1)?,
+                // An EXTENSION emits no segment — the leg's own end
+                // vertex moves along the carrier it already had — so
+                // the segment keeps the address the leg step gave it
+                // and there is nothing to record here.
                 Some((centre, sweep)) if merge => self.extend_arc_to(t.t1, centre, sweep)?,
                 Some((centre, sweep)) => {
                     let head = self.head()?;
                     let bulge = bulge_from_center(head, t.t1, centre, sweep);
-                    let radius = (t.t1 - centre).norm_squared().sqrt();
-                    self.push_arc(
-                        t.t1,
-                        bulge,
-                        ArcData {
-                            center: centre,
-                            radius,
-                        },
-                    )?;
+                    // The incoming carrier is the BINDER's own argument
+                    // wherever the arrival finally emits it.
+                    if meta.incoming_radius {
+                        self.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier)?;
+                    }
+                    self.push_arc(t.t1, bulge)?;
                 }
             }
             if !(t.in_arc.is_none() && merge) {
@@ -3268,11 +3385,6 @@ impl<T: Decide> Core<T> {
         let bulge = bulge_from_center(from, t1, centre, sweep);
         self.verts[n - 2].bulge = bulge;
         self.verts[n - 1].pos = t1;
-        let radius = (t1 - centre).norm_squared().sqrt();
-        self.last_arc = Some(ArcData {
-            center: centre,
-            radius,
-        });
         Ok(())
     }
 
@@ -3283,9 +3395,10 @@ impl<T: Decide> Core<T> {
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
         declare: bool,
+        bound_at: usize,
     ) -> Result<(), PathError<T>> {
-        let leaving = self.record_fillet_arc(t.arc.radius)?;
-        self.push_arc(t.t2, t.bulge, t.arc)?;
+        let leaving = self.record_fillet_arc(t.arc.radius, bound_at)?;
+        self.push_arc(t.t2, t.bulge)?;
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if declare {
             self.declare_last();
@@ -3319,6 +3432,27 @@ pub struct PartialPath<T: Real, P, A> {
     _state: PhantomData<(P, A)>,
 }
 
+impl<T: Real, P, A> PartialPath<T, P, A> {
+    /// **The steps recorded so far, in program order** — the prefix of
+    /// the program this chain publishes when it closes
+    /// ([`ClosedLoop::program`]).
+    ///
+    /// Every verb records exactly one step, before the emission it
+    /// brackets (`Core::record`), so the last element is the verb
+    /// that was just called and its index is that verb's step number
+    /// in the published program. That is what lets a caller writing a
+    /// notation beside the recording address the leg it just authored
+    /// without counting the ones before it.
+    ///
+    /// The steps only, and no structure record: a chain's structure is
+    /// taken at the close, and the recording is the part of a path
+    /// that is already final at every point along it.
+    #[must_use]
+    pub fn recorded(&self) -> &[Step<T>] {
+        &self.core.program
+    }
+}
+
 /// Re-wraps runtime state under new lattice markers (private: binders
 /// are the only constructors).
 fn in_state<T: Real, P, A>(core: Core<T>, tip: Tip<T>) -> PartialPath<T, P, A> {
@@ -3342,10 +3476,20 @@ fn leg_end_tip<T: Real>(at: Point2<T>, ang: Dir<T>, arm: T, carrier: Option<ArcD
 }
 
 impl Open {
-    /// The kernel behind the table's `Open → Point` row: seeds the
-    /// chain at `p` (recording is the row's, not the kernel's).
-    fn at_kernel<T: Real>(self, p: Point2<T>) -> PartialPath<T, HasPos<Plain>, NoAng> {
+    /// The kernel behind the table's `Open → Point` row: records the
+    /// entry verb, then seeds the chain at `p`.
+    ///
+    /// The step is the kernel's argument rather than the row's because
+    /// the core a row would record into does not exist until this
+    /// function makes it, and [`Core::record`] runs BEFORE the emission
+    /// it brackets everywhere ([`Core::step_spans`]).
+    fn at_kernel<T: Real>(
+        self,
+        step: Step<T>,
+        p: Point2<T>,
+    ) -> PartialPath<T, HasPos<Plain>, NoAng> {
         let mut core = Core::empty();
+        core.record(step);
         core.seed(p);
         in_state(
             core,
@@ -3360,9 +3504,14 @@ impl Open {
         )
     }
 
-    fn director<T: Real>(self, dir: Dir<T>) -> PartialPath<T, NoPos, HasAng> {
+    /// The kernel behind the table's `Open → Angle` rows: records the
+    /// entry verb, then binds the direction. The step is the kernel's
+    /// argument for the reason [`Open::at_kernel`] states.
+    fn director<T: Real>(self, step: Step<T>, dir: Dir<T>) -> PartialPath<T, NoPos, HasAng> {
+        let mut core = Core::empty();
+        core.record(step);
         in_state(
-            Core::empty(),
+            core,
             Tip {
                 pos: None,
                 ang: Some(dir),
@@ -3694,9 +3843,6 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// was being answered, so collapsing them would lose the
     /// distinction that makes the funnel worth having. What was missing
     /// was the cross-reference, not the sharing.
-    ///
-    /// `arc_continue_kernel` is the third member of the family; it
-    /// retires with BOOL-10.
     fn on_ray_extent(
         at: Point2<T>,
         ang: Dir<T>,
@@ -3865,59 +4011,6 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         self.core.set_leaving(T::zero(), FirstSeg::Line)?;
         self.core.build(tol)
     }
-
-    /// The kernel behind the table's declared-subdivision row (recording
-    /// is the row's, not the kernel's).
-    fn arc_continue_kernel(
-        mut self,
-        target: Point2<T>,
-        tol: Tol,
-    ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        let pos = self.tip.pos.as_ref().ok_or(PathError::UnderdeterminedLeg {
-            site: "arc_continue on a tip without a position",
-        })?;
-        let at = pos.at;
-        let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg {
-            site: "arc_continue on a tip without incoming data",
-        })?;
-        let carrier = inc.carrier.ok_or(PathError::ArcContinueNeedsArcCarrier)?;
-        let band = linear_band(tol)?;
-        // The target must LIE on the carrier: |target − c| − r decided
-        // coincident (in-band Zero); a definite offset is contradictory
-        // authored data.
-        let offset = (target - carrier.center).norm_squared().sqrt() - carrier.radius;
-        match decide("path_arc_continue_on_carrier", Margin::of(offset), band) {
-            Ok(Sign::Zero) => {}
-            Ok(_) => return Err(PathError::ArcContinueOffCarrier { offset }),
-            Err(source) => return Err(PathError::Escalated { source }),
-        }
-        let chord_v = target - at;
-        let chord = chord_v.norm_squared().sqrt();
-        match decide("path_arc_chord", Margin::of(chord), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => return Err(PathError::DegenerateArcChord { chord }),
-            Err(source) => return Err(PathError::Escalated { source }),
-        }
-        // The continuation departs ALONG the incoming tangent (same
-        // carrier, same sense — that is what continuing means), so the
-        // bulge is the tangent-chord relation, exactly
-        // `tangent_arc_geom`'s derivation: δ = atan2(across, along),
-        // b = tan(δ/2), end tangent = departure + 2δ. The travel sense
-        // falls out of the signed δ — no sign is ever read or
-        // classified here.
-        let u = inc.ang.unit;
-        let along = u.dot(chord_v);
-        let across = u.perp_dot(chord_v);
-        let delta = across.atan2(along);
-        let bulge = (delta / T::from_f64(2.0)).tan();
-        let end_ang = Dir::from_angle(inc.ang.ang + delta + delta);
-        self.core.push_arc(target, bulge, carrier)?;
-        let arm = arc_arm(&carrier, chord);
-        Ok(in_state(
-            self.core,
-            leg_end_tip(target, end_ang, arm, Some(carrier)),
-        ))
-    }
 }
 
 // ------------------------------------------------------------------
@@ -3969,16 +4062,21 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(_) => return Err(PathError::NonpositiveFilletRadius { radius }),
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        self.core.pending = Some(verbs::Pending::Ray(verbs::PendingRay {
-            origin: at,
-            dir: ang,
-            radius,
-        }));
-        self.core.pending_meta = Some(PendingMeta {
+        let meta = PendingMeta {
+            bound_at: self.core.current_step()?,
+            incoming_radius: false,
             by_tangent: self.tip.ang_by_tangent,
             origin_incoming: self.tip.pos.as_ref().and_then(|p| p.incoming),
             extends_carrier: false,
-        });
+        };
+        self.core.pending = Some((
+            verbs::Pending::Ray(verbs::PendingRay {
+                origin: at,
+                dir: ang,
+                radius,
+            }),
+            meta,
+        ));
         Ok(in_state(
             self.core,
             Tip {
@@ -4046,7 +4144,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
         let g = self.tangent_arc_geom(p, tol)?;
-        self.core.push_arc(p, g.bulge, g.carrier)?;
+        self.core.push_arc(p, g.bulge)?;
         let arm = arc_arm(&g.carrier, g.chord);
         Ok(in_state(
             self.core,
@@ -4292,7 +4390,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
             self.core.start_ang = Some(start_t);
         }
         let carrier = arc_carrier(at, p, bulge);
-        self.core.push_arc(p, bulge, carrier)?;
+        self.core.push_arc(p, bulge)?;
         let arm = arc_arm(&carrier, chord);
         Ok(in_state(
             self.core,

@@ -9,6 +9,37 @@ rust-version.workspace = true
 workspace = true
 
 [features]
+# Makes the RAW pick mints nameable from outside this crate's own
+# sources: `MeshPick::build`, the hand-built triangle index, and
+# `PickTarget::new`, the target that DECLARES which document, node and
+# body its mesh is of. Under this feature both are `pub`; under its
+# negation neither exists at all, so a build that does not ask for it
+# has no route to either, `NodePick` is the only mint of a
+# `PickTarget`, and "the document half is checked" is true of every
+# target a consumer can hold rather than of one path through the door
+# (`src/resolve/pick.rs`'s `PickTarget`, `ASSEMBLY.md` A2a).
+#
+# Off by default and enabled only through the self dev-dependency
+# below, so it is on for this crate's own test targets and off for
+# every normal build. It adds no public TYPE — the types stay public in
+# both arms and only the constructors move — so nothing behind it is
+# part of the surface pncad's facade completeness guard watches.
+#
+# FORWARDS `profile/test-support`, by the convention
+# `crates/profile/tests/raw_door_census.rs`'s
+# `every_crate_that_names_the_door_reaches_it` holds: a crate whose
+# `src/` names profile's raw door and declares a `test-support` feature
+# of its own forwards profile's from it, so the feature compiles from
+# the crate that NAMES the door rather than only where some sibling's
+# dev-dependency happens to unify it in. This crate's `src/` does name
+# it — the `ProfileLoop::polygon` fixtures in the `#[cfg(test)]`
+# modules of `resolve/pick.rs`, `names/emit*.rs`, `eval/wire.rs` and
+# `verbs/shell.rs` — and that census row is what reds without the
+# forward. `crates/sweep/Cargo.toml` carries it for the same reason. It
+# is the census row and not a compile: the `profile` dev-dependency
+# below already carries `test-support`, so this crate's own test
+# targets build either way.
+test-support = ["profile/test-support"]
 # Forwards geom-core's certified interval scalar so the expression
 # evaluator's and evaluation service's Interval instantiation tests
 # (M4 PR 1 D8; M4 PR 2 D2/D7) run in CI's interval lane.
@@ -97,6 +128,23 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 
 [dev-dependencies]
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# test targets without exposing the raw pick mints to production
+# dependents. Same shape and same argument as `profile`'s and `topo`'s:
+# a dev-dependency is in no consumer's build graph, and a flagless
+# `cargo build [--release]` does not build test targets, so this is the
+# only edge that ever enables the feature. (`cargo build --all-targets`
+# DOES build them, and cargo then unifies the feature into the lib
+# artifact of that same invocation — an explicit test-inclusive build,
+# not a production one. The builds that compile this crate with the
+# feature OFF are the single-package ones: `-p viewer` and the wheel.)
+# A `--workspace` TEST run unifies it the same way, so a test file
+# anywhere in the workspace can name a gated mint: what this feature
+# decides is what a CONSUMER's build graph carries, not what every
+# invocation can reach.
+editor-core = { path = ".", features = ["test-support"] }
+# Review lane pick3-r2's exact-rational probe of the t interval.
+num-bigint = { workspace = true }
 # `profile` again, with `test-support` ON. The crate is an ordinary
 # dependency above; naming it a second time here adds the feature for
 # TEST builds only — cargo unions the two entries for this package's
@@ -113,6 +161,12 @@ test-utils = { path = "../test-utils" }
 # are test-only surface in topo; dev-dependencies are the only place
 # the feature turns on.
 topo = { path = "../topo", features = ["sweep-testing"] }
+# `sweep` again, with `test-support` ON, for the same reason `profile`
+# is named twice above: the corpus `loft_prism` document and the perf12
+# BVH differential author the SAME two section polygons the kernel's
+# own loft fixture is built from, and a second spelling of them here is
+# a divergence waiting to happen. Test builds only.
+sweep = { path = "../sweep", features = ["test-support"] }
 # M10-9's staged-ceiling evidence needs geom-core's test-only funnel
 # dial (`identity-pass-testing`), which lets one named identity
 # residual's indeterminate answer pass so a ceiling can be measured "as

@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::operands;
 use geom_brep::SurfaceKind;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use geom_core::{MarginDiag, Tol};
@@ -76,7 +77,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 /// (S13's live `slab ∖ ball`): the fixture that carries a plane–sphere
 /// rim, which is the pip-rim torus arm's input.
 fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
-    let slab = block(4.0, 4.0, 1.0, Tol::witness());
+    let slab = operands::slab();
     let ball = ball_at(pip_r, Vec3::new(2.0, 2.0, 1.0 + pip_r - pip_h));
     realized(BooleanOp::Subtract, &slab, &ball, Tol::witness())
 }
@@ -291,7 +292,7 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
 /// never overlap.)
 #[test]
 fn p4_chain_g1_refuses_at_a_cornered_junction() {
-    let body = block(1.0, 1.0, 1.0, Tol::witness());
+    let body = block::<f64>(1.0, 1.0, 1.0, Tol::witness());
     let bottom = body
         .faces()
         .find(|(_, f)| {

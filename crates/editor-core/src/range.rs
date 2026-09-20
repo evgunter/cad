@@ -511,9 +511,8 @@ impl core::fmt::Display for RangeRefusal {
             ),
             Self::NotAContinuousParam { param } => write!(
                 f,
-                "{:?} is not a continuous parameter of this document — there is no axis to \
-                 certify over",
-                param.0
+                "{param} is not a continuous parameter of this document — there is no axis to \
+                 certify over"
             ),
             Self::UnknownNode { node } => {
                 write!(f, "this document has no node {}", node.0)
@@ -537,8 +536,7 @@ impl core::fmt::Display for RangeRefusal {
             ),
             Self::SyntheticNameTaken { param } => write!(
                 f,
-                "the query's synthetic parameter name {:?} is already declared by this document",
-                param.0
+                "the query's synthetic parameter name {param} is already declared by this document"
             ),
             Self::Derivation(e) => write!(f, "the derived document was refused: {e}"),
             Self::SeedIsNotTheAnalyzedAxis { analyzed, asked } => write!(
@@ -749,13 +747,17 @@ pub fn derive(
     })
 }
 
-/// One edit, applied purely, with the door's refusal carried.
+/// One edit, applied purely, with the door's refusal carried. The
+/// edits this module applies are document-parameter edits, which
+/// never move a cluster's gauge, so the reach is the refusing one: it
+/// is never asked, and a door that did ask would refuse typed rather
+/// than lever over nothing.
 fn edit(
     doc: &Doc<ProfileProgram>,
     e: &DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> Result<Doc<ProfileProgram>, RangeRefusal> {
-    apply(doc, e, tol)
+    apply(doc, e, tol, &crate::mate::RefusingReach)
         .map(|a| a.doc)
         .map_err(|e| RangeRefusal::Derivation(Box::new(e)))
 }

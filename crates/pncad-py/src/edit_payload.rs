@@ -83,9 +83,15 @@ pub struct EditPayload<'a> {
     pub to_kind: Option<EntityKind>,
     /// How many entries a short list would have had.
     pub count: Option<usize>,
-    /// A repeated designation's FIRST position.
+    /// The position a DESIGNATION fault is reported at. The VARIANT
+    /// decides which position it is: `RepeatedDesignation`'s first
+    /// occurrence of a repeated entry, or `SelectionNotCanonical`'s
+    /// entry that does not sort strictly before the one after it.
+    /// Both are one index into one payload list, so they share the
+    /// attribute rather than minting a second word for it.
     pub first: Option<u32>,
-    /// The position at which it is named AGAIN.
+    /// The position at which a repeat is named AGAIN — carried only by
+    /// `RepeatedDesignation`, the one fault that names two entries.
     pub again: Option<u32>,
     /// A refused scalar the door names in its own right — a
     /// tolerance's ε.
@@ -210,6 +216,14 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(*id),
             ..none
         },
+        // The gauge the cluster-record maintenance was solving for is
+        // the subject: the instance whose frame the edit could not
+        // mint (refused) or the log does not carry (unrecorded).
+        EditError::MaintenanceRefused { gauge, .. }
+        | EditError::MaintenanceUnrecorded { gauge } => EditPayload {
+            node: Some(*gauge),
+            ..none
+        },
         EditError::WouldCycle { at } | EditError::ReadSiteMissingNode { at } => EditPayload {
             node: Some(*at),
             ..none
@@ -268,6 +282,17 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             again: Some(*again),
             ..none
         },
+        // One position, not two: a selection's canonical form breaks
+        // between an entry and its successor, so the successor's index
+        // is the entry's plus one and publishing it would be arithmetic
+        // dressed as data. `again` staying `None` is what tells a
+        // reader which of the two designation faults this is, beside
+        // the variant word itself.
+        EditError::SelectionNotCanonical { node, at } => EditPayload {
+            node: Some(*node),
+            first: Some(*at),
+            ..none
+        },
         // `found` here is a COUNT, not a dimension, so it takes the
         // `count` attribute: one attribute never carries two types.
         EditError::TooFewMembers { node, found } => EditPayload {
@@ -300,7 +325,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             slot: Some(slot_id_tag(slot)),
             ..none
         },
-        EditError::UnknownPayloadParam { name, node } => EditPayload {
+        EditError::PayloadUnknownDocParam { name, node } => EditPayload {
             node: Some(*node),
             param: Some(name),
             ..none
@@ -308,7 +333,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // `declared`/`referenced` are the same two concepts
         // `SlotDimensionMismatch` calls `expected`/`found` — what the
         // door required, and what it was offered.
-        EditError::PayloadParamDimensionMismatch {
+        EditError::PayloadDocParamDimension {
             name,
             node,
             declared,
@@ -320,13 +345,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             found: Some(dim(*referenced)),
             ..none
         },
-        EditError::UnknownDocParam { name, node, slot } => EditPayload {
+        EditError::SlotUnknownDocParam { name, node, slot } => EditPayload {
             node: Some(*node),
             param: Some(name),
             slot: Some(slot_id_tag(slot)),
             ..none
         },
-        EditError::DocParamDimensionMismatch {
+        EditError::SlotDocParamDimension {
             name,
             node,
             slot,
@@ -341,8 +366,13 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::ContinuousParamCannotBeCount { name }
-        | EditError::DocParamNotDeclared { name }
-        | EditError::NonFiniteDocParam { name }
+        | EditError::DocParamNotDeclared { name, door: _ }
+        | EditError::DocParamCountHasNoUnit { name }
+        | EditError::DocParamCountHasNoDistribution { name }
+        // The field the refusal names does not cross: a caller holds
+        // the parameter it just submitted, and `non_finite_doc_param`
+        // plus the Rust sentence say which float it was.
+        | EditError::NonFiniteDocParam { name, field: _ }
         | EditError::InvalidDistribution { name, fault: _ } => EditPayload {
             param: Some(name),
             ..none
@@ -357,6 +387,20 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             offered: Some(*offered),
             ..none
         },
+        // The notation door's dimension fault: `expected` is the
+        // declaration's dimension and `found` what the offered unit
+        // measures — the pair `slot_doc_param_dimension` already
+        // spells, over a unit rather than over a reference.
+        EditError::DocParamUnitMismatch {
+            name,
+            unit,
+            declared,
+        } => EditPayload {
+            param: Some(name),
+            expected: Some(dim(*declared)),
+            found: Some(dim(*unit)),
+            ..none
+        },
         // The expression address decomposes into the two attributes
         // that already name its halves, plus the child indices below
         // the slot.
@@ -367,6 +411,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::Dimension(_) => none,
+        // The document-mismatch arm names two DOCUMENTS, which no
+        // attribute of this record carries; the message states both
+        // (the `ProductError` arm's precedent, same refusal one door
+        // over).
+        EditError::EvaluationOfAnotherDocument { .. } => none,
         EditError::DeclareNamesMissingNode { name }
         | EditError::RebindTargetMissingNode { name }
         | EditError::RebindUnknownName { name }

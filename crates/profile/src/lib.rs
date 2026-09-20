@@ -77,12 +77,17 @@
 //!   declare the zero-turn joints they mint, both by construction.
 //!   [`ProfileLoop::tangent_joints`] is the field that carries the
 //!   result, and a fixture's way of writing one by hand.
-//! - **The sketch plane is conventional data.** [`SketchPlane`] is a
-//!   rigid placement: profile (x, y) ↦ plane origin + x·u + y·v, with
-//!   u/v/normal the columns of the placement's linear part. Rigidity
-//!   (u, v orthonormal, normal = u × v) is a convention carried by the
-//!   data, unchecked here — exactly like PR 1's `u_ref` — and validation
-//!   is purely 2-D (the plane is passed through untouched).
+//! - **The sketch plane is a placement, and validation never reads
+//!   it.** [`SketchPlane`] is profile (x, y) ↦ plane origin + x·u +
+//!   y·v, with u/v/normal the columns of the placement's linear part,
+//!   and validation is purely 2-D (the plane is passed through
+//!   untouched). Rigidity — u, v, normal orthonormal and right-handed
+//!   — is the frame witness's: [`SketchPlane::from_frame`] takes an
+//!   [`geom_core::OrthoFrame`], which was decided at its mint.
+//!   [`SketchPlane::new`] is the read-back door and holds whatever
+//!   [`geom_core::Affine3`] it is handed, so a placement that came
+//!   from somewhere other than a frame carries only what its own
+//!   source decided.
 //!
 //! # Validation and canonical form
 //!
@@ -127,12 +132,12 @@ pub mod structure;
 mod sugar;
 mod validate;
 
-use geom_core::{Affine3, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TargetKind, TipState,
-    Verb, replay, replay_guided, replay_recording,
+    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, SpecForms, Step, Target,
+    TargetKind, TipState, Verb, arc_specs_at, replay, replay_guided, replay_recording,
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
@@ -142,7 +147,8 @@ pub use path::{
 };
 pub use structure::{
     CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
-    ProfileStructure, ReplayStructure, SegmentShape, StructureRefusal, StructureRefusalKind,
+    ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape, StepSpan,
+    StructureRefusal, StructureRefusalKind,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
@@ -163,13 +169,17 @@ pub use validate::{
 /// [`validate::fillet_recourse_for`] rides the same export for the same
 /// reason: the census row asserts that every `fillet_*` predicate name
 /// the construction sugar decides has a sentence, and a census that
-/// restated the mapping would be checking its own copy.
+/// restated the mapping would be checking its own copy. So do
+/// [`validate::SHARED_CLAUSE_ONLY`] and [`validate::shared_clause_only`]:
+/// the roster row holds that list against the names the crate's `src`
+/// decides, in both directions, and a restated copy would hold against
+/// itself.
 #[cfg(any(test, feature = "test-support"))]
 pub use validate::{
     FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE,
     FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
     FILLET_SCENE_RESOLUTION_RECOURSE, FILLET_STORED_FORM_INBAND_RECOURSE,
-    FILLET_TURN_INBAND_RECOURSE, fillet_recourse_for,
+    FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY, fillet_recourse_for, shared_clause_only,
 };
 
 /// One vertex of a profile loop: a position plus the bulge of the
@@ -568,26 +578,40 @@ impl<T: Real> ProfileLoop<T> {
 /// plane normal are the columns of the placement's linear part
 /// (`linear.c0`, `linear.c1`, `linear.c2`).
 ///
-/// Rigidity — u, v, normal orthonormal and right-handed — is
-/// conventional data: the caller's obligation and what it leaves
-/// unchecked are stated once, at [`Affine3::from_frame`]. Tier-3
-/// geometric validation certifies it at rest.
+/// Rigidity — u, v, normal orthonormal and right-handed — comes from
+/// the frame witness rather than from a caller's diligence WHEN the
+/// plane came through [`Self::from_frame`], which is the only door
+/// that mints one: the placement is then [`OrthoFrame::to_affine`],
+/// and those axes were decided where the frame was minted. Tier-3
+/// geometric validation certifies the placement at rest.
+///
+/// [`Self::new`] and the public `placement` field are the other half
+/// of the truth and the docs say so plainly: both take and hand back
+/// an arbitrary [`Affine3`], so a plane built or overwritten that way
+/// is exactly as rigid as whatever produced that map. What the type
+/// guarantees is that the MINTING road decides; it is not a proof
+/// about every value of the type.
 #[derive(Clone, Copy, Debug)]
 pub struct SketchPlane<T: Real> {
-    /// The placement map (rigid by convention).
+    /// The placement map. Rigid when [`SketchPlane::from_frame`] built
+    /// it; whatever it was assigned otherwise.
     pub placement: Affine3<T>,
 }
 
 impl<T: Real> SketchPlane<T> {
-    /// Wraps a placement map.
+    /// **Wraps a placement map already built** — a read-back door, not
+    /// a mint: it decides nothing and a skewed [`Affine3`] handed in
+    /// comes back out as a skewed plane. A caller holding two authored
+    /// directions wants [`Self::from_frame`], which decides them.
     pub fn new(placement: Affine3<T>) -> Self {
         Self { placement }
     }
 
-    /// The world xy-plane: identity placement (u = x̂, v = ŷ,
-    /// normal = ẑ, origin at the world origin).
+    /// The world xy-plane: u = x̂, v = ŷ, normal = ẑ, origin at the
+    /// world origin — the identity placement, spelled as the frame it
+    /// is so all three world planes come from one mint.
     pub fn xy() -> Self {
-        Self::new(Affine3::identity())
+        Self::from_frame(OrthoFrame::axes_xy(Point3::origin()))
     }
 
     /// The world yz-plane: u = ŷ, v = ẑ, normal = ŷ × ẑ = x̂, origin at
@@ -598,7 +622,7 @@ impl<T: Real> SketchPlane<T> {
     /// to world (0, x, y), and the extrusion normal — the third
     /// placement column — is +x̂.
     pub fn yz() -> Self {
-        Self::from_frame(Point3::origin(), Vec3::unit_y(), Vec3::unit_z())
+        Self::from_frame(OrthoFrame::axes_yz(Point3::origin()))
     }
 
     /// The world zx-plane: u = ẑ, v = x̂, normal = ẑ × x̂ = ŷ, origin at
@@ -608,14 +632,23 @@ impl<T: Real> SketchPlane<T> {
     /// so the captions' "a zx sketch extruded +y" is literal: sketch
     /// (x, y) maps to world (y, 0, x), and the extrusion normal is +ŷ.
     pub fn zx() -> Self {
-        Self::from_frame(Point3::origin(), Vec3::unit_z(), Vec3::unit_x())
+        Self::from_frame(OrthoFrame::axes_zx(Point3::origin()))
     }
 
-    /// The plane whose placement is [`Affine3::from_frame`]`(origin, u,
-    /// v)`: the normal is computed there as `u × v`, and the caller's
-    /// obligation on `u` and `v` is stated there, once.
-    pub fn from_frame(origin: Point3<T>, u: Vec3<T>, v: Vec3<T>) -> Self {
-        Self::new(Affine3::from_frame(origin, u, v))
+    /// The plane a frame witness places: the placement is
+    /// [`OrthoFrame::to_affine`], so `u`, `v` and the normal are the
+    /// frame's three axes, in that column order.
+    ///
+    /// There is no spelling of this door that takes three bare
+    /// vectors. A caller holding an authored pair mints the frame
+    /// first — [`OrthoFrame::gram_schmidt`] under its own band, or one
+    /// of the exact world frames — which is where "these axes are
+    /// orthonormal" stops being the caller's obligation. A SKEWED pair
+    /// is not refused there: the mint orthonormalizes it, keeping the
+    /// first axis and yielding the second. Only a pair that spans no
+    /// plane refuses.
+    pub fn from_frame(frame: OrthoFrame<T>) -> Self {
+        Self::new(frame.to_affine())
     }
 
     /// The same plane read at another scalar: the stored placement
@@ -636,14 +669,32 @@ impl<T: Real> SketchPlane<T> {
     ///   `Interval` every component is a point interval, the normal
     ///   included: the `f64` rounding of the cross product is carried
     ///   as if exact.
-    /// - `SketchPlane::from_frame(o.map(S::from_f64), u.map(S::from_f64),
-    ///   v.map(S::from_f64))` — the frame constructed at `S`. Bit-
-    ///   identical to the lift on exact axes; at `Interval` on a general
-    ///   frame the cross product of point intervals rounds outward, so
-    ///   the stored normal carries the width of that arithmetic.
+    /// - `SketchPlane::from_frame(frame)` for a frame minted at `S`.
+    ///   Bit-identical to the lift on exact axes; at `Interval` on a
+    ///   general frame the cross product of point intervals rounds
+    ///   outward, so the stored normal carries the width of that
+    ///   arithmetic.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> SketchPlane<U> {
         SketchPlane::new(self.placement.map(f))
+    }
+
+    /// The same plane read at another scalar where the read may
+    /// REFUSE: the stored placement through [`Affine3::try_map`] —
+    /// twelve components, no arithmetic, the first refusal returned —
+    /// and the plane rebuilt around whatever comes back.
+    ///
+    /// The fallible direction of [`Self::map`], and everything that
+    /// method says about WHAT THE LIFT MEANS holds here unchanged: the
+    /// stored normal is carried as a value, not recomputed at the
+    /// target scalar.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `f` refuses with, at the first component it refuses
+    /// on.
+    pub fn try_map<U: Real, E>(self, f: impl Fn(T) -> Result<U, E>) -> Result<SketchPlane<U>, E> {
+        Ok(SketchPlane::new(self.placement.try_map(f)?))
     }
 
     /// Maps a sketch point to world space: `placement`·(x, y, 0),
@@ -658,7 +709,8 @@ impl<T: Real> SketchPlane<T> {
     ///
     /// The four accessors below READ the frame [`from_frame`] wrote:
     /// they are projections of `placement`, never a recomputation, so
-    /// `from_frame(o, u, v)` round-trips through them BITWISE. That is
+    /// a frame's origin and three axes round-trip through them
+    /// BITWISE. That is
     /// why the translation is transcribed component by component
     /// rather than added to the coordinate origin — `0 + (-0) = 0`
     /// would quietly launder a signed zero the stored frame kept.
@@ -703,12 +755,25 @@ impl SketchPlane<f64> {
     /// place every sketch point identically, by construction.
     pub fn bit_eq(&self, other: &Self) -> bool {
         let bits = |p: &Self| {
-            let (o, l) = (p.origin(), p.placement.linear);
-            [
-                o.x, o.y, o.z, l.c0.x, l.c0.y, l.c0.z, l.c1.x, l.c1.y, l.c1.z, l.c2.x, l.c2.y,
-                l.c2.z,
-            ]
-            .map(f64::to_bits)
+            // **What holds the twelve complete is the four patterns,
+            // not this function's own arithmetic.** A field added to
+            // `SketchPlane`, to the `Affine3` it stores, to that map's
+            // `Mat3` or to a `Vec3` column is an E0027 here, so a new
+            // stored component cannot land outside the comparison
+            // quietly. Read straight off `translation` rather than
+            // through `Self::origin`, which transcribes exactly those
+            // three components and nothing else: same bits, and a
+            // pattern where there was a call.
+            let Self { placement } = p;
+            let Affine3 {
+                linear,
+                translation,
+            } = placement;
+            let Mat3 { c0, c1, c2 } = linear;
+            [translation, c0, c1, c2].map(|v| {
+                let Vec3 { x, y, z } = v;
+                [x.to_bits(), y.to_bits(), z.to_bits()]
+            })
         };
         bits(self) == bits(other)
     }
@@ -725,6 +790,17 @@ impl SketchPlane<f64> {
 /// PARTIAL and no [`Eq`], deliberately: the type carries no hash on
 /// either side of the binding boundary, and a plane is a placement to
 /// compare, not a key to tally by.
+///
+/// **The tie to the declaration is inside [`SketchPlane::bit_eq`] and
+/// no census can see it from here.** The arrival census over hand-written
+/// `PartialEq` and `Debug` impls
+/// (`crates/test-utils/tests/hand_written_impl_census.rs`) reads impl
+/// bodies as text: this one calls a method, and no text reader can tell
+/// a getter or a delegation from any other call without resolving it,
+/// so the census records "reads no field" and would record the same
+/// whether or not the twelve coordinates one level down were bound by
+/// name. Putting a pattern HERE would buy nothing and cost the truth —
+/// the reading is in `bit_eq`, so the tie belongs there, beside it.
 impl PartialEq for SketchPlane<f64> {
     fn eq(&self, other: &Self) -> bool {
         self.bit_eq(other)

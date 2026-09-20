@@ -1,7 +1,7 @@
 //! GUI-1 Part B: the hit-test service (`resolve::pick`) end-to-end
 //! through the public doors — every face of a real tessellated box
 //! picks to a distinct resolvable `StableName`; a ray down a shared
-//! edge resolves by the documented tie-break; a miss is the typed
+//! edge refuses with both the faces it belongs to; a miss is the typed
 //! miss; unusable nodes surface their typed `HitTestError`; two-body
 //! occlusion orders by `t` regardless of target order; and the whole
 //! thing is deterministic.
@@ -111,11 +111,7 @@ fn picks_every_face_of_a_box() {
     let ev = run(&doc);
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let targets = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let targets = [PickTarget::new(&ev, ext, 0, &pick)];
 
     // (ray, axis, plane): each ray shoots at a face center from
     // outside, 2 units out, so every expected t is exactly 2.
@@ -152,42 +148,39 @@ fn picks_every_face_of_a_box() {
 }
 
 /// A ray down the shared edge `x = 1 ∧ z = 1` hits the top and +x
-/// faces at the same exact `t`; the documented tie-break (earlier
-/// target, then earlier flat triangle = earlier patch in face-arena
-/// order) picks the LOWER-indexed of the two patches — asserted
-/// against the mesh, and repeatable.
+/// faces at the same exact `t`, and the geometry does not say which
+/// of them is in front — so the door names NEITHER and refuses with
+/// both, one true hit each, listed in face-arena order. Repeatable,
+/// and asserted against the mesh's own two patches.
 #[test]
-fn edge_ray_between_two_faces_resolves_deterministically() {
+fn an_edge_ray_between_two_faces_refuses_with_both() {
     let doc = ProfileDoc::empty_derived("gui1_pick_edge", Tol::witness());
     let (doc, ext) = cube_doc_node(doc, 0.0);
     let ev = run(&doc);
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let targets = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let targets = [PickTarget::new(&ev, ext, 0, &pick)];
 
     // Through (1, 0.5, 1) at t = 1: on the boundary of BOTH the top
     // (z = 1) and the +x (x = 1) faces. All coordinates dyadic, so
     // both faces' exact tests answer t = 1.0 bit-exactly.
     let r = ray([2.0, 0.5, 2.0], [-1.0, 0.0, -1.0]);
-    let hit = pick_face(&ev, &targets, &r)
-        .expect("no hit-test error")
-        .expect("edge ray hits");
-    assert_eq!(hit.t, 1.0);
+    let Err(HitTestError::Ambiguous { hits }) = pick_face(&ev, &targets, &r) else {
+        panic!("the edge ray is tied between two faces and refuses");
+    };
+    assert_eq!(hits.len(), 2, "one hit per tied face: {hits:?}");
+    for hit in &hits {
+        assert_eq!(hit.t, 1.0, "each tied hit is the exact dyadic t");
+    }
 
-    // Determinism: the same pick answers identically.
-    let again = pick_face(&ev, &targets, &r)
-        .expect("no hit-test error")
-        .expect("edge ray hits");
-    assert_eq!(hit.name, again.name);
-    assert_eq!(hit.t.to_bits(), again.t.to_bits());
+    // Determinism: the same pick refuses identically.
+    let Err(HitTestError::Ambiguous { hits: again }) = pick_face(&ev, &targets, &r) else {
+        panic!("and refuses the same way on the second ask");
+    };
+    assert_eq!(hits, again, "the refusal is the same value, to the bit");
 
-    // The documented tie-break: of the two patches containing the
-    // edge, the one earlier in `Mesh::patches` (face-arena) order
-    // wins, because flat triangle order is patch-major.
+    // The refusal LISTS the two patches containing the edge in
+    // face-arena order, because flat triangle order is patch-major.
     let top = mesh
         .patches
         .iter()
@@ -198,11 +191,22 @@ fn edge_ray_between_two_faces_resolves_deterministically() {
         .iter()
         .position(|p| patch_on_plane(&mesh, p, 0, 1.0))
         .expect("+x patch");
-    let expected = &mesh.patches[top.min(px)];
-    let got = resolved_patch(&doc, &ev, &mesh, &hit.name);
+    let mut expected = [top, px];
+    expected.sort_unstable();
+    let got: Vec<usize> = hits
+        .iter()
+        .map(|hit| {
+            let face = resolved_patch(&doc, &ev, &mesh, &hit.name).face;
+            mesh.patches
+                .iter()
+                .position(|p| p.face == face)
+                .expect("the tied face is a patch of this mesh")
+        })
+        .collect();
     assert_eq!(
-        got.face, expected.face,
-        "tie resolves to the earlier patch (top {top}, +x {px})"
+        got,
+        expected.to_vec(),
+        "both tied faces are named, earlier patch first (top {top}, +x {px})"
     );
 }
 
@@ -215,11 +219,7 @@ fn miss_is_a_typed_miss() {
     let ev = run(&doc);
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let targets = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let targets = [PickTarget::new(&ev, ext, 0, &pick)];
     // Points away from the box entirely.
     let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, -1.0]);
     assert!(pick_face(&ev, &targets, &r).expect("no error").is_none());
@@ -265,13 +265,7 @@ fn unusable_nodes_surface_typed_errors() {
     // before any geometry.
     let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, 1.0]);
 
-    let t = |node| {
-        [PickTarget {
-            node,
-            body: 0,
-            pick: &pick,
-        }]
-    };
+    let t = |node| [PickTarget::new(&ev, node, 0, &pick)];
     assert_eq!(
         pick_face(&ev, &t(bad), &r).expect_err("failed node is an error"),
         HitTestError::NodeFailed { node: bad }
@@ -290,16 +284,8 @@ fn unusable_nodes_surface_typed_errors() {
     );
     // A good target FIRST does not mask a bad one later in the slice.
     let both = [
-        PickTarget {
-            node: good,
-            body: 0,
-            pick: &pick,
-        },
-        PickTarget {
-            node: bad,
-            body: 0,
-            pick: &pick,
-        },
+        PickTarget::new(&ev, good, 0, &pick),
+        PickTarget::new(&ev, bad, 0, &pick),
     ];
     assert_eq!(
         pick_face(&ev, &both, &r).expect_err("bad target still surfaces"),
@@ -319,16 +305,8 @@ fn occlusion_orders_by_t_across_bodies() {
     let mesh_far = mesh_of(&ev, far);
     let pick_near = MeshPick::build(&mesh_near).expect("well-formed mesh");
     let pick_far = MeshPick::build(&mesh_far).expect("well-formed mesh");
-    let tn = PickTarget {
-        node: near,
-        body: 0,
-        pick: &pick_near,
-    };
-    let tf = PickTarget {
-        node: far,
-        body: 0,
-        pick: &pick_far,
-    };
+    let tn = PickTarget::new(&ev, near, 0, &pick_near);
+    let tf = PickTarget::new(&ev, far, 0, &pick_far);
 
     let forward = ray([-1.0, 0.5, 0.5], [1.0, 0.0, 0.0]);
     for targets in [[tn, tf], [tf, tn]] {
@@ -385,7 +363,9 @@ fn boundary_names_are_total_distinct_and_the_polylines_own() {
     let ev = run(&doc);
     let np = editor_core::NodePick::build(&ev, ext, 0, DELTA, Tol::witness())
         .expect("the box tessellates and indexes");
-    let names = np.boundary_names(&ev);
+    let names = np
+        .boundary_names(&ev)
+        .expect("the index and the evaluation are the same document's");
     assert_eq!(
         names.len(),
         np.mesh().boundaries.len(),
@@ -460,11 +440,7 @@ fn node_pick_door_is_prepaired_and_typed() {
     // The door's target answers exactly the raw, correctly-paired path.
     let mesh = mesh_of(&ev, ext);
     let pick = MeshPick::build(&mesh).expect("well-formed mesh");
-    let raw = [PickTarget {
-        node: ext,
-        body: 0,
-        pick: &pick,
-    }];
+    let raw = [PickTarget::new(&ev, ext, 0, &pick)];
     let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, 1.0]);
     let via_door = pick_face(&ev, &[np.target()], &r)
         .expect("no error")

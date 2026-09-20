@@ -450,3 +450,446 @@ The `pncad-py` block continues, now seven rows: the two opened here join
 it. `sixty-one-tag-words-…` carries the sharper obligation — its
 instrument shipped and what is missing is the READING of 54 pairs, the
 kind of debt that stops looking urgent once the instrument is green.
+
+## The silent-omission obligation stays per-dispatch (Ev, 2026-09-15)
+
+Asked directly whether it should become a standing clause in
+`docs/prompts/reviewer-style-lane.md`, Ev ruled it should not: *"this
+doesn't go in reviewer-style-lane because most implementation work does
+not refer to such instruments."* Signal-to-noise — a clause firing on
+every unit in the repo taxes every lane for a case the majority never
+meet, and a skimmed rule is worse than one written per-unit by someone
+who has read the diff. `plan.md` §Review posture records it and the
+question is closed.
+
+**One thing the orchestrator overstated when putting the question**, and
+it is corrected here because the log is where the reasoning lives: the
+argument for a standing clause was that the obligation "depends on the
+orchestrator recognising the unit", citing CENSUS-TAG-REACH as a case
+where that recognition failed. It did not. **All four units so far
+carried the obligation**; what failed on CENSUS-TAG-REACH was the
+PROBE'S FENCE — the spec scoped it to `eval_err` when the door was
+`typed_err` — which is standing finding 5, not a recognition failure.
+The recognition has not missed yet.
+
+So the residual risk is narrower than it was put to Ev: not *"will the
+orchestrator notice an instrument"* but *"will the obligation be scoped
+to the right unit of guarding once noticed."* The trigger is now stated
+mechanically in `plan.md` (a unit carries it if it lands, changes,
+removes or relies on an instrument, **including one it creates itself**)
+so the first half stops depending on judgement, and finding 5 already
+governs the second.
+
+## CENSUS-PY-RAISE-LITERALS merged (2026-09-15)
+
+PR 2682 merged as `0ac65a9e`, green on run `35006650306`. Nine raise-site
+words given homes in three shapes; the spec is deleted per the ledger
+and the item closed.
+
+**The trap sprang a fifth consecutive time, and this one was predicted in
+writing on this program's own slate.** `ValidationRefusal::attribute` is
+a fifth `-> &'static str` map in `errors.rs` minting the Python-visible
+words `"door"` and `"reason"` — and
+`errors-rs-holds-four-python-visible-maps-and-nothing-enumerates-that-file`,
+opened by the PREVIOUS unit, says in terms that a fifth such map arrives
+with no pin and nothing saying so. The diff added exactly that, unpinned,
+and left the row's table of four stale. **A row predicting the next
+instance did not stop the next instance**, because nothing reads a row at
+the moment a lane writes code; that is worth more than another
+restatement of the trap.
+
+It also produced the sharpest counter-example the row needed: its
+proposed loose reader would walk `pub fn`s, and both this map and
+`ErrorClass::class_name` are inherent methods inside `impl` blocks.
+
+10. **Lesson: "verified the example, asserted the class."** The
+    orchestrator checked `unclassified` — correct — and carried the row's
+    generalisation over `wireframe` and `not_utf8`, which return nothing
+    from `tags.rs`. Same shape as CENSUS-PY-GETTERS' lowercase-anchored
+    check, different mechanism: there the pattern matched the claim's
+    shape, here a sample of one stood for three. **The check must cover
+    the claim's whole population, not its strongest member.**
+
+11. **A stale count can be born stale.** `step_import_error_tag`'s
+    "Twenty-two arms" was never right: `git log -S` puts the sentence at
+    a commit where the map already had 23. The program has been treating
+    prose counts as things that DRIFT; this one never matched. The filed
+    row (`prose-counts-of-a-populations-size-…`) carries the class, and
+    its sweep shape is the reusable part — doc-comment BLOCKS joined
+    across lines, which is what hid a second stale `61` from a line grep.
+
+### What went right
+
+The fix pass closed F1 **class-wide** rather than narrowing the claim to
+fit: `class_discriminant` now carries the class's whole attribute set,
+`ValidationRefusal::ATTRIBUTES` is held to the image of `attribute()`
+over `ALL` in both directions, and the chain was executed link by link —
+each of four instruments shown reding in turn. The reviewer's own probe,
+green before, panics now. It also made `class_discriminant` exhaustive,
+so the next carrying class stops the build rather than falling into
+`None`.
+
+And the sweep that found the half-finished doc corrections found three
+the brief had not listed, one of them a count that was never true.
+
+### A process hazard worth recording
+
+The fix pass reported using `git checkout <file>` twice to revert a probe
+and losing uncommitted edits in that file both times, re-applying from
+its own scripts and re-verifying. Nothing was lost from the pushed tree.
+Worth knowing for any lane that reverts a probe on a file it is also
+editing: stash or copy first, because `checkout` takes the whole file.
+
+## Next
+
+The `pncad-py` block, now nine rows with the three filed here. The block
+remains coherent and its fix shapes are proven; the two rows carrying
+facts with a shelf life (`prose-counts-…`'s ten unverified counts,
+`sixty-one-tag-words-…`'s 54 unread pairs) are the ones that decay while
+nobody touches them.
+
+## CENSUS-ERRORS-ARRIVAL merged (2026-09-15)
+
+PR 2691 merged as `17a68a0fa`, green on run `35023408135` at
+`fa49e26b0` (35 success, 4 skipped, full matrix). The spec is deleted
+per the ledger and the item closed.
+
+**The disposition is one no bullet on the spec named, and its argument
+is the unit.** Every instrument this crate had aimed at its vocabulary
+was keyed on a FORM, and each went blind to the arrival that did not
+wear it — the tag reader strips `pub fn `, and all five maps in
+`errors.rs` are `pub const fn`. So the alarm is keyed on the file's
+LITERALS: `test_utils::source` says which bytes are inside one, and the
+reader attributes each to the enclosing item. The spec declined to
+pre-decide among three shapes, having had two of its last four
+pre-decisions overturned by a lane's probe; declining is what let a
+fourth shape be found, and that is the spec practice this unit
+vindicates.
+
+**And its central claim was false, and was executed as false twice.**
+The PR was first written on *"there is no form a word can arrive in
+that the reader was not taught, because there is no form"*, and on *"a
+wrong attribution is loud: it invents a name the roster does not
+carry"*. The style reviewer falsified both against the real tree: a
+CHAR literal was read and dropped along with the item spelling nothing
+else, and an attribute literal was charged to the ROSTERED item above
+it, where a deletion in the same item cancelled it to nothing. Both
+silent. **Both are better than form-keying and both were wrong**, which
+is the honest reading — the argument for literals stands, the
+absolutism did not.
+
+That is this program's **fourth consecutive short exclusivity list**
+(finding 2, finding 6). Four for four, on four different lanes, each
+time discovered by a reviewer executing the claim rather than reading
+it.
+
+**The unit sprang its own trap in the tracker, not in the code.** The
+diff grew `crates/pncad-py/src/tests.rs` from 6798 to 7795 lines — +997,
+14.7% — and left `pncad-py-tests-rs-is-six-thousand-lines-…` saying
+6317, untouched. That row is on this program's own slate and says that
+file is too big. It is the same failure the unit was dispatched to
+punish, one level up: **nothing reads a row at the moment a lane writes
+code**, including the row about the file the lane is writing in.
+
+**The duplicate-name key was this program's own, dropped.** Two trait
+`fmt` impls on one type collided and the census hard-stopped with
+*"Qualify them apart in the same diff"* — which Rust gives no way to do.
+`crates/test-utils/tests/hand_written_impl_census.rs`, **this program's
+unit 2**, keys on `(path, trait, self type)` and says at the site why
+the trait is in the key. The fix took that key back, and went one wider
+than the review: the trait's GENERIC ARGUMENTS have to stay in it, or
+`PartialEq<Other>` and `PartialEq` collide on exactly the case the trait
+was added for.
+
+12. **A correction can be born stale in the sentence that corrects a
+    stale count.** Finding 11 said a stale count can be born stale. The
+    fix pass, repairing the 6317, wrote 7779/+981 — measured before its
+    last two edits to that file and committed after them, so the
+    corrected number was wrong in its own commit. Caught by the
+    orchestrator against `git show <sha>:… | wc -l`, and **caught a
+    third time** at close-out: the item file still said "nine items and
+    52 literals" after the fix pass had taken the population to ten and
+    53. Three instances of one shape inside one unit. The general form
+    is that a number written by hand is stale the moment anything else
+    in the same diff moves, so **a count belongs with the command that
+    re-derives it and the SHA it was taken at**, which is what the size
+    row carries now.
+
+    The lane's answer to "why not pin it with a check" is the right one
+    and is worth keeping: a committed line count held to `wc -l` reds on
+    every commit to a file expected to change, and its repair is a
+    hand-edited number — the row's own complaint at per-commit
+    frequency. The two vacuity FLOORS are the opposite case: they are
+    assertions, they already run, and deriving them from the committed
+    inventory costs nothing. That distinction is the row's remaining
+    ask.
+
+### What went right
+
+The fix pass closed both MAJORs **wider than the charge** rather than to
+fit it. Closing the char hole made the population every literal, which
+surfaced an item the census had never seen (`is_bare_camel_token`, one
+char literal) and took the file from nine items/52 literals to ten and
+53 — so the reviewer's counterexample was also a measurement. Closing
+the attribute hole turned up that the same walk mis-attributes
+attributes on a `struct`, `enum`, variant or field, which the review had
+not named, and added a **stray-attribute refusal** for the case where
+absorbing into the item below is not available.
+
+The shared-reader sweep was wider than its charge too: the review named
+two duplications, and going to fix it found a third — one `rfind('\n')`
+line-start fold at three sites. Four operations now live in
+`crates/test-utils/src/source.rs`. One fix nobody asked for: `identifier`
+had only the plain-alphanumeric half and read `r#fn` as `r`.
+
+And a filed row corrected the reviewer rather than copying it: the
+field-brace sweep's count was re-taken and came back 13 raw hits, of
+which 7 are executable checks in 5 crates.
+
+### A process note
+
+`scripts/doc-gate.sh` was red on the fix pass's first push and fixed on
+the next before the gate reported. Worth the lane's own note that the
+doc gate belongs before a push, not after. Separately, one CI run was
+cancelled by the lane's own subsequent push — a concurrency supersede
+that surfaces as a `gate ok` failure event, which is the shape to read
+in the run list rather than in the job logs.
+
+### The slate had drifted from the item files, both directions
+
+Found at close-out by comparing `work/census/*.md`'s statuses against
+the slate table, which is what the Order section reasons over.
+
+**Two OPEN rows had never reached the slate at all** —
+`tag-vocabularies-restated-in-py-doc-comments` and
+`ring-contact-and-census-contact-share-two-words-by-prose-alone`, both
+filed by CENSUS-PY-GETTERS two units ago. So the order for units 5 and
+6 was computed over a set that did not contain them. Both are placed
+now, with the block.
+
+**Four CLOSED rows were still listed as if open**, while two others
+said "Landed" in their description — so the slate marked landing on
+two of six. All six carry an explicit `(closed — UNIT, #PR)` now.
+
+This is the program's own charter turned on the program's own tracker:
+one population, spelled by hand in a second place, drifting in both
+directions with nothing reding. It is the orchestrator's miss, not a
+lane's.
+
+**And the sweep I ran to size it reproduced finding 8 immediately.** I
+measured every program's plan against its item files, got
+25-open-unlisted in `blend` and 44 in `bool`, and was one step from
+filing a repo-wide META row — before reading `work/README.md`, which
+says `plan.md` is a *narrative, present state only* and `STATUS.md` is
+the generated board. A plan is not an index and was never meant to be
+one, so there is no repo-wide defect and no row to file. What is true
+is narrower and local: **CENSUS's plan calls its table "the slate" and
+its Order section reasons over that table**, so for this program an
+absent row is an absent row. The check I demand of every lane —
+measure the claim against the contract before generalising from the
+example — is the check that stopped this, one step before the row.
+
+## Next
+
+The `pncad-py` block, and the four rows this unit filed, ordered in
+`plan.md` — `the-errors-arrival-blind-spot-list-…` first of them and
+soon, because its whole value is four probes already run; then
+`payload-attribute-names-…` with the block;
+`the-field-brace-fingerprint-…`, which is routing and ties to the
+prose-census pair; and `dimension-mismatch-sentence-…`, E by size but a
+design question about two crates, on a file no open program claims.
+
+## CENSUS-ARRIVAL-RESIDUE merged (2026-09-16)
+
+PR 2704 merged as `6b10d748d`, green on `1634ae3f9` (39 jobs, 35
+success / 4 skipped, full matrix, python suite ran). Spec deleted per
+the ledger, item closed. Unit 6's four disclosed residues: three
+repaired, one measured and the measurement chose the disposition.
+
+**The fifth consecutive blind-spot list was short, and by two shapes.**
+A `trait` body was not a scope, so an associated `const` or a defaulted
+method landed under its bare name — *verbatim* residue 3's own
+complaint, closed for `mod` and left open for `trait`. **The unit had
+written the counterexample into its own fixture**: a `pub trait
+Declared` added for the `impl Trait` argument position, with the bare
+name pinned as the expected answer one row below, and nobody read it.
+And `declaration_heads` was still keyed on line starts, so
+`read_minting_items("impl Subject { pub const ALL… }")` answered `{}`.
+
+**That second one is where the form-keying came back, and it is not
+where the orchestrator pointed.** The spec named `starts_an_item` as
+the risk; it survived nineteen hand-built cases, admitting no type
+position and rejecting no stable-Rust item form. The defect was one
+reader over. Residue 1 had promoted `declaration_heads` from the
+attribution rule to the POPULATION key, which turned a mis-charged
+literal into a missing row — so the reader unit 6 freed from form-keying
+was not the reader that defines the population. **The conclusion was
+right and the location was wrong**, which is the useful shape: the
+question was worth asking and the answer was worth executing.
+
+**The hard stop kept unit 6's false premise and this unit widened its
+reach.** *"Rust rejects two such items in one crate"* is false for
+three legal shapes, and putting `mod` in the key exposed
+`#[cfg(test)] mod` — the commonest item shape in the language. Unit 6
+did the same thing with *"Qualify them apart in the same diff"*; this
+diff **reworded that message and kept the premise**. Seventh
+consecutive unit where the fix mints a fresh instance of the defect it
+closes.
+
+13. **A negative control that passes is a finding, not a relief.** The
+    fix pass mutated `trait_key` expecting no red, as a control — and
+    got none. Its generic arguments, which its own doc calls *"exactly
+    the case the trait was put in the key for"*, were pinned by
+    nothing. The same happened to `declares_test`'s boundaries: the
+    first probes (`fnx probe`, `xfn probe`) were refused earlier in the
+    pipeline and so proved nothing about the boundary at all. Both are
+    the style review's own lesson one level in — **a probe shaped like
+    the thing it checks** — and the general form is that a guard is
+    unpinned until an input exists that fails with THAT GUARD ALONE
+    removed. The unit ends with a mutation table of fifteen, each
+    reding a different named test.
+
+Standing finding 12 reached instances **five and six inside this
+unit** (`tests.rs:6872` and `:7833`, both born stale at 10 when the
+roster had moved to 13), in a unit whose spec said *"do not make it
+five."* And a seventh mechanism the row had not carried: the size
+row's count went stale **at a merge** — 7795 was true at
+`fa49e26b0` and the merge `17a68a0fa` carried another lane's
+`ortho_frame_error_tag` row on the other parent, so the number was
+right at the SHA it named and wrong at main. *State the command and the
+SHA* does not survive a concurrent change to the same file.
+
+### The file is the program's largest debt now, and it is not ours to split
+
+`crates/pncad-py/src/tests.rs` has gone **6798 → 7805 → 9162 over two
+units, about +35%**, while `pncad-py-tests-rs-is-six-thousand-lines-…`
+on this slate says it is too big. Both units updated that row in the
+same diff, as asked, and much of this unit's growth is the per-entry
+blind-spot list the spec REQUIRED at the site — the device that caught
+this unit's trap twice. So the growth bought something.
+
+But the debt is now the largest thing on this slate and it grows
+because CENSUS keeps working in that file. **The split is not CENSUS's
+to take**: `crates/pncad-py/*` is LIB's fence and this program claims
+no paths. The honest next move is to hand that row to LIB rather than
+take a third unit in the same file — recorded here as the
+orchestrator's reading, not as a decision, because re-homing a row is
+the owner's conversation.
+
+### What went right
+
+The measurement decided residue 1 **against the disclosure that named
+it**: the old disclosure offered a map forwarding `crate::tags`' and a
+word built from a kernel `Display`, and `errors.rs` holds no instance
+of either, while a live case — `EvalReason::ATTRIBUTES` — sat
+unrostered. A fig leaf in the precise sense. The old *"cannot see a
+word that is not a literal"* test went red when the fix landed, which
+is the evidence rather than the claim.
+
+Writing residue 2's pin found a **live, user-visible defect**:
+`ValidationError` is raised with `reason` and `pncad.pyi` declares only
+`door`, `failure_count`, `findings`. The lane refused to just add the
+line — that swaps a missing promise for a false one, since a
+validator-failure raise carries the other three — and filed it with the
+suppression reding if the stub gains it.
+
+And `scope_spans` took the free scan with the shared `boundary_*`
+guards that `hand_written_impl_census.rs` has always used, which is the
+**second** mechanism unit 2's census had solved and unit 6 re-invented
+more narrowly, after the `(path, trait, self type)` key.
+
+### The orchestrator's own charter defect, twice
+
+At unit 6's close-out the slate had drifted from the item files in both
+directions and was reconciled by hand. **At this one it had drifted
+again** — two more filed rows absent — because the first reconciliation
+was a spelling correction that left no instrument, which is exactly
+what this program exists to prosecute. Filed on META as
+`a-plan-whose-table-orders-the-work-has-no-check-that-it-lists-the-work`,
+because `scripts/work.py` is META's and CENSUS can only keep
+re-spelling the table by hand. The row records the measurement that
+kills the obvious rule: a plan is a NARRATIVE (`work/README.md:24`) and
+`blend` and `bool` have 25 and 44 open-and-unlisted items apiece, so
+the check has to be opt-in for programs whose plan is their order's
+input.
+
+## Next
+
+Before another unit in `crates/pncad-py/src/tests.rs`, settle the size
+row with LIB (above). Otherwise the `pncad-py` block, with
+`validation-error-reason-…` first of this unit's residue — the only row
+on the slate naming a live user-visible defect rather than a missing
+instrument.
+
+## CENSUS-HAND-LISTED-SIBLINGS merged (2026-09-16)
+
+PR 2712 merged as `32b6af999`, green on `0687260bc` (35 success, 4
+skipped). Spec deleted per the ledger, item closed. Six hand-listed
+walks tied to their declarations, the added-field case executed at each
+before and after, and the four `KNOWN_HAND_LISTED` entries deleted in
+the same diff.
+
+**The unit's biggest finding is about an instrument this program has
+been relying on, and it is not ours.** `every_known_hand_listed_impl_is_still_found`
+was documented as supplying per-impl blindness detection, marked
+*"Measured"*. A one-line mutation — stop after each file's first
+`Debug`/`PartialEq` impl — reds it on `origin/main` and leaves this
+branch **entirely green**. So the arrival census has no per-impl sight
+now and, on the measurement, never had more than **one impl's worth**:
+the failure names exactly one entry, `mate/coset.rs`, the only one of
+five with a compliant sibling above it. Filed on TINT, whose file it
+is. What this costs CENSUS is that a row here can no longer say "the
+census would catch a partial blindness"; nothing does.
+
+**The fix minted a fresh instance of the defect it closes, for the
+eighth consecutive unit, and this time at the site the unit called the
+hard one.** `SignCertificate`'s render prints `VolumeEnclosure`'s
+complete three-field roster under their own names — a field list, just
+a different type's — under a 28-line justification concluding *"there
+is no correspondence to be short of."* A fourth field on that type
+compiled `topo` clean. The style review found it; the unit's own
+destructure satisfied the census (`HandListed` → `Destructured`, entry
+deleted, row green) while the reading that actually renders stayed
+untied. Closed, and the one reader no pattern can bind — `FaceRun::open_at`
+through an iterator adaptor — is named rather than papered over.
+
+14. **A count written to correct an overclaim is the likeliest place
+    for the next one.** Standing finding 12 said a stale count can be
+    born stale; this is the sharper version. The sentence retracting
+    *"the anchor supplies per-impl sight"* asserted that four of five
+    entries had a compliant sibling — the mutation's own failure
+    message names one. It reached three places at once (the census
+    header, the filed TINT row whose measurement table contradicted it,
+    and the PR body) because a retraction gets copied where the claim
+    was. **Read the failure output, not the theory of the failure.**
+
+Also falsified by execution, and worth keeping as shapes: a doc that
+excludes an impl from a group for a reason true of its neighbours and
+false of it (`Serialize` returns `Result`, not `&StableName`); a tie
+claimed to reach a leaf it does not (`coset.rs` — a fourth `Vec3`
+component compiles `editor-core` clean, the comparison being a file
+away in `vec_eq`); and **doc rot a change creates about itself**
+(`expr.rs`'s *"adding a `[u8; 6]` field here still compiles"* was true
+until this diff's own destructure made it an E0027 fifteen lines
+below, and the lane quoted the sentence approvingly in the same diff).
+
+### What went right
+
+The added-field probe was run **before** each repair as well as after,
+so the silence is executed rather than asserted — that is what made
+`Lit`'s case legible (one `E0063` at the sole constructor, the
+`size_of` assertion beside it silent, nothing at the walk).
+
+And the unit **refused the easy win**: a pattern in `SketchPlane`'s
+`eq` would have turned the census green while the reading stayed in
+`bit_eq`, and the lane declined it and said so at the site. That is the
+spec's second trap shape, declined rather than taken — the first time
+in this program a lane has named a trap and walked past it rather than
+into it.
+
+## Next
+
+Before another unit in `crates/pncad-py/src/tests.rs`, settle the size
+row with LIB. Otherwise the `pncad-py` block, with
+`validation-error-reason-…` first — the only row on the slate naming a
+live user-visible defect rather than a missing instrument.

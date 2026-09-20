@@ -2,8 +2,10 @@
 id: sibling-display-contract-suites-hand-mirror-their-enums-too
 kind: issue
 title: mesh and topo display-contract suites hand-mirror their enums too, and mesh's list is already one variant short
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-15
+pr: 2694
 ---
 
 
@@ -30,9 +32,21 @@ TINT-1 found three of in editor-core:
   `mesh::TessellateError` (`crates/mesh/src/types.rs`, `pub enum
   TessellateError`) has **15** variants: `Band` is missing. The
   suite's own case list constructs a `TessellateError::Band { .. }`
-  case, so a rendering of that arm IS exercised — and the one
-  identifier that would catch it going back to `Debug` is the one the
-  ban list does not hold.
+  case, so a rendering of that arm IS exercised with its identifier
+  unbanned.
+
+  **What that actually leaves uncaught, corrected.** As filed this row
+  said *"the one identifier that would catch it going back to `Debug`
+  is the one the ban list does not hold"*. That is false, and TINT-5's
+  fix pass corrected it. The same inline check carried
+  `!shown.contains('{')` **and** `assert_ne!(shown, format!("{err:?}"))`,
+  and `TessellateError::Band` is a STRUCT variant — so an arm that went
+  back to its full `Debug` dump reddened on the brace whatever the
+  roster held. What the missing entry left uncaught is a **brace-free
+  leak of the word `Band`** (`write!(f, "Band: …")`), which is real and
+  strictly smaller. The red-on-arrival evidence in TINT-5's PR stands:
+  the weld does red on a live defect and names `["Band"]`; only the
+  claim about what would otherwise have passed was wrong.
 - `crates/topo/tests/display_contract.rs`:
   `["Contradicted", "Escalated", "Undeclared", "NotCertifiable"]` against
   `topo::ContactRefusal` (4 variants) and
@@ -90,3 +104,54 @@ find them. They are welded to their cases by a set difference, which is
 why they are not the defect this row is about — but a sweep for the
 CLASS has to look for the const shape as well as the inline one, and
 this is the note that says so.
+
+## Closed by TINT-5 (PR #2694, `645e4d6d1` on main, 2026-09-15)
+
+All three sites adopted the weld, and the weld got a home:
+`assert_f6_every_variant` and `set_difference` moved out of
+editor-core's test binary into `test_utils::{f6, census}`, so the three
+adopting suites call one copy rather than carrying three.
+
+**The live defect closed, and it reddened on arrival.**
+`crates/mesh/tests/errors.rs` banned 14 identifiers against a
+15-variant enum; the weld went red naming `["Band"]` before the entry
+was added, then green after. Not a plant — the first guard in this
+program to red on a real defect in the tree.
+
+**This row misstated its own defect, and the correction is the more
+useful half.** It said *"the one identifier that would catch it going
+back to `Debug`is the one the ban list does not hold."* **False.** The
+pre-merge check at `crates/mesh/tests/errors.rs:219` carried
+`!shown.contains('{')` **and** `assert_ne!(shown, format!("{err:?}"))`,
+and `TessellateError::Band` is a struct variant — so a full `Debug`
+regression reddened on the brace whatever the roster held. What the
+missing entry actually left uncaught is a **brace-free** leak of the
+word `Band`. Real, and strictly smaller than this row claimed. Found by
+the style review, which reproduced both halves.
+
+**What the weld does NOT enforce.**
+
+- The **prose half**. `fields` — the field punctuation a rendering must
+  not leak — is a hand-written roster at every site, welded to nothing,
+  and `f6`'s module doc argues why it is not derived (it was tried; it
+  false-positives on a door whose own prose opens with a field name,
+  `MeshPickError::PositionOutOfRange`'s *"pick index: …"*). The three
+  new rosters are correct today and nothing checks that they stay so.
+  What they buy is narrower than first claimed: the brace ban and the
+  exact-dump refusal already catch a `{self:?}` arm, so the 18 tokens
+  buy exactly a brace-free field-token leak.
+- A variant **rendered twice** is indistinguishable from once — the
+  comparison is a set difference.
+- A **hand-written `Debug`** that opens on the type name yields a wrong
+  covered token, the roster gets "fixed" to match it, and the weld goes
+  green over a roster mirroring nothing. `variant_identifier` asserts
+  only that the first token starts alphabetic or `_`.
+- One site is not macro-built: `SelectRefusal` is `#[non_exhaustive]`,
+  so rustc forces a catch-all and it goes through a named
+  `hand_written` door that says what that costs.
+
+**The token half is now welded**, which it was not when this row was
+cut: `test_utils::f6_variants!` writes the exhaustiveness `match` and
+the identifier roster from one list of idents, so they cannot disagree,
+a wildcard is a macro grammar error, and a no-op token is not
+expressible.

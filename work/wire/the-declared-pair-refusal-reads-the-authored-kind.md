@@ -1,9 +1,12 @@
 ---
 id: the-declared-pair-refusal-reads-the-authored-kind
-kind: issue
-title: route_declarations answers DeclareUnsupportedPair from the authored StableName's kind, not the resolved key
-status: open
+kind: unit
+title: resolve_declarations answers DeclareUnsupportedPair from the authored StableName's kind, not the resolved key
+status: closed
 opened: 2026-09-13
+branch: wire/tie-before-kind
+pr: 2681
+closed: 2026-09-15
 ---
 
 
@@ -14,7 +17,7 @@ to the end. The sweep's pattern was right —
 `rg 'EntityKey::' crates/editor-core/src/` returns this site — and the
 sweep stopped early.
 
-`crates/editor-core/src/eval/wire.rs`'s `route_declarations` builds
+`crates/editor-core/src/eval/wire.rs`'s `resolve_declarations` builds
 
 ```rust
 let unsupported = || NodeErrorKind::DeclareUnsupportedPair {
@@ -56,3 +59,29 @@ involved.
 site: it keys on variants with a `found:` field and this one carries
 `kinds:`. That blind spot is stated in the census's own doc, with this
 row named.
+
+## In review (PR 2681, `wire/tie-before-kind`)
+
+Answered the other way from this row's guess, and the sibling row's
+ordering is why. The premise is verified **by construction**, not by
+an invariant one module away: `NameTable::forward` is private and its
+only two writers, `insert_ref` and `insert_tied_ref`, both refuse a
+row whose `name.kind` disagrees with a candidate's `key.kind()`. Once
+the kind question is asked BEFORE resolution — which
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds` requires,
+because a tied name has no single key — the word must come off the
+NAME. So `kinds: (n1.kind, n2.kind)` stays, and what changes is that
+it is now load-bearing rather than incidental.
+
+The resolved keys keep a reading of their own: each projection arm's
+`let-else`, reachable only on a table that broke its own rule, calls
+`broke(<shape>)` — a `debug_assert!` naming which projection failed,
+and in release an answer off `k1.kind()` / `k2.kind()`. That is the
+`resolve_face` split, where the guard answers off the name and the key
+projection answers what the key IS.
+
+**Note on this row's own citation.** Its title and its finding said
+`route_declarations`; the site is and always was `resolve_declarations`
+one function below. Corrected here, and the same mis-citation is
+corrected in `crates/editor-core/tests/wire_entity_door.rs`'s census
+and in `work/wire/the-entity-kind-door-has-six-spellings`.
