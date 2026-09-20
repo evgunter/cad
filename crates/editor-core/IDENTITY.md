@@ -56,9 +56,13 @@ in the same history, and the node is live.** Along any forward path
 from the mint the counter is monotone, so the id cannot be re-minted;
 on any other branch it can. A hold therefore carries the id plus its
 minting entry, which the history computes at pick time by walking up
-until the counter drops below the id (`History::entry`,
-`Doc::next_id`), and the per-frame `reconcile` / `standing` checks
-descent before liveness.
+until it passes the last entry whose document has minted the id
+(`History::entry`, `Doc::has_minted`), and the per-frame `reconcile` /
+`standing` checks descent before liveness. `has_minted` is the
+counter's one public reading and answers minting alone — a deleted
+id is still minted, and liveness stays `Doc::node`'s question — so
+the monotonicity this walk rests on is argued where the counter
+lives rather than restated at the holder.
 
 - Undoing an unrelated later edit keeps a pick valid; undoing past
   the mint invalidates it; redoing onto the original branch restores
