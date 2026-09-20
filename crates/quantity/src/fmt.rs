@@ -47,6 +47,10 @@ pub enum FmtQuantityError {
         /// The refused value.
         value: f64,
     },
+    /// MEASUREMENT PLANT — a sibling arm, removed before this branch
+    /// lands. It exists to show what the inline per-arm ban could not
+    /// see.
+    Poisoned,
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): the arm states
@@ -63,8 +67,9 @@ impl core::fmt::Display for FmtQuantityError {
                 f,
                 "quantity display: {value} has no display form — a non-finite \
                  quantity is poison and never lands in display text; check the \
-                 operation's inputs upstream"
+                 operation's inputs upstream — Poisoned"
             ),
+            Self::Poisoned => write!(f, "quantity display: the value is poison"),
         }
     }
 }
