@@ -99,3 +99,58 @@ variant-identifier` needs `impl Display for Verb` in `crates/profile`,
 which is PATHS'. Both stay `open` here rather than `parked`: neither
 waits on a trigger the tracker can see fire, and saying so in the plan
 is the honest record.
+
+## 2026-09-19 — the disabled-control census, and the rule it lands on
+
+`a-disabled-control-says-why-in-four-shapes` run as a census at merge
+base `2654cc111417da806d9786c40136106469096fec`. No file under
+`crates/` touched; tier docs. Tiered style review plus a correctness
+arm, per the plan's posture — a census's failure mode is a population
+that looks complete and is not.
+
+**The rule.** *A control a reader cannot use owes the sentence a click
+would have been answered with — when there is such a sentence.* The
+test is one question at the control: if the reader got past this gate
+and the operation ran, what sentence would come back? One would → the
+pre-click sentence and the refusal are one sentence and get one
+composition. None would → the control gates a draft, and a literal at
+the control is correct. The rule is not minted here: `refuse.rs`
+states it three times, at `Refusal::self_instance`,
+`Refusal::affordance` and `Refusal::exists_wording`, as the reason each
+helper exists.
+
+**The population.** 35 members — 30 `add_enabled` / `add_enabled_ui`
+call sites plus 5 branches that draw a sentence where a control would
+be. `on_disabled_hover_text` has 11 call sites and **every one attaches
+to a member the first pass already had**: the proxy table's eighth row,
+measured. The row's filing counts (18 and 10, on 2026-09-11) are
+superseded, as are all fourteen of its citations — `pane/profile.rs`
+and `widgets.rs` did not carry members when it was written and carry
+sixteen between them now.
+
+**Both of the row's predicted genuine hits are not hits.**
+`pane/create.rs`'s `blocked: Option<&'static str>` gates a draft in all
+four arms — no `SessionOp` can be formed without the plane or the
+loops — and `platform::NO_CHOOSER_BACKEND` sits on buttons that reach
+no door at all, so it is a first composition, not a second. The
+genuine hits are elsewhere: the New-document Create button
+(`Refusal::EmptyName`), Undo and Redo (`Refusal::NothingToDo`, shown as
+nothing), and the slot range button (a third spelling of the ratified
+affordance).
+
+**Filed.** `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-
+has-words` and `the-range-button-re-mints-the-ratified-affordance`
+(genuine hits); `two-pickers-spell-one-not-well-typed-sentence-twice`
+(found in passing — `pane/profile.rs` hand-rolls `widgets.rs::offer`'s
+sentence); and on VDOC's slate,
+`a-disabled-controls-reason-has-one-home`, the README clause this
+program's exit shape names.
+
+**Dispositions handed down.**
+`the-new-document-button-states-its-refusal-twice` gets answer 1, read
+the refusal — its stated cost is the objection `Refusal::exists_wording`
+already answers. `environmental-facts-answer-usable-as-a-bool-with-the-
+reason-elsewhere` is **not decided** by this rule and is untouched by
+it; the two classes are disjoint at `NO_CHOOSER_BACKEND`, and that row
+stands on its own argument. Evidence appended to both rows rather than
+left in a PR body.
