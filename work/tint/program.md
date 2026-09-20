@@ -13,17 +13,25 @@ keep_out: [cost is S-TCOST's question and no row here is justified by a cpu-seco
 priority: P3
 ---
 
-**A row that cannot go red is not a test, and a guard that cannot go red
-is not a guard.** Three shapes, all of them found while S-TCOST was
-measuring something else: assertions that hold on their own codomain or
-on a structural zero; censuses, markers and hand-kept enumerations that
-pass on a substring, a term that matches nothing, or a list nobody
-updated; and one claim restated in N places, where the harm is drift and
-never compute. Plus the citations and names that describe a tree that has
-moved.
+**The instruments that cannot go red, after the 2026-09-20 cut**:
+censuses, markers, rosters and hand-kept enumerations that pass on a
+substring, on a term that matches nothing, or on a list nobody updated.
 
-Opened 2026-09-11 out of S-TCOST's re-sort of its own board against the
-repository going public (`work/tcost/log.md`, the 2026-09-11 seam): 30 of
-its 42 live rows were not cost levers in either currency and had reached
-it by path glob. Charter and order: `work/tint/plan.md`; narrative in
-`work/tint/log.md`.
+The source-scanning censuses hand-parse Rust and fail loud, so an
+ordinary construct reds the gate rather than being read; `mesh7r1_probes`'
+`R1-DOOR-ONLY` markers are grep-only, sentinels with no reader; the
+hand-written-impl census's only per-impl sight anchor is a suppression
+list that SHRINKS; a `Shared` ledger row is checked by one substring,
+so a site that keeps the substring and loses the behaviour still
+passes. And `test-utils` documents itself as dev-only while being
+production source to every narrowing gate — the fact several of those
+gates' own arguments rest on.
+
+TINT measured **207.5 budget points unpriced and 97.5 once its rows
+carried a cost** — the clearest reading yet of what the 2.5-point
+default does to an unscored slate. It was cut on 2026-09-20 (Ev, in
+chat) into four tracks: VACUITY (rows that cannot fail), FIXTURE (one
+shape spelled n times), HELPER (one helper with several homes) and this
+remainder. TINT keeps its band 3400-3499.
+
+Charter and order: `work/tint/plan.md`; narrative in `work/tint/log.md`.
