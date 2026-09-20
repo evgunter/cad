@@ -668,11 +668,13 @@ fn resolve_side<P: crate::ProfilePayload>(
         MateFrame::Authored(authored) => return Ok(*authored),
         MateFrame::FromFace(face) => face,
     };
-    let unresolved = |refusal| Box::new(MateFault::FaceUnresolved {
-        mate,
-        side,
-        refusal,
-    });
+    let unresolved = |refusal| {
+        Box::new(MateFault::FaceUnresolved {
+            mate,
+            side,
+            refusal: Box::new(refusal),
+        })
+    };
     let part = part_of(doc, member)
         .map_err(|node| unresolved(FaceRefusal::NotAnInstance { node }))?;
     let named = |refusal| unresolved(FaceRefusal::of(refusal, member.instance, part, face.face.clone()));
@@ -1605,7 +1607,7 @@ fn undecided(fault: &MateFault) -> bool {
         // canonical frame, a reference missing or spelled twice, a
         // member on no instance — the document's own content decided
         // there is no frame, and re-authoring the mate is the recourse.
-        MateFault::FaceUnresolved { refusal, .. } => match refusal {
+        MateFault::FaceUnresolved { refusal, .. } => match refusal.as_ref() {
             FaceRefusal::PartUnresolved { .. } | FaceRefusal::Unpinned { .. } => true,
             FaceRefusal::Readback { error, .. } => !matches!(
                 error,

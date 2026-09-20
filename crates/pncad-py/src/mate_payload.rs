@@ -453,7 +453,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             side,
             refusal,
         } => {
-            let (instance, what) = match refusal {
+            let (instance, what) = match refusal.as_ref() {
                 FaceRefusal::PartUnresolved { instance, .. }
                 | FaceRefusal::NoSuchName { instance, .. }
                 | FaceRefusal::Ambiguous { instance, .. }

@@ -1386,8 +1386,10 @@ pub enum MateFault {
         mate: RecipeNodeId,
         /// Which side's frame.
         side: MateSide,
-        /// Why.
-        refusal: FaceRefusal,
+        /// Why — boxed, as an escalation's diagnostics are: the
+        /// refusal names the part, the face and the readback's own
+        /// arm, and the fault's every other arm stays the size it is.
+        refusal: Box<FaceRefusal>,
     },
 }
 

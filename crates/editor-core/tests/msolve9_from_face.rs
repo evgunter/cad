@@ -538,16 +538,19 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
         .expect_err("a NURBS face has no canonical frame");
     let MateFault::FaceUnresolved {
         side: MateSide::A,
-        refusal:
-            FaceRefusal::Readback {
-                error: topo::readback::ReadbackError::NoCanonicalFrame { carrier },
-                face,
-                ..
-            },
+        refusal,
         ..
     } = &fault
     else {
-        panic!("expected FaceUnresolved(Readback(NoCanonicalFrame)), got {fault:?}");
+        panic!("expected FaceUnresolved, got {fault:?}");
+    };
+    let FaceRefusal::Readback {
+        error: topo::readback::ReadbackError::NoCanonicalFrame { carrier },
+        face,
+        ..
+    } = refusal.as_ref()
+    else {
+        panic!("expected Readback(NoCanonicalFrame), got {refusal:?}");
     };
     assert_eq!(*carrier, "nurbs surface");
     assert_eq!(**face, flank);
@@ -582,15 +585,16 @@ fn a_carried_reference_beside_an_authored_one_refuses_and_no_reference_is_pinned
     );
     let fault = resolve_through_the_solve("msolve9-ref-twice", part, doubled, AxisSense::Aligned)
         .expect_err("one fact spelled twice");
+    let MateFault::FaceUnresolved {
+        side: MateSide::A,
+        refusal,
+        ..
+    } = &fault
+    else {
+        panic!("expected FaceUnresolved, got {fault:?}");
+    };
     assert!(
-        matches!(
-            &fault,
-            MateFault::FaceUnresolved {
-                side: MateSide::A,
-                refusal: FaceRefusal::ReferenceRefused { face, .. },
-                ..
-            } if **face == name
-        ),
+        matches!(refusal.as_ref(), FaceRefusal::ReferenceRefused { face, .. } if **face == name),
         "{fault:?}"
     );
     let instance = RecipeNodeId(3);
@@ -635,10 +639,13 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let MateFault::FaceUnresolved {
         mate: m,
         side: MateSide::A,
-        refusal: FaceRefusal::NoSuchName { instance, part, face },
+        refusal,
     } = &fault
     else {
-        panic!("expected NoSuchName, got {fault:?}");
+        panic!("expected FaceUnresolved, got {fault:?}");
+    };
+    let FaceRefusal::NoSuchName { instance, part, face } = refusal.as_ref() else {
+        panic!("expected NoSuchName, got {refusal:?}");
     };
     assert_eq!(*m, named);
     assert_eq!(*instance, s.post_i);
@@ -671,15 +678,16 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     );
     let ev = run(&doc, &s.opts);
     let fault = mate_fault(&ev, s.mate);
+    let MateFault::FaceUnresolved {
+        side: MateSide::A,
+        refusal,
+        ..
+    } = &fault
+    else {
+        panic!("expected FaceUnresolved, got {fault:?}");
+    };
     assert!(
-        matches!(
-            &fault,
-            MateFault::FaceUnresolved {
-                side: MateSide::A,
-                refusal: FaceRefusal::NoSuchName { instance, .. },
-                ..
-            } if *instance == s.post_i
-        ),
+        matches!(refusal.as_ref(), FaceRefusal::NoSuchName { instance, .. } if *instance == s.post_i),
         "{fault:?}"
     );
     assert!(ev.node_error(s.block_i).is_some(), "the fault poisons the cluster");
@@ -698,15 +706,14 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let replayed = *loaded.doc.order().last().expect("the replayed mate");
     assert_eq!(loaded.doc.node(replayed), doc.node(s.mate), "the mate as logged");
     let ev = run(&loaded.doc, &s.opts);
+    let replayed_fault = mate_fault(&ev, replayed);
     assert!(
         matches!(
-            mate_fault(&ev, replayed),
-            MateFault::FaceUnresolved {
-                refusal: FaceRefusal::NoSuchName { .. },
-                ..
-            }
+            &replayed_fault,
+            MateFault::FaceUnresolved { refusal, .. }
+                if matches!(refusal.as_ref(), FaceRefusal::NoSuchName { .. })
         ),
-        "the next solve decides the declined face"
+        "the next solve decides the declined face: {replayed_fault:?}"
     );
 }
 
@@ -722,34 +729,23 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
         mate(s.post_i, s.block_i, coincide(from_face(&cap(CapEnd::End)), identity())),
     )
     .expect_err("no resolver, no face");
-    assert!(
+    let no_resolver = |fault: &MateFault, instance_named: Option<RecipeNodeId>| {
         matches!(
-            &fault,
-            MateFault::FaceUnresolved {
-                side: MateSide::A,
-                refusal: FaceRefusal::PartUnresolved {
-                    instance,
-                    fault: PartFault::NoResolver
-                },
-                ..
-            } if *instance == s.post_i
-        ),
-        "{fault:?}"
-    );
+            fault,
+            MateFault::FaceUnresolved { side: MateSide::A, refusal, .. }
+                if matches!(
+                    refusal.as_ref(),
+                    FaceRefusal::PartUnresolved { instance, fault: PartFault::NoResolver }
+                        if instance_named.is_none_or(|named| *instance == named)
+                )
+        )
+    };
+    assert!(no_resolver(&fault, Some(s.post_i)), "{fault:?}");
     let ev = run(&s.doc, &EvalOptions::default());
+    let at_evaluation = mate_fault(&ev, s.mate);
     assert!(
-        matches!(
-            mate_fault(&ev, s.mate),
-            MateFault::FaceUnresolved {
-                refusal: FaceRefusal::PartUnresolved {
-                    fault: PartFault::NoResolver,
-                    ..
-                },
-                ..
-            }
-        ),
-        "the evaluation's own voice: {}",
-        mate_fault(&ev, s.mate)
+        no_resolver(&at_evaluation, Some(s.post_i)),
+        "the evaluation's own voice: {at_evaluation}"
     );
 }
 
