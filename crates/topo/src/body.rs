@@ -948,10 +948,11 @@ impl<T: Real> Body<T> {
 
     /// The shells of `solid`, **in the order the solid lists them**,
     /// or `None` where the solid key does not resolve. A foreign key
-    /// is not caught (see the [module docs](self)): a foreign
-    /// `SolidKey` landing on a live slot passes the resolution and
-    /// this door hands back **another solid's shell list** as though
-    /// it were the caller's.
+    /// is not caught, and the consequence
+    /// [`Body::faces_of_solid`] spells out for a `SolidKey` — a
+    /// foreign key landing on a live slot passes the resolution and
+    /// the caller is handed another solid's entities — holds here
+    /// identically, for the shells.
     ///
     /// This is a read of the STORED ownership list — [`Solid::shells`]
     /// itself — so it borrows rather than building: no caller pays an
@@ -960,15 +961,17 @@ impl<T: Real> Body<T> {
     /// the difference from [`Body::faces_of_solid`], which SELECTS on
     /// the faces' back-pointers and therefore must build.
     ///
-    /// The two orders differ, and the difference is the caller's to
-    /// reason with: [`Body::faces_of_solid`] answers in face-arena
-    /// order (D9), while this answers in the solid's list order, which
-    /// no arena determines — an operator that moves a shell between
-    /// solids appends to the destination's list, so a solid's shells
-    /// need not be arena-ascending. [`Shell::solid`] is the inverse
-    /// back-pointer; tier 1's ownership pass validates the two against
-    /// each other, so on a valid body they agree about WHICH shells,
-    /// never about their order.
+    /// **The order is the solid's own, and no arena determines it**:
+    /// an operator that moves a shell between solids appends to the
+    /// destination's list, so a solid's shells need not be
+    /// arena-ascending. [`Body::faces_of_solid`] states how that
+    /// differs from the order IT answers in; a caller comparing the
+    /// two reads it there rather than here.
+    ///
+    /// [`Shell::solid`] is the inverse back-pointer, and tier 1's
+    /// ownership pass validates the list and the back-pointers against
+    /// each other — so on a valid body the two agree about WHICH
+    /// shells, and only this one fixes their order.
     ///
     /// **`None` is the only refusal this door can make**, and that is
     /// why it can stand under callers that refuse in different
