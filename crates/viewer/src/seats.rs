@@ -81,6 +81,7 @@
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 
+use crate::frame::LIST_SEPARATOR;
 use crate::session::{NodeKindWanted, admits};
 use crate::vocab::vocabulary;
 
@@ -347,6 +348,10 @@ impl Seats {
 /// Composed here rather than in the widgets because it is the same
 /// vocabulary a lost-pick notice is composed from, and two copies is
 /// how the two drift.
+///
+/// The seats are the items of a list ONE line carries, which is what
+/// [`LIST_SEPARATOR`] is for, so the mark is taken from there rather
+/// than spelled again here.
 pub fn seat_line(seats: &[(Seat, Option<RecipeNodeId>)]) -> String {
     if seats.iter().all(|(_, held)| held.is_none()) {
         return "no picks yet".to_owned();
@@ -358,5 +363,5 @@ pub fn seat_line(seats: &[(Seat, Option<RecipeNodeId>)]) -> String {
             None => format!("{}: —", seat.name()),
         })
         .collect::<Vec<_>>()
-        .join("; ")
+        .join(LIST_SEPARATOR)
 }
