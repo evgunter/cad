@@ -4,6 +4,8 @@ kind: issue
 title: A corner count that does not fit u32 is drawn as u32::MAX rather than refused
 status: open
 opened: 2026-09-16
+priority: P1
+cost: E
 ---
 
 

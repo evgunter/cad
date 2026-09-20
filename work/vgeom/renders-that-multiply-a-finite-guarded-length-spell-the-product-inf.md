@@ -5,6 +5,8 @@ title: three chrome renders multiply a finite-guarded length and spell the produ
 status: open
 opened: 2026-09-16
 refs: [render-mm-overflows-to-inf-for-a-delta-the-door-accepts, the-scientific-arm-rounds-out-of-the-type, viewer-substituted-value-class-is-crate-wide]
+priority: P1
+cost: E
 ---
 
 

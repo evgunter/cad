@@ -4,6 +4,8 @@ kind: issue
 title: a frame minted through Real::select_le_zero is opaque to the tier, and SYM-5's tilted derived-boss acceptance row goes red on it
 status: open
 opened: 2026-09-15
+priority: P0
+cost: H
 ---
 
 

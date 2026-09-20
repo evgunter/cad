@@ -5,6 +5,8 @@ title: a field's text is accepted within the render's relative tolerance and com
 status: open
 opened: 2026-09-12
 refs: [parameter-row-field-has-no-text-door]
+priority: P0
+cost: D
 ---
 
 

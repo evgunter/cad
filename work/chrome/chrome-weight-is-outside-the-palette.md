@@ -6,6 +6,8 @@ status: parked
 opened: 2026-09-04
 refs: [1769, 1463]
 blocked_on: [tone-is-a-value-in-frame-and-a-comment-in-two-panes]
+priority: P4
+cost: E
 ---
 
 Found by CHROME's style lane on PR 1769; judged a class question by the

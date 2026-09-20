@@ -5,6 +5,8 @@ title: The projection fault this unit holds can go permanently stale, and neithe
 status: open
 refs: [1957, news-and-standing-facts-are-orthogonal-axes]
 opened: 2026-09-05
+priority: P3
+cost: E
 ---
 
 

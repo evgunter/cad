@@ -13,14 +13,22 @@ keep_out: [OPENED 2026-09-13 at M10's exit sweep (docs/DOC-LEDGER.md sweep 13) o
 priority: P1
 ---
 
-The E12 symbolic identity tier — `geom_core::sym`, the hash-consed DAG
-over the parameters whose lazy exact-rational normal form decides an
-identically-zero margin `Zero` at any box width — as a program of its
-own. M10 built it across four units (M10-7 … M10-10) and closed on
-2026-09-13 with fourteen rows standing on it: the ceiling that bounds
-each document today, the door's two unbuilt registrants, the cost
-nobody has profiled inside, and the hygiene two reviews flagged. This
-is that opening slate (`docs/DOC-LEDGER.md` sweep 13, Ev's call at the
-sweep). Class H at its core with three E riders and one frontier that
-is a design conversation before it is a unit. Charter and lanes:
-`work/sym/plan.md`; narrative in `work/sym/log.md`.
+**The E12 symbolic identity tier's live defects, after the 2026-09-20
+cut**: where the tier PANICS, refuses or freezes on ordinary input.
+
+`Sym<f64>`/`Sym<Probe>` at a far placement trips `Decide`'s
+theorem-vs-numeric assert — a crash, not a refusal. A profile placed on
+a derived frame whose axes carry a widened parameter freezes on the
+symbolic lane. A boss on a `FaceFrame` taken from a revolved body's cap
+refuses on pcurve loop continuity. And two rows say the tier's own
+guarantees do not hold as stated: widening the coefficient ring can
+LOSE discharges, so reach is not monotone; and a leaf receipt's frozen
+column is schedule-dependent under the drive-scoped memo, so the same
+document can freeze differently depending on evaluation order.
+
+SYM was cut on 2026-09-20 (Ev, in chat) from 78.5 budget points into
+three tracks: DECIDE (the decision door and its ruled units), TIER (the
+frontier, the cost and the prose) and this remainder. SYM keeps its
+band 5800-5899.
+
+Charter and lanes: `work/sym/plan.md`; narrative in `work/sym/log.md`.
