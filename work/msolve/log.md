@@ -643,3 +643,14 @@ self-mate arm was dead at the fold — one shared per-reference prefix.
 (5) Three comments called `Maintain::Never` the re-apply arm; it
 refuses at the maintenance and `Recorded` re-applies — the two replay
 rules stated together, the lever's answer a named type. Nine MINOR.
+## MSOLVE-9 ratified by Ev (2026-09-20, PR 2895)
+
+Ev's word on the `[ev]` PR ("lgtm"): A11 rule 5's inputs sentence —
+the solve's inputs are the document plus its mated parts'
+evaluations, two answers crossing one door asked lazily per pair, the
+extent as the lever and a `FromFace` frame as the face's canonical
+pose in part coordinates, nothing stored twice — and
+`docs/MSOLVE-9-SPEC.md` are on main at `5530c0633`. The unit
+dispatches from main once MSOLVE-10 merges (PR 2913 in its fix-pass
+CI), since both rewrite `mate/solve.rs`. LIB's
+`no-door-mints-mate-frame-from-face` follows by announcement.

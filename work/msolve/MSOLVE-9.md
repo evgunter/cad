@@ -17,3 +17,9 @@ unit revises A11 rule 5's inputs sentence in `ASSEMBLY.md` — the
 wording rides this unit's `[ev]` PR and waits for Ev; the unit
 dispatches after that merge, after MSOLVE-8 (it rides its frame
 witness). LIB's façade and Python half follows by announcement.
+
+Ratified: Ev's word on `[ev]` PR 2895 (2026-09-20, "lgtm"), merged at
+`5530c0633`; the spec and A11 rule 5's inputs sentence are on main.
+Dispatches from main after MSOLVE-10 merges (both units rewrite
+`mate/solve.rs`; the lane branches from a main that holds the door's
+`admit_mate` rather than merging it later).
