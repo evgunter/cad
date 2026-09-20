@@ -2,12 +2,13 @@
 id: general-pcurve-face-props-and-tess-refuse
 kind: unit
 title: Volume, area and tessellation still refuse typed on a face carrying a General pcurve (P-2 residue)
-status: open
+status: closed
 opened: 2026-08-29
 github: 1179
 refs: [498]
 branch: trim/2-tess
 pr: 2863
+closed: 2026-09-20
 ---
 
 ## From GitHub issue 1179
@@ -171,3 +172,15 @@ The residue this PR leaves behind is filed:
 `work/trim/chord-count-arithmetic-is-plain-f64-across-every-speed-arm.md`
 (TESS's, the count arithmetic's rounding direction across every speed
 arm, with the domination-idiom propagation note).
+
+## Closed (2026-09-20)
+
+PR-2 (#2863) merged (ordinal 2504, sample #224; block TRIM-B2 slot 1
+concluded): `mesh::tessellate` answers a NURBS face carrying a
+`General` pcurve — the certified UV speed sup and the trim walk's
+`General` arm. With PR-1 (#2564, the quadrature) the item's title is
+retired: volume, area and tessellation all answer. Records: MODEL-AB-LOG
+rows T2Q and T2T; adjudications 5734849876 and 5743420032. Left on the
+program from this unit: `curved-trim-e2e-fixture-waits-for-a-producer`,
+`trimmed-quadrature-composite-rounds`,
+`chord-count-arithmetic-is-plain-f64-across-every-speed-arm` (TESS's).
