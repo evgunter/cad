@@ -191,33 +191,67 @@ Outside the six-fixture table, in the same fence and dispositioned:
 The thirty-five hits account for themselves: sixteen are this row's,
 three are the doors themselves in `sweep::test_support` (`brick`,
 `block`, `cube` — the two views its own rustdoc argues for), one is
-`boxx` above, and the remaining **fifteen are singletons** — one
-declaration, one suite. Two of those already sit in a shared tree
-(`common::approx::unit_box`, `common::cavity::brick`); the other
-thirteen are seated where the routing rule puts a helper one suite
-uses, and the duplication rule has nothing to say about them —
+`boxx` above, two already sit in a shared tree
+(`common::approx::unit_box`, `common::cavity::brick`), and **one is
+not a singleton at all** —
+
+**`m5_s12_curved_ops_interval::certified::plate`, corrected.** An
+earlier draft filed it with the singletons as *"one declaration, one
+suite"*. The second half is false: `review_arceval_r1_probes` reads
+`use crate::m5_s12_curved_ops_interval::certified::{plate, …}`, so it
+has **two consuming suites** — the criterion that moved this row's
+sixteen. It is nevertheless **not a member of this row's class**,
+because nothing is duplicated: there is one declaration, and the
+second suite reaches it by import. What it is instead is a ROUTING
+case — a shared fixture living in a suite rather than in the helper
+tree — and its `pub(crate)` is deliberate, with the reason stated at
+the site (*"the two rows say they use the same plate, and this is what
+makes that so rather than saying it"*). Not folded, for a reason this
+row owes plainly: `review_arceval` imports FOUR items from that
+module, of which `plate` is the only box, and moving one would split a
+group the site's own rustdoc binds together while leaving the
+ownership shape standing. Filed whole:
+`work/dup/one-suite-owns-another-suites-certified-fixture-group.md`.
+
+**And it is the site this unit cites as its declined alternative.** The
+PR names `review_arceval_r1_probes`'s cross-suite import as the
+pattern it declines as a home; it is also a live instance of the thing
+the argument condemns, and the first draft cited it without noticing.
+
+The remaining **twelve are singletons** — one declaration, one suite —
+seated where the routing rule puts a helper one suite uses, and the
+duplication rule has nothing to say about them:
 `s16_box_soundness::top_rim_x_plate`, dispositioned above, and:
-`m5_s12_curved_ops_interval::plate`, `review_arceval_r1_probes::block`,
+`review_arceval_r1_probes::block`,
 `review_m6_5_pr2_sweep_probes::box_at`,
 `s49_census_jurisdiction::brick`, `shell5_r1_probes::boxy_at`,
 `verbs_1031b_arcwind::cutter`, `verbs_f7_r2_probes::brick_operand`,
 `mesh`'s `r2_bool_door::slab`, `step-export`'s `common::cube`,
 `editor-core`'s `resolve::pick`'s `unit_prism`, `topo`'s
 `geom_origin_rows::unit_brick` and `review_f7_pole_r1_probes::distant_brick`.
-Four of those thirteen select limb (2) rather than (1) — `box_at`,
+Four of those twelve select limb (2) rather than (1) — `box_at`,
 `boxy_at`, `s49`'s `brick` and `review_arceval`'s `block` each perform
 the caller's corner arithmetic once — which is why the rule and the
 routing rule agree about them from both sides.
 
 ### The routing question, answered: `tests/common`, and it costs nothing
 
-`crates/sweep/src/test_support.rs`'s header seats a fixture there only
-*"once a consumer OUTSIDE this crate needs it or a second suite inside
-it does"*, and routes the rest by `sweep`'s `tests/common` module
-rule: *"an item lives at the narrowest one all of its consumers can
-reach"*. **Every consumer of all sixteen sites is a `crates/sweep/tests`
-suite**, so the narrowest home is `tests/common` and the `src` arm is
-not reached. New module `crates/sweep/tests/common/operands.rs`, body
+**The rule that carries it is `tests/common`'s**: *"an item lives at
+the narrowest one all of its consumers can reach"*. Every consumer of
+all sixteen sites is a `crates/sweep/tests` suite, every one of them
+can reach `tests/common`, and no consumer sits outside the crate — so
+that is the home.
+
+**It is NOT carried by `src/test_support.rs`'s clause, and an earlier
+draft of this section said it was.** That header seats a fixture there
+*"once a consumer OUTSIDE this crate needs it **or a second suite
+inside it does**"*, and all sixteen satisfy the second disjunct — which
+is the condition that triggers the `src` arm, not one that rules it
+out. The two documents genuinely disagree about this case; this unit
+followed `tests/common`'s rule, and filed the conflict rather than
+reconciling it:
+`work/dup/two-rules-disagree-on-when-a-fixture-leaves-a-suite.md`
+(`needs_ev`). New module `crates/sweep/tests/common/operands.rs`, body
 authoring, routed beside `common::cavity` for the reason that module
 gives.
 
@@ -273,12 +307,30 @@ run filtered to the consuming suites:
 qualifications stated rather than buried:**
 
 - `curved_mergedoor`'s `plate6` site is live on the plate's HEIGHT and
-  dead on its WIDTH: its rows assert additivity and validity of a pair
+  dead on its WIDTH, and live at **one of that suite's fourteen rows**,
+  not merely live: its rows assert additivity and validity of a pair
   built from two copies of the same fixture, so a symmetric change of
   extent cannot reach them; the height is pinned because a declared
   coincident face is looked up at `z = 1.0`. The first plant left that
   suite green and only the second reddens it — the first plant alone
   would have been a green diff reported as proof.
+
+- **The rule that generalises from the other qualification, and it is
+  about the PLANT, not the fixture.** The first drastic plants on
+  `top_rim_plate` and `rounded_plate` moved them AWAY from the rim.
+  Those rows are one-sided — `count == 0` for a plate clear of the rim
+  — so a plant in that direction can only ever confirm them. **A plant
+  that relaxes a one-sided assertion is not a probe**, and it reads
+  exactly like a dead probe: `s16_box_soundness` answered 7/7 green.
+  Re-planting toward the rim reds
+  `a_plate_clear_of_the_rim_by_more_than_the_pad_is_not_examined`.
+  Had `s16` been `top_rim_plate`'s only consumer, the away-plant would
+  have been a silent green and this row would have reported a live
+  fixture dead. The caveat that makes it usable: liveness in a
+  direction is a property of the fixture's **row set**, not of the
+  fixture — `rim_plate` reds in BOTH directions because it also feeds
+  an accepting corpus row, and `top_rim_plate` does not because its
+  s16 row set is refusing only.
 - `rounded_plate` has **no live probe in `s16_box_soundness` at all**,
   and its bulges — the feature it exists for — have none in either
   suite. Filed:
@@ -290,3 +342,96 @@ qualifications stated rather than buried:**
   coverage defect, S-TINT's charter.
 - `work/dup/conic-corpus-cylinder-has-two-parameterisations.md` — the
   one corpus member this fold declined.
+- `work/dup/two-rules-disagree-on-when-a-fixture-leaves-a-suite.md`
+  (`needs_ev`) — `src/test_support`'s header and `tests/common`'s
+  routing rule give opposite answers for a fixture a second in-crate
+  suite wants, which is this unit's own case.
+- `work/dup/one-suite-owns-another-suites-certified-fixture-group.md`
+  — `review_arceval`'s four certified operands are `m5_s12`'s, by
+  cross-suite import; parked on the row above.
+- `work/tint/folded-slab-strands-a-hand-derived-volume-and-a-silent-refusal-arm.md`
+  — a row that cannot go red, surfaced by re-planting after the fix
+  pass moved its fixture.
+
+## Fix pass, 2026-09-20 — two members the first pass missed
+
+### The thirteenth copy, promoted into the shared tree
+
+**`rounded_plate`'s BODY was a hand re-spelling of
+`sweep::test_support::prism`, and this unit moved it into `common/`
+untouched.** That door is *"one closed profile loop extruded `h` along
+`+z`"*, and its own rustdoc records that a twelfth copy of the same
+four lines is what got it homed. `rounded_plate` spelled
+`ProfileLoop::new` → `Profile::new(SketchPlane::xy(), …)` →
+`.validate` → `extrude(…).unwrap().body` by hand: the door's body
+verbatim.
+
+This row flagged the fixture twice — byte-identical across two suites,
+and coverage-dead — and never asked what its body was a copy of. The
+promotion is the worse half: in a suite a stray copy is a copy, in
+`common/` it reads as the sanctioned spelling. **A fold that moves a
+duplicate without reading it ships a copy with a warrant.**
+
+Folded to `prism(verts, 0.8, Tol::witness())`.
+
+**The fold changes no body, and that is measured, not inferred.** A
+temporary row built both spellings and compared their full `Debug`
+renderings: equal. The comparison is not vacuous — changing the folded
+height to `0.81` reds it. (It is also provable by reading:
+`prism(v, h, t)` = `prism_at(v, 0, h, t)` = `prism_on(sketch_at(0), …)`
+= `extruded(…)`, and `sketch_at(T::zero())` and `SketchPlane::xy()`
+are both `from_frame(OrthoFrame::axes_xy(origin))`. The measurement is
+what this row reports; the reading is why it was expected.)
+
+Two neighbours checked for the same defect and cleared:
+`common::cavity::prism` reaches `sweep::test_support::extruded` — the
+shared primitive — and adds only a `(Point2, z0, z1)` vocabulary over
+`ProfileLoop::polygon`, which the door does not offer;
+`common::approx::prism` is a LOFTED body with described-NURBS walls,
+a different construction and not this door's.
+
+### The disclosed blind spot was an undischarged work order
+
+This row published *"a wrapper written over two or more statements"*
+as a blind spot. Method item 8 says that is an instruction to run a
+second instrument. Run — a search for the fixture's own literal
+extents rather than for a wrapper shape — it finds the 4x4x1 slab
+spelled **inline four more times** in `crates/sweep/tests`, none of
+them a `fn` body and so none of them visible to the declaration
+census:
+
+| site | shape |
+| --- | --- |
+| `m5_pr12_battery.rs`'s `pipped` | `let slab = block(4.0, 4.0, 1.0, …)`, whose doc calls it *"A 4 x 4 x 1 slab … S13's live `slab ∖ ball`"* — a self-declared copy of the fixture that moved |
+| `offd2_r1_probes.rs::probe_overhalf_slab_fails_loud` | inline argument |
+| `offd2_r1_probes.rs::probe_exact_half_slab_fails_loud` | inline argument |
+| `review_s12_adv.rs::probe_horizontal_log_halfburied_is_exact_or_typed` | inline, by bounds |
+
+None is covered by
+`the-box-extrusion-written-inline-inside-test-bodies`, whose
+instrument requires an extrusion atom — and a `block()` call has none.
+All four now read `operands::slab()`.
+
+**Re-planted after the move, and the new rule above earned its keep
+immediately.** A 4x4x1 -> 4x4x1.1 plant reds two of the four
+(`m5_pr12_battery::p3_spine_regularity_refuses_before_the_torus_is_minted`,
+`offd2_r1_probes::probe_exact_half_slab_fails_loud`) and leaves two
+green. Both green ones are one-sided against THAT direction:
+`probe_overhalf_slab_fails_loud` asserts a shell at `t = 0.6` refuses
+because `0.6 > h/2`, which a thicker slab only confirms until `h`
+crosses `1.2`. Re-planting at 4x4x**3.0** reds it.
+
+**The fourth has no live probe, and the fold is why it is worth
+saying.** `review_s12_adv::probe_horizontal_log_halfburied_is_exact_or_typed`
+reds at neither thickness. Its `Err` arm prints a typed refusal and
+asserts nothing — by design, its doc says *"exact or typed"* — so any
+plant that makes the door refuse is a pass; and its oracle spells the
+slab's volume as a bare `let v_a = 16.0;`, which this fold separated
+from the construction that justifies it. A comment now binds the
+constant to the fixture. Both halves filed:
+`work/tint/folded-slab-strands-a-hand-derived-volume-and-a-silent-refusal-arm.md`.
+
+**What this does to the figure.** The declaration count stays at
+sixteen; these are CALL sites, not declarations, and the row's figure
+counts declarations. What moves is the blind spot's status: it was a
+disclosed gap and is now a measured population of four, all folded.

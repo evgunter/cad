@@ -18,28 +18,29 @@
 //! (`use crate::common::operands::slab as plate;`) — a name, not a
 //! second body.
 //!
-//! **Deliberately not absorbed**, and the whole of it:
+//! **Deliberately not absorbed**, and the whole of it — the suites
+//! this module drew from are its neighbours, and one box and one
+//! cylinder family in them stayed:
 //!
-//! - the boxes only ONE suite builds — `s16_box_soundness`'s
-//!   `top_rim_x_plate` among them. A helper one suite uses stays in
-//!   that suite ([`super`]'s routing rule), and the rule does not
-//!   bend for a sibling of something that did come here;
-//! - the three-arc cylinders the same two suites cut with. They are
-//!   NOT one fixture: `n3r1_prune`'s translates its profile in `x` on
-//!   the `xy` plane, `s16_box_soundness`'s centres the profile and
-//!   lifts the sketch plane to `z0`, and the two take different
-//!   parameters. Reconciling them decides whether a rim's sketch pose
-//!   is part of what those rows check, which is a verdict question and
-//!   not this module's;
+//! - `s16_box_soundness::top_rim_x_plate`, the only box left in those
+//!   suites that just one of them builds. A helper one suite uses
+//!   stays in that suite ([`super`]'s routing rule), and the rule does
+//!   not bend for a sibling of something that did come here;
+//! - `n3r1_prune::cylinder_at` and `s16_box_soundness::cylinder`.
+//!   They are NOT one fixture: the first translates its profile in
+//!   `x` on the `xy` plane, the second centres the profile and lifts
+//!   the sketch plane to `z0`, and the two take different parameters.
+//!   Reconciling them decides whether a rim's sketch pose is part of
+//!   what those rows check, which is a verdict question and not this
+//!   module's;
 //! - the `Point3`-cornered box in [`super::cavity`], which is that
 //!   module's own corner vocabulary over the same door;
 //! - `super::approx::unit_box`, which is the boolean gate's FACE rule
 //!   fixture and belongs with the surgery vocabulary that reads it.
 
 use geom_core::{Decide, Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::test_support::{block, brick};
-use sweep::{Extrusion, extrude};
+use profile::ProfileVertex;
+use sweep::test_support::{block, brick, prism};
 use topo::Body;
 
 /// The 4 x 4 x 1 slab, `z in [0, 1]` — the plainest operand a boolean
@@ -107,15 +108,11 @@ pub fn rounded_plate() -> Body<f64> {
         ((-1.0, 0.4), 0.35),
         ((-1.3, 0.0), 0.0),
     ];
-    let lp = ProfileLoop::new(
+    prism(
         pts.iter()
             .map(|&((x, y), b)| ProfileVertex::new(Point2::new(x, y), b))
             .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
+        0.8,
+        Tol::witness(),
+    )
 }

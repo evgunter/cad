@@ -74,6 +74,11 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// blind bore's tool is a raised one). Six vertices; the hull of them
 /// is the inscribed triangular prism, `x ∈ [−0.25, 0.5]`,
 /// `y ∈ [−0.433, 0.433]`.
+///
+/// Deliberately NOT `common::operands`'s, and not `n3r1_prune`'s
+/// either: that suite poses its cylinder by translating the PROFILE
+/// in `x`, this one by lifting the sketch plane, and which pose a rim
+/// carries is part of what these rows check.
 fn cylinder(z0: f64, height: f64) -> Body<f64> {
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
@@ -391,6 +396,10 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
 /// A plate straddling the TOP rim about its x-extremum — the second
 /// fixture whose loci meet a rim mid-arc, so the through-the-door
 /// soundness pin does not rest on one.
+///
+/// Deliberately NOT `common::operands`'s, though its two siblings are:
+/// this suite is the only one that builds it, and a helper one suite
+/// uses stays in that suite.
 fn top_rim_x_plate(x_max: f64) -> Body<f64> {
     brick((-0.9, x_max), (-0.15, 0.15), (0.9, 1.1), Tol::witness())
 }

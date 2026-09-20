@@ -18,6 +18,13 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
+/// The three-arc cylinder at `(cx, 0)`, posed by translating the
+/// PROFILE in `x`.
+///
+/// Deliberately NOT `common::operands`'s, and not
+/// `s16_box_soundness`'s either: that suite poses its cylinder by
+/// lifting the sketch plane instead, and which pose a rim carries is
+/// part of what these rows check.
 fn cylinder_at(cx: f64) -> Body<f64> {
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
