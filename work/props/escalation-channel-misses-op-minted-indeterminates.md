@@ -2,7 +2,8 @@
 id: escalation-channel-misses-op-minted-indeterminates
 kind: issue
 title: k_stats: the escalation channel misses op-minted Indeterminates (eight sites), two raw sign_within calls, and the unbracketed mate solve
-status: review
+status: closed
+closed: 2026-09-20
 pr: 2928
 branch: props/escalation-channel
 opened: 2026-09-05

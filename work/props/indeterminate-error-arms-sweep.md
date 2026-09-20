@@ -2,7 +2,8 @@
 id: indeterminate-error-arms-sweep
 kind: issue
 title: The ~40 Indeterminate-carrying error variants the escalation channel makes unnecessary to match on: a deletion sweep
-status: review
+status: closed
+closed: 2026-09-20
 pr: 2928
 branch: props/escalation-channel
 opened: 2026-09-05
