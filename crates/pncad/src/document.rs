@@ -299,8 +299,9 @@ pub use editor_core::{
 };
 
 // Mates: the declaration node's
-// authored payload (`Alignment` over two `MateFrame`s, a
-// `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
+// authored payload (`Alignment` over two `MateFrame`s — each an
+// `AuthoredFrame` or a `FaceFrame` — a `MatePrimitive`, an
+// `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
 // cluster-record maintenance (`ClusterMaintenance`, one arm of the
 // `Maintenance` row carried above), and `MateFault`
@@ -327,11 +328,26 @@ pub use editor_core::{
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
+/// Why a mate's `FromFace` frame did not resolve to a pose, which
+/// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
+///
+/// A `FromFace` frame ([`MateFrame::FromFace`], a [`FaceFrame`])
+/// names a face of the mated part and takes that face's canonical
+/// pose as the side's frame, read through the mated part's own
+/// evaluation (`MateReach::face_pose`, whose refusal is
+/// [`FacePoseRefusal`]); every arm names the instance whose part it
+/// is about and why: the part does not resolve, the part's table has
+/// no row for the name or ties it, the readback refuses the carrier
+/// (no canonical frame), the roll reference is missing or spelled
+/// twice, or the product's scalar pins no `f64`. A consumer that
+/// could match `FaceUnresolved` and not name this type would read all
+/// of that out of the message prose.
+pub use editor_core::{FacePoseRefusal, FaceRefusal};
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
-    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal,
-    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach,
-    member_of, reading_edges, relative_freedom_components, solve_document,
+    Alignment, AuthoredFrame, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance,
+    FaceFrame, Lever, MateFault, MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member,
+    PartReach, ReachRefusal, RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
+    gauge_of, mate_reach, member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through

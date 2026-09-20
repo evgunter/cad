@@ -297,16 +297,8 @@ fn mate(a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Node<ProfileProgr
         b: crate::fixture::head(in_part(b)),
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame {
-                origin,
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
-            b: MateFrame {
-                origin: [0.0, 0.0, 0.0],
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
+            a: MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Aligned,
             clocking: None,

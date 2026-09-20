@@ -84,11 +84,7 @@ fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference,
-    }
+    MateFrame::authored(origin, axis, reference)
 }
 
 fn mate(

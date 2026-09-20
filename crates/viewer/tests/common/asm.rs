@@ -185,6 +185,39 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
     }
 }
 
+/// **The frame the mate tool authors for a picked face**: the face's
+/// PART-LOCAL name, resolved by the solve at every evaluation, with
+/// no authored reference. What every tool row compares a proposal's
+/// side against.
+pub fn from_face(local: &StableName) -> pncad::document::MateFrame {
+    pncad::document::MateFrame::from_face(
+        pncad::document::FaceName::new(local.clone()).expect("a cap is a face"),
+        None,
+    )
+}
+
+/// **A world pose pulled back through a placement into part
+/// coordinates, as three authored vectors** — the hand-authored
+/// spelling a row uses where it wants a roll of its own
+/// (`reference` is the roll reference, in WORLD), which a face
+/// frame cannot carry beside the carrier's own. The placement is a
+/// rigid frame, so the pull-back is its inverse.
+pub fn authored_from_world(
+    placement: &pncad::geom_core::Affine3<f64>,
+    pose: &pncad::topo::readback::Pose<f64>,
+    reference: Vec3<f64>,
+) -> pncad::document::MateFrame {
+    let inverse = placement.inverse();
+    let origin = inverse.transform_point(pose.origin);
+    let axis = inverse.transform_vec(pose.axis);
+    let reference = inverse.transform_vec(reference);
+    pncad::document::MateFrame::authored(
+        [origin.x, origin.y, origin.z],
+        [axis.x, axis.y, axis.z],
+        [reference.x, reference.y, reference.z],
+    )
+}
+
 /// A ray straight down onto the assembly at `(x, y)`.
 pub fn down_at(x: f64, y: f64) -> Ray {
     Ray {
@@ -243,16 +276,8 @@ pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
 pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment {
     use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
     Alignment {
-        a: MateFrame {
-            origin: [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [b_x, SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
+        a: MateFrame::authored([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        b: MateFrame::authored([b_x, SHELF_DEPTH / 2.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking,

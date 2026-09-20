@@ -1842,16 +1842,8 @@ mod tests {
             b: face_head(name(ids[1])),
             class: topo::ContactClass::Rest,
             alignment: crate::mate::Alignment {
-                a: crate::mate::MateFrame {
-                    origin: [0.0; 3],
-                    axis: [0.0, 0.0, 1.0],
-                    reference: [1.0, 0.0, 0.0],
-                },
-                b: crate::mate::MateFrame {
-                    origin: [0.0; 3],
-                    axis: [0.0, 0.0, 1.0],
-                    reference: [1.0, 0.0, 0.0],
-                },
+                a: crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                b: crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
                 primitive: crate::mate::MatePrimitive::FrameCoincidence,
                 sense: crate::mate::AxisSense::Aligned,
                 clocking: None,
@@ -1870,7 +1862,13 @@ mod tests {
         // poked coordinate's.
         save(&doc, &[], Tol::witness()).expect("the mated assembly saves");
         match doc.nodes.get_mut(&mate_id) {
-            Some(Node::Mate { alignment, .. }) => alignment.a.origin[0] = f64::NAN,
+            Some(Node::Mate { alignment, .. }) => {
+                alignment.a = crate::mate::MateFrame::authored(
+                    [f64::NAN, 0.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                );
+            }
             other => panic!("the fixture's mate is a mate, got {other:?}"),
         }
         match save(&doc, &[], Tol::witness()) {

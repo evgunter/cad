@@ -71,36 +71,6 @@ fn up_at(x: f64, y: f64) -> Ray {
     }
 }
 
-/// **This file's own inverse.** A rigid frame's world→part map, written
-/// out longhand rather than called through `Affine3::inverse`, so the
-/// comparison below is against arithmetic the code under review does
-/// not share: for `p ↦ R·p + t` with `R` orthonormal, the inverse is
-/// `q ↦ Rᵀ·(q − t)`.
-fn world_to_part(frame: &Frame, world: [f64; 3]) -> [f64; 3] {
-    let [c0, c1, c2] = frame.columns;
-    let d = [
-        world[0] - frame.translation[0],
-        world[1] - frame.translation[1],
-        world[2] - frame.translation[2],
-    ];
-    // Rᵀ·d — the rows of R are the columns' components.
-    [
-        c0[0] * d[0] + c0[1] * d[1] + c0[2] * d[2],
-        c1[0] * d[0] + c1[1] * d[1] + c1[2] * d[2],
-        c2[0] * d[0] + c2[1] * d[1] + c2[2] * d[2],
-    ]
-}
-
-/// The same for a direction: no translation.
-fn world_to_part_vec(frame: &Frame, world: [f64; 3]) -> [f64; 3] {
-    let [c0, c1, c2] = frame.columns;
-    [
-        c0[0] * world[0] + c0[1] * world[1] + c0[2] * world[2],
-        c1[0] * world[0] + c1[1] * world[1] + c1[2] * world[2],
-        c2[0] * world[0] + c2[1] * world[1] + c2[2] * world[2],
-    ]
-}
-
 fn close(got: [f64; 3], want: [f64; 3], eps: f64, what: &str) {
     for i in 0..3 {
         assert!(
@@ -214,53 +184,22 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, rest_choice())
+        .proposal(doc, eval, rest_choice())
         .expect("the tool proposes");
 
-    // The independent derivation: the picked face's WORLD pose, read
-    // through the same shipped door, pulled back with this file's own
-    // arithmetic against the placement the solve reports.
-    let poses = common::solve(&session, doc, tol);
-    for (side_name, pick_ref, minted) in [
-        ("a", &post_a_top, proposal.alignment.a),
-        ("b", &shelf_bottom, proposal.alignment.b),
-    ] {
-        let pose = face_frame(eval, pick_ref.node, &pick_ref.name).expect("the face has a pose");
-        let placement = poses
-            .placement(doc, pick_ref.node)
-            .expect("the instance is placed");
-        let u_ref = pose.u_ref.expect("a cap fixes a roll reference");
-        let want_origin = world_to_part(&placement, [pose.origin.x, pose.origin.y, pose.origin.z]);
-        let want_axis = world_to_part_vec(&placement, [pose.axis.x, pose.axis.y, pose.axis.z]);
-        let want_ref = world_to_part_vec(&placement, [u_ref.x, u_ref.y, u_ref.z]);
-        close(
-            minted.origin,
-            want_origin,
-            1e-12,
-            &format!("side {side_name}: minted origin is the pulled-back world origin"),
-        );
-        close(
-            minted.axis,
-            want_axis,
-            1e-12,
-            &format!("side {side_name}: minted axis is the pulled-back world axis"),
-        );
-        close(
-            minted.reference,
-            want_ref,
-            1e-12,
-            &format!("side {side_name}: minted reference is the pulled-back world reference"),
-        );
-    }
-
-    // And an absolute pin that does not depend on the tool at all: the
-    // post's top cap sits at the CENTRE of the part's top face in the
-    // part's own coordinates, whatever the instance's placement is.
-    close(
-        proposal.alignment.a.origin,
-        [s / 2.0, s / 2.0, asm::POST_HEIGHT],
-        1e-9,
-        "the post's top-cap frame in PART coordinates",
+    // The rotated placement enters nothing: each side names the
+    // part's own face — the row the instance placed, whatever the
+    // instance's placement is — and no number read at the world spot
+    // is pulled back into it.
+    assert_eq!(
+        proposal.alignment.a,
+        asm::from_face(&bench.post_top),
+        "side a is the post's own top cap"
+    );
+    assert_eq!(
+        proposal.alignment.b,
+        asm::from_face(&bench.shelf_bottom),
+        "side b is the shelf's own underside"
     );
 
     // The edit lands once and the document stays green.
@@ -271,6 +210,36 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
     }
+
+    // The independent check, on the SOLVED state: the two picked
+    // faces coincide in world, read through the same shipped door
+    // off the landed evaluation — the rotated post was re-placed so
+    // that its cap meets the shelf's underside, origins met and chart
+    // axes opposed (the chosen sense). The solve resolved each face
+    // in its part's own coordinates and the placement did the rest.
+    let (_, eval) = session.landed_pair().expect("landed");
+    let pose_a = face_frame(eval, post_a_top.node, &post_a_top.name).expect("the cap has a pose");
+    let pose_b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name)
+        .expect("the underside has a pose");
+    close(
+        [pose_a.origin.x, pose_a.origin.y, pose_a.origin.z],
+        [pose_b.origin.x, pose_b.origin.y, pose_b.origin.z],
+        1e-9,
+        "the picked faces' origins coincide once solved",
+    );
+    close(
+        [pose_a.axis.x, pose_a.axis.y, pose_a.axis.z],
+        [-pose_b.axis.x, -pose_b.axis.y, -pose_b.axis.z],
+        1e-9,
+        "the picked faces' chart axes meet opposed once solved",
+    );
+    // And the rotation is still the post's: the cap's world normal is
+    // vertical, so the quarter turn about z survived the seat.
+    assert!(
+        (pose_a.axis.z.abs() - 1.0).abs() < 1e-9,
+        "the seated post's cap normal is vertical: {:?}",
+        pose_a.axis
+    );
 }
 
 // ── 2. The probe's pick path under a rotation ─────────────────────
@@ -514,20 +483,12 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
 /// The seat alignment the composition row authors directly.
 fn seat() -> pncad::document::Alignment {
     pncad::document::Alignment {
-        a: pncad::document::MateFrame {
-            origin: [
+        a: pncad::document::MateFrame::authored([
                 asm::POST_SECTION / 2.0,
                 asm::POST_SECTION / 2.0,
                 asm::POST_HEIGHT,
-            ],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: pncad::document::MateFrame {
-            origin: [asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
+            ], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+        b: pncad::document::MateFrame::authored([asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking: None,
@@ -919,7 +880,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     tool.pick(top);
     tool.pick(bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, &session.eval_options(), tol, rest_choice()) {
+    match tool.proposal(doc, eval, rest_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
             assert_eq!(head, bench.post_b);
         }

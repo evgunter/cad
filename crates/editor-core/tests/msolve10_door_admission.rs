@@ -31,10 +31,11 @@ use crate::wire;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
-    Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
-    MateSide, Node, PartFault, PersistError, ProfileDoc, ReachRefusal, RecipeNodeId, RefusingReach,
-    load, mate_reach, save,
+    FacePoseRefusal, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive,
+    MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc, ReachRefusal,
+    RecipeNodeId, RefusingReach, load, mate_reach, save,
 };
+use topo::readback::Pose;
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
 use geom_core::Tol;
@@ -77,11 +78,7 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// `a`'s top cap on `b`'s bottom cap, at `alignment`.
@@ -143,21 +140,52 @@ fn seat(clocking: Option<f64>) -> Alignment {
     }
 }
 
-/// A reach that counts its asks and answers through `inner`.
-struct Counting<'a>(core::cell::Cell<usize>, &'a dyn MateReach);
+/// A reach that counts its asks and answers through `inner` — the
+/// reach asks and the face-pose asks counted apart, since the door
+/// asks each where the solve asks it.
+struct Counting<'a>(core::cell::Cell<usize>, &'a dyn MateReach, core::cell::Cell<usize>);
+
+impl<'a> Counting<'a> {
+    fn over(inner: &'a dyn MateReach) -> Self {
+        Self(core::cell::Cell::new(0), inner, core::cell::Cell::new(0))
+    }
+
+    /// How many face poses were asked.
+    fn faces(&self) -> usize {
+        self.2.get()
+    }
+}
 
 impl MateReach for Counting<'_> {
     fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
         self.0.set(self.0.get() + 1);
         self.1.reach(part)
     }
+
+    fn face_pose(
+        &self,
+        part: &editor_core::DocRef,
+        face: &editor_core::FaceName,
+    ) -> Result<Pose<f64>, FacePoseRefusal> {
+        self.2.set(self.2.get() + 1);
+        self.1.face_pose(part, face)
+    }
+}
+
+/// The datum's own lever term, for an alignment whose two sides are
+/// authored vectors (every alignment this file authors).
+fn datum_lever(a: &Alignment) -> f64 {
+    a.lever_arm(
+        a.a.authored_vectors().expect("an authored side"),
+        a.b.authored_vectors().expect("an authored side"),
+    )
 }
 
 /// The lever the solve forms for a mate on `ids`: both parts' reach
 /// plus the datum's own terms.
 fn lever_of(doc: &ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId], a: &Alignment) -> f64 {
     let reach = mate_reach::<f64>(opts, Tol::witness());
-    let mut arm = a.lever_arm();
+    let mut arm = datum_lever(a);
     for &id in ids {
         let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(id) else {
             panic!("an instance");
@@ -180,8 +208,8 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     let (doc, ids, opts) = instances("msolve10-a1-beyond", 2);
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let alignment = seat(Some(core::f64::consts::FRAC_PI_2));
-    let (named, fault) =
-        at_the_door(&doc, &reach, mate(ids[0], ids[1], alignment)).expect_err("refused");
+    let (named, fault) = at_the_door(&doc, &reach, mate(ids[0], ids[1], alignment.clone()))
+        .expect_err("refused");
     let MateFault::Contradictory {
         held,
         added,
@@ -263,7 +291,7 @@ fn a1_a_rider_inside_the_band_is_admitted_and_the_pair_is_placed() {
 #[test]
 fn a4_the_static_gaps_refuse_table_lacks_with_no_reach_asked() {
     let (doc, ids, _) = instances("msolve10-a4-static", 2);
-    let counting = Counting(core::cell::Cell::new(0), &RefusingReach);
+    let counting = Counting::over(&RefusingReach);
     let rest = Alignment {
         primitive: MatePrimitive::PlanarRest { offset: 0.0 },
         ..seat(Some(0.3))
@@ -292,9 +320,9 @@ fn a4_the_static_gaps_refuse_table_lacks_with_no_reach_asked() {
 #[test]
 fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
     let (doc, ids, _) = instances("msolve10-a4-frame", 2);
-    let counting = Counting(core::cell::Cell::new(0), &RefusingReach);
+    let counting = Counting::over(&RefusingReach);
     let mut alignment = seat(Some(0.3));
-    alignment.b.axis = [0.0; 3];
+    alignment.b = MateFrame::authored([0.0; 3], [0.0; 3], [1.0, 0.0, 0.0]);
     let (_, fault) =
         at_the_door(&doc, &counting, mate(ids[0], ids[1], alignment)).expect_err("refused");
     assert!(
@@ -317,7 +345,7 @@ fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
 #[test]
 fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     let (doc, ids, _) = instances("msolve10-a4-reach", 2);
-    let counting = Counting(core::cell::Cell::new(0), &RefusingReach);
+    let counting = Counting::over(&RefusingReach);
     let (named, fault) =
         at_the_door(&doc, &counting, mate(ids[0], ids[1], seat(Some(0.0)))).expect_err("refused");
     assert!(
@@ -654,7 +682,8 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::SelfMate { mate, .. }
-        | MateFault::Unleverable { mate, .. } => Some(*mate),
+        | MateFault::Unleverable { mate, .. }
+        | MateFault::FaceUnresolved { mate, .. } => Some(*mate),
         MateFault::Contradictory {
             held,
             added,
@@ -754,6 +783,15 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
         },
         MateFault::Unleverable { mate, refusal } => MateFault::Unleverable {
             mate: r(mate),
+            refusal,
+        },
+        MateFault::FaceUnresolved {
+            mate,
+            side,
+            refusal,
+        } => MateFault::FaceUnresolved {
+            mate: r(mate),
+            side,
             refusal,
         },
     }

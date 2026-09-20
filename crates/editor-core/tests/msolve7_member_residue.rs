@@ -154,16 +154,8 @@ fn seat(a: SitedFace, b: SitedFace) -> Node<editor_core::ProfileProgram> {
         b,
         class: ContactClass::Rest,
         alignment: Alignment {
-            a: MateFrame {
-                origin: [1.0, 1.0, BASE_HEIGHT],
-                axis: [0.0, 0.0, 1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
-            b: MateFrame {
-                origin: [0.0, 0.0, 0.0],
-                axis: [0.0, 0.0, -1.0],
-                reference: [1.0, 0.0, 0.0],
-            },
+            a: MateFrame::authored([1.0, 1.0, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+            b: MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
             primitive: MatePrimitive::FrameCoincidence,
             sense: AxisSense::Opposed,
             clocking: None,
@@ -455,11 +447,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
             .into(),
         }],
     };
-    let f = MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let f = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     let doc = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -468,7 +456,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
                 b: crate::fixture::head(name(ids[1])),
                 class: ContactClass::Rest,
                 alignment: Alignment {
-                    a: f,
+                    a: f.clone(),
                     b: f,
                     primitive: MatePrimitive::PlanarRest { offset: 0.5 },
                     sense: AxisSense::Opposed,

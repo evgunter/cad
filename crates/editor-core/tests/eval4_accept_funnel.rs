@@ -77,11 +77,7 @@ fn local_cap(body: RecipeNodeId) -> StableName {
 }
 
 fn z_up() -> MateFrame {
-    MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// A frame-coincidence rest mate between two references, each read

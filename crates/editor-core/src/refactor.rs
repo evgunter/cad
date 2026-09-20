@@ -1094,7 +1094,12 @@ fn remap_node(
                 name: face(&b.name)?,
             },
             class: *class,
-            alignment: *alignment,
+            // The datum crosses verbatim: its vectors are numbers, and
+            // a `FromFace` side's name is a row of the PART's table,
+            // in the part's own id space, which no cut of this
+            // document moves — it crosses as the instance's own
+            // reference does.
+            alignment: alignment.clone(),
         },
         // A measure's references are BOTH names and edges, so they
         // remap through the name door exactly once — `nm` rewrites the

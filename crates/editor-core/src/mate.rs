@@ -31,11 +31,15 @@
 //!
 //! [`Alignment`] carries two mate frames — one per side, in that
 //! instance's OWN part coordinates — plus the primitive relating
-//! them, the axis sense, and the clocking rider. The frames are
-//! authored data, so the whole solve is a decided-predicate
-//! computation over the recipe (A11's "no geometry inspection, no
-//! numerics beyond decided predicates", with the one qualifier
-//! `ASSEMBLY.md` A11 rule 5 states for the lever — [`reach`]).
+//! them, the axis sense, and the clocking rider. A frame is either
+//! three authored vectors or the name of a FACE of the part, whose
+//! canonical pose the part's own evaluation answers at solve time
+//! ([`MateFrame`]); the solve's inputs are the document plus its
+//! mated parts' evaluations, and the solve ALGORITHM is a
+//! decided-predicate computation over the resolved frames (A11's
+//! "coset intersection over decided predicates, no numeric fitting",
+//! with the two reads `ASSEMBLY.md` A11 rule 5 states — the lever,
+//! [`reach`], and a `FromFace` frame's pose, [`MateReach::face_pose`]).
 //!
 //! Each primitive pins the pair's relative pose to a COSET of an
 //! SE(3) subgroup, and multiple mates on one pair fold by exact coset
@@ -74,7 +78,9 @@ pub mod solve;
 
 pub use coset::{Coset, Subgroup};
 pub use member::{Member, member_of};
-pub use reach::{MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach};
+pub use reach::{
+    FacePoseRefusal, MateReach, ReachRefusal, RefusingReach, SurfaceKind, body_reach, part_reach,
+};
 pub(crate) use solve::solve_with_env;
 pub use solve::{
     ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
@@ -105,19 +111,21 @@ impl MateSide {
     }
 }
 
-/// One side's **mate frame**, in that instance's own part coordinates:
-/// an origin, the primary axis (a planar rest's normal, a coaxial
-/// mate's axis), and the clocking reference that fixes roll.
+/// **Three authored vectors** in the part's own coordinates: an
+/// origin, the primary axis (a planar rest's normal, a coaxial mate's
+/// axis), and the clocking reference that fixes roll — the
+/// [`MateFrame::Authored`] arm, and what a [`MateFrame::FromFace`] arm
+/// RESOLVES to once the face's pose is read, so both arms meet the
+/// same frame witness ([`AuthoredFrame::frame`]).
 ///
-/// Authored data, not geometry read back: the solve is structural plus
-/// decided predicates over exactly these numbers (A11). The frame is
-/// built through [`geom_core::linalg::frame::point_at`] — U4B's frame
-/// family, reused rather than reinvented — so a degenerate axis or a
-/// reference on the axis line refuses through that ladder's typed
-/// voice instead of silently producing a rank-deficient basis.
+/// The frame is built through [`geom_core::linalg::frame::point_at`]
+/// — U4B's frame family, reused rather than reinvented — so a
+/// degenerate axis or a reference on the axis line refuses through
+/// that ladder's typed voice instead of silently producing a
+/// rank-deficient basis.
 #[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MateFrame {
+pub struct AuthoredFrame {
     /// The frame's origin (part coordinates).
     pub origin: [f64; 3],
     /// The primary axis: a rest plane's normal, a coaxial axis. Need
@@ -128,7 +136,7 @@ pub struct MateFrame {
     pub reference: [f64; 3],
 }
 
-impl MateFrame {
+impl AuthoredFrame {
     /// **The frame this datum denotes, as the witness the ladder
     /// decided**: local +Z is `axis`, local origin is `origin`, roll
     /// fixed by `reference` (U4B's `point_at` convention, verbatim),
@@ -172,6 +180,134 @@ impl MateFrame {
     /// [`Self::frame`]'s.
     pub fn axis(&self, tol: Tol) -> Result<UnitVec3<f64>, FrameError> {
         Ok(self.frame(tol)?.w())
+    }
+
+    /// Whether every coordinate is a finite number.
+    fn is_finite(&self) -> bool {
+        [self.origin, self.axis, self.reference]
+            .iter()
+            .all(|v| v.iter().all(|x| x.is_finite()))
+    }
+
+    /// The origin's distance from the part's origin — this frame's
+    /// term of the lever ([`Alignment::lever_arm`]).
+    fn origin_norm(&self) -> f64 {
+        let [x, y, z] = self.origin;
+        (x * x + y * y + z * z).sqrt()
+    }
+}
+
+/// **A face of the part, resolved at evaluation** — the
+/// [`MateFrame::FromFace`] arm. The face name is the STATE; the frame
+/// is derived from the face's canonical pose every time the solve
+/// reads it, so an edit to the part that moves the face moves the
+/// mate with it and nothing is stored twice.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FaceFrame {
+    /// The face, by its PART-LOCAL stable name — a row of the part's
+    /// own product table, the spelling the part's document authored,
+    /// never the qualified spelling a head carries in the assembling
+    /// document (a head's `InPart` wrapper names the instance; this
+    /// name is read INSIDE the part, where no instance exists). A
+    /// face by type, as a head is: a name of another kind is refused
+    /// where the name is made ([`crate::FaceName::new`]) and at the
+    /// wire, so the solve never meets one.
+    pub face: crate::FaceName,
+    /// The clocking reference, in the part's coordinates, for a face
+    /// whose pose carries no in-frame reference direction. Read only
+    /// then; a face that carries one refuses an authored reference
+    /// beside it as a second spelling of one fact
+    /// ([`FacePoseRefusal::ReferenceRefused`]), and a face that
+    /// carries none refuses its absence ([`FacePoseRefusal::NoReference`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reference: Option<[f64; 3]>,
+}
+
+/// One side's **mate frame**, in that instance's own part coordinates.
+///
+/// Two arms, closed. [`Self::Authored`] is three vectors the author
+/// wrote. [`Self::FromFace`] names a face of the part and takes that
+/// face's CANONICAL POSE — read off its surface parameters exactly,
+/// no tolerance (`topo::readback::face_pose`), through the mated
+/// part's own evaluation in the part's own coordinates
+/// ([`MateReach::face_pose`]) — as the side's frame: the pose's
+/// origin and axis, and its in-frame reference where the carrier
+/// fixes one, else the authored [`FaceFrame::reference`]. Both arms
+/// then meet the same witness ladder ([`AuthoredFrame::frame`]), so a
+/// resolved face refuses a degenerate axis or a reference on the axis
+/// line exactly as authored vectors do.
+///
+/// **The pose's orientation sense is NOT folded into the axis.** The
+/// resolved axis is the CHART's direction, as the readback documents
+/// it (`Pose::axis`), whether the face's outward normal is `+axis` or
+/// `-axis`; which way the two sides point at each other is the mate's
+/// own [`AxisSense`], authored beside the frames, and folding the bit
+/// in would make one datum answer two questions. An analytic carrier
+/// — plane, cylinder, cone, sphere, torus — resolves; a face with no
+/// canonical frame (a NURBS or approximating carrier) refuses typed
+/// at the mate, the side, the instance and the part
+/// ([`MateFault::FaceUnresolved`]) and keeps taking authored vectors.
+///
+/// On the wire the two arms are untagged, each inner struct closed
+/// over its own keys: a frame written as three vectors reads as
+/// [`Self::Authored`] unchanged, one written as a face name reads as
+/// [`Self::FromFace`], and a key neither arm has refuses.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+pub enum MateFrame {
+    /// Three authored vectors in the part's coordinates.
+    Authored(AuthoredFrame),
+    /// A face of the part, resolved at evaluation.
+    FromFace(FaceFrame),
+}
+
+impl MateFrame {
+    /// Three authored vectors: `origin`, the primary `axis`, and the
+    /// clocking `reference` ([`AuthoredFrame`]'s fields, in its order).
+    pub fn authored(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> Self {
+        Self::Authored(AuthoredFrame {
+            origin,
+            axis,
+            reference,
+        })
+    }
+
+    /// A face of the part, by its part-local name, with `reference`
+    /// read only where the face's pose fixes no in-frame reference of
+    /// its own ([`FaceFrame`]).
+    pub fn from_face(face: crate::FaceName, reference: Option<[f64; 3]>) -> Self {
+        Self::FromFace(FaceFrame { face, reference })
+    }
+
+    /// The authored vectors, where this frame is [`Self::Authored`];
+    /// `None` for a face, which has none until the solve resolves it.
+    pub fn authored_vectors(&self) -> Option<&AuthoredFrame> {
+        match self {
+            Self::Authored(frame) => Some(frame),
+            Self::FromFace(_) => None,
+        }
+    }
+
+    /// The face this frame names, where it is [`Self::FromFace`].
+    pub fn face(&self) -> Option<&FaceFrame> {
+        match self {
+            Self::Authored(_) => None,
+            Self::FromFace(face) => Some(face),
+        }
+    }
+
+    /// Whether every authored coordinate is finite — the vectors of an
+    /// authored frame, the optional reference of a face frame (the
+    /// face's own pose is the part's, read at the solve, and not a
+    /// number this document authored).
+    fn is_finite(&self) -> bool {
+        match self {
+            Self::Authored(frame) => frame.is_finite(),
+            Self::FromFace(FaceFrame { reference, .. }) => {
+                reference.is_none_or(|v| v.iter().all(|x| x.is_finite()))
+            }
+        }
     }
 }
 
@@ -267,7 +403,7 @@ impl MatePrimitive {
 
 /// The A3 alignment datum: which frames coincide, the axis senses, and
 /// the clocking rider.
-#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Alignment {
     /// The `a` side's mate frame, in `a`'s part coordinates.
@@ -306,14 +442,17 @@ impl Alignment {
     /// ([`MateReach`]) — an UPPER bound on the extent of the two parts
     /// together from the datum, with no floor and no constant
     /// (ERROR-DESIGN E3's amendment, ratified at revision E12, shipped
-    /// whole at this site). This function is the part of that sum an
-    /// [`Alignment`] can answer alone: `R + ‖origin‖` bounds a part's
-    /// reach from its mate frame by the triangle inequality, and the
-    /// authored lengths (a planar rest's offset) are the separation the
-    /// datum names between the two frames once mated. Every term is an
-    /// upper bound and none is dropped, because over-refusal is the
-    /// safe direction: a lever larger than the truth prices a tilt
-    /// higher and refuses sooner.
+    /// whole at this site). This function is the part of that sum the
+    /// datum answers over its two RESOLVED frames — `a` and `b` are
+    /// the sides' frames as the solve reads them, the authored vectors
+    /// or the face's pose ([`MateFrame`]), so the term is formed once
+    /// per mate, after resolution, beside the reach read: `R +
+    /// ‖origin‖` bounds a part's reach from its mate frame by the
+    /// triangle inequality, and the authored lengths (a planar rest's
+    /// offset) are the separation the datum names between the two
+    /// frames once mated. Every term is an upper bound and none is
+    /// dropped, because over-refusal is the safe direction: a lever
+    /// larger than the truth prices a tilt higher and refuses sooner.
     ///
     /// Pure, and never a refusal: a datum authored at the origin with
     /// no length contributes nothing, and that is not a degenerate
@@ -324,26 +463,25 @@ impl Alignment {
     /// No floor stands under this term: the parts' own reach is the
     /// scale, at whatever size the author works, and a lever of `L`
     /// makes the smallest decidable tilt `ε / L`.
-    pub fn lever_arm(&self) -> f64 {
-        let norm = |v: [f64; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+    pub fn lever_arm(&self, a: &AuthoredFrame, b: &AuthoredFrame) -> f64 {
         self.primitive
             .authored_lengths()
             .into_iter()
             .flatten()
-            .fold(
-                norm(self.a.origin) + norm(self.b.origin),
-                |lever, length| lever + length.abs(),
-            )
+            .fold(a.origin_norm() + b.origin_norm(), |lever, length| {
+                lever + length.abs()
+            })
     }
 
     /// Whether every authored coordinate is finite — the edit door's
     /// admission test, the placement registry's rule applied one level
-    /// out (a non-finite alignment could never decide anything).
+    /// out (a non-finite alignment could never decide anything). A
+    /// `FromFace` side authors at most a reference; its face's pose is
+    /// the part's, read at the solve, and is not a number this door
+    /// can see.
     pub fn is_finite(&self) -> bool {
-        let finite = |v: &[f64; 3]| v.iter().all(|x| x.is_finite());
-        let frame = |f: &MateFrame| finite(&f.origin) && finite(&f.axis) && finite(&f.reference);
-        frame(&self.a)
-            && frame(&self.b)
+        self.a.is_finite()
+            && self.b.is_finite()
             && self.clocking.is_none_or(f64::is_finite)
             && self
                 .primitive
@@ -628,6 +766,279 @@ impl core::fmt::Display for LeverRefusal {
                 f,
                 "node {} is not a live instantiate node, so it has no part whose extent \
                  could lever a verdict",
+                node.0
+            ),
+        }
+    }
+}
+
+/// Why a `FromFace` frame could not be resolved to a pose: what the
+/// mated part's own evaluation answered about the named face
+/// ([`MateReach::face_pose`]), named against the instance the solve
+/// was reading and the part it stands on — the way [`LeverRefusal`]
+/// names a reach refusal. Every arm names the instance whose part it
+/// is about.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FaceRefusal {
+    /// The instance's part does not resolve, in the resolver's own
+    /// voice: a face of a part that is not in hand has no pose.
+    PartUnresolved {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// The evaluation layer's own typed cause, unaltered.
+        fault: crate::eval::PartFault,
+    },
+    /// The part's product table has no row for the name — the face
+    /// the mate named is not a face the part has (any more).
+    NoSuchName {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face the frame named.
+        face: crate::FaceName,
+    },
+    /// The name is an N2 tie in the part's table: several faces
+    /// answer to it equally, so there is no one pose to read.
+    Ambiguous {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face the frame named.
+        face: crate::FaceName,
+        /// How many faces answer.
+        candidates: usize,
+    },
+    /// The table's row for the name holds an entity of another kind.
+    /// A frame's face is a face BY TYPE ([`crate::FaceName`]), so no
+    /// door can author this state: it is the table's own invariant —
+    /// a row is admitted only at its name's kind — broken, answered
+    /// here in release rather than assumed, and the rung
+    /// `names::interrogate`'s reader asserts against in debug.
+    NotAFace {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face the frame named.
+        face: crate::FaceName,
+        /// What the row holds instead.
+        found: crate::EntityKind,
+    },
+    /// The readback refused the face, in its own voice: a carrier with
+    /// no canonical frame (a NURBS or approximating surface, which
+    /// keeps taking authored vectors), or a key the table names that
+    /// the part's body does not hold.
+    Readback {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face the frame named.
+        face: crate::FaceName,
+        /// The readback's refusal, unaltered.
+        error: topo::readback::ReadbackError,
+    },
+    /// The face's pose fixes no in-frame reference direction and the
+    /// frame authored none, so the roll is undetermined.
+    NoReference {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face the frame named.
+        face: crate::FaceName,
+    },
+    /// The face's pose fixes an in-frame reference direction and the
+    /// frame authored one beside it — a second spelling of one fact,
+    /// refused rather than one of the two silently preferred.
+    ReferenceRefused {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face the frame named.
+        face: crate::FaceName,
+    },
+    /// The part's product is elaborated at a scalar that pins no
+    /// single `f64` — an enclosure or a sensitivity lane — so the
+    /// face's pose has no coordinates the solve, which works over
+    /// `f64` frames, can read without a fabricated choice.
+    Unpinned {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Its part.
+        part: crate::ident::DocRef,
+        /// The face the frame named.
+        face: crate::FaceName,
+    },
+    /// The member stands on a node that is not a live instantiate
+    /// node, so there is no part whose face could be asked.
+    NotAnInstance {
+        /// The node.
+        node: RecipeNodeId,
+    },
+}
+
+impl FaceRefusal {
+    /// A part's refusal ([`FacePoseRefusal`]), named against the
+    /// instance the solve was reading, the part it stands on and the
+    /// face the frame named.
+    pub fn of(
+        refusal: FacePoseRefusal,
+        instance: RecipeNodeId,
+        part: crate::ident::DocRef,
+        face: crate::FaceName,
+    ) -> Self {
+        match refusal {
+            FacePoseRefusal::PartUnresolved { fault } => Self::PartUnresolved { instance, fault },
+            FacePoseRefusal::NoSuchName => Self::NoSuchName {
+                instance,
+                part,
+                face,
+            },
+            FacePoseRefusal::Ambiguous { candidates } => Self::Ambiguous {
+                instance,
+                part,
+                face,
+                candidates,
+            },
+            FacePoseRefusal::NotAFace { found } => Self::NotAFace {
+                instance,
+                part,
+                face,
+                found,
+            },
+            FacePoseRefusal::Readback(error) => Self::Readback {
+                instance,
+                part,
+                face,
+                error,
+            },
+            FacePoseRefusal::NoReference => Self::NoReference {
+                instance,
+                part,
+                face,
+            },
+            FacePoseRefusal::ReferenceRefused => Self::ReferenceRefused {
+                instance,
+                part,
+                face,
+            },
+            FacePoseRefusal::Unpinned => Self::Unpinned {
+                instance,
+                part,
+                face,
+            },
+        }
+    }
+
+    /// The face the refusal is about, where it names one.
+    pub fn face(&self) -> Option<&crate::FaceName> {
+        match self {
+            Self::NoSuchName { face, .. }
+            | Self::Ambiguous { face, .. }
+            | Self::NotAFace { face, .. }
+            | Self::Readback { face, .. }
+            | Self::NoReference { face, .. }
+            | Self::ReferenceRefused { face, .. }
+            | Self::Unpinned { face, .. } => Some(face),
+            Self::PartUnresolved { .. } | Self::NotAnInstance { .. } => None,
+        }
+    }
+}
+
+impl core::fmt::Display for FaceRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PartUnresolved { instance, fault } => write!(
+                f,
+                "instance {}'s part is not in hand, so the face the frame names has no pose: \
+                 {fault}",
+                instance.0
+            ),
+            Self::NoSuchName {
+                instance,
+                part,
+                face,
+            } => write!(
+                f,
+                "instance {}'s part {part} has no face answering to the {face} the frame \
+                 names — the part's edit removed it, or the name is not the part's own",
+                instance.0
+            ),
+            Self::Ambiguous {
+                instance,
+                part,
+                face,
+                candidates,
+            } => write!(
+                f,
+                "instance {}'s part {part} has {candidates} faces answering equally to the \
+                 {face} the frame names, so there is no one pose to read",
+                instance.0
+            ),
+            Self::NotAFace {
+                instance,
+                part,
+                face,
+                found,
+            } => write!(
+                f,
+                "instance {}'s part {part} holds {} {} under the {face} the frame names — \
+                 the part's table admits a row only at its name's kind, and this one is not",
+                instance.0,
+                found.article(),
+                found.noun()
+            ),
+            Self::Readback {
+                instance,
+                part,
+                face,
+                error,
+            } => write!(
+                f,
+                "instance {}'s part {part} answers no pose for the {face} the frame names: \
+                 {error}",
+                instance.0
+            ),
+            Self::NoReference {
+                instance,
+                part,
+                face,
+            } => write!(
+                f,
+                "instance {}'s part {part}: the {face} the frame names fixes no in-frame \
+                 reference direction and the frame authored none, so its roll is \
+                 undetermined — author a reference beside the face",
+                instance.0
+            ),
+            Self::ReferenceRefused {
+                instance,
+                part,
+                face,
+            } => write!(
+                f,
+                "instance {}'s part {part}: the {face} the frame names fixes its own in-frame \
+                 reference direction, and the frame authored one beside it — one fact spelled \
+                 twice; drop the authored reference",
+                instance.0
+            ),
+            Self::Unpinned {
+                instance,
+                part,
+                face,
+            } => write!(
+                f,
+                "instance {}'s part {part} is elaborated at a scalar that pins no single \
+                 number, so the {face} the frame names has no coordinates the solve can read",
+                instance.0
+            ),
+            Self::NotAnInstance { node } => write!(
+                f,
+                "node {} is not a live instantiate node, so it has no part whose face could \
+                 be read",
                 node.0
             ),
         }
@@ -955,6 +1366,26 @@ pub enum MateFault {
         /// Why.
         refusal: LeverRefusal,
     },
+    /// **A side's `FromFace` frame did not resolve to a pose**: the
+    /// mated part's own evaluation answered no pose for the face the
+    /// frame names ([`MateReach::face_pose`]), in the resolver's or
+    /// the readback's own voice — the part not in hand, a name the
+    /// part's table lacks or ties, a carrier with no canonical frame,
+    /// a reference missing or spelled twice ([`FaceRefusal`]). Raised
+    /// where the solve reads the side's frame, before the coset table
+    /// and before any lever is formed; the insert door raises it for
+    /// a mate being inserted, and the solve at every evaluation for a
+    /// state a part edit brings a mate to (a face that vanished or
+    /// changed carrier) — a load never refuses it, since replay
+    /// declines the read ([`solve::Maintain`]).
+    FaceUnresolved {
+        /// The mate.
+        mate: RecipeNodeId,
+        /// Which side's frame.
+        side: MateSide,
+        /// Why.
+        refusal: FaceRefusal,
+    },
 }
 
 /// **The pairing predicate's finding, in this door's vocabulary.**
@@ -1128,6 +1559,17 @@ impl core::fmt::Display for MateFault {
             Self::Unleverable { mate, refusal } => {
                 write!(f, "mate {}: {refusal}", mate.0)
             }
+            Self::FaceUnresolved {
+                mate,
+                side,
+                refusal,
+            } => write!(
+                f,
+                "mate {}'s {} frame names a face of its part that did not resolve to a pose \
+                 — {refusal}",
+                mate.0,
+                side.name()
+            ),
         }
     }
 }

@@ -65,11 +65,7 @@ const BLOCK_HEIGHT: f64 = 2.0;
 /// A mate frame ON the base's top cap at `(x, y)`, axis along that
 /// cap's OUTWARD normal.
 fn base_frame(x: f64, y: f64) -> MateFrame {
-    MateFrame {
-        origin: [x, y, BASE_HEIGHT],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored([x, y, BASE_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// A block's bottom-cap corner, axis along THAT cap's outward normal,
@@ -77,20 +73,12 @@ fn base_frame(x: f64, y: f64) -> MateFrame {
 /// outward normals and `Opposed` are what make this a physical seat:
 /// the block stands ON what it is mated to.
 fn block_bottom() -> MateFrame {
-    MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, -1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0])
 }
 
 /// A block's TOP-cap corner, axis along that cap's outward normal.
 fn block_top() -> MateFrame {
-    MateFrame {
-        origin: [0.0, 0.0, BLOCK_HEIGHT],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored([0.0, 0.0, BLOCK_HEIGHT], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// A `Rest` mate seating `b`'s frame on `a`'s.

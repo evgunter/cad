@@ -320,11 +320,7 @@ fn r1_max_leaves_zero_with_the_tier_on() {
 #[test]
 fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
     use editor_core::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
-    let frame = |origin: [f64; 3]| MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame = |origin: [f64; 3]| MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     let at = |o: f64| Alignment {
         a: frame([o, 0.0, 0.0]),
         b: frame([0.0, 0.0, 0.0]),

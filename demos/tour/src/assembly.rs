@@ -44,9 +44,13 @@
 //!   FLUSH with the shelf's ends — the obvious way to draw it — where
 //!   they had to be inset while the chart-identity door declined every
 //!   cross-instance pair (`SEAT_A`).
-//! - **#944** — nothing mints a mate's alignment frame from a
-//!   selected face, so the frame and the geometry drift apart
-//!   silently (`stops`, `update_door`).
+//! - **#944 — CLOSED.** A mate frame names a FACE of the part and
+//!   the solve resolves it from the part's own evaluation
+//!   (`MateFrame::from_face`); the stand's post sides are authored
+//!   that way, and `update_door` shows the mate FOLLOWING the post's
+//!   cap when the post is shortened — the shelf comes down with it
+//!   and the seat still certifies, where a frame of authored numbers
+//!   stayed behind and was refuted.
 //! - **#945** — mates and patterns do not compose at all, which is
 //!   why this file has two assembly documents rather than one; it
 //!   also records the A11 rule-4 drift, and wants Ev's ruling.
@@ -73,9 +77,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
+    Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE,
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
+    EvalOptions, Evaluation, Expr, FaceName, Frame, InlineError, LoopProgram, MateFault, MateFrame,
     MatePrimitive, MateReach, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach,
     PartResolver, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
     UNDER_RECOURSE, apply, assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr,
@@ -148,11 +152,17 @@ const SHELF_THICKNESS: f64 = 0.04;
 const SEAT_A: [f64; 3] = [POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
 const SEAT_B: [f64; 3] = [SHELF_LENGTH - POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
 
-/// The post's own seating point, in POST coordinates: the centre of
-/// its top cap. Every mate that seats something on a post is authored
-/// against this one value — a second spelling of it is a second place
-/// for the model and the mates to disagree.
-const POST_SEAT: [f64; 3] = [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT];
+/// The post's own seat, in POST coordinates: its top cap FACE, by the
+/// part's own name. The frame is resolved from the face's canonical
+/// pose at every evaluation — its centre, its normal, its own roll
+/// reference — so a post whose height changes moves the seat with it
+/// and no number here can disagree with the model.
+fn post_seat(post_top: &StableName) -> MateFrame {
+    MateFrame::from_face(
+        FaceName::new(post_top.clone()).expect("a cap is a face"),
+        None,
+    )
+}
 
 /// One post's volume, and the shelf's — the arithmetic every census
 /// below is checked against.
@@ -213,13 +223,11 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn
     *doc = applied.doc;
 }
 
-/// A mate frame: origin, primary axis, clocking reference.
+/// An AUTHORED mate frame: origin, primary axis, clocking reference —
+/// the shelf's seating points, which are the shelf's own datum (it is
+/// modelled from its underside) rather than a face of it.
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// A part-local name, wrapped at the instance that placed it — the
@@ -505,7 +513,7 @@ fn stand_doc(
             b: head(shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: mate_frame(POST_SEAT),
+                a: post_seat(post_top),
                 b: mate_frame(SEAT_A),
                 primitive,
                 sense: AxisSense::Aligned,
@@ -522,7 +530,7 @@ fn stand_doc(
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
-                b: mate_frame(POST_SEAT),
+                b: post_seat(post_top),
                 primitive,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -956,7 +964,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             b: head(contra.shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: mate_frame([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT]),
+                a: post_seat(post_top),
                 // The same pair, seated 10 mm higher: the author has
                 // said two things that cannot both be true.
                 b: mate_frame([SEAT_A[0], SEAT_A[1], SEAT_A[2] - 0.01]),
@@ -1481,35 +1489,42 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         "the elaboration leaves every site on one pin"
     );
 
-    // And now the fit gate does its job. Both posts are 40 mm short,
-    // the mates still seat the shelf where the AUTHOR said (an
-    // alignment frame is authored data, not the seating face read
-    // back), so the declared rest between each post's cap and the
-    // shelf's underside is REFUTED — named, with its mate.
+    // And now the mates do their job. Both posts are 40 mm short, and
+    // each post's mate frame is the post's top cap FACE, resolved
+    // from the post's own evaluation at every solve — so the shelf
+    // comes down 40 mm with the posts, the declared rest between each
+    // cap and the shelf's underside still holds, and the gate
+    // CERTIFIES. A frame of authored numbers would have stayed where
+    // the cap used to be, and the gate would have refuted the mate by
+    // name; the face name is the state, the frame is derived.
     let ev = run(&migrated, &with_store(ws), tol);
-    match assemble(&migrated, &ev, tol) {
-        Err(AssemblyError::AtRest { findings }) => {
-            let refuted: Vec<_> = findings
-                .iter()
-                .filter_map(|f| match &f.attribution {
-                    Attribution::Refuted(m) => Some(m.mate),
-                    _ => None,
-                })
-                .collect();
-            assert!(
-                refuted.contains(&stand.mate_1) || refuted.contains(&stand.mate_2),
-                "the gate names the mate whose declaration stopped holding: {findings:?}"
-            );
-            println!(
-                "   \"does it actually fit\": after the migration the shortened posts leave \
-                 a 40 mm gap, and {} of {} finding(s) REFUTE their mate by name — the swap \
-                 is verified, never assumed",
-                refuted.len(),
-                findings.len()
-            );
-        }
-        other => panic!("a 40 mm gap under a declared rest must refuse: {other:?}"),
-    }
+    let shelf_before = solve_document(&stand.doc, &reach, tol)
+        .placement(&stand.doc, stand.shelf_i)
+        .expect("the shelf was solved before the migration");
+    let shelf_after = solve_document(&migrated, &reach, tol)
+        .placement(&migrated, stand.shelf_i)
+        .expect("the shelf is solved after the migration");
+    let dropped = shelf_before.translation[2] - shelf_after.translation[2];
+    assert!(
+        (dropped - 0.04).abs() < 1e-12,
+        "the shelf follows the shortened posts by the height change: {dropped} m"
+    );
+    assert_eq!(
+        shelf_before.columns, shelf_after.columns,
+        "the shelf's orientation is untouched by a height edit"
+    );
+    let gate = at_rest(&migrated, &ev, tol);
+    assert!(
+        matches!(gate.verdict, AtRestVerdict::Certified),
+        "the seat still holds on the shortened posts: {}",
+        gate.verdict.describe()
+    );
+    println!(
+        "   \"does it actually fit\": after the migration the shelf came down {dropped:.3} m with \
+         the shortened posts — each mate names the post's cap FACE and the solve resolves the \
+         frame from the part — and the gate {}",
+        gate.verdict.describe()
+    );
 
     // Undo is keeping the prior value: the migrated document is one
     // the author can simply not adopt. Put both parts back, so the
@@ -1630,21 +1645,21 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// which is the one thing a tour scene had never needed before — see
 /// the friction note in `walk_tour`.
 ///
-/// # Gap: a mate's alignment frame is authored data
+/// # A mate frame names a face, and the solve resolves it
 ///
-/// A11 makes the solve structural on purpose — no geometry
-/// inspection, no numerics beyond decided predicates — so a mate's
-/// two frames are numbers the AUTHOR wrote, not the seating face read
-/// back. The consequence a user meets is here in plain sight: the
-/// stand's mates carry the post's cap height (`POST_HEIGHT`) and the
-/// shelf's seating points as literals, and an edit to the part that
-/// moves that face does not move them. The mitigation this file uses
-/// is the one a CAD user learns — model each part from the datum it
-/// mates on, so the mated face sits at the part origin and a size
-/// change never moves it — and the update walk shows what happens
-/// when it is violated: the fit gate refutes the declaration and
-/// names its mate. There is no door today that derives an alignment
-/// frame FROM a selected face.
+/// A11 keeps the solve's ALGORITHM structural — coset intersection
+/// over decided predicates, no numeric fitting — while its inputs are
+/// the document plus its mated parts' evaluations: a mate frame is
+/// either numbers the author wrote or a FACE of the part, whose pose
+/// the solve reads off the part's own evaluation every time. The
+/// stand's post sides are faces (`post_seat`): the post's cap by the
+/// post's own name, so a post whose height changes moves the seat
+/// with it, which the update walk shows — the shelf comes down with
+/// the shortened posts and the gate still certifies. The shelf's
+/// seating points stay authored numbers, because they are the shelf's
+/// own datum (it is modelled from its underside) and not a face of
+/// it; that spelling is what a face with no canonical frame — a NURBS
+/// carrier — keeps taking.
 pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     let (mut ws, parts) = workspace(work, tol);
     println!(

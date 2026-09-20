@@ -58,11 +58,7 @@ fn block(label: &str) -> ProfileDoc {
 
 /// The seat every row's mate declares.
 fn seat(a: StableName, b: StableName) -> Node<ProfileProgram> {
-    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame = |origin: [f64; 3], axis: [f64; 3]| MateFrame::authored(origin, axis, [1.0, 0.0, 0.0]);
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),

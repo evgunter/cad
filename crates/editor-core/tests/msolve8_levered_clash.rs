@@ -86,11 +86,7 @@ fn rig(label: &str, n: usize) -> Rig {
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference,
-    }
+    MateFrame::authored(origin, axis, reference)
 }
 
 /// The z-up frame at `o`, referenced along +x.
@@ -146,10 +142,16 @@ fn reach_of(r: &Rig) -> f64 {
         .expect("the part reaches")
 }
 
+/// The authored vectors of a frame this file authored — every frame
+/// here is one.
+fn av(f: &MateFrame) -> &editor_core::AuthoredFrame {
+    f.authored_vectors().expect("an authored frame")
+}
+
 /// The mate's lever as the solve forms it: both parts' reach plus the
 /// datum's own terms.
 fn lever_of(r: &Rig, a: &Alignment) -> f64 {
-    reach_of(r) + reach_of(r) + a.lever_arm()
+    reach_of(r) + reach_of(r) + a.lever_arm(av(&a.a), av(&a.b))
 }
 
 /// The representative `mate_coset` forms for an aligned sense: the
@@ -157,8 +159,8 @@ fn lever_of(r: &Rig, a: &Alignment) -> f64 {
 /// inverse of `b`'s.
 fn representative(a: &Alignment) -> Affine3<f64> {
     let tol = Tol::witness();
-    let fa = a.a.placement(tol).unwrap();
-    let fb = a.b.placement(tol).unwrap();
+    let fa = av(&a.a).placement(tol).unwrap();
+    let fb = av(&a.b).placement(tol).unwrap();
     let target = match a.primitive {
         MatePrimitive::PlanarRest { offset } => {
             fa * Affine3::translation(Vec3::new(0.0, 0.0, 1.0) * offset)
@@ -281,7 +283,7 @@ fn c1_rotation_identity_value_and_arm() {
         x_along_at([0.0, 0.4, 0.0]),
         None,
     );
-    let (r, held, added, fault) = two_mates("msolve8-c1-rot-id", first, second, false);
+    let (r, held, added, fault) = two_mates("msolve8-c1-rot-id", first.clone(), second.clone(), false);
     let (site, fault) = fault.expect("the pair refuses");
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_rotation_identity");
@@ -329,12 +331,12 @@ fn c1_axis_fixed_value_and_arm() {
         x_along_at([0.0, 0.0, 0.5]),
         None,
     );
-    let (r, _, _, fault) = two_mates("msolve8-c1-axis-fixed", first, second, false);
+    let (r, _, _, fault) = two_mates("msolve8-c1-axis-fixed", first.clone(), second.clone(), false);
     let (site, fault) = fault.expect("the pair refuses");
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_axis_fixed");
     let q = representative(&first).linear * representative(&second).linear.inverse();
-    let n = second.a.axis(Tol::witness()).unwrap().get();
+    let n = av(&second.a).axis(Tol::witness()).unwrap().get();
     assert_eq!(
         value.to_bits(),
         (q * n - n).norm().to_bits(),
@@ -366,13 +368,13 @@ fn c1_two_axis_reach_value_and_arm() {
         z_up_at([0.0, 0.0, 0.0]),
         None,
     );
-    let (r, _, _, fault) = two_mates("msolve8-c1-reach", first, second, false);
+    let (r, _, _, fault) = two_mates("msolve8-c1-reach", first.clone(), second.clone(), false);
     let (site, fault) = fault.expect("the pair refuses");
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_rotation_two_axis_reachable");
     let tol = Tol::witness();
-    let a1 = first.a.axis(tol).unwrap().get();
-    let a2 = second.a.axis(tol).unwrap().get();
+    let a1 = av(&first.a).axis(tol).unwrap().get();
+    let a2 = av(&second.a).axis(tol).unwrap().get();
     let (q1, q2) = (
         representative(&first).linear,
         representative(&second).linear,
@@ -470,7 +472,7 @@ fn c1_length_none_and_roll_arm() {
         z_up_at([0.0, 0.0, 0.0]),
         Some(0.3),
     );
-    let (r, _, _, fault) = two_mates("msolve8-c1-roll", big, rider, false);
+    let (r, _, _, fault) = two_mates("msolve8-c1-roll", big.clone(), rider.clone(), false);
     let (site, fault) = fault.expect("the rider refuses");
     assert_eq!(
         site,
@@ -654,7 +656,7 @@ fn c2_axis_vs_placement_sweep() {
                 for r in refs {
                     for o in origins {
                         let f = frame(o, [x, y, z], r);
-                        match (f.placement(tol), f.axis(tol)) {
+                        match (av(&f).placement(tol), av(&f).axis(tol)) {
                             (Ok(p), Ok(a)) => {
                                 both_ok += 1;
                                 assert_eq!(bits3(p.linear.c2), bits3(a.get()), "{f:?}");
@@ -878,7 +880,7 @@ fn c2_parallel_boundary_through_doors() {
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
-        let arm = rr + rr + first.lever_arm();
+        let arm = rr + rr + first.lever_arm(av(&first.a), av(&first.b));
         for raw in raw_n1s {
             let n1 = UnitVec3::new(raw, FIXTURE_MATE_AXIS, band).unwrap().get();
             for &shape in &shapes {
@@ -920,14 +922,14 @@ fn c2_parallel_boundary_through_doors() {
         );
         // The witnesses the doors decide are the search's, and the
         // fold's arm is the one the search used.
-        let w1 = first.a.axis(tol).unwrap().get();
-        let w2 = second.a.axis(tol).unwrap().get();
+        let w1 = av(&first.a).axis(tol).unwrap().get();
+        let w2 = av(&second.a).axis(tol).unwrap().get();
         assert_eq!(
             bits3(w1),
             bits3(UnitVec3::new(raw1, FIXTURE_MATE_AXIS, band).unwrap().get())
         );
         let r = rig(&format!("msolve8-c2-doors-{i}"), 2);
-        assert_eq!((rr + rr + first.lever_arm()).to_bits(), arm.to_bits());
+        assert_eq!((rr + rr + first.lever_arm(av(&first.a), av(&first.b))).to_bits(), arm.to_bits());
         let (doc, _) = add(r.doc, mate(r.ids[0], r.ids[1], first));
         let (doc, added) = add(doc, mate(r.ids[0], r.ids[1], second));
         let want = one_spelling(w1, w2, arm, band);
@@ -1008,7 +1010,7 @@ fn c2_inverted_coset_never_refuses() {
                     match at_the_door(
                         &r.doc,
                         &mate_reach::<f64>(&r.o, tol),
-                        mate(a, b, al(prim, sense, *f, z_up_at([0.2, 0.0, 0.0]), None)),
+                        mate(a, b, al(prim, sense, f.clone(), z_up_at([0.2, 0.0, 0.0]), None)),
                     ) {
                         Ok((doc, m)) => solve(&doc, &r.o, tol)
                             .fault(m)
@@ -1254,17 +1256,17 @@ fn kstats_aim_decided_twice_per_mate() {
     for (door, count) in [
         ("frame", {
             let b = Bracket::open();
-            let _ = f.frame(tol).unwrap();
+            let _ = av(&f).frame(tol).unwrap();
             decided(&b.finish(), "frame_point_at_aim")
         }),
         ("placement", {
             let b = Bracket::open();
-            let _ = f.placement(tol).unwrap();
+            let _ = av(&f).placement(tol).unwrap();
             decided(&b.finish(), "frame_point_at_aim")
         }),
         ("axis", {
             let b = Bracket::open();
-            let _ = f.axis(tol).unwrap();
+            let _ = av(&f).axis(tol).unwrap();
             decided(&b.finish(), "frame_point_at_aim")
         }),
     ] {

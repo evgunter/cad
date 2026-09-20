@@ -342,7 +342,8 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::PlacerRefused { mate, .. }
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
-        | MateFault::Unleverable { mate, .. } => vec![*mate],
+        | MateFault::Unleverable { mate, .. }
+        | MateFault::FaceUnresolved { mate, .. } => vec![*mate],
         // Names no mate and reaches EVERY row of the document — the
         // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),

@@ -469,11 +469,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 // ---------------------------------------------------------------------
 
 fn mate_frame() -> MateFrame {
-    MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {

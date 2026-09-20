@@ -2701,7 +2701,7 @@ impl Node {
                 a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?),
                 b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?),
                 class: class_.to_kernel(py)?,
-                alignment: alignment.0,
+                alignment: alignment.0.clone(),
             },
         })
     }

@@ -1217,13 +1217,13 @@ impl SitedRef {
 /// }
 ///
 /// fn alignment() -> editor_core::Alignment {
-///     let frame = editor_core::MateFrame {
-///         origin: [0.0, 0.0, 0.0],
-///         axis: [0.0, 0.0, 1.0],
-///         reference: [1.0, 0.0, 0.0],
-///     };
+///     let frame = editor_core::MateFrame::authored(
+///         [0.0, 0.0, 0.0],
+///         [0.0, 0.0, 1.0],
+///         [1.0, 0.0, 0.0],
+///     );
 ///     editor_core::Alignment {
-///         a: frame,
+///         a: frame.clone(),
 ///         b: frame,
 ///         primitive: editor_core::MatePrimitive::FrameCoincidence,
 ///         sense: editor_core::AxisSense::Aligned,
@@ -1270,13 +1270,13 @@ impl SitedRef {
 /// }
 ///
 /// fn alignment() -> editor_core::Alignment {
-///     let frame = editor_core::MateFrame {
-///         origin: [0.0, 0.0, 0.0],
-///         axis: [0.0, 0.0, 1.0],
-///         reference: [1.0, 0.0, 0.0],
-///     };
+///     let frame = editor_core::MateFrame::authored(
+///         [0.0, 0.0, 0.0],
+///         [0.0, 0.0, 1.0],
+///         [1.0, 0.0, 0.0],
+///     );
 ///     editor_core::Alignment {
-///         a: frame,
+///         a: frame.clone(),
 ///         b: frame,
 ///         primitive: editor_core::MatePrimitive::FrameCoincidence,
 ///         sense: editor_core::AxisSense::Aligned,
