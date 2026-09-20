@@ -47,10 +47,10 @@ which has five seats — `Plane`, `Axis`, `Point`, `Frame`,
 `AxisInPlane` — and `session::author::datum_node` lowers exactly those
 five to `Datum`. There is no `FaceFrame` arm. The form above it,
 `ViewerBehavior::add_datum_ui` (`crates/viewer/src/pane/create.rs`),
-offers `DatumKindChoice` = `Plane` / `Frame` / `Axis` / `Point`, and
-`forms.rs`'s `partial_mirror!` between the two lists `AxisInPlane` as
-deliberately absent and does not mention `FaceFrame` at all, because
-there is no variant to mirror.
+offers `DatumKindChoice` = `Plane` / `Frame` / `Axis` /
+`AxisInPlane` / `Point`, and `forms.rs`'s `partial_mirror!` between
+the two does not mention `FaceFrame` at all, because there is no
+variant to mirror.
 
 So a face frame is a node the DOCUMENT understands, the tree labels
 (`tree.rs`: `"Datum frame (on face)"`), the profile form would accept
@@ -65,9 +65,11 @@ resolved through `at`'s value), and `spin: Expr` (`SlotId::Spin` — the
 rotation of sketch +x about the outward normal, which is the whole of
 what an author chooses, since origin and normal are read off the face).
 That is two PICKS and one field, so it is the `AxisInPlane` shape and
-not the `Plane` one — which is precisely why `partial_mirror!` excluded
-`AxisInPlane` from the add-datum form, and why this seat needs the same
-decision made rather than a fourth radio button.
+not the `Plane` one. The add-datum form authors `AxisInPlane` with a
+frame picker inside the form (`frame_picker` in
+`crates/viewer/src/pane/create.rs`); a face frame's body and face
+picks are the same decision one step wider, since a face is not a node
+a combo can list.
 
 **The planarity gate is a tag read, not a verdict.** `face_frame`
 answers a pose for any analytic carrier and a cylinder's pose is its

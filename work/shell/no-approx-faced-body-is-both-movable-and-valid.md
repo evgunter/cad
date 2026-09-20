@@ -115,3 +115,35 @@ carrier and refuses only the placeholder, so the OFF-C loft can now
 move. The three OFF-C rows marked "decorative until 1346 lifts" can
 be strengthened on the loft; the cache walls (legs 2–3) and the STEP
 printer stand. Not done at merge — Ev asked the session to close out.
+
+## A second measurement of the same class (TRIM-2 PR-1, 2026-09-13)
+
+`work/trim/general-pcurve-face-props-and-tess-refuse.md` (#1179) claimed
+`replace_face_offset` as one of its frontiers. It is not, and the
+measurement belongs here rather than in a second row.
+
+Fixture: the P-2 body's degree-2 re-widening
+(`sweep/tests/m8_4_intersection_iso.rs::degree_two_body`) at scale
+1/1024 — a described NURBS wall carrying a `Pcurve::General` chart image
+on an interior column — and, as the control, the ORACLE prism's own
+bowed wall, which carries no `General` anywhere. `f64` lane,
+`replace_face_offset(bowed, scale/16)`:
+
+| ε | the `General`-faced wall | the oracle prism's bowed wall |
+| --- | --- | --- |
+| 1e-6 | `FittedBoundaryUnsupported { what: "a chart image of a neighbour's chart" }` | the same |
+| 1e-9 | the same | the same |
+| 1e-12 | `Fit { BudgetExhausted { budget 6, grid (40, 27), achieved 2.8649835504510487e-10, tolerance 1e-12 } }` | `FittedBoundaryUnsupported` |
+
+**Read:** the refusal is the fitted offset's own boundary rule —
+`replace_face.rs`'s `matches!(new_surface, Surface::Approx(_))` arm —
+and it fires on a described NURBS face whether or not the face's loop
+carries a `General` image. That is this row's class: an `Approx` face's
+boundary has no route. At the tight cell the widened body reaches the
+FIT first and exhausts its budget at 2.86e-10 against a 1e-12 target,
+which is the same class one door earlier.
+
+TRIM-2 PR-1 records it (row `a_degree_two_widening_measures_against_the_oracle`'s
+E3 half, which prints both and asserts only that both refuse — pinning
+a variant there would pin SHELL's frontier from TRIM's slate) and
+corrects #1179's offset claim. Nothing is scheduled here by this note.

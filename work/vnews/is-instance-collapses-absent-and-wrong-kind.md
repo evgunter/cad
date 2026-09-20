@@ -2,7 +2,7 @@
 id: is-instance-collapses-absent-and-wrong-kind
 kind: issue
 title: display::is_instance answers bool because its one caller wanted one, collapsing the two states the crate just argued are different news
-status: open
+status: spec
 opened: 2026-09-05
 refs: [sweep-blind-spots-the-precheck-sweep-could-not-see, prune-discards-the-fault-that-explains-the-supersession, 1886]
 ---

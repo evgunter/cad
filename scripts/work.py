@@ -352,22 +352,25 @@ def _names(text: str, program_id: str) -> bool:
 
 def _double_claims(root: str, programs: list[Item]) -> list[str]:
     """Pairs of OPEN programs whose `paths` globs match a common tracked path,
-    less those both `keep_out`s name.
+    less those both `keep_out`s name — the territory map at rest.
 
-    The rule `work/README.md` states: an overlap both sides have written down is
-    the tracker working (a handoff a lane can announce), and an overlap recorded
-    on ONE side or neither is a live conflict the program that was there first
-    cannot see. This mechanises the census that found it — a hand-run pass that
-    miscounted three of its own figures the first time it ran.
+    **Shared ground between programs is legitimate and expected**, and an
+    overlap neither side wrote down is not a conflict (Ev, in chat,
+    2026-09-20: *"it's ok if units have shared ground, they should just be
+    aware of each other if working at the same time"*). What two programs owe
+    each other is awareness while a lane is LIVE on a shared file, and that is
+    a per-branch question `territory` already answers — it reads a branch's
+    diff and names every path another program claims. This census answers the
+    at-rest question instead: which programs share ground at all.
 
-    A WARNING, not an error, and deliberately: most pairs in the tree are
-    unrecorded at any given moment, and a lint error cannot be landed onto a
-    tree that violates it by the dozen in programs this one may not edit (one
-    file, one item). No count is written down here on purpose — run `work.py
-    lint` for the current reading; the figure moved by nine pairs in the six
-    hours between this check being written and being merged, when S-TCOST split
-    and S-TINT took half its territory. The error flip is
-    `double-claim-lint-rule-waits-on-the-tests-seam`."""
+    So it is a REPORT, printed by `work.py territory --overlaps`, and not a
+    lint warning. It used to fire on every `lint` run, which put 25 warnings in
+    front of every reader of every program for a condition none of them was
+    expected to fix — a warning nobody can act on trains people to skip
+    warnings, which costs more than the census is worth. The rule it used to
+    enforce is gone from `work/README.md` with it; the open row that carried
+    the error flip, `double-claim-lint-rule-waits-on-the-tests-seam`, records
+    the ruling that retired the question."""
     if len(programs) < 2:
         return []
     tracked = tracked_files(root)
@@ -395,11 +398,11 @@ def _double_claims(root: str, programs: list[Item]) -> list[str]:
             continue
         if ab or ba:
             first, second = (a, b) if ab else (b, a)
-            why = (f"only `{first}`'s `keep_out` names `{second}` — the record is one-sided, "
-                   f"so the overlap is invisible from `{second}`'s side")
+            why = (f"recorded by `{first}` only, so it is not visible from `{second}`'s "
+                   f"side — worth a line there if a lane is likely to be live on both")
         else:
-            why = "neither `keep_out` names the other"
-        out.append(f"{path_of[a]}: territory overlaps `{b}` on {n} tracked path{'s' if n != 1 else ''}; {why}")
+            why = "recorded by neither, so a live lane on one is invisible to the other"
+        out.append(f"{path_of[a]}: shares {n} tracked path{'s' if n != 1 else ''} with `{b}`; {why}")
     return out
 
 
@@ -534,7 +537,6 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                     tracked = tracked_files(root)
                 if not any(fnmatch.fnmatchcase(p, g) for p in tracked):
                     errors.append(f"{it.path}: territory glob `{g}` matches no tracked path")
-    warns.extend(_double_claims(root, [it for it in items if it.kind == "program" and it.status != "closed"]))
     # nothing of a program's lives in docs/ any more
     docs = os.path.join(root, "docs")
     if os.path.isdir(docs):
@@ -1058,17 +1060,28 @@ def selftest() -> int:
         _write(root, "work/verbs/log.md", "log\n")
         warns = []
         expect("a double claim is not an error", lint(root, warns))
-        expect("a double claim warns", warns, "territory overlaps `verbs`", "neither `keep_out` names the other")
+        if any("shares" in w and "verbs" in w for w in warns):
+            failures.append("shared ground must not warn on lint: it is legitimate (Ev, 2026-09-20)")
+        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        rep = " ".join(_double_claims(root, progs))
+        for want in ("shares", "verbs", "recorded by neither"):
+            if want not in rep:
+                failures.append(f"the at-rest overlap report should still name it: {want!r} not in {rep!r}")
         _write(root, "work/verbs/program.md",
                "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: open\nopened: 2026-09-01\n"
                "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
         warns = []
         expect("a one-sided record is not an error", lint(root, warns))
-        expect("a one-sided record still warns", warns, "the record is one-sided")
+        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        if "recorded by `verbs` only" not in " ".join(_double_claims(root, progs)):
+            failures.append("the report should say which side recorded a one-sided overlap")
         _write(root, "work/mesh/program.md",
                mp.replace("paths: [crates/mesh/*]", "paths: [crates/mesh/*]\nkeep_out: [verbs holds the verb seat inside this crate]"))
         warns = []
         expect("an overlap both keep_outs name is silent", lint(root, warns))
+        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        if any("verbs" in line for line in _double_claims(root, progs)):
+            failures.append("an overlap both keep_outs name should leave the report too")
         _write(root, "work/mesh/program.md", mp)
         for name in ("program.md", "plan.md", "log.md"):
             os.remove(os.path.join(root, "work/verbs", name))
@@ -1168,6 +1181,8 @@ def main(argv: list[str]) -> int:
     s.add_argument("--files", help="a newline-separated path list, or `-` for stdin, instead of --base")
     s.add_argument("--branch")
     s.add_argument("--strict", action="store_true", help="exit 1 on a collision")
+    s.add_argument("--overlaps", action="store_true",
+                   help="instead of a diff: the at-rest map of which open programs share ground")
     args = ap.parse_args(argv)
 
     try:
@@ -1205,6 +1220,13 @@ def main(argv: list[str]) -> int:
             print(cmd_set(root, args.id, args.assignments))
             return 0
         if args.cmd == "territory":
+            if args.overlaps:
+                progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+                lines = _double_claims(root, progs)
+                for line in lines:
+                    print(f"overlap: {line}")
+                print(f"work.py territory --overlaps: {len(lines)} unrecorded pair(s) over {len(progs)} open programs")
+                return 0
             files = None
             if args.files is not None:
                 files = (sys.stdin.read() if args.files == "-" else open(args.files, encoding="utf-8").read()).split("\n")

@@ -13,9 +13,9 @@ Ev's standing instructions for implementation work:
 
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
-  delegated to subagents, which may spawn their own. Implementation
-  model choice follows [[model-ab-experiment]]; design, specs, reviews
-  and rulings stay Fable.
+  delegated to subagents, which may spawn their own. Implementer and
+  reviewer model follow [[model-ab-experiment]]; design, specs and
+  rulings stay Fable.
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;
@@ -42,6 +42,8 @@ Ev's standing instructions for implementation work:
 
 **Standing operational rules:**
 
+- **Read `local-scripts/monitors/README.md` before arming anything** —
+  while its temporary note stands, do not arm.
 - **Monitors are tools, not mandates (Ev)**: arm, tune, re-cadence or
   disarm any of them at will. The default at session start is
   `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/`

@@ -211,7 +211,7 @@ fn holed_box_geometric() -> Body<f64> {
     }
     // Construction-final description step (D6): the fixture is a split
     // operand — tier-3-grade by construction.
-    common::describe_as_intersections(&mut body);
+    common::describe_as_intersections(&mut body, Tol::witness());
     body
 }
 
@@ -221,7 +221,7 @@ fn holed_box_geometric() -> Body<f64> {
 #[test]
 fn generic_plane_asymmetric() {
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)];
-    let fx = prism::<f64>(&profile, 1.0);
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let plane = plane_y(1.0);
     let result = split(&fx.body, &plane, Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
@@ -305,7 +305,7 @@ fn generic_plane_asymmetric() {
 #[test]
 fn vertex_grazing_plane() {
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 3.0), (0.0, 2.0)];
-    let fx = prism::<f64>(&profile, 1.0);
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let result = split(&fx.body, &plane_y(2.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     // Tier 3 qualifies: each body alone is manifold and
@@ -358,7 +358,7 @@ fn vertex_grazing_plane() {
 /// copies (PR 2 carry-forward 1).
 #[test]
 fn notched_block_end_to_end() {
-    let fx = prism::<f64>(NOTCHED, 1.0);
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
     let result = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(above), Ok(()));
@@ -439,7 +439,7 @@ fn notched_block_end_to_end() {
 #[test]
 fn one_sided_tangency_refused_typed() {
     let profile = [(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)]; // apex down, ON y=1
-    let fx = prism::<f64>(&profile, 1.0);
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     let err = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap_err();
     assert!(
         matches!(
@@ -471,7 +471,7 @@ fn one_sided_tangency_refused_typed() {
 #[test]
 fn bob_mirror_pinch_refuses_typed() {
     // MIRRORED under +n: pinched floor pieces are BELOW.
-    let fx = prism::<f64>(MIRRORED, 1.0);
+    let fx = prism::<f64>(MIRRORED, 1.0, Tol::witness());
     let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     let (slab, pieces) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(slab), Ok(()));
@@ -492,7 +492,7 @@ fn bob_mirror_pinch_refuses_typed() {
     assert!((vs + vp - v0).abs() <= 1e-12 * v0, "{vs} + {vp} vs {v0}");
 
     // NOTCHED under −n: pinched prisms are BELOW the flipped normal.
-    let fx = prism::<f64>(NOTCHED, 1.0);
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
     let flipped = SplitPlane {
         origin: Point3::new(0.0, 1.0, 0.0),
         normal: Vec3::new(0.0, -1.0, 0.0),
@@ -518,7 +518,7 @@ fn bob_mirror_pinch_refuses_typed() {
 /// typed success; the operand is untouched.
 #[test]
 fn plane_section_slicing() {
-    let fx = prism::<f64>(NOTCHED, 1.0);
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
     let before = format!("{:?}", fx.body);
     let section = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(format!("{:?}", fx.body), before, "operand untouched");
@@ -613,7 +613,11 @@ fn ring_rehoming_genus_one() {
 #[test]
 fn point_in_loop_trilean() {
     use topo::{LoopContainment, point_in_loop};
-    let fx = prism::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 1.0);
+    let fx = prism::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        1.0,
+        Tol::witness(),
+    );
     let body = &fx.body;
     let top = body.get_face(fx.top_face).unwrap();
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -647,7 +651,7 @@ fn interval_lane_acceptance() {
     use geom_core::Interval;
     // Generic asymmetric split.
     let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)];
-    let fx = prism::<Interval>(&profile, 1.0);
+    let fx = prism::<Interval>(&profile, 1.0, geom_core::Tol::witness());
     let r = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
@@ -672,7 +676,7 @@ fn interval_lane_acceptance() {
     );
 
     // The notched block: three disconnected Above prisms, as at f64.
-    let fx = prism::<Interval>(NOTCHED, 1.0);
+    let fx = prism::<Interval>(NOTCHED, 1.0, geom_core::Tol::witness());
     let r = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap();
     assert_eq!(body_of(&r.above).shells().count(), 3);
     assert_eq!(body_of(&r.below).shells().count(), 1);
@@ -682,7 +686,11 @@ fn interval_lane_acceptance() {
     assert_eq!(s.polygons.len(), 3);
 
     // One-sided tangency refuses typed on this lane too.
-    let fx = prism::<Interval>(&[(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)], 1.0);
+    let fx = prism::<Interval>(
+        &[(3.0, 4.0), (6.0, 1.0), (9.0, 4.0)],
+        1.0,
+        geom_core::Tol::witness(),
+    );
     let err = split(&fx.body, &plane_y::<Interval>(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(
         err,
@@ -694,7 +702,7 @@ fn interval_lane_acceptance() {
 /// a plane touching a face without cutting.
 #[test]
 fn empty_sides_are_typed() {
-    let fx = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0));
+    let fx = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     // Plane far above: everything Below.
     let r = split(&fx, &plane_y(5.0), Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));

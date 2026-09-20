@@ -51,3 +51,22 @@ counter-argument to splitting is the stub: a heterogeneous
 `variant` is the alphabet this surface already speaks everywhere else.
 
 No action was taken in 2753 beyond the mechanical rename.
+
+## Widened (2026-09-19, PR #2874)
+
+A SEVENTH variant, `orphaned_declare`: the delete door's report that a
+`Declare` lost its last consumer. It adds no attribute — and that is
+the point for this row. `node` now answers a SECOND question: on a
+`strand` it is the surviving CARRIER of a dangling name, on an
+`orphaned_declare` it is the surviving DECLARATION itself, and only
+`variant` says which. `name` is `None` on the new arm, because nothing
+dangles.
+
+So the union class's cost is no longer only "nine attributes, of which
+each variant fills a few": one attribute now means two different things
+depending on a sibling attribute's value, which is exactly the failure
+mode a tagged union of dataclasses would not have. Whatever shape this
+row settles on has to carry that, not just the attribute count.
+
+Appended from outside LIB's fence, by announcement, to keep the row
+true of the surface it describes.

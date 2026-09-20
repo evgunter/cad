@@ -10,6 +10,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -22,17 +23,6 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(p2(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
-}
-
-fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp: profile::ProfileLoop<f64> =
-        RawLoop::polygon([p2(x0, y0), p2(x1, y0), p2(x1, y1), p2(x0, y1)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(z1 - z0), tol)
         .unwrap()
         .body
@@ -201,7 +191,7 @@ fn r2_a_box_with_on_carrier_rulings_keeps_the_cosurface_door() {
     let x = (1.0f64 - 0.09).sqrt();
     let err = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &boxx(-x, x, -0.3, 0.3, -0.3, 0.3),
+        &brick((-x, x), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
         Tol::witness(),
     )
     .expect_err("an undeclared on-carrier contact must refuse");
@@ -285,8 +275,12 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
     )
     .unwrap()
     .body;
-    let err = topo::union(&frustum, &boxx(-1.0, 1.0, -0.05, 0.05, 0.25, 0.35), tol)
-        .expect_err("a cone wall has no roots anywhere");
+    let err = topo::union(
+        &frustum,
+        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+        tol,
+    )
+    .expect_err("a cone wall has no roots anywhere");
     // Measured: record the exact variant. The claim to falsify is that
     // the ring lane gave a cone roots; any typed refusal that names the
     // cone's own absence is consistent with the fence.
@@ -331,7 +325,7 @@ fn r2_an_off_centre_bar_reaches_the_same_join_door() {
     // row can no longer pay.
     let err = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &boxx(-3.0, 3.0, 0.15, 0.7, -0.4, 0.1),
+        &brick((-3.0, 3.0), (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
         Tol::witness(),
     )
     .expect_err("no join arm for a pierce ring");
@@ -345,7 +339,7 @@ fn r2_an_off_centre_bar_reaches_the_same_join_door() {
     // what this probe set out to exercise.
     let short = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &boxx(-1.1, 1.1, 0.15, 0.7, -0.4, 0.1),
+        &brick((-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
         Tol::witness(),
     )
     .expect_err("no join arm for a pierce ring");

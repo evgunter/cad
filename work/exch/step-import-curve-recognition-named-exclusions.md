@@ -33,3 +33,40 @@ The NEGATIVE control stays green throughout: `TAIL_TURBINE`'s genuine freeform s
 ## Home
 
 `work/issues/`: `crates/step-import` recognition and `geom_core::spline::compose` are not in any open program's territory, and no open charter names STEP curve recognition.
+
+## Recon addendum (2026-09-04, EXCH orchestrator — pre-spec measurement, against main)
+
+Corrections to this item's premises, measured before any unit is cut:
+
+- **Exclusion 2's witness description is stale**: the five-fixed-samples
+  draft was retired by #391's per-knot-span certificate
+  (`recognize_curve.rs:123-131` narrates the retirement; the live
+  schedule is the per-span cone + wrapped azimuth accumulation at
+  `covers_one_full_turn`, :462-557). The 150° limit is the DERIVED
+  cone half-angle `(π−δ)/2`, not a literal.
+- **The derivative channel is a four-primitive row, not a tweak**:
+  `compose` has no derivative anywhere, no degree elevation on
+  `BernsteinSpans` (`ch_add`/`ch_sub` poison on unequal degree), and
+  no channel×channel dot/cross — the azimuth integrand `(Q × Q′)·â`
+  needs all three plus a public door beside `implicit_composite`.
+  `hull.rs:49-53` explicitly hands the rational-derivative quotient
+  rule to "the consumer that owns the homogeneous form", which is
+  `compose`. S-CERT's territory; file the row there with this shape.
+- **Open-arc plumbing downstream already works**: `endpoint_params`'
+  arc arm handles non-closed intervals (:82-92), `Curve3::Circle` is
+  the full carrier with edge-interval trim, and
+  `arc_rim_on_wall_boundary` already meters angular containment
+  against the rim's own `(t0,t1)` (:902-914). The missing piece is
+  ONLY the coverage certificate.
+- **Exclusion 1's "would flip many wild files" is unevidenced in the
+  committed corpus**: zero open-arc rational carriers exist in any
+  fixture — dm1's 14 rational arcs are all closed full circles
+  (same vertex both ends), and b123d's 31 rational quadratics sit
+  behind its `SURFACE_CURVE` refusal. An open-arc unit needs a new
+  fixture (or a re-measured claim) before its acceptance can name a
+  flip.
+- **Ellipse**: `ImplicitSurface` has five arms (Plane/Sphere/Cylinder/
+  Cone/Torus), not three; a general-quadric arm is additive with
+  existing primitives (`ch_mul` gives the bilinear terms). Zero
+  ELLIPSE entities corpus-wide (56 files swept) — the item's "nothing
+  to measure against" confirmed.

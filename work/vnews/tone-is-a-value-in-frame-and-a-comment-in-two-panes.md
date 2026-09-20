@@ -2,7 +2,7 @@
 id: tone-is-a-value-in-frame-and-a-comment-in-two-panes
 kind: issue
 title: The actionable-or-not rule is a value at the toolbar and a comment in two panes
-status: open
+status: spec
 opened: 2026-09-05
 ---
 

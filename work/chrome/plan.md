@@ -94,6 +94,14 @@ claims is the most likely to mint them, not the least.** Re-derive a
 shifted citation BY SUBJECT — open the file and confirm the symbol —
 or flag the row and let the owning program repoint it.
 
+## Ev's requests — high priority
+
+Filed 2026-09-17 from Ev's own list of UI nits, and **ahead of the
+order below**: Ev asked for these directly, so they are taken before
+anything else on this slate. Each row carries Ev's note verbatim.
+
+None open: the two rows filed here landed in PR 2856 on 2026-09-19.
+
 ## Unit order
 
 E-first, and each unit names the ground it may touch.

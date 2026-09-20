@@ -49,7 +49,7 @@ use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::keys::SurfaceKey;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use sweep::Lofted;
 use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
 
@@ -144,14 +144,7 @@ pub fn twisted_lofted(theta: f64) -> Lofted<f64> {
 /// The box `[0,2]² x [0,1]` — planar faces and `Line` carriers
 /// throughout, so the boolean gate's FACE rule is what decides on it.
 pub fn unit_box() -> Body<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a square is a valid profile");
-    sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("a square prism extrudes")
-        .body
+    sweep::test_support::block(2.0, 2.0, 1.0, Tol::witness())
 }
 
 /// [`unit_box`] moved to a general position — no face of it is

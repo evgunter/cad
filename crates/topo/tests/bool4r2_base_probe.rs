@@ -39,9 +39,9 @@ fn point_of(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
 }
 
 fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let wall = l.side_faces[3];
-    let part = common::brick::<f64>((1.0 + dx, 2.0 + dx), (1.2, 2.0), (0.2, 0.8));
+    let part = common::brick::<f64>((1.0 + dx, 2.0 + dx), (1.2, 2.0), (0.2, 0.8), Tol::witness());
     let body = assembly(&l.body, &part);
     let mut records = ContactRecords::default();
     if declared {
@@ -59,7 +59,10 @@ fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
 }
 
 fn cube(side: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(side * x + dx, side * y + dy, side * z + dz))
+    common::mapped_cube(
+        |x, y, z| Point3::new(side * x + dx, side * y + dy, side * z + dz),
+        Tol::witness(),
+    )
 }
 
 fn embedded() -> (Body<f64>, ContactRecords) {
@@ -93,8 +96,8 @@ fn embedded() -> (Body<f64>, ContactRecords) {
 }
 
 fn cavity() -> Body<f64> {
-    let mut dst = common::brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
-    let hole = common::brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let mut dst = common::brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
+    let hole = common::brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = VoidEvidence {
         shells: hole
@@ -103,7 +106,7 @@ fn cavity() -> Body<f64> {
             .collect(),
     };
     insert_void(&mut dst, solid, hole, &evidence, Tol::witness()).unwrap();
-    let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8));
+    let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8), Tol::witness());
     assembly(&dst, &part)
 }
 
@@ -121,20 +124,21 @@ fn pocket() -> Body<f64> {
         ],
         0.0,
         1.0,
+        Tol::witness(),
     );
-    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8));
+    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     assembly(&u.body, &part)
 }
 
 fn all_on_boundary() -> Body<f64> {
-    let container = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let part = common::brick::<f64>((0.0, 2.0), (0.5, 1.5), (0.5, 1.5));
+    let container = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let part = common::brick::<f64>((0.0, 2.0), (0.5, 1.5), (0.5, 1.5), Tol::witness());
     assembly(&container, &part)
 }
 
 fn straddle() -> Body<f64> {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
-    let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0));
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
+    let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0), Tol::witness());
     assembly(&l.body, &part)
 }
 
@@ -199,15 +203,18 @@ fn base_verdicts() {
 #[test]
 fn base_vertex_straddle() {
     let tol = Tol::witness();
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let wall = l.side_faces[3];
-    let part = common::mapped_cube(|u, v, w| {
-        Point3::new(
-            1.4 - 0.2 * (u + v + w),
-            1.8 - 0.3 * v + 0.1 * u - 0.05 * w,
-            0.3 + 0.3 * w - 0.1 * u + 0.05 * v,
-        )
-    });
+    let part = common::mapped_cube(
+        |u, v, w| {
+            Point3::new(
+                1.4 - 0.2 * (u + v + w),
+                1.8 - 0.3 * v + 0.1 * u - 0.05 * w,
+                0.3 + 0.3 * w - 0.1 * u + 0.05 * v,
+            )
+        },
+        Tol::witness(),
+    );
     let body = assembly(&l.body, &part);
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), tol).expect_err("refuses");

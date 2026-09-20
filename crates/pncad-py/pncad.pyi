@@ -146,7 +146,14 @@ class EditError(PncadError):
     An arm carrying a NESTED refusal projects the carrier's own
     payload and nothing more: `inner_variant` names the arm of the
     refusal it holds, and the fields inside it belong to that type's
-    own door.
+    own door. The one exception is `mate_refused`, the edit door
+    asking the solve's own per-mate admission of a mate being
+    inserted: `fault` carries the solve's `MateFault` about that mate
+    WHOLE — the value `SolvedPoses.fault` answers for a mate the solve
+    refuses on the same datum — so its lever, its clash and its
+    recourse are read off the type a caller already knows, and
+    `inner_variant` is that fault's word (`mate_table_lacks`,
+    `mate_contradictory`, …).
     """
 
     variant: str
@@ -172,6 +179,7 @@ class EditError(PncadError):
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]
+    fault: Optional[MateFault]
 
 class EvaluationError(PncadError):
     """A node produced no value, or produced the wrong kind.
@@ -420,13 +428,18 @@ class PersistError(PncadError):
     `variant` is the refusing arm's tag — `non_finite`,
     `profile_program`, `distribution`, `display_unit`, `serialize`,
     `header_id`, `id_mismatch`, `parse`, `unreadable`, `snapshot`,
-    `edit_replay`, `tolerance_conflict` or `tolerance_invalid`.
+    `edit_replay`, `maintenance_frame`, `tolerance_conflict` or
+    `tolerance_invalid`.
 
-    Four arms wrap a refusal of their own, and its word rides beside
+    Five arms wrap a refusal of their own, and its word rides beside
     the carrier's on `inner_variant`: a profile-program fault, a
-    distribution fault, a snapshot invariant, or the `EditError` a
-    replayed edit raised. The nested refusal's own payload is the
-    inner door's surface and stays in the message.
+    distribution fault, a snapshot invariant, the `EditError` a
+    replayed edit raised, or what a recorded maintenance row's frame
+    fails to be a placement (`non_finite`, `improper` — the
+    `SetPlacement` door's own rule, applied to the log's rows at load;
+    `index` is the entry's, and the row within it is in the message).
+    The nested refusal's own payload is the inner door's surface and
+    stays in the message.
 
     Two names are shared by arms that carry one concept under
     different spellings: `detail` is the underlying reporter's own
@@ -759,10 +772,21 @@ class HitTestError(PncadError):
     before reading anything. It names two documents, which the fields
     below cannot carry and the message states.
 
-    The fifth, `unnamed`, is a KERNEL BUG report — the node evaluated
-    and the entity has no name in its table — and it carries the
-    entity's `kind` and `body`, never its arena key. It is also the one
-    arm that appears as a VALUE rather than a raise:
+    `ambiguous` is the certified tie BETWEEN FACES, and it is the one
+    to read twice. The ray met several faces whose `t` intervals
+    overlap — a cube's shared edge, a corner, a face met edge-on in
+    front of a transversal one — so the arithmetic does not say which
+    is in front and nothing else is allowed to: neither the width of a
+    claim, nor where the model sits, nor the order the targets were
+    offered in. The door names them all, on `hits`, one `PickHit` per
+    tied face; each is TRUE, and the list is complete. Several
+    triangles of ONE face are not this — they are one answer, with the
+    hull of their intervals.
+
+    `unnamed` is a KERNEL BUG report — the node evaluated and the
+    entity has no name in its table — and it carries the entity's
+    `kind` and `body`, never its arena key. It is also the one arm
+    that appears as a VALUE rather than a raise:
     `NodePick.patch_names` puts it in the slot of the patch it
     concerns, because one naming-emission bug must not cost a consumer
     the names of every other patch it is drawing.
@@ -775,6 +799,7 @@ class HitTestError(PncadError):
     through: Optional[NodeId]
     kind: Optional[EntityKind]
     body: Optional[int]
+    hits: Optional[list[PickHit]]
 
 class NodePickError(PncadError):
     """A pick index could not be built — `NodePick.build` and
@@ -815,6 +840,7 @@ class NodePickError(PncadError):
     through: Optional[NodeId]
     kind: Optional[EntityKind]
     body: Optional[int]
+    hits: Optional[list[PickHit]]
     index_variant: Optional[str]
     patch: Optional[int]
     triangle: Optional[int]
@@ -1258,10 +1284,22 @@ pi_rad: Final[AngleUnit]  # the half-turn, symbol `pi rad`: a NOTATION carried a
 #
 # Two spellings of one verb (an authored point, or `Start`) are
 # @overload pairs, because the RETURN follows the target: targeting
-# `Start` closes the loop.
+# `Start` — bare or `Start.arrives_tangent()` — closes the loop.
 
 class StartToken:
     """The type of `Start`, the bound entry as a value."""
+
+    def arrives_tangent(self) -> ArrivesTangentToken:
+        """`Start` with the seam's tangent joint DECLARED: the kernel
+        checks the arriving direction against `Start`'s own."""
+
+class ArrivesTangentToken:
+    """The type of `Start.arrives_tangent()`, the seam's declared
+    tangent arrival. `line_to`, `tangent_arc_to` and `arc_to(Bulge(...))`
+    take it; `Via` and `Center` do not."""
+
+# A closing target: `Start`, with or without the seam's declaration.
+_Close: TypeAlias = StartToken | ArrivesTangentToken
 
 class ArcSweep:
     """Travel sense about a centre — structural, never a value."""
@@ -1332,7 +1370,8 @@ _PointLeg: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt]
 # plus `Radius` — arc extension (carrier derived from the tip's own
 # position and tangent; the incoming side's anchor is the tip).
 _LegEndIncoming: TypeAlias = Bulge[_Pt] | Via[_Pt] | Center[_Pt] | Radius
-_PointClose: TypeAlias = Bulge[StartToken] | Via[StartToken] | Center[StartToken]
+_BulgeClose: TypeAlias = Bulge[StartToken] | Bulge[ArrivesTangentToken]
+_PointClose: TypeAlias = _BulgeClose | Via[StartToken] | Center[StartToken]
 _Tangent: TypeAlias = Sweep | ArcLen
 
 class Open:
@@ -1427,7 +1466,7 @@ class PathPoint:
     @overload
     def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     @overload
-    def line_to(self, target: StartToken) -> ClosedLoop: ...
+    def line_to(self, target: _Close) -> ClosedLoop: ...
     @overload
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
@@ -1479,7 +1518,7 @@ class PathDirectedPoint:
     @overload
     def line_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     @overload
-    def line_to(self, target: StartToken) -> ClosedLoop: ...
+    def line_to(self, target: _Close) -> ClosedLoop: ...
     @overload
     def arc_to(self, spec: _PointLeg) -> PathDirectedPoint: ...
     @overload
@@ -1549,7 +1588,7 @@ class PathDirected:
     @overload
     def tangent_arc_to(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     @overload
-    def tangent_arc_to(self, target: StartToken) -> ClosedLoop: ...
+    def tangent_arc_to(self, target: _Close) -> ClosedLoop: ...
 
 Start: Final[StartToken]
 
@@ -2902,8 +2941,8 @@ class DocEdit:
 
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
         the node lacks, `slot_dimension_mismatch` carrying the
-        required and offered dimensions, and `unknown_doc_param` /
-        `doc_param_dimension_mismatch` for a parameter reference the
+        required and offered dimensions, and `slot_unknown_doc_param` /
+        `slot_doc_param_dimension` for a parameter reference the
         document does not answer."""
 
     @staticmethod
@@ -3107,16 +3146,46 @@ class Doc:
         """This document's identity as 32 lowercase hex digits — the
         save file's `id:` header, and the workspace store's key.
         Identity survives every edit; it is not a content hash."""
-    def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
+    def apply(self, edit: DocEdit, *, resolver: Optional[Workspace] = None) -> Optional[NodeId]:
+        """Apply one edit, answering the minted node id if the edit
+        minted one.
+
+        `resolver` is the document seam an edit that moves a cluster's
+        gauge levers through: its cluster-record maintenance mints the
+        cluster's frame from a solve of the prior document, whose lever
+        is the mated parts' own extent. Every other edit never consults
+        it, with one exception: inserting a mate asks the solve's own
+        per-mate admission at the door, and a clocking rider on a frame
+        coincidence is decided over the mated parts' extent, read
+        through `resolver`. Absent, a gauge-moving edit raises
+        `EditError` with variant `maintenance_refused` rather than
+        recording a frame nothing decided, and a mate with such a rider
+        raises `mate_refused` with `inner_variant == "mate_unleverable"`;
+        everything else is unaffected.
+
+        A mate the solve refuses on its own datum — no member at its
+        head, one member named twice, a class outside the vocabulary,
+        a frame with no definite direction, a primitive-and-rider pair
+        the coset table has no row for, a rider that contradicts the
+        coincidence it rides — raises `EditError` with variant
+        `mate_refused` at this insert; `fault` is the solve's own
+        `MateFault`. The doors decide edits and the solve decides
+        states: a verdict about a PAIR (under-determined, contradicting
+        another mate), and a per-mate fault a mate comes to carry after
+        insert (a stranded head, a re-pointed `Part`, a loaded
+        snapshot), are the solve's at evaluation."""
+
     @property
     def last_maintenance(self) -> list[Maintenance]:
         """The maintenance the LAST accepted edit performed: its
-        cluster-record acts, and the payload names its delete
-        stranded. The strands lead and the cluster acts follow, so
-        read `variant`, never a position. Empty after an edit that
-        moved no mate graph and stranded no name, and on a document
-        that has applied none; a REFUSED edit leaves it untouched, as
-        it leaves the document untouched.
+        cluster-record acts, the payload names its delete stranded,
+        and the declarations that delete left with no consumer. The
+        strands lead, the orphaned declarations follow them and the
+        cluster acts come last, so read `variant`, never a position.
+        Empty after an edit that moved no mate graph, stranded no
+        name and orphaned no declaration, and on a document that has
+        applied none; a REFUSED edit leaves it untouched, as it
+        leaves the document untouched.
 
         The reading begins at the load boundary: a Doc from
         `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
@@ -3177,7 +3246,16 @@ class Doc:
         A node this document does not hold raises EditError
         (`unknown_node`) rather than answering a word or `None`."""
 
-    def insert(self, node: Node) -> NodeId: ...
+    def insert(self, node: Node, *, resolver: Optional[Workspace] = None) -> NodeId:
+        """Insert a node, answering its minted id — `apply` of
+        `DocEdit.insert_node`.
+
+        `resolver` is the document seam a mate's admission levers
+        through: an insert is a Join at most (the survivor keeps its
+        gauge), so its maintenance never consults it, but a mate's
+        clocking rider on a frame coincidence is decided at the door
+        over the mated parts' extent, read through `resolver` — see
+        `apply` for what a mate refuses here (`mate_refused`)."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -3605,6 +3683,7 @@ class CurveKind:
     Line: Final[CurveKind]
     Circle: Final[CurveKind]
     Ellipse: Final[CurveKind]
+    Spiric: Final[CurveKind]
     Nurbs: Final[CurveKind]
 
 class SurfaceKind:
@@ -4893,8 +4972,9 @@ class MatePrimitive:
 
     @staticmethod
     def clocking() -> MatePrimitive:
-        """Clocking with no carrying primitive: refused at the
-        solve."""
+        """Clocking with no carrying primitive: refused at the insert
+        of a mate carrying it (`EditError`, variant `mate_refused`)
+        and at every solve that reads the datum."""
     @property
     def variant(self) -> str: ...
     @property
@@ -4909,8 +4989,11 @@ class Alignment:
 
     `clocking` is a RIDER, never a primitive: on `coaxial` it cuts the
     residual to prismatic; on `frame_coincidence` it is
-    redundant-or-contradictory and gets decided; on a planar rest the
-    table has no entry and the solve refuses typed."""
+    redundant-or-contradictory and gets decided over the mated parts'
+    extent — at the insert (`Doc.insert` with `resolver`, variant
+    `mate_refused`) and at every solve that reads the datum, not
+    re-decided on replay; on a planar rest the table has no entry and
+    the same doors refuse typed."""
 
     def __init__(
         self,
@@ -4931,18 +5014,16 @@ class Alignment:
     @property
     def clocking(self) -> Optional[Angle]: ...
     @property
-    def lever_arm(self) -> Optional[Length]:
-        """The largest distance in this mate's own authored data over
-        which an angular error accumulates into a gap.
+    def lever_arm(self) -> Length:
+        """The datum's own contribution to the lever this mate's angular
+        decisions turn on: both mate frames' distances from their parts'
+        origins plus every length the primitive authors, summed.
 
-        `None` when the alignment names a scale but names one too small
-        to lever anything: a lever of `L` makes the smallest decidable
-        tilt `eps/L`, so a datum at a nanometre buys a threshold of a
-        whole radian, and a verdict there is vacuous rather than tight.
-        The solve records that case as the
-        `mate_datum_too_small_to_lever` fault. An alignment that names
-        NO scale at all is not this case — it borrows the session box's
-        scale and answers with a number."""
+        The lever itself adds the two mated parts' own extent (an upper
+        bound from each evaluated body), which only the solve has in
+        hand — so this is the part an alignment can answer alone, never
+        the whole. Zero for a datum authored at both origins with no
+        length, the ordinary spelling of an axis-to-axis mate."""
     def __eq__(self, other: object) -> bool: ...
 
 class ClassAdmission:
@@ -5065,7 +5146,11 @@ class MateFault:
     @property
     def predicate(self) -> Optional[str]: ...
     @property
-    def clash(self) -> Optional[Length]: ...
+    def clash(self) -> Optional[Length]:
+        """The measured clash: a length verbatim, or a lever's product.
+        `None` for the structural refusal (`mate_member_empty`), which
+        measures nothing."""
+
     @property
     def part(self) -> Optional[NodeId]: ...
     @property
@@ -5089,7 +5174,9 @@ class MateFault:
         """The nested refusal's own word: the frame ladder's
         (`FrameError.variant`'s vocabulary), the band constructor's
         (`invalid_value`, `invalid_lever_arm`, `empty`), or the lever
-        refusal's (`datum_too_small`). `None` on an arm whose payload
+        refusal's (`part_unresolved`, `face_unbounded`, `no_extent`,
+        `no_finite_bound`, `not_an_instance`, with the instance it is
+        about as `instance`). `None` on an arm whose payload
         is a struct rather than an enum — an escalation has no inner
         word, and its shape is which margin attribute is set."""
 
@@ -5132,28 +5219,31 @@ class MateFault:
 
     @property
     def lever_tilt(self) -> Optional[Angle]:
-        """The lever's TILT, when a contradictory clash was levered
-        rather than measured outright."""
+        """The lever's TILT, when a contradictory clash levered an
+        authored roll (the clocking rider's `mate_clocking_redundant`).
+        One of this and `lever_residual` is set on a levered clash,
+        never both: which one says what kind of number the predicate
+        measured."""
+
+    @property
+    def lever_residual(self) -> Optional[float]:
+        """The lever's RESIDUAL — a pure number, named by `predicate`:
+        a sine, a cosine, a Frobenius departure from the identity, a
+        reachability defect — when a contradictory clash levered one
+        rather than an authored roll. Dimensionless, so a bare float
+        and not a quantity."""
 
     @property
     def lever_arm(self) -> Optional[Length]:
-        """The lever's ARM — the solve's own scale surrogate, the
-        larger of the two frame origins' distances and the authored
-        lengths, floored at one metre. NOT a contact feature: it names
-        that scale and nothing in the model. `clash` is the PRODUCT of
-        the two halves, and an arm that measured its margin without a
-        lever carries neither."""
+        """Its ARM, in metres: an upper bound on the two mated parts'
+        extent together from the datum — each part's reach from its own
+        origin plus its frame's distance, plus the authored lengths.
+        NOT a contact feature: it names the parts' scale and nothing
+        else in the model. `clash` is the PRODUCT of the set half and
+        the arm, and an arm that measured its margin without a lever
+        carries none of the three."""
 
-    @property
-    def extent(self) -> Optional[Length]:
-        """The length scale a datum named, when it named one too small
-        to lever a parallelism verdict over."""
 
-    @property
-    def floor(self) -> Optional[Length]:
-        """The floor that scale is under: below it the smallest tilt
-        the predicate could call non-parallel is about eps/extent
-        radians, so every tilt would read parallel."""
 
 class SolvedPoses:
     """The document's solved poses: each instance's pose relative to
@@ -5185,7 +5275,7 @@ class SolvedPoses:
         tag `mate_poses_of_another_document` before any frame is
         read. Raises MateError when the cluster did not solve."""
 
-def solve_document(doc: Doc) -> SolvedPoses:
+def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedPoses:
     """Solve the document's mates: the per-pair coset fold along a
     deterministic spanning tree.
 
@@ -5193,9 +5283,15 @@ def solve_document(doc: Doc) -> SolvedPoses:
     unrelated one, so refusals are read back through
     `SolvedPoses.fault`.
 
-    Nothing here inspects geometry. In particular it does NOT check
-    that a mate's frames match the faces its references name, which is
-    why a document can solve cleanly and still refuse at the gate."""
+    The solve reads no geometry except each mated part's own extent —
+    an upper bound taken from its evaluated body, entering only as the
+    lever a parallelism verdict is decided over — so `resolver` is the
+    same document seam `evaluate(doc, resolver=)` crosses. Without one
+    every mate on a part faults `mate_unleverable` in the resolver's
+    own voice rather than levering over nothing. In particular the
+    solve does NOT check that a mate's frames match the faces its
+    references name, which is why a document can solve cleanly and
+    still refuse at the gate."""
 
 def clusters(doc: Doc) -> list[list[NodeId]]:
     """The placement clusters: instances coupled by mates, members in
@@ -5237,13 +5333,30 @@ class Maintenance:
     because the store carries it and no node does; the attachment is
     left exactly where it was, since the report never repairs.
 
+    An `orphaned_declare` is not a loss of that kind: its `node` is a
+    `Declare` that SURVIVED the delete, and what went is the last node
+    that consumed it (`Node.union`/`Node.boolean`'s `declare=`). It
+    carries no `name` — nothing dangles, and no node consumes the
+    declaration any more (the document's `roots` do gain it, since a
+    node nothing reads is a product root). The repair is the author's:
+    delete the declaration, or give it a new consumer. A declaration
+    that has never had a consumer is not reported: a `Declare` is
+    inserted before the union that consumes it, so what the row says
+    is that a delete MADE it consumerless.
+
+    The row is TRANSIENT when the declaration itself is what the
+    author is deleting: the consumer must go first, that delete
+    reports the orphan, and the delete that follows removes its
+    subject — so a caller walking a node and its dependents reads the
+    net effect off the document the walk ended at, not off the rows.
+
     `source` and `target` rather than `from`/`to`: `from` is a Python
     keyword."""
 
     @property
     def variant(self) -> str:
-        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`, or
-        `stranded_appearance`."""
+        """`join`, `split`, `gauge_rewrite`, `drop`, `strand`,
+        `stranded_appearance`, or `orphaned_declare`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...
@@ -5499,7 +5612,14 @@ class InterfaceCrossing:
 
     `outer` stayed in the remainder; `inner` moved into the part and
     is spelled in the PART's own names, unwrapped, because that is
-    what the part's product answers to."""
+    what the part's product answers to.
+
+    Both are FACE names. A crossing is written out of the two heads of
+    a mate and each head names a face, so the kind is fixed by the
+    record's type and neither getter can answer anything else.
+
+    Those two and the class are the whole of it: a crossing carries no
+    provenance, and the kernel's `InterfaceCrossing::Mate` says why."""
 
     @property
     def variant(self) -> str:
@@ -5507,13 +5627,15 @@ class InterfaceCrossing:
         mates are the only kind that can."""
 
     @property
-    def mate(self) -> NodeId: ...
-    @property
     def class_(self) -> ContactClass: ...
     @property
-    def outer(self) -> str: ...
+    def outer(self) -> str:
+        """The remainder-side reference, as name text — a FACE name."""
+
     @property
-    def inner(self) -> str: ...
+    def inner(self) -> str:
+        """The part-side reference, as name text, in the part's own
+        names — a FACE name."""
 
 class InterfaceRecord:
     """The interface record of an instantiate seam: the declarations
@@ -5550,7 +5672,9 @@ class SplitOutcome:
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Cut node -> its id in the part document."""
 
-def split(doc: Doc, cut: list[NodeId], part_id: str) -> SplitOutcome:
+def split(
+    doc: Doc, cut: list[NodeId], part_id: str, *, resolver: Optional[Workspace] = None
+) -> SplitOutcome:
     """Cut a closed node set out into a NEW document, leaving one
     instance of it behind.
 
@@ -5561,7 +5685,18 @@ def split(doc: Doc, cut: list[NodeId], part_id: str) -> SplitOutcome:
 
     The cut must be ancestor- and consumer-closed and a union of WHOLE
     placement clusters. Pure — `doc` is untouched. Raises SplitError,
-    typed, naming the offending edge, cluster, parameter or name."""
+    typed, naming the offending edge, cluster, parameter or name.
+
+    `resolver` is the document seam the split's own edits lever
+    through where one moves a cluster's gauge (the remainder's mate
+    deletes split the cluster they cut; the part's mate inserts
+    re-form it): its cluster-record maintenance mints the cluster's
+    frame from a solve of the prior document, whose lever is the
+    mated parts' own extent. The part being minted answers its own
+    reference; `resolver` answers every other. Absent, a cut that
+    moves a gauge raises `SplitError` carrying an `EditError` with
+    variant `maintenance_refused`; a cut that moves none is
+    unaffected."""
 
 class InlineOutcome:
     """What an inline produced: the spliced document value and the

@@ -37,10 +37,17 @@
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
 
-// The shared helper trees, declared ONCE for the whole binary. This file
-// is the crate root, so a plain `mod` resolves against `tests/` —
-// `tests/common/mod.rs`, `tests/fixture/mod.rs` — and every consumer
-// reaches that one instance through `use crate::<helper>;`.
+// The shared helper trees, named ONCE for the whole binary. This file is
+// the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/fixture/mod.rs` — and every consumer reaches that one instance
+// through `use crate::<helper>;`.
+//
+// `common` is the same name over a different thing: the Euler-op
+// fixture family lives in the library, where this crate's own `src/`
+// can name it too, and `topo::test_support` is the door the
+// `test-support` feature opens onto it. The alias keeps `common::X` as
+// every suite's spelling of it; a crate-root `use` is private but
+// visible to descendants, which is every suite module below.
 //
 // NO `#[path]` ON THESE, deliberately: a path attribute in this file is
 // the aggregation guard's census of SUITE files
@@ -51,7 +58,8 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
-mod common;
+use topo::test_support as common;
+
 mod fixture;
 
 #[path = "bool4_material_containment.rs"]

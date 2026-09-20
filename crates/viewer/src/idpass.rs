@@ -152,8 +152,15 @@ impl IdQueryLog {
 pub struct Disagreement {
     /// What the id buffer named, `None` for nothing under the cursor.
     pub from_gpu: Option<StableName>,
-    /// What the ray path named.
-    pub from_ray: Option<StableName>,
+    /// What the ray path named: **a SET**, because the kernel's door
+    /// answers one face, nothing, or a certified TIE between several
+    /// ([`pncad::select::HitTestError::Ambiguous`]). Empty is nothing
+    /// under the cursor; one name is an ordinary answer; several are
+    /// faces the arithmetic cannot order, and the rasterizer cannot
+    /// either — the pixel there falls to depth rounding, so the id
+    /// pass naming ONE of them is not a disagreement
+    /// ([`disagreement`]).
+    pub from_ray: Vec<StableName>,
 }
 
 impl core::fmt::Display for Disagreement {
@@ -180,15 +187,22 @@ impl core::fmt::Display for Disagreement {
     /// silently. In the pattern it is E0027 instead.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
-        let show = |name: &Option<StableName>| match name {
-            Some(name) => format!("{name} ({:?})", name.path),
+        let one = |name: &StableName| format!("{name} ({:?})", name.path);
+        let gpu = match from_gpu {
+            Some(name) => one(name),
             None => "nothing".to_owned(),
+        };
+        let ray = match &from_ray[..] {
+            [] => "nothing".to_owned(),
+            [name] => one(name),
+            tied => format!(
+                "tied between {}",
+                tied.iter().map(one).collect::<Vec<_>>().join(" and ")
+            ),
         };
         write!(
             f,
-            "picking paths disagree at the cursor: id buffer {}, ray {}",
-            show(from_gpu),
-            show(from_ray)
+            "picking paths disagree at the cursor: id buffer {gpu}, ray {ray}"
         )
     }
 }
@@ -226,6 +240,16 @@ impl Disagreement {
 /// whole reason this function reports and never resolves, and it is
 /// what makes issue #1097 §4's hardware check one cursor sweep.
 ///
+/// # A tie is not a disagreement when the raster chose inside it
+///
+/// `from_ray` is a SET ([`Disagreement::from_ray`]). The two paths
+/// AGREE when the id buffer's name is one of it — the kernel said
+/// these faces cannot be ordered, and the rasterizer picking one of
+/// them is the depth buffer's rounding, not a contradiction of
+/// anything the kernel claimed. They disagree when the id buffer
+/// names a face outside the set, nothing where the ray named
+/// something, or something where the ray named nothing.
+///
 /// `answer` is the raw channel word (`serial << 32 | id`); `expected`
 /// is [`IdQueryLog::outstanding`]. `None` means "no verdict": no query
 /// outstanding, a stale answer, or the two agree.
@@ -233,7 +257,7 @@ pub fn disagreement(
     index: &PickIndex,
     answer: u64,
     expected: Option<u32>,
-    from_ray: Option<&StableName>,
+    from_ray: &[StableName],
 ) -> Option<Disagreement> {
     if expected? != (answer >> 32) as u32 {
         return None;
@@ -247,8 +271,12 @@ pub fn disagreement(
             .and_then(|name| name.as_ref().ok())
             .cloned()
     };
-    (from_gpu.as_ref() != from_ray).then(|| Disagreement {
+    let agrees = match &from_gpu {
+        None => from_ray.is_empty(),
+        Some(name) => from_ray.contains(name),
+    };
+    (!agrees).then(|| Disagreement {
         from_gpu,
-        from_ray: from_ray.cloned(),
+        from_ray: from_ray.to_vec(),
     })
 }

@@ -132,6 +132,14 @@ pub(crate) fn endpoint_params(
             }
             Ok((t0, t1))
         }
+        // No STEP entity is recognized as a spiric: the import mints
+        // `Line`, `Circle`, `Ellipse` and `Nurbs` carriers only
+        // (`entities.rs`), so this arm names a carrier this crate cannot
+        // have built. Written for exhaustiveness; reaching it is a
+        // kernel bug, not an input's.
+        Curve3::Spiric { .. } => unreachable!(
+            "endpoint_params: the STEP import mints no spiric carrier (no entity maps to one)"
+        ),
         Curve3::Nurbs(payload) => {
             // Clamped B-splines interpolate their end control points,
             // so the subset's B-spline edges span the whole knot

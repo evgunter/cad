@@ -19,7 +19,51 @@ use crate::marks;
 use crate::pickcache;
 use crate::pickindex::{PickIndex, PictureKey};
 use crate::session::SessionOp;
-use crate::sketch::{heading, tip_mark};
+use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
+
+/// **One sketch-plane segment, placed and appended to an overlay lane**
+/// as the line-list pair the edge pass draws.
+fn push_segment(
+    lane: &mut Vec<[f32; 3]>,
+    plane: &pncad::profile::SketchPlane<f64>,
+    a: [f64; 2],
+    b: [f64; 2],
+) {
+    for [x, y] in [a, b] {
+        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
+        lane.push([world.x as f32, world.y as f32, world.z as f32]);
+    }
+}
+
+/// **One drawn loop, placed on its plane and appended to a lane.**
+///
+/// A CLOSED loop's segment list wraps — the last point joins the
+/// first, which is the same thing `ProfileLoop` means by being closed
+/// by construction. An OPEN one's must not: the leg back to the start
+/// is the provisional close `sketch::preview` walked the chain under
+/// and nobody authored, so the wrap is dropped and what is drawn is the
+/// authored legs exactly. That is the whole of "a path draws while it
+/// is still being written".
+fn push_loop(
+    lane: &mut Vec<[f32; 3]>,
+    plane: &pncad::profile::SketchPlane<f64>,
+    polyline: &PreviewLoop,
+) {
+    let points = &polyline.points;
+    let segments = if polyline.closed {
+        points.len()
+    } else {
+        points.len().saturating_sub(1)
+    };
+    for index in 0..segments {
+        push_segment(
+            lane,
+            plane,
+            points[index],
+            points[(index + 1) % points.len()],
+        );
+    }
+}
 
 /// Land a fold: take the camera it reached, and show the refusal that
 /// stopped it.
@@ -512,27 +556,12 @@ impl ViewerBehavior<'_> {
                 .selected
                 .extend(tool.mark_segments(index, self.display));
         }
-        // **The profile being authored, drawn where it would land.**
-        //
-        // The form's loops are on a sketch plane, so they HAVE a
-        // place: the wireframe goes in the viewport, at that place,
-        // rather than into a pane of its own — a preview beside the
-        // model cannot show what a preview is mostly for, which is
-        // whether the shape is the right size and in the right spot
-        // relative to what is already there.
-        //
-        // Drawn in the probe mark, never the selection mark, because
-        // it is not in the document (`EdgeOverlay::preview`). A
-        // preview that failed to replay draws nothing and says why in
-        // the form; one that replayed but does not VALIDATE draws
-        // anyway, which is the case where looking at it is the whole
-        // point.
-        // **The document's construction geometry**, drawn before the
-        // preview so a form composing something over a datum reads on
-        // top of it. Sized against the VIEW (`datums::draws`): a datum
-        // has no size of its own, and one sized against the model
-        // opens into a hole the moment the camera is closer than a
-        // grid cell is wide.
+        // **The document's construction geometry.** Which lane is drawn
+        // over which is `marks::EdgeLane::DRAW_ORDER`'s, not the order
+        // these blocks fill them in. Sized against the VIEW
+        // (`datums::draws`): a datum has no size of its own, and one
+        // sized against the model opens into a hole the moment the
+        // camera is closer than a grid cell is wide.
         if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
             // **A window this camera has no view of is the projection
             // refusal, said one step earlier and by name.** The door
@@ -576,40 +605,65 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
-        if let Some(Ok(drawn)) = self.profile_preview {
+        // **The profiles the document holds**, from the landed
+        // evaluation, every frame — the treatment datums get, because a
+        // profile node has no body until something extrudes it and so
+        // nothing else would draw it. Not behind the datum toggle: a
+        // profile is authored content, not construction geometry.
+        //
+        // `except`: the profile the edit door is previewing, if any
+        // ([`ViewerBehavior::profile_edited`]) — drawn by its live
+        // preview below and not also as it was committed, which would
+        // show two shapes where there is one. The create door's
+        // profile is not a node while it is composed, and comes to
+        // rest when its add is accepted (`Drafts::accepted`), so it
+        // has nothing to leave out.
+        if let Some((doc, evaluation)) = self.session.landed_pair() {
+            let committed =
+                sketch::committed(doc, evaluation, self.delta.get(), self.profile_edited);
+            *self.profiles_undrawn = committed.undrawn.len();
+            for profile in &committed.drawn {
+                for polyline in &profile.loops {
+                    push_loop(&mut edges.profiles, &profile.plane, polyline);
+                }
+            }
+        }
+        // **The profile being authored, drawn where it would land.**
+        //
+        // The form's loops are on a sketch plane, so they HAVE a
+        // place: the wireframe goes in the viewport, at that place,
+        // rather than into a pane of its own — a preview beside the
+        // model cannot show what a preview is mostly for, which is
+        // whether the shape is the right size and in the right spot
+        // relative to what is already there.
+        //
+        // Drawn in the probe mark, never the selection mark, because
+        // it is not in the document (`EdgeOverlay::preview`). A
+        // preview that failed to replay draws nothing and says why in
+        // the form; one that replayed but does not VALIDATE draws
+        // anyway, which is the case where looking at it is the whole
+        // point.
+        // Both doors of the one profile editor draw the same way: the
+        // add-profile form's loops and an edit's, each where it lands.
+        let previews = self
+            .profile_previews
+            .as_ref()
+            .into_array()
+            .into_iter()
+            .filter_map(|preview| preview.as_ref()?.as_ref().ok());
+        for drawn in previews {
             let plane = drawn.plane;
-            // ONE size for every loop in the preview, from the whole
-            // picture's extent: marks that each scaled to their own
-            // loop would draw a bore's crosses smaller than its
-            // outer's for no reason a reader could name.
-            let tick = tip_mark(&drawn.loops);
+            // The marks are sized in pixels, read at each vertex's own
+            // depth — the same door the datum glyphs go through. A
+            // window this camera has no view of draws the chain and no
+            // marks; the projection refusal below is what says why.
+            let view = datum_view(self.camera, viewport).ok();
             for polyline in &drawn.loops {
                 let points = &polyline.points;
-                // A CLOSED loop's segment list wraps — the last point
-                // joins the first, which is the same thing
-                // `ProfileLoop` means by being closed by construction.
-                // An OPEN one's must not: the leg back to the start is
-                // the provisional close `sketch::preview` walked the
-                // chain under and nobody authored, so the wrap is
-                // dropped and what is drawn is the authored legs
-                // exactly. That is the whole of "a path draws while it
-                // is still being written".
-                let segments = if polyline.closed {
-                    points.len()
-                } else {
-                    points.len().saturating_sub(1)
-                };
+                push_loop(&mut edges.preview, &plane, polyline);
                 let mut segment = |a: [f64; 2], b: [f64; 2]| {
-                    for [x, y] in [a, b] {
-                        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
-                        edges
-                            .preview
-                            .push([world.x as f32, world.y as f32, world.z as f32]);
-                    }
+                    push_segment(&mut edges.preview, &plane, a, b);
                 };
-                for index in 0..segments {
-                    segment(points[index], points[(index + 1) % points.len()]);
-                }
                 // **The directed point at each step.** A tip is a
                 // position and, once a verb has bound one, a
                 // direction — the pair the lattice calls a directed
@@ -630,6 +684,12 @@ impl ViewerBehavior<'_> {
                 for &at in &polyline.vertices {
                     let here = points[at];
                     let Some([dx, dy]) = heading(points, at, polyline.closed) else {
+                        continue;
+                    };
+                    let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
+                    let Some(tick) =
+                        view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX))
+                    else {
                         continue;
                     };
                     // Both marks are drawn ACROSS the heading, never
@@ -695,20 +755,24 @@ impl ViewerBehavior<'_> {
         // freshness rule, this only declines to do the work when no
         // question is outstanding at all.
         let outstanding = self.id_log.outstanding();
-        let from_ray = outstanding.and_then(|_| {
-            let index = on_screen?;
-            let eval = self.session.evaluation()?;
-            index
-                .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
-                .ok()
-                .flatten()
-        });
+        let from_ray: Vec<_> = outstanding
+            .and_then(|_| {
+                let index = on_screen?;
+                let eval = self.session.evaluation()?;
+                index
+                    .faces_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
+                    .ok()
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .map(|face| face.name)
+            .collect();
         if let Some(report) = on_screen.and_then(|index| {
             idpass::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
-                from_ray.as_ref().map(|face| &face.name),
+                &from_ray,
             )
         }) {
             self.notices.push(report.notice());
@@ -1244,10 +1308,11 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report = idpass::disagreement(&index, nothing, Some(serial), Some(&named))
-            .expect("nothing-under-the-cursor against a named face is a disagreement");
+        let report =
+            idpass::disagreement(&index, nothing, Some(serial), std::slice::from_ref(&named))
+                .expect("nothing-under-the-cursor against a named face is a disagreement");
         assert_eq!(report.from_gpu, None, "the id pass answered nothing");
-        assert_eq!(report.from_ray, Some(named), "the ray answered a face");
+        assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 
         assert!(
             drawn_index(Some(&index), None).is_none(),

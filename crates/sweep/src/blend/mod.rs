@@ -1425,17 +1425,20 @@ impl fmt::Display for BlendError {
                     Some("fillet3_corner_independence" | "fillet3_cap_transverse") => {
                         FILLET3_CORNER_RECOURSE
                     }
-                    // Fix pass F6: an escalation from a predicate this
-                    // match does not know is a MISSING recourse, and
-                    // saying so is the honest answer — emitting the
-                    // radius sentence would hand the user an action
-                    // that has nothing to do with what escalated.
+                    // An escalation from a predicate this match does not
+                    // know is a MISSING recourse, and saying so is the
+                    // honest answer — emitting the radius sentence would
+                    // hand the user an action that has nothing to do
+                    // with what escalated. The sentence is
+                    // `geom_core::MissingRecourse`, the one home every
+                    // recourse table's fall-through composes, so the two
+                    // tables that route by predicate name cannot answer
+                    // an unknown name differently.
                     other => {
                         return write!(
                             f,
-                            "escalated at {site}: {source} — no recourse is recorded for \
-                             predicate {other:?}; this is a gap in the error table, not \
-                             advice to act on"
+                            "escalated at {site}: {source} — {}",
+                            geom_core::MissingRecourse(other)
                         );
                     }
                 };

@@ -15,7 +15,9 @@ doc block spliced onto another one, or onto itself — and one of them
 leaves a function undocumented. Line numbers are as of PR 1776's head;
 the function names are the durable anchors.
 
-1. **`tip_mark`, `app.rs:255` — a doc line spliced onto itself.** The
+1. **Discharged by #2829, which deleted `tip_mark` (tip marks are
+   now sized in pixels, `sketch::TIP_MARK_PX`).** Kept for the record:
+   **`tip_mark`, `app.rs:255` — a doc line spliced onto itself.** The
    line reads
    `/// **How big the tip marks in a profile preview are**/// **How big the tip marks in a profile preview are**, in sketch-plane`
    — one summary, twice, with the second copy's `///` in the middle of
@@ -31,9 +33,10 @@ the function names are the durable anchors.
    NOT one assignment per op — so the stranded line says the opposite
    of what the doc argues.
 
-3. **`remember_theme` / `apply_status`, `app.rs:1809-1811` and
-   `:1840` — one function's doc glued on top of another's, leaving the
-   second undocumented.** The block above `remember_theme`
+3. **`remember_theme` (now `ViewerApp::remember_prefs`) /
+   `apply_status`, `app.rs:1809-1811` and `:1840` — one function's doc
+   glued on top of another's, leaving the second undocumented.** The
+   block above `remember_theme`
    (`app.rs:1827`) opens with three lines that describe
    `apply_status`: *"Apply a policy verdict to the status line — the
    one place a `StatusUpdate` becomes the field, shared by the batch

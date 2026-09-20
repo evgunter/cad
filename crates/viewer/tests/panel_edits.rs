@@ -423,15 +423,64 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
     assert!(shown.rank() < Refusal::NoGesture.rank());
 }
 
+test_utils::f6_variants! {
+    /// Every `Refusal` arm's identifier, as the ban list the six
+    /// sampled renderings are held to. The `match` the macro writes is
+    /// exhaustive, so an arm added to `Refusal` stops this file
+    /// compiling until it is listed here and the ban covers it. No
+    /// count is written down: the `match` is what holds the roster
+    /// complete, and a number beside it would be a second claim with
+    /// nothing checking it.
+    ///
+    /// **The roster is the enum's, not the sample's.** A rendering that
+    /// leaks a SIBLING arm's identifier is as much a dump as one that
+    /// leaks its own, and a per-arm check cannot see it.
+    const REFUSAL: Refusal = [
+        DrivenByExpression,
+        NoSuchSlot,
+        NoSuchParam,
+        ParamExists,
+        EmptyName,
+        WrongNodeKind,
+        Edit,
+        Dimension,
+        Parse,
+        NoGesture,
+        GestureInFlight,
+        WrongGesture,
+        Io,
+        NothingToDo,
+        Display,
+        SlotUnit,
+        NoDocumentDirectory,
+        Workspace,
+        SelfInstance,
+        ProfileRestructure,
+        ProfileEditOrder,
+        ProfileEditOrderCapped,
+        ProfileEditStale,
+    ];
+}
+
+/// The `Debug` punctuation that would be a dump in a `Refusal`
+/// sentence: the two field names the payloads carry, and the quotation
+/// mark a `{:?}` over a `String` or a `ParamName` leaves behind.
+///
+/// `{` is [`test_utils::f6::assert_f6`]'s own and is banned whatever
+/// this list says; the quotation mark is this row's extra clause, and
+/// the doc comment below says why it is asserted of these six arms
+/// rather than of the vocabulary.
+const REFUSAL_FIELDS: &[&str] = &["node:", "name:", "\""];
+
 /// **Six refusals a panel can provoke render as sentences** — six,
 /// named, and not a claim about the vocabulary. Each is a real op
 /// through a real door, so the rendering asserted is the one a person
 /// reads.
 ///
 /// **The universal is not asserted here, because a sample cannot hold
-/// it.** `Refusal` has 18 arms and one of them is `Edit`, which
-/// forwards ~50 sub-variants, so what decides the rendering is the
-/// payload's variant one level down — `crates/pncad-py/src/
+/// it.** One of `Refusal`'s arms is `Edit`, which forwards a whole
+/// second vocabulary, so what decides the rendering is the payload's
+/// variant one level down — `crates/pncad-py/src/
 /// prose_census.rs` states exactly that failure mode, and a roster
 /// that picks its own samples excludes the failing mode by
 /// construction. The two vocabulary-wide halves live elsewhere, and
@@ -446,11 +495,16 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
 /// * **that no rendering carries the field-brace fingerprint** is
 ///   `prose_census`'s, a census over SITES rather than samples.
 ///
-/// The shape asserted below is F6's — editor-core's ratified `Display`
-/// contract (`crates/editor-core/tests/display_contract.rs`): no
-/// brace, no `Debug` field punctuation, no variant identifier, and
-/// never simply the dump — **plus a quotation mark**, which F6 does
-/// not list and this row asserts anyway.
+/// The shape asserted below is F6's, through the one door that holds
+/// it ([`test_utils::f6::assert_f6`]): no brace, no `Debug` field
+/// punctuation, no variant identifier, and never simply the dump —
+/// **plus a quotation mark**, which F6 does not list and this row
+/// asserts anyway, passed as one more banned token.
+///
+/// **The identifier ban is the ENUM's roster, not each arm's own**
+/// ([`REFUSAL`]). A rendering that leaks a sibling arm's identifier is
+/// a dump as surely as one that leaks its own, and the per-arm check
+/// this row used to spell could not see it.
 ///
 /// That extra clause is the one that catches the case this row exists
 /// for. A `{:?}` over a `String` or a `ParamName` renders `"width"`:
@@ -550,38 +604,17 @@ fn refusals_render_as_sentences() {
         "and it is the EXISTING declaration's, not the one asked for: {shown}"
     );
 
-    for (arm, refusal) in [
-        ("Io", &io),
-        ("Edit", &edit),
-        ("NoSuchParam", &lookup),
-        ("WrongNodeKind", &kind),
-        ("NoSuchSlot", &slot),
-        ("ParamExists", &exists),
-    ] {
-        let rendered = refusal.to_string();
-        assert!(
-            !rendered.contains('{')
-                && !rendered.contains('"')
-                && !rendered.contains("node:")
-                && !rendered.contains("name:"),
-            "{arm} is a sentence, not a debug dump: {rendered}"
-        );
-        assert!(
-            !rendered.contains(arm),
-            "{arm} leaves its variant name standing: {rendered}"
-        );
-        assert_ne!(
-            rendered,
-            format!("{refusal:?}"),
-            "{arm} renders as its own dump"
-        );
+    for refusal in [&io, &edit, &lookup, &kind, &slot, &exists] {
+        test_utils::f6::assert_f6(refusal, &[], REFUSAL.identifiers(), REFUSAL_FIELDS);
     }
 
     // And the one mistake that reaches two doors reaches one recourse:
     // the typed route and the dragged route name the same thing to do.
+    // Asserted against the CONST both renderings read, so the clause
+    // cannot come back as a second literal without this row reddening.
+    let recourse = editor_core::edit::UNDECLARED_PARAM_RECOURSE;
     assert!(
-        edit.to_string().contains("declare it first")
-            && lookup.to_string().contains("declare it first"),
+        edit.to_string().contains(recourse) && lookup.to_string().contains(recourse),
         "typed {edit}\ndragged {lookup}"
     );
 }

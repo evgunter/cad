@@ -317,6 +317,39 @@ def stub_surface():
     return top, members
 
 
+def stub_attributes():
+    """The `Class.attribute` spellings of `stub_surface`'s alphabet that
+    are NOT callable — a `@property` or an annotated attribute.
+
+    Same parse, one question further in: whether a spelling is
+    something a caller READS off a value or something it CALLS. Rule 1
+    reads the two alike and `ARMS_SPELLED_BY_A_PROPERTY` is where the
+    difference is dispositioned, so the difference has to be visible
+    somewhere, and this is the only reader that can see it.
+    """
+    tree = ast.parse(STUB.read_text())
+    out = set()
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for item in node.body:
+            if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if any(
+                    isinstance(d, ast.Name) and d.id == "property"
+                    for d in item.decorator_list
+                ):
+                    out.add(f"{node.name}.{item.name}")
+            elif isinstance(item, ast.AnnAssign) and isinstance(
+                item.target, ast.Name
+            ):
+                out.add(f"{node.name}.{item.target.id}")
+            elif isinstance(item, ast.Assign):
+                for target in item.targets:
+                    if isinstance(target, ast.Name):
+                        out.add(f"{node.name}.{target.id}")
+    return out
+
+
 # --- the curated declarations, through the sweep's resolver ------------
 
 #: The payload-rung sweep, which is the resolver this file SHARES rather
@@ -399,6 +432,31 @@ def unspelled_members(spelled):
             if f"{name}.{snake_case(member)}" in spelled:
                 continue
             out.append((name, member))
+    return out
+
+
+def arms_spelled_by_a_property(spelled, attributes):
+    """`{Type::Arm: Type.attribute}` — every ARM rule 1 accounts for
+    because the namesake declares an ATTRIBUTE of the arm's
+    snake-cased name.
+
+    The other two ways rule 1 accounts an arm say what they are: a
+    class attribute spelled exactly like the arm is that arm as a
+    constant, and a snake-cased CALLABLE is its constructor. A
+    snake-cased attribute is neither by construction — it is how a
+    FIELD getter is spelled too, and the field a getter answers can
+    share the arm's word by accident.
+    """
+    out = {}
+    for name, (decl, members) in sorted(curated_declarations().items()):
+        if decl.kind != "enum":
+            continue
+        for member in members:
+            if f"{name}.{member}" in spelled:
+                continue
+            spelling = f"{name}.{snake_case(member)}"
+            if spelling in attributes:
+                out[f"{name}::{member}"] = spelling
     return out
 
 
@@ -556,6 +614,23 @@ BOUND_AS = {
     # row's shape — a curated enum flattened onto its carrier's
     # attribute.
     "ClusterMaintenance": "Maintenance.variant",
+    # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
+    # `StepImport::Solid::coherence` hands a Rust caller the kernel's
+    # report whole and its discriminants are closed enums meant to be
+    # matched. Python receives the same facts through the OTHER
+    # consumer of the same kernel door — `CheckId::ChartCoherence`,
+    # whose evidence rows publish them — so each of the three below is
+    # the `NodeErrorKind` row's shape again, a curated type flattened
+    # onto its carrier's attributes.
+    #
+    # `CoherenceCondition` and `Unexaminable` share `chart_variant`
+    # because the tag alphabets are disjoint by construction and
+    # `tags.rs` says so; `CoherenceFinding`'s four numbers are four
+    # attributes of the same evidence row and `metres` is the one the
+    # claim is about.
+    "CoherenceCondition": "CheckEvidence.chart_variant",
+    "Unexaminable": "CheckEvidence.chart_variant",
+    "CoherenceFinding": "CheckEvidence.metres",
     # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
     # internal wiring-bug refusal — and cross exactly as their carrier
     # does: flattened to the `verb_arity` tag `EvaluationError.kind`
@@ -736,10 +811,11 @@ BOUND_AS = {
     # second attribute if it cares. Five words from an exhaustive
     # match, so a sixth normalization stops the bindings compiling.
     "NormalizationKind": "StructureNormalization.kind",
-    # `CurvePromotion::kind`, the same rule one row over. One word
-    # today (`circle`) and a map rather than a literal because the
-    # recognizer's named exclusions — line-as-degree-1, ellipse, helix,
-    # open arcs — each land here when their follow-up does.
+    # `CurvePromotion::kind`, the same rule one row over. Two words
+    # (`circle`, `line` — the degree-1 follow-up, #388) and a map
+    # rather than a literal because the recognizer's remaining named
+    # exclusions — ellipse, helix, open arcs — each land here when
+    # their follow-up does.
     "PromotedCurveKind": "CurvePromotion.kind",
     # THE OP FAMILIES' REFUSALS, at the same spelling and under the
     # same rule, applied at the carrier that holds the most of them.
@@ -871,16 +947,20 @@ BOUND_AS = {
     # below, `different-shape`, because its discriminant arrives as
     # which of these attributes is set rather than as a word.
     "Indeterminate": "FrameError.margin",
-    # THE LEVER-ARM REFUSAL, curated at `pncad::document` beside the
-    # `MateFault` arm that carries it, and its discriminant is the
-    # word that arm publishes: `datum_too_small`, the one way a datum
-    # can name a scale too small to lever a verdict over.
-    #
-    # Its fields DO cross, which is the difference from the shell
-    # row below: `MateFault.extent` and `MateFault.floor` are the
-    # scale the datum named and the floor it is under, in metres, so
-    # nothing about this refusal is readable only in the prose.
+    # THE LEVER REFUSAL, curated at `pncad::document` beside the
+    # `MateFault` arm that carries it (`mate_unleverable`), and its
+    # discriminant is the word that arm publishes: why one mated
+    # part's reach was not in hand (`part_unresolved`, `face_unbounded`,
+    # `malformed_body`, `no_extent`, `no_finite_bound`,
+    # `not_an_instance`). The instance it is about crosses as
+    # `MateFault.instance`, and a face that cannot be bounded names its
+    # kind in `MateFault.what` — `SurfaceKind`'s own name for it.
     "LeverRefusal": "MateFault.inner_variant",
+    # What a frame fails to be a placement: the word `PersistError`'s
+    # `maintenance_frame` arm publishes on `inner_variant` (`non_finite`,
+    # `improper`) for a recorded maintenance row held to the
+    # `SetPlacement` door's rule at load.
+    "FrameFault": "PersistError.inner_variant",
     # THE SHELL DOOR'S OWN REFUSAL, curated at `pncad::document`
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
@@ -1113,6 +1193,21 @@ BOUND_AS = {
     "all_faces": "Evaluation.all_faces",
     "all_vertices": "Evaluation.all_vertices",
     "apply": "Doc.apply",
+    # The mate solve's reach — the mated parts' own extent, what a
+    # solve and a mate-graph edit lever through — is spelled in Python
+    # as the `resolver=` keyword `evaluate` already has, on
+    # `solve_document`, `Doc.apply`, `Doc.insert` and `split`: a
+    # `Workspace` IS the reach's seam, and absent it every door refuses
+    # typed the way the kernel's refusing reach does.
+    "MateReach": "Doc.apply",
+    "PartReach": "Doc.apply",
+    "RefusingReach": "Doc.apply",
+    "mate_reach": "Doc.apply",
+    # A part whose reach is not in hand faults the mate; Python reads
+    # it as `MateFault`'s `mate_unleverable` variant, with the lever
+    # refusal's own word as `inner_variant` (its row is in NOT_BOUND's
+    # `different-shape` family, beside the other inner refusals).
+    "ReachRefusal": "MateFault",
     "declare": "Doc.declare",
     "declare_all": "Doc.declare_all",
     "declare_node": "Node.declare",
@@ -1995,6 +2090,17 @@ NOT_BOUND = {
     "BinaryOptions": SHAPE,
     "BlendRefusal": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
+    # The two CONTAINERS of the chart-coherence vocabulary whose three
+    # discriminants sit in `BOUND_AS` above. Python never holds
+    # either: the registry resident flattens the report into one
+    # `CheckFinding` per finding and one per unexamined loop, so the
+    # facts cross as rows of `ChecksReport.findings` rather than as a
+    # report object, and `Unexamined`'s face and loop are arena keys,
+    # which do not cross at all. The import door's own channel is
+    # unbound on the Python side for the reason `surface_census.rs`
+    # records against `examine_chart_coherence`.
+    "CoherenceReport": SHAPE,
+    "Unexamined": SHAPE,
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
     "Dimension": SHAPE,
@@ -2038,6 +2144,16 @@ NOT_BOUND = {
     "DocParamField": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
+    # Python's document keeps no edit log: `Doc.save` writes an empty
+    # log and `load` replays below the wrapper, so the logged entry
+    # (an edit with the cluster-maintenance rows it performed), the
+    # replay door that re-applies those rows, and the migration door
+    # that re-derives them for a log from before they were recorded
+    # have no Python shape to bind.
+    "LoggedEdit": SHAPE,
+    "apply_logged": SHAPE,
+    "replay_entry": SHAPE,
+    "load_with": SHAPE,
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
@@ -2131,6 +2247,21 @@ NOT_BOUND = {
     # word beside them would publish one fact twice, the
     # `frame_error_tag` rule at the arm one rung up.
     "MarginDiag": SHAPE,
+    # WHAT A LEVERED CLASH MEASURED, curated at `pncad::document`
+    # beside the `MateFault` arm that carries it (`mate_contradictory`)
+    # — and, like `MarginDiag`, a discriminant that crosses as WHICH
+    # ATTRIBUTE IS SET rather than as a word: an authored roll is
+    # `MateFault.lever_tilt`, a dimensionless residual is
+    # `MateFault.lever_residual`, and the arm both lever is
+    # `MateFault.lever_arm`. Both arms reach a Python caller and each
+    # is distinguishable from the other, so a `lever_kind` word beside
+    # them would publish one fact twice.
+    "Lever": SHAPE,
+    # WHAT A CONTRADICTORY REFUSAL MEASURED, the type that holds the
+    # lever above and crosses the same way: a length is `clash` alone,
+    # a lever is `clash` beside its halves, and the structural refusal
+    # is `clash` absent under the predicate word `mate_member_empty`.
+    "Clash": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.
@@ -2484,6 +2615,16 @@ NOT_BOUND = {
     "face_name": INTERIOR,
     # The predicate; `Member` above carries the argument for both.
     "member_of": INTERIOR,
+    # The coset table's static gaps (a clocking rider on a planar rest,
+    # a standalone clocking), the one home the coset table and the
+    # viewer's mate tool read. A Python caller meets the same sentence
+    # at the door that asks it: `Doc.insert` raises `mate_refused` with
+    # `inner_variant == "mate_table_lacks"` and `fault.what` the table's
+    # words, before any solve. Its sibling `class_admission` IS bound
+    # because a class the solve admits can still refuse at the at-rest
+    # gate, which no insert refusal foretells; a table gap has no such
+    # second door.
+    "table_gap": INTERIOR,
     "validated": INTERIOR,
     # **The gathered-product doors, one family, and they are what the
     # binding CALLS.** `Product` is the document's product with
@@ -2933,6 +3074,14 @@ NOT_BOUND = {
 #: the same receiver, and nothing about semantics.
 MEMBERS_BOUND_AS = {
     # --- an arm that crosses as a TAG WORD -------------------------
+    # A crossing is whatever KIND of edge crossed the cut, and a mate
+    # is the only kind that can — so the one arm crosses as the one
+    # tag word. It was accounted by SPELLING until the arm's payload
+    # lost the `mate` field whose getter happened to share the arm's
+    # snake-cased name (`InterfaceCrossing::Mate`'s own doc argues why
+    # a crossing carries no provenance); the shape that hid it is
+    # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
+    "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
@@ -2985,10 +3134,17 @@ MEMBERS_BOUND_AS = {
     # can make one appear. Filed as
     # `work/lib/stranded-appearance-is-bound-but-unreachable-from-python.md`.
     # `Maintenance::Strand` has no such gap: `Node.fillet` takes a name
-    # selection and `DocEdit.delete_node` is bound.
+    # selection and `DocEdit.delete_node` is bound. Nor does
+    # `Maintenance::OrphanedDeclare`, which needs a `Declare` and a
+    # consumer to delete: `Doc.declare_all`, `Node.boolean`'s
+    # `declare=` and `DocEdit.delete_node` are all bound, and
+    # `test_document.py`'s
+    # `test_deleting_the_consumer_reports_the_declaration_it_orphaned`
+    # is the Python program that makes one appear.
     "Maintenance::Cluster": "Maintenance.variant",
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
+    "Maintenance::OrphanedDeclare": "Maintenance.variant",
     # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
     # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
     # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
@@ -3028,14 +3184,14 @@ MEMBERS_BOUND_AS = {
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
     "EditError::NotStructuralSlot": "EditError.variant",
-    "EditError::UnknownPayloadParam": "EditError.variant",
-    "EditError::PayloadParamDimensionMismatch": "EditError.variant",
+    "EditError::PayloadUnknownDocParam": "EditError.variant",
+    "EditError::PayloadDocParamDimension": "EditError.variant",
     "EditError::MeasureMalformed": "EditError.variant",
     "EditError::AssertionTarget": "EditError.variant",
     "EditError::DeclareInputNotDeclare": "EditError.variant",
     "EditError::AssertionDimension": "EditError.variant",
-    "EditError::UnknownDocParam": "EditError.variant",
-    "EditError::DocParamDimensionMismatch": "EditError.variant",
+    "EditError::SlotUnknownDocParam": "EditError.variant",
+    "EditError::SlotDocParamDimension": "EditError.variant",
     "EditError::ContinuousParamCannotBeCount": "EditError.variant",
     "EditError::DocParamNotDeclared": "EditError.variant",
     "EditError::DocParamValueKindMismatch": "EditError.variant",
@@ -3075,8 +3231,11 @@ MEMBERS_BOUND_AS = {
     "EditError::NonFinitePlacement": "EditError.variant",
     "EditError::PlacementAxis": "EditError.variant",
     "EditError::NonFiniteAlignment": "EditError.variant",
+    "EditError::MateRefused": "EditError.variant",
     "EditError::UpdateOnNonInstance": "EditError.variant",
     "EditError::PinUnchanged": "EditError.variant",
+    "EditError::MaintenanceRefused": "EditError.variant",
+    "EditError::MaintenanceUnrecorded": "EditError.variant",
     "EvalError::UnknownParam": "EvalError.variant",
     "EvalError::ParamDimensionMismatch": "EvalError.variant",
     "EvalError::CountExprInContinuousEval": "EvalError.variant",
@@ -3089,6 +3248,7 @@ MEMBERS_BOUND_AS = {
     "HitTestError::NodeFailed": "HitTestError.variant",
     "HitTestError::NodePoisoned": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
+    "HitTestError::Ambiguous": "HitTestError.variant",
     "HitTestError::Unnamed": "HitTestError.variant",
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
@@ -3174,6 +3334,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
     "PersistError::EditReplay": "PersistError.variant",
+    "PersistError::MaintenanceFrame": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
@@ -3464,6 +3625,41 @@ MEMBERS_BOUND_AS = {
     "SplitOutcome::part_maintenance": "Doc.last_maintenance",
 }
 
+#: **The arms rule 1 accounts for by a same-named PROPERTY, written
+#: down.**
+#:
+#: THE RULE: a snake-cased attribute is a spelling of an arm only
+#: where this table says which question it answers. Rule 1 cannot ask
+#: that — a property is how a field getter is spelled too, so an arm
+#: is accounted the moment a FIELD of its own payload happens to carry
+#: the arm's word. `InterfaceCrossing::Mate` was accounted that way
+#: for the life of a `mate` getter that answered the crossing's
+#: provenance id and said nothing about the arm, and the arm's absence
+#: from `MEMBERS_BOUND_AS` — where it belongs, as a tag word — was
+#: invisible until the field went. The blind spot is named at the top
+#: of this file; this is the part of it a list can close. Every arm
+#: accounted this way is here or `test_every_arm_accounted_by_a_
+#: property_is_listed` fails naming it, so the next one is WRITTEN
+#: rather than assumed, and a reader can see which kind it is.
+#:
+#: Rule 1's verdict does not move: each of these is accounted, and
+#: none of them owes a `MEMBERS_BOUND_AS` row today.
+ARMS_SPELLED_BY_A_PROPERTY = {
+    # A PREDICATE for the arm: true exactly when the value is that
+    # arm, which is the arm, read. `ClassAdmission.variant` and
+    # `Denotation`'s prose both say so.
+    "ClassAdmission::Mints": "ClassAdmission.mints",
+    "Denotation::Tied": "Denotation.tied",
+    # The arm's PAYLOAD, not the arm: the mesh index the refusal
+    # carries, and the snapshot invariant's own sentence. Each arm
+    # itself crosses as the tag word beside them
+    # (`variant == "mesh_index"`, `variant == "snapshot"`), which is
+    # the `InterfaceCrossing::Mate` shape exactly — accounted by a
+    # word that is about something else.
+    "NodePickError::Index": "NodePickError.index",
+    "PersistError::Snapshot": "PersistError.snapshot",
+}
+
 #: Members with no Python spelling at all, by family — `NOT_BOUND`'s three
 #: families, for their reasons, one level in.
 #:
@@ -3573,6 +3769,7 @@ class TestBindingCensus(unittest.TestCase):
     def setUp(self):
         self.curated = curated_names()
         self.top, self.members = stub_surface()
+        self.attributes = stub_attributes()
         self.declarations = curated_declarations()
 
     def test_the_census_is_not_vacuous(self):
@@ -3811,6 +4008,30 @@ class TestBindingCensus(unittest.TestCase):
             ("Node", "Extrude"),
             unspelled_members(self.members),
             "`Node.extrude` is in the stub and the rule should account it",
+        )
+
+    def test_every_arm_accounted_by_a_property_is_listed(self):
+        """**The accident that hid an arm, made loud.**
+
+        Rule 1 counts a snake-cased property as a spelling of an arm,
+        and cannot ask whether the property is about the arm or about
+        a field of its payload that shares the word — the second is
+        how `InterfaceCrossing::Mate` went unlisted for the life of a
+        `mate` getter. So the set is pinned rather than trusted: every
+        arm accounted that way is in `ARMS_SPELLED_BY_A_PROPERTY` with
+        the question its property answers, and a new one fails here
+        until somebody writes down which kind it is.
+
+        Both directions, as every roster here decays: an arm that
+        stopped being accounted this way (its property renamed, the
+        arm gone, the type no longer curated) leaves the table too.
+        """
+        self.assertEqual(
+            arms_spelled_by_a_property(self.members, self.attributes),
+            ARMS_SPELLED_BY_A_PROPERTY,
+            "an arm is accounted by a same-named property that this "
+            "roster does not list (or a listed one no longer is): say "
+            "which question the property answers, or bind the arm",
         )
 
     def test_the_member_rosters_decay(self):

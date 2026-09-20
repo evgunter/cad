@@ -365,9 +365,8 @@ impl<T: Real> Body<T> {
         }
         for (he_key, row) in out.pcurves.iter_mut() {
             let on_plane = self
-                .get_half_edge(he_key)
-                .and_then(|he| self.get_loop(he.parent_loop))
-                .and_then(|lp| self.get_face(lp.face))
+                .face_of_half_edge(he_key)
+                .and_then(|f| self.get_face(f))
                 .is_some_and(|face| plane_surfaces.contains(&face.surface));
             if on_plane {
                 *row = row.mirrored_v();
@@ -417,12 +416,12 @@ impl<T: Real> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{RevertError, RevertLink};
-    use crate::fixtures::ops_cube;
+    use crate::test_support_fixtures::declined_cube;
     use geom_core::Tol;
 
     /// **CONSTRUCTION row, flipped from the M3 refusal pin** (S9
     /// pattern; the retired `UnsupportedSurface` record is on
-    /// [`RevertError`]). `ops_cube`'s faces all share the `mvfs`
+    /// [`RevertError`]). `declined_cube`'s faces all share the `mvfs`
     /// `Nurbs` placeholder surface — the exact shape that refused
     /// before S12 — and now revert: every face's `sense` flips, and
     /// nothing else about a non-plane surface moves. (The full
@@ -431,7 +430,7 @@ mod tests {
     /// `crates/sweep/tests/m5_s12_curved_ops.rs`.)
     #[test]
     fn revert_flips_sense_on_non_plane_faces_instead_of_refusing() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let before: Vec<bool> = cube.body.faces().map(|(_, f)| f.sense).collect();
         assert!(before.iter().all(|s| *s), "mvfs/mef mint sense: true");
         let reverted = cube.body.revert().expect("S12: curved revert is wired");
@@ -450,7 +449,7 @@ mod tests {
     }
 
     /// **Every loop's anchor moves to its source predecessor.**
-    /// `ops_cube`'s faces all share the `mvfs` placeholder surface
+    /// `declined_cube`'s faces all share the `mvfs` placeholder surface
     /// (not a plane), and a one-face body whose face is a plane
     /// carries a two-half-edge cycle: in both the reverted `first` is
     /// the source's `prev(first)`, which — `next` and `prev` having
@@ -500,7 +499,7 @@ mod tests {
             );
             moved
         };
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         assert_eq!(assert_moved(&cube.body, &cube.body.revert().unwrap()), 6);
 
         let plane = lone_plane_face();
@@ -545,7 +544,7 @@ mod tests {
     #[test]
     fn revert_refuses_a_dangling_anchor_prev_typed() {
         use crate::{HalfEdgeKey, LoopBoundary};
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let (lk, first) = cube
             .body
             .loops()

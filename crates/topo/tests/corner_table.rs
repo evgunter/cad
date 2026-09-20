@@ -33,7 +33,7 @@ const TOP_VOL: f64 = 4.0 * 3.0 * 0.25; // 3.0
 const PER_LEG_GAIN: f64 = 0.5 * 0.5 * 1.125 - 0.5 * 0.5 * 0.125; // 0.25
 
 fn top<T: Decide>() -> topo::Body<T> {
-    brick::<T>((0.0, 4.0), (0.0, 3.0), (1.0, 1.25))
+    brick::<T>((0.0, 4.0), (0.0, 3.0), (1.0, 1.25), Tol::witness())
 }
 
 fn leg<T: Decide>(cx: f64, cy: f64) -> topo::Body<T> {
@@ -47,7 +47,7 @@ fn leg<T: Decide>(cx: f64, cy: f64) -> topo::Body<T> {
     } else {
         (cy - 0.5, cy)
     };
-    brick::<T>((x0, x1), (y0, y1), (0.0, 1.125))
+    brick::<T>((x0, x1), (y0, y1), (0.0, 1.125), Tol::witness())
 }
 
 /// Capability pin: one corner-aligned leg unions tier-2-exactly WITH
@@ -57,8 +57,13 @@ fn leg<T: Decide>(cx: f64, cy: f64) -> topo::Body<T> {
 fn corner_aligned_leg_union_tier2_exact() {
     let a = top::<f64>();
     let b = leg(4.0, 3.0);
-    let r = union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness())
-        .expect("REGRESSION: declared corner-aligned leg union refused");
+    let r = union_with(
+        &a,
+        &b,
+        &flush_declarations(&a, &b, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("REGRESSION: declared corner-aligned leg union refused");
     let BooleanResult::Body(bb) = r else {
         panic!("nonempty overlap cannot be Empty")
     };
@@ -87,8 +92,13 @@ fn corner_aligned_table_four_legs_builds() {
     let mut table = top::<f64>();
     for (cx, cy) in [(4.0, 3.0), (4.0, 0.0), (0.0, 3.0), (0.0, 0.0)] {
         let l = leg(cx, cy);
-        let r = union_with(&table, &l, &flush_declarations(&table, &l), Tol::witness())
-            .expect("declared corner-aligned leg union refused");
+        let r = union_with(
+            &table,
+            &l,
+            &flush_declarations(&table, &l, Tol::witness()),
+            Tol::witness(),
+        )
+        .expect("declared corner-aligned leg union refused");
         let BooleanResult::Body(bb) = r else {
             panic!("nonempty overlap cannot be Empty")
         };
@@ -120,7 +130,12 @@ fn undeclared_corner_leg_refuses_loudly() {
 fn corner_aligned_leg_interval_refuses_or_exact() {
     let a = top::<geom_core::Interval>();
     let b = leg(4.0, 3.0);
-    match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness()) {
+    match union_with(
+        &a,
+        &b,
+        &flush_declarations(&a, &b, geom_core::Tol::witness()),
+        Tol::witness(),
+    ) {
         Err(_) => {} // conservative refusal: acceptable
         Ok(BooleanResult::Body(bb)) => {
             assert_eq!(validate_closed(&bb.body), Ok(()));

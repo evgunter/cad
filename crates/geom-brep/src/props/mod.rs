@@ -354,7 +354,14 @@ pub struct FaceContribution<T: Real> {
 /// escalated. Never a silent fallback.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PropsError {
-    /// A carrier or surface is the unimplemented `Nurbs` placeholder.
+    /// A carrier or surface this closed-form inventory has no arm for
+    /// and never will in this lane: the `Nurbs` placeholder, and a
+    /// `Curve3::Spiric` boundary edge on a plane (the oval's area is an
+    /// elliptic integral) or on a cylinder, cone or sphere (a spiric
+    /// lies on none). The spiric's frontier is the props quadrature
+    /// lane for a spiric-bounded face — the spiric unit's props PR;
+    /// the variant carries no `what`, so the frontier is named here
+    /// and at each raising site.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
     /// a stored-data consistency residual is definitely nonzero, or a

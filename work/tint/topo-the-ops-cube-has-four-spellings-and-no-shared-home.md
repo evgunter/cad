@@ -66,3 +66,43 @@ that only want the body, and `cube_by_hand` keeping its own.
 
 The doc example in `src/lib.rs` is the one spelling that is clearly
 right as it stands: a crate-level example has to read standalone.
+
+## A sixth spelling, and it is in another crate (2026-09-17, `dup/one-prism-builder`)
+
+`crates/mesh/tests/r2_mesh6_probes.rs`'s
+`r2_scaffold_strut_body_through_tessellate` (~`:168`) spells the same
+bare-topology ladder — `mvfs`, three `mev_line`s off `MevSite::Lone`
+then `MevSite::Fan`, the same
+`find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)`, `mef_chord` over
+`{he1: he_dc, he2: e_ab.he_plus}` — at the same unit corners, with the
+struts left unroofed on purpose (the body is deliberately not closed;
+that is the probe's subject).
+
+**It changes this row's remedy, not just its count.** The other five
+sites are inside `topo`, where `tests/common` is a home one of them
+could reach. A `mesh` test binary cannot name `topo`'s `tests/common`
+at all, so a shared `ops_cube` door that lives there does nothing for
+it. The home that serves all six is
+`crates/topo/src/test_support_impl.rs` behind `feature = "test-support"`
+— which is link 3 of
+`work/dup/brick-has-two-constructions-and-two-homes.md`, and this is a
+second independent consumer arguing for that link.
+
+Found by re-running this row's own instrument tree-wide at
+`9ddd24842`, plus a shape grep that row did not use:
+`git grep -n 'find_half_edge(seed'` with no path argument, which is the
+cube ladder's one distinctive call and returns 35 hits over 21 files.
+**What the shape grep cannot match**: a ladder that closes its bottom
+cap by any other means, one that names the half-edge through a local
+binding rather than `seed`, and the `mesh`/`sweep` builders that never
+seed with `mvfs` at all.
+
+Three in-`src` candidates the ladder census also returned, which this
+row does not list and which have not been read:
+`src/review_m1_pr2/cube_independent.rs`'s
+`independent_cube_full_verification` (~`:28`),
+`src/review_m1_pr2/atomicity.rs`'s
+`raw_corruption_paths_leave_the_body_deep_equal` (~`:208`) and
+`src/review_m1_pr3.rs`'s `build_box` (~`:159`). Candidates, not
+members: the census counts call sites, so a looping fixture's counts
+understate it and none of the three was opened.

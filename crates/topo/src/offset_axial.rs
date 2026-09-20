@@ -105,8 +105,13 @@
 //! `u_ref` and takes the corner's own station and radius, a sphere
 //! seam's great circle keeps its centre and plane and takes the
 //! chart's radius, a sphere-wall rim keeps the cap plane's normal and
-//! `u_ref` and takes the moved cap's own plane∩sphere section — and
-//! then it is **verified**: both endpoints are
+//! `u_ref` and takes the moved cap's own plane∩sphere section. **One
+//! stated exception to the kind law**: a meridian rim on a TORUS wall
+//! changes kind, because its moved locus is not a circle — the moved
+//! cap is parallel to the axis and off it, and cuts the torus in a
+//! spiric, minted as [`Curve3::Spiric`] from the cap's normal and
+//! stand-off and the moved tube's radii; every verification below
+//! still applies to it. Then the carrier is **verified**: both endpoints are
 //! read onto it and metered, and its midpoint is metered against BOTH
 //! moved surfaces. The parameters are always re-read, because a
 //! corner's motion slides an endpoint ALONG its own edge as readily as
@@ -128,8 +133,10 @@
 //! `torax_axial`; `TogetherNotAxial`'s oblique-plane arm;
 //! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`,
 //! and `shell7_seam_corner`'s three-quarter-turn cone frustum); the
-//! latitude posture's off-axis-centre refusal (the klein elbow's
-//! spiric rim, `torax_axial`, `verbs_shell`).
+//! re-author's out-of-plane refusal (a disc revolved a quarter turn:
+//! its equator seams are revolved-point declarations whose start
+//! corner the moved cap displaces off the sketch plane — the klein
+//! elbow, `torax_axial`, `verbs_shell`, `shell7_seam_corner`).
 //!
 //! **A hand-made operand, or the door called directly:** the
 //! no-profile-constraint refusal (a wedge's axis edge split by
@@ -147,12 +154,15 @@
 //! line), a cap's collinear vertex (station line) and a two-arc
 //! sphere's cocircular vertex (sphere circle) all shell through
 //! `shell7_seam_corner`. **No row at all**, written for correctness:
-//! the circle-beside-two-caps-still-on-the-axis refusal, the axis-pole
+//! the latitude posture's off-axis-centre refusal (no door-built
+//! operand carries a circle between two distinct non-torus,
+//! non-sphere charts with its centre off the axis; `torax_axial`
+//! demonstrates it by mutation), the torus rim mint's six refusing
+//! predicates, the circle-beside-two-caps-still-on-the-axis refusal, the axis-pole
 //! station arm and its off-axis-circle arm (a torus meridian cannot
 //! contain a pole, `R − r > 0` keeps it clear), the seam arms'
 //! refusing sides, the off-axis rim mint's four refusing predicates,
-//! the re-author's out-of-plane refusal, and the over-determined-
-//! azimuth arm — no constructible body here has more than one plane
+//! and the over-determined-azimuth arm — no constructible body here has more than one plane
 //! through the axis at a corner that is not also all-planar.
 //!
 //! # What this door does not do
@@ -162,10 +172,11 @@
 //! - **It does not widen the C5 table** and does not call it. A body
 //!   whose surfaces are not all coaxial about one axis — or whose kind
 //!   the gate does not know — never reaches here and keeps the refusal
-//!   it had. That includes a `plane × torus` rim on a PARTIAL revolve,
-//!   whose moved cap has stopped containing the axis and whose section
-//!   is a quartic; a FULL revolve's torus rim is a latitude circle and
-//!   is this door's, without the table being asked.
+//!   it had. A `plane × torus` rim on a PARTIAL revolve, whose moved
+//!   cap has stopped containing the axis, is minted here as the spiric
+//!   it is (the kind law's one exception, above) without the table
+//!   being asked, and a FULL revolve's torus rim is a latitude circle
+//!   and is this door's likewise.
 //! - **It does not touch global clearance.** `shell`'s wall-clearance
 //!   gate is the operand's and is unchanged; this door decides corners.
 //!   A sliver WEDGE whose two moved meridian planes cross outside the
@@ -538,7 +549,8 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
         let carrier = mint_carrier(
             edge,
             &old_carrier,
-            (t0_old, p_start),
+            (t0_old, t1_old),
+            p_start,
             (ca, cb),
             &frame,
             band,
@@ -1688,12 +1700,13 @@ fn nearest<T: Decide>(
 fn mint_carrier<T: Decide>(
     edge: EdgeKey,
     old: &Curve3<T>,
-    start: (T, Point3<T>),
+    old_span: (T, T),
+    p_start: Point3<T>,
     charts: (&MovedChart<T>, &MovedChart<T>),
     frame: &Frame<T>,
     band: Band,
 ) -> Result<Curve3<T>, ReplaceFaceError<T>> {
-    let (t0_old, p_start) = start;
+    let (t0_old, t1_old) = old_span;
     let (ca, cb) = charts;
     let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
     let translate = |delta: Vec3<T>| -> Result<Curve3<T>, ReplaceFaceError<T>> {
@@ -1799,12 +1812,7 @@ fn mint_carrier<T: Decide>(
                     u_ref,
                 },
             ) => {
-                let off = Vec3::new(
-                    frame.radial(*cc).norm() - *major_radius,
-                    frame.station(*cc) - frame.station(*center),
-                    T::zero(),
-                )
-                .norm();
+                let off = tube_centre_offset(frame, *cc, *center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
                     Ok(Sign::Zero) => Ok(Curve3::Circle {
                         center: *cc,
@@ -1898,7 +1906,7 @@ fn mint_carrier<T: Decide>(
         // normal, so one sine covers the operand plane and the moved
         // one together.
         let mh = m.normalize();
-        let tilt = axis.normalize().cross(mh).norm();
+        let tilt = cap_plane_tilt(*axis, mh);
         match decide(
             "offset_axial_rim_plane",
             Margin::levered(tilt, frame.extent),
@@ -1933,6 +1941,184 @@ fn mint_carrier<T: Decide>(
             radius: (sr.powi(2) - t.powi(2)).sqrt(),
             u_ref: *u_ref,
         });
+    }
+
+    // ---- The off-axis rim on a TORUS wall × meridian cap: the one
+    // kind-changing mint. ----
+    //
+    // The moved cap stands `d` off the axis, parallel to it, and cuts
+    // the moved torus not in a circle but in a spiric (the plane ×
+    // torus section for a plane parallel to the axis): two ovals when
+    // `|d| < R − r′`, of which the rim is the one the OLD rim's own
+    // midpoint sits beside. Every verification the module makes still
+    // applies — the old rim is verified to BE the wall × cap meridian
+    // circle at rest (not only the binding relation), the reach is
+    // decided before the root, the side and the sense are decided
+    // from the operand's own data, and the caller reads both
+    // endpoints back onto the result and meters its midpoint against
+    // both moved surfaces. Inline arithmetic only: no section call, no
+    // marching.
+    let torus_meridian = match (&ca.constraint, &cb.constraint) {
+        (Constraint::Torus { .. }, Constraint::Meridian { m, c }) => Some((ca, *m, *c)),
+        (Constraint::Meridian { m, c }, Constraint::Torus { .. }) => Some((cb, *m, *c)),
+        _ => None,
+    };
+    if let Some((wall, m, c)) = torus_meridian {
+        let Curve3::Circle {
+            center: cc,
+            axis,
+            radius,
+            ..
+        } = old
+        else {
+            return Err(refuse(
+                "an edge between a torus wall and a meridian cap whose carrier is not a \
+                 circle",
+            ));
+        };
+        let (
+            Surface::Torus {
+                center: tc,
+                axis: ta,
+                major_radius: big_r,
+                minor_radius: new_r,
+                ..
+            },
+            Surface::Torus {
+                minor_radius: old_r,
+                ..
+            },
+        ) = (&wall.new, &wall.old)
+        else {
+            return Err(ReplaceFaceError::Corrupt);
+        };
+        // The old rim is centred on the tube-centre circle `(ρ, h) =
+        // (R, h_c)` — one length in the meridian half-plane, the seam
+        // arm's comparand on a distinct-charts edge. Read against the
+        // MOVED torus's centre and major radius, which are the
+        // operand's own: the torus offset (`geom_brep::offset_surface`)
+        // moves the minor radius alone and keeps `center`, `axis`,
+        // `major_radius` and `u_ref` verbatim, so the tube-centre
+        // circle is the datum that does not move.
+        let off = tube_centre_offset(frame, *cc, *tc, *big_r);
+        match decide("offset_axial_rim_meridian", Margin::of(off), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "a circular edge between a torus wall and a meridian cap that is not \
+                     centred on the tube's own centre",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+        // ... and its radius is the operand tube's own.
+        let dr = *radius - *old_r;
+        match decide("offset_axial_rim_tube", Margin::of(dr), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "a circular edge between a torus wall and a meridian cap that is not the \
+                     wall's own meridian circle in the cap",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+        // ... and its plane is the cap's — the moved cap keeps its
+        // normal, so one sine covers the operand plane and the moved
+        // one together (the sphere arm's predicate, reused).
+        let n = m.normalize();
+        let tilt = cap_plane_tilt(*axis, n);
+        match decide(
+            "offset_axial_rim_plane",
+            Margin::levered(tilt, frame.extent),
+            band,
+        ) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "a circular edge between a torus wall and a meridian cap that does not \
+                     lie in the cap's own plane",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+        // The moved cap's signed stand-off from the torus centre along
+        // its own normal. The section is two ovals only while the cap
+        // stays short of the inner equator, and that is a length,
+        // decided before the root `√((R − r′)² − d²)` is ever taken.
+        let d = c - n.dot(vec_of(*tc));
+        match decide(
+            "offset_axial_rim_torus_reach",
+            Margin::of((*big_r - *new_r) - d.abs()),
+            band,
+        ) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "a meridian cap standing tangent to or beyond the torus's inner equator, \
+                     whose section is not two ovals",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+        // Which oval: the OLD rim's midpoint lies in the meridian plane
+        // through the axis, so its component along `m = axis × n` is
+        // `±ρ ∈ ±[R − r, R + r]` — a metre length, no lever. Zero is
+        // unreachable on a ring torus and refused rather than guessed.
+        let a = ta.normalize();
+        let in_plane = a.cross(n);
+        let q_mid = old.eval((t0_old + t1_old) * T::from_f64(0.5));
+        let side = in_plane.dot(q_mid - *tc);
+        let (n_side, d_side) = match decide("offset_axial_rim_side", Margin::of(side), band) {
+            Ok(Sign::Positive) => (n, d),
+            Ok(Sign::Negative) => (-n, -d),
+            Ok(Sign::Zero) => {
+                return Err(refuse(
+                    "a torus rim whose old midpoint stands on the cap's own trace of the \
+                     axis, so neither oval is named",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        };
+        // The sense: the old circle winds counterclockwise about its
+        // own axis, the spiric counterclockwise viewed from the tip of
+        // its `u_ref`, and both lie in the cap's plane — so the sign
+        // of `old.axis · u_ref` is whether the parameter runs the same
+        // way. The two spellings `(a, n, d)` and `(−a, −n, −d)` name
+        // one oval in opposite senses (the variant docs). A cosine of
+        // unit vectors, levered at the body's extent.
+        let sense = axis.normalize().dot(n_side);
+        let (axis_s, n_s, d_s) = match decide(
+            "offset_axial_rim_sense",
+            Margin::levered(sense, frame.extent),
+            band,
+        ) {
+            Ok(Sign::Positive) => (a, n_side, d_side),
+            Ok(Sign::Negative) => (-a, -n_side, -d_side),
+            Ok(Sign::Zero) => {
+                return Err(refuse(
+                    "a torus rim whose old circle's plane is not the cap's, so its sense \
+                     does not transfer",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        };
+        // Minted through the kind's own deciding door: its ring,
+        // two-oval and orthogonal-frame predicates re-state what the
+        // guards above already decided on the same numbers, so a
+        // refusal here is a kernel bug (a guard that let off-regime
+        // data past) and is named as one; an escalation is the
+        // constructor's own.
+        return match Curve3::spiric(*tc, axis_s, n_s, *big_r, *new_r, d_s, band) {
+            Ok(carrier) => Ok(carrier),
+            Err(geom::SpiricInvalid::Escalated(source)) => {
+                Err(ReplaceFaceError::Escalated { source })
+            }
+            Err(_) => Err(refuse(
+                "a torus rim whose minted spiric fails the kind's own regime after the \
+                 door's guards passed it",
+            )),
+        };
     }
 
     // Two distinct charts: the carrier keeps its KIND and its
@@ -1981,6 +2167,32 @@ fn mint_carrier<T: Decide>(
             "an edge between two distinct charts whose carrier is neither a line nor a circle",
         )),
     }
+}
+
+/// A circle centre's distance from the tube-centre circle `(ρ, h) =
+/// (R, h_c)` in the meridian half-plane — the one comparand both
+/// meridian-posture decisions read (`offset_axial_seam_meridian` on a
+/// same-surface seam, `offset_axial_rim_meridian` on a rim between
+/// two charts; two decisions, one spelling).
+fn tube_centre_offset<T: Real>(
+    frame: &Frame<T>,
+    centre: Point3<T>,
+    tube_centre: Point3<T>,
+    major_radius: T,
+) -> T {
+    Vec3::new(
+        frame.radial(centre).norm() - major_radius,
+        frame.station(centre) - frame.station(tube_centre),
+        T::zero(),
+    )
+    .norm()
+}
+
+/// The sine between a circle's plane normal and a cap plane's unit
+/// normal — the one comparand `offset_axial_rim_plane` reads at both
+/// rim arms (the sphere wall's and the torus wall's).
+fn cap_plane_tilt<T: Real>(circle_axis: Vec3<T>, cap_normal: Vec3<T>) -> T {
+    circle_axis.normalize().cross(cap_normal).norm()
 }
 
 /// **Does `p` stand on the axis?** The one door for that question —
@@ -2096,6 +2308,34 @@ fn param_on<T: Decide>(
             };
             let (a, b) = (ray(*old_center, q), ray(*center, p));
             t_old + a.cross(b).dot(n).atan2(a.dot(b))
+        }
+        // The kind-changing mint: the old window's turn is NOT carried
+        // across a kind change (its SENSE is, by the mint's own sense
+        // predicate), so the parameter is re-derived in the new
+        // parameter — the OLD point's minor angle on the OLD torus
+        // anchors the branch, and `param_near` reads the moved point
+        // within a half-turn of it. The old circle's centre is the
+        // tube centre in the cap's plane, so the minor angle needs
+        // only the carrier's own frame — read off the MOVED carrier's
+        // `center` and `major_radius`, which equal the old torus's
+        // (the torus offset keeps both; the mint verified the old rim
+        // against them).
+        (
+            Curve3::Spiric {
+                center,
+                axis,
+                major_radius,
+                ..
+            },
+            Curve3::Circle { .. },
+        ) => {
+            let w = q - *center;
+            let h = w.dot(*axis);
+            let rho = (w - *axis * h).norm();
+            let v_q = h.atan2(rho - *major_radius);
+            carrier
+                .param_near(p, v_q)
+                .ok_or(ReplaceFaceError::Corrupt)?
         }
         _ => {
             return Err(ReplaceFaceError::TogetherAxialEdge {

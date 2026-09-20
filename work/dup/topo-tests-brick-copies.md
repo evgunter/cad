@@ -1,7 +1,7 @@
 ---
 id: topo-tests-brick-copies
 kind: issue
-title: Twenty-four private brick fixtures in crates/topo/tests, all of them one line over common::prism_z
+title: Sixty-six box spellings in crates/topo/tests, 23 of them named `fn brick`, all one line over common::prism_z
 status: closed
 opened: 2026-09-15
 branch: dup/topo-brick-copies
@@ -85,14 +85,14 @@ argument — the only form that makes no path claim):
 **The alternatives above rest on a false premise.** Options 2 and 3
 object that a `topo`-side brick "would be hand-built through the Euler
 operators and would NOT be the same body the rest of the tree calls a
-brick". Every one of the 24 copies **already is** that body: each is a
+brick". Every one of the 23 copies **already is** that body: each is a
 one-line delegation to `common::prism_z`, which already lives in
 `crates/topo/tests/common/mod.rs` and is already imported by every one
 of these suites. They differ only in the trait bound
 (`Decide`, `+ Bounds`, `+ CertifiedBounds + PropsQuadLane`) and in the
 argument spelling (`m4_pr2_transform.rs` takes `(x, y, h)`;
 `geom_origin_rows.rs` takes nothing). So this is not a new spelling
-being minted — it is 24 copies of a wrapper over a shared builder that
+being minted — it is 23 copies of a wrapper over a shared builder that
 is already in a home they can all reach.
 
 **And option 1's blocker is not a crate-graph decision either.**
@@ -116,6 +116,11 @@ spellings** the name-shaped census could not see (`distant_brick`,
 two `bx` twins, `box_at`, `corner_table`'s `top`/`leg`, two `bx`
 closures, and six inline pairs). **34 spellings removed.** Method item
 2 — grep the construction, not the name — is what found them.
+
+*(Superseded: 34 was the figure when this section was written. The
+reviewer's differently-shaped sweep then found 26 more. The closing
+table below is authoritative at 66, and the progression 23 → 34 → 66
+is left standing because it is the row's evidence for method item 1.)*
 
 The remaining half — whether `topo`'s Euler-built brick and `sweep`'s
 extrude-built one are one fixture or two, and where the shared one

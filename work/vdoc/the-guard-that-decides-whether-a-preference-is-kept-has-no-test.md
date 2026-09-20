@@ -19,7 +19,7 @@ and the two stores' words drifting apart from what they refuse with.
 ever learns their theme is not being kept, and no test in
 `crates/viewer/tests` reaches either:
 
-- `ViewerApp::remember_theme`'s `if self.store.unusable().is_some()`
+- `ViewerApp::remember_prefs`'s `if self.store.unusable().is_some()`
   guard — the statement that a store keeping nothing is not asked, and
   the site whose SILENCE was the original defect.
 - the `frame::prefs_badge(self.store.unusable().as_ref())` draw beside
@@ -43,7 +43,7 @@ toolbar widget, unreachable only because `ViewerApp` cannot be built.
 Nothing here argues otherwise, and an earlier draft of this row did.
 
 **The guard is genuinely different, but not because it is "not a
-widget".** The obstacle is that `remember_theme` is a PRIVATE method:
+widget".** The obstacle is that `remember_prefs` is a PRIVATE method:
 even a test that could build a `ViewerApp` could not call it, and
 would have to drive `update()` and simulate a picker change to reach
 it — or the method's visibility would have to change, which is a

@@ -2,8 +2,9 @@
 id: datum-view-ok-path-is-asserted-nowhere
 kind: issue
 title: datum_view's Ok path is asserted nowhere — the larger-side rule survives being inverted
-status: open
+status: closed
 opened: 2026-09-16
+closed: 2026-09-17
 ---
 
 
@@ -59,3 +60,17 @@ non-issue rather than a second thing to keep in step.
 `crates/viewer/src/datums.rs` and `crates/viewer/tests/datum_draw.rs`
 — VIEW's, and the test file is the standing double claim with CHROME,
 S-TCOST and S-TINT.
+
+## Closed
+
+By the reversed-Z / seen-region change (branch
+`viewer/reversed-z-grid`). `View` no longer carries a larger-side
+field: it carries `window_px: [width, height]` and the camera's `up`,
+and the larger side is read in `View::viewport_px` where only an
+axis's reach uses it. `datum_draw.rs`'s
+`datum_view_reports_the_camera_and_the_window_it_is_given` drives the
+door with a wide and a tall window and asserts every field it
+answers — the window in its own order, eye, target, up, and the
+vertical field over the vertical pixel count. `view_at` still builds
+its `View` by hand; the new row is what holds the door those rows
+bypass.

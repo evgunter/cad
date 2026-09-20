@@ -21,10 +21,14 @@ use crate::common;
 
 use common::{insert, len, shape};
 use pncad::document::{Doc, ValuePayload};
+use pncad::document::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
+use pncad::geom_core::Point2;
 use pncad::geom_core::Tol;
-use pncad::profile::{ArcSide, ArcSweep, SketchPlane, TipState, Verb};
+use pncad::profile::{
+    ArcData, ArcMode, ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb,
+};
 use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
-use viewer::sketch::{ArcSpec, PathStep, PathTarget, PreviewError, preview};
+use viewer::sketch::{self, Notation, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
 /// millimetre, fine enough that a circle's points land on it to well
@@ -36,16 +40,21 @@ fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("path-start", tol), tol)
 }
 
+/// A point of the sketch frame, in metres.
+fn pt(x: f64, y: f64) -> Point2<f64> {
+    Point2::new(x, y)
+}
+
 /// A closed square, authored the way the form does: bind the entry,
 /// three legs, then a leg that targets the start.
 fn square(side: f64) -> ProfileShape {
     ProfileShape::Path {
         steps: vec![
-            PathStep::At([0.0, 0.0]),
-            PathStep::LineTo(PathTarget::Point([side, 0.0])),
-            PathStep::LineTo(PathTarget::Point([side, side])),
-            PathStep::LineTo(PathTarget::Point([0.0, side])),
-            PathStep::LineTo(PathTarget::Start),
+            Step::At(pt(0.0, 0.0)),
+            Step::LineTo(Target::Point(pt(side, 0.0))),
+            Step::LineTo(Target::Point(pt(side, side))),
+            Step::LineTo(Target::Point(pt(0.0, side))),
+            Step::LineTo(Target::Start),
         ],
     }
 }
@@ -113,12 +122,12 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
     // A half turn: b = tan(θ/4) = tan(π/4) = 1 over the diameter.
     let template = ProfileShape::Path {
         steps: vec![
-            PathStep::At([-radius, 0.0]),
-            PathStep::ArcTo(ArcSpec::Bulge {
-                target: PathTarget::Point([radius, 0.0]),
+            Step::At(pt(-radius, 0.0)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(radius, 0.0)),
                 b: 1.0,
             }),
-            PathStep::LineTo(PathTarget::Start),
+            Step::LineTo(Target::Start),
         ],
     };
     let drawn = preview(
@@ -173,7 +182,7 @@ fn an_arc_leg_flattens_onto_its_own_carrier() {
 fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let tol = Tol::witness();
     let template = ProfileShape::Path {
-        steps: vec![PathStep::At([0.0, 0.0]), PathStep::Tangent],
+        steps: vec![Step::At(pt(0.0, 0.0)), Step::Tangent],
     };
     let refusal = preview(
         SketchPlane::xy(),
@@ -237,9 +246,9 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     let tol = Tol::witness();
     let template = ProfileShape::Path {
         steps: vec![
-            PathStep::At([0.0, 0.0]),
-            PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
-            PathStep::LineTo(PathTarget::Point([0.01, 0.01])),
+            Step::At(pt(0.0, 0.0)),
+            Step::LineTo(Target::Point(pt(0.01, 0.0))),
+            Step::LineTo(Target::Point(pt(0.01, 0.01))),
         ],
     };
     let drawn = preview(
@@ -297,7 +306,7 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
 fn an_unclosable_chain_reports_the_refusal_for_the_program_that_was_written() {
     let tol = Tol::witness();
     let template = ProfileShape::Path {
-        steps: vec![PathStep::At([0.0, 0.0]), PathStep::Angle(0.0)],
+        steps: vec![Step::At(pt(0.0, 0.0)), Step::Angle(0.0)],
     };
     let refusal = preview(
         SketchPlane::xy(),
@@ -354,126 +363,257 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     assert!(out.refusal.is_some(), "the door refuses what it drew");
 }
 
-/// **Every verb lowers.**
+/// **Every verb lowers, at every arc mode and every target form.**
 ///
-/// The census the exhaustive lowering deserves: each arm of the step
-/// vocabulary is put through the door that mints its `Expr` slots, so
-/// a verb that lowers to a dimension mismatch — a radius minted as an
-/// angle — is caught here rather than at somebody's first click. The
-/// WALK is not the subject: these steps are not a legal chain and are
-/// not asked to be.
+/// The census the form's vocabulary deserves, keyed on the KERNEL's
+/// own lists: each verb the transition table declares is taken at the
+/// step the form starts it as (`sketch::fresh_step`) and put through
+/// the door that mints its `Expr` slots, so a starting step the lift
+/// refuses — a placeholder that is not a finite literal, a
+/// complete-loop verb filed as a chain step — is caught here rather
+/// than at somebody's first click. The same goes for each arc mode
+/// inside `arc_to` and each target form inside `line_to` and a bulge
+/// arc. The WALK is not the subject: each step is lowered alone and is
+/// not asked to be a legal chain. Which DIMENSION each argument is
+/// minted at is the lift's own table, and
+/// `a_path_authored_in_millimetres_remembers_its_notation` below is the
+/// row that reads it back.
 #[test]
 fn every_authoring_verb_lowers_to_its_recorded_step() {
-    let arc = ArcSpec::Radius {
-        r: 0.01,
-        side: ArcSide::Left,
-    };
-    let steps = vec![
-        PathStep::At([0.0, 0.001]),
-        PathStep::Angle(0.5),
-        PathStep::Toward { dx: 1.0, dy: 0.0 },
-        PathStep::Tangent,
-        PathStep::Cusp,
-        PathStep::Turn(0.25),
-        PathStep::Line(0.01),
-        PathStep::LineTo(PathTarget::Point([0.01, 0.0])),
-        PathStep::ArcTo(arc),
-        PathStep::ArcTo(ArcSpec::Bulge {
-            target: PathTarget::Start,
+    let mut steps: Vec<Step<f64>> = Verb::ALL
+        .iter()
+        .map(|&verb| sketch::fresh_step(verb))
+        .collect();
+    steps.extend(
+        ArcMode::ALL
+            .iter()
+            .map(|&mode| Step::ArcTo(sketch::fresh_arc(mode))),
+    );
+    for &kind in TargetKind::ALL {
+        steps.push(Step::LineTo(sketch::fresh_target(kind)));
+        steps.push(Step::ArcTo(ArcData::Bulge {
+            target: sketch::fresh_target(kind),
             b: 0.5,
-        }),
-        PathStep::ArcTo(ArcSpec::Via {
-            q: [0.005, 0.005],
-            target: PathTarget::Point([0.01, 0.0]),
-        }),
-        PathStep::ArcTo(ArcSpec::Center {
-            c: [0.0, 0.0],
-            winding: ArcSweep::Ccw,
-            target: PathTarget::Point([0.01, 0.0]),
-        }),
-        PathStep::ArcTo(ArcSpec::Sweep {
-            r: 0.01,
-            side: ArcSide::Right,
-            angle: 1.0,
-        }),
-        PathStep::ArcTo(ArcSpec::ArcLen {
-            r: 0.01,
-            side: ArcSide::Left,
-            len: 0.005,
-        }),
-        PathStep::TangentArcTo(PathTarget::Start),
-        PathStep::Fillet(0.001),
-        PathStep::FilletArc {
-            radius: 0.001,
-            spec: arc,
-        },
-        PathStep::ArcFillet {
-            spec: arc,
-            radius: 0.001,
-        },
-        PathStep::ArcFilletArc {
-            spec: arc,
-            radius: 0.001,
-            spec2: arc,
-        },
-        PathStep::FarEndTo([0.02, 0.0]),
-        PathStep::CloseTo,
-    ];
-    // **The census is the COMPILER's, not a number written here.**
-    // `ordinal` is an exhaustive match, so a verb added to the
-    // vocabulary does not compile until somebody gives it a number —
-    // and the ordinals covered here have to run from 0 with no hole,
-    // so a verb slotted into the middle of the list is caught the
-    // moment it has one. A hand-written count caught neither.
-    //
-    // The residual, stated because the row cannot close it: a verb
-    // given an ordinal PAST `CloseTo`'s extends a range this sweep
-    // does not know the end of, and would go untested. `ordinal`'s
-    // own docs carry the obligation that answers it — new verbs take
-    // a number before `CloseTo`'s, and `CloseTo` stays last.
-    let covered: std::collections::BTreeSet<usize> = steps.iter().map(ordinal).collect();
-    let contiguous: std::collections::BTreeSet<usize> = (0..covered.len()).collect();
-    assert_eq!(
-        covered, contiguous,
-        "the verbs covered here leave a hole: every ordinal from 0 needs a case",
-    );
-    assert_eq!(
-        covered.len(),
-        ordinal(&PathStep::CloseTo) + 1,
-        "the vocabulary is bigger than this row covers — see `ordinal`'s obligation",
-    );
-
-    shape(&ProfileShape::Path { steps });
+        }));
+    }
+    for step in steps {
+        let verb = step.verb();
+        let program = shape(&ProfileShape::Path { steps: vec![step] });
+        // A verb the lift misfiles is caught as a count: the complete-
+        // loop verbs become their own program forms, and every other
+        // verb one step of a chain.
+        match (verb, &program) {
+            (Verb::Circle, LoopProgram::Circle { .. })
+            | (Verb::CircleSplit, LoopProgram::CircleSplit { .. }) => {}
+            (_, LoopProgram::Chain(lowered)) => assert_eq!(lowered.len(), 1, "{verb}"),
+            (verb, program) => panic!("{verb} lowered to {program:?}"),
+        }
+    }
 }
 
-/// Each verb's position in the vocabulary, as an exhaustive match —
-/// the census's oracle.
+/// **A path takes the form's notation at every argument that has
+/// one**: its lengths remember millimetres and its angles degrees, and
+/// a dimensionless argument is written as any dimensionless literal
+/// is, because it has one spelling.
 ///
-/// **A verb added to `PathStep` takes a number BEFORE `CloseTo`'s,
-/// and `CloseTo` keeps the last one.** The row above reads the
-/// vocabulary's size off `CloseTo` — it has no other way to know it —
-/// so a verb numbered past it would be a verb the census never asks
-/// about. Renumbering the arms below is free; the obligation is only
-/// that `CloseTo` ends them.
-fn ordinal(step: &PathStep) -> usize {
-    match step {
-        PathStep::At(_) => 0,
-        PathStep::Angle(_) => 1,
-        PathStep::Toward { .. } => 2,
-        PathStep::Tangent => 3,
-        PathStep::Cusp => 4,
-        PathStep::Turn(_) => 5,
-        PathStep::Line(_) => 6,
-        PathStep::LineTo(_) => 7,
-        PathStep::ArcTo(_) => 8,
-        PathStep::TangentArcTo(_) => 9,
-        PathStep::Fillet(_) => 10,
-        PathStep::FilletArc { .. } => 11,
-        PathStep::ArcFillet { .. } => 12,
-        PathStep::ArcFilletArc { .. } => 13,
-        PathStep::FarEndTo(_) => 14,
-        PathStep::CloseTo => 15,
+/// The notation is written over whatever arguments the lifted program
+/// reports holding, so a row that only read one length would not
+/// notice an angle left canonical, or a bulge given a unit.
+#[test]
+fn a_path_authored_in_millimetres_remembers_its_notation() {
+    let mm = Notation {
+        length: pncad::quantity::MM,
+        angle: pncad::quantity::DEG,
+    };
+    let path = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(0.0, 0.001)),
+            Step::Angle(0.5),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(0.01, 0.0)),
+                b: 0.5,
+            }),
+        ],
+    };
+    let LoopProgram::Chain(lowered) = sketch::loop_program(&path, mm).expect("finite literals")
+    else {
+        panic!("a chain lowers to a chain");
+    };
+    let written = |expr: &pncad::document::Expr| expr.display_unit().map(|unit| unit.symbol());
+    let [
+        ProgramStep::At([x, y]),
+        ProgramStep::Angle(theta),
+        ProgramStep::Toward { dx, dy },
+        ProgramStep::ArcTo(ProgramArcData::Bulge {
+            target: ProgramTarget::Point([tx, ty]),
+            b,
+        }),
+    ] = lowered.as_slice()
+    else {
+        panic!("the steps lower one for one: {lowered:?}");
+    };
+    for length in [x, y, tx, ty] {
+        assert_eq!(written(length), Some("mm"));
     }
+    assert_eq!(written(theta), Some("deg"));
+    // A dimensionless argument is written the one way a dimensionless
+    // literal is, whatever the form's notation says.
+    let plain = pncad::document::Expr::literal(1.0, pncad::document::Dimension::Scalar)
+        .expect("a finite scalar");
+    for scalar in [dx, dy, b] {
+        assert_eq!(written(scalar), written(&plain));
+    }
+}
+
+/// **The form's starting step for every verb is the verb it was asked
+/// for.** `sketch::fresh_step` is exhaustive on `Verb`, which holds
+/// that every verb HAS a starting step; this holds that each one is
+/// the right verb's, which a match arm copied from its neighbour would
+/// break while still compiling.
+#[test]
+fn every_verbs_starting_step_names_that_verb() {
+    for &verb in Verb::ALL {
+        assert_eq!(sketch::fresh_step(verb).verb(), verb);
+    }
+    for &mode in ArcMode::ALL {
+        assert_eq!(sketch::fresh_arc(mode).mode(), mode);
+    }
+    for &kind in TargetKind::ALL {
+        assert_eq!(sketch::fresh_target(kind).kind(), kind);
+    }
+}
+
+/// **The declared straight continuation and the declared seam arrival
+/// author through the form** — the two things it could not say while
+/// it held a copy of the kernel's step rather than the step itself.
+///
+/// A square whose left side is cut at its midpoint and continued with
+/// `continue_to`, and whose entry sits mid-way along the bottom side,
+/// so the closing leg arrives continuing the side the entry leaves
+/// along: a TANGENT seam, which is refused unless the target declares
+/// it.
+#[test]
+fn continue_to_and_the_declared_arrival_author_through_the_door() {
+    let tol = Tol::witness();
+    let steps = vec![
+        Step::At(pt(0.005, 0.0)),
+        Step::LineTo(Target::Point(pt(0.01, 0.0))),
+        Step::LineTo(Target::Point(pt(0.01, 0.01))),
+        Step::LineTo(Target::Point(pt(0.0, 0.01))),
+        Step::LineTo(Target::Point(pt(0.0, 0.005))),
+        Step::ContinueTo(Target::Point(pt(0.0, 0.0))),
+        Step::LineTo(Target::StartArriving),
+    ];
+    let drawn = preview(
+        SketchPlane::xy(),
+        &[ProfileShape::Path {
+            steps: steps.clone(),
+        }],
+        tol,
+        CHORD,
+    )
+    .expect("the declared seam previews");
+    assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
+    assert!(drawn.loops[0].closed);
+
+    // The same seam UNDECLARED is the refusal whose sentence names the
+    // declaration — the one a person using this form now can act on.
+    let mut undeclared = steps.clone();
+    undeclared[6] = Step::LineTo(Target::Start);
+    let refusal = preview(
+        SketchPlane::xy(),
+        &[ProfileShape::Path { steps: undeclared }],
+        tol,
+        CHORD,
+    )
+    .expect_err("an undeclared tangent seam is refused");
+    assert!(
+        matches!(
+            &refusal,
+            PreviewError::Geometry { step: 6, rendered, .. } if rendered.contains("arrives_tangent")
+        ),
+        "{refusal}",
+    );
+
+    let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
+    insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane,
+            loops: vec![shape(&ProfileShape::Path { steps })],
+        },
+    );
+}
+
+/// **The lattice, not the form, decides where a verb is offered** —
+/// and the kernel's complete-loop verbs are offered only where a loop
+/// can begin.
+#[test]
+fn a_complete_loop_verb_is_admitted_only_at_the_entry() {
+    let tol = Tol::witness();
+    let circle = sketch::fresh_step(Verb::Circle);
+    let entry = sketch::tip_state_at(&[circle], 0, tol);
+    assert_eq!(entry, Some(TipState::Entry));
+    assert!(admits_at(entry, Verb::Circle).is_ok());
+    let chain = [sketch::fresh_step(Verb::At), circle];
+    let state = sketch::tip_state_at(&chain, 1, tol);
+    assert_eq!(
+        admits_at(state, Verb::Circle),
+        Err(TipState::PlainPoint),
+        "a circle cannot follow a verb",
+    );
+}
+
+/// **An arc-spec verb is offered wherever its row is, and lands in a
+/// form its row takes.** The combo used to judge `arc_to` by one fixed
+/// starting spec — `Radius`, which no `arc_to` row admits — so it was
+/// greyed at every tip. At a leg end (a `tangent_arc_to`'s end, the
+/// middle of a `B`) it is offered and starts endpoint-full; over a
+/// bound direction it starts endpoint-free; and either way the chain
+/// it lands in replays without a lattice refusal at that step.
+#[test]
+fn an_arc_spec_verb_starts_in_a_form_its_row_takes() {
+    let tol = Tol::witness();
+    let leg_end = vec![
+        Step::At(pt(0.0, 0.0)),
+        Step::Angle(0.0),
+        Step::TangentArcTo(Target::Point(pt(0.0, 0.01))),
+    ];
+    let directed = vec![Step::At(pt(0.0, 0.0)), Step::Angle(0.0)];
+    for (prefix, want) in [
+        (&leg_end, TipState::DirectedPoint),
+        (&directed, TipState::DirectedPlain),
+    ] {
+        let at = prefix.len();
+        let state = sketch::tip_state_at(prefix, at, tol);
+        assert_eq!(state, Some(want));
+        for verb in [
+            Verb::ArcTo,
+            Verb::FilletArc,
+            Verb::ArcFillet,
+            Verb::ArcFilletArc,
+        ] {
+            assert!(admits_at(state, verb).is_ok(), "{verb} at {want:?}");
+            let mut chain = prefix.clone();
+            chain.push(sketch::fresh_step_at(verb, state));
+            let refused = pncad::profile::replay(&chain, tol).err().filter(|e| {
+                e.step == at && matches!(e.kind, ReplayErrorKind::Transition { verb: Some(_), .. })
+            });
+            assert!(refused.is_none(), "{verb} at {want:?}: {refused:?}");
+        }
+    }
+    let Step::ArcTo(spec) = sketch::fresh_step_at(Verb::ArcTo, Some(TipState::DirectedPoint))
+    else {
+        unreachable!("fresh_step_at names the verb it was asked for");
+    };
+    assert_eq!(spec.mode(), ArcMode::Bulge);
+    let Step::ArcTo(spec) = sketch::fresh_step_at(Verb::ArcTo, Some(TipState::DirectedPlain))
+    else {
+        unreachable!("fresh_step_at names the verb it was asked for");
+    };
+    assert_eq!(spec.mode(), ArcMode::Sweep);
 }
 
 /// A non-finite field refuses at the lowering, before anything is
@@ -482,7 +622,7 @@ fn ordinal(step: &PathStep) -> usize {
 #[test]
 fn a_non_finite_field_refuses_at_the_lowering() {
     let template = ProfileShape::Path {
-        steps: vec![PathStep::At([f64::NAN, 0.0])],
+        steps: vec![Step::At(pt(f64::NAN, 0.0))],
     };
     let refusal = preview(
         SketchPlane::xy(),
@@ -491,7 +631,7 @@ fn a_non_finite_field_refuses_at_the_lowering() {
         CHORD,
     )
     .expect_err("NaN is not a coordinate");
-    assert!(matches!(refusal, PreviewError::Dimension(_)), "{refusal}",);
+    assert!(matches!(refusal, PreviewError::Lowering(_)), "{refusal}",);
 }
 
 /// **An arc whose radius is not a number refuses, rather than being
@@ -516,13 +656,13 @@ fn an_arc_whose_radius_is_not_a_number_refuses_at_the_preview() {
     let tol = Tol::witness();
     let template = ProfileShape::Path {
         steps: vec![
-            PathStep::At([0.0, 0.0]),
-            PathStep::ArcTo(ArcSpec::Bulge {
-                target: PathTarget::Point([0.01, 0.0]),
+            Step::At(pt(0.0, 0.0)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(0.01, 0.0)),
                 b: 1.0e-320,
             }),
-            PathStep::LineTo(PathTarget::Point([0.005, 0.01])),
-            PathStep::LineTo(PathTarget::Start),
+            Step::LineTo(Target::Point(pt(0.005, 0.01))),
+            Step::LineTo(Target::Start),
         ],
     };
     let refusal = preview(
@@ -564,13 +704,13 @@ fn an_arc_whose_centre_overflows_refuses_at_the_preview() {
     let tol = Tol::witness();
     let template = ProfileShape::Path {
         steps: vec![
-            PathStep::At([1.6e308, 0.0]),
-            PathStep::ArcTo(ArcSpec::Bulge {
-                target: PathTarget::Point([1.5e308, 0.0]),
+            Step::At(pt(1.6e308, 0.0)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(1.5e308, 0.0)),
                 b: 1.0,
             }),
-            PathStep::LineTo(PathTarget::Point([1.55e308, 1.0e307])),
-            PathStep::LineTo(PathTarget::Start),
+            Step::LineTo(Target::Point(pt(1.55e308, 1.0e307))),
+            Step::LineTo(Target::Start),
         ],
     };
     let refusal = preview(
@@ -603,13 +743,13 @@ fn an_undrawable_arc_is_refused_and_not_skipped() {
     let tol = Tol::witness();
     let template = ProfileShape::Path {
         steps: vec![
-            PathStep::At([0.0, 0.0]),
-            PathStep::ArcTo(ArcSpec::Bulge {
-                target: PathTarget::Point([0.01, 0.0]),
+            Step::At(pt(0.0, 0.0)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(0.01, 0.0)),
                 b: 1.0e-320,
             }),
-            PathStep::LineTo(PathTarget::Point([0.005, 0.01])),
-            PathStep::LineTo(PathTarget::Start),
+            Step::LineTo(Target::Point(pt(0.005, 0.01))),
+            Step::LineTo(Target::Start),
         ],
     };
     let drawn = preview(

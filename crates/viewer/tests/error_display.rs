@@ -14,7 +14,12 @@
 //! file still render a payload through `Debug`, each for a stated
 //! reason: `WebStartupError::Runner` (a `JsValue` the orphan rule
 //! forecloses writing a `Display` for) and `Disagreement` (a role path,
-//! whose `RoleSeg` has none). `PreviewError::Transition` is not one of
+//! whose `RoleSeg` has none). One message door that is not a `Display`
+//! renders one too, for `Disagreement`'s reason: `frame::pick_refusal`
+//! writes the certified tie's faces with their role paths, because a
+//! sentence about two answers that cannot be told apart cannot render
+//! them as the same words (`frame_policy.rs`,
+//! `the_status_line_renders_two_tied_faces_as_two_different_phrases`). `PreviewError::Transition` is not one of
 //! them and is not covered here either: it needs a replayed chain to
 //! carry a verb at all, so its prose row sits beside the chain that
 //! produces it (`tests/path_authoring.rs`,
@@ -273,7 +278,7 @@ fn pick_error_forwards_its_hit_test_arm() {
     let inner = HitTestError::NodeFailed {
         node: RecipeNodeId(4),
     };
-    let outer = PickError::HitTest(inner).to_string();
+    let outer = PickError::HitTest(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "NodeFailed");
 }
@@ -284,7 +289,7 @@ fn edge_name_fault_forwards_its_unnamed_arm() {
     let inner = HitTestError::NodeFailed {
         node: RecipeNodeId(4),
     };
-    let outer = EdgeNameFault::Unnamed(inner).to_string();
+    let outer = EdgeNameFault::Unnamed(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "Unnamed");
 }

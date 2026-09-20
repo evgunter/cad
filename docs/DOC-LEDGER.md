@@ -2003,6 +2003,119 @@ the residue is `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-rad
 
 - `BLEND-11-SPEC.md` — BLEND-11, the overrun refusal reports the nearest fit (#2495)
 
+## Sweep 17 — 2026-09-17: BLEND leaves the tracker
+
+Sweep SHA: `2cfe07f2fac8baa067f5b3eff0e2f4c98fd8f8e0` — the commit
+immediately before the deletion (on the closing PR's branch, reachable
+from `main` through that PR's merge commit; it is the state in which
+BLEND's directory is complete, `program.md` reads `status: closed`,
+and every row in it is closed), so every path below is recoverable at
+`git show 2cfe07f2fac8:work/blend/<FILE>`,
+`git show 2cfe07f2fac8:work/blend/logs/<FILE>` and
+`git show 2cfe07f2fac8:docs/BLEND-EXIT-WALK.md` (the unit specs left at
+their own merges — the per-merge deletion entries above name each
+one's SHA).
+
+BLEND — the blend kernel and the profile fillet door — opened
+2026-09-06 as FILLET's successor in the tracker-wide cut of that day
+and closed 2026-09-17 on the walk Ev ratified on its PR (#2826,
+merged `1addbf098`). **Fifteen units and one ruling**, every unit
+merged on its own green hosted head: E units 1–5 under single style
+reviews (#2123, #2122, #2141, #2129, #2155); unit K, the K-floor
+ruling with no floor (#2149); H units 6, 7, 9, 11, 10, 8, 12, 14, 15
+under nine v6 duals (#2215, #2483, #2491, #2495, #2497, #2505, #2508,
+#2509, #2514) — ordinals 2900–2908 in review-dispatch order, samples
+#176, #177, #181, #182, #183, #185, #184, #218, #219; zero counted
+tally candidates in nine duals, three recorded and excluded (units 9,
+14, 15). Unit 13 (`S90-impl`) never ran, blocked on PROPS' `H5`; it
+moves to CARVE with the classification BLEND owed named as its first
+step. Band 2900–2999 stays claimed and is closed at 2908. Per the
+sweep-5 rule the directory leaves whole — `program.md`, `plan.md`,
+`log.md`, `logs/` (the eighteen stored review briefs), and the
+twenty-three closed rows — with every OPEN row re-homed first: thirty-two
+by the cut of 2026-09-17 (#2810) and four on the walk's own PR (#2826).
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `blend` | BLEND — the blend kernel and the profile fillet door | 2026-09-17 | this entry; the walk at the sweep SHA; the code it left — `geom_brep::must_carry_over_edge` as the one description rule three verbs compose, the blend surgery's `split_fragment`/`retire_fragment` with the debug postcondition over both `Retired` arenas, `battery::Junction`, the ring-clearance forms, the path fillet door asking the validator's own classifier of its stored form with its `FILLET_*` recourses routed through one map and `geom_core::MissingRecourse` as the one fall-through, `test_utils::source::predicate_census`; the A/B record at ordinals 2900–2908 and blocks BLEND-B1–B3 in `docs/MODEL-AB-LOG.md` |
+
+### What survived, and where
+
+The program's output is the tree, not its directory:
+
+- **The doctrine.** One description rule (`must_carry_over_edge`)
+  composed by the extrude, revolve and blend arms, each storing its own
+  conventional description (units 9, 14); a recourse sentence true at
+  every site its predicate fires (README A3-2), keyed through one map
+  with one gap sentence and a source-side roster of the deliberately
+  unrouted (units 10, 12, 15); a retirement names a source key, enforced
+  by a postcondition rather than a walk (unit 8); a fresh-key or
+  "unmeasured" premise is measured before it is built on (every H unit).
+- **The code.** `CircleMargins` and the hostless rim's closed-form
+  clearance (6); `battery::Junction` (7); `split_fragment`,
+  `retire_fragment`, the surgery postcondition (8);
+  `must_carry_over_edge` returning one verdict (9); the two `PathError`
+  arms and the door's stored-form check (10); arm-collects, door-picks
+  through `fillet_select::nearest_candidate` (11); the fillet arm on
+  `PathError::Escalated` through `fillet_recourse_for`,
+  `EscalationSite::Fillet` retired (12); the blend's contact edges
+  through the rule with `FILLET3_CONTACT_RECOURSE` conditioned by the
+  site (14); `geom_core::MissingRecourse`, `validate::SHARED_CLAUSE_ONLY`,
+  `test_utils::source::predicate_census` and the roster and pairing rows
+  (15); the K-floor special case removed (K).
+- **The measured bounds, stated rather than overpromised.** The
+  `validate.rs` near-tangency addendum stays as `profile`'s second
+  predicate-keyed table with its reason at the site; the sweep-side
+  unrouted list stays test-side; the annulus rim phase keeps a second
+  spelling of the split provenance, measured and filed (CARVE's row);
+  every spec's overturned sentence is in its per-merge ledger entry.
+- **A successor program.** `work/carve/` — CARVE, what a sweep verb
+  builds and how it describes it — opened by the cut of 2026-09-17 per
+  `work/README.md`'s rule, holding twenty-five rows and the band
+  5600–5699.
+
+### Residue re-homed before the deletion
+
+Thirty-two open rows moved by the cut (#2810), each by `git mv` with
+its body unchanged: twenty-one to CARVE, eight to PATHS (the profile
+fillet door), one each to SYM, TOPO and META — the table and the
+charters are in the sweep-SHA `log.md`'s cut entry. Four more moved on
+the walk's PR (#2826), each with a "Re-homed at BLEND's exit" section:
+`S90-impl`, `contact-edge-arm-is-picked-from-the-carrier-kind-not-the-dihedral`,
+`ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle` and
+`corner-config-recourse-and-policy-assert-a-default-for-any-tag`, all
+to CARVE. The two docs rows closed in place (#2811). Nothing was left
+in `work/blend/` but the program files, the stored briefs and the
+closed rows.
+
+### Deleted at this sweep
+
+`work/blend/program.md`, `plan.md`, `log.md`, `logs/` (eighteen
+review briefs), and the twenty-three closed rows:
+`ambiguity-k-below-the-cap-rim-crossover`,
+`assembly-recourse-omits-the-transverse-cap-open-chain`,
+`blend-contact-edges-mint-the-intrinsic-description-without-the-rule`,
+`blend-recourses-under-describe-their-doors`,
+`closed-chain-junctions-pair-with-a-rotated-link`,
+`containment-margin-backstop-unreachable-behind-the-screen`,
+`curved-single-host-rim-refuses-at-the-half-band-gate`,
+`escalated-convexity-sign-renders-a-flip-that-was-never-decided`,
+`escalated-recourse-dispatch-has-no-coaxiality-arm`,
+`escalation-recourse-dispatch-has-three-homes`,
+`extrude-cap-rim-argument-and-k-star-have-five-homes`,
+`fillet-escalation-site-has-no-producer`,
+`hostless-rim-on-a-ringed-host-refuses`,
+`kernel-verbs-cap-pair-ulp-claim-stale`,
+`ladder-rim-phase-may-retire-a-new-split-key`,
+`overrun-attribution-picks-the-first-candidate`,
+`path-fillet-door-validator-tangency-disagree`,
+`rim-seed-finders-disagree-on-at-this-radius`,
+`ring-clearance-refuses-a-nested-trim-circle`,
+`smooth-arm-siblings-disagree-on-the-in-band-case`,
+`sweep-doc-comments-cite-tests-unenforced`,
+`sweep-top-field-docs-make-the-spatial-claim-capend-shed`; and
+`docs/BLEND-EXIT-WALK.md`.
+
 ## Sweep 16 — 2026-09-16: S-MESH leaves the tracker
 
 Sweep SHA: `9f043ec2712b880f26879183b6f9dc828abe0254` — the commit
@@ -2623,6 +2736,21 @@ reached instead by an admitted pair whose jet is under-determined.
 Recorded in the PR body and the unit's log entry.
 
 - `BLEND-14-SPEC.md` — BLEND-14, the blend's contact edges carry the tangency rule (#2509)
+
+## Per-merge deletion — BLEND-15's spec (2026-09-17)
+
+Recoverable at `git show 575963daab1c85bfce1ee7e097cf368d2ae73e1a:docs/BLEND-15-SPEC.md`
+(the fix-pass head). Three of its sentences did not survive: the gap
+sentence is a `Display` newtype in `geom-core`, not the constant it
+asked for (the sentence interpolates the name mid-way); the roster it
+specified as a per-crate census became one reader homed in
+`test_utils::source` after both reviewers defeated the per-crate copies
+by mutation; and its "one name, two sentences" list is measured within
+each crate, not between them (three names in `profile` carry a
+validator sentence and a door sentence, on purpose). Recorded in the PR
+body and the unit's log entry.
+
+- `BLEND-15-SPEC.md` — BLEND-15, an escalation's recourse is routed by one rule with one fall-through (#2514)
 
 ## Sweep 12 — 2026-09-12: CITE leaves the tracker
 
@@ -3804,6 +3932,61 @@ no A/B row.
 
 - `PROPS-AFFINE-TRY-MAP-SPEC.md` — PROPS affine-try-map, the kernel owns the fallible per-coordinate walk too (#2743)
 
+## Per-merge deletion — EDIT-RADIUS's spec (2026-09-20)
+
+Recoverable at `git show 370e560e7:docs/EDIT-RADIUS-SPEC.md` (PR
+#2892's frozen review head; the spec was not amended on the branch —
+its two corrected premises are argued in the PR body and recorded in
+the unit row's `## Built`). EDIT's second kernel unit of block
+EDIT-B2, ruled by the EDIT orchestrator on the row's own analysis and
+DM8: the replay record gains a per-radius emission record
+(`ReplayStructure.radii`) and DM8's map reads it in place of "one
+radius, one segment", the key's feed widening with the attach so
+"attached ⊆ keyed" holds by construction. Its central premises held —
+the record's shape and home, the emission at the moment the bulge is
+set, the map through the one checked permutation, the feed's
+inclusion, DM8's sentence re-worded not re-decided — and two fell
+before the build, each corrected by the implementer against the
+tree: premise 2's "the current step is the emitter" names, for a
+fused verb's carrier arc, an `At`/`Toward` holding no radius (every
+role addresses the fused verb's own step); and the three-radii row's
+"two `Sweep` specs" is unrepresentable (`arc_fillet_arc(Sweep, r,
+Radius)` is the chain). None fell to the dual, which was
+APPROVE-WITH-FIXES on both arms with no MAJOR; its findings and the
+fix pass that built their union are the unit row's `## Built` and
+its `### Fix pass`. The rule above; the unit's record is its row's
+`## Closed`, its row in `MODEL-AB-LOG.md` (ordinals 4806/4807, sample
+#223; block EDIT-B2 slot 1 concluded) and the MERGED entry in
+`work/edit/log.md`.
+
+## Per-merge deletion — EDIT-DECL's spec (2026-09-19)
+
+Recoverable at `git show df47b36ab:docs/EDIT-DECL-SPEC.md` (PR
+#2809's fix-pass head, carrying the `## Amended at the fix pass`
+section). EDIT's first kernel unit of block EDIT-B2, built on Ev's
+ruling from `[ev]` PR #2795 (sited declarations: a `Declare`'s pairs
+name entities at their members, one pass, the site is the side, DM6
+untouched). Its central premises held — the sited payload, the side
+from the site, the union's routing by site with the member-space
+rewrite ahead of the shared look-through, the doors following the
+payload — and three fell before the build, each corrected by the
+implementer against the tree: `persist/pairs.rs` is the
+appearance-store codec and not the declare one; `pncad::select`'s
+declare doors are re-exports of `editor-core`'s; `declare_node` holds
+no consumer context, so the flush finding carries its sites rather
+than the door siting names. One fell to the dual: premise 4's "fold-
+minted rows are not declaration subjects, by type" left a union's
+refusal against a `Merged` row with no site to carry, and the build
+degraded it to an emission bug — both blinded reviewers found it with
+red probes on the real door, and the fix pass ruled the refusal's
+shape (sited at a constituent for a merged row; typed
+`UndeclarableContact` for a row no member stands for), the decision
+unchanged and Ev told on the next `[ev]` PR. Premise 7's "refuses
+typed … has no case" was withdrawn with it. The rule above; the
+unit's record is its row's `## Closed`, its row in `MODEL-AB-LOG.md`
+(ordinals 4804/4805, sample #216; block EDIT-B2 slot 0 concluded) and
+the MERGED entry in `work/edit/log.md`.
+
 ## Per-merge deletion — EDIT-PICK3's spec (2026-09-17)
 
 Recoverable at `git show af694692:docs/EDIT-PICK3-SPEC.md` (PR
@@ -3870,3 +4053,174 @@ left on the fourth, its row in `MODEL-AB-LOG.md` (ordinal 2406, sample
 #214) and the MERGED entry in `work/props/log.md`.
 
 - `PROPS-SPHERE-POLE-SIDE-SPEC.md` — PROPS sphere-pole-side, a rim's traversal names the side its face's interior lies on (#2741)
+
+- `EXCH-H1-SPEC.md` — EXCH-H1, degree-1 line promotion and the
+  seam-class Line limb (#1798). Deleted at merge per the spec
+  lifecycle; recoverable at `6ebcef1fd`. The unit's record is
+  `work/exch/EXCH-H1.md`, the parent issue's `## Closed`, its row in
+  `MODEL-AB-LOG.md` (ordinal 2100) and the landed entry in
+  `work/exch/log.md`. The §Re-scope ruling (the rung lives in
+  `run_iso_checks`' seam class, not `nurbs_iso_derive`) travels in
+  the log's adjudication entry.
+
+## Per-merge deletion — MSOLVE-6's spec (2026-09-19)
+
+Recoverable at `git show 71e92e224b64ce2a20117136282950cd10ca0728:docs/MSOLVE-6-SPEC.md`
+(the MSOLVE-6 unit head, before the state-sync commit that deleted it),
+including its "Amendment — the edit door" section, ruled by Ev on
+`[ev]` PR 2118. Its construction held: the lever, the reach trait and
+the edit door landed as written, with three deviations argued on the
+PR (`split`/`inline` take a resolver rather than a reach, because the
+part being minted is what no store holds yet; the edit refuses only
+where the prior solve reached NO verdict, and keeps the cluster's
+frame where it DECIDED there is no pose; `MateReach` is keyed by the
+part, not the instance). The orchestrator ruled against one of its
+sentences: the spec asked `lever_arm`'s doc to "keep the story" of
+the retired floor, and the implementer discipline's rule against
+retired-code archaeology in docs wins — the doc is two sentences.
+The rule above; the unit's record is its item's `## Closed` section
+and its MERGED entry in `work/msolve/log.md` (no A/B row: the program
+runs none).
+
+- `MSOLVE-6-SPEC.md` — MSOLVE-6, the mate's lever is the mated parts' own extent (#2116)
+
+## Per-merge deletion — MSOLVE-7's spec (2026-09-19)
+
+Recoverable at `git show dcf5e149d5f7ef97154473f499011b54f27e03c3:docs/MSOLVE-7-SPEC.md`
+(the MSOLVE-7 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held; three of its sentences did
+not survive measurement. It named `fold_pair` as `derived_offset`'s
+caller, which is `pair_left_factor` (the lane took the better
+letter). It said a delete's dependents cascade, which the door
+measures as a `DeleteWouldDangle` refusal — the condition is
+unreachable either way, as the spec said. And its §2 seated only the
+dangling-input shape at the transform, while a transform over a
+DATUM as the axis is reachable through `apply` and was seated at the
+pattern on one road and the transform on the other; the fix pass
+seated it at the transform through the one classifier, which is the
+spec's thesis carried one shape further. The rule above; the unit's
+record is its item's `## Closed` section and its MERGED entry in
+`work/msolve/log.md` (no A/B row: the program runs none).
+
+- `MSOLVE-7-SPEC.md` — MSOLVE-7, the member walk's residue: one environment, one seat, one account, one attribute (#2885)
+
+## Per-merge deletion - PROPS escalation-channel's spec (2026-09-20)
+
+Recoverable at `git show 3502371ec:docs/PROPS-ESCALATION-CHANNEL-SPEC.md`
+(PR #2928's merge commit, the last head carrying it). A/B row
+`escalation`, ordinal 2407, sample #225. The spec's rulings are the
+unit's record together with the two closed items
+(`work/props/escalation-channel-misses-op-minted-indeterminates.md`,
+`work/props/indeterminate-error-arms-sweep.md`), the MERGED entry in
+`work/props/log.md`, and the five residues it left:
+`work/props/should-classify-replays-error-enum-arms-be-deleted.md`,
+`work/props/the-gating-corpus-reaches-no-collapsed-arm-gate.md`,
+`work/props/nurbs-span-meter-cannot-tell-a-reversed-domain-from-a-collapsed-one.md`,
+`work/curved/topo-mints-indeterminates-outside-the-funnel.md` and
+`work/msolve/mate-lane-escalations-reach-no-nodes-log.md`.
+
+**Two spec notes at deletion, both cases of the spec asserting a premise
+instead of requiring a decide** - the same fault the sphere-pole-side
+spec shipped a MAJOR through, recorded here so the pattern is visible
+across units rather than once per unit:
+
+- The spec's **Posture** asserted "Recorded-verdict populations WILL
+  move". They did not. The unit measured zero movement and made the zero
+  its receipt, which was the right answer; had it obeyed the spec
+  instead of measuring, it would have re-baselined goldens that nothing
+  had moved.
+- The spec inherited its item's **"roughly forty error variants across
+  five crates"** as fact. The true population is 88 across nine crates,
+  the item's stated recipe yields 83, and the written-down 82 came from
+  neither - a third ad-hoc script whose enclosing-enum regex silently
+  dropped `PropsError::Escalated`. A measurement whose stated recipe
+  does not reproduce it is not a measurement; the unit said so in the
+  item and re-derived all three figures.
+
+A third note, on the spec's **order** (the channel first, the sweep
+second, the sweep scoped by what the channel then carries): the order
+held and was worth ruling, but the sweep it scoped inverted the item's
+premise rather than executing it, retiring nothing. Both blinded
+reviewers independently hunted the counterexample - a variant whose
+every construction and consumer sits inside an open bracket - and both
+failed to find one, which is stronger evidence for the 0-retired
+conclusion than the argument that predicted it.
+
+## Per-merge deletion — MSOLVE-8's spec (2026-09-20)
+
+Recoverable at `git show 399d411c87031e18c2e9135c44fd02c4c66c7b76:docs/MSOLVE-8-SPEC.md`
+(the MSOLVE-8 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held; two of its sentences were
+overruled by measurement and one of its clauses was tested. Its §3
+offered a re-mint road "where geom-core admits no witnessed
+transport" and fenced geom-core out; the lane took that road for the
+frame read too, and the reviews measured its cost (the aim decided
+three times per mate under one funnel name, a copied refusal
+projection), so the orchestrator widened the fence by one door —
+geom-core's `point_at_frame`, the witness `point_at` already built.
+Its §3 also let a rotated direction be "re-minted under the run's
+band", which on the planar-pair line was a SECOND decision two ulps
+from `parallel`'s and moved ten door-built documents from UNDER to
+Indeterminate at the boundary (the correctness arm's MAJOR); the fix
+is one decision, `parallel` minting the witness it decides on. And
+its stop clause named the condition the lane met (`OrthoFrame`
+reproducing `point_at` bit for bit) and was argued past rather than
+honoured — recorded in the log as a process lapse; the ruling settled
+it. The rule above; the unit's record is its item's `## Closed`
+section and its MERGED entry in `work/msolve/log.md` (no A/B row: the
+program runs none).
+
+- `MSOLVE-8-SPEC.md` — MSOLVE-8, a levered clash names its arm; the coset's directions carry the witness; `MateFault` names its consumers (#2896)
+
+## Per-merge deletion — MSOLVE-10's spec (2026-09-20)
+
+Recoverable at `git show 392fc0ad95e6a7ec044ca9a18bb99f125d3c56cd:docs/MSOLVE-10-SPEC.md`
+(the MSOLVE-10 unit head, before the state-sync commit that deleted
+it; unamended). Its construction held: `admit_mate` is the per-mate
+prefix of the solve and the insert door asks it. Five of its
+sentences were overruled by the reviews. Its §2 and §5 said a mate
+the table refuses "never enters the document"; the load door's
+snapshot walk asks only the non-finite predicate, and the ruling
+kept it so — the doors decide edits and the solve decides states, a
+state a mate comes to hold after insert is the solve's, and a `save`
+that refused states the doors produced would be a trap — so every
+such sentence reads "refused at the insert door" and one row pins
+the snapshot road. Its stop clause ("changing what the solve decides
+for any mate") did not name the pair the fold never reads (two
+members over one instance), whose datum the solve never decides and
+the door now refuses; ruled the door's, on the datum alone, and
+pinned. Its §4 had the viewer refuse the table's static gaps in the
+table's words, which the lane read as a second match over the pair;
+the fence widened by one `pub fn table_gap` in `mate.rs` so the
+table has one home. Its §1 wanted `fold_pair` to call `admit_mate`
+literally; the honest shape is shared doors (`check_references`,
+`admit_class`, `mate_coset`) in the solve's own order, and the
+restatement the first shape left (the solve's first loop) was
+removed. Its §3's replay sentence was right and the lane's first
+comments on it were not (`Maintain::Never` refuses at the
+maintenance; `Recorded` re-applies); the two replay rules are stated
+once at `Maintain::reach`. The unit's record is its item's `## Closed`
+section and its MERGED entry in `work/msolve/log.md` (no A/B row: the
+program runs none).
+
+- `MSOLVE-10-SPEC.md` — MSOLVE-10, a mate the coset table refuses on its own is refused at the edit door (#2913)
+
+## Per-merge deletion — TRIM-2's spec (2026-09-20)
+
+Recoverable at `git show d0e577121:docs/TRIM-2-SPEC.md` (PR #2863's
+merge commit, the last head carrying it). Both PRs delivered: PR-1 (#2564, the trimmed-region
+quadrature, A/B row T2Q) and PR-2 (#2863, the tessellation arms, A/B
+row T2T). The spec's §8 Rulings (the rectangle certificate as the
+all-iso fast path; the Newton–Cotes window fenced; the `Fitted` mesh
+arms stay; the item corrected by PR-1; PR-2's seam TESS's) and its
+Amendments (§4's PROPS gate with the week's-silence fallback, closed on
+Ev's ruling that PROPS was paused) are the unit's record together with
+the closed item `work/trim/general-pcurve-face-props-and-tess-refuse.md`,
+the two MERGED entries in `work/trim/log.md`, and the residues left on
+the program (`curved-trim-e2e-fixture-waits-for-a-producer`,
+`trimmed-quadrature-composite-rounds`,
+`chord-count-arithmetic-is-plain-f64-across-every-speed-arm`).
+Spec note at deletion: §3's survey sentence that `nurbs_tighten`
+"skips `Harmonic`" was wrong (the harmonic arm answers a UV speed
+bound); PR-2's spiric-adjacent refusal at that site was the right
+disposition and the spiric spec's PR-1b said so.

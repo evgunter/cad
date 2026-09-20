@@ -585,7 +585,8 @@ gives compile-time exhaustiveness, so adding an analytic kind means
 adding a variant and letting the compiler enumerate every dispatch
 site. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
-ellipse / NURBS).
+ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
+section, one oval, in the torus's own minor angle).
 
 ### D4 (agreed): Single strict global tolerance; operations fail loudly
 
@@ -1025,7 +1026,7 @@ Each layer depends only on the layers below it.
 | `mesh` / `stl` | Certified tessellation (watertight triangle meshes with source-`Face`/`Edge` back-references); STL export (binary + ASCII) |
 | `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset as adoption (D7) |
 | `quantity` | Typed quantities at the API boundary (D6): `Length`, `Angle`, the unit table and the written forms |
-| `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation (preview/commit, epochs, cancelation), assemblies, distributions and the subdivision driver, the checks registry. No rendering dependency. See `crates/editor-core/README.md` |
+| `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + `apply`, pure over the document and the mated parts' reach — a function of the parts' pinned content; the log records the cluster maintenance each edit performed, so replay is pure over the log), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation (preview/commit, epochs, cancelation), assemblies, distributions and the subdivision driver, the checks registry. No rendering dependency. See `crates/editor-core/README.md` |
 | `pncad` / `pncad-py` | The authoring façade (LIBRARY-DESIGN U1 — one crate to depend on, a prelude, f64-first signatures) and its PyO3 bindings, which speak the document layer |
 | `viewer` | The interaction layer over `editor-core`: `Camera`/`CameraOp` and `DocSession`/`SessionOp` as values with one `apply`/`perform` each, feature tree, property panel, selection, open/save, scene extraction — renderer-free and headless-tested; the eframe/wgpu application lives behind the non-default `app` feature. See `crates/viewer/README.md` |
 
@@ -1121,9 +1122,16 @@ these. All are shipped in `editor-core` except where noted:
 - **Picking back-references**: tessellation output carries per-patch
   source-`Face` and per-polyline source-`Edge` keys, and
   `editor_core::resolve::pick::pick_face` is the `ray → StableName`
-  service (`bvh::Bvh::ray`, exact ray/triangle tests, a total documented
-  tie-break, the `resolve::hit` inversion); `NodePick` pairs a mesh
-  with its node by construction.
+  service (`bvh::Bvh::ray`, exact ray/triangle tests, each admitted
+  candidate answering a certified `t` INTERVAL, the `resolve::hit`
+  inversion). One candidate is in front of another only when the whole
+  of its interval is; candidates the geometry cannot order are a
+  certified tie, answered as ONE face when they name one — the hull of
+  their intervals — and REFUSED with all of them
+  (`HitTestError::Ambiguous`) when they name several. Nothing else
+  decides a pick: not a claim's width, not where the model sits, not
+  the order the targets were offered in. `NodePick` pairs a mesh with
+  its node by construction.
 - **Cancelation** (`CancelToken`, yielding between nodes/levels; a
   canceled run returns the completed prefix as a typed outcome).
   Remaining: progress reporting (nothing exists) and in-op yield points
@@ -1261,7 +1269,10 @@ Cross-milestone commitments; each binds at the layer named.
 - **Persisted floats round-trip bit-exactly.** Shortest-round-trip
   formatting (serde_json with `float_roundtrip`) for finite values;
   NaN/inf refuse typed (`PersistError::NonFinite`); lossy formatters
-  banned; enforced by a save/load/replay-identity test.
+  banned; enforced by a save/load/replay-identity test. Replay never
+  solves: a logged edit carries the cluster-maintenance rows it
+  performed, and load re-applies them, so a saved document reproduces
+  its placement registry bit for bit with no part store in hand.
 - **Flags banked**: mate solving needs witnesses/interval contraction
   on SE(3), not ℝⁿ; recipe-level provenance carries **pattern indices**
   explicitly so references into indexed families never degrade to

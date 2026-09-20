@@ -1375,7 +1375,12 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                                 .and_then(crate::null::CurveGeom::certified)
                                 .map(geom_brep::EdgeCurve::carrier);
                             let axial = match edge_box_rule(carrier) {
-                                EdgeBoxRule::NoSoundBox => AxialCarrier::Unclaimable,
+                                // No axial-span closed form is written
+                                // for the spiric; a box that cannot
+                                // claim is the honest answer.
+                                EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => {
+                                    AxialCarrier::Unclaimable
+                                }
                                 EdgeBoxRule::Chord => AxialCarrier::Chord,
                                 EdgeBoxRule::ConicAmplitude {
                                     center,
@@ -1760,6 +1765,12 @@ pub(crate) enum EdgeBoxRule<T: Real> {
     },
     /// No cheap superset exists — see the type docs.
     NoSoundBox,
+    /// The spiric's whole-period box through `geom`'s
+    /// `spiric_arc_aabb` door (a C10 superset), hulled with the chord.
+    /// No axial projection is written for it (the census lane reads
+    /// it as unclaimable); reachable only from its own rows today,
+    /// because the operand gate refuses the kind.
+    Spiric,
 }
 
 /// The [`EdgeBoxRule`] for a carrier — the single kind→rule mapping,
@@ -1794,6 +1805,7 @@ pub(crate) fn edge_box_rule<T: Real>(carrier: Option<&geom::Curve3<T>>) -> EdgeB
             semi_v: *minor,
             u_ref: *u_ref,
         },
+        Some(geom::Curve3::Spiric { .. }) => EdgeBoxRule::Spiric,
         Some(geom::Curve3::Nurbs(_)) | None => EdgeBoxRule::NoSoundBox,
     }
 }
@@ -1828,6 +1840,17 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
     let boxed = match edge_box_rule(carrier) {
         EdgeBoxRule::NoSoundBox => return Ok(Aabb::poison()),
         EdgeBoxRule::Chord => chord,
+        EdgeBoxRule::Spiric => certified
+            .and_then(|curve| {
+                let (t0, t1) = curve.params();
+                geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
+            })
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "edge box: the spiric rule is minted only from a certified Spiric \
+                     carrier, and the exact arc door answers for it"
+                )
+            }),
         EdgeBoxRule::ConicAmplitude { .. } => {
             // The exact arc box, read from its one home one crate down:
             // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`
@@ -4327,6 +4350,98 @@ mod tests {
                     .then_some((k, c))
             })
             .unwrap()
+    }
+
+    /// A hand-built SPIRIC sector: one spiric arc `a → b` on the
+    /// elbow's numbers (`R = 1.2`, `r = 0.225`, stand-off `d = 0.05`,
+    /// the run `[0.4, 2.9]`), described as the plane × torus
+    /// intersection and closed by two chords in the cap plane. The
+    /// carrier is minted through the kind's deciding door.
+    fn spiric_sector() -> (Body<f64>, FaceKey, EdgeKey) {
+        let (big_r, r, d) = (1.2, 0.225, 0.05);
+        let band = geom_core::Band::linear(Tol::witness()).unwrap();
+        let carrier = Curve3::spiric(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            big_r,
+            r,
+            d,
+            band,
+        )
+        .unwrap();
+        let plane_surface = Surface::Plane {
+            origin: Point3::new(d, 0.0, 0.0),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        };
+        let torus_surface = Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let (t0, t1) = (0.4, 2.9);
+        let (body, face) = conic_sector(
+            plane_surface,
+            torus_surface,
+            carrier.clone(),
+            (t0, t1),
+            carrier.eval(0.5 * (t0 + t1)),
+            (carrier.eval(t0), carrier.eval(t1), Point3::new(d, 0.0, 0.0)),
+        );
+        let edge = body
+            .edges()
+            .find_map(|(k, e)| {
+                let c = body
+                    .get_curve_geom(e.curve)
+                    .and_then(crate::null::CurveGeom::certified)?;
+                matches!(c.carrier(), Curve3::Spiric { .. }).then_some(k)
+            })
+            .unwrap();
+        (body, face, edge)
+    }
+
+    /// **The spiric arm of `edge_box`, and the census's reach twin,
+    /// contain a dense sample of the arc** — the two readers of
+    /// [`EdgeBoxRule::Spiric`], each executed on the hand-built sector
+    /// (no public door builds a spiric-bearing operand that reaches
+    /// either at this head: the boolean's operand gate refuses the
+    /// kind, and a hollowed partial revolve stops at tier 3 before the
+    /// census). The whole-period box is asserted over the whole
+    /// period, which is what the door claims.
+    #[test]
+    fn the_spiric_edge_box_and_reach_contain_a_dense_sample() {
+        let (body, face, edge) = spiric_sector();
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .unwrap();
+        let b = edge_box(&body, edge, 0.0).unwrap();
+        let (lo, hi) = crate::census::face_reach(&body, face).unwrap();
+        for i in 0..=20_000 {
+            let t = f64::from(i) * core::f64::consts::TAU / 20_000.0;
+            let p = curve.carrier().eval(t);
+            assert!(
+                p.x >= b.min_x
+                    && p.x <= b.max_x
+                    && p.y >= b.min_y
+                    && p.y <= b.max_y
+                    && p.z >= b.min_z
+                    && p.z <= b.max_z,
+                "the spiric point at v = {t} ({p:?}) left the edge box {b:?}"
+            );
+            assert!(
+                p.x >= lo.x - 1e-15
+                    && p.x <= hi.x + 1e-15
+                    && p.y >= lo.y - 1e-15
+                    && p.y <= hi.y + 1e-15
+                    && p.z >= lo.z - 1e-15
+                    && p.z <= hi.z + 1e-15,
+                "the spiric point at v = {t} ({p:?}) left the face reach {lo:?}..{hi:?}"
+            );
+        }
     }
 
     /// The conic's frame as `(centre, a·û, b·v̂)`: coordinate `i` of a

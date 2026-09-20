@@ -219,3 +219,34 @@ carrying that reason.
 
 Signed (VIEW implementer lane `view/shader-mark-strength`, fix pass
 after review).
+## 2026-09-19 — Ev's grid and committed-profile rows landed (PR 2859)
+
+Orchestrated from a session that took Ev's high-priority GUI rows
+across the paused viewer programs. Not an A/B-protocol unit, by Ev's
+instruction. One unit took both rows, since they share the per-lane
+overlay work. The first lane (Fable) died at the account limit before
+writing anything; Opus implemented the unit.
+
+The review had a correctness lane and a style lane. It found no MAJOR:
+the uniform layout, vertex-word packing, blend state and depth
+behaviour all held. It found two MINORs:
+- the just-added profile was drawn twice, once as its preview;
+- the undrawn-profile badge had no test. The fix pass showed the path
+  is reachable, through a denormal bulge.
+
+The fix pass also took most of the style findings:
+- the shader's lane-colour switch is generated from `EdgeLane`, not a
+  hand list;
+- lane codes are the discriminant;
+- a profile-against-grid-and-preview separation test. It moved two
+  palettes' profile colours.
+- an absolute bound on the grid's width;
+- a row for a rotated, offset plane;
+- four stale docs.
+
+Declined: merging `CommittedProfile`'s loop type with `PreviewLoop`.
+`path_authoring.rs` asserts on the vertex index, and PR 2862 is
+rewriting `sketch.rs`.
+
+The review ran on reading alone: the machine-wide build slot was held
+for an hour. CI is the test record.

@@ -188,8 +188,13 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",
+        subject: "spiric_arc_aabb",
+        why: Payload("as the arc constructors above — the whole-period amplitude box"),
+    },
+    Site {
+        path: "crates/geom/src/curves/boxes.rs",
         subject: "conic_arc_aabb",
-        why: Payload("the one-match dispatcher over the two arc constructors above"),
+        why: Payload("the one-match dispatcher over the three arc constructors above"),
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",

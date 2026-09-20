@@ -95,6 +95,32 @@
 //! that consumes ε_in is M7-2+. Certification of everything built
 //! runs at the kernel's ambient ε like native geometry.
 //!
+//! # Chart coherence: a measurement, not a gate
+//!
+//! [`ImportOptions::examine_chart_coherence`] asks
+//! [`topo::examine_chart_coherence`] about the body that ships and
+//! carries its report at [`StepImport::Solid::coherence`]. The
+//! examination measures how far two of the FILE's own statements
+//! about one chart coordinate disagree — a carrier's midpoint azimuth
+//! against its own endpoint vertex's, two edges of one rim row, two
+//! edges of one meridian column — each as a gap times a lever arm, in
+//! metres, against the band. This is the door where defective source
+//! coordinates actually arrive: `tests/fixtures/halfcap/` is the
+//! recorded witness, a pole-crossing meridian arc whose carrier
+//! midpoint sits a half-turn from its own endpoint, and it reports
+//! here.
+//!
+//! **Three things this channel is not.** It is not a gate: the at-rest
+//! validator above has already run and passed by the time the
+//! examination is asked, and a body with findings ships exactly as one
+//! without them does — nothing in the import acceptance decision reads
+//! it. It is not the ε_in lane: the band is the run's ambient ε, the
+//! same tolerance everything else built here certifies at, and each
+//! finding carries the band it was judged against. And it is not on by
+//! default, because the examination has no shape door and would report
+//! a lane boundary (a trimmed curved face's loops) to callers who
+//! asked no question.
+//!
 //! # Fail loud (D4 ¶5)
 //!
 //! Every refusal is a typed [`StepImportError`] naming the offending
@@ -388,20 +414,25 @@ pub struct StructureNormalization {
     pub kernel_census: FaceCensus,
 }
 
-/// The analytic kinds D7 stage-1 CURVE recognition can promote a NURBS
-/// carrier to (#327). Line-as-degree-1, ellipse, helix, and open
+/// The analytic kinds D7 CURVE recognition can promote a NURBS
+/// carrier to (#327 stage 1; the line #388). Ellipse, helix, and open
 /// (partial) circular arcs are named exclusions with filed follow-ups;
 /// such carriers stay NURBS.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PromotedCurveKind {
     /// A full, closed circle.
     Circle,
+    /// A chord segment (a certified degree-agnostic polyline leg —
+    /// the carrier lies on the chord between its end control points
+    /// and covers exactly that segment).
+    Line,
 }
 
 impl core::fmt::Display for PromotedCurveKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
             Self::Circle => "circle",
+            Self::Line => "line",
         })
     }
 }
@@ -457,6 +488,27 @@ pub struct ImportOptions {
     /// channel is POSITION-anchored; an anchor that does not resolve
     /// is [`StepImportError::DeclarationUnresolved`], never dropped.
     pub declared_contacts: Vec<ImportContact>,
+    /// **Ask for the chart-coherence examination** of the shipped body
+    /// ([`topo::examine_chart_coherence`]), reported at
+    /// [`StepImport::Solid::coherence`]. Default `false`.
+    ///
+    /// **Off by default, which is the examination's own posture rather
+    /// than timidity about its cost.** It has no shape door in front
+    /// of it: a curved face whose outer loop carries a conic or spline
+    /// trim carrier states none of the three conditions, so its loops
+    /// land in [`topo::CoherenceReport::unexamined`] as a LANE
+    /// BOUNDARY rather than a defect. A channel that is on for every
+    /// caller reports that lane boundary to callers who asked no
+    /// question, and a report that fires everywhere is not a report.
+    /// The registry resident on this same kernel door
+    /// (`editor_core`'s `CheckId::ChartCoherence`) ships `Off` for the
+    /// same reason.
+    ///
+    /// **It decides nothing.** A finding is a MEASUREMENT of how far
+    /// two of the file's own statements about one chart coordinate
+    /// disagree; no file imports or refuses differently for this flag,
+    /// and the at-rest gate never reads it.
+    pub examine_chart_coherence: bool,
 }
 
 /// One position-anchored import declaration (module docs at
@@ -555,6 +607,50 @@ pub enum StepImport {
         /// here and expensive to retrofit, so it is kept whether or
         /// not the file states an assembly at all.
         instances: Vec<PlacedInstance>,
+        /// **The chart-coherence examination of `body`**, when
+        /// [`ImportOptions::examine_chart_coherence`] asked for one:
+        /// [`topo::examine_chart_coherence`]'s report, whole and
+        /// unfiltered, run on the body that ships at the import's
+        /// `tol`.
+        ///
+        /// This is the door where defective source COORDINATES
+        /// arrive. Every condition it states is a gap between two of
+        /// the FILE's own statements about one chart coordinate,
+        /// measured in metres against the band — the half-cap of
+        /// `tests/fixtures/halfcap/` is the recorded witness, a
+        /// meridian arc whose carrier midpoint sits a half-turn from
+        /// its own endpoint.
+        ///
+        /// **`None` is CONFIGURATION and `unexamined` is DATA, and
+        /// they are two different facts.** `None` says the caller did
+        /// not ask, which nothing about the file changes and which
+        /// setting the option reverses; `Some(report)` whose
+        /// `unexamined` is non-empty says the examination RAN and the
+        /// body put a loop out of its reach, which no option changes.
+        /// Spelling the unasked state as an empty report would fold
+        /// the two — a caller who never asked would read identically
+        /// to a body with nothing to report, which is the one thing
+        /// this channel may not say. The kernel door draws the same
+        /// line about its own two lists at
+        /// [`topo::CoherenceReport::unexamined`], and the `Option` is
+        /// how it survives the crossing.
+        ///
+        /// **There is deliberately no `StepImport::coherence()`
+        /// accessor** beside [`StepImport::normalizations`] and its
+        /// neighbours. Those fold a wireframe into an empty slice
+        /// honestly — a wireframe really did apply no normalizations —
+        /// but this crate can be in THREE states about chart
+        /// coherence: not asked, examined, and no body to examine at
+        /// all. An accessor returning `Option<&CoherenceReport>` would
+        /// spell the first and the third the same way. The variant is
+        /// where the third one lives, so a caller matches the variant.
+        ///
+        /// **Nothing gates on it.** The at-rest gate above has already
+        /// run and passed by the time this is measured; a body with
+        /// findings ships exactly as a body without them does. A
+        /// finding is a measurement, and reading it as a verdict is
+        /// reading intent into a number.
+        coherence: Option<topo::CoherenceReport>,
     },
     /// The file carried a `GEOMETRIC_CURVE_SET` wireframe and no
     /// solid: the reconstructed carriers, exact. **No body is
@@ -785,6 +881,18 @@ pub fn import_step(
             body.mark_imported();
             let records = resolve_declarations(&body, &options.declared_contacts, eps_in)?;
             let enclosure = gate3(&body, &records, tol)?;
+            // **The chart-coherence channel** — after the gate, on the
+            // body that ships, and consuming nothing. The door is a
+            // pure function of (body, ε) that refuses nothing and
+            // returns a measurement; running it here rather than on
+            // some intermediate is what makes the report a statement
+            // about the value the caller receives. It is called
+            // directly, with no lane trait in front of it: every door
+            // in this crate is monomorphic at `f64`, so there is no
+            // scalar for which the examination could be absent.
+            let coherence = options
+                .examine_chart_coherence
+                .then(|| topo::examine_chart_coherence(&body, tol));
             Ok(StepImport::Solid {
                 body,
                 enclosure,
@@ -792,6 +900,7 @@ pub fn import_step(
                 normalizations: model.normalizations.clone(),
                 curve_promotions: model.curve_promotions.clone(),
                 instances: record,
+                coherence,
             })
         }
         entities::Shape::Wireframe(ref curves) => Ok(StepImport::Wireframe {
