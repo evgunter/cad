@@ -1472,18 +1472,24 @@ class TestTheWholeProgramEdit(unittest.TestCase):
         self.assertEqual(row.name, rim)
         self.assertIn('"segment":3', row.rebound_to)
         self.assertIsNone(row.node)
-        loaded = load(doc.save())
-        self.assertEqual(loaded.edit_count, len(doc))
-        self.assertEqual(loaded.doc.save(), doc.save())
+        # `Doc.save` writes the document as a SNAPSHOT with no log
+        # (the binding holds a value, not a history), so the reshaped
+        # program crosses in the snapshot and the loaded document
+        # re-saves to the same bytes.
+        text = doc.save()
+        loaded = load(text)
+        self.assertEqual(loaded.edit_count, 0)
+        self.assertEqual(loaded.doc.save(), text)
 
     def test_a_step_the_provenance_drops_strands_the_fillets_name(self):
-        """The same program with the wall's step stated as new: the
-        fillet's name is retired and reported as a `strand` on the
-        fillet node, with `rebound_to` empty."""
+        """The same program with the wall's step stated as new — wall
+        2 is drawn by the step arriving at `(0, 2)`, old step 3, new
+        step 4 — so the fillet's name is retired and reported as a
+        `strand` on the fillet node, with `rebound_to` empty."""
         doc, profile, _box, rim = self.filleted_box()
         fillet = doc.order()[-1]
         reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
-        doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, None, None, 3, 4])]))
+        doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, None, 2, None, 4])]))
         (row,) = doc.last_maintenance
         self.assertEqual(row.variant, "strand")
         self.assertEqual(row.node, fillet)
