@@ -218,12 +218,24 @@ populations.
 door diverges from `Body::faces_of_solid`'s house form, and the reason
 is that the two do different work: `faces_of_solid` SELECTS on the
 faces' back-pointers and must build, while this reads a list the arena
-already holds. Returning `Vec` would force an allocation on the four
-sites that today take none (`combine.rs`, `ops.rs`,
-`offset_together.rs`, `seqgen.rs` ~:1223) — **a door must not be worse
-than the spelling it replaces at any call site.** The four sites that
-do need to own say `.to_vec()` where they said `.clone()`, which is a
-wash, and `shell.rs` LOSES a clone it never needed.
+already holds. Returning `Vec` would force an allocation on **ten** of
+the fourteen production call sites, which today take none —
+`combine.rs` (~:476), `ops.rs` (~:2063), `euler_kill.rs` (~:422),
+`instance.rs` (~:364), `offset_together.rs` (~:824), `review_m1_pr4.rs`
+(~:1610), `seqgen.rs` (~:1042, ~:1222, ~:1360) and `shell.rs` (~:1014).
+**A door must not be worse than the spelling it replaces at any call
+site.** The other four need to own and say `.to_vec()` where they said
+`.clone()`, which is a wash; `shell.rs` LOSES a clone it never needed.
+
+**This row first published that number as FOUR**, taken by eye rather
+than counted, in the load-bearing sentence of the one place this door
+deliberately diverges from its sibling's house form. The argument gets
+STRONGER when the number is re-taken, which is the worst way for a
+count to be wrong: nothing about the conclusion flags it. Seventeen
+call sites in all, of which three are this door's own row. (The
+instrument that first re-took it was wrong too — a four-line window
+read `movefac.rs`'s `.to_vec()`, six lines below its call, as a
+borrow.)
 
 **What no mutation measures**, and these are the load-bearing reasons:
 
@@ -260,7 +272,7 @@ the argument.
 | `seqgen.rs` (~:1361) | folded; the unguarded `[0]` |
 | `review_m1_pr4.rs` (~:1610) | folded. **The PR #17 attribution header in this file was not touched** — the diff is four lines inside one closure |
 | `instance.rs` (~:364) | **folded — THE ROW MISSED THIS ONE.** A `#[cfg(test)]` count assertion, in the row's own crate, that both its instruments could see |
-| `instance.rs` (~:384) | **folded, and not onto THIS door.** It resolved the grafted solid, walked its shells and flat-mapped their faces — which is `Body::faces_of_solid`, minted by PR #2898, whose own hit list does not name it. Its fifth instrument (every `Solid::shells` read reaching a `.faces`) had it in hand. **A fold leaving a member behind in a file it had open, for the sixth consecutive unit** — this one in the sibling's class, found because this unit had the same file open |
+| `instance.rs` (~:383) | **folded, and not onto THIS door.** It resolved the grafted solid, walked its shells and flat-mapped their faces — which is `Body::faces_of_solid`, minted by PR #2898, whose own hit list does not name it. Its fifth instrument (every `Solid::shells` read reaching a `.faces`) had it in hand. **A fold leaving a member behind in a file it had open, for the sixth consecutive unit** — this one in the sibling's class, found because this unit had the same file open. **It is the sibling of a site #2898 EXEMPTED, and that owed an answer.** `instance.rs` (~:352–358) is exempt because it asserts every shell's back-pointer against its owner's list, and a door built on those back-pointers would assume what it checks. The site folded here is in the same file and the same suite and is NOT exempt, because its row's subject is key FRESHNESS — that no transplanted face reuses a destination key — and not back-pointer integrity. Its own predecessor walk counted faces through `solid.shells → shell.faces`; the door selects through `solid_of_face`; either way the row's question is about the key SET, which both answer, and the row's other assertion (the arrived count) is pinned by plant 4 |
 
 **Kept hand-written — six sites in four rows, and the reason is one
 rule:** a row that asserts an ownership LIST and its back-pointer
@@ -295,9 +307,13 @@ target aborted under plant 1 and its `test result:` line precedes the
 suite's.
 
 The restore harness rewrites the pre-plant BYTES and then diffs
-against `HEAD` (method item 17); every run below restored clean.
+against `HEAD` — *the restore restores exactly what the plant
+changed*, the program's method item 17 as PR #2930 numbers it; every
+run below restored clean.
 
-**Directions, argued before any result was read** (method item 16):
+**Directions, argued before any result was read** — *the direction of
+a plant is argued before its result is read*, method item 16 as
+#2930 numbers it:
 
 - **Plant 1 SHRINKS.** Every answer loses its first shell; a
   one-shell solid answers the empty list. It must red every folded
@@ -321,8 +337,23 @@ against `HEAD` (method item 17); every run below restored clean.
 | a stale solid answers `Some(&[])` instead of `None` | **relax the guard** | 730 / **3** | 566 / 0 |
 | `boolean/finish.rs` walks the door's answer in reverse | **permute** | 733 / 0 | 566 / 0 |
 
-**Plant 1: no folded site is dark.** Every one of the fifteen reds,
-and the mapping is one-to-one:
+**Plant 1 leaves the FIFTEENTH site unmeasured, and this row first
+claimed otherwise.** It published *"no folded site is dark"* over a
+table whose `instance.rs` line lumped two sites together and credited
+them with one row — while the same table correctly says
+`Body::faces_of_solid` is unmoved by this plant. `instance.rs` (~:383)
+reads `faces_of_solid`, so nothing in plant 1 touches it. Run filtered
+to `instance::`, plant 1 gives **4 passed / 1 failed**, and the
+failure is `a_graft_adds_a_whole_second_solid_and_shares_nothing` —
+site 14 — while site 15's row,
+`the_graft_mints_fresh_keys_for_every_transplanted_entity`, stays
+green. **The one claim the whole plant section exists to support was
+false for one site in fifteen, and the evidence against it was inside
+the section.** Plant 4 below measures that site; the corrected claim is
+*no folded site is dark across plants 1 and 4 together*.
+
+**Plant 1: the other fourteen.** Every one reds, and the mapping is
+one-to-one:
 
 | folded site | rows it redded under plant 1 |
 | --- | --- |
@@ -331,7 +362,7 @@ and the mapping is one-to-one:
 | `offset_together.rs` | `scope_walks::{a_scope_holds_only_the_solids_it_names, an_out_of_scope_faces_unmintable_chart_does_not_refuse_the_door, an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk, the_two_hops_refuse_differently}`, `shell10_r2_probes::r2_a_re_scope_up_holds_the_solid_it_was_aimed_at` |
 | `seqgen.rs` ×3 | 4 `seqgen::` rows plus `validate::random_sequences_then_teardown_validate_vacuously` |
 | `review_m1_pr4.rs` | `genus_two_double_hole_body_tears_down_to_nothing`, `kvfs_slot_recycling_is_generation_safe`, `seqgen_generates_every_op_kind_and_every_site_shape` |
-| `instance.rs` ×2 (and `boolean/combine.rs`, which the graft calls) | `a_graft_adds_a_whole_second_solid_and_shares_nothing` |
+| `instance.rs` (~:364) and `boolean/combine.rs`, which the graft calls | `a_graft_adds_a_whole_second_solid_and_shares_nothing`. **`instance.rs` (~:383) is NOT in this row** — see plant 4 |
 | `body.rs` (the door's own row) | `shells_of_solid_answers_the_solids_own_list_order_not_the_arenas` |
 | `shell.rs` | integration: `shell_roles` ×3, `void_door` ×6 |
 | `splitting/finish.rs` ×2 | integration: `m3_pr3_split` ×5, `review_m3_pr3_{bob, consumer, order, rings}` ×9 |
@@ -349,20 +380,90 @@ downstream), and it is what the choice rests on. Zero integration rows
 red; a reviewer weighing red counts alone would read this guard as
 unjustified.
 
+**Plant 4 measures the fifteenth site, and nothing else could.**
+
+- **Direction, argued first: SHRINK.** `Body::faces_of_solid` drops the
+  first face of every answer. Site 15's row asserts two things — that
+  the grafted face list has the source's length, and that no grafted
+  key is among the destination's original keys. A shrink TIGHTENS the
+  first (the length goes short) and **RELAXES the second** (fewer faces
+  to collide), so if the row reds it reds on the length, which is the
+  assertion the folded read feeds. A green would have meant the site
+  is dark.
+
+| planted | direction | lib | integration |
+| --- | --- | --- | --- |
+| `faces_of_solid` drops the first face | **shrink** | 725 / **8** | 564 / **2** |
+
+Restricted to `instance::`: **4 passed / 1 failed**, the failure being
+`the_graft_mints_fresh_keys_for_every_transplanted_entity` — the
+complement of plant 1's, so the two `instance.rs` sites are now
+separately measured and neither is dark. The plant is live well beyond
+this site: `faces_of_solid_restricts_the_face_arena_to_one_solid`,
+`faces_of_solid_answers_arena_order_where_the_shell_walk_would_not`,
+`props::face_list_door_tests::a_solid_s_faces_enclose_that_solid_s_volume_in_a_shared_arena`,
+two `offset_together::scope_walks` rows, `shell10_r2_probes::r2_a_…`,
+and two integration rows (`bool4_material_containment::a_part_in_a_cavity_clears`,
+`bool4r1_probes::probe_g_…`).
+
 **Plant 3 is a null, and its control is plant 1**, which reds this
 exact site through eighteen-odd integration rows. So the loop is live
 and heavily asserted about WHICH shells it walks; only the order is
 dark. Filed as
 `work/tint/the-boolean-joins-shell-processing-order-is-unasserted.md`.
 
-A fourth plant, `seqgen::fusion_remake_shell`'s `.last()` → `.first()`,
-was also a null — and **its own control was a null too**: replacing the
-whole function body with `None` leaves 733/566 green at
-`CAD_FUZZ_EFFORT=1` and again at `20`. The site is unasserted entirely,
-so the order plant there measured nothing. Filed as
-`work/tint/seqgen-fusion-remake-shell-is-dark.md`.
+**Plant 5 was a null whose control was the WRONG control**, and that is
+the finding worth keeping from it. `seqgen::fusion_remake_shell`'s
+`.last()` → `.first()` reddened nothing; the control run replaced the
+whole body with `-> None` and also reddened nothing, and this row read
+that as "the site is unasserted entirely". It is — but `-> None` does
+not show it. **A plant that changes a RETURN VALUE cannot distinguish
+`called and unasserted` from `never called`; only a plant that cannot
+be satisfied by any answer can.** Planted `panic!` instead: **732 / 1**
+lib, the red being
+`seqgen::random_op_sequences::random_op_sequences_hold_all_properties`.
+So the site IS reached and its answer is wholly unasserted — the right
+conclusion, reached the first time by luck of the tree rather than by
+the control. Both runs are in
+`work/tint/seqgen-fusion-remake-shell-is-dark.md`, and the rule is
+general enough to belong in the program's method rather than in this
+row.
 
-## X4 the fold minted, disclosed
+## X4 the fold minted — THREE, of which the unit self-caught one
+
+The two the unit did **not** catch are both in `body.rs`, the file
+whose door prose this unit censused, and both were found by the reader
+who did not write the fix. That is this program's standing result, now
+at four units running.
+
+**The fixture, and an OPEN row of this program already named its
+class.** The door's new reference row hand-built a same-solid
+two-shell body — the four raw writes, `solids.remove` /
+`solid_provenance.remove` pair included — **forty lines below a copy
+of exactly that sequence**, and
+`work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md`
+prints the sequence statement by statement. The new copy also dropped
+the comment saying why the removal has to be PAIRED, which is that
+row's stated reason for wanting a shared fixture at all. That row even
+writes its own epitaph: *"a fourth copy that says nothing about itself
+would not have been found this way either."* Fixed by folding
+**both** `body.rs` copies onto one local `adopt_shell_into` helper
+carrying the pairing comment; the class stays at three SITES
+(`euler_ring.rs`, `body.rs`, `validate.rs`) and `body.rs`'s is now one
+named block rather than two open-coded ones. Where the shared fixture
+lives is still that row's decision, not this one's.
+
+**A third copy of a bolded clause, in the prose class this unit
+filed.** `body.rs` now opens three door paragraphs with the
+byte-identical **"`None` is the only refusal this door can make"** —
+`solid_of_face` (~:876), `face_of_half_edge` (~:999) and the new door —
+each then restating the consequence in its own words. The residue row
+this unit filed sorts `body.rs` door prose into two shapes (the short
+stale-vs-foreign parenthetical and the long form) and **has no bucket
+for this clause at all**, so the unit minted the third copy of a class
+its own census could not see. The new door now states the refusal by
+reference to `solid_of_face` instead; the clause is added to the
+residue row as its second family.
 
 **One, caught in the diff before the push.** The door's first draft
 wrote `faces_of_solid`'s foreign-key sentence over again with "shell
@@ -406,7 +507,9 @@ Residue, one file each:
 | residue | file |
 | --- | --- |
 | the eleven sites outside `crates/topo/src`, all test-side | `work/dup/the-guarded-shell-list-of-a-solid-is-spelled-eleven-times-outside-topo-src.md` |
-| the stale-vs-foreign clause at thirteen `body.rs` doors — **the X4 this unit minted and fixed its own instance of** | `work/dup/the-stale-vs-foreign-key-clause-is-spelled-at-thirteen-body-doors.md` |
+| the stale-vs-foreign clause at thirteen `body.rs` doors, **and the "`None` is the only refusal" clause at three** — two X4 families, one instance of each minted here and fixed | `work/dup/the-stale-vs-foreign-key-clause-is-spelled-at-thirteen-body-doors.md` |
 | `seqgen::fusion_remake_shell` is unasserted entirely — its own control is a null | `work/tint/seqgen-fusion-remake-shell-is-dark.md` |
 | the boolean join's shell-processing order is unasserted | `work/tint/the-boolean-joins-shell-processing-order-is-unasserted.md` |
-| the owner index: two doors that already DISAGREE about a lone vertex, measured | `work/dup/two-spellings-of-the-face-to-solid-owner-index.md` |
+| the owner index: two doors that already DISAGREE about a lone vertex, measured — **and the falsification is pinned by nothing in the tree** | `work/dup/two-spellings-of-the-face-to-solid-owner-index.md` |
+| the same-solid two-shell body: a FOURTH hand-build, minted by this unit's own reference row and folded back to a local helper | `work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md` |
+| `review_m1_pr4.rs`'s *"the probes are otherwise verbatim"* — a closed exception list this unit's fold added to without amending | `work/dup/review-m1-pr4s-verbatim-sentence-is-one-edit-less-true.md` |

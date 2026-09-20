@@ -29,17 +29,28 @@ summing to it.
 | `.last()` → `.first()` | permutes: a one-shell solid answers the same key either way, so this discriminates only where a fusion candidate sits on a solid with ≥2 shells | 733 / 0 | 566 / 0 |
 | the body replaced by `None` — **the control** | the function never permits a re-make, so every `kef` fusion the generator reaches becomes `SkippedIrreversible` | 733 / 0 | 566 / 0 |
 | the same, at `CAD_FUZZ_EFFORT=20` | twenty times the sequence depth | 733 / 0 | 566 / 0 |
+| **the body replaced by `panic!`** — the DISCRIMINATING control | nothing the caller can do satisfies a panic, so this separates *called* from *not called*, which no return-value plant can | **732 / 1** | 566 / 0 |
 
-**The control is what makes this a finding rather than a null about
-order.** Had only the first row been run, the honest reading would
-have been "the site's use of the list ORDER is unasserted"; the control
-says the site is unasserted *entirely*, and the first row measures
-nothing. (The program's own 2026-09-20 log entry names this shape — a
-measurement that was real, ran, came back green, and whose sentence
-about what it discriminated was false.)
+The red is
+`seqgen::random_op_sequences::random_op_sequences_hold_all_properties`.
+**So the site is reached**, on the default fuzz effort, and its answer
+is wholly unasserted.
 
-The restore harness rewrote the pre-plant bytes and `git diff --stat`
-against `HEAD` was empty after every run.
+**The `-> None` row is not a control, and reading it as one was the
+defect this row carried first.** `-> None` changes the return VALUE,
+which is the same experiment as `.last()` → `.first()` with a wider
+swing: both show the value is unasserted and neither can tell *called
+and unasserted* from *never called*. This row nonetheless wrote *"the
+site is unasserted entirely"* off it — a conclusion that happened to be
+true, by the shape of this tree rather than by the measurement. The
+general rule, which the program's 2026-09-20 log entry anticipates in
+its "a claim about a measurement" paragraph: **to prove a site is
+REACHED, plant something no answer can satisfy; to prove its answer is
+unasserted, plant a different answer. One plant cannot do both.**
+
+The restore harness rewrote the pre-plant bytes after every run and
+the diff against `HEAD` carried only the lane's own uncommitted work,
+never a plant.
 
 ## What would close it
 

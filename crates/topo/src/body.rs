@@ -973,12 +973,13 @@ impl<T: Real> Body<T> {
     /// each other — so on a valid body the two agree about WHICH
     /// shells, and only this one fixes their order.
     ///
-    /// **`None` is the only refusal this door can make**, and that is
-    /// why it can stand under callers that refuse in different
-    /// vocabularies: each keeps its own `ok_or`, and what folds is the
-    /// lookup, not the refusal. A caller that must distinguish a stale
-    /// SOLID key from a stale SHELL key still resolves the shells
-    /// itself, because that second hop is not here.
+    /// **`None` is the only refusal this door can make.** What that
+    /// costs a caller, and which callers therefore keep a hand-written
+    /// walk, is the question [`Body::solid_of_face`] answers at
+    /// length; the argument transfers, with one difference. This door
+    /// composes no second hop, so a caller distinguishing a stale
+    /// SOLID key from a stale SHELL key resolves the shells itself
+    /// rather than reading a second door for the second key.
     #[must_use]
     pub fn shells_of_solid(&self, solid: SolidKey) -> Option<&[ShellKey]> {
         Some(&self.get_solid(solid)?.shells)
@@ -1478,6 +1479,33 @@ mod tests {
         assert_eq!(body.faces_of_solid(SolidKey::default()), None);
     }
 
+    /// Re-homes `minted`'s shell into `solid` at position `at` of that
+    /// solid's shell list, and retires the solid `mvfs` minted it with.
+    ///
+    /// **A solid with two shells is not constructible through the
+    /// public operators** — `mvfs` mints one solid per shell — so the
+    /// re-homing is a raw in-crate write. The arena removal is PAIRED
+    /// with its provenance removal the way `kvfs` pairs them: an arena
+    /// removal that leaves the provenance entry behind is
+    /// `LeakedProvenance`. Written once here because two rows below
+    /// need the body and the pairing is the easy half to forget; the
+    /// wider class, and whether it wants a home in `fixtures.rs`, is
+    /// `work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md`.
+    fn adopt_shell_into(
+        body: &mut Body<f64>,
+        solid: SolidKey,
+        minted: &crate::MvfsCreated,
+        at: usize,
+    ) {
+        body.get_shell_mut(minted.shell).unwrap().solid = solid;
+        body.get_solid_mut(solid)
+            .unwrap()
+            .shells
+            .insert(at, minted.shell);
+        body.solids.remove(minted.solid);
+        body.solid_provenance.remove(minted.solid);
+    }
+
     /// The door's ORDER is the ARENA's, not the shell walk's, and the
     /// two are only the same sequence while a solid has one shell.
     ///
@@ -1501,18 +1529,10 @@ mod tests {
         let mut body = t.body;
         let second = body.mvfs(origin()).unwrap();
 
-        // One solid, two shells: adopt the minted shell (its own solid
-        // goes, rather than staying behind empty), and move `face_b`
-        // into it so the shells interleave with the arena.
-        body.get_shell_mut(second.shell).unwrap().solid = t.solid;
-        body.get_solid_mut(t.solid)
-            .unwrap()
-            .shells
-            .push(second.shell);
-        // Paired, as `kvfs` pairs them: an arena removal that leaves
-        // the provenance entry behind is `LeakedProvenance`.
-        body.solids.remove(second.solid);
-        body.solid_provenance.remove(second.solid);
+        // One solid, two shells, the minted shell listed LAST; then
+        // move `face_b` into it so the shells interleave with the
+        // arena.
+        adopt_shell_into(&mut body, t.solid, &second, 1);
         body.get_shell_mut(t.shell)
             .unwrap()
             .faces
@@ -1562,15 +1582,9 @@ mod tests {
         let mut body = t.body;
         let second = body.mvfs(origin()).unwrap();
 
-        // Adopt the minted shell into the pillow's solid and list it
-        // FIRST, so the list runs against the arena's slot order.
-        body.get_shell_mut(second.shell).unwrap().solid = t.solid;
-        body.get_solid_mut(t.solid)
-            .unwrap()
-            .shells
-            .insert(0, second.shell);
-        body.solids.remove(second.solid);
-        body.solid_provenance.remove(second.solid);
+        // The minted shell listed FIRST, so the solid's list runs
+        // against the arena's slot order.
+        adopt_shell_into(&mut body, t.solid, &second, 0);
 
         let arena: Vec<ShellKey> = body.shells().map(|(k, _)| k).collect();
         assert_eq!(arena, vec![t.shell, second.shell], "the arena's order");

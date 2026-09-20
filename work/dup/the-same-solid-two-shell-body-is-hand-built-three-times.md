@@ -79,6 +79,26 @@ duplication class and the decision is a shared-fixture home, which is
 this program's charter. Cross-referenced from
 `work/dup/listing-a-solids-faces-is-spelled-four-times-in-topo-src.md`.
 
+## 2026-09-20: a fourth copy was minted and folded back, same file
+
+`Body::shells_of_solid`'s reference row (`body.rs`) needed the same
+body and hand-built it again — the four raw writes, **the
+`solids.remove` / `solid_provenance.remove` pair included, and the
+comment explaining the pairing dropped**. Forty lines below the copy
+this row already names, in a unit about one thing spelled *n* times,
+found by the reader rather than the lane. It is the copy this row's
+last paragraph predicts: prose at the copy site is what found the
+first three, and a copy that says nothing about itself is invisible to
+that instrument.
+
+Folded at once, and **not** by anticipating this row's decision: both
+`body.rs` copies now call a LOCAL `adopt_shell_into(body, solid,
+minted, at)` in that file's test module, which carries the pairing
+comment and a pointer here. The class is still **three sites** —
+`euler_ring.rs`, `body.rs`, `validate.rs` — and `body.rs`'s is now one
+named block instead of two open-coded ones. Where the shared fixture
+lives, and with what parameters, is still the table above.
+
 ## Not measured
 
 Only `crates/topo/src` was read. Whether `crates/*/tests` or the cargo

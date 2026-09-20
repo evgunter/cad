@@ -33,6 +33,29 @@ The seven parentheticals earn their keep: one clause, at the door, is
 cheaper for a reader than a jump. The **four long forms are the class**,
 and two of them were byte-parallel.
 
+## A SECOND family in the same prose, which this row's first pass had no bucket for
+
+Three door paragraphs in `body.rs` open with the byte-identical
+sentence **"`None` is the only refusal this door can make"** —
+`solid_of_face` (~:876), `face_of_half_edge` (~:999) and
+`shells_of_solid` — and each then restates the consequence in its own
+words: *"so three shapes of caller keep a hand-written walk"*,
+*"so a caller whose own refusal distinguishes the hops keeps its own
+walk"*, and (before the fix) *"that is why it can stand under callers
+that refuse in different vocabularies"*. One argument, three
+paragraphs.
+
+**The third copy was minted by the unit that filed this row**, in the
+same diff, and this row as first written sorted `body.rs` door prose
+into the two shapes above and could not see it: the census was of the
+stale-vs-foreign clause, and the fence was drawn at that clause rather
+than at *arguments the module already makes that a door restates*.
+`shells_of_solid` now states its refusal by reference; the other two
+are untouched. **A census whose bucket is a SENTENCE cannot find the
+next sentence**, which is the same shape as the code census this
+program keeps re-learning — the fence is drawn at what the author was
+already looking at.
+
 ## The X4, and how it was caught
 
 `Body::shells_of_solid`'s first draft wrote

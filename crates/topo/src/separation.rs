@@ -507,11 +507,20 @@ impl SolidSeparation {
 /// contacts, a picked face) can ask its question at solid
 /// granularity.
 ///
-/// Built from the STORED back-pointers — a half-edge names its loop, a
-/// loop its face, a face its shell, a shell its solid — every one of
-/// which tier 1 validates. So this is a read of structure and never a
-/// geometric decision: no tolerance enters, and a body that passes
-/// tier 1 has a total map.
+/// Built from STORED structure, in two passes that read it in
+/// opposite directions: the FACE map walks the forward ownership
+/// lists — [`Solid::shells`](crate::entity::Solid::shells) then
+/// [`Shell::faces`](crate::entity::Shell::faces) — while the VERTEX
+/// map scans the half-edge arena and follows back-pointers, a
+/// half-edge naming its loop and a loop its face. Tier 1 validates
+/// both directions against each other, so this is a read of structure
+/// and never a geometric decision: no tolerance enters.
+///
+/// **The two passes do not reach the same entities**, and the vertex
+/// map is not total on a tier-1-valid body: a lone vertex in an empty
+/// loop has no half-edge, so the arena scan never sees it. Measured,
+/// with the divergence against `offset_together`'s scope walk, in
+/// `work/dup/two-spellings-of-the-face-to-solid-owner-index.md`.
 #[derive(Debug, Clone, Default)]
 pub struct SolidOwners {
     faces: slotmap::SecondaryMap<crate::entity::FaceKey, SolidKey>,

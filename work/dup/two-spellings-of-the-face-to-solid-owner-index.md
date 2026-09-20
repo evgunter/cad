@@ -137,11 +137,27 @@ other's is false about it**:
 
 **That settles the row's question.** These are not one door with a
 posture argument: folding either onto the other would change what it
-answers about a lone vertex, silently, with no row to catch it (the
-probe above was a throwaway and is not in the tree). The two doors
-should **cite each other**, `SolidOwners`' totality sentence should be
-corrected to the half-edge-reachable entities it actually covers, and
-whichever answer is the intended one should get a row that pins it.
+answers about a lone vertex, silently, with no row to catch it.
+
+**And the falsification itself is unpinned.** The probe above was a
+throwaway, run in-crate and deleted; **nothing in the tree reds if
+either door's behaviour changes here**, in either direction. So the
+divergence is recorded in this file and nowhere a build can see it,
+which is the weakest possible state for a finding about a `pub` door:
+the next lane to touch `SolidOwners` gets no signal at all. A row that
+asserts the two answers against each other — whichever way the
+decision goes — is the first thing a unit here owes, before any fold.
+
+The `shells_of_solid` unit corrected `SolidOwners`' **mechanism**
+prose, which was false independently of the decision: the paragraph
+said the map is built *"from the STORED back-pointers — a half-edge
+names its loop, a loop its face, a face its shell, a shell its solid"*,
+and the FACE map is not built that way at all. It walks the forward
+ownership lists, `body.solids() → solid.shells → shell.faces`; only
+the vertex map follows back-pointers. That correction carries the
+divergence as a stated non-totality and points here. **It does not
+decide which answer is right**, which is this row's question and stays
+open.
 
 The shared spine is nonetheless smaller than the row assumed: the
 outer step of `Scope::walk` — `get_solid(solid)?.shells` — folded onto
