@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-23
 github: 974
 refs: [971, 967]
+priority: P1
+cost: H
 ---
 
 ## From GitHub issue 974

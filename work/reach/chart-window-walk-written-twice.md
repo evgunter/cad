@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-01
 github: 1483
 refs: [1464]
+priority: P1
+cost: E
 ---
 
 ## From GitHub issue 1483

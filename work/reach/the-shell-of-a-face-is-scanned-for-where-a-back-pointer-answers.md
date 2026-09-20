@@ -4,6 +4,8 @@ kind: issue
 title: boolean/ops.rs scans every shell's face list for the shell of a face, where Face::shell answers in one lookup
 status: open
 opened: 2026-09-19
+priority: P1
+cost: E
 ---
 
 

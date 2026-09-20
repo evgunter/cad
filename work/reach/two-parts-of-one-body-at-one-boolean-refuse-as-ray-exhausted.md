@@ -4,6 +4,8 @@ kind: issue
 title: Two Parts selecting one body at one boolean are DM5-distinct inputs carrying one Arc; the boolean refuses as Containment(RayExhausted), not as the same body twice
 status: open
 opened: 2026-09-04
+priority: P0
+cost: D
 ---
 
 ## What

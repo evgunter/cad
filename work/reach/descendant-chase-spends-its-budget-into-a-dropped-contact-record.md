@@ -4,6 +4,8 @@ kind: issue
 title: KeyView's live_vertex/live_face answer None on a spent budget, so a cycling fusion row drops a declared contact instead of refusing
 status: open
 opened: 2026-09-13
+priority: P1
+cost: H
 ---
 
 

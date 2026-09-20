@@ -5,6 +5,8 @@ title: viewer::combine::denotes_body judges a body seat by node kind, and after 
 status: open
 opened: 2026-09-08
 refs: [2173, 2137]
+priority: P1
+cost: D
 ---
 
 (EVAL orchestrator) From EVAL-6 (PR 2173), which built ruling 2137

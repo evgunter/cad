@@ -4,6 +4,8 @@ kind: issue
 title: subtract(A, hollow B strictly inside A) files B's cavity as a second Outer shell of A's solid instead of a solid of its own
 status: open
 opened: 2026-09-08
+priority: P0
+cost: H
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: declaration rows do not cross a boolean's key remap (unreachable today: an instance carrying one is multi-solid)
 status: open
 opened: 2026-09-06
+priority: P3
+cost: E
 ---
 
 

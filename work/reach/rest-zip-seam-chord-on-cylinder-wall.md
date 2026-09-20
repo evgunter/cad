@@ -4,6 +4,8 @@ kind: issue
 title: The declared-REST zip leaves a straight seam chord where a cap rim cuts a bore wall mid-height; the merge door's refusal hid it
 status: open
 opened: 2026-09-07
+priority: P0
+cost: H
 ---
 
 

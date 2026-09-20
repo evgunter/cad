@@ -5,6 +5,8 @@ title: VertexVertex, VertexOnEdge, EdgeEdgeOverlap and ConformalPatch touches be
 status: open
 opened: 2026-09-16
 refs: [2767, 750]
+priority: P0
+cost: H
 ---
 
 Filed by the S-BOOL orchestrator at BOOL-4's merge (PR 2767) on

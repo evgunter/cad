@@ -4,6 +4,8 @@ kind: issue
 title: implicit.rs axial_radial takes a unit axis it does not check — carrier-derived, so no caller holds the witness yet
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 ## Where this came from

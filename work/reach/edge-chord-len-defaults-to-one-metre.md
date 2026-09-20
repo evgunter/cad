@@ -1,11 +1,13 @@
 ---
 id: edge-chord-len-defaults-to-one-metre
 kind: issue
-title: "edge_chord_len's None defaults to a 1 m arm at two plane-identity sites"
+title: edge_chord_len's None defaults to a 1 m arm at two plane-identity sites
 status: open
 opened: 2026-09-01
 github: 1529
 refs: [1398, 501]
+priority: P3
+cost: E
 ---
 
 ## From GitHub issue 1529

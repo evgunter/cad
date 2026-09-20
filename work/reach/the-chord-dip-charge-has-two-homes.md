@@ -4,6 +4,8 @@ kind: issue
 title: The chord-dip charge f2*step^2/8 has two homes and nine spellings: the one in topo/boolean/boxes.rs cannot be depended on from geom-brep
 status: open
 opened: 2026-09-14
+priority: P1
+cost: D
 ---
 
 

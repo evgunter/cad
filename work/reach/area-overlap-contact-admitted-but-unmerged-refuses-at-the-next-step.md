@@ -5,6 +5,8 @@ title: A declared area-overlap cap contact is admitted without a merge, and the 
 status: open
 opened: 2026-09-07
 refs: [2073, 2073]
+priority: P0
+cost: D
 ---
 
 ## What

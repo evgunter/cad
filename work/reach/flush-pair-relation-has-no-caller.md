@@ -4,6 +4,8 @@ kind: issue
 title: The planar flush-pair door has no in-tree caller since the detector widened
 status: open
 opened: 2026-09-05
+priority: P3
+cost: E
 ---
 
 

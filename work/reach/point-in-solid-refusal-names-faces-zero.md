@@ -4,6 +4,8 @@ kind: issue
 title: point_in_solid's body-scoped refusals carry faces[0] under a payload doc that says 'the face being tested'
 status: open
 opened: 2026-09-04
+priority: P3
+cost: E
 ---
 
 

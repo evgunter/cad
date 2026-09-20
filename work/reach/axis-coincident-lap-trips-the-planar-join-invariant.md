@@ -4,6 +4,8 @@ kind: issue
 title: A box lap whose plane CONTAINS the cylinder axis reaches the all-planar join lane's conic guard through the public subtract door
 status: open
 opened: 2026-09-09
+priority: P0
+cost: H
 ---
 
 

@@ -36,6 +36,13 @@ row"* — which understates it; the program-level posture has been no
 duals since its opening plan, and the band 1600-1699 stays claimed and
 empty.
 
+**Cut on 2026-09-20** (Ev, in chat), when this slate measured 65
+budget points against a 30-point ceiling: the ten rows naming a door
+the viewer does not have went to AUTHOR, where they are the GUI half
+of the standing goal, and six prose rows went to VDOC. What CHROME
+keeps is what its charter has always described best — the viewer's
+reported defects and the architecture that entrenches behind them.
+
 Charter and unit order: `work/chrome/plan.md`; narrative in
 `work/chrome/log.md`.
 

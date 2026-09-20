@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-23
 github: 973
 refs: [969, 1496, 1500]
+priority: P3
+cost: D
 ---
 
 ## From GitHub issue 973

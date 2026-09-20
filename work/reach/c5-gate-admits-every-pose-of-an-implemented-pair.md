@@ -5,6 +5,8 @@ title: The C5 gate reads PairRoute::implemented per KIND pair - a pose the arm w
 status: open
 opened: 2026-09-05
 refs: [VERBS-C5ARMS, VERBS-CONE, 1864]
+priority: P0
+cost: D
 ---
 
 

@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-31
 github: 1391
 refs: [1378, 1382, 1390, G9]
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 1391

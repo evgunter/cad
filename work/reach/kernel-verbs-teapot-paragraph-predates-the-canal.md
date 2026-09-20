@@ -4,6 +4,8 @@ kind: issue
 title: docs/KERNEL-VERBS.md's teapot paragraph names two wrong boolean pairs and a spout the scene no longer builds
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

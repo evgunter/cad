@@ -4,6 +4,8 @@ kind: issue
 title: r2_the_two_union_walls_on_my_operands prints four union refusals and asserts none — its stated claim about operand order is unchecked
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

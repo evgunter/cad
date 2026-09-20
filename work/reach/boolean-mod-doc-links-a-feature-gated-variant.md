@@ -4,6 +4,8 @@ kind: issue
 title: boolean/mod.rs:31 links SweepStrategy::Idealized, a feature-gated variant — rustdoc with CI's lints errors on a default build
 status: open
 opened: 2026-09-08
+priority: P4
+cost: E
 ---
 
 

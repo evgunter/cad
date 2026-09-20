@@ -4,6 +4,8 @@ kind: issue
 title: three boolean predicates read a direction as unit by prose — contfp's plane normal, the germ facing sense, the sector directions
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

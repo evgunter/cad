@@ -5,6 +5,8 @@ title: Two half-overlapping cubes whose boundaries meet only in touches (coplana
 status: open
 opened: 2026-09-16
 refs: [2767, 750]
+priority: P0
+cost: H
 ---
 
 Found by both of BOOL-4's reviews (PR 2767) as the class beside the

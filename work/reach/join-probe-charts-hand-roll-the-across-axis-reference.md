@@ -4,6 +4,8 @@ kind: issue
 title: join's probe charts hand-roll an across-axis reference instead of calling Vec3::orthonormal_basis
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 ## Finding

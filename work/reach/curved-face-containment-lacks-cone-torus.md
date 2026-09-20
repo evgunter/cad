@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-01
 github: 1484
 refs: [1464, 1425]
+priority: P0
+cost: H
 ---
 
 ## From GitHub issue 1484

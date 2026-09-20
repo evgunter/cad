@@ -5,6 +5,8 @@ title: cone and torus operand lanes
 status: open
 opened: 2026-08-21
 refs: [1604, VERBS-C5ARMS]
+priority: P0
+cost: H
 ---
 
 Wave 2 row 10: cone (and torus) operand lanes for the boolean, sequenced on

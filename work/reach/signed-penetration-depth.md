@@ -4,6 +4,8 @@ kind: issue
 title: Clearance reports a coincidence, not a signed penetration depth
 status: open
 opened: 2026-09-03
+priority: P1
+cost: D
 ---
 
 ## What

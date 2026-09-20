@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-01
 github: 1500
 refs: [1496, 969, 1063]
+priority: P0
+cost: H
 ---
 
 ## From GitHub issue 1500

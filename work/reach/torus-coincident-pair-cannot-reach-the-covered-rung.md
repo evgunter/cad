@@ -4,6 +4,8 @@ kind: issue
 title: A coincident torus pair cannot reach the declared-cover rung: the sampled enclosure's chord-dip charge outruns every band
 status: open
 opened: 2026-09-13
+priority: P0
+cost: H
 ---
 
 

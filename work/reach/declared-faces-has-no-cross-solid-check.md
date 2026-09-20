@@ -5,6 +5,8 @@ title: Declared.faces has no cross-solid check, so a contact record naming two f
 status: open
 opened: 2026-09-16
 refs: [750]
+priority: P3
+cost: E
 ---
 
 The adjacent observation from issue 750, filed at BOOL-4's spec time

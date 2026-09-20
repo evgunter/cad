@@ -5,6 +5,8 @@ title: the winding assigner/checker divergence: merge_faces assigns arc-bounded 
 status: open
 opened: 2026-09-03
 refs: [1671, m6-sense-gate-recorded-residuals]
+priority: P1
+cost: H
 ---
 
 ## The divergence

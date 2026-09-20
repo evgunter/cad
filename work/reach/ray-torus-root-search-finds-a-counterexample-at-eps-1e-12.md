@@ -4,6 +4,8 @@ kind: issue
 title: the ray-torus root search disagrees with its geometric oracle on a rare pose at eps = 1e-12
 status: open
 opened: 2026-09-16
+priority: P0
+cost: H
 ---
 
 
