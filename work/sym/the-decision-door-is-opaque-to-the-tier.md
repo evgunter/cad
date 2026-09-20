@@ -115,3 +115,17 @@ Whether the decision door should be foldable at all — and at what
 gating — is a design question for SYM, and the construction that mints
 it is Ev's ruling (#1944), so a change on either side is a
 conversation rather than a lane's call.
+
+## SYM's reading (2026-09-19): three pieces, one unit
+
+Taken as **SYM-10** (`docs/SYM-10-SPEC.md`, block SYM-B2 slot 2). The
+reading, argued in `work/sym/log.md`'s entry of the same date: the
+tier already cancels the norms (rules A, E, A0) and `|1/S|` (rule F,
+SYM-8); what it lacks is (1) `max(A, B) → A` on a manifestly
+non-negative difference, (2) a manifest upper bound for the
+conditioning floor's `max(‖v‖, k·min(‖n‖, max|n_i|))`, and (3) rule
+C's certified-sign read extended to `SymOp::Select`, with
+manifestly-positive factor stripping before the enclosure. Each is an
+identity of reals or a gated read; none is a value read that lands in
+`symbolic_zero`. Whether the three reach the row is what SYM-10's
+Phase 1 renders before any rule is written.
