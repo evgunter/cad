@@ -18,10 +18,10 @@
 //! arms and read every field of each. It is the `crate::edit_payload`
 //! shape, for the same reasons.
 //!
-//! One record rather than one match per attribute: `MateFault` has
-//! thirty-one attributes over thirteen arms, so a per-accessor match
-//! would name the same thirteen arms thirty-one times and an arm
-//! added kernel-side would owe thirty-one edits.
+//! One record rather than one match per attribute: every field of
+//! [`MateFaultPayload`] is read off `MateFault`'s thirteen arms, so a
+//! per-accessor match would name the same thirteen arms once per
+//! field and an arm added kernel-side would owe an edit per field.
 //!
 //! # The flattening
 //!
@@ -63,7 +63,9 @@
 //! band arm's, at the same door, reached through `Frame`'s
 //! `FrameError::Band` as well as through `Band` itself.
 
-use pncad::document::{DocumentId, LeverRefusal, MateFault, MateSide, RecipeNodeId, Subgroup};
+use pncad::document::{
+    Clash, DocumentId, Lever, LeverRefusal, MateFault, MateSide, RecipeNodeId, Subgroup,
+};
 use pncad::geom_core::{BandError, FrameError, Indeterminate};
 
 use crate::escalation::escalation;
@@ -107,7 +109,9 @@ pub struct MateFaultPayload {
     /// not decide at all. One concept, one attribute — the arm says
     /// which outcome it names.
     pub predicate: Option<&'static str>,
-    /// The measured clash, in metres.
+    /// The measured clash, in metres: a length verbatim, a lever's
+    /// product, and `None` for the structural refusal
+    /// (`mate_member_empty`), which measures nothing.
     pub clash: Option<f64>,
     /// The `Part` node whose index expression disagrees with the copy
     /// the reference's name names.
@@ -145,15 +149,22 @@ pub struct MateFaultPayload {
     /// The rejected number: a threshold, or a lever arm handed to the
     /// band constructor.
     pub value: Option<f64>,
-    /// The lever's TILT, in radians, when a contradictory clash was
-    /// levered rather than measured outright.
+    /// The lever's TILT, in radians, when a contradictory clash
+    /// levered an authored roll (`Lever::Roll`). One of this and
+    /// `lever_residual` is set on a levered clash, never both: which
+    /// one says what kind of number the predicate measured.
     pub lever_tilt: Option<f64>,
+    /// The lever's RESIDUAL, a pure number — a sine, a cosine, a
+    /// Frobenius departure from the identity, a reachability defect,
+    /// named by `predicate` — when a contradictory clash levered one
+    /// (`Lever::Residual`).
+    pub lever_residual: Option<f64>,
     /// Its ARM, in metres: an upper bound on the two mated parts'
     /// extent together from the datum — each part's reach from its
     /// own origin plus its frame's distance, plus the authored lengths
     /// — and NOT a contact feature, so it names the parts' scale and
-    /// nothing else in the model. `lever_tilt * lever_arm` is the
-    /// `clash` beside it.
+    /// nothing else in the model. The set half times `lever_arm` is
+    /// the `clash` beside it.
     pub lever_arm: Option<f64>,
 }
 
@@ -164,7 +175,7 @@ impl MateFaultPayload {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 29] {
+    pub fn presence(&self) -> [(&'static str, bool); 30] {
         let Self {
             mate,
             side,
@@ -194,6 +205,7 @@ impl MateFaultPayload {
             field,
             value,
             lever_tilt,
+            lever_residual,
             lever_arm,
         } = self;
         [
@@ -225,6 +237,7 @@ impl MateFaultPayload {
             ("field", field.is_some()),
             ("value", value.is_some()),
             ("lever_tilt", lever_tilt.is_some()),
+            ("lever_residual", lever_residual.is_some()),
             ("lever_arm", lever_arm.is_some()),
         ]
     }
@@ -268,6 +281,7 @@ impl MateFaultPayload {
         field: None,
         value: None,
         lever_tilt: None,
+        lever_residual: None,
         lever_arm: None,
     };
 }
@@ -349,10 +363,11 @@ fn with_frame(base: MateFaultPayload, error: &FrameError) -> MateFaultPayload {
 pub fn mate_payload(fault: &MateFault) -> MateFaultPayload {
     let none = MateFaultPayload::NONE;
     match fault {
-        // The two arms whose subject is not a mate at all. The
-        // document ids one names, and the band refusal the other
-        // holds, belong to those types' own vocabularies and stay in
-        // the prose.
+        // The two arms whose subject is not a mate at all, and not
+        // the same case — which rows each reaches is stated once, on
+        // `MateFault`'s own doc. The document ids one names, and the
+        // band refusal the other holds, belong to those types' own
+        // vocabularies and stay in the prose.
         MateFault::PosesOfAnotherDocument { expected, found } => MateFaultPayload {
             expected_document: Some(*expected),
             found_document: Some(*found),
@@ -417,25 +432,34 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload {
             what: Some(what),
             ..none
         },
-        // The lever is the solve's own scale surrogate rather than
+        // The lever is the mated parts' own extent rather than
         // anything in the model, and `clash` is the PRODUCT of its
-        // two halves: an arm that measured its margin without a lever
-        // carries neither half.
+        // two halves. The kind of number levered is which half is
+        // set — a roll's tilt or a residual — and a length measured
+        // outright, or the structural refusal, carries none of the
+        // three.
         MateFault::Contradictory {
             held,
             added,
             predicate,
             clash,
-            lever,
-        } => MateFaultPayload {
-            held: Some(*held),
-            added: Some(*added),
-            predicate: Some(predicate),
-            clash: Some(*clash),
-            lever_tilt: lever.map(|(radians, _)| radians),
-            lever_arm: lever.map(|(_, arm)| arm),
-            ..none
-        },
+        } => {
+            let (lever_tilt, lever_residual, lever_arm) = match clash {
+                Clash::Levered(Lever::Roll { radians, arm }) => (Some(*radians), None, Some(*arm)),
+                Clash::Levered(Lever::Residual { value, arm }) => (None, Some(*value), Some(*arm)),
+                Clash::Structural | Clash::Length { .. } => (None, None, None),
+            };
+            MateFaultPayload {
+                held: Some(*held),
+                added: Some(*added),
+                predicate: Some(predicate),
+                clash: clash.deviation(),
+                lever_tilt,
+                lever_residual,
+                lever_arm,
+                ..none
+            }
+        }
         MateFault::Under {
             mate,
             parent,

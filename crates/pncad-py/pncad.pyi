@@ -5118,7 +5118,11 @@ class MateFault:
     @property
     def predicate(self) -> Optional[str]: ...
     @property
-    def clash(self) -> Optional[Length]: ...
+    def clash(self) -> Optional[Length]:
+        """The measured clash: a length verbatim, or a lever's product.
+        `None` for the structural refusal (`mate_member_empty`), which
+        measures nothing."""
+
     @property
     def part(self) -> Optional[NodeId]: ...
     @property
@@ -5187,8 +5191,19 @@ class MateFault:
 
     @property
     def lever_tilt(self) -> Optional[Angle]:
-        """The lever's TILT, when a contradictory clash was levered
-        rather than measured outright."""
+        """The lever's TILT, when a contradictory clash levered an
+        authored roll (the clocking rider's `mate_clocking_redundant`).
+        One of this and `lever_residual` is set on a levered clash,
+        never both: which one says what kind of number the predicate
+        measured."""
+
+    @property
+    def lever_residual(self) -> Optional[float]:
+        """The lever's RESIDUAL — a pure number, named by `predicate`:
+        a sine, a cosine, a Frobenius departure from the identity, a
+        reachability defect — when a contradictory clash levered one
+        rather than an authored roll. Dimensionless, so a bare float
+        and not a quantity."""
 
     @property
     def lever_arm(self) -> Optional[Length]:
@@ -5196,9 +5211,9 @@ class MateFault:
         extent together from the datum — each part's reach from its own
         origin plus its frame's distance, plus the authored lengths.
         NOT a contact feature: it names the parts' scale and nothing
-        else in the model. `clash` is the PRODUCT of the two halves,
-        and an arm that measured its margin without a lever carries
-        neither."""
+        else in the model. `clash` is the PRODUCT of the set half and
+        the arm, and an arm that measured its margin without a lever
+        carries none of the three."""
 
 
 

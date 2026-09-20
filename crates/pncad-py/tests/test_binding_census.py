@@ -2189,6 +2189,21 @@ NOT_BOUND = {
     # word beside them would publish one fact twice, the
     # `frame_error_tag` rule at the arm one rung up.
     "MarginDiag": SHAPE,
+    # WHAT A LEVERED CLASH MEASURED, curated at `pncad::document`
+    # beside the `MateFault` arm that carries it (`mate_contradictory`)
+    # — and, like `MarginDiag`, a discriminant that crosses as WHICH
+    # ATTRIBUTE IS SET rather than as a word: an authored roll is
+    # `MateFault.lever_tilt`, a dimensionless residual is
+    # `MateFault.lever_residual`, and the arm both lever is
+    # `MateFault.lever_arm`. Both arms reach a Python caller and each
+    # is distinguishable from the other, so a `lever_kind` word beside
+    # them would publish one fact twice.
+    "Lever": SHAPE,
+    # WHAT A CONTRADICTORY REFUSAL MEASURED, the type that holds the
+    # lever above and crosses the same way: a length is `clash` alone,
+    # a lever is `clash` beside its halves, and the structural refusal
+    # is `clash` absent under the predicate word `mate_member_empty`.
+    "Clash": SHAPE,
     # The attribution walk's verdict, and the door that answers it.
     # Same family as `RolePath`/`RoleSeg` and for their reason: it
     # reads the INSIDE of a name, which nothing user-side may read.
