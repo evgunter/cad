@@ -4,6 +4,8 @@ kind: issue
 title: Fourteen private spellings of one PickIndex build in crates/viewer/tests
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

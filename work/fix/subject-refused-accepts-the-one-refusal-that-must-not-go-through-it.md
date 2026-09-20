@@ -4,6 +4,8 @@ kind: issue
 title: Subject::refused accepts NoBodyRoots, the one refusal the registry must not treat as unavailable
 status: open
 opened: 2026-09-15
+priority: P0
+cost: E
 ---
 
 

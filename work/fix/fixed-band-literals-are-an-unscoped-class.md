@@ -5,6 +5,8 @@ title: 55 sites decide against a hard-coded Band::new(1e-9, 1e-8) instead of the
 status: open
 opened: 2026-09-11
 refs: [band-derivation-has-a-scalar-twin, band-helper-duplicated-across-suites]
+priority: P1
+cost: D
 ---
 
 

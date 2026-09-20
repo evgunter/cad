@@ -5,6 +5,8 @@ title: The slot range button mints a third sentence for the condition Refusal::a
 status: open
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
+priority: P3
+cost: E
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at

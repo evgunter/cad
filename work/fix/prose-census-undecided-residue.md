@@ -5,6 +5,8 @@ title: the prose census leaves 28 renderings undecided: positional {:?} over unt
 status: open
 opened: 2026-09-04
 refs: [census-cannot-type-a-nested-pattern-binding, error-census-keyed-on-bare-type-name]
+priority: P4
+cost: E
 ---
 
 

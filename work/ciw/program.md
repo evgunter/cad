@@ -13,11 +13,25 @@ keep_out: [scripts/gates/* is code-quality Track K's, tools/* is INSTR's (work/i
 priority: P4
 ---
 
-The S-QA ground, unowned since 2026-08-31: workflow files, the render
-lanes, the parity checkers, the perf emitters and the demo shell and
-Python. Every item is E — the fix is written in the item — with two
-rulings split out as `[ev]` PRs. Review posture (Ev, 2026-09-04): no
-A/B protocol; one subagent style review per unit, plus a correctness
-reviewer only where a unit earns one, named in its PR with the reason.
-Charter and unit order: `work/ciw/plan.md`; narrative in
-`work/ciw/log.md`.
+**The workflow half, after the 2026-09-20 cut**: `.github/workflows`,
+the gating jobs, the critical path and what a reader of a red run can
+tell from it.
+
+Ev put this band low by name — *"it is low priority to improve tooling
+in order to cause ci to fail less / main to be red less often"* — and
+that is most of what is here: billed-minute arguments, prose digits,
+cache shapes, job names, retries on third-party fetches. Fifty of its
+rows are class `E`.
+
+Three are not about redness but about a PR that is silently UNGATED
+rather than red: a PR whose merge ref cannot be computed gets zero
+gating jobs, a PR that goes `mergeable_state` dirty against a moved
+main gets no Actions run on its next push, and a red inherited from
+main is not attributed to the merge that caused it.
+
+CIW measured **160 budget points unpriced and 67 once its rows carried
+a cost**. It was cut into BLIND (instruments that cannot see what they
+name; Ev's medium band) and MIRROR (the `scripts/` checkers) and this
+remainder. CIW keeps its band 1500-1599.
+
+Charter and unit order: `work/ciw/plan.md`; narrative in `work/ciw/log.md`.

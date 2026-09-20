@@ -4,6 +4,8 @@ kind: issue
 title: Three citations to Track T's rows in fillet's and cert's slates are stale
 status: open
 opened: 2026-09-04
+priority: P4
+cost: E
 ---
 
 

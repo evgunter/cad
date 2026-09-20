@@ -5,6 +5,8 @@ title: Six gated controls carry their only words on on_hover_text, which shows n
 status: open
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
+priority: P1
+cost: E
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at

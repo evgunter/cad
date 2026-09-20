@@ -4,6 +4,8 @@ kind: issue
 title: quantity's FmtQuantityError display row is a verbatim copy of assert_f6's body, panic wording included
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 Found by S-DUP's F6 fold of `crates/viewer/tests/panel_edits.rs`, whose

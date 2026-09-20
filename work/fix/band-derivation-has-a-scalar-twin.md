@@ -5,6 +5,8 @@ title: the linear band's derivation has a scalar twin: ~15 sites compute (eps, K
 status: open
 opened: 2026-09-04
 refs: [band-helper-duplicated-across-suites]
+priority: P1
+cost: D
 ---
 
 

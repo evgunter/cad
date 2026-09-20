@@ -5,6 +5,8 @@ title: DIAGNOSED: the M10-3 interval suite is 15x slower since M10-7's symbolic 
 status: parked
 opened: 2026-09-11
 blocked_on: [symbolic-tier-costs-95-percent-of-the-m10-3-drive]
+priority: P4
+cost: D
 ---
 
 

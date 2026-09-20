@@ -5,6 +5,8 @@ title: PATHS-DESIGN's typed-runtime-refusal register omits both format arms of t
 status: open
 opened: 2026-09-12
 refs: [underflow-gate-owed-at-five-more-doors, 2359, 2415]
+priority: P4
+cost: E
 ---
 
 Disclosed by the `fix/arc-fillet-underflow` lane (PR 2415) while

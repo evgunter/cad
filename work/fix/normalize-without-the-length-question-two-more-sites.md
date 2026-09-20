@@ -4,6 +4,8 @@ kind: issue
 title: two sites normalize a vector whose length no door asked to be finite — the shapes the director-doors sweep found and did not take
 status: open
 opened: 2026-09-11
+priority: P1
+cost: E
 ---
 
 

@@ -5,6 +5,8 @@ title: the chart-coherence resident defaults Off, which answers the no-consumer 
 status: open
 opened: 2026-09-12
 refs: [2408, coherence-findings-have-no-consumer]
+priority: P1
+cost: D
 ---
 
 

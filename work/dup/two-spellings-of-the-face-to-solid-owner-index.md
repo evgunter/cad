@@ -4,6 +4,8 @@ kind: issue
 title: SolidOwners::of and offset_together::Scope::walk are two spellings of the face-to-solid owner index
 status: open
 opened: 2026-09-20
+priority: P1
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: The actionable-or-not rule is a value at the toolbar and a comment in two panes
 status: spec
 opened: 2026-09-05
+priority: P3
+cost: E
 ---
 
 
