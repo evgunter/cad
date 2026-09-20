@@ -213,4 +213,12 @@ is `fixture::wall_row`.
 
 Re-baselined: `fillet_stored_tangency`'s three corpus dump goldens, at
 the three eps rows — the new corpus chain is an addition to the dump,
-not an edit of anything in it.
+not an edit of anything in it. And
+`generic_replay::no_corpus_row_escalates_at_interval`'s relay pin gains
+the new row at `eps = 1e-12`: the path door relays
+`carrier_circles_external` for it, because a fillet arc is tangent to
+its carriers by construction and an `Interval` enclosure of the centre
+separation straddles the classifier's edge — the same fact row 1 is
+already pinned for on the internal side. Not an escalation; the
+escalating set stays EMPTY. Hosted CI caught it, which a local run
+could not: the lane did not build `--features interval` first.
