@@ -727,6 +727,11 @@ impl<P> DocEdit<P> {
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
             Self::InsertNode { node } => matches!(node, Node::Mate { .. }),
+            // A reshaping rebinds or retires the NAMES a mate's heads
+            // hold — `Rebind`'s motion over every name at once — and
+            // never touches a datum; a head it strands is N5's, the
+            // solve's at evaluation.
+            Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
             | Self::Rebind { .. }

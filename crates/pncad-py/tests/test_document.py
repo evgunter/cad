@@ -1361,9 +1361,11 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
     def test_the_edit_arms_that_hold_a_refusal_are_pre_checked_elsewhere(self):
         """Why the rows above reach ONE inner word and not four.
 
-        `EditError` has five arms carrying an inner refusal. The
-        placement axis is the only one an authoring caller can reach:
-        each of the others is refused at a NARROWER door first, which
+        Of the `EditError` arms carrying an inner refusal, the
+        placement axis and — through `DocEdit.set_program` — the
+        provenance fault are the ones an authoring caller can reach
+        (the provenance rows are `TestTheWholeProgramEdit`'s); each of
+        the others is refused at a NARROWER door first, which
         is the fail-loud shape working — the refusal a caller gets
         names the thing they typed. Pinned here so that a door
         widening later shows up as this test failing rather than as a
@@ -1511,7 +1513,7 @@ class TestTheWholeProgramEdit(unittest.TestCase):
 class TestTheEditDoorsPayload(unittest.TestCase):
     """The refusing arm's payload, off real edits.
 
-    The document layer's `EditError` has 60 arms and many have no
+    The document layer's `EditError` has 68 arms and many have no
     Python door — a witness, an appearance write and an
     expression-path edit are not among the `DocEdit` verbs. What the
     rows below pin is the half a Python caller can provoke: the
