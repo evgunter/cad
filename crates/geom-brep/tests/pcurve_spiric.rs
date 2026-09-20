@@ -174,12 +174,24 @@ fn the_sense_gates_band_is_the_levered_one_and_both_channels_are_priced() {
         "the levered window is eps/(R+r): {window:e}"
     );
 
-    // Just inside: admitted by check 1, priced by check 4.
+    // Just inside: admitted by check 1, and refused DOWNSTREAM of it
+    // — by the schedule or the envelope, both of which price the
+    // displacement `η` buys. What the row pins is which check did NOT
+    // answer: `UnsupportedCarrier` is check 1's refusal, and under the
+    // retired `over_lever` door that is exactly what this input got,
+    // 37× early.
     let e = certify(wall(1.0 + 5e-9, 0.0), &torus(), band())
-        .expect_err("the envelope prices the admitted drift");
+        .expect_err("a drift this size is a displacement over eps");
     assert!(
-        matches!(e, PcurveCertifyError::ResidualExceeded { .. }),
-        "check 1 admitted it and check 4 refused; got {e:?}"
+        !matches!(e, PcurveCertifyError::UnsupportedCarrier),
+        "check 1 must ADMIT a residue inside its own levered window; got {e:?}"
+    );
+    assert!(
+        matches!(
+            e,
+            PcurveCertifyError::ResidualExceeded { .. } | PcurveCertifyError::Escalated { .. }
+        ),
+        "and the price is what refuses; got {e:?}"
     );
 
     // A drift small enough that the price fits under eps certifies,
@@ -273,8 +285,11 @@ fn a_drifted_chart_is_priced_or_refused_but_never_certified_as_zero() {
             EnvelopeStatement::SpiricIdentity,
             "{what}"
         );
+        // `0.99·floor` because the price is arithmetic on the drift,
+        // not the drift itself: a `5e-10` shift of the chart's centre
+        // reads back as `4.999999997368221e-10` through a norm.
         assert!(
-            env > 0.0 && env >= floor,
+            env > 0.0 && env >= floor * 0.99,
             "{what}: the chart's drift is priced, got {env:e}"
         );
         assert!(
