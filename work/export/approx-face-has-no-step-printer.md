@@ -5,6 +5,8 @@ title: STEP export refuses an Approx-faced body - the writer has no OFFSET_SURFA
 status: open
 opened: 2026-09-04
 refs: [1758]
+priority: P3
+cost: H
 ---
 
 

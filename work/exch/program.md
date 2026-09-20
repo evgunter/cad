@@ -13,11 +13,25 @@ keep_out: [code-quality Track U's STEP and STL rows are claimed — D343 moved i
 priority: P3
 ---
 
-The I/O crates, which have had no program since M7 closed on
-2026-08-09: certified curve recognition on import (open arcs, ellipse,
-helix; degree-1 promotion), an algebraic cylinder-recognition
-certificate, and the caller-facing option surface (the ε type, STEP
-header fields, STL header names) LIB held as "plan to Ev first" and
-never drafted. Class H core with three D→E option items. Claims
-code-quality Track U's STEP/STL rows. Charter and unit order:
-`work/exch/plan.md`; narrative in `work/exch/log.md`.
+**STEP import's recognition and certification lanes, after the
+2026-09-20 cut**: what the importer can recognise, what it promotes,
+and what it certifies about the promotion.
+
+The charter's core is unchanged — certified curve recognition on
+import (open arcs, ellipse, helix; degree-1 promotion) and the
+algebraic cylinder-recognition certificate. What the cut adds is that
+the recognition chain has a measured hole at each rung: `recognize.rs`
+normalizes a plane normal with no length decision and cannot mint the
+witness; the circle limb certifies locus and closure but not the MAP,
+so a re-timed parameterisation passes; and recognition promotes at
+`eps_in` while selection and certify run at ambient, which is two dials
+on one strand.
+
+`torus-rim-mint-abandons-a-half-applied-split` is the P0 row: it bails
+with `Ok(())` after `split_at_midpoint` has already run.
+
+EXCH was cut on 2026-09-20 (Ev, in chat) from 44.5 budget points into
+EXPORT (the writing direction and the shared refusal plumbing) and this
+remainder. EXCH keeps its band 2100-2199.
+
+Charter and unit order: `work/exch/plan.md`; narrative in `work/exch/log.md`.

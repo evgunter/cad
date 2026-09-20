@@ -5,6 +5,8 @@ title: MassProperties and the certificate family (PcurveCertificate, certify::Ce
 status: open
 opened: 2026-09-08
 refs: [2134]
+priority: P3
+cost: D
 ---
 
 Found by BOOL-9's second review (PR 2134, R2 MINOR-3) and filed by the

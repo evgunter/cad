@@ -4,6 +4,8 @@ kind: issue
 title: inverting every face's sense on an arc-capped loft leaves tier 3 green with an unchanged positive enclosure
 status: open
 opened: 2026-09-12
+priority: P0
+cost: H
 ---
 
 

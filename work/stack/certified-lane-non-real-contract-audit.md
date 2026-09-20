@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-29
 github: 1143
 refs: [701, 1107, 1116, 1142, 1146, 1157, 1277]
+priority: P2
+cost: D
 ---
 
 ## From GitHub issue 1143

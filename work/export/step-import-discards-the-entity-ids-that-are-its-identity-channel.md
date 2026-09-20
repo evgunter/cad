@@ -5,6 +5,8 @@ title: import_step keys its maps by the file's entity ids and discards them at t
 status: open
 opened: 2026-09-12
 refs: [2404]
+priority: P1
+cost: D
 ---
 
 

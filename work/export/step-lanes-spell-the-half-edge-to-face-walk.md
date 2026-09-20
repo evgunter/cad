@@ -4,6 +4,8 @@ kind: issue
 title: step-import/src and step-export's example spell the half-edge to face walk
 status: open
 opened: 2026-09-19
+priority: P1
+cost: E
 ---
 
 

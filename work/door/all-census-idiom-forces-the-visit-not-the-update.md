@@ -4,6 +4,8 @@ kind: issue
 title: The ALL-census idiom forces a visit to the row, not an update to the list, at every site it has
 status: open
 opened: 2026-09-11
+priority: P3
+cost: E
 ---
 
 

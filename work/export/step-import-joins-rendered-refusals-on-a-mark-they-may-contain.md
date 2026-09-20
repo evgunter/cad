@@ -4,6 +4,8 @@ kind: issue
 title: two StepImportError arms join rendered refusals flat on a "; " the elements may carry
 status: open
 opened: 2026-09-16
+priority: P3
+cost: E
 ---
 
 

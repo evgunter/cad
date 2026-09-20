@@ -5,6 +5,8 @@ title: E5 contribution bounds from Dual<Interval> derivative enclosures (M10-4 d
 status: open
 opened: 2026-09-03
 refs: [1627, 1638]
+priority: P2
+cost: D
 ---
 
 M10's plan (deleted at that program's exit sweep and recoverable

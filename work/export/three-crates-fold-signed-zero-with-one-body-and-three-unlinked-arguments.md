@@ -4,6 +4,8 @@ kind: issue
 title: One signed-zero fold body in three crates, each with its own paragraph of argument, none naming the others
 status: open
 opened: 2026-09-15
+priority: P1
+cost: D
 ---
 
 

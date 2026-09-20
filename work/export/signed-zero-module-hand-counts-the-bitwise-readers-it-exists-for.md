@@ -4,6 +4,8 @@ kind: issue
 title: step-import — signed_zero.rs says the importer reads bit patterns twice; it is a hand-maintained count and there are more
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: tier 3' still couples its +V check to the reporting target, so it refuses bodies tier 3 admits
 status: open
 opened: 2026-09-11
+priority: P0
+cost: D
 ---
 
 

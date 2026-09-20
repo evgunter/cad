@@ -5,6 +5,8 @@ title: step-import renders {source:?} on TransformError and BooleanError, both o
 status: open
 opened: 2026-09-04
 refs: [debug-in-prose-at-blend-and-step-import]
+priority: P0
+cost: E
 ---
 
 

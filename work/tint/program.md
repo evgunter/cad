@@ -32,6 +32,6 @@ carried a cost** — the clearest reading yet of what the 2.5-point
 default does to an unscored slate. It was cut on 2026-09-20 (Ev, in
 chat) into four tracks: VACUITY (rows that cannot fail), FIXTURE (one
 shape spelled n times), HELPER (one helper with several homes) and this
-remainder. TINT keeps its band 3400-3499.
+remainder. TINT keeps its band 3500-3599.
 
 Charter and order: `work/tint/plan.md`; narrative in `work/tint/log.md`.

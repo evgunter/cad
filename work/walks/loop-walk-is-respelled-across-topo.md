@@ -4,6 +4,8 @@ kind: issue
 title: the face loop walk (once(outer).chain(rings)) is respelled across topo/src outside census.rs
 status: open
 opened: 2026-09-13
+priority: P1
+cost: D
 ---
 
 

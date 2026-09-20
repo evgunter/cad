@@ -4,6 +4,8 @@ kind: issue
 title: VectorSlot::slots() is public and unread: deleting it leaves the workspace green
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

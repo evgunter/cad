@@ -4,6 +4,8 @@ kind: issue
 title: the sweep trace has two spellings - boolean SweepTrace over (EdgeKey, FaceKey) and census SweepPairs over (EntityId, EntityId)
 status: open
 opened: 2026-09-13
+priority: P1
+cost: E
 ---
 
 

@@ -13,16 +13,21 @@ keep_out: [CUT FROM PROPS 2026-09-20 with Ev's agreement in chat — S-CERT's gr
 priority: P2
 ---
 
-What a certified enclosure claims, and what the claim is worth. The
-offset fit's certificates, the patch bound's cells, the recentring the
-two do differently, and the certificate family's own integrity — five
-types with public fields that a downstream crate can forge.
+**The offset fit and the patch bound, after the 2026-09-20 cut**: the
+arithmetic of a certified enclosure, as opposed to what the
+certificate claims.
 
-Cut from PROPS on 2026-09-20. The ground is S-CERT's, which exited
-into PROPS at #1924; PROPS ran three units on it (the budget's four
-faces, the mignitude floor, and the certificate rows those two moved)
-and cut the rest out when its slate passed sixty rows. Those three
-units' `## Closed` sections are the worked precedents and should be
-read before specifying anything here — in particular the mignitude
-floor's, which establishes that the door-level bound is NOT monotone
-in the cell bound and leaves that as this program's row.
+`TangentParallel` admits a 90-degree crossing described as a tangent
+intersection — wrong in the accepting direction. At eps 1e-12 the
+offset fit refuses EVERY curved NURBS chart. `patch_bound`'s rational
+arm hulls the f64-refined net, so the described patch escapes its own
+bound. And tightening a cell bound can RAISE the door's `hull_sup`,
+which PROPS' mignitude-floor unit established and left here: the
+door-level bound is not monotone in the cell bound, so "refine until it
+fits" is not a strategy.
+
+ENCL was cut on 2026-09-20 (Ev, in chat) from 40.5 budget points into
+STACK (what the certificate claims) and this remainder. ENCL keeps its
+band 5800-5899.
+
+Charter and order: `work/encl/plan.md`; narrative in `work/encl/log.md`.

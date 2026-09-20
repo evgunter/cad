@@ -5,6 +5,8 @@ title: step-export refusals cannot name the entity they refuse on — no Part 21
 status: open
 opened: 2026-09-04
 refs: [D343, 1854]
+priority: P3
+cost: D
 ---
 
 
