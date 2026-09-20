@@ -359,10 +359,7 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Re
 /// # Errors
 ///
 /// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotAnInstance`].
-pub fn instance_check(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-) -> Result<(), AdmissionFault> {
+pub fn instance_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(), AdmissionFault> {
     match doc.node(node) {
         Some(Node::InstantiatePart { .. }) => Ok(()),
         Some(_) => Err(AdmissionFault::NotAnInstance { node }),
