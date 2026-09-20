@@ -4307,8 +4307,22 @@ mod tests {
     #[test]
     fn cylinder_walls_overlap_through_the_radius_lever() {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w2, _) = unit_cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            true,
+            Tol::witness(),
+        );
         // Without minted caches a minting chart refuses (props.rs
         // posture) — plane charts are the only derive-on-demand lane.
         match chart_region_overlap(&body, w1, &body, w2, band()) {
@@ -4321,7 +4335,14 @@ mod tests {
             ChartOverlap::PositiveArea
         );
         // Disjoint azimuth ranges answer EMPTY.
-        let (w3, _) = unit_cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, true);
+        let (w3, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (3.0, 4.0),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         assert_eq!(
             chart_region_overlap(&body, w1, &body, w3, band()).unwrap(),
@@ -4335,7 +4356,14 @@ mod tests {
         // the tilted-section SINUSOID (the F5 envelope discipline
         // moved to (u, v)) refuses typed — never a chord read.
         let mut body = Body::<f64>::new();
-        let (wall, _) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (wall, _) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
 
         // The tilted section z = 0.4·x of the unit cylinder, as its

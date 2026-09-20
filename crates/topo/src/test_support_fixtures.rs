@@ -1017,11 +1017,10 @@ pub(crate) fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFitte
 pub(crate) fn unit_cyl_sheet(
     body: &mut Body<f64>,
     cyl: Option<crate::geometry::SurfaceKey>,
-    u0: f64,
-    u1: f64,
-    z0: f64,
-    z1: f64,
+    (u0, u1): (f64, f64),
+    (z0, z1): (f64, f64),
     sense: bool,
+    tol: Tol,
 ) -> (FaceKey, crate::geometry::SurfaceKey) {
     let (face, cyl) = cyl_wall_sheet_keyed(
         body,
@@ -1030,7 +1029,7 @@ pub(crate) fn unit_cyl_sheet(
         None,
         (u0, u1),
         (z0, z1),
-        Tol::witness(),
+        tol,
     );
     body.set_face_sense(face, sense).unwrap();
     (face, cyl)

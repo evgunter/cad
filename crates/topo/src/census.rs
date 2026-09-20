@@ -4031,8 +4031,22 @@ mod tests {
     /// Two overlapping opposed-sense wall sheets on one cylinder key.
     fn conformal_pair() -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w2, _) = unit_cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
     }
@@ -4124,8 +4138,22 @@ mod tests {
     fn a_placeholder_seed_leaves_the_containing_extent_unclaimable() {
         let refusals = |z0: f64, z1: f64| -> Vec<String> {
             let mut body = Body::<f64>::new();
-            let (_w1, cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-            let (_w2, _) = unit_cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            let (_w1, cyl) = unit_cyl_sheet(
+                &mut body,
+                None,
+                (0.2, 1.6),
+                (0.0, 1.0),
+                true,
+                Tol::witness(),
+            );
+            let (_w2, _) = unit_cyl_sheet(
+                &mut body,
+                Some(cyl),
+                (1.0, 2.4),
+                (z0, z1),
+                false,
+                Tol::witness(),
+            );
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness())
                 .into_iter()
@@ -4259,8 +4287,22 @@ mod tests {
     #[test]
     fn a_disjoint_patch_record_is_stale_typed() {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w3, _) = unit_cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w3, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (3.0, 4.0),
+            (0.0, 1.0),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
@@ -4286,8 +4328,22 @@ mod tests {
         let mut body = Body::<f64>::new();
         // Overlap region u ∈ [0.4, 1.4] × z ∈ [0.5, 0.5 + 5e-9]:
         // mean width ≈ 5e-9 m, inside Band{1e-9, 1e-8}.
-        let (w1, cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
-        let (w2, _) = unit_cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 0.5 + 5e-9),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (0.4, 1.4),
+            (0.5, 1.0),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness());
         assert!(
@@ -4336,10 +4392,24 @@ mod tests {
     fn r1_probe_next_branch_windows_still_find_the_overlap() {
         let tau = core::f64::consts::TAU;
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         // Same locus, next periodic branch; u-nested and z-nested so
         // no strut/vertex coincidences muddy the face-pair question.
-        let (w2, _) = unit_cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (0.5 + tau, 1.2 + tau),
+            (0.3, 0.7),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness());
         assert!(
@@ -4370,8 +4440,22 @@ mod tests {
         // Same key, SAME sense: aligned coincidence is containment or
         // flush material, never contact (C1) — the record lies.
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w2, _) = unit_cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
@@ -4453,7 +4537,14 @@ mod tests {
         z1: f64,
     ) -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let (w1, cyl_a) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w1, cyl_a) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         body.set_surface_source(cyl_a, crate::GeomSource::minted(7101, 0))
             .unwrap();
         let w2 = cyl_sheet_b(&mut body, th0, th1, z0, z1, false);
@@ -4551,8 +4642,22 @@ mod tests {
     fn n2r2_class7_face_reach_partial_box_and_census_decision() {
         let run = |z0: f64, z1: f64| -> (Vec<String>, Vec<String>) {
             let mut body = Body::<f64>::new();
-            let (_w1, cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-            let (_w2, _) = unit_cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            let (_w1, cyl) = unit_cyl_sheet(
+                &mut body,
+                None,
+                (0.2, 1.6),
+                (0.0, 1.0),
+                true,
+                Tol::witness(),
+            );
+            let (_w2, _) = unit_cyl_sheet(
+                &mut body,
+                Some(cyl),
+                (1.0, 2.4),
+                (z0, z1),
+                false,
+                Tol::witness(),
+            );
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             let seeds = swap_placeholders(&mut body);
             assert_eq!(seeds.len(), 2);
@@ -4585,7 +4690,14 @@ mod tests {
     #[test]
     fn n2r2_face_box_partial_poison_prunes_on_finite_axes() {
         let mut body = Body::<f64>::new();
-        let (_w1, _cyl) = unit_cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (_w1, _cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let seeds = swap_placeholders(&mut body);
         let b = crate::boolean::boxes::face_box(&body, seeds[0], 1e-9).unwrap();
