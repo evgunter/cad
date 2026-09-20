@@ -239,6 +239,9 @@ mod mesh11r2_probes;
 mod mesh12_saturated_span;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
+
+#[path = "pcurve_spiric.rs"]
+mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
 #[path = "tcost_k1_budget_exit.rs"]

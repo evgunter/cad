@@ -70,3 +70,50 @@ can be stated.
 
 Raising the cap is not a candidate: 2·10⁴ control points for one edge
 is not an export.
+
+## Confirmed by both arms of the v6 dual (2026-09-19, PR #2861)
+
+Both reviewers reproduced the table above independently and the item
+survives every check they made of it.
+
+- **The bound table, to the ulp.** R1: `3.2864080762437764e-1`,
+  `2.053310838055194e-2`, `1.2832897014678048e-3`,
+  `8.020548395619983e-5`, `5.012842262733274e-6` at 4/16/64/256/1024,
+  and `sup‖C″‖ = 1.3149371083070118e1`. R2 the same to print
+  precision, adding that the bound/true ratio is `≥ 4.4e3` at every
+  node count — **sound, and second-order-loose exactly as filed**.
+- **The sampled true sup at 1024**: R1 `1.8179817278190188e-14`, R2
+  `1.82e-14`, against this item's `1.675804795143954e-14` — the same
+  number at a different sampling grid's rounding. R1's ratio
+  bound/true: `2.76e8`.
+- **`M_P` is the whole looseness.** Both measured `M_s ≈ 0.283`
+  against `M_P·Δt² = 41.8`.
+- **The candidate sharper `sup‖C″‖` is right.** Both re-derived
+  `f″ = −r(ρ·cos v/f + r·sin²v·d²/f³)` and the `ρ/√(ρ²−d²)`
+  monotonicity; R1 checked it against the shipped form over the whole
+  period to `5.6e-17` and confirms it is exactly `2r = 0.140625` at
+  `d = 0` where the shipped form gives `11.109`. Value
+  `1.7285679395136944e-1` vs `1.3149371083070118e1` = **76.07×**,
+  against a sampled `sup‖C″‖` of `7.46e-2` (so still a valid 2.3×
+  over-estimate). **It does not rescue the gate**: R2 computed the
+  1024 bound under it as `9.9e-8`, still ≫ `2.5e-10`.
+- **What it would move.** `curvature_step = √(8δ/M)`, so the step
+  grows `√76 ≈ 8.7×` and `MAX_ANGULAR_STEP = π/4` does not clip it
+  (R1: 0.215 rad at δ = 1e-3). Whether any chord count or render cell
+  actually moves is **unmeasured by either arm**: no spiric-bounded
+  face tessellates at this head, so the consequence is TESS's ground
+  by announcement rather than a measured delta.
+- **The cap's raising direction is cheap to read after all**, which
+  this item's first write-up got wrong: one extra doubling suffices.
+  bound(2048) = `1.2532105596091274e-6`, so any `uncertainty_m` whose
+  `ε/4` lands in `[5.013e-6, 2.005e-5)` is refused at 1024 and met at
+  2048 — R1 executed `8e-6` and `6e-6` refusing and `2.1e-5`
+  succeeding; R2 the same at `1.9e-5`. PR-1b's
+  `the_node_cap_refuses_one_doubling_short_of_the_tolerance` is the
+  row, and the "≈2·10⁴ intervals" pricing is withdrawn.
+
+Orchestrator's ruling at adjudication: the arm ships as ratified, this
+item stays open on CURVED, the sharper bound is its own small unit
+(it moves `spiric_step`, and TESS's ground by consequence), and a
+fourth-order certificate for the `ε/4` gate is an `[ev]` question only
+if the export is ever wanted at the kernel's own ε.

@@ -70,8 +70,8 @@
 //! samples is exactly where a cache lies. For the fitted rung that limb
 //! is a control-coefficient hull bound (`geom_core::spline::compose`).
 //! For the forms this PR mints it is **stronger and closed-form**: for
-//! every (chart, carrier) pair in the certified lane, both `S ∘ P` and
-//! `C` lie in the four-dimensional function space
+//! the harmonic (chart, carrier) pairs of the certified lane, both
+//! `S ∘ P` and `C` lie in the four-dimensional function space
 //! `span{1, cos t, sin t, t}` with **exactly computable coefficients**,
 //! so the residual does too, and
 //!
@@ -80,6 +80,11 @@
 //! ```
 //!
 //! is a certified sup bound over the *whole* span with nothing sampled
+//! — and the same SHAPE of argument, in a different function space or
+//! as an outright identity, is what every other closed-form lane here
+//! states: the iso rungs' control-difference hull, the spiric cap's
+//! `span{1, f, sin t}`, and the spiric wall's algebraic identity
+//! ([`EnvelopeStatement`] names which sup each one bounds)
 //! and nothing hulled — the envelope IS the between-samples limb, and
 //! it is tighter in kind than a hull over an unknown polynomial (a hull
 //! bound exists to bound what sampling cannot see; here nothing is
@@ -171,7 +176,10 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// A pcurve: the 2-D chart image of an edge's carrier, parameterized by
 /// **the carrier's own parameter** (module docs).
 ///
-/// Five variants; the closed enum is the D3 shape.
+/// The closed enum is the D3 shape: a new variant is a
+/// compiler-guided edit at every dispatch site, and the count is
+/// deliberately not written here — a number in prose is a second,
+/// unchecked copy of something the compiler already knows.
 ///
 /// # What separates them
 ///
@@ -497,7 +505,7 @@ impl<T: Real> Pcurve<T> {
     /// iso arc's displacement go through `vector`. Knots, weights,
     /// breaks and the carrier parameter are untouched, and every
     /// variant keeps its variant — a map of the chart moves an image,
-    /// never its provenance. A sixth variant is a compile error here,
+    /// never its provenance. A NEW variant is a compile error here,
     /// not a fall-through.
     ///
     /// Exact whenever the two closures are: every variant is linear in
@@ -519,6 +527,20 @@ impl<T: Real> Pcurve<T> {
     /// their pair at their doors: [`Pcurve::mirror_v`] negates the
     /// second channel of both, [`Pcurve::shift_branch`] translates the
     /// first channel of points and leaves vectors alone.
+    ///
+    /// # The one variant this is NOT total over
+    ///
+    /// [`SpiricImage::Wall`] rides ONE `sense` on two channels, so a
+    /// linear part that negates the second channel alone has no wall
+    /// image to land on: the `v` channel would follow and the `u`
+    /// channel would not. This door keeps the arm TOTAL for the maps a
+    /// wall image does take — the two whole-period branch translations,
+    /// whose linear part is the identity — and it is
+    /// [`Pcurve::mirror_v`] that refuses, because that is the door
+    /// whose contract the reflection breaks. A caller that hands this
+    /// function a reflection and a wall image gets the translation's
+    /// answer, which is why the reflection has its own door and its
+    /// own refusal rather than a comment.
     #[must_use]
     pub fn map_affine(
         &self,
@@ -600,7 +622,9 @@ impl<T: Real> Pcurve<T> {
         }
     }
 
-    /// The same image under the chart reflection `(u, v) ↦ (u, −v)` —
+    /// The same image under the chart reflection `(u, v) ↦ (u, −v)`,
+    /// for every variant that HAS one (the section below names the one
+    /// that does not) —
     /// the map a chart's OWN frame undergoes when its second axis is
     /// negated (a `Plane` whose stored `normal` is negated with
     /// `u_ref` fixed has `v_ref = normal × u_ref` negated with it), so
@@ -632,9 +656,40 @@ impl<T: Real> Pcurve<T> {
     /// move is not a geometry change. Where the signed zero does land
     /// is the IMAGE (a coefficient that was `+0` reads `−0` after the
     /// flip), which a `Debug` comparison sees and no certificate can.
+    /// # The variant that has no reflection
+    ///
+    /// [`SpiricImage::Wall`] is the one image whose reflected locus is
+    /// not representable: `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t`
+    /// ride ONE sign, and the reflection wants `u` fixed while `v`
+    /// negates, which needs two. So this door answers `None` for it
+    /// rather than a wrong locus — measured before it was written:
+    /// the arm that silently kept `sense` returned an image whose `v`
+    /// was wrong by the entire span while `mirror_v ∘ mirror_v` still
+    /// held, so an involution row could not see it.
+    ///
+    /// `None` is unreachable through every door in the tree:
+    /// `topo::revert` mirrors the rows of PLANE faces only and puts a
+    /// non-plane chart's reversal on `face.sense` instead, and a wall
+    /// image lives on a torus chart by construction (check 1 admits it
+    /// nowhere else). A caller that reaches it is holding a row on a
+    /// face it does not belong to.
+    ///
+    /// # Errors
+    ///
+    /// `None` for a [`SpiricImage::Wall`] image, per the paragraph
+    /// above. Every other variant answers `Some`, exactly.
     #[must_use]
-    pub fn mirror_v(&self) -> Self {
-        self.map_affine(|p| Point2::new(p.x, -p.y), |v| Vec2::new(v.x, -v.y))
+    pub fn mirror_v(&self) -> Option<Self> {
+        if matches!(
+            self,
+            Pcurve::Spiric {
+                image: SpiricImage::Wall { .. },
+                ..
+            }
+        ) {
+            return None;
+        }
+        Some(self.map_affine(|p| Point2::new(p.x, -p.y), |v| Vec2::new(v.x, -v.y)))
     }
 }
 
@@ -1297,12 +1352,22 @@ pub enum EnvelopeStatement {
     /// lane, and the only statement in this enum that is not a bound
     /// on a computed difference.
     ///
-    /// The wall image stores `major`, `minor`, `offset` and `sense`,
-    /// and check 1 compares the first three against the CARRIER's own
-    /// fields as `f64` structure (bit-equal, the C6 read) and `sense`
-    /// against `±1` the same way. Under those structural equalities
-    /// `S(P(t)) − C(t)` is identically zero in exact arithmetic for
-    /// every `t`: the chart formula
+    /// **The premises, and how each is established.** The wall image
+    /// stores `major`, `minor`, `offset` and `sense`; check 1 compares
+    /// the first three against the CARRIER's own fields and `sense`
+    /// against `±1`, AND compares the CHART's centre, axis, `R` and
+    /// `r` against the carrier's — because the identity is a statement
+    /// about the map, so a chart that is not the carrier's own torus
+    /// is not an input this statement covers. All eight comparands are
+    /// **banded**, not bit-equal: each is a metre margin whose
+    /// `Sign::Zero` window is `|Δ| ≤ ε` (the C6 bit-equal read needs
+    /// `T: Bounds`, and this is a `T: Decide` door). Whatever the band
+    /// admits is carried into the envelope below rather than
+    /// discarded, so the statement is true for every input the door
+    /// accepts and not only for the ones a mint produces.
+    ///
+    /// Under those equalities `S(P(t)) − C(t)` is identically zero in
+    /// exact arithmetic for every `t`: the chart formula
     /// `S(u, v) = c + e(u)·(R + r cos v) + a·(r sin v)` evaluated at
     /// `u = u₀ + σ·atan2(f, d)`, `v = v₀ + σ·t` reproduces
     /// `c + n·d + m·f + a·(r sin t)` term for term, because
@@ -1324,7 +1389,8 @@ pub enum EnvelopeStatement {
     /// **What the envelope actually holds, per scalar.** At a POINT
     /// scalar it is exactly `0` on every minted image, because check
     /// 1's admitted drift is computed from differences that are
-    /// bit-zero when the image carries the carrier's own numbers. At a
+    /// bit-zero when the image carries the carrier's own numbers and
+    /// the chart is the carrier's own torus. At a
     /// BRACKETED scalar it is the bracket's own width metered at the
     /// chart's arms, and not because anything moved: interval
     /// arithmetic cannot cancel a variable against itself, so
@@ -2167,21 +2233,31 @@ impl<T: Real> PcurveCache<T> {
     /// cannot express a geometry change, only the one re-statement
     /// under which no metred value can move, which is why it hands
     /// out a certificate without a run.
+    ///
+    /// # Errors
+    ///
+    /// `None` exactly when [`Pcurve::mirror_v`] answers `None` — a
+    /// [`SpiricImage::Wall`] image, which has no reflected locus; that
+    /// door's own docs say why, and why no door in the tree reaches it.
     #[must_use]
-    pub fn mirrored_v(&self) -> Self {
-        Self {
-            pcurve: self.pcurve.mirror_v(),
+    pub fn mirrored_v(&self) -> Option<Self> {
+        Some(Self {
+            pcurve: self.pcurve.mirror_v()?,
             param_start: self.param_start,
             param_end: self.param_end,
             certificate: self.certificate,
-        }
+        })
     }
 }
 
 impl<T: Decide> PcurveCache<T> {
-    /// Certifies a **closed-form** [`Pcurve::Harmonic`] image of
-    /// `carrier` on `surface` over `[t0, t1]`, inside the face's chart
-    /// `window` — the minting lane's door, at every `Decide` scalar.
+    /// Certifies a **closed-form** image — [`Pcurve::Harmonic`],
+    /// [`Pcurve::IsoLine`], [`Pcurve::IsoArc`] or [`Pcurve::Spiric`] —
+    /// of `carrier` on `surface` over `[t0, t1]`, inside the face's
+    /// chart `window`: the minting lane's door, at every `Decide`
+    /// scalar. Which of the four is being certified selects the
+    /// check-4 statement and nothing else; the other four checks are
+    /// one sequence.
     ///
     /// A [`Pcurve::Fitted`] image refuses here, naming
     /// [`PcurveCache::certify_fitted`]: the fitted lane's certificate
@@ -2214,6 +2290,14 @@ impl<T: Decide> PcurveCache<T> {
     ///      every minted cache (they are exact in family); the term
     ///      exists so the certificate is honest for every input
     ///      `certify` admits, including attach-path ones.
+    ///    - [`Pcurve::IsoLine`] / [`Pcurve::IsoArc`]: the traversed
+    ///      row's control-difference hull
+    ///      ([`EnvelopeStatement::MapResidualIsoHull`]).
+    ///    - [`Pcurve::Spiric`]: `span{1, f, sin t}` in closed form for
+    ///      a cap image, and an algebraic IDENTITY for a wall image
+    ///      ([`EnvelopeStatement::SpiricIdentity`]) — each plus the
+    ///      drift its own check 1 admitted, and each zero on every
+    ///      minted image, for the same reason the snap slack is.
     /// 5. **Trim containment**: the pcurve's chart box lies inside
     ///    `window`.
     ///
@@ -3134,12 +3218,17 @@ fn run_harmonic_checks<T: Decide>(
 ///    lies on no cylinder, cone or sphere); the image's three stored
 ///    scalars are the CARRIER's (`pcurve_spiric_major`,
 ///    `pcurve_spiric_minor`, `pcurve_spiric_offset`, each a metre
-///    comparand required Zero), and a wall's `sense` is a unit sign
-///    (`pcurve_spiric_sense`, levered at the chart's azimuth arm).
-///    Whatever drift those four gates admit inside the band is
-///    measured, not discarded: it is carried into check 4 as the
-///    envelope's own term, and it is exactly zero on every minted
-///    image, whose scalars are bit-for-bit the carrier's own.
+///    comparand required Zero), a wall's `sense` is a unit sign
+///    (`pcurve_spiric_sense`, levered at the chart's azimuth arm),
+///    and — for a wall — the CHART is the carrier's own torus
+///    (`pcurve_spiric_chart_center`, `_chart_major`, `_chart_minor`,
+///    `_chart_tilt`), which is the premise the identity maps through.
+///    Every one of those gates is BANDED, not bit-equal: `Sign::Zero`
+///    admits `|Δ| ≤ ε` and escalates above it. Whatever they admit
+///    inside the band is measured, not discarded — it is carried into
+///    check 4 as the envelope's own term, and it is exactly zero on
+///    every minted image, whose scalars and chart are bit-for-bit the
+///    carrier's own.
 /// 2. **Interval**: `t₁ − t₀` definitely forward, metered through the
 ///    carrier's rate (the minor radius — a spiric's speed floor, its
 ///    variant docs). On the torus the two angular channels are gated
@@ -3226,15 +3315,78 @@ fn run_spiric_checks<T: Decide>(
         }
     }
     let reach = t0.abs().max(t1.abs());
-    // The wall's sense is a unit sign; a dimensionless residue metered
-    // at the chart's own azimuth arm, exactly as every other winding
-    // selection on a periodic chart is.
+    // **The wall's own premise: the chart IS the carrier's torus.**
+    // The image's scalars being the carrier's says nothing about the
+    // SURFACE the identity maps through, and the identity is a
+    // statement about that map — so a chart whose centre, axis or
+    // radii have drifted from the carrier's would otherwise store
+    // "zero, by an algebraic identity" over a real displacement. Four
+    // banded comparands, the harmonic torus arm's posture one lane
+    // over, each an audit row; the residues ride into check 4 exactly
+    // as the image's do, and each is bit-zero when the chart is the
+    // carrier's own torus.
+    //
+    // The CAP arm needs none of this: its check-4 coefficients `k₀`,
+    // `k₁`, `k₂` are built FROM the chart, so a drifted plane shows up
+    // in the envelope as a number rather than as an unstated premise.
+    let chart_drift = match (*image, surface) {
+        (
+            SpiricImage::Wall { .. },
+            &Surface::Torus {
+                center: s_center,
+                axis: s_axis,
+                major_radius: s_major,
+                minor_radius: s_minor,
+                ..
+            },
+        ) => {
+            let d_center = s_center - c_c;
+            // The axis is gated for PARALLELISM only — a sine of unit
+            // vectors, levered at the chart's own outer reach. Which
+            // of the two directions it takes is `sense`'s decision at
+            // the mint, and a wrong sign is a whole-span displacement
+            // the schedule sees at every sample.
+            let sin_tilt = s_axis.cross(a_c).norm();
+            let arm = s_major + s_minor;
+            let gates = [
+                ("pcurve_spiric_chart_center", Margin::norm3(d_center)),
+                ("pcurve_spiric_chart_major", Margin::of(s_major - r_major)),
+                ("pcurve_spiric_chart_minor", Margin::of(s_minor - r_minor)),
+                ("pcurve_spiric_chart_tilt", Margin::levered(sin_tilt, arm)),
+            ];
+            for (name, margin) in gates {
+                match decide(name, margin, band).map_err(esc(PcurveCheck::ChartWinding))? {
+                    Sign::Zero => {}
+                    Sign::Positive | Sign::Negative => {
+                        return Err(PcurveCertifyError::UnsupportedCarrier);
+                    }
+                }
+            }
+            // Each residue at its own arm, in metres: a moved centre
+            // moves every point by its own length; a wrong `R` moves
+            // the radial channel by `|ΔR|`; a wrong `r` moves BOTH the
+            // radial and the axial channel, so it pays twice; a frame
+            // rotated by `θ` moves a point at radius `≤ R + r` by
+            // `(R + r)·θ`, and `θ ≤ (π/2)·sin θ` on `[0, π/2]`.
+            d_center.norm()
+                + (s_major - r_major).abs()
+                + (s_minor - r_minor).abs() * T::from_f64(2.0)
+                + arm * sin_tilt * T::pi() * T::from_f64(0.5)
+        }
+        _ => T::zero(),
+    };
+    // The wall's sense is a unit sign: a DIMENSIONLESS residue, so it
+    // is metered by MULTIPLYING the chart's own lever arm
+    // (`Margin::levered` — the door whose docs name "a sine or cosine
+    // of unit vectors" — not `over_lever`, which divides a measure by
+    // a lever and is for an area over a radius). Spec §1's table says
+    // levered, and PR-1a's sibling of the identical shape levers too.
     let sense_drift = match *image {
         SpiricImage::Wall { sense, .. } => {
             let residue = sense.abs() - T::one();
             match decide(
                 "pcurve_spiric_sense",
-                Margin::over_lever(residue, azimuth_lever(surface, reach)),
+                Margin::levered(residue, azimuth_lever(surface, reach)),
                 band,
             )
             .map_err(esc(PcurveCheck::ChartWinding))?
@@ -3271,23 +3423,28 @@ fn run_spiric_checks<T: Decide>(
         },
     ) = (image, surface)
     {
-        // The minor-angle channel moves at `sense` and the azimuth
-        // channel's whole extent is the swing of `atan2(f, d)` over
-        // the span's own `f` range — bounded by `π` structurally, and
-        // metered here rather than asserted.
-        let (f_min, f_max) = geom::spiric_f_range(major, minor, offset);
-        let u_swing = (f_max.atan2(offset) - f_min.atan2(offset)).abs();
-        for (extent, arm) in [
-            ((*sense * span).abs(), chart_minor),
-            (u_swing, azimuth_lever(surface, reach)),
-        ] {
-            let headroom = Margin::levered(T::tau() - extent, arm);
-            match decide("pcurve_azimuth_period", headroom, band)
-                .map_err(esc(PcurveCheck::AzimuthPeriod))?
-            {
-                Sign::Positive | Sign::Zero => {}
-                Sign::Negative => return Err(PcurveCertifyError::AzimuthPeriodExceeded),
-            }
+        // ONE angular channel is gated here, and the other is gated by
+        // STRUCTURE rather than by a decide that cannot fire.
+        //
+        // The minor angle moves at `sense`, so its extent is the span
+        // and it needs the same one-period headroom every periodic
+        // chart's second channel needs.
+        //
+        // The AZIMUTH does not: `u(t) = u0 + sense·atan2(f(t), d)`
+        // with `f > 0` over the whole two-oval regime, so
+        // `atan2(f, d) ∈ (0, π)` and the channel's TOTAL swing — over
+        // the whole period, let alone a span — is under `π < τ`. A
+        // headroom decide over that is a gate whose verdict is fixed
+        // at compile time, which the discipline calls documentation
+        // rather than a check; the bound is the variant's own
+        // `SpiricImage::Wall` derivation and nothing here can widen
+        // it. Stated instead of spent.
+        let headroom = Margin::levered(T::tau() - (*sense * span).abs(), chart_minor);
+        match decide("pcurve_azimuth_period", headroom, band)
+            .map_err(esc(PcurveCheck::AzimuthPeriod))?
+        {
+            Sign::Positive | Sign::Zero => {}
+            Sign::Negative => return Err(PcurveCertifyError::AzimuthPeriodExceeded),
         }
     }
 
@@ -3356,14 +3513,28 @@ fn run_spiric_checks<T: Decide>(
             // bound on `[0, π]`), and moving a chart point by `δu`
             // moves it by at most `ρ_max·|δu|`.
             //
-            // *Minor angle*: `v = v₀ + sense·t`, so a residue `η` in
-            // `|sense|` moves `v` by at most `η·reach`, and
-            // `|∂S/∂v| = r` exactly.
+            // *`sense`, BOTH channels.* A residue `η` in `|sense|`
+            // moves the minor angle by at most `η·reach` at
+            // `|∂S/∂v| = r`, AND it moves the azimuth: the channel is
+            // `u₀ + sense·atan2(f, d)` and `atan2(f, d) ∈ (0, π)` over
+            // the whole two-oval regime, so `|δu| ≤ η·π` at the
+            // chart's outer arm. The `u` half is what the over-strict
+            // `over_lever` gate used to mask — with the door metering
+            // the way its dimension asks, the band admits `η` up to
+            // `ε/(R + r)` and this term is what keeps the certificate
+            // honest over that window.
+            //
+            // *The chart's own drift* rides in from check 1, already
+            // in metres.
             let rho_min = (f_min_i.powi(2) + offset.powi(2))
                 .sqrt()
                 .min((f_min_c.powi(2) + c_offset.powi(2)).sqrt());
             let d_theta = T::pi() * T::from_f64(0.5) * (f_drift + d_offset.abs()) / rho_min;
-            (chart_major + chart_minor) * d_theta + chart_minor * sense_drift * reach
+            let arm = chart_major + chart_minor;
+            arm * d_theta
+                + chart_minor * sense_drift * reach
+                + arm * sense_drift * T::pi()
+                + chart_drift
         }
     };
     let mut envelope_margin = T::zero();
@@ -5648,7 +5819,12 @@ fn spiric_chart_pcurve<T: Decide>(
             let cv = chart_axis.cross(chart_u);
             let sense = match decide(
                 "pcurve_spiric_chart_axis",
-                Margin::over_lever(chart_axis.dot(axis), chart_major),
+                // A COSINE of unit vectors: dimensionless, so it is
+                // metered by multiplying the chart's own lever arm
+                // (`Margin::levered`, whose docs name this exact case)
+                // — not `over_lever`, which divides a measure by a
+                // lever and belongs to an oriented area over a radius.
+                Margin::levered(chart_axis.dot(axis), chart_major),
                 band,
             )
             .map_err(|cause| PcurveCertifyError::Escalated {

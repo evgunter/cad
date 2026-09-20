@@ -406,8 +406,14 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 /// on the vessel's cavity: the boolean operand gate, the mesh's trimmed
 /// lane (its torus/plane roster is the MESH frontier,
 /// `work/issues/trimmed-tessellation-lacks-torus-and-plane-arms.md`),
-/// and the STEP writer (the export spline is the spiric unit's second
-/// PR). The props doors are the closing measurement row below.
+/// and the STEP writer, which now WRITES an export-only spline and
+/// refuses this body for a different reason than "no arm": the
+/// sagitta certificate cannot state `ε/4` under the node cap at the
+/// kernel's ε (`work/curved/spiric-step-spline-bound-is-second-order.md`),
+/// which is why the row asserts that exact `kind` rather than any
+/// `spiric…` prefix — the two refusals are different facts and the
+/// day the bound is fixed this row must move, loudly. The props doors
+/// are the closing measurement row below.
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
@@ -427,10 +433,16 @@ fn the_census_refusals_through_public_doors() {
         "got {note}"
     );
     let e = step_export::step_string(&cavity, &step_export::StepOptions::default(), tol())
-        .expect_err("no STEP entity for a spiric yet");
+        .expect_err("the sagitta bound cannot state eps/4 under the node cap");
     assert!(
-        matches!(e, step_export::StepExportError::UnsupportedCurve { kind, .. } if kind.starts_with("spiric")),
-        "the writer names the spiric, got {e:?}"
+        matches!(
+            e,
+            step_export::StepExportError::UnsupportedCurve {
+                kind: "spiric: export tolerance not met",
+                ..
+            }
+        ),
+        "the node cap's typed refusal, got {e:?}"
     );
 }
 
@@ -473,7 +485,8 @@ fn the_elbow_stops_at_its_seam_reauthor() {
 /// `torusvessel` wall 1 on the scene's own body: a quarter turn of the
 /// bellied meridian hollows through the kind-changing mint, both
 /// endpoint meters, certification at the minor radius, insertion and
-/// pcurves (the torus wall uncached, typed) to tier 3, whose checks
+/// pcurves (the torus wall's spiric half-edges NOW CACHED, which row 9
+/// asserts) to tier 3, whose checks
 /// 1–6 pass; **check 7 refuses** `VolumeUncomputable` — at a CAP,
 /// visited before the torus wall in arena order, so the payload is
 /// `loop_vector_area`'s `Unimplemented` (the oval's area is an
@@ -954,6 +967,151 @@ fn the_spiric_body_exports_one_spline_per_rim_with_its_bound_stated() {
     }
 }
 
+/// **The node cap is the binding number, and one extra doubling
+/// reads it.** §6's row-10 mutant is "the cap ignored", and the
+/// RAISING direction needs a tolerance the schedule can meet at 2048
+/// intervals and cannot at 1024. The bounds bracket one: `5.013e-6` at
+/// 1024 and `1.253e-6` at 2048, so any `uncertainty_m` whose `ε/4`
+/// lands in `[5.013e-6, 2.005e-5)` refuses under the shipped cap and
+/// would emit under a doubled one.
+///
+/// At `1.9e-5` (`ε/4 = 4.75e-6 < 5.013e-6`) the export refuses; at
+/// `2.1e-5` (`ε/4 = 5.25e-6 > 5.013e-6`) it emits at 1024. **This row
+/// is what a raised cap reds**: with `SPIRIC_MAX_NODES` at 2048 the
+/// first half succeeds and the `expect_err` fails. One 2049-point
+/// collocation solve is the whole cost — the PR body's earlier
+/// "not cheaply demonstrable" was wrong and is withdrawn.
+#[test]
+fn the_node_cap_refuses_one_doubling_short_of_the_tolerance() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let export = |eps: f64| {
+        step_export::step_string(
+            &cavity,
+            &step_export::StepOptions {
+                uncertainty_m: Some(eps),
+                ..Default::default()
+            },
+            tol(),
+        )
+    };
+    let e = export(1.9e-5).expect_err("1024 intervals cannot state eps/4 = 4.75e-6");
+    println!("[step] at 1.9e-5: {e:?}");
+    assert!(
+        matches!(
+            e,
+            step_export::StepExportError::UnsupportedCurve {
+                kind: "spiric: export tolerance not met",
+                ..
+            }
+        ),
+        "the cap's typed refusal, got {e:?}"
+    );
+    let doc = export(2.1e-5).expect("eps/4 = 5.25e-6 is met at the cap itself");
+    let line = doc
+        .lines()
+        .find(|l| l.starts_with("FILE_DESCRIPTION"))
+        .expect("the header states its description");
+    println!("[step] at 2.1e-5: {line}");
+    let bound: f64 = line
+        .split("approximated to ")
+        .nth(1)
+        .and_then(|rest| rest.split(" m").next())
+        .and_then(|n| n.parse().ok())
+        .expect("the stated bound parses");
+    assert!(
+        (4.9e-6..5.1e-6).contains(&bound),
+        "the cap's own bound is what the file states: {bound:e}"
+    );
+}
+
+/// **A `uncertainty_m` the writer cannot use is refused once, for one
+/// reason.** The budget is decided before any geometry, so a body
+/// with a spiric edge and a body without one answer the SAME typed
+/// refusal for the same bad option — they did not, when the geometry
+/// pass ran first and the spiric lane spent the number before anyone
+/// had checked it.
+#[test]
+fn an_invalid_uncertainty_refuses_the_same_way_with_or_without_a_spiric() {
+    let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
+    for value in [-1.0, 0.0, f64::NAN, f64::INFINITY] {
+        for (what, body) in [("with a spiric", &cavity), ("without one", &quarter)] {
+            let e = step_export::step_string(
+                body,
+                &step_export::StepOptions {
+                    uncertainty_m: Some(value),
+                    ..Default::default()
+                },
+                tol(),
+            )
+            .expect_err("an unusable uncertainty is refused");
+            assert!(
+                matches!(e, step_export::StepExportError::InvalidUncertainty { .. }),
+                "{what}, value {value}: got {e:?}"
+            );
+        }
+    }
+}
+
+/// **The writer's certificate premise, measured.** The bound the file
+/// states is a sagitta over node intervals, and it is only a bound
+/// because the spline INTERPOLATES the carrier at every node. Row 10
+/// checks the header and the record count, both of which survive a
+/// wrong node schedule; this row checks the premise itself, through
+/// the same public door the writer spends (`spiric_export_spline`):
+/// the difference vanishes at every node, and a dense sweep of the
+/// whole span stays under the bound the door reported.
+#[test]
+fn the_export_splines_difference_vanishes_at_its_nodes_and_respects_its_bound() {
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let (edge, carrier, (t0, t1)) = spiric_edges(&cavity).remove(0);
+    let Curve3::Spiric {
+        major_radius,
+        minor_radius,
+        offset,
+        ..
+    } = carrier
+    else {
+        panic!("a spiric rim carries a spiric");
+    };
+    let (spline, bound) = step_export::spiric_export_spline(
+        1e-4,
+        &carrier,
+        edge,
+        t0,
+        t1,
+        major_radius,
+        minor_radius,
+        offset,
+    )
+    .expect("the export fit at a tolerance the bound can state");
+    // A cubic interpolation of `n + 1` points has `n + 1` control
+    // points, so the node count is readable off the net.
+    let nodes = spline.control().len() - 1;
+    println!("[step] the export fit chose {nodes} node intervals, bound {bound:e}");
+    assert!(nodes.is_power_of_two(), "the schedule walks powers of two");
+    #[allow(clippy::cast_precision_loss)]
+    let n = nodes as f64;
+    for i in 0..=nodes {
+        #[allow(clippy::cast_precision_loss)]
+        let f = i as f64 / n;
+        let gap = spline.eval(f).distance(carrier.eval(t0 + (t1 - t0) * f));
+        assert!(
+            gap <= 1e-15,
+            "node {i}: the fit does not interpolate its own sample, gap {gap:e}"
+        );
+    }
+    let mut worst: f64 = 0.0;
+    for k in 0..=8192u32 {
+        let f = f64::from(k) / 8192.0;
+        worst = worst.max(spline.eval(f).distance(carrier.eval(t0 + (t1 - t0) * f)));
+    }
+    println!("[step] densely sampled true sup {worst:e} against the stated {bound:e}");
+    assert!(
+        worst <= bound,
+        "the stated bound must dominate the sampled truth: {worst:e} > {bound:e}"
+    );
+}
+
 #[cfg(feature = "interval")]
 mod interval_rows {
     use geom_core::{Bounds, Interval, Real};
@@ -1157,9 +1315,15 @@ mod interval_rows {
                 // paragraph). The f64 twin's row pins the exact zero;
                 // what this row pins is that the bracket's price stays
                 // at rounding level rather than growing into a claim.
+                // The gate is at ROUNDING LEVEL, not at ε: the
+                // measured width is 2.1e-15 and ε is 1e-9, so a gate
+                // at ε has six orders of headroom and cannot see the
+                // bracket price growing — which is the whole
+                // degradation this row exists to watch. 1e-13 is two
+                // orders above the measurement and eight below ε.
                 assert!(
-                    cert.envelope.lo() == 0.0 && cert.envelope.hi() <= tol.eps(),
-                    "the bracket's own width, metered, is at rounding level: {:?}",
+                    cert.envelope.lo() == 0.0 && cert.envelope.hi() <= 1e-13,
+                    "the bracket's own width, metered, is at rounding level                      (measured 2.117080716278788e-15): {:?}",
                     cert.envelope
                 );
             }

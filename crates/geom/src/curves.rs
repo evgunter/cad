@@ -554,25 +554,32 @@ pub fn spiric_curvature_sup(major: f64, minor: f64, offset: f64) -> f64 {
 /// outward), combined as the Euclidean norm of the three per-component
 /// hull magnitudes.
 ///
-/// `NaN` when the structure cannot license a bound (degree below 2, a
-/// derivative knot vector that does not materialise, a poisoned hull),
-/// which is the answer a caller reads as a refusal. Rational nets are
-/// NOT this door's: their quotient-rule assembly divides by a weight
-/// range and lives with the consumer that owns the homogeneous form.
-#[must_use]
+/// `Err(SecondDerivativeUnbounded)` when the structure cannot license
+/// a bound, and the variant NAMES which structure — a caller's typed
+/// refusal is only as good as the reason it can quote, and folding
+/// three causes onto one `NaN` cost the mesh chord lane exactly that
+/// when this body was extracted out of it. Rational nets are NOT this
+/// door's: their quotient-rule assembly divides by a weight range and
+/// lives with the consumer that owns the homogeneous form.
+///
+/// # Errors
+///
+/// [`SecondDerivativeUnbounded`] — the degree is below 2, the
+/// derivative knot vector does not materialise, or the iterated hull
+/// is poisoned.
 pub fn nonrational_second_derivative_sup(
     knots: &geom_core::spline::KnotVector,
     control: &[Point3<f64>],
-) -> f64 {
+) -> Result<f64, SecondDerivativeUnbounded> {
     use geom_core::ring_interval::RingInterval;
     let p = knots.degree();
     if p < 2 {
-        return f64::NAN;
+        return Err(SecondDerivativeUnbounded::DegreeBelowTwo);
     }
     let Ok(kv1) =
         geom_core::spline::KnotVector::clamped(knots.derivative_knot_slice().to_vec(), p - 1)
     else {
-        return f64::NAN;
+        return Err(SecondDerivativeUnbounded::DerivativeKnotVector);
     };
     let mut sum_sq = RingInterval::zero();
     for comp in 0..3 {
@@ -597,7 +604,28 @@ pub fn nonrational_second_derivative_sup(
         }
         sum_sq = sum_sq + hull.sqr();
     }
-    sum_sq.hi().sqrt().next_up()
+    let bound = sum_sq.hi().sqrt().next_up();
+    if bound.is_finite() {
+        Ok(bound)
+    } else {
+        Err(SecondDerivativeUnbounded::PoisonedHull)
+    }
+}
+
+/// Why [`nonrational_second_derivative_sup`] can state no bound — one
+/// variant per structure that denies one, so a caller's refusal can
+/// name what it met rather than reporting a poisoned number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SecondDerivativeUnbounded {
+    /// The knot vector's degree is below 2, so the curve has no second
+    /// derivative to hull.
+    DegreeBelowTwo,
+    /// The derivative knot vector does not materialise as a clamped
+    /// vector of degree `p − 1`.
+    DerivativeKnotVector,
+    /// The iterated difference-coefficient hull is poisoned or
+    /// unbounded (a non-finite control point, a zero knot difference).
+    PoisonedHull,
 }
 
 /// The spiric's radial pair from `c = cos v`: `ρ = R + r·c` and

@@ -32,6 +32,14 @@ use geom_core::Tol;
 /// the right answer, and a runaway loop is not a tolerance report.
 const SPIRIC_MAX_NODES: usize = 1024;
 
+/// The node-count FLOOR of the spiric export lane: a cubic
+/// interpolation needs `degree + 1` points, so four node intervals
+/// (five points) is the smallest schedule there is. Named beside the
+/// cap because the two together are the window the search walks, and
+/// because the floor's own bound is what a very loose `uncertainty_m`
+/// buys (`Writer::spiric_spline`'s docs).
+const SPIRIC_MIN_NODES: usize = 4;
+
 /// The surface variant's name, for typed refusals and for the
 /// curved-shell classification message.
 pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
@@ -166,6 +174,109 @@ fn run_length_knots(
         values.push_str(&fmt_real(value, context)?);
     }
     Ok((mults, values))
+}
+
+/// The **export-only** cubic interpolating spline of a spiric over
+/// `[t0, t1]`, with the bound it is certified to, in metres.
+///
+/// # The construction
+///
+/// The interpolation parameters are the carrier's own `v` samples,
+/// NORMALIZED: `geom::NurbsCurve3::interpolate_with_params` takes
+/// a clamped `0 → 1` parameterization and refuses any other, so
+/// the spline's parameter is `τ = (v − t₀)/(t₁ − t₀)` rather than
+/// `v` itself. What that contract is for survives the rescaling
+/// intact — the samples are the carrier's, node for node, so
+/// `D(τ) = spline(τ) − P(v(τ))` vanishes at every node and the
+/// spline is an affine reparameterization of the one a
+/// `v`-parameterized fit would produce.
+///
+/// On a node interval of width `h = 1/n` in `τ`, a function
+/// vanishing at both ends satisfies `sup|D| ≤ h²·sup|D″|/8`, and
+/// `sup|D″| ≤ M_s + M_P·Δt²` with `M_P = sup‖P″‖` in closed form
+/// ([`geom::spiric_curvature_sup`], per radian squared) carried
+/// into `τ` by the chain rule, `Δt = t₁ − t₀`, and
+/// `M_s = sup‖spline″‖` from the control-net difference hull
+/// ([`geom::nonrational_second_derivative_sup`], already in `τ`).
+/// Both terms are curve-side only: no surface operand enters, so
+/// none of the torus's missing metres conversion is needed to
+/// state this bound.
+///
+/// # The schedule
+///
+/// The node count is the **least power of two** whose bound is
+/// `≤ ε/4` — the quarter keeps a re-imported spline off the margin
+/// of the 9-sample `carrier_on_surface_*` gate that adopts it —
+/// searched from [`SPIRIC_MIN_NODES`] (the cubic's own minimum) up
+/// to [`SPIRIC_MAX_NODES`]. Past the cap the arm refuses typed
+/// rather than emitting a curve the file's own sentence would
+/// misstate.
+///
+/// **There is a floor as well as a cap, and it is the one a loose
+/// tolerance meets.** At four intervals this fixture's bound is
+/// `3.3e-1` m, so an `uncertainty_m` of, say, `1e9` is "met" by a
+/// 33 cm approximation — true as a bound and useless as a
+/// statement. The arm does not silently accept that: the search
+/// starts at the floor and the FILE states the bound the floor
+/// actually achieved, never the tolerance that was asked for, so
+/// the number a reader holds the document to is the one the
+/// geometry earned.
+///
+/// # Errors
+///
+/// [`StepExportError::UnsupportedCurve`] when no admissible node
+/// count under the cap meets the bound, or when the fit itself
+/// refuses.
+#[allow(clippy::too_many_arguments)]
+pub fn spiric_export_spline(
+    eps: f64,
+    carrier: &Curve3<f64>,
+    edge_key: EdgeKey,
+    t0: f64,
+    t1: f64,
+    major: f64,
+    minor: f64,
+    offset: f64,
+) -> Result<(geom::NurbsCurve3<f64>, f64), StepExportError> {
+    let curvature = geom::spiric_curvature_sup(major, minor, offset);
+    if !curvature.is_finite() {
+        return Err(StepExportError::UnsupportedCurve {
+            edge: edge_key,
+            kind: "spiric: the kind's curvature bound is not finite (off-regime carrier)",
+        });
+    }
+    let dt = t1 - t0;
+    let mut nodes = SPIRIC_MIN_NODES;
+    while nodes <= SPIRIC_MAX_NODES {
+        #[allow(clippy::cast_precision_loss)]
+        let n = nodes as f64;
+        #[allow(clippy::cast_precision_loss)]
+        let params: Vec<f64> = (0..=nodes).map(|i| i as f64 / n).collect();
+        let points: Vec<Point3<f64>> = params.iter().map(|f| carrier.eval(t0 + dt * f)).collect();
+        let Ok(spline) = geom::NurbsCurve3::interpolate_with_params(&points, 3, &params) else {
+            return Err(StepExportError::UnsupportedCurve {
+                edge: edge_key,
+                kind: "spiric: the export-only cubic interpolation refused",
+            });
+        };
+        // A structure the hull cannot license is not a tolerance
+        // question: it is a spline this lane should not have
+        // built, and the search stops rather than doubling into it.
+        let m_s = geom::nonrational_second_derivative_sup(spline.knots(), spline.control())
+            .map_err(|_| StepExportError::UnsupportedCurve {
+                edge: edge_key,
+                kind: "spiric: the export-only cubic's second-derivative hull states                            no bound",
+            })?;
+        let bound = (m_s + curvature * dt.powi(2)) / (8.0 * n.powi(2));
+        if bound.is_finite() && bound <= eps / 4.0 {
+            return Ok((spline, bound));
+        }
+        nodes *= 2;
+    }
+    Err(StepExportError::UnsupportedCurve {
+        edge: edge_key,
+        kind: "spiric: export tolerance not met",
+    })
 }
 
 impl<'a> Writer<'a> {
@@ -415,46 +526,8 @@ impl<'a> Writer<'a> {
         }
     }
 
-    /// The **export-only** cubic interpolating spline of a spiric over
-    /// `[t0, t1]`, with the bound it is certified to, in metres.
-    ///
-    /// # The construction
-    ///
-    /// The interpolation parameters are the carrier's own `v` samples,
-    /// NORMALIZED: `geom::NurbsCurve3::interpolate_with_params` takes
-    /// a clamped `0 → 1` parameterization and refuses any other, so
-    /// the spline's parameter is `τ = (v − t₀)/(t₁ − t₀)` rather than
-    /// `v` itself. What that contract is for survives the rescaling
-    /// intact — the samples are the carrier's, node for node, so
-    /// `D(τ) = spline(τ) − P(v(τ))` vanishes at every node and the
-    /// spline is an affine reparameterization of the one a
-    /// `v`-parameterized fit would produce.
-    ///
-    /// On a node interval of width `h = 1/n` in `τ`, a function
-    /// vanishing at both ends satisfies `sup|D| ≤ h²·sup|D″|/8`, and
-    /// `sup|D″| ≤ M_s + M_P·Δt²` with `M_P = sup‖P″‖` in closed form
-    /// ([`geom::spiric_curvature_sup`], per radian squared) carried
-    /// into `τ` by the chain rule, `Δt = t₁ − t₀`, and
-    /// `M_s = sup‖spline″‖` from the control-net difference hull
-    /// ([`geom::nonrational_second_derivative_sup`], already in `τ`).
-    /// Both terms are curve-side only: no surface operand enters, so
-    /// none of the torus's missing metres conversion is needed to
-    /// state this bound.
-    ///
-    /// # The schedule
-    ///
-    /// The node count is the **least power of two** whose bound is
-    /// `≤ ε/4` — the quarter keeps a re-imported spline off the margin
-    /// of the 9-sample `carrier_on_surface_*` gate that adopts it —
-    /// searched from 4 intervals (the cubic's own minimum) up to
-    /// [`SPIRIC_MAX_NODES`]. Past the cap the arm refuses typed rather
-    /// than emitting a curve the file's own sentence would misstate.
-    ///
-    /// # Errors
-    ///
-    /// [`StepExportError::UnsupportedCurve`] when no admissible node
-    /// count under the cap meets the bound, or when the fit itself
-    /// refuses.
+    /// [`spiric_export_spline`] with this writer's own budget — the
+    /// one place the writer's `Curve3::Spiric` arm spends it.
     #[allow(clippy::too_many_arguments)]
     fn spiric_spline(
         &self,
@@ -466,39 +539,7 @@ impl<'a> Writer<'a> {
         minor: f64,
         offset: f64,
     ) -> Result<(geom::NurbsCurve3<f64>, f64), StepExportError> {
-        let curvature = geom::spiric_curvature_sup(major, minor, offset);
-        if !curvature.is_finite() {
-            return Err(StepExportError::UnsupportedCurve {
-                edge: edge_key,
-                kind: "spiric: the kind's curvature bound is not finite (off-regime carrier)",
-            });
-        }
-        let dt = t1 - t0;
-        let mut nodes = 4usize;
-        while nodes <= SPIRIC_MAX_NODES {
-            #[allow(clippy::cast_precision_loss)]
-            let n = nodes as f64;
-            #[allow(clippy::cast_precision_loss)]
-            let params: Vec<f64> = (0..=nodes).map(|i| i as f64 / n).collect();
-            let points: Vec<Point3<f64>> =
-                params.iter().map(|f| carrier.eval(t0 + dt * f)).collect();
-            let Ok(spline) = geom::NurbsCurve3::interpolate_with_params(&points, 3, &params) else {
-                return Err(StepExportError::UnsupportedCurve {
-                    edge: edge_key,
-                    kind: "spiric: the export-only cubic interpolation refused",
-                });
-            };
-            let m_s = geom::nonrational_second_derivative_sup(spline.knots(), spline.control());
-            let bound = (m_s + curvature * dt.powi(2)) / (8.0 * n.powi(2));
-            if bound.is_finite() && bound <= self.eps / 4.0 {
-                return Ok((spline, bound));
-            }
-            nodes *= 2;
-        }
-        Err(StepExportError::UnsupportedCurve {
-            edge: edge_key,
-            kind: "spiric: export tolerance not met",
-        })
+        spiric_export_spline(self.eps, carrier, edge_key, t0, t1, major, minor, offset)
     }
 
     /// `B_SPLINE_CURVE_WITH_KNOTS` for a validated kernel NURBS
@@ -1017,7 +1058,23 @@ pub(crate) fn write_document(
     tol: Tol,
 ) -> Result<String, StepExportError> {
     let name = quoted(&options.product_name, "product name")?;
-    let mut w = Writer::new(body, options.uncertainty_m.unwrap_or_else(|| tol.eps()));
+    // **The uncertainty is decided ONCE, before any geometry.** It is
+    // the budget the spiric lane's node schedule spends, so a writer
+    // that validated it after the geometry pass answered two different
+    // refusals for one bad option — `InvalidUncertainty` on an
+    // ordinary body and "export tolerance not met" on a body with a
+    // spiric edge, which is one derivation spelled twice and
+    // disagreeing with itself.
+    let eps = match options.uncertainty_m {
+        Some(value) => {
+            if !(value.is_finite() && value > 0.0) {
+                return Err(StepExportError::InvalidUncertainty { value });
+            }
+            value
+        }
+        None => tol.eps(),
+    };
+    let mut w = Writer::new(body, eps);
 
     // Geometry + topology.
     let msbs = w.manifold_solids(&name)?;
@@ -1041,16 +1098,8 @@ pub(crate) fn write_document(
     let su = w.emit("( NAMED_UNIT(*) SI_UNIT($, .STERADIAN.) SOLID_ANGLE_UNIT() )");
 
     // Uncertainty: the run's ambient ε (or the explicit override),
-    // wrapped in the LENGTH_MEASURE select as the schema requires.
-    let eps = match options.uncertainty_m {
-        Some(value) => {
-            if !(value.is_finite() && value > 0.0) {
-                return Err(StepExportError::InvalidUncertainty { value });
-            }
-            value
-        }
-        None => tol.eps(),
-    };
+    // decided above and wrapped in the LENGTH_MEASURE select as the
+    // schema requires.
     let eps_str = fmt_real(eps, "uncertainty")?;
     let unc = w.emit(&format!(
         "UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE({eps_str}), #{lu}, \

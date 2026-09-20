@@ -125,6 +125,14 @@ fn vessel_cavity() -> topo::Body<f64> {
 ///   `Curve3::Nurbs` carrier and the cap's loop is no longer one the
 ///   spiric arm refuses — so the wall is reached first.
 ///
+/// **That door is not spiric-specific, and the row does not claim it
+/// is.** What reaches it is any `Nurbs`-carried trim on a torus wall,
+/// whatever minted the carrier; the message even names a "conic trim"
+/// for a carrier that is not a conic. The row pins the door a spiric
+/// body's round trip actually lands on, which is the fact this unit
+/// owes; the message belongs to the quadrature lane (TRIM's ground)
+/// and is not changed here.
+///
 /// §5 predicted `PropsError::Unimplemented` at check 7 on re-import;
 /// the measured payload is the same check and the same lane, on the
 /// wall rather than the cap, and the row pins what the run shows and

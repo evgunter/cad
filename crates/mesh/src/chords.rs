@@ -248,18 +248,33 @@ fn nurbs_chord_count(
     } else {
         // The non-rational hull is `geom`'s, so the export lane's
         // node-count schedule and this chord schedule read one
-        // spelling of the iterated difference-coefficient bound. A
-        // structure it cannot license comes back non-finite and the
-        // finiteness gate below is the refusal.
-        geom::nonrational_second_derivative_sup(kv, n.control())
+        // spelling of the iterated difference-coefficient bound — and
+        // the door hands back WHICH structure denied a bound, so this
+        // caller's refusal keeps naming the same three classes it
+        // named when the arithmetic was inline here.
+        match geom::nonrational_second_derivative_sup(kv, n.control()) {
+            Ok(bound) => bound,
+            Err(why) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: match why {
+                        geom::SecondDerivativeUnbounded::DegreeBelowTwo => {
+                            "B-spline carrier of degree below 2 — the hull sagitta bound \
+                             needs a second derivative to hull"
+                        }
+                        geom::SecondDerivativeUnbounded::DerivativeKnotVector => {
+                            "B-spline carrier whose derivative knot vector fails to \
+                             materialise — outside the certified chord inventory"
+                        }
+                        geom::SecondDerivativeUnbounded::PoisonedHull => {
+                            "B-spline carrier second-derivative hull is \
+                             unbounded/poisoned — outside the certified chord inventory"
+                        }
+                    },
+                });
+            }
+        }
     };
-    if !m_bound.is_finite() {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "B-spline carrier second-derivative hull is unbounded/poisoned — \
-                   outside the certified chord inventory",
-        });
-    }
     if m_bound == 0.0 {
         return Ok(1);
     }
