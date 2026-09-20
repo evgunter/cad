@@ -72,3 +72,32 @@ on purpose.
 Territory: the sites cross `topo`, `viewer`, `sweep`, `editor-core`
 and `pncad-py`; `crates/sweep/src/blend/mod.rs` is BLEND's and
 `crates/pncad-py/*` is LIB's, and this program claims no paths.
+
+## The `contains('{')` spelling, measured (S-FIX, 2026-09-20)
+
+*Where else to look* asks for the detectors spelled without the `" { "`
+literal. S-FIX's `quantity` F6 fold ran that sweep and this is its
+receipt, so the ask is answered rather than open. The instrument was
+`git grep -nE '(contains|find|matches|starts_with)\s*\(\s*["'"'"']\s*\{'`
+over every tracked file, no path argument. Setting aside the hits that
+are source-text SCANNERS reading Rust code rather than detectors
+reading a rendering, it leaves **two** Display-vs-Debug detectors in
+this spelling, both one-clause:
+
+| site | spelling | disposition |
+| --- | --- | --- |
+| `crates/sweep/tests/m5_pr6_pcurves.rs` (`assert!(!msg.contains('{'), "Debug guts leaked: {msg}")`) | brace only | a spot check inside a suite about something else, not a statement of the rule — the "deliberately wants only half of it" case this row already carves out |
+| `crates/topo/tests/m3_pr3_split.rs` (same wording) | brace only | as above |
+
+`work/dup/f6-display-predicate-is-spelled-three-times-with-no-home`
+reached both and dispositioned them the same way; recorded here because
+that row's hit list goes with S-DUP's directory and this ask outlives
+it.
+
+**What the instrument could not match**: a needle built in a variable
+(`for dump in [...] { assert!(!shown.contains(dump)) }`), a clause
+rustfmt wrapped so the literal starts a line of its own, and a
+detector that bans only identifiers and never the brace. The
+identifier-only shape is the live blind spot — it is how
+`crates/quantity/src/tests.rs`'s copy survived every name-shaped
+sweep.
