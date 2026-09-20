@@ -5,6 +5,7 @@ title: Six box fixtures are still declared once per suite after the fold, at fif
 status: review
 opened: 2026-09-19
 branch: dup/one-line-fixture-wrappers
+pr: 2899
 ---
 
 **The id says thirteen and the object is fifteen.** Ids are stable
