@@ -228,7 +228,17 @@ def _fmt_scalar(v: object, in_list: bool = False) -> str:
     if in_list and "," in s:
         raise Bail(f"a list element may not contain a comma: {s!r}")
     looks_typed = bool(INT_RE.match(s)) or s in ("true", "false")
-    if s == "" or s != s.strip() or s[0] in "[&*|>{'\"" or looks_typed:
+    # QUOTE ONLY WHAT THE READER WOULD MISREAD, and let `_scalar` be the judge
+    # of that rather than a second list of characters. The two disagreed: the
+    # reader strips a pair of quotes only when the value opens AND closes with
+    # one, so a title that merely BEGINS with a quoted phrase round-trips bare
+    # — while the writer quoted on the first character alone and then refused
+    # the value for containing a quote. The result was a header `work.py` could
+    # read and could not write, so `set` failed on the whole item for the shape
+    # of one field it was not touching (`S58`, 2026-09-20).
+    needs_quoting = (s == "" or s != s.strip() or s[0] in "[&*|>{"
+                     or looks_typed or _scalar(s) != s)
+    if needs_quoting:
         if '"' in s:
             raise Bail(f"cannot quote a value that contains a double quote: {s!r}")
         return '"' + s + '"'
@@ -848,9 +858,15 @@ def cmd_set(root: str, item_id: str, assignments: list[str]) -> str:
             it.fields[k] = v
             if k not in it.order:
                 it.order.append(k)
+    # RENDER BEFORE OPENING. `format_front_matter` can refuse (a value the
+    # subset cannot spell), and `open(..., "w")` truncates on the way in — so
+    # rendering inside the `with` left the item EMPTY whenever `set` refused,
+    # which is a refusal destroying the thing it declined to change. Build the
+    # whole text first; the file is only touched once it is certain to be
+    # written whole (found 2026-09-20, on `S58`).
+    text = format_front_matter(it.fields, it.order) + it.body
     with open(os.path.join(root, it.path), "w", encoding="utf-8") as f:
-        f.write(format_front_matter(it.fields, it.order))
-        f.write(it.body)
+        f.write(text)
     return it.path
 
 
@@ -1061,6 +1077,44 @@ def selftest() -> int:
         if "MESH-2" in text.split("## Untouched")[1]:
             failures.append("render: a deferred row is listed stale for going untouched")
         _write(root, "work/mesh/MESH-2.md", orig2)
+
+        # SCALAR ROUND-TRIP: every value the reader accepts, the writer must be
+        # able to write back. The two used to disagree on a value that opens
+        # with a quote and does not close with one, which `set` met as a refusal
+        # to touch the item at all rather than as a note about one field.
+        for _v in ('"A phrase in quotes" and then prose', "plain", "123", "true",
+                   "", " leading", "'whole'", "[bracketed]", 'a "quoted" middle',
+                   'trailing quote"'):
+            try:
+                if _scalar(_fmt_scalar(_v)) != _v:
+                    failures.append(f"scalar round-trip: {_v!r} does not survive the writer")
+            except Bail as _e:
+                failures.append(f"scalar round-trip: {_v!r} refused by the writer ({_e})")
+
+        # A REFUSED `set` LEAVES THE ITEM ALONE. The write used to truncate on
+        # the way in and render inside the handle, so a field the subset cannot
+        # spell emptied the file that `set` had declined to change — and the
+        # offending field is usually one the caller never touched, since `set`
+        # re-renders the WHOLE header. The value is planted by hand because
+        # `_parse_assignment` normalises away every spelling that reaches it
+        # through the CLI, which is why this only ever bit a header written
+        # before the writer's rule was what it is.
+        _bad = os.path.join(root, "work/mesh/MESH-1.md")
+        _before = open(_bad, encoding="utf-8").read()
+        _write(root, "work/mesh/MESH-1.md",
+               re.sub(r"^title: .*$", "title: \"'a \"b\" c'\"", _before,
+                      count=1, flags=re.M))
+        _planted = open(_bad, encoding="utf-8").read()
+        _refused = False
+        try:
+            cmd_set(root, "MESH-1", ["branch=mesh/atomicity"])
+        except Bail:
+            _refused = True
+        if not _refused:
+            failures.append("the atomicity fixture no longer refuses; the case is not being tested")
+        elif open(_bad, encoding="utf-8").read() != _planted:
+            failures.append("a refused `set` changed the item it refused")
+        _write(root, "work/mesh/MESH-1.md", _before)
 
         # a fired trigger BLOCKS when nothing else gates the row, and only WARNS
         # when a live blocker remains — the two channels, told apart

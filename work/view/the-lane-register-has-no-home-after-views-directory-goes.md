@@ -4,6 +4,8 @@ kind: issue
 title: VIEW's lane register binds four successor programs by reference and dies with work/view/plan.md
 status: open
 opened: 2026-09-17
+priority: P4
+cost: E
 ---
 
 

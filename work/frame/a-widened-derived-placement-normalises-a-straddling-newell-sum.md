@@ -4,6 +4,8 @@ kind: issue
 title: A boss on a widened derived frame refuses on the symbolic lane at clause 1: newell normalises a cross-sum whose enclosure contains zero, so a margin the tier proves zero is never asked
 status: open
 opened: 2026-09-14
+priority: P0
+cost: H
 ---
 
 

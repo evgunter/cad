@@ -4,6 +4,8 @@ kind: issue
 title: Mat3::rotation_about normalizes its axis internally, so a caller holding the unit witness pays the divide twice — a witness-taking rotation constructor is the next member
 status: open
 opened: 2026-09-15
+priority: P1
+cost: E
 ---
 
 
