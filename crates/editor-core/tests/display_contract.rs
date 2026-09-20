@@ -2224,7 +2224,7 @@ fn maintenance_display_says_what_the_edit_did() {
             },
             vec![
                 "a face name minted by node 7 was rewritten in place",
-                "draws the same segment under the reshaped profile program",
+                "draws the same step's segment under the reshaped profile program",
                 "still denotes what it did",
             ],
         ),

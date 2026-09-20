@@ -211,3 +211,39 @@ Filed: `work/view/the-viewer-keeps-its-profile-lock-and-order-search-after-set-p
 `work/edit/an-unknown-edit-tag-in-a-log-refuses-without-naming-it.md`
 (the log wrapper's untagged miss, measured by the persisted-spelling
 row).
+
+### Fix pass (2026-09-20, lane `program-fix`, the union of R1's and R2's findings under the orchestrator's rulings)
+
+R1's MAJOR stood: a retired coordinate one past the loop's end went
+live under a plain `SetParam` (a corner fillet's runs through a `Zero`
+fit change the loop's segment count), so a stranded name is now
+retired to `RETIRED_FLOOR + s` (segment) or loop `RETIRED_FLOOR + l`,
+`RETIRED_FLOOR = u32::MAX / 2` — a coordinate no program can draw
+under any edit — and a name already at or above the floor is left
+exactly as it is and reported by no later edit (R2's growth probe now
+asserts an empty maintenance). The retirement is Ev's to ratify: DM7
+and V2 say only what #2904 ruled, the mechanism is documented on
+`DocEdit::SetProgram` and `RETIRED_FLOOR`, and
+`stranded-names-are-retired-to-an-undrawable-coordinate` (`needs_ev`)
+carries the case, the cost of "left in place", R1's finding and the
+alternatives. The segment map is read through DM8's checked door
+(`CheckedRecords`, one shape check for the evaluation's doors and the
+edit's; a new program whose record the door refuses is
+`ProgramRefusal::Record`, an old one strands). One roster drives both
+reports: `Doc::rewrite_names` is `name_carriers`' `&mut` twin over
+`Carrier::ALL`, and the order row holds that the twin meets exactly
+what the read walk yields. One walk over `RoleSeg`'s shape
+(`RoleSeg::rewrite` under a `SegRewrite`) serves the anchor rewrite,
+the split re-map and the program edit; `name_free_seg!` is the union
+of `inert_seg!` and `locator_seg!`, because the compiler refuses the
+union after the locator arms. `anchor.rs`'s "a parameter edit CANNOT
+renumber" names its exception and
+`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names` is
+filed with a live-name row pinned as measured; DI1's record names it.
+Both probe suites were merged authorship-preserving, then folded by
+name into `edit_set_program.rs` with the duplicates retired (the PR
+body says which of each pair survived); the suite's rod helpers are
+the corpus module's. New rows: the retired name through the resolver
+door and a Python `resolve`, a frame on a dropped wall refusing
+`Vanished`, and one row per sweep kind tying `Node::anchoring_profile`
+to what the evaluation publishes.
