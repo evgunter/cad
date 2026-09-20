@@ -2,9 +2,11 @@
 id: escalation-channel-misses-op-minted-indeterminates
 kind: issue
 title: k_stats: the escalation channel misses op-minted Indeterminates (eight sites), two raw sign_within calls, and the unbracketed mate solve
-status: open
+status: review
+pr: 2928
+branch: props/escalation-channel
 opened: 2026-09-05
-refs: [k-stats-escalation-channel-and-redo, 1969]
+refs: [k-stats-escalation-channel-and-redo, mate-lane-escalations-reach-no-nodes-log, topo-mints-indeterminates-outside-the-funnel, should-classify-replays-error-enum-arms-be-deleted, the-gating-corpus-reaches-no-collapsed-arm-gate, sector-shape-mints-indeterminates-through-an-invalid-helper, 1969]
 ---
 
 ## What
@@ -73,3 +75,76 @@ Paths that never open a bracket still pay the `RefCell` borrow and an
 empty-stack check per decision; gating that on a `Cell<bool>` is a
 live optimization orthogonal to any feature. Unscheduled; recorded
 here rather than in the module doc.
+
+
+## Landed (PR 2928): family 1 closed at its eight sites, families 2 and 3 measured
+
+**Family 1's eight sites no longer mint, because the mint was made
+impossible THERE rather than by asking each site to record.**
+`geom_core::k_stats` gained three gate doors — `decide_positive`,
+`decide_nonzero` and `gate_measured` — which classify (or, for the last,
+check that a value is a measurement at all) AND apply the caller's
+requirement, so the rejection is minted and recorded by
+`record_escalation`, the module's one MINT of the escalation channel. A
+caller never holds a definite sign long enough to reject it in private,
+because the call that would have handed it the sign hands it the
+refusal instead. A gated rejection records BOTH channels — the definite
+verdict the classifier reached and the gate's escalation beside it — so
+the verdict channel is unchanged across the seam.
+
+**The structural claim, stated at the width it actually holds.** What
+ships is a spelling census over ONE crate:
+`shipped_geom_brep_code_spells_no_indeterminate_literal` fails on any
+`Indeterminate {` struct literal under `crates/geom-brep/src` outside a
+`#[cfg(test)]` body, and there is none. It does **not** make the defect
+unreintroducible. Three evasions are executed, not imagined:
+
+- `margin.sign_within(band)` + `.with_predicate(name)` mints the exact
+  payload with no `Indeterminate` token in the file. Both review arms
+  of PR 2928 compiled and ran this and got an empty log.
+- `k_stats::decide`, match `Positive`, build the refusal from a payload
+  assembled anywhere but the call site.
+- **A local helper, which is not hypothetical**: `topo` holds four
+  separate `fn invalid(band, predicate) -> Indeterminate`-shaped
+  helpers, minting after a definite sign at eight shipped sites, and the
+  census would see none of them. Filed as
+  `work/curved/topo-mints-indeterminates-outside-the-funnel.md` and
+  `work/props/sector-shape-mints-indeterminates-through-an-invalid-helper.md`.
+
+The census's own doc comment carries this list; the guard is worth
+having and it is a guard on a spelling, not a proof about the kernel.
+
+**Family 2 has no residue, measured rather than assumed.**
+`topo/src/seqgen.rs`'s raw `sign_within` is a test-support candidate
+filter over `Body<f64>` only, never instantiated at the recording
+scalar, and nothing escalates out of it.
+`editor-core/src/expr.rs`'s `refuse_non_finite` no longer calls
+`sign_within` at all — it goes through `k_stats::check_unlogged` under
+the name `expr_non_finite`, deliberately outside the verdict log, and
+refuses as `EvalError::NonFiniteResult`, never as an `Indeterminate`.
+
+**Family 3 is open and re-filed.** Closing family 1 does not close it:
+the whole-document solve runs before any node's bracket opens, so no
+funnel door helps.
+`work/msolve/mate-lane-escalations-reach-no-nodes-log.md` carries it,
+with `mate::coset::parallel`'s own hand-built mint — a two-line
+`gate_measured` fit — on the same slate.
+
+**What the gates are not covered by, with digits.** No committed
+k-report baseline has ever taken one of these gates: five of the eight
+predicates have ZERO rows across all twelve baselines, and the three
+that appear (`dihedral_arm` 606,900; `enters_material_arm` 47,151;
+`nurbs_span_meter` 12) have only `positive` rows. Every shipped caller
+gates the same quantity before the door does, so reaching a gate needs
+geometry a constructor refuses to build. Four unit rows in
+`crates/geom-brep/tests/kstats_escalation_channel.rs` carry the entire
+verification, and
+`work/props/the-gating-corpus-reaches-no-collapsed-arm-gate.md` is what
+closing that costs.
+
+**Also filed**: `work/props/should-classify-replays-error-enum-arms-be-deleted.md`
+(the precondition is discharged; the measurement is not) and
+`work/props/nurbs-span-meter-cannot-tell-a-reversed-domain-from-a-collapsed-one.md`.
+
+**The `RefCell`-cost note above is untouched** by this unit and stays
+recorded here.
