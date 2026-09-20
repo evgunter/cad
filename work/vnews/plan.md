@@ -93,6 +93,60 @@ population applies to each: re-derive the population by subject before
 naming a door, because the count in the row is evidence only as of its
 filing.
 
+### What re-deriving the order against the tree changed (2026-09-19)
+
+The order above was written at the re-scope and every row in it was
+written earlier still. Re-deriving each row's fix SITE against the tree
+at this program's first dispatch moved four of them. Recorded here
+rather than fixed silently, because the order is the thing a later
+session reads first.
+
+- **`converged-recourse-has-no-home` leaves group 1.** The group calls
+  it *"the third crosses a crate and announces"*; announcing is not
+  what it needs. Both shapes the row states — a `pub const` beside
+  `EditError`, or a `recourse()` method on it — **add API surface to
+  `crates/editor-core`**, and the authorisation this program inherits
+  is scoped to `EditError`'s `Display` WORDING (Ev, in-chat,
+  2026-09-04). The row itself says so: *"Widening it to add an item was
+  refused on the spot rather than taken quietly."* `crates/editor-core`
+  is EDIT's and MSOLVE's. So this is a hand-off or an `[ev]` question,
+  not a lane here, and the row's own closing line — *"ride it on
+  whichever unit next touches `EditError`'s surface with an
+  authorisation wider than `Display` wording"* — names EDIT as the
+  program that will have one.
+- **`viewer-preview-names-a-verb-by-its-variant-identifier` cannot
+  land from here alone**, for the reason the row already gives: the fix
+  is `impl Display for Verb` in `crates/profile`, now **PATHS'**
+  territory as S-BOOL's successor, and forwarding the word from the
+  viewer instead would mint a fourth spelling. Its viewer-side citation
+  has also gone stale — the `PreviewError` render is `pane/profile.rs`
+  now, not `pane/create.rs:582-586` — and that file is claimed by no
+  successor (`work/view/viewer-src-files-no-successor-claims`).
+- **`tone-is-a-value-in-frame-and-a-comment-in-two-panes` keeps its
+  place and loses a citation.** `pane/features.rs`'s hand-picked
+  `ui.weak` / `ui.colored_label` pair is there as described, with the
+  rule in a comment; `tree::RowStatus::badge()` is there and takes no
+  tone. The row's THIRD copy at `pane/create.rs:582-586` is not: those
+  lines are the `ShapeKind::Path` notation block today. The subject is
+  re-derived by the lane, not repointed by arithmetic — this register's
+  own rule.
+- **`the-new-document-button-states-its-refusal-twice` waits on the
+  census, one group later than the order puts it.** Its two answers are
+  *"read the refusal"* and *"keep the literal and delete the claim"*,
+  and the row says which is right is what
+  `a-disabled-control-says-why-in-four-shapes` asks generally. The
+  button is a genuine member of that general question — it IS gated on
+  the condition `NewDocument` refuses — so deciding it alone decides
+  the class from its easiest instance. The census goes first and this
+  row applies its rule.
+
+**And the frame.rs cluster is serialized, which the order does not
+say.** Groups 3, 4, part of 5 and `document-news-has-no-home` all edit
+`crates/viewer/src/frame.rs`. Under merge-only rules two lanes in that
+file at once is a conflict bought for nothing, so **at most one
+`frame.rs` lane runs at a time**, whatever the group order allows in
+parallel elsewhere.
+
 ## Inbound
 
 `joined-notices-nest-their-own-separator` is this program's row and is
@@ -129,6 +183,26 @@ empty. The default is a style review against
 `docs/prompts/reviewer-style-lane.md`, with a correctness arm added
 only where a unit's failure mode is a confident wrong answer rather
 than a refusal, and the dispatch says which it chose and why.
+
+**A third tier, from protocol v7 (Ev, in-chat, 2026-09-19;
+`docs/MODEL-AB-LOG.md`, the v7 entry, item 2).** v7 triages units into
+and out of the A/B protocol, and its out-of-protocol half states a tier
+below the style review that this program's posture predates and does
+not mention: **a mechanical change, where neither correctness nor style
+is meaningfully at risk, merges on green CI and the orchestrator's own
+read — no review lane, no row.** v7's out-of-protocol clause governs
+every unit that is not triaged in, and under the posture above no unit
+here is ever triaged in, so the tier is available on this slate.
+
+Nothing else about the posture moves. v7's triage question — is the
+logic especially tricky, or is this an architectural decision whose
+impact is broad or hard to reverse — is the question this program
+answers with a **correctness arm** rather than with a dual, because
+Ev's posture ruling is the more specific instruction and is not
+withdrawn by v7. So the three tiers here are: orchestrator's read;
+style review; style review plus a correctness arm. **The dispatch says
+which tier and why, and the reason is recorded in `log.md`** (v7 item
+5), so an un-reviewed unit is auditable rather than invisible.
 
 ## Exit shape
 
