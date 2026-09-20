@@ -447,6 +447,8 @@ items are not swept into `work/issues/` with no owner a second time.
 
 **GRADUATED (2026-09-03): opened as `work/curved/`, A/B band 2200–2299. DISPATCHING since 2026-09-04 (VERBS' walk ratified at #1793); `work/curved/plan.md` supersedes this section.**
 
+**CUT (2026-09-20, Ev in-chat): CURVED keeps the spiric lane only; REACH (`work/reach/`, 6000–6099), TANG (`work/tang/`, 6100–6199) and CHART (`work/chart/`, 6200–6299, with TRIM's chart-side residue) opened in the same commit and hold the rest of this section's lanes.**
+
 VERBS' Wave-2 claims that never became units, S-BOOL's ceded ground,
 and S-MATE's kernel residue, as one program. Territory: the
 declared-contact rungs, germ/pierce lanes and operand-reach arms of
