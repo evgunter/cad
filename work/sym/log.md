@@ -959,3 +959,14 @@ on #2468 decides, and SYM proceeds on the first shape meanwhile.
 **Where SYM runs now.** The remote box is gone; the program runs on the
 shared local machine (8 cores, load ~30 today, four orchestrators).
 SYM-8's dual first, SYM-10's Phase 1 after; lanes seed one at a time.
+
+## SYM-8's dual and SYM-10 dispatched on the local box (2026-09-19)
+
+SYM-8 (#2616, frozen `b47d4ab62`, run 34924029751 green): ordinal 4704,
+byte 98 ⇒ R1 = OPUS, R2 = FABLE, briefs' sha256 on `sym/b2-block`; the
+machine is Ev's shared box (8 cores, load 30–55 with four
+orchestrators), so the arms' seeds run in sequence and each arm is
+`nice`d to one heavy row at a time — recorded as a method note on both
+arms. SYM-10 dispatched on FABLE to slot 2 with its seed queued behind
+the review seeds; PROPS asked on #2468 whether its PR should target
+`props/sign-hull` (the default) or `main`.
