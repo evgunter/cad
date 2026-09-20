@@ -77,3 +77,4 @@ lane enshrined **its own recommendation** and cited the person it had
 recommended it to. The check that catches it is not `git log -S` on the
 sentence (which lands correctly on `e9eeace50`) but reading the cited
 thread and asking which comments are the account's owner speaking.
+

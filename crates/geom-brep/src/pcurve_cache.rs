@@ -2647,14 +2647,12 @@ fn param_rate_gate<T: Decide>(
         }
         _ => T::one(),
     };
-    match decide("pcurve_interval_meter", Margin::metered(extent, rate), band)? {
-        Sign::Positive => Ok(rate),
-        Sign::Zero | Sign::Negative => Err(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band,
-            predicate: Some("pcurve_interval_meter"),
-        }),
-    }
+    geom_core::k_stats::decide_positive(
+        "pcurve_interval_meter",
+        Margin::metered(extent, rate),
+        band,
+    )?;
+    Ok(rate)
 }
 
 /// Folds a residual into the running max and classifies it against the

@@ -15,6 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::slab;
 use core::f64::consts::PI;
 use profile::RawLoop;
 
@@ -36,12 +37,6 @@ fn slack() -> f64 {
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
-}
-
-/// `m5_pr9_boss_union::plate`'s box, spelled again here — by bounds
-/// where that one is by extent.
-fn slab() -> Body<f64> {
-    brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness())
 }
 
 fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {

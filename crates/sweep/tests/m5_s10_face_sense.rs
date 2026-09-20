@@ -29,6 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::pellet;
 use crate::revolve_common;
 
 use core::f64::consts::{FRAC_PI_8, PI};
@@ -353,14 +354,6 @@ fn fixed_concave_arc_wall_sense_is_false() {
     );
 }
 
-/// A small cuboid strictly inside the concave notch — `x ∈ [0.9, 1.1]`,
-/// `y ∈ [1.25, 1.35]`, `z ∈ [0.3, 0.7]`, volume `0.2·0.1·0.4 = 0.008`.
-/// Every point of it is genuinely OUTSIDE `mixed_turn_arcs` (the notch
-/// floor at `x = 1` is `y ≈ 1.0858`), so the two solids are disjoint.
-fn pellet() -> Body<f64> {
-    sweep::test_support::brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
-}
-
 /// **Construction row (M5 S11, e2e half — flipped from S10's
 /// finding, per its own flip instruction).**
 ///
@@ -376,7 +369,7 @@ fn pellet() -> Body<f64> {
 #[test]
 fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
     let a = mixed_turn_arcs().body;
-    let b = pellet();
+    let b = pellet::<f64>();
     let vol_a = topo::props::mass_properties(&a, Tol::witness())
         .unwrap()
         .volume;

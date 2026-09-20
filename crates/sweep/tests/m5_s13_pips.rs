@@ -24,6 +24,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::slab;
 use core::f64::consts::PI;
 use profile::RawLoop;
 
@@ -50,12 +51,6 @@ fn slack() -> f64 {
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
-}
-
-/// The 4 × 4 × 1 slab (the S12 finding's own dimensions).
-/// `m5_pr9_boss_union::plate`'s box, spelled again here.
-fn slab() -> Body<f64> {
-    sweep::test_support::block(4.0, 4.0, 1.0, Tol::witness())
 }
 
 /// A radius-`r` ball (two half-sphere bands on ONE sphere surface, the

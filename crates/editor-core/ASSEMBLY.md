@@ -342,7 +342,15 @@ pair's relative pose to a coset of an SE(3) subgroup; the closure is
 `Subgroup::{Se3, Planar, Cylindrical, Prismatic, Revolute, Trivial,
 Empty}` and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`): DETERMINED, UNDER or CONTRADICTORY, the last refusing
-with the added mate's measured clash. (2) Placement lives on the
+with the added mate's measured clash. The edit door asks the same
+per-mate admission of a mate being inserted — the walk, the class,
+each frame, the table's row, the rider on a coincidence decided over
+the mate's own lever — so a mate the table refuses on its own is
+refused at the insert door (`EditError::MateRefused`, carrying the
+solve's fault); the doors decide edits and the solve decides states,
+so a verdict about the pair, and a state a mate comes to hold after
+insert (a head a rebind or a shrunk pattern strands, a re-pointed
+`Part`, a loaded snapshot), stay the solve's. (2) Placement lives on the
 cluster: clusters are connected components of the instance–mate graph
 (`clusters`); `Doc::placements` holds at most one `Frame` per cluster,
 keyed by its gauge, a missing entry being the identity, so zero- and
@@ -381,13 +389,23 @@ CHAIN of copies the walk consumed (outermost first) and the operand it
 was read at: two references to one instance read at different operands
 are two members, and so are two references to sibling copies at any
 level. Nothing in the walk is evaluated, so the partitions never
-depend on a slot value. The solve reads no geometry except each mated
-part's own extent — an upper bound taken from its evaluated body
-(`mate::MateReach`, asked lazily per pair; the evaluation answers it
-from its own part cache, so a mated part is evaluated once) — which
-enters only as the lever a parallelism verdict is decided over:
-`(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored lengths|`, no
-floor and no constant. A mated part that does not resolve faults its
+depend on a slot value. The solve's inputs are the document plus its
+mated parts' evaluations, and it reads no geometry except what each
+mated part's own evaluation answers, through one door asked lazily
+per pair (`mate::MateReach`; the evaluation answers from its own part
+cache, so a mated part is evaluated once). Two answers cross that
+door. The part's EXTENT — an upper bound taken from its evaluated
+body — enters only as the lever a parallelism verdict is decided
+over: `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored
+lengths|`, no floor and no constant. A mate frame authored
+`FromFace` takes that FACE's canonical pose, read off its surface
+parameters exactly (`topo::readback::face_pose`, no tolerance) in the
+part's own coordinates, as the side's frame; a face with no canonical
+frame refuses typed and keeps taking authored vectors. Neither read
+changes the solve's algorithm — coset intersection over decided
+predicates, no numeric fitting, no geometry inspected inside the
+fold — and nothing is stored twice: the face name is the state, the
+frame is derived. A mated part that does not resolve faults its
 mate `MateFault::Unleverable` in the resolver's own voice, carrying
 the part fault unaltered, and that fault poisons the cluster as any
 mate fault does. The two questions that DO need a number are

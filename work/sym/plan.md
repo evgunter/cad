@@ -103,9 +103,14 @@ NOT certify their studies at any affordable dial.
   `symbolic-tier-costs-95-percent-of-the-m10-3-drive`'s volume ask);
   H / STRUCTURAL; **SYM-8**, the manifest sign (`docs/SYM-8-SPEC.md`;
   the tilt-U wall SYM-5's review found, measured first; H / NUMERIC);
-  **SYM-9**, the retry ladder (`docs/SYM-9-SPEC.md`; the ring's
-  non-monotone reach, measured first; H / NUMERIC). Pre-draw fields
-  and the draw on `sym/b2-block` once all three specs are on `main`.
+  **SYM-10**, the decision door and the floor (`docs/SYM-10-SPEC.md`;
+  the folds PROPS's sign-hull frame needs, Ev's #2728; H / NUMERIC) —
+  in the slot SYM-9 held until 2026-09-19 (SYM-9's lane never began;
+  the swap is on `sym/b2-block`). Pre-draw fields and the draw on
+  `sym/b2-block`.
+- **Block SYM-B3** — opens with **SYM-9**, the retry ladder
+  (`docs/SYM-9-SPEC.md`; the ring's non-monotone reach, measured first;
+  H / NUMERIC).
 
 ## Review posture
 

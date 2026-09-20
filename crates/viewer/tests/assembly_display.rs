@@ -259,27 +259,17 @@ fn fused_geometry_refuses_both_display_ops_typed() {
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the store opens");
     let mut doc =
         pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive("gui4-fused"), tol);
-    let insert = |doc: &mut pncad::document::ProfileDoc,
-                  node: pncad::document::Node<pncad::document::ProfileProgram>| {
-        let applied = pncad::document::apply(
-            doc,
-            &pncad::document::DocEdit::InsertNode { node },
-            tol,
-            &pncad::document::RefusingReach,
-        )
-        .expect("the insert applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("an id")
-    };
-    let a = insert(
+    let a = common::insert_into(
         &mut doc,
         pncad::document::Node::instantiate_part(bench.post),
+        tol,
     );
-    let b = insert(
+    let b = common::insert_into(
         &mut doc,
         pncad::document::Node::instantiate_part(bench.post),
+        tol,
     );
-    let weld = insert(
+    let weld = common::insert_into(
         &mut doc,
         pncad::document::Node::Boolean {
             op: pncad::document::BooleanOp::Union,
@@ -287,6 +277,7 @@ fn fused_geometry_refuses_both_display_ops_typed() {
             b,
             declare: None,
         },
+        tol,
     );
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(

@@ -3287,11 +3287,9 @@ mod face_list_door_tests {
         let bodies = corpus();
         let (_, pair) = &bodies[3];
         for (solid, _) in pair.solids() {
-            let faces: Vec<FaceKey> = pair
-                .faces()
-                .filter(|&(k, _)| pair.solid_of_face(k) == Some(solid))
-                .map(|(k, _)| k)
-                .collect();
+            let faces = pair
+                .faces_of_solid(solid)
+                .expect("a solid the body yielded");
             assert_eq!(faces.len(), 6);
             let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
             // Both prisms of the pair are unit cubes.

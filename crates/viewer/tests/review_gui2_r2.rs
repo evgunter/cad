@@ -14,7 +14,10 @@
 //! below, because the camera is the instrument here and not the
 //! subject; a fixture read from the same constants as the expectation
 //! would track it silently. What carries no oracle is shared:
-//! `common::xy_frame` and `common::gallery_ring_at`.
+//! `common::{ang, xy_frame, rectangle, inserted, len, scl,
+//! gallery_ring_at}`. The slabs' own dimensions and the world
+//! positions aimed at them stay here, where the expectation is
+//! written.
 //!
 //! Rows marked **EVIDENCE** assert nothing about the subject and exist
 //! to print what the review measured; they are not gates
@@ -36,12 +39,9 @@ test_utils::gated_to![
 use std::sync::{Arc, Mutex};
 
 use crate::common;
-use crate::common::xy_frame;
+use crate::common::{ang, len, scl, xy_frame};
 
-use pncad::document::{
-    Dimension, Doc, DocEdit, Evaluation, Expr, LoopProgram, Node, PatternKind, ProfileProgram,
-    RecipeNodeId, apply,
-};
+use pncad::document::{Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
@@ -65,45 +65,20 @@ fn delta() -> DisplayTolerance {
     DisplayTolerance::new(3.0e-4).expect("a positive delta")
 }
 
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
-}
-
-fn length(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a finite length")
-}
-
+/// One node into `doc` at this suite's tolerance.
 fn insert(
     doc: &Doc<ProfileProgram>,
     node: Node<ProfileProgram>,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = apply(
-        doc,
-        &DocEdit::InsertNode { node },
-        tol(),
-        &pncad::document::RefusingReach,
-    )
-    .expect("the insert applies");
-    let id = applied.record.minted.expect("an insert mints an id");
-    (applied.doc, id)
-}
-
-/// A rectangle profile in the XY plane, `w` by `h`, at the origin.
-fn rectangle(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]).expect("finite corners"),
-        ],
-    })
+    common::inserted(doc, node, tol())
 }
 
 fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfileProgram> {
     Node::Transform {
         input,
-        translation: [length(dx), length(dy), length(dz)],
-        rotation_axis: [scalar(0.0), scalar(0.0), scalar(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        translation: [len(dx), len(dy), len(dz)],
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     }
 }
 
@@ -113,12 +88,12 @@ fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfilePro
 fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol());
     let (doc, plane) = insert(&doc, xy_frame());
-    let (doc, profile) = insert(&doc, rectangle(plane, w, h));
+    let (doc, profile) = insert(&doc, common::rectangle(plane, [0.0, 0.0], w, h));
     let (doc, extrude) = insert(
         &doc,
         Node::Extrude {
             profile,
-            distance: length(t),
+            distance: len(t),
         },
     );
     (doc, extrude)
@@ -148,8 +123,8 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
             input: extrude,
             count: Expr::count(count),
             kind: PatternKind::Linear {
-                direction: [scalar(1.0), scalar(0.0), scalar(0.0)],
-                spacing: length(0.04),
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(0.04),
             },
         },
     );

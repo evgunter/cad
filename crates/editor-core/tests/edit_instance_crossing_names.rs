@@ -19,11 +19,11 @@
 //! name of this document (`Node::payload_names`' arm is the one home
 //! for why), so neither the liveness check nor `Rebind` may reach it.
 //!
-//! The crossing's THIRD reference, its `mate`, is a node id rather
-//! than a name: `Node::payload_read_sites` lists it, so the insert
-//! door refuses a never-existed one as the typo it is, and a later
-//! delete of it is not reported — the record then names a mate the
-//! document no longer holds, which is what the id always denoted.
+//! Those two references and the class are the WHOLE of a crossing
+//! (`InterfaceCrossing::Mate`'s doc argues why it carries no
+//! provenance), so an instance has no read site at all:
+//! `Node::payload_read_sites` answers nothing for one, and the last
+//! row here pins that.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -82,9 +82,8 @@ fn part_side(cap: CapEnd) -> FaceName {
     .expect("a crossing's references are face names")
 }
 
-fn crossing(mate: RecipeNodeId, outer: StableName, inner: FaceName) -> InterfaceCrossing {
+fn crossing(outer: StableName, inner: FaceName) -> InterfaceCrossing {
     InterfaceCrossing::Mate {
-        mate,
         class: ContactClass::Rest,
         outer: FaceName::new(outer).expect("a crossing's references are face names"),
         inner,
@@ -139,25 +138,13 @@ fn an_instances_payload_names_are_its_crossing_outers_in_record_order() {
     let (doc, first) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, second) = insert(doc, Node::instantiate_part(doc_ref));
 
-    // Each crossing is keyed by its own mate, and a `mate` is a read
-    // site the insert door checks is live — so the fixture mints two
-    // rather than spelling ids.
-    let (doc, first_mate) = insert(
-        doc,
-        mate(in_part(second, CapEnd::End), in_part(first, CapEnd::Start)),
-    );
-    let (doc, second_mate) = insert(
-        doc,
-        mate(in_part(first, CapEnd::End), in_part(second, CapEnd::Start)),
-    );
-
     // Second first, so the answer is the RECORD's order and not the
     // document's or the ids'.
     let outers = [in_part(second, CapEnd::End), in_part(first, CapEnd::Start)];
     let record = InterfaceRecord {
         crossings: vec![
-            crossing(first_mate, outers[0].clone(), part_side(CapEnd::Start)),
-            crossing(second_mate, outers[1].clone(), part_side(CapEnd::End)),
+            crossing(outers[0].clone(), part_side(CapEnd::Start)),
+            crossing(outers[1].clone(), part_side(CapEnd::End)),
         ],
     };
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
@@ -196,15 +183,12 @@ fn the_insert_door_refuses_a_record_whose_outer_is_not_live() {
     let (doc, target) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, keeper) = insert(doc, Node::instantiate_part(doc_ref));
     let outer = in_part(target, CapEnd::End);
-    // The crossing's mate, live throughout: only the `outer`'s node
-    // dies below, so the refusal can only be the NAME half's.
-    let (doc, crossing_mate) = insert(doc, mate(outer.clone(), in_part(keeper, CapEnd::Start)));
+    // The mate the crossing came from — it welds the two instances
+    // into the cluster whose gauge the delete below moves, which is
+    // what makes the reach answer.
+    let (doc, _) = insert(doc, mate(outer.clone(), in_part(keeper, CapEnd::Start)));
     let record = || InterfaceRecord {
-        crossings: vec![crossing(
-            crossing_mate,
-            outer.clone(),
-            part_side(CapEnd::Start),
-        )],
+        crossings: vec![crossing(outer.clone(), part_side(CapEnd::Start))],
     };
 
     // The control: live, so the door accepts the same record — and
@@ -248,11 +232,7 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     let to = in_part(a, CapEnd::Start);
     let (doc, crossing_mate) = insert(doc, mate(from.clone(), in_part(b, CapEnd::End)));
     let record = InterfaceRecord {
-        crossings: vec![crossing(
-            crossing_mate,
-            from.clone(),
-            part_side(CapEnd::Start),
-        )],
+        crossings: vec![crossing(from.clone(), part_side(CapEnd::Start))],
     };
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
 
@@ -265,11 +245,7 @@ fn a_rebind_of_an_outer_rewrites_the_record_and_its_mate_together() {
     );
     assert_eq!(
         record_of(&rebound, instance).crossings,
-        vec![crossing(
-            crossing_mate,
-            to.clone(),
-            part_side(CapEnd::Start)
-        )],
+        vec![crossing(to.clone(), part_side(CapEnd::Start))],
         "the record's `outer` followed the rebind"
     );
     let Some(Node::Mate { a: head, .. }) = rebound.node(crossing_mate) else {
@@ -294,13 +270,9 @@ fn a_rebind_of_an_unrelated_name_leaves_the_record_untouched() {
     // The rebind's subject is the mate's OTHER head, so the edit has a
     // site and is accepted (a rebind with no site is refused).
     let elsewhere = in_part(b, CapEnd::End);
-    let (doc, crossing_mate) = insert(doc, mate(outer.clone(), elsewhere.clone()));
+    let (doc, _) = insert(doc, mate(outer.clone(), elsewhere.clone()));
     let record = InterfaceRecord {
-        crossings: vec![crossing(
-            crossing_mate,
-            outer.clone(),
-            part_side(CapEnd::Start),
-        )],
+        crossings: vec![crossing(outer.clone(), part_side(CapEnd::Start))],
     };
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let before = record_of(&doc, instance);
@@ -341,11 +313,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
     let outer = in_part(target, CapEnd::End);
     let (doc, crossing_mate) = insert(doc, mate(outer.clone(), in_part(keeper, CapEnd::Start)));
     let record = InterfaceRecord {
-        crossings: vec![crossing(
-            crossing_mate,
-            outer.clone(),
-            part_side(CapEnd::Start),
-        )],
+        crossings: vec![crossing(outer.clone(), part_side(CapEnd::Start))],
     };
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
 
@@ -402,13 +370,9 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
     assert_eq!(collide, PART_BODY, "the row needs the collision it names");
 
     let inner = part_side(CapEnd::Start);
-    let (doc, crossing_mate) = insert(doc, mate((*inner).clone(), in_part(one, CapEnd::End)));
+    let (doc, _) = insert(doc, mate((*inner).clone(), in_part(one, CapEnd::End)));
     let record = InterfaceRecord {
-        crossings: vec![crossing(
-            crossing_mate,
-            in_part(zero, CapEnd::End),
-            inner.clone(),
-        )],
+        crossings: vec![crossing(in_part(zero, CapEnd::End), inner.clone())],
     };
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let before = record_of(&doc, instance);
@@ -428,101 +392,57 @@ fn a_rebind_of_a_name_equal_to_an_inner_leaves_the_inner_alone() {
     );
 }
 
-/// **The insert door refuses a record whose `mate` is not live**,
-/// naming the id it could not find.
+/// **An instance's record answers NO read site**, however many
+/// crossings it holds — so the insert door checks a record's NAMES
+/// and nothing else.
 ///
-/// A crossing's `mate` is PROVENANCE rather than an operand — nothing
-/// recomputes from it — but it is an id the payload carries into this
-/// document, so it is a read site (`Node::payload_read_sites`) and
-/// the typo rule applies whole: a never-existed id is a typo, refused
-/// here. The control beside it is the same record with a live mate.
+/// A crossing is a class and two face names: the `outer` is a payload
+/// name the reading twin lists, the `inner` is spelled in the part's
+/// id space and belongs to no door here, and there is no third
+/// reference to check. `Node::payload_read_sites`' match is
+/// exhaustive with no wildcard, so an instance is classified with the
+/// variants that answer nothing or does not compile — which is what
+/// keeps this answer honest as `Node` grows.
+///
+/// The mate beside it is the CONTROL: the same call on the same
+/// document answers that mate's two operands, so an empty answer here
+/// is the instance's and not a list that stopped working.
 #[test]
-fn the_insert_door_refuses_a_record_whose_mate_is_not_live() {
-    let doc_ref = part_ref("crossnames-mate-part");
-    let doc = ProfileDoc::empty(DocumentId::derive("crossnames-mate"), Tol::witness());
+fn an_instances_record_answers_no_read_site() {
+    let doc_ref = part_ref("crossnames-readsite-part");
+    let doc = ProfileDoc::empty(DocumentId::derive("crossnames-readsite"), Tol::witness());
     let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
-    let outer = in_part(a, CapEnd::End);
-    let (doc, crossing_mate) = insert(doc, mate(outer.clone(), in_part(b, CapEnd::Start)));
-    let with_mate = |mate_id| InterfaceRecord {
-        crossings: vec![crossing(mate_id, outer.clone(), part_side(CapEnd::Start))],
-    };
-
-    // The control: the live mate inserts, so the refusal below is the
-    // id's and not the record's shape.
-    let (live, live_instance) = insert(
-        doc.clone(),
-        Node::instantiate_part_with(doc_ref, with_mate(crossing_mate)),
-    );
-    assert_eq!(
-        record_of(&live, live_instance),
-        with_mate(crossing_mate),
-        "a record whose mate is live inserts whole"
-    );
-
-    // An id past the counter: never minted here, so a typo.
-    let never = RecipeNodeId(99);
-    match apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::instantiate_part_with(doc_ref, with_mate(never)),
-        },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(EditError::ReadSiteMissingNode { at }) => assert_eq!(
-            at, never,
-            "the refusal names the crossing's `mate`, the id that is not live"
-        ),
-        other => panic!("a record naming a mate that never existed must refuse: {other:?}"),
-    }
-}
-
-/// **A delete of a crossing's `mate` is NOT reported**, exactly as a
-/// read site's delete is not.
-///
-/// The record then names a mate the document no longer holds, which
-/// is what the id always denoted: the mate the split observed. The
-/// insert door's check is against a TYPO, not against the mate's
-/// later life.
-#[test]
-fn deleting_a_crossings_mate_reports_nothing() {
-    let doc_ref = part_ref("crossnames-mate-delete-part");
-    let doc = ProfileDoc::empty(DocumentId::derive("crossnames-mate-delete"), Tol::witness());
-    let (doc, a) = insert(doc, Node::instantiate_part(doc_ref));
-    let (doc, b) = insert(doc, Node::instantiate_part(doc_ref));
-    // The mate's own heads are faces of `b` alone, so deleting it
-    // strands nothing of its own: the one name in play is the
-    // `outer`, whose node `a` stays live.
-    let outer = in_part(a, CapEnd::End);
     let (doc, crossing_mate) = insert(
         doc,
-        mate(in_part(b, CapEnd::End), in_part(b, CapEnd::Start)),
+        mate(in_part(a, CapEnd::End), in_part(b, CapEnd::Start)),
     );
+    // Two crossings, so a per-crossing answer would be visible.
     let record = InterfaceRecord {
-        crossings: vec![crossing(crossing_mate, outer, part_side(CapEnd::Start))],
+        crossings: vec![
+            crossing(in_part(a, CapEnd::End), part_side(CapEnd::Start)),
+            crossing(in_part(b, CapEnd::Start), part_side(CapEnd::End)),
+        ],
     };
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
-    let before = record_of(&doc, instance);
 
-    // The mate's heads are both `b`'s, so it joins no cluster and its
-    // delete moves no gauge: the reach is never asked.
-    let applied = apply(
-        &doc,
-        &DocEdit::DeleteNode { id: crossing_mate },
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect("a crossing's mate is not a DAG edge, so the delete is legal");
+    let node = doc.node(instance).expect("the instance is live");
     assert!(
-        applied.maintenance.is_empty(),
-        "no row reports the gone mate: {:?}",
-        applied.maintenance
+        node.payload_read_sites().is_empty(),
+        "a record carries no id, so the instance names no read site: {:?}",
+        node.payload_read_sites()
     );
     assert_eq!(
-        record_of(&applied.doc, instance),
-        before,
-        "and the record is unchanged — it names the mate it always named"
+        node.named_nodes(),
+        vec![a, b],
+        "its references are NAMES, and they are checked as names"
+    );
+    let control = doc.node(crossing_mate).expect("the mate is live");
+    assert_eq!(
+        control.payload_read_sites(),
+        vec![a, b],
+        "the same list answers a mate's two operands — the empty answer above \
+         is the instance's own"
     );
 }
 
@@ -551,13 +471,8 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
         Node::instantiate_part(doc_ref),
     );
     let outer = in_part(keeper, CapEnd::End);
-    let (doc, crossing_mate) = insert(doc, mate(outer.clone(), in_part(keeper, CapEnd::Start)));
     let record = InterfaceRecord {
-        crossings: vec![crossing(
-            crossing_mate,
-            outer.clone(),
-            part_side(CapEnd::End),
-        )],
+        crossings: vec![crossing(outer.clone(), part_side(CapEnd::End))],
     };
     let (doc, carrier) = insert(doc, Node::instantiate_part_with(doc_ref, record));
 
@@ -600,9 +515,8 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
         Node::instantiate_part(doc_ref),
     );
     let outer = in_part(neighbour, CapEnd::End);
-    let (doc, crossing_mate) = insert(doc, mate(outer.clone(), in_part(neighbour, CapEnd::Start)));
     let record = InterfaceRecord {
-        crossings: vec![crossing(crossing_mate, outer, part_side(CapEnd::End))],
+        crossings: vec![crossing(outer, part_side(CapEnd::End))],
     };
     let (doc, instance) = insert(doc, Node::instantiate_part_with(doc_ref, record));
     let before = doc.order().len();

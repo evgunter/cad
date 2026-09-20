@@ -906,6 +906,45 @@ impl<T: Real> Body<T> {
             .map(|s| s.solid)
     }
 
+    /// The faces of `solid`, in slot-index order (deterministic per D9
+    /// — the order [`Body::faces`] yields), or `None` where the solid
+    /// key does not resolve. A foreign key is not caught (see the
+    /// [module docs](self)), and here that costs more than at a
+    /// single-entity lookup: a foreign `SolidKey` landing on a live
+    /// slot passes the resolution and this door hands back **another
+    /// solid's face list** as though it were the caller's.
+    ///
+    /// [`Body::solid_of_face`]'s inverse, and
+    /// [`crate::query::all_faces`] restricted to one solid. It selects
+    /// on the FACES' own back-pointers rather than walking
+    /// [`Solid::shells`]: on a tier-1 valid body the two answer the
+    /// same SET — the ownership partition and the back-pointers are
+    /// validated against each other — and differ in ORDER, this door
+    /// answering in arena order and a shell walk in shell-then-face-
+    /// list order. A caller that needs the shells kept apart walks
+    /// them; a caller that wants "the faces of this solid" to hand to
+    /// a key-taking verb asks here.
+    ///
+    /// **The empty list and the absent solid are different answers**,
+    /// which is why this refuses rather than returning a bare `Vec`: a
+    /// solid with no faces is a body state, a solid key that does not
+    /// resolve is a caller's mistake, and a door that answered `vec![]`
+    /// to both would hide the second inside the first.
+    ///
+    /// A face whose own shell does not resolve is absent from the list
+    /// rather than refused — it belongs to no solid, which is what
+    /// [`Body::solid_of_face`] already answers about it.
+    #[must_use]
+    pub fn faces_of_solid(&self, solid: SolidKey) -> Option<Vec<FaceKey>> {
+        self.get_solid(solid)?;
+        Some(
+            self.faces()
+                .filter(|&(k, _)| self.solid_of_face(k) == Some(solid))
+                .map(|(k, _)| k)
+                .collect(),
+        )
+    }
+
     /// The face owning `he`'s loop — through the half-edge's
     /// [`HalfEdge::parent_loop`] back-pointer and that loop's
     /// [`Loop::face`] — or `None` where either key is stale. A foreign
@@ -1370,6 +1409,106 @@ mod tests {
         assert_eq!(shell.faces, vec![t.face_a, t.face_b]);
         assert_eq!(shell.solid, t.solid);
         assert_eq!(body.get_solid(t.solid).unwrap().shells, vec![t.shell]);
+    }
+
+    /// [`Body::faces_of_solid`] is [`Body::faces`] restricted to one
+    /// solid: same order, same set as the shell walk, and the three
+    /// answers it can give — a list, the empty list, and `None` —
+    /// kept apart.
+    #[test]
+    fn faces_of_solid_restricts_the_face_arena_to_one_solid() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let second = body.mvfs(origin()).unwrap();
+
+        // Arena order, and a restriction: `faces` yields all three.
+        assert_eq!(body.faces().count(), 3);
+        assert_eq!(
+            body.faces_of_solid(t.solid).unwrap(),
+            vec![t.face_a, t.face_b]
+        );
+        assert_eq!(
+            body.faces_of_solid(second.solid).unwrap(),
+            vec![second.face]
+        );
+
+        // A solid with no faces answers the empty list; a solid key
+        // the body does not hold answers `None`.
+        let barren = body.add_solid(Solid { shells: vec![] }, prov());
+        assert_eq!(body.faces_of_solid(barren).unwrap(), Vec::<FaceKey>::new());
+        assert_eq!(body.faces_of_solid(SolidKey::default()), None);
+    }
+
+    /// The door's ORDER is the ARENA's, not the shell walk's, and the
+    /// two are only the same sequence while a solid has one shell.
+    ///
+    /// The fixture puts a solid's two shells out of step with the face
+    /// arena — shell 1 holds the first face, shell 2 the third and
+    /// then the second — which is the decoupling an operator that
+    /// moves a face between one solid's shells produces. Arena order
+    /// is then `[fa, fb, fc]` and the shell walk `[fa, fc, fb]`: same
+    /// SET, different SEQUENCE. A shell-walking implementation of this
+    /// door passes every assertion in the row above and fails here.
+    ///
+    /// **The body is deliberately not tier-1 valid, and wider than the
+    /// story above**: the pillow's two faces share every edge, so
+    /// splitting them across two shells breaks the same-shell rule for
+    /// an edge's two faces — which a real operator would not do. What
+    /// this row asserts is ORDERING and nothing else; it never
+    /// validates, and no claim here depends on the body being sound.
+    #[test]
+    fn faces_of_solid_answers_arena_order_where_the_shell_walk_would_not() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let second = body.mvfs(origin()).unwrap();
+
+        // One solid, two shells: adopt the minted shell (its own solid
+        // goes, rather than staying behind empty), and move `face_b`
+        // into it so the shells interleave with the arena.
+        body.get_shell_mut(second.shell).unwrap().solid = t.solid;
+        body.get_solid_mut(t.solid)
+            .unwrap()
+            .shells
+            .push(second.shell);
+        // Paired, as `kvfs` pairs them: an arena removal that leaves
+        // the provenance entry behind is `LeakedProvenance`.
+        body.solids.remove(second.solid);
+        body.solid_provenance.remove(second.solid);
+        body.get_shell_mut(t.shell)
+            .unwrap()
+            .faces
+            .retain(|&f| f != t.face_b);
+        body.get_shell_mut(second.shell)
+            .unwrap()
+            .faces
+            .push(t.face_b);
+        body.get_face_mut(t.face_b).unwrap().shell = second.shell;
+        assert_eq!(body.solids().count(), 1, "one solid");
+        assert_eq!(
+            body.get_solid(t.solid).unwrap().shells.len(),
+            2,
+            "two shells"
+        );
+
+        let walk: Vec<FaceKey> = body
+            .get_solid(t.solid)
+            .unwrap()
+            .shells
+            .iter()
+            .flat_map(|&sh| body.get_shell(sh).unwrap().faces.clone())
+            .collect();
+        assert_eq!(walk, vec![t.face_a, second.face, t.face_b], "the fixture");
+
+        let door = body.faces_of_solid(t.solid).unwrap();
+        assert_eq!(door, vec![t.face_a, t.face_b, second.face]);
+        assert_ne!(door, walk, "the two orders are distinguishable here");
+        assert_eq!(
+            door.iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>(),
+            walk.into_iter().collect::<std::collections::BTreeSet<_>>(),
+            "same set, different sequence"
+        );
     }
 
     #[test]
