@@ -2,9 +2,11 @@
 id: remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites
 kind: issue
 title: refactor.rs discards remap_name's Err(RecipeNodeId) at six sites, so a miss inside a name's PATH segment is reported as the whole name being stranded
-status: open
+status: review
 opened: 2026-09-11
 refs: [2378]
+branch: fix/remap-name-carries-the-id
+pr: 2945
 ---
 
 
