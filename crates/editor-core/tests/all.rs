@@ -154,7 +154,6 @@ mod edit_pair_apply_names;
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
 mod edit_ruled_carve;
-mod review_r1_probes;
 #[path = "edit_set_program.rs"]
 mod edit_set_program;
 #[path = "edit_step_segments.rs"]
@@ -475,6 +474,8 @@ mod review_pick3_r1_probes;
 mod review_pick3_r2_probes;
 #[path = "review_pick_r2_probes.rs"]
 mod review_pick_r2_probes;
+#[path = "review_r1_probes.rs"]
+mod review_r1_probes;
 #[path = "ring_r1_names_probe.rs"]
 mod ring_r1_names_probe;
 #[path = "rv_onepred3_probes.rs"]
