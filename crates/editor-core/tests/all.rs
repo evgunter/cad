@@ -474,6 +474,8 @@ mod review_pick3_r1_probes;
 mod review_pick3_r2_probes;
 #[path = "review_pick_r2_probes.rs"]
 mod review_pick_r2_probes;
+#[path = "review_program_r2.rs"]
+mod review_program_r2;
 #[path = "review_r1_probes.rs"]
 mod review_r1_probes;
 #[path = "ring_r1_names_probe.rs"]
