@@ -2271,7 +2271,8 @@ test_utils::f6_variants! {
     /// the door could not answer, so every arm must say which question
     /// in words a consumer can act on.
     const STEP_SEGMENTS_ERROR: StepSegmentsError =
-        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, SpanOffTheLoop];
+        [NoSuchLoop, NoSuchStep, NoRecord, RecordShape, NoAnchor, RadiusNotAnArgument,
+         EmissionOffTheLoop, CarrierRecordsEmissions, SpanOffTheLoop];
 }
 
 #[test]
@@ -2294,6 +2295,44 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
         (
             StepSegmentsError::NoAnchor { loop_: 0 },
             vec!["naming anchor", "loop 0"],
+        ),
+        // The WHOLE sentence, not three substrings of it: every
+        // radius-role label already ends in the word "radius"
+        // (`StepArg::label`), so a template that appended one of its
+        // own rendered "carrier radius radius" and passed a
+        // substring census without a murmur.
+        (
+            StepSegmentsError::RadiusNotAnArgument {
+                step: 3,
+                arg: editor_core::StepArg::CarrierRadius2,
+            },
+            vec![
+                "the record says step 3's arrival carrier radius drew a segment, \
+                 and that step holds no such argument",
+            ],
+        ),
+        (
+            StepSegmentsError::EmissionOffTheLoop {
+                step: 2,
+                arg: editor_core::StepArg::CarrierRadius,
+                segment: 9,
+                segments: 4,
+            },
+            vec![
+                "the record says step 2's carrier radius drew segment 9 on a loop \
+                 with 4 of them",
+            ],
+        ),
+        (
+            StepSegmentsError::CarrierRecordsEmissions {
+                loop_: 0,
+                emissions: 3,
+            },
+            vec![
+                "loop 0 is a carrier form, whose one radius is the whole boundary's \
+                 and draws no segment of its own, and its record carries 3 radius \
+                 emissions",
+            ],
         ),
         (
             StepSegmentsError::SpanOffTheLoop {
