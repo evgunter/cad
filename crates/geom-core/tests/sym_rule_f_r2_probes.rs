@@ -291,3 +291,29 @@ fn r2_the_positive_boundary_folds_and_every_fold_is_zero_at_the_point() {
         assert_ne!(off, "theorem", "{what}: rule F is what takes it");
     }
 }
+
+/// **The differential constructors' contracts, after rule F.**
+/// `SymRules::without_the_algebra` is documented as "the tier exactly
+/// as M10-9 shipped it, bit for bit", `shipped_without_the_door` as
+/// "M10-8's tier exactly" and `without_rule_e` as "M10-10's tier
+/// exactly". None of those tiers had rule F, and every one of the three
+/// is spelled `..Self::shipped()` with only its own dials shut, so on
+/// this head each carries `manifest_sign: true`. This row asserts the
+/// DOCUMENTED contract of the first; it reds on the frozen head, which
+/// is the finding. (`m10_10_pins_interval`'s "five algebra dials and
+/// nothing else" equality stays green only because both of its sides
+/// carry rule F.)
+#[test]
+fn r2_the_algebra_off_differential_is_documented_as_m10_9s_tier() {
+    let off = SymRules::without_the_algebra();
+    println!(
+        "  without_the_algebra().manifest_sign = {} | shipped_without_the_door() = {} | without_rule_e() = {}",
+        off.manifest_sign,
+        SymRules::shipped_without_the_door().manifest_sign,
+        SymRules::without_rule_e().manifest_sign
+    );
+    assert!(
+        !off.manifest_sign,
+        "`without_the_algebra` is documented as M10-9's tier bit for bit; M10-9 had no rule F"
+    );
+}
