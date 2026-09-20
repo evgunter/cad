@@ -37,8 +37,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions,
-    Evaluation, Expr, Node, NodeResult, ParamName, ProfileDoc, ProfileLift, RecipeNodeId,
-    RoleSeg, UnitSym, evaluate,
+    Evaluation, Expr, Node, NodeResult, ParamName, ProfileDoc, ProfileLift, RecipeNodeId, RoleSeg,
+    UnitSym, evaluate,
 };
 use geom_core::{Interval, SymBudget, SymRules, Tol};
 
@@ -221,7 +221,10 @@ fn sym8_r2_the_reach_on_three_documents_the_unit_did_not_build() {
             }
         }
     }
-    assert!(lost.is_empty(), "rule F refused what the dial-off tier certified: {lost:?}");
+    assert!(
+        lost.is_empty(),
+        "rule F refused what the dial-off tier certified: {lost:?}"
+    );
 }
 
 /// **The pad's four, re-taken**: R2's rounded pad at the scale the pins
@@ -258,9 +261,16 @@ fn sym8_r2_the_pads_four_re_taken() {
             t0.elapsed().as_secs_f64(),
             f.len()
         );
-        assert!(f.is_empty(), "{label}: the pad certifies whole at this scale: {f:?}");
+        assert!(
+            f.is_empty(),
+            "{label}: the pad certifies whole at this scale: {f:?}"
+        );
         got.push((c.symbolic_zero, c.registered, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (858, 104, 991, 2750), "rule F off: the PR's numbers");
+    assert_eq!(
+        got[0],
+        (858, 104, 991, 2750),
+        "rule F off: the PR's numbers"
+    );
     assert_eq!(got[1], (854, 128, 971, 2750), "rule F on: the PR's numbers");
 }

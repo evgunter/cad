@@ -111,7 +111,10 @@ fn r2_the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take() {
     };
     let (l, v) = how(with_c(), resid);
     println!("  abs(1 + t²) − (1 + t²), t over [0.2, 0.3], rules C+F: {l} value {v:e}");
-    assert_eq!(l, "theorem", "F before C: the value-free rule answers first");
+    assert_eq!(
+        l, "theorem",
+        "F before C: the value-free rule answers first"
+    );
 
     // With rule F shut the same residual IS rule C's, which is what
     // makes it a discriminating row for the order.
@@ -172,7 +175,10 @@ fn r2_adversary_a_positive_form_whose_value_channel_reads_negative() {
         };
         let (l, v) = how(SymRules::shipped(), resid);
         println!("  x = {x0:e}: copysign(1, E) − 1 → {l}, value {v:e}");
-        assert_eq!(l, "theorem", "E is manifestly positive; the fold is an identity of reals");
+        assert_eq!(
+            l, "theorem",
+            "E is manifestly positive; the fold is an identity of reals"
+        );
         if v != 0.0 {
             flipped += 1;
         }
@@ -222,7 +228,10 @@ fn r2_the_denominator_that_vanishes_is_refused_by_clause_1_not_folded() {
         x.abs() - x
     });
     println!("  … over t ∈ [−0.1, 0.4] (D = 0 inside): {l}");
-    assert_ne!(l, "theorem", "a box where the value channel divided by zero is clause 1's");
+    assert_ne!(
+        l, "theorem",
+        "a box where the value channel divided by zero is clause 1's"
+    );
 
     let l = how_over(SymRules::shipped(), || {
         let one = Sym::from_f64(1.0);
@@ -247,8 +256,14 @@ fn r2_a_manifestly_negative_argument_is_declined_by_both_arms() {
     println!("  abs(−1/sqrt(1 + t²)) + 1/sqrt(1 + t²): {l_abs} value {v:e}");
     let (l_cs, v) = how(SymRules::shipped(), || one().copysign(neg()) + one());
     println!("  copysign(1, −1/sqrt(1 + t²)) + 1: {l_cs} value {v:e}");
-    assert_ne!(l_abs, "theorem", "if this folds now, the predicate grew a negative branch");
-    assert_ne!(l_cs, "theorem", "if this folds now, the predicate grew a negative branch");
+    assert_ne!(
+        l_abs, "theorem",
+        "if this folds now, the predicate grew a negative branch"
+    );
+    assert_ne!(
+        l_cs, "theorem",
+        "if this folds now, the predicate grew a negative branch"
+    );
 }
 
 /// **Shapes at the predicate's positive boundary that DO fold**, each
