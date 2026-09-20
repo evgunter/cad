@@ -386,7 +386,7 @@ test_utils::f6_variants! {
     /// naming it is also rostering it, so it then reds until it has a
     /// case below. The mechanism and what it does NOT weld are
     /// documented on [`test_utils::f6::assert_f6_every_variant`].
-    const FMT_QUANTITY_ERROR: FmtQuantityError = [NonFinite, Poisoned];
+    const FMT_QUANTITY_ERROR: FmtQuantityError = [NonFinite];
 }
 
 /// The `Debug` field-name token this enum's payload would leak. `{` is
