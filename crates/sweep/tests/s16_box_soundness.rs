@@ -52,6 +52,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::{nested_box, rim_plate, rounded_plate, small_box, top_rim_plate};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
@@ -91,20 +92,6 @@ fn cylinder(z0: f64, height: f64) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(height), Tol::witness())
         .unwrap()
         .body
-}
-
-/// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
-/// spanning `z in [z0, z0 + 0.4]`.
-fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
-    brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
-}
-
-/// The same box at `z in [0.3, 0.7]`. Against section 1's cylinder
-/// (`z in [0, 1]`) that is clear of both caps, so a pair there is
-/// nested or separated in x alone, never touching; section 2 uses the
-/// same box only as a far operand, where the lift carries no claim.
-fn nested_box(cx: f64, h: f64) -> Body<f64> {
-    small_box(cx, h, 0.3)
 }
 
 /// The nested pair as one two-instance arena.
@@ -399,21 +386,6 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
 // 3. The conic edge box as a PRUNE, through the sweep
 // ---------------------------------------------------------------------
 
-/// A plate straddling the cylinder's bottom rim (`z = 0`) about the
-/// rim's x-extremum at 180°, which lies mid-arc between the vertices
-/// at 120° and 240°: `x ∈ [−0.9, x_max]`, thin in `y`, `z ∈ [−0.1, 0.1]`.
-/// The rim reaches `x = −0.5`; whether the plate meets it is decided by
-/// `x_max` alone.
-fn rim_plate(x_max: f64) -> Body<f64> {
-    brick((-0.9, x_max), (-0.15, 0.15), (-0.1, 0.1), Tol::witness())
-}
-
-/// The same about the top rim's y-extremum at 90°, mid-arc between the
-/// vertices at 0° and 120°: the rim reaches `y = 0.5`.
-fn top_rim_plate(y_min: f64) -> Body<f64> {
-    brick((-0.15, 0.15), (y_min, 0.9), (0.9, 1.1), Tol::witness())
-}
-
 /// A plate straddling the TOP rim about its x-extremum — the second
 /// fixture whose loci meet a rim mid-arc, so the through-the-door
 /// soundness pin does not rest on one.
@@ -430,31 +402,6 @@ fn cylinder_apart(gap: f64) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap()
-}
-
-/// A rounded plate — bulge arcs on two sides, so its extruded walls
-/// carry rims whose `u_ref` the sweep mints rotated — for the corner
-/// case of #347.
-fn rounded_plate() -> Body<f64> {
-    let pts = [
-        ((-1.0, -0.4), 0.0),
-        ((1.0, -0.4), 0.35),
-        ((1.3, 0.0), 0.0),
-        ((1.0, 0.4), 0.0),
-        ((-1.0, 0.4), 0.35),
-        ((-1.3, 0.0), 0.0),
-    ];
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&((x, y), b)| ProfileVertex::new(p2(x, y), b))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
 }
 
 /// The conic corpus: (name, A, B), every B placed against an arc of A

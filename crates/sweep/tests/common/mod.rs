@@ -20,6 +20,9 @@
 //!   boundary walk, the face across a rim, and the description each
 //!   rim carries. A reader, not an evaluator, which is why it is not
 //!   [`orient`];
+//! - [`operands`] — the plain named bodies a boolean row puts
+//!   something else against: the shared boxes and the conic corpus's
+//!   rounded plate (body authoring, same routing);
 //! - [`approx`] — the `Surface::Approx` surgery vocabulary (body
 //!   authoring, so it routes to this module rather than to a suite);
 //! - [`cavity`] — the vented-cavity fixture vocabulary (body
@@ -80,6 +83,11 @@ pub mod cap_rims;
 /// through the kernel's census door. A check several suites make of
 /// a body they built, so it routes beside [`orient`].
 pub mod census;
+
+/// The plain named operands — the axis-aligned boxes more than one
+/// suite builds a boolean from, and the rounded plate the conic
+/// corpus cuts against. Body authoring, so it routes here.
+pub mod operands;
 
 /// The `Surface::Approx` surgery vocabulary — the pulled-back base,
 /// the fixtures the OFF-C rows convert, and the surface + carrier +

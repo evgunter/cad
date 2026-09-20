@@ -12,6 +12,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::pellet;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
@@ -58,11 +59,6 @@ fn notched() -> Body<Interval> {
     )
     .unwrap()
     .body
-}
-
-/// The pellet strictly inside the notch (the S10 witness fixture).
-fn pellet() -> Body<Interval> {
-    sweep::test_support::brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
 }
 
 #[test]

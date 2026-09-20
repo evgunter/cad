@@ -4,6 +4,7 @@
 //!
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::{nested_box, rim_plate, rounded_plate, top_rim_plate};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::RawLoop;
@@ -38,46 +39,6 @@ fn cylinder_at(cx: f64) -> Body<f64> {
 
 fn cylinder() -> Body<f64> {
     cylinder_at(0.0)
-}
-
-/// `s16_box_soundness`'s fixture, adopted with the rest of that
-/// corpus — see this file's header.
-fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
-    brick((cx - h, cx + h), (-h, h), (z0, z0 + 0.4), Tol::witness())
-}
-
-fn nested_box(cx: f64, h: f64) -> Body<f64> {
-    small_box(cx, h, 0.3)
-}
-
-fn rim_plate(x_max: f64) -> Body<f64> {
-    brick((-0.9, x_max), (-0.15, 0.15), (-0.1, 0.1), Tol::witness())
-}
-
-fn top_rim_plate(y_min: f64) -> Body<f64> {
-    brick((-0.15, 0.15), (y_min, 0.9), (0.9, 1.1), Tol::witness())
-}
-
-fn rounded_plate() -> Body<f64> {
-    let pts = [
-        ((-1.0, -0.4), 0.0),
-        ((1.0, -0.4), 0.35),
-        ((1.3, 0.0), 0.0),
-        ((1.0, 0.4), 0.0),
-        ((-1.0, 0.4), 0.35),
-        ((-1.3, 0.0), 0.0),
-    ];
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&((x, y), b)| ProfileVertex::new(p2(x, y), b))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
 }
 
 fn corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
