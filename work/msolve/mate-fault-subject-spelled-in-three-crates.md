@@ -2,9 +2,11 @@
 id: mate-fault-subject-spelled-in-three-crates
 kind: issue
 title: Which mate a MateFault is about has no home on the enum, and two consumers spell it per-arm
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1769]
+closed: 2026-09-19
+pr: 2896
 ---
 
 Found by CHROME's style lane on PR 1769, as a class. **Re-homed to
@@ -148,3 +150,16 @@ next steps, and whoever takes the row picks one:
 Either way the `Band` half is CHROME's to badge and MSOLVE's to
 describe; `work/chrome/band-refusal-still-badges-every-row.md` is the
 badging half and does not wait on this row.
+
+## Closed (2026-09-19, PR 2896)
+
+By the form the row sanctions and `plan.md` item 15 ruled: no
+`subject()`. One sentence on `MateFault`'s own doc
+(`crates/editor-core/src/mate.rs`) names its two consumers by path —
+`viewer::tree::blamed_mates`, `pncad_py::MateFaultPayload` — and
+states the asymmetry once: `Band` names no mate and reaches every row
+of the document; `PosesOfAnotherDocument` names no mate and reaches
+none, being raised by `SolvedPoses::placement` and never inserted in a
+fault map. The two consumers' comments are one-line pointers at it
+(`crates/viewer/src/tree.rs`, `crates/pncad-py/src/mate_payload.rs`),
+so the fact has one home instead of two comments.
