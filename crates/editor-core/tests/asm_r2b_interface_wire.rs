@@ -12,10 +12,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::wire::doctored;
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
     EntityKind, FaceName, InterfaceCrossing, InterfaceRecord, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, RefusingReach, RoleSeg, SitedFace, StableName, apply, load, save,
+    PersistError, ProfileDoc, RecipeNodeId, RefusingReach, RoleSeg, SitedFace, StableName, apply,
+    load, save,
 };
 use geom_core::Tol;
 
@@ -138,6 +140,83 @@ fn an_empty_record_stays_absent_from_the_wire() {
         !text.contains("crossings"),
         "an authored instance crosses nothing, and says nothing: {text}"
     );
+}
+
+/// The saved fixture's one crossing, as the wire object it is — the
+/// path the two rows below read and corrupt.
+///
+/// BY PATH, not by search: the instance carrying the record is the
+/// document's LAST node, so a fixture change breaks the surgery loudly
+/// instead of landing it on a neighbour.
+fn crossing_of(wire: &mut serde_json::Value, instance: RecipeNodeId) -> &mut serde_json::Value {
+    &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]["interface"]
+        ["crossings"][0]["Mate"]
+}
+
+/// The fixture, saved, with the id of the instance carrying its
+/// record.
+fn saved_crossing() -> (String, RecipeNodeId) {
+    let doc = doc_with_a_crossing();
+    let instance = *doc.order().last().expect("the fixture has nodes");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    (text, instance)
+}
+
+/// **A crossing is THREE fields on the wire** — the class it declares
+/// and its two references, and nothing else.
+///
+/// A crossing carries no provenance: what the seam needs is the two
+/// ends and the kind of contact, and a field no door reads is a cost
+/// every file with a record pays. Read off the SAVED document rather
+/// than a serialized value, because a file is what the row below
+/// corrupts and what a stale writer produces.
+#[test]
+fn a_crossing_is_three_fields_on_the_wire() {
+    let (text, instance) = saved_crossing();
+    let body = text.split_at(text.find('{').expect("the JSON body follows the header"));
+    let mut wire: serde_json::Value = serde_json::from_str(body.1).expect("the body parses");
+    let mut keys: Vec<String> = crossing_of(&mut wire, instance)
+        .as_object()
+        .expect("a crossing is an object")
+        .keys()
+        .cloned()
+        .collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        ["class", "inner", "outer"],
+        "the crossing's wire form is its class and its two references"
+    );
+}
+
+/// **A file whose crossing carries a FOURTH field refuses at the load
+/// door**, in the door's own `Unreadable` class.
+///
+/// `InterfaceCrossing` is `deny_unknown_fields`, so its shape is
+/// CLOSED on the wire: a file carrying a field this build does not
+/// know is refused rather than read with the field dropped. The
+/// refusal is TYPED BY THE DOOR — serde_json classifies the failure
+/// `Data`, and `persist`'s one seam maps that class to
+/// `PersistError::Unreadable` — while the sentence inside it is
+/// serde's own.
+#[test]
+fn a_file_whose_crossing_carries_a_fourth_field_refuses_at_the_load_door() {
+    let (text, instance) = saved_crossing();
+    let corrupt = doctored(&text, |wire| {
+        let crossing = crossing_of(wire, instance);
+        assert!(
+            crossing.get("mate").is_none(),
+            "the surgery adds a field the format does not have: {crossing}"
+        );
+        crossing["mate"] = serde_json::json!(2);
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Unreadable { detail, .. }) => assert!(
+            detail.contains("mate"),
+            "the refusal names the field the file carried: {detail:?}"
+        ),
+        other => panic!("a crossing carrying a fourth field must refuse at load, got {other:?}"),
+    }
 }
 
 // The content-key half of ASM-4's obligation is pinned in
