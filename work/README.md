@@ -193,27 +193,33 @@ only closed items.
   another open program claims too** — those read differently ("owned
   by X" against "also claimed by X; a double claim, not a crossing")
   because they are different facts. It warns; it does not block.
-- **Two open programs may claim one path only if BOTH `keep_out`s name
-  the other.** An overlap written on both sides is a handoff a lane can
-  announce; an overlap written on one side or neither is a live
-  conflict, and the program that was there first is the one that cannot
-  see it. `lint` measures this at rest — every open program's globs
-  against `git ls-files` — and names each unrecorded pair with the
-  count of paths it shares.
+- **Two open programs may claim one path.** Shared ground is
+  legitimate and expected — a kernel file often has a structural
+  question on it and a numeric one, and splitting it between two
+  programs is usually worse than letting both claim it. Neither side
+  owes the other a `keep_out` clause for the overlap to be allowed
+  (Ev, in chat, 2026-09-20: *"it's ok if units have shared ground,
+  they should just be aware of each other if working at the same
+  time"*).
 
-  This is a **warning today and an error when the tree can carry one.**
-  Most pairs are unrecorded at any moment, the bulk of them the
-  `*/tests/*` family where S-TCOST's and S-TINT's territory is every
-  crate's tests by design, and one-file-one-item means no single program
-  may write the missing clauses. An error would red `main` the day it
-  landed for rows its author may not edit. **No count is stated here —
-  `work.py lint` prints the current one**, and it moves: the figure grew
-  by nine pairs in the ninety minutes between this PR opening and its
-  first merge-forward, when S-TCOST split and S-TINT took half its
-  territory.
-  The flip, and the question of whether the `*/tests/*` seam is written
-  once per program or taught to the check once, is
-  `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`.
+  **What is owed is awareness while a lane is LIVE**, and that is a
+  per-branch question, not an at-rest one. `territory` answers it: it
+  reads a branch's diff and names every path another program claims,
+  so a lane learns at the moment it matters. The announced-seam
+  convention carries the rest — a lane touching another program's
+  ground says so in its PR, and the orchestrator posts a note on that
+  program's log. Write a `keep_out` clause when the relationship is
+  worth explaining to the next reader, which is often; do not write
+  one to satisfy a checker.
+
+  The at-rest map — which open programs share ground at all — is
+  `python3 scripts/work.py territory --overlaps`. It is a report, run
+  when you want it. It used to be a `lint` warning on every run, which
+  put two dozen warnings in front of every reader for a condition none
+  of them was expected to fix; a warning nobody can act on teaches
+  people to skip warnings, which costs more than the census is worth.
+  `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`
+  records the ruling and what was built.
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors, so a session writing to the old
   path fails loudly. (`docs/MODEL-AB-LOG.md` is an experiment log, not
