@@ -92,3 +92,28 @@ the derived-frame item); the five other `copysign` mint sites and the
 sign-hull frame's `|n.z|` as the next shape (the PR body's motivation);
 the pad's split OOM on TIER's cost row; the three-spelling atom class
 on TIER's `sym-rs-is-one-file` item.
+
+## DECIDE-1 spec'd and dispatched (2026-09-21): the self-dot straddle, a census and a measurement
+
+The plan's next after SYM-10 — SYM-10 waits on Ev's ruling on the
+fourth piece (#2970, the orchestrator recommending the full canonical
+root at the mint site) and SYM-9 is an edit to the manifest SYM-10
+defines, so the reach row with the clearest reproducer goes first.
+Reading the item against the tree before writing the spec: the fix it
+names has existed since M2 PR 4 for every norm (`norm_squared` squares
+component-wise through the tight `powi(2)`; every carrier and path
+length in `crates/profile` goes through it; `Sym::powi` delegates to
+the value channel), so the item's mechanism can reach a measured
+document only through a hand-spelled self-product at `Interval`. The
+unit is sized to that: Phase 1 a static census and a dynamic count of
+clause-1 `Invalid` refusals on the six documents with their mechanism
+rendered, Phase 2 the tight square at any site found (bit-identity
+pinned, the six documents re-measured, the LINALG seam announced), the
+row CLOSED on the measurement if nothing is found — a measurement that
+closes a row is a result. Difficulty D, class NUMERIC. **Triaged OUT of
+protocol v7** (a census and a measurement, the fix class ratified):
+OPUS implementer, OPUS reviewer, the review's depth decided at the PR;
+no draw, no ordinal, no row. Spec `docs/DECIDE-1-SPEC.md`; branch
+`decide/1-self-dot-census`; the lane is dispatched from this commit on
+this box (a fresh lane, private target). Block SYM-B2's slot 2
+(SYM-10) stays open; this unit takes no slot.
