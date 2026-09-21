@@ -23,7 +23,15 @@ existing `_certified` twins fold into the plain names, every `Dual`
 caller moves to `_structural` by name; `datum_lo` → `Bounds::lo` at
 its one site with the allowlist entry re-worded; the identity test
 replaced by a `compile_fail` doctest and a `_structural`-at-`Dual`
-row. Spec: `docs/LANE-1-SPEC.md` (deleted at merge). Block SCALAR-B5
+row. The fold is a behaviour change on one body class: the plain
+`validate_pseudomanifold*` / `contact_marks*` names at `f64` (the
+`pncad` prelude, `pncad-py`'s `Body.validate_pseudomanifold`,
+`step-import`'s gate, the tour) now run check 2's plane × NURBS lane,
+so on a body carrying an M7-8 edge whose certificate has gone stale
+the verdict is one `EdgeCertification` per lane edge where the
+lane-keeping body answered `VolumeUncomputable`; every other body is
+unchanged, and no public door reaches such a body today (filed on
+EXCH). Spec: `docs/LANE-1-SPEC.md` (deleted at merge). Block SCALAR-B5
 slot 1. Ground: ATREST (`validate.rs`), SHELL, REACH, CHART, the
 unowned `props.rs`, LIB/BIND (prelude, binding census), WIRE (verbs,
 editor-core), PROPS (allowlist prose, DL3's sentence), GUARD (two gate
