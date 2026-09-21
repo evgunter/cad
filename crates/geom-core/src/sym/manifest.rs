@@ -149,9 +149,18 @@
 //! tests is the kid's form as those rules already left it — so against
 //! THEM the order is structural and not a choice: an atom this rule
 //! keeps from being minted is not one a later rule could have folded.
-//! What is a choice is the order against A0 and rule C at this node,
-//! and `geom-core`'s `sym_rule_f_rows` pins it: with rule C also on,
-//! the same residual still answers `theorem` and not `sign_gated`.
+//!
+//! What IS a choice is the order against A0 and rule C at this node,
+//! and it is pinned by a residual BOTH F and C take: `abs(1 + t²)` over
+//! a recorded bracket, and `abs(2/t²)` likewise
+//! (`geom-core`'s `sym_rule_f_rows`,
+//! `the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take`
+//! and `a_shape_both_rules_take_is_what_pins_the_order`). Each is a
+//! `theorem` at the shipped order and `sign_gated` with rule F shut,
+//! and planting C before F reds both. A residual rule C cannot reach —
+//! one built with `Sym::param`, which records no bracket, or one whose
+//! argument carries a `sqrt` atom `signed::fold` will not enclose — is
+//! green under either order and pins nothing.
 
 use std::sync::Arc;
 

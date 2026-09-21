@@ -443,15 +443,23 @@
 //! early walk only: A0's exact constant fold first, then this rule,
 //! then rule C — the value-free rule before the one that reads a
 //! value, so a discharge that can be a theorem is never counted
-//! `sign_gated` — pinned by `geom-core`'s `sym_rule_f_rows`, whose
-//! rule-C-on row still answers `theorem`. Against rules A/B and E the
-//! order is STRUCTURAL rather than chosen: they run after `combine`
-//! returns, on the form this rule left, and an atom this rule prevents
-//! from being minted is not one they could have folded later. The walk
-//! ledger (`editor-core/tests/m10_sym_profile_interval`) is unmoved by
-//! the rule on the slab and the plate — every form either walk builds
-//! is digest-identical — which is the same statement as "it fires
-//! nowhere on them", and is what would red if the site moved.
+//! `sign_gated`. **What pins that order is a residual BOTH rules
+//! take** — `geom-core`'s `sym_rule_f_rows`'s
+//! `the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take`
+//! (`abs(1 + t²)` over a bracket) and
+//! `a_shape_both_rules_take_is_what_pins_the_order` (`abs(2/t²)`): each
+//! reads `theorem` at the shipped order and `sign_gated` with rule F
+//! shut, and planting rule C before rule F reds both. A row rule C
+//! cannot reach is green either way and pins nothing, which is what the
+//! first cut of this section claimed and both reviews disproved.
+//! Against rules A/B and E the order is STRUCTURAL rather than chosen:
+//! they run after `combine` returns, on the form this rule left, and an
+//! atom this rule prevents from being minted is not one they could have
+//! folded later. The walk ledger
+//! (`editor-core/tests/m10_sym_profile_interval`) is unmoved by the
+//! rule on the slab and the plate — every form either walk builds is
+//! digest-identical — which is the same statement as "it fires nowhere
+//! on them", and is not a pin on the order.
 //!
 //! **What it reaches, measured** (the tilt-`u` derived frame,
 //! `editor-core/tests/m10_derived_frame_tilted_interval`'s

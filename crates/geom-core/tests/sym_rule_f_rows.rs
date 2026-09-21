@@ -43,14 +43,54 @@ fn one() -> Sym<f64> {
     Sym::from_f64(1.0)
 }
 
+#[cfg(feature = "interval")]
+fn one_i() -> Sym<geom_core::Interval> {
+    Sym::from_f64(1.0)
+}
+
+/// A bracketed parameter at the INTERVAL lift, for the rows that need a
+/// box rather than a point (clause 1 answers on a box).
+#[cfg(feature = "interval")]
+fn over(name: &str, lo: f64, hi: f64) -> Sym<geom_core::Interval> {
+    Sym::param_over(
+        ParamSymbol::of(name),
+        geom_core::Interval::from_bounds(lo, hi),
+        lo,
+        hi,
+    )
+}
+
+/// [`how`] at the interval lift: the answer, and the margin's
+/// enclosure.
+#[cfg(feature = "interval")]
+fn how_i(
+    rules: SymRules,
+    build: impl FnOnce() -> Sym<geom_core::Interval>,
+) -> (String, geom_core::Interval) {
+    let band = geom_core::predicate::Band::linear(geom_core::Tol::witness())
+        .expect("the witness tolerance has a linear band");
+    let ((out, value), counts) = with_session_rules(budget(), rules, || {
+        let m = build();
+        (
+            geom_core::k_stats::decide("sym_rule_f_row", Margin::of(m), band),
+            m.value,
+        )
+    });
+    (label(out, counts), value)
+}
+
 fn label(
     out: Result<Sign, geom_core::predicate::Indeterminate>,
     counts: geom_core::SymCounts,
 ) -> String {
+    // `> 0`, never `== 1`: a row that discharges TWICE would read
+    // `numeric Zero` under an equality test and slip past every
+    // `assert_ne!` in the file, which is the one direction a label may
+    // not fail in (R1 S6).
     match out {
-        Ok(Sign::Zero) if counts.symbolic_zero == 1 => "theorem".to_owned(),
-        Ok(Sign::Zero) if counts.registered == 1 => "registered".to_owned(),
-        Ok(Sign::Zero) if counts.sign_gated == 1 => "sign_gated".to_owned(),
+        Ok(Sign::Zero) if counts.symbolic_zero > 0 => "theorem".to_owned(),
+        Ok(Sign::Zero) if counts.registered > 0 => "registered".to_owned(),
+        Ok(Sign::Zero) if counts.sign_gated > 0 => "sign_gated".to_owned(),
         Ok(s) => format!("numeric {s:?}"),
         Err(e) => format!("refused {:?}", e.margin),
     }
@@ -70,6 +110,16 @@ fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
 
 /// **The soundness check every row below shares**: a theorem must be
 /// numerically zero at the point it was taken at.
+///
+/// **What it TRUSTS, and therefore cannot catch** (R2): the `f64` value
+/// channel at that point. The `f64` lift is not an enclosure, so a
+/// residual whose true real value is zero can evaluate non-zero under
+/// cancellation — R2's adversary `E = (x+1)² − x² − 2x − 1 + 1e-30(1+y²)`
+/// is exactly that shape — and this check would then call a TRUE
+/// theorem unsound. It is a guard against the fold claiming zero for a
+/// form that is plainly non-zero, not a proof of the identity;
+/// `work/sym/sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`
+/// carries the class.
 fn sound(what: &str, (l, v): (String, f64)) -> String {
     println!("  {what}: {l} value {v:e}");
     assert!(
@@ -120,10 +170,19 @@ fn the_manifest_sign_folds_an_inv_of_a_sqrt_atom() {
 
 /// **A discharge through rule F is a THEOREM, never `sign_gated`** —
 /// the rule reads no value, so it may not be counted in rule C's
-/// column. The row above already asserts the label; this one says why
-/// it is the assertion that matters, by taking the same residual with
-/// rule C ON as well: the answer must still be `theorem`, because the
-/// value-free rule is asked first.
+/// column, and turning rule C on beside it does not change that.
+///
+/// **This row does NOT pin the F → C ORDER, and used to be cited as if
+/// it did** (R1 and R2 both found it, R1 by planting C before F: all
+/// four rows of this file passed). Rule C cannot reach this residual at
+/// either order, for two independent reasons — `Sym::param` registers
+/// no bracket, so `signed::fold` declines on an empty `Session::params`
+/// before it looks at anything, and the argument carries a `sqrt` ATOM
+/// its `enclosable` test refuses whatever the brackets are. What pins
+/// the order is a residual BOTH rules take:
+/// [`the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take`]
+/// and [`a_shape_both_rules_take_is_what_pins_the_order`], which are
+/// the two rows the plant reds.
 #[test]
 fn the_manifest_sign_lands_in_symbolic_zero_and_not_sign_gated() {
     println!("=== abs(1/sqrt(1 + t²)) − 1/sqrt(1 + t²), with rule C on too");
@@ -260,4 +319,324 @@ fn the_orthonormal_bases_own_atoms_fold_at_the_mint_site() {
     let shipped = sound("shipped", how(SymRules::shipped(), resid));
     let shut = sound("without_rule_f", how(SymRules::without_rule_f(), resid));
     println!("  shipped {shipped} | without_rule_f {shut}");
+}
+
+// ---------------------------------------------------------------- the
+// rows the two blinded reviews wrote, adopted here under this suite's
+// naming with their credit. The probe branches (`sym/8-review-r1`,
+// `sym/8-review-r2`) are not merged; these are their rows.
+
+/// A parameter WITH its bracket recorded in the session — the one door
+/// rule C reads through ([`signed`](geom_core::sym)'s `fold` declines
+/// outright when `Session::params` is empty).
+fn p_over(name: &str, v: f64, lo: f64, hi: f64) -> Sym<f64> {
+    Sym::param_over(ParamSymbol::of(name), v, lo, hi)
+}
+
+/// Rule C on beside the shipped set.
+fn with_c() -> SymRules {
+    SymRules {
+        signed_root: true,
+        ..SymRules::shipped()
+    }
+}
+
+/// Rule C on, rule F SHUT.
+fn c_not_f() -> SymRules {
+    SymRules {
+        signed_root: true,
+        ..SymRules::without_rule_f()
+    }
+}
+
+/// **THE ORDERING PIN (R2).** F is asked before C at the node, and this
+/// is the row that reds when that flips: `abs(1 + t²) − (1 + t²)` with
+/// `t` bracketed over `[0.2, 0.3]` is a residual BOTH rules take — rule
+/// F because a positive constant plus an even power is manifestly
+/// positive, rule C because the argument is enclosable and its sign
+/// certifies. Shipped order the answer is a THEOREM; with rule F shut
+/// the same residual is rule C's and the answer is `sign_gated`. So the
+/// label distinguishes which rule took it, and planting C before F reds
+/// the first assertion.
+///
+/// The row this suite used to name as the ordering pin
+/// ([`the_manifest_sign_lands_in_symbolic_zero_and_not_sign_gated`])
+/// cannot do it, and the third assertion here says why: rule C never
+/// reaches that residual at any order.
+#[test]
+fn the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take() {
+    let resid = || {
+        let x = one() + p_over("t", 0.25, 0.2, 0.3).powi(2);
+        x.abs() - x
+    };
+    assert_eq!(
+        sound("abs(1 + t²) − (1 + t²), C+F", how(with_c(), resid)),
+        "theorem",
+        "F before C: the value-free rule answers first"
+    );
+    assert_eq!(
+        sound("… F shut, C on", how(c_not_f(), resid)),
+        "sign_gated",
+        "rule C alone takes this residual, and gates it"
+    );
+    let prs_row = || inv_sqrt_positive().abs() - inv_sqrt_positive();
+    assert_ne!(
+        sound(
+            "the old ordering row, F shut and C on",
+            how(c_not_f(), prs_row)
+        ),
+        "sign_gated",
+        "rule C cannot reach that residual at any order, which is why it pins nothing"
+    );
+}
+
+/// **THE SAME ORDER, THE OTHER SHAPE (R1).** `abs(2/t²)` over a bracket
+/// that excludes zero: a positive constant numerator over an even
+/// power, so rule F folds it, and enclosable with a certified sign, so
+/// rule C would. Two rows rather than one because they fail differently
+/// — this one has no atom in it at all, so it also says the order does
+/// not depend on rule C's `enclosable` test declining.
+#[test]
+fn a_shape_both_rules_take_is_what_pins_the_order() {
+    let resid = || {
+        let x = Sym::from_f64(2.0) / p_over("t", 0.4, 0.3, 0.5).powi(2);
+        x.abs() - x
+    };
+    assert_eq!(
+        sound("abs(2/t²) − 2/t², shipped", how(SymRules::shipped(), resid)),
+        "theorem",
+        "rule F takes it with no value read"
+    );
+    assert_eq!(
+        sound("abs(2/t²) − 2/t², C only", how(c_not_f(), resid)),
+        "sign_gated",
+        "rule C takes it by reading the bracket"
+    );
+    assert_eq!(
+        sound("abs(2/t²) − 2/t², C+F", how(with_c(), resid)),
+        "theorem",
+        "with both on the value-free rule must be asked first"
+    );
+}
+
+/// **THE THREE DIFFERENTIAL CONSTRUCTORS DO NOT CARRY RULE F (R2).**
+/// `without_the_algebra`, `shipped_without_the_door` and
+/// `without_rule_e` are documented as M10-9's, M10-8's and M10-10's
+/// tiers "bit for bit"; none of those tiers had rule F, and all three
+/// are spelled `..Self::shipped()`, so each acquired `manifest_sign:
+/// true` the day rule F shipped. This row reds on that head and is the
+/// pin that keeps the next early-walk rule from doing it again.
+#[test]
+fn the_earlier_tier_differentials_shut_rule_f() {
+    for (what, r) in [
+        ("without_the_algebra", SymRules::without_the_algebra()),
+        (
+            "shipped_without_the_door",
+            SymRules::shipped_without_the_door(),
+        ),
+        ("without_rule_e", SymRules::without_rule_e()),
+    ] {
+        println!("  {what}.manifest_sign = {}", r.manifest_sign);
+        assert!(
+            !r.manifest_sign,
+            "{what} names a tier that had no rule F; carrying one makes it a differential \
+             against a tier that never existed"
+        );
+    }
+    assert!(
+        SymRules::without_rule_f().common_factor,
+        "the rule-F differential keeps rule E on: it is the pair's other half"
+    );
+}
+
+/// **THE `D = 0` EDGE (R2, addendum 1).** `abs(1/sqrt(t²)) − 1/sqrt(t²)`
+/// — the argument's numerator is a positive constant and its
+/// denominator a `sqrt` atom, which is non-negative and NOT positive
+/// (`t² = 0` at `t = 0`). The predicate calls the FORM positive anyway,
+/// on the strength of `quotient`'s side condition: `D ≠ 0` at every
+/// point of a box clause 1 admits. This row is that condition's pin —
+/// the fold at a point clear of zero, and no theorem over a box that
+/// holds `t = 0`, where the value channel divided by an interval
+/// containing zero.
+#[test]
+#[cfg(feature = "interval")]
+fn the_denominator_that_vanishes_is_refused_by_clause_1_not_folded() {
+    assert_eq!(
+        sound(
+            "abs(1/sqrt(t²)) − 1/sqrt(t²) at t = 0.25",
+            how(SymRules::shipped(), || {
+                let x = one() / p("t", 0.25).powi(2).sqrt();
+                x.abs() - x
+            })
+        ),
+        "theorem"
+    );
+    let over_box = |lo: f64, hi: f64| {
+        how_i(SymRules::shipped(), move || {
+            let x = one_i() / over("t", lo, hi).powi(2).sqrt();
+            x.abs() - x
+        })
+    };
+    let (holds_zero, _) = over_box(-0.1, 0.4);
+    println!("  … over t ∈ [−0.1, 0.4] (D = 0 inside): {holds_zero}");
+    assert_ne!(
+        holds_zero, "theorem",
+        "a box the value channel divided by zero on is clause 1's, not the fold's"
+    );
+    let (clear, _) = over_box(0.2, 0.3);
+    println!("  … over t ∈ [0.2, 0.3]: {clear}");
+    assert_eq!(clear, "theorem");
+}
+
+/// **A MANIFESTLY POSITIVE FORM UNDEFINED INSIDE THE BOX (R1, item G).**
+/// `1/(t − 1)²` is a positive constant over a PERFECT SQUARE, which the
+/// predicate accepts for a DENOMINATOR, so `manifest::positive` says
+/// yes — and at `t = 1` the form has no value at all. The header says
+/// clause 1 refuses there first; this row drives a box that contains
+/// the pole and one clear of it, under both arms.
+#[test]
+#[cfg(feature = "interval")]
+fn a_manifestly_positive_form_undefined_inside_the_box() {
+    for (name, lo, hi, want_theorem) in [
+        ("straddles the pole", 0.9, 1.1, false),
+        ("clear of it", 0.2, 0.4, true),
+    ] {
+        for what in ["abs", "copysign"] {
+            let (l, v) = how_i(SymRules::shipped(), || {
+                let x = one_i() / (over("t", lo, hi) - one_i()).powi(2);
+                if what == "abs" {
+                    x.abs() - x
+                } else {
+                    one_i().copysign(x) - one_i()
+                }
+            });
+            println!("  [{name}] {what}: {l} enclosure {v:?}");
+            assert_eq!(
+                l == "theorem",
+                want_theorem,
+                "[{name}] {what}: a box holding the pole must be clause 1's"
+            );
+        }
+    }
+}
+
+/// **THE ONE REACHABLE ZERO OF A POSITIVE FORM SPELLS ITSELF `+0.0`
+/// (R1, addendum 2).** The header's signed-zero paragraph says a
+/// manifestly positive form whose value channel yields `−0.0` would be
+/// a failure to enclose and not a break of this rule. The reachable
+/// case is UNDERFLOW: `1/(1 + t²)` at `t = 1e200` overflows its
+/// denominator to `+inf` and the quotient to zero. This row asserts
+/// that zero's SIGN BIT is the one the fold assumes.
+#[test]
+fn the_underflowed_positive_form_spells_its_zero_positive() {
+    let x = || one() / (one() + p("t", 1.0e200).powi(2));
+    let v = x().value;
+    println!(
+        "  1/(1 + t²) at t = 1e200 = {v:e}, sign_negative {}",
+        v.is_sign_negative()
+    );
+    assert!(v == 0.0, "the value underflows");
+    assert!(
+        !v.is_sign_negative(),
+        "a manifestly positive form underflowed to −0.0: copysign would take the other branch"
+    );
+    sound(
+        "copysign(1, X) − 1 at the underflow",
+        how(SymRules::shipped(), || one().copysign(x()) - one()),
+    );
+}
+
+/// **THE HAND-MINTED MAGNITUDE IS THE ATOM AN `abs` NODE MINTS (R1,
+/// addendum 3).** `magnitude` folds `copysign(Y, X)` to the `Abs` ATOM
+/// over `Y` when `Y` is neither constant nor manifestly non-negative,
+/// and the whole value of doing so is that the atom is the SAME
+/// indeterminate an `abs(Y)` node elsewhere in the DAG mints. With a
+/// compound `Y` that claim is what makes this residual the zero form,
+/// and it is the pin of the `mint_atom` door the fold now goes through.
+#[test]
+#[cfg(feature = "interval")]
+fn the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints() {
+    let resid = || {
+        let y = over("x", -0.6, 0.6) - over("z", 0.1, 0.2);
+        y.copysign(one_i()) - y.abs()
+    };
+    let (on, _) = how_i(SymRules::shipped(), resid);
+    let (off, _) = how_i(SymRules::without_rule_f(), resid);
+    println!("  copysign(x − z, 1) − |x − z|: F-on {on} | F-off {off}");
+    assert_eq!(on, "theorem", "the minted atom must be the abs node's atom");
+    assert_ne!(off, "theorem", "rule F is what takes it");
+}
+
+/// **THE PREDICATE'S POSITIVE BOUNDARY (R2, addendum 4).** Four shapes
+/// that DO fold, each checked against the value at the point and each
+/// NOT a theorem with rule F shut: a positive constant carrying a
+/// `sqrt` atom over a bare square; a `sqrt` atom over a positive
+/// argument at an odd power; a product of two positive atoms; and
+/// `copysign(Y, X)` with a `Y` of unknown sign, whose magnitude is the
+/// `Abs` atom an `abs(Y)` node mints.
+#[test]
+fn the_positive_boundary_folds_and_every_fold_is_zero_at_the_point() {
+    let cases: [(&str, fn() -> Sym<f64>); 4] = [
+        ("abs(1 + sqrt(t²)) − (1 + sqrt(t²))", || {
+            let x = Sym::from_f64(1.0) + p("t", 0.25).powi(2).sqrt();
+            x.abs() - x
+        }),
+        ("abs(sqrt(1 + t²)) − sqrt(1 + t²)", || {
+            let x = (Sym::from_f64(1.0) + p("t", 0.25).powi(2)).sqrt();
+            x.abs() - x
+        }),
+        ("abs(sqrt(1 + t²)·sqrt(4 + t⁴)) − the product", || {
+            let a = (Sym::from_f64(1.0) + p("t", 0.25).powi(2)).sqrt();
+            let b = (Sym::from_f64(4.0) + p("t", 0.25).powi(4)).sqrt();
+            (a * b).abs() - a * b
+        }),
+        ("copysign(t, 1/sqrt(1 + t²)) − abs(t)", || {
+            let s = Sym::from_f64(1.0) / (Sym::from_f64(1.0) + p("t", 0.25).powi(2)).sqrt();
+            p("t", 0.25).copysign(s) - p("t", 0.25).abs()
+        }),
+    ];
+    for (what, build) in cases {
+        assert_eq!(
+            sound(what, how(SymRules::shipped(), build)),
+            "theorem",
+            "{what}"
+        );
+        assert_ne!(
+            sound(
+                &format!("{what} [F shut]"),
+                how(SymRules::without_rule_f(), build)
+            ),
+            "theorem",
+            "{what}: rule F is what takes it"
+        );
+    }
+}
+
+/// **THE REACH IS ONE-SIDED (R2, addendum 5).** The START cap of the
+/// tilt-`u` cube carries `n.z = −1/sqrt(P(t))`, and `abs(−X) = X` and
+/// `copysign(1, −X) = −1` are identities of reals for a manifestly
+/// positive `X` exactly as the folded ones are — the predicate declines
+/// them, because a negative coefficient is refused outright. Not a
+/// soundness question, a document-class one: a `FaceFrame` on the start
+/// cap of that body is NOT reached by rule F, and a manifest-NEGATIVE
+/// arm is the next shape rather than one this unit took.
+#[test]
+fn a_manifestly_negative_argument_is_declined_by_both_arms() {
+    let neg = || -(one() / (one() + p("t", 0.25).powi(2)).sqrt());
+    assert_ne!(
+        sound(
+            "abs(−1/sqrt(1 + t²)) + 1/sqrt(1 + t²)",
+            how(SymRules::shipped(), || { neg().abs() + neg() })
+        ),
+        "theorem",
+        "if this folds now, the predicate grew a negative branch"
+    );
+    assert_ne!(
+        sound(
+            "copysign(1, −1/sqrt(1 + t²)) + 1",
+            how(SymRules::shipped(), || { one().copysign(neg()) + one() })
+        ),
+        "theorem",
+        "if this folds now, the predicate grew a negative branch"
+    );
 }
