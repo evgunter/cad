@@ -41,10 +41,9 @@
 //! the replay's own arithmetic put past the top of that range; a
 //! point along an arc whose frame is finite and whose far side is
 //! not. And it is not a literal's, because every literal involved
-//! passed the literal door already. It is the
-//! flattener's, it is answered by
-//! [`PreviewError::Unflattenable`], and it exists because this module
-//! is the one place that turns a loop into coordinates.
+//! passed the literal door already. It is the flattener's, it is
+//! answered by [`PreviewError::Unflattenable`], and it exists because
+//! this module is the one place that turns a loop into coordinates.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -936,11 +935,10 @@ impl core::error::Error for PreviewError {}
 /// a binder — reports the ORIGINAL end-of-program refusal, never one
 /// belonging to the appended step. A loop that replays and has a
 /// point no picture can put anywhere is
-/// [`PreviewError::Unflattenable`] — the
-/// one refusal here that is about the PICTURE rather than the
-/// profile, and the reason it is a refusal rather than a loop drawn
-/// short is that a preview is what a form shows instead of the
-/// geometry.
+/// [`PreviewError::Unflattenable`] — the one refusal here that is
+/// about the PICTURE rather than the profile, and the reason it is a
+/// refusal rather than a loop drawn short is that a preview is what a
+/// form shows instead of the geometry.
 pub fn preview(
     plane: SketchPlane<f64>,
     shapes: &[ProfileShape],
