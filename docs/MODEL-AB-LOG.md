@@ -7829,3 +7829,5 @@ when the block's last slot's reviews conclude. DECIDE's band is
 dispatch.
 
 Block DECIDE-B1 slot record (branch-side, appended as each slot concludes):
+
+slot 0 = DECIDE-3 implementer dispatch (2026-09-21, ~16:05Z): arm OPUS per the draw above (byte 248); `docs/DECIDE-3-SPEC.md` (H / NUMERIC, pre-draw); brief `/home/user/sym-briefs/unit-decide-3-brief.md` (lane-local; the spec is the binding text), sha256 812cbf883e30b711… (full digest in the brief's sidecar `unit-decide-3-brief.sha`). The lane is the SYM-10 lane re-used (`/home/user/lanes/sym-10`, branch `decide/3-canonical-root` cut from `sym/10-decision-door`'s closing head `ee02c0feb`); its PR targets `props/sign-hull` while #2468 is open. Review ordinal claimed on main at the dual's dispatch (DECIDE's band 8600–8699, the first).
