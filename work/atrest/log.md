@@ -106,3 +106,41 @@ Its "What a fix is" section names `PlusVSubject`, a type `ee74cdbc6`
 removed AFTER the row was filed. A future lane reading that paragraph
 would hunt a symbol that is not there; the row now says so and says
 what survives instead.
+
+## 2026-09-20 — the order corrected, ATREST-2 dispatched as measurement
+
+**The parallel pair was wrong and is fixed before it cost anything.**
+The order set this morning ran `tier3-prime-still-couples-plus-v-to-the-reporting-target`
+beside ATREST-1, on the reading that check 7's hook is a different
+region of `validate.rs` from a per-solid pass. Specifying ATREST-1
+showed the two share a FUNCTION: ATREST-1 gives
+`props::sign_certified` a face-restricted sibling, and what tier 3'
+needs is that same walk carrying the LANE's hook instead of the
+certified one. Two lanes restructuring one `pub(crate)` walk in one
+file is not parallelism. Tier 3' moves to third and inherits the
+restriction; what is left to it is its own question — which hook, and
+what `validate_pseudomanifold_certificate`'s return type becomes.
+
+**ATREST-2 takes the parallel slot instead**
+(`docs/ATREST-2-SPEC.md`, branch `atrest/2-sense-measure`), carrying
+`sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts`. It is
+specced as MEASUREMENT and explicitly not as a fix: the row is `H`
+because nobody knows what it is, its own body ends in three questions,
+and `memories/refusal-text-is-not-cause.md` makes answering them a
+checkpoint rather than a preamble. A measurement lane also cannot
+collide with ATREST-1 at all — it reads check 6 and the `sense_sign`
+consumers and produces a report, not a diff.
+
+What it owes beyond the three answers: **a row per answer that can go
+red if the answer changes.** A measurement with no guard is a sentence
+someone re-takes later, which is how this row's own subject reached
+its second reviewer.
+
+The spec hands the lane the row's three candidate causes as the
+DISPATCHER'S HYPOTHESES rather than as findings, per the reviewer
+brief's §1, and asks for a correction as a result in its own right if
+none of the three is it.
+
+**Triage (protocol v7): OUT.** Opus implementer, opus reviewer; style
+lane plus one correctness claim — that the measurements say what the
+report says they say, and that each pinned row can go red.

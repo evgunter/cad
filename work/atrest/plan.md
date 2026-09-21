@@ -62,21 +62,29 @@ valid is merely in the way.
    across two lanes they would mint that walk twice in one file and
    conflict over it; together they are one piece of machinery closing
    two P0 admit-holes.
-2. **`tier3-prime-still-couples-plus-v-to-the-reporting-target`**, in
-   parallel with the above — it lives in check 7's hook
-   (`PlusVCheck` / `lane_certificate`), a different region of
-   `validate.rs` from the per-solid pass, and it closes the one place
-   where the two doors disagree on a valid body.
-3. **`check-9-nesting-is-line-bounded-only`**, narrowed to the `Disc`
+2. **`sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts`**,
+   in parallel with the above, and as MEASUREMENT rather than as a
+   change — its own body lists the three things to measure first, and
+   `memories/refusal-text-is-not-cause.md` makes that a checkpoint
+   rather than a preamble. It reads check 6 and the `sense_sign`
+   consumers, which is neither region ATREST-1 edits, and a
+   measurement lane produces a finding report rather than a diff, so
+   it cannot collide at all.
+3. **`tier3-prime-still-couples-plus-v-to-the-reporting-target`**,
+   AFTER ATREST-1 rather than beside it. It was ordered in parallel
+   until specifying ATREST-1 showed the two share a function:
+   ATREST-1 gives `props::sign_certified` a face-restricted sibling,
+   and what tier 3' needs is that same walk carrying the LANE's hook
+   instead of the certified one. Two lanes restructuring one
+   `pub(crate)` walk in one file is not parallelism. Taken second it
+   inherits the restriction and is left with its own question — which
+   hook, and what `validate_pseudomanifold_certificate`'s return type
+   becomes.
+4. **`check-9-nesting-is-line-bounded-only`**, narrowed to the `Disc`
    class, once CONTACT has been told what the widening is for. Its
    `ArcParity`/`NoWalk` residue gets its own file at the moment the
    unit discloses it (`work/README.md`: disclosing a residue is not
    scheduling it).
-4. **`sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts`**,
-   which opens as MEASUREMENT and not as a change — its own body lists
-   the three things to measure first, and
-   `memories/refusal-text-is-not-cause.md` makes that a checkpoint,
-   not a preamble.
 5. `validate-tier3-curved-boundary-containment` is the last unmarked
    deferral in the not-yet-checked list and closes the set. The
    P3 pair ride whichever unit lands beside them.
