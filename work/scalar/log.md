@@ -838,3 +838,20 @@ The fix pass's ruling reached ground the spec's fence did not name: the
 helpers) and `crates/verbs/src/run.rs` (two `impl` blocks), plus
 `shell.rs` — 47 bound edits, zero call-site edits, disclosed at that
 width in the PR body. Announced here to REACH and WIRE.
+
+## LANE-1 dispatched; block SCALAR-B5 slot 1 (2026-09-21)
+
+LANE-1 (`docs/LANE-1-SPEC.md`, item `lane-1-props-quad-lane-deleted`,
+branch `scalar/lane-1`, the FABLE arm by byte 244) dispatched on
+LANE-0's merged shape. The spec applies ruling 3's door rename
+uniformly — the certified name keeps its quadrature at `Decide +
+CertifiedBounds`, `_structural` twins carry the `None`, the existing
+`_certified` twins fold into the plain names — and resolves the plan
+sentence's gap the survey found: the lane-keeping tier-3′ doors that
+run at `Dual` become the `_structural` twins, H-R3's capability moving
+by name. Fences announced here: ATREST (`validate.rs`), SHELL, REACH
+(`boolean/ops.rs`), CHART (prose), LIB/BIND (the prelude re-export, the
+binding census entry), WIRE (`verbs/*`, editor-core's `checks.rs`,
+`eval/mod.rs`, `verbs/shell.rs`), PROPS (`real.rs`'s allowlist prose,
+DL3's sentence), GUARD (two gate entries, naming-only), PCERT (prose),
+TCOST/TINT (eleven test files), the unowned `props.rs`.
