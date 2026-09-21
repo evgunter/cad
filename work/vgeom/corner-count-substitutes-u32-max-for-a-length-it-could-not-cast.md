@@ -2,10 +2,12 @@
 id: corner-count-substitutes-u32-max-for-a-length-it-could-not-cast
 kind: issue
 title: A corner count that does not fit u32 is drawn as u32::MAX rather than refused
-status: open
+status: closed
 opened: 2026-09-16
 priority: P1
 cost: E
+closed: 2026-09-21
+branch: vgeom/refusal-floor
 ---
 
 
@@ -52,3 +54,41 @@ does not fit the draw call is a scene that cannot be drawn, and
 ## Fence
 
 `crates/viewer/src/gpu.rs` — VIEW's.
+
+## Closed — one cast, refusing, at both sites
+
+The cast is now `draw_range(len: usize) -> Option<u32>`, spelled once:
+`corner_count` is `draw_range(scene.positions().len())` and the edge
+geometry's `vertices` is `draw_range(positions.len())`. Its doc states
+what it can answer and why `u32::MAX` is not it.
+
+Both callers take the refusal the way each already has a nothing to
+do: `ViewportRenderer::ensure_geometry` drops the held buffers and
+uploads none, which is the state the passes already read as *there is
+nothing to draw* (`read_id_at`'s `geometry.as_ref()?` and its
+`corners == 0`), and `EdgePass::ensure_geometry` clears `held`, which
+is the state an empty overlay already produces. **Nothing is uploaded
+before the refusal**, so a scene that cannot be drawn does not pay for
+its buffers either.
+
+**This is a door hardening and not a fixed defect.** The row's own
+reachability section is unchanged and is not upgraded by this unit:
+`u32::MAX + 1` corners is `2^32 × 12 B = 51.5 GB` of positions before
+normals, ids or flags, so the allocation bounds the count and not the
+code, and nothing in the crate bounds it. No user-visible behaviour
+changes here. What changes is that the door states the answer it can
+give rather than substituting one.
+
+**Row**: `crates/viewer/src/gpu.rs`,
+`a_vertex_table_longer_than_a_draw_range_has_no_draw_range`. The
+refused length is `u32::MAX + 1`, reached through `usize::try_from` so
+a 32-bit target — which cannot express such a length at all — skips it
+rather than failing; the pair is the lengths the two call sites really
+produce, each of which has to come back as itself. `u32::MAX` is named
+in the message because it is the value the row exists to exclude and
+an `is_some()` assertion would have passed the unfixed door.
+
+**Mutation**: restoring `unwrap_or(u32::MAX)` inside `draw_range` reds
+that row and nothing else in the 798-row app-feature suite.
+
+PR: `vgeom/refusal-floor`.

@@ -1169,3 +1169,80 @@ fn param_row(session: &DocSession, name: &ParamName) -> props::ParamRow {
         .find(|row| &row.name == name)
         .expect("the parameter row")
 }
+
+/// **A typed `NaN` or `inf` in a Count slot is refused, by the name
+/// the props module promises names it.**
+///
+/// `props::field_edit` reads `inf` and `NaN` as Numbers deliberately,
+/// and says what pays for it: `Expr::literal`'s refusal names the
+/// problem where the parser would only say the word is not a
+/// parameter. That promise had a hole exactly one dimension wide.
+/// `SlotValue::of` splits on the dimension BEFORE any expression is
+/// built, and `value as i64` is a saturating cast, not a conversion —
+/// `NaN` is `0` and `inf` is `i64::MAX` — so a structural slot
+/// committed an ordinary integer and the literal door was never asked.
+///
+/// **The error is read from BOTH sides rather than restated here.**
+/// The claim is that the Count arm refuses what the continuous arm's
+/// literal door refuses, so the expected value is that door's own
+/// answer, taken by calling it. A row spelling `NonFiniteLiteral` as
+/// a literal would be a third copy, agreeing with whichever side it
+/// was written from.
+///
+/// **And the pair**: refusing everything would satisfy the first half.
+/// The second is every legitimate count — the truncation toward zero
+/// the door documents, at both signs and at zero — which has to come
+/// back as the count it names.
+#[test]
+fn a_count_slot_refuses_a_value_that_is_not_a_number() {
+    use pncad::document::{Dimension, Expr};
+
+    let literal_door = Expr::literal(f64::NAN, Dimension::Length)
+        .expect_err("a non-finite continuous literal is refused at construction");
+    for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let refused = SlotValue::of(Dimension::Count, poison).expect_err(
+            "a Count slot took a value that is not a number; the saturating cast \
+             commits an ordinary integer past the finiteness refusal",
+        );
+        assert_eq!(
+            refused, literal_door,
+            "a Count slot refused {poison} as {refused}, where the continuous \
+             half's literal door says {literal_door}"
+        );
+    }
+    // Every Count-dimensioned slot, so the refusal is the DIMENSION's
+    // and not one slot's: `SlotId::is_structural` is defined as this
+    // dimension, so these are exactly the structural slots.
+    for slot in [
+        SlotId::Count,
+        SlotId::VDegree,
+        SlotId::Stations,
+        SlotId::Instance,
+    ] {
+        assert!(slot.is_structural(), "{slot:?} is not a structural slot");
+        assert!(
+            SlotValue::of(slot.dimension(), f64::INFINITY).is_err(),
+            "{slot:?} took an infinite count"
+        );
+    }
+    // The other half: a count the cast can carry comes back as itself,
+    // truncated toward zero as the door documents.
+    for (value, expected) in [(0.0, 0), (3.0, 3), (3.7, 3), (-3.7, -3), (-0.5, 0)] {
+        assert_eq!(
+            SlotValue::of(Dimension::Count, value).expect("a finite value is a count"),
+            SlotValue::Count(expected),
+            "a Count slot read {value} as something other than {expected}"
+        );
+    }
+    // And the continuous arm is untouched: its value reaches the
+    // literal door intact and is refused THERE, which is the
+    // arrangement the Count arm has been brought into line with.
+    // Compared by matching rather than by equality: `NaN` is equal to
+    // nothing, itself included, so an `assert_eq!` here would be red
+    // on a door that is right.
+    let carried = SlotValue::of(Dimension::Length, f64::NAN).expect("the continuous arm carries");
+    assert!(
+        matches!(carried, SlotValue::Continuous(v) if v.is_nan()),
+        "the continuous arm answered {carried:?} instead of carrying its value          to the literal door"
+    );
+}

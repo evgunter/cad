@@ -297,16 +297,18 @@ impl ViewerBehavior<'_> {
         } else {
             create
         };
+        // The draft value is asked whether the dimension can carry it
+        // before a declaration is minted from it: a `Count` parameter
+        // declared from a field holding `NaN` would otherwise be
+        // created holding zero, which is a value nobody authored.
+        // `SlotValue::of` is the one door that decides this.
         if create.clicked()
             && let Some(dimension) = self.drafts.new_param_dimension
+            && let Ok(value) = SlotValue::of(dimension, self.drafts.new_param_value)
         {
             self.ops.push(SessionOp::CreateParam {
                 name: ParamName::new(name),
-                value: crate::props::doc_param(
-                    dimension,
-                    SlotValue::of(dimension, self.drafts.new_param_value),
-                    self.new_param_unit(),
-                ),
+                value: crate::props::doc_param(dimension, value, self.new_param_unit()),
             });
             self.drafts.new_param_name.clear();
             self.drafts.new_param_dimension = None;
