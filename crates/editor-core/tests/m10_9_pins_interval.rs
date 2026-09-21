@@ -517,10 +517,12 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
         );
         assert_eq!(
             counts.theorems_disputed, 0,
-            "{name} at eps={eps:e}: the tier's own THEOREM met a definite numeric sign. \
-             At this lane the witness is EXACT, so the count cannot be non-zero without \
-             the const on `Interval` having moved — the contradiction is asserted here, \
-             not counted, and the assertion would have fired first: {counts:?}"
+            "{name} at eps={eps:e}: what this pins is the CHARGE'S ARM at this lane. \
+             `Interval::WITNESS` is `Exact`, which routes a theorem-vs-numeric \
+             contradiction to the `debug_assert!` and never to this column, and that \
+             assertion is live in every profile this workspace builds — so a count here \
+             is the const having moved, and the soundness question it would otherwise \
+             raise has already been answered by the panic that did not happen: {counts:?}"
         );
     }
 }
