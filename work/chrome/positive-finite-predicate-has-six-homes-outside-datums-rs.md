@@ -1,7 +1,7 @@
 ---
 id: positive-finite-predicate-has-six-homes-outside-datums-rs
 kind: issue
-title: The positive-finite predicate has six more hand-spellings across crates/viewer
+title: Both of datums.rs's finiteness doors have hand-spelled siblings across crates/viewer
 status: open
 opened: 2026-09-21
 priority: P2
@@ -27,11 +27,32 @@ or with the new one:
 | `scene.rs`, the normal normalizer | `len > 0.0 && len.is_finite()` — the operands reversed |
 | `camera.rs`, the direction-length guard | `!(len.is_finite() && len > 0.0)` |
 
-A seventh site asks a NEARBY question and is listed so a sweep does
-not read it as a member: `camera.rs`'s perspective-divide guard is
-`out[3].is_nan() || out[3] <= 0.0`, which ADMITS an infinite `w` where
-the six above refuse one. Whether that is deliberate is the reading a
-lane owes before it routes the site anywhere.
+`camera.rs`'s perspective-divide guard was first listed here as a
+seventh, near-miss site. It is not a member and it is not a
+duplication finding: it is a live substitution defect behind a `pub`
+door, and it has its own row —
+`camera-project-answers-with-a-screen-position-for-a-projection-that-overflowed`.
+
+## The other door's shape, swept second
+
+The unit that filed this row built TWO doors and this row was first
+filed for one of them. `all_finite`'s shape — *are these numbers*,
+with no sign question — has its own population in the same crate,
+found by the same grep and listed here so the two are taken together:
+
+| site | spelling |
+| --- | --- |
+| `camera.rs`, the bounds guard | `lo.iter().chain(hi.iter()).any(\|v\| !v.is_finite())` — `all_finite` over a slice, negated |
+| `sketch.rs`, the drawable-point test | `point[0].is_finite() && point[1].is_finite()` — `all_finite([a, b])` verbatim |
+| `sketch.rs`, the arc door | `!(radius.is_finite() && theta.is_finite() && chord.is_finite())` — the same over three |
+| `props.rs`, `display.rs`, `scene.rs` (`delta * MM_PER_METRE`) | single-value `!x.is_finite()` guards — members only if the door is worth routing one value through |
+| `bounds.rs`, the integral seed | `seed.is_finite() && seed != 0.0` — a DIFFERENT question (finite and non-zero, no sign), listed so it is not swept in as one of the above |
+| `scene.rs`, the diagonal | `if diagonal.is_finite() { diagonal } else { 0.0 }` — not this class at all: a SUBSTITUTION, and evidence on `viewer-substituted-value-class-is-crate-wide` |
+
+A lane taking this owes a decision on the single-value guards before
+it starts: routing one value through an array door may be worse than
+the `is_finite` call it replaces, and if so the population is the
+three multi-value sites and the row should say so.
 
 ## Why it is a row and not a line in a PR body
 
@@ -45,7 +66,7 @@ that is a design call rather than a find-and-replace.
 
 ## Fence
 
-`crates/viewer/src/{input,app,sketch,scene,camera}.rs`. Every one of
+`crates/viewer/src/{input,app,sketch,scene,camera,props,display,bounds}.rs`. Every one of
 them is claimed by chrome and by at least one of view, vgeom, fit,
 vseam and author (`python3 scripts/work.py territory --files -`), so a
 lane taking this owes an awareness pass rather than an exclusive.

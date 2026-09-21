@@ -47,6 +47,7 @@ site may close with an argued citation.
 | --- | --- |
 | `sketch.rs`, arc point count | `((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS)` — mechanically `datums.rs`'s `rule_patch` cast with a different floor: a NaN casts to `0` and the clamp lifts it to ONE arc point |
 | `sketch.rs`, the bounds accumulator | `lo[axis] = lo[axis].min(point[axis])` / `hi[axis] = hi[axis].max(point[axis])` — `f64::min`/`max` answer with the other operand against a NaN, so a point that is not a point is silently absent from the bounds it should poison |
+| `scene.rs`, the diagonal | `if diagonal.is_finite() { diagonal } else { 0.0 }` — a bounding-box diagonal that overflowed is returned as a scene of no size, which is a number this function did not compute |
 | `scene.rs`, the delta solve | `(constant / requested.get()) as usize`, under an explicit `#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]` — the allow says the truncation was seen; it does not say a NaN reads as zero triangles |
 | `bounds.rs`, the integral seed | `seed: if integral { seed.max(1.0) } else { seed }` |
 | `camera.rs`, the dolly floor | `(self.distance - self.scene_radius).max(floor)` |
@@ -98,3 +99,26 @@ not a census:**
 table. `sketch.rs`, `scene.rs`, `camera.rs`, `app.rs` and `bounds.rs`
 are VIEW's this week, so whoever takes this row draws the fence with
 VIEW first; the `datums.rs` and `gpu.rs` ground is CHROME's.
+
+## What the `MAX_GRID_LINES` member cost, and who else is carrying it
+
+`max-grid-lines-truncates-a-ruling-and-calls-it-one` closed by
+shrinking the patch to what the cap rules rather than truncating the
+line list. **The lesson is not about grids.** The reason the previous
+sweep read that site as a backstop and left it standing was one
+sentence of its own rustdoc — *"Not a budget the design expects to
+spend"* — followed by an arithmetic estimate nobody had measured.
+Measured, the cap is crossed from an ordinary orbit seat on an 8K
+window, and the estimate in the doc was taken at a different
+constant than the one in the code.
+
+**`sketch.rs`'s arc point count, in the table above, carries the
+identical argument**: *"A cap, not a budget: this only stops a radius
+large enough to…"*. That sentence is unmeasured in exactly the same
+way, and it is what will make a reader skip the site again. A lane
+taking that row should drive the cap before it accepts the
+reachability claim, whatever it then decides about the substitution.
+
+This is §5's *"an invariant discovered by a bugfix otherwise protects
+only the code that already knew"*, written down where the next reader
+of the class will see it.
