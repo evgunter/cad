@@ -7829,4 +7829,4 @@ when the block's last slot's reviews conclude.
 
 Block SYM-B3 slot record (branch-side, appended as each slot concludes):
 
-slot 0 = SYM-11 implementer dispatch (2026-09-21, ~14:30Z): arm OPUS per the draw above (byte 178); `docs/SYM-11-SPEC.md` (H / STRUCTURAL, pre-draw); brief `/home/user/sym-briefs/unit-11-brief.md` (lane-local; the spec is the binding text), sha256 recorded at dispatch below. Review ordinal claimed on main at the dual's dispatch (SYM's band 4700–4799, next 4705).
+slot 0 = SYM-11 implementer dispatch (2026-09-21, ~14:30Z): arm OPUS per the draw above (byte 178); `docs/SYM-11-SPEC.md` (H / STRUCTURAL, pre-draw); brief `/home/user/sym-briefs/unit-11-brief.md` (lane-local; the spec is the binding text), sha256 ca22c4f4fa42d5ac… (full digest in the brief file's sidecar `unit-11-brief.sha`). Review ordinal claimed on main at the dual's dispatch (SYM's band 4700–4799, next 4705).
