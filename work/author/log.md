@@ -712,3 +712,170 @@ me.**
 Remaining on the slate: AUTH-2 in fix (PR 2957),
 `add-profile-mints-no-frame` next in the order, and eight rows behind
 it.
+
+## 2026-09-21 — AUTH-2's fix pass: the text guard worked, and found a toolkit quirk
+
+Green at 39 jobs on head `4db2d821e` (twelve `test (…)`, five
+`k-lint (gate, …)`), and the lane read the STEP rather than the job
+name for the rows its new tests live in. **No fallback to a
+tolerance**: `props::typed_edit` and `readout::reads_as` are deleted
+and `readout.rs` is claimed byte-identical to `origin/main`, so the
+widening that made the previous review NOT-MERGEABLE is reverted
+rather than tuned.
+
+**The lane found what neither review caught, and it explains the
+reviewer's measurement.** `egui` parses the buffered text on TWO
+consecutive frames — the kb-editing branch on `lost_focus`, then the
+next frame's `mem.lost_focus(id)` arm on the copy it re-inserted — and
+`Response::lost_focus()` is true on both, so it cannot separate them.
+`1002` over a field showing `1000.0` emits `SetParam` twice,
+identically. **The old numeric guard was accidentally masking it**
+(frame 2's number reads as the new value); a text guard cannot,
+because by frame 2 the document has moved and the render is no longer
+what is in the box. That is the correctness reviewer's "+3 history
+states" fully explained, and it is why "one user action is one undo"
+needed a rule at the door and not only at the field. Filed as
+`work/vgeom/a-typed-field-hands-its-text-over-on-two-frames.md`.
+
+**Why I am NOT merging on my own read.** The fix pass replaced the
+design the two reviews examined. Those lanes reviewed one numeric
+guard at the field; what exists now is two rules — `props::echoed` at
+the field over TEXT, and `DocSession::writes_nothing` at the session
+door over the `DocEdit`, read by `set_slot`, `set_param`,
+`set_param_unit` and `set_param_text`. **No reviewer has seen the
+second one**, and it is a session-level change on a door outside this
+unit's subject: the chrome guard it replaces lived in the panel, so
+the door never saw a no-op, and now it sees one and discards it. That
+is reachable from replay and from the Python bindings, not just the
+panel.
+
+The lane flagged it itself and offered to narrow it, which is the
+right instinct and is why I am not simply accepting it: **the reason
+to keep it at the session — that "would this move the document" is the
+document layer's question — is the same reason it needs checking,
+because a door that answers that question for every caller can drop an
+edit a caller meant.** One targeted correctness lane is out on exactly
+that, plus the two-frame claim (is the door the right place to fix a
+toolkit quirk, or is the second emission separable at the field?), the
+trim in `echoed`, whether the new rows can go red, and an
+`unreachable!` the fix pass added where this codebase might want a
+typed refusal.
+
+Scoped narrow and deep, not broad: C1–C8, the create door, the parse
+routing and the sweep were settled by the previous two lanes and are
+not re-opened.
+
+**A process note worth keeping.** This is the case the review posture
+exists for and it nearly slipped: two green reviews plus a green CI
+run is not coverage of a design those reviews did not examine. A fix
+pass that REPLACES rather than repairs earns a look, and the signal
+that it did is not the diff size — it is that the claims the reviewers
+falsified no longer describe the code.
+
+## AUTH-2 fix pass — the guard is over TEXT (2026-09-21)
+
+The correctness review returned NOT-MERGEABLE with two MAJORs, both
+settled by running a production-faithful egui harness. Both were about
+the same decision, taken the wrong way round.
+
+**The guard compares TEXT, not numbers.** The implementation judged a
+typed number against the number the field displays, by the renderer's
+own tolerance — which is relative and unbounded in absolute terms, so
+a field reading `1000` in millimetres discarded a typed `1000.4`
+silently: no edit, no refusal, the field reverting. The echo is
+identifiable exactly as text: `egui::DragValue` seeds its keyboard
+edit with the text its formatter returned, so the field keeps that
+text and the parser compares against it (`props::echoed`). No
+tolerance, one rule, both fields, and a row showing SOURCE rather than
+a number is answered by the same comparison.
+
+**Two rules, not three spellings of one.** What a field's guard
+decides ("did this text come out of the field?") and what a document
+door decides ("would this edit move anything?") are different
+questions with different answers, and the implementation's doc claimed
+they were the same rule. They are now two functions with one home
+each: `props::echoed` at the field, `DocSession::writes_nothing` at
+the door. The second is what makes one typed number one undo step,
+because `egui` hands a buffered text over on two consecutive frames —
+filed as `work/vgeom/a-typed-field-hands-its-text-over-on-two-frames`.
+
+**The panel's op emission has a row now.** The crate said it carried
+no headless egui harness; it does, in `widgets.rs`, over a real
+`egui::Context` and a real `DocSession`. Both MAJORs were reproduced
+there before they were fixed — the click-in/click-away emitted
+`SetParam(0.04)` over a field holding 0.040000019, and the typed
+`1000.4` emitted nothing.
+
+## 2026-09-21 — correcting an earlier entry in this log (append, not rewrite)
+
+The 2026-09-21 entry above, "AUTH-2's fix pass: the text guard worked,
+and found a toolkit quirk", explains the two-frame duplicate this way:
+
+> a text guard cannot, because by frame 2 the document has moved and
+> the render is no longer what is in the box
+
+**That is wrong, and the truth is narrower.** `egui`'s formatter runs
+before BOTH parse sites, so `rendered` is populated on both frames.
+The second hand-over escapes `props::echoed` because the formatter
+spells at least one decimal (`widgets::number_text(_, 1..=3)`) while
+the user typed none — `"1002"` against `"1002.0"`. Where the render
+round-trips exactly, the field guard already swallows the second one,
+which AUTH-2's `the_field_swallows_the_second_hand_over_when_its_render_round_trips`
+now pins: typing `1000.4` emits ONE operation where `1002` emits two.
+
+Found by the targeted correctness arm and confirmed empirically by the
+second fix pass, against the vendored `egui-0.36.1` source.
+
+**Appended rather than edited, deliberately.** `work/README.md` calls
+this file an append-only narrative, and the entry above is an honest
+record of what was believed at that hour. What binds a future reader
+is the claim, not the paragraph, so the claim is corrected here and
+the original stands as what it was. The fix-pass lane raised this and
+declined to rewrite the entry itself, which was the right instinct and
+the right half of the job to hand back.
+
+A second thing that entry got wrong by omission: it reported the door
+rule as necessary because the second emission "cannot be told apart at
+the field". It can — `egui::Memory::had_focus_last_frame(id)` is
+public and is exactly the discriminator, where `lost_focus()` is
+sticky across both frames by design. `DocSession::writes_nothing`
+stays at the door anyway, for reasons now written on
+`work/vgeom/a-typed-field-hands-its-text-over-on-two-frames.md` as
+declined-with-reasons rather than as a door that does not exist.
+
+## 2026-09-21 — AUTH-2 MERGED (`8352822c2`); the sitting's second unit is done
+
+Green at 39 jobs on a head that had current `main` merged into it —
+that merge brought real code (geom-core/sym, geom-brep, editor-core
+tests), so the docs-only exemption did NOT apply and the run was
+re-taken in full. The fix-pass lane deliberately did not re-merge
+after its own green, so as not to invalidate it, and handed me the
+decision. That was the right instinct and is worth naming: **a green
+run over a stale base is not a claim about what merges.**
+
+**Two units, both P0 doors, both closed.** A person can place a sketch
+on a picked face, and write a parameter in the unit they think in.
+
+**What this unit cost, and why that is the interesting number**: one
+implementer pass, two review lanes, a fix pass, a TARGETED re-review,
+and a second fix pass. The re-review is the one that would normally be
+skipped, and it is the one that caught a regression against `main` in
+the unit's own subject. The trigger for running it was not diff size
+or a hunch — it was that **the fix pass replaced the design the
+reviews examined**, so the claims those lanes falsified no longer
+described the code. That test is cheap to apply and is now this
+program's rule for when a fix pass earns a fresh arm.
+
+**Four of my premises were falsified across the two units**: the
+`Ambiguous` multi-body hypothesis, the `base_r * 2` text, the
+`partial_mirror!` return type (in an adjudication, not a spec), and
+`set_slot`'s reachability from the Python bindings. Every one was
+caught by a lane or a reviewer, and every one was cheap because the
+surrounding instruction said *decide and say* rather than asserting.
+The adjudication one remains the worst of the four, for the reason
+already logged: a spec is read by someone who will check it; an
+adjudication arrives as a list of things to do.
+
+**Next in the order**: `add-profile-mints-no-frame`, which now carries
+three label sites rather than two, and behind it the two node-kind
+gaps. The slate reads 8 open rows.

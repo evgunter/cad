@@ -4,7 +4,7 @@ kind: issue
 title: the chart-coherence resident defaults Off, which answers the no-consumer row with a check nobody runs — two measurements decide whether it turns on
 status: open
 opened: 2026-09-12
-refs: [2408, coherence-findings-have-no-consumer]
+refs: [2408]
 priority: P1
 cost: D
 ---
@@ -106,3 +106,7 @@ behalf of a resident nobody has measured.
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Reference note (FIX's sweep, 2026-09-21)
+
+`coherence-findings-have-no-consumer` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/coherence-findings-have-no-consumer.md`.

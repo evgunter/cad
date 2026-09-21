@@ -1520,7 +1520,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // structurally: the void-ceiling row asserts the designated
         // void face DIES, and the pairing row reads each thin solid's
         // twin through the record
-        // (`work/topo/check-9-nesting-is-line-bounded-only.md`).
+        // (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),

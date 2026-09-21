@@ -2,10 +2,12 @@
 id: node-placer-field-docs-say-body-where-instances-are-accepted
 kind: issue
 title: Node::Transform and Node::Pattern field docs say "the body placed" / "the body replicated" although both placers accept Instances
-status: open
+status: review
 opened: 2026-09-08
 priority: P4
 cost: E
+branch: door/node-placer-field-docs
+pr: 2985
 ---
 
 
