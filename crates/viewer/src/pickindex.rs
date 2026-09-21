@@ -2015,11 +2015,15 @@ fn placement(display: &DisplayView, node: RecipeNodeId) -> impl Fn(Point3<f64>) 
 /// *at most [`EDGE_PICK_RADIUS_PX`], by construction* — this is the
 /// construction, and it is what makes the sort's first key finite.
 ///
-/// The NEGATION is what carries the domain test: `distance` is a
-/// square root, so it is never negative and never `-inf`, and both
-/// `inf` and `NaN` fail `<=`. The `is_finite` conjunct spells that
-/// out, and `clippy::neg_cmp_op_on_partial_ord` refuses the bare
-/// `!(a <= b)` that would say it alone.
+/// **Both terms carry weight, which is what makes the guard
+/// falsifiable.** `distance` is a square root, so it lies in
+/// `[0, inf]` or is a `NaN`: `> EDGE_PICK_RADIUS_PX` alone rejects the
+/// infinity and admits the `NaN`, and `is_nan` alone rejects the `NaN`
+/// and admits the infinity. Deleting either reddens a row. A
+/// conjunction spelled `!(distance.is_finite() && distance <= …)`
+/// says the same thing with one term that cannot change an answer —
+/// `-inf` and a negative distance are unreachable — and the
+/// implementer discipline asks for the spelling a bug can break.
 fn best_segment(
     cursor: [f64; 2],
     boundary: usize,
@@ -2031,7 +2035,7 @@ fn best_segment(
             continue;
         };
         let (distance, closest) = segment_distance_px(cursor, pixel_a, pixel_b);
-        if !(distance.is_finite() && distance <= EDGE_PICK_RADIUS_PX) {
+        if distance > EDGE_PICK_RADIUS_PX || distance.is_nan() {
             continue;
         }
         // Strictly nearer only: a tie keeps the earlier segment, which
@@ -2051,6 +2055,16 @@ fn best_segment(
 
 /// How far `cursor` is from the segment `a`–`b` in pixels, and the
 /// point of the segment it is that far from.
+///
+/// **The answer is not always a measurement, and no input has to be
+/// one for that to happen.** `length2` is a sum of squares, so it
+/// overflows for a pixel separation past about `1.34e154`; the
+/// numerator overflows with it, and `inf / inf` puts a `NaN` in `t`
+/// and so in both answers. Every coordinate reaching this function
+/// can be an ordinary finite number — a projected pixel is an NDC
+/// scaled by `ViewportSize`, which nothing bounds above. The caller
+/// admits on the answer rather than on the inputs for exactly that
+/// reason ([`best_segment`]).
 fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64; 2]) {
     let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
     let length2 = dx.powi(2) + dy.powi(2);
@@ -2326,13 +2340,22 @@ mod tests {
     /// **A segment whose projection is not a measurement does not win
     /// the boundary** — the substitution shape, not the discard one.
     ///
-    /// Held at [`best_segment`] because the walk above it cannot be
-    /// driven here: every public door seeds on a ray through the same
-    /// cursor and refuses before the edge walk runs, so a cursor or a
-    /// placement that is not a number takes the face pick's miss and
-    /// never reaches a projected pixel. The row therefore drives the
-    /// function that makes the admission, with the projection handed
-    /// to it.
+    /// Held at [`best_segment`] for the ARITHMETIC — a poisoned
+    /// projection handed straight to the function that makes the
+    /// admission. The public door reaches the same guard by a
+    /// different route, and
+    /// `edge_pick::a_viewport_no_pixel_distance_can_be_measured_in_picks_no_edge`
+    /// drives it: the walk is entered with every input finite and the
+    /// pixels stop being a measurement inside
+    /// [`segment_distance_px`].
+    ///
+    /// What IS closed at the doors, and is worth knowing here: a
+    /// cursor that is not a number never arrives, because every door
+    /// seeds on a ray through it and `Camera::ray_through` refuses one
+    /// first; and a mesh position that is a `NaN` never arrives
+    /// either, because `Camera::project` answers `None` for it and the
+    /// walk drops a chord point with no pixel. Neither is what
+    /// produces the distance this row is about.
     ///
     /// Both halves, because neither says anything alone: the poisoned
     /// segments are refused, and the legitimate one still answers with
