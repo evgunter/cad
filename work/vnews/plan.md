@@ -49,47 +49,26 @@ difference.** A rename nobody reads is not news.
 
 ## Order
 
-E-first. Nothing here is blocked, nothing here waits on Ev, and the
-three sibling successors are file-disjoint from this one except at the
-shared files `program.md`'s `keep_out` names — so this program is
-dispatchable in parallel with VGEOM and VSEAM from its opening day.
+**Present state only.** What this order was at opening, and what each
+wave changed about it, is `log.md`'s — this section says what is
+dispatchable now and in what sequence, and nothing else.
 
-1. **The literals that have a home already** —
-   `seat-line-spells-the-list-mark-as-a-literal` (`frame::LIST_SEPARATOR`
-   exists and `seat_line` does not use it),
-   `the-new-document-button-states-its-refusal-twice` (a literal beside
-   a comment naming the `Refusal` variant that should back it, the two
-   sentences differing), `converged-recourse-has-no-home` (two literals
-   in two crates held in step by a test). Three rows, one class, one
-   shape of fix; the third crosses a crate and announces.
-2. **The collapses** — `is-instance-collapses-absent-and-wrong-kind`
-   and `environmental-facts-answer-usable-as-a-bool-with-the-reason-
-   elsewhere` are the same defect at two doors: a `bool` answered
-   because one caller wanted one, with the reason kept elsewhere or
-   nowhere. Take them together or the second re-mints the first.
-3. **The two-enums rows** —
-   `outstanding-and-progress-are-two-three-state-enums-one-hop-apart`
-   and `ranked-and-unranked-verdicts-are-one-type`. Both carry an
-   undecided fork (collapse, or name the difference), and the second's
-   fork decides what the first collapses INTO, so they are one
-   conversation. `outstanding-…` reaches `session.rs` and `pickcache.rs`,
-   which are VSEAM's: announce.
-4. **The discards** — `rank-one-discards-the-frames-other-news` and
-   `one-line-one-subject-loses-a-mixed-frames-expiry`. Both are about
-   news the ranking throws away rather than spells; the first names a
-   discarded free-move placement as unrecoverable, which is the row's
-   own argument for taking it before the other.
-5. **The rest, unordered** —
-   `a-fold-row-composes-a-producer-with-a-dead-door`,
-   `document-news-has-no-home`,
-   `tone-is-a-value-in-frame-and-a-comment-in-two-panes`.
+**The opening order's five groups are discharged**, and are recorded
+here as dispositions rather than left standing: a reader arriving at a
+superseded group and following it is the defect two reviewers
+independently found in this file on 2026-09-20.
 
-**Not scheduled, and why.** `document-news-has-no-home` is a census of
-a class before it is a fix, and the VIEW register's rule about a
-population applies: re-derive the population by subject before naming a
-door, because the count in the row is evidence only as of its filing.
-`a-disabled-control-says-why-in-four-shapes` was the other, and it has
-now RUN — see the group below.
+| opening group | what became of it |
+|---|---|
+| 1. The literals with a home | `seat-line-…` closed as a **negative result** (#2917) — its premise was false. `the-new-document-button-…` moved to group 6. `converged-recourse-has-no-home` re-homed to **EDIT**: its fix needs an `editor-core` authorisation wider than the `Display` wording Ev granted. |
+| 2. The collapses | `is-instance-…` closed (#2916). `environmental-facts-…` is **not dispatchable here**: its whole subject is `platform.rs` and `prefs.rs`, which no re-scope successor claims (`work/view/viewer-src-files-no-successor-claims`). |
+| 3. The two-enums rows | **Its premise is false** — `Outstanding`/`Progress` feed the badge channel and `StatusUpdate` feeds the status line, so neither fork decides the other. Both rows are placed in group 7, independently. |
+| 4. The discards | Both rows are in group 7. Its ordering argument survived; its *"one conversation"* framing did not. |
+| 5. The rest, unordered | `tone-…` closed (#2915). `a-fold-row-…` closed as a **negative result**. `document-news-has-no-home` is in group 7, not scheduled. |
+
+**The live order is groups 6 and 7 below.** They are numbered from the
+opening sequence because rows and log entries cite them by number; the
+numbers are ids, not a position.
 
 ### 6. The disabled-control family, after the census (2026-09-19)
 
@@ -149,73 +128,15 @@ GENERALISATION, not a first statement: `crates/viewer/README.md`
 already carries the clause for two families and names the test that
 holds it.
 
-### What re-deriving the order against the tree changed (2026-09-19)
-
-The order above was written at the re-scope and every row in it was
-written earlier still. Re-deriving each row's fix SITE against the tree
-at this program's first dispatch moved four of them. Recorded here
-rather than fixed silently, because the order is the thing a later
-session reads first.
-
-- **`converged-recourse-has-no-home` left group 1 and then left this
-  program — it is EDIT's now** (moved 2026-09-19; Ev granted the move
-  and the standing authority to re-home a unit between tracks without a
-  ruling). The group called it *"the third crosses a crate and
-  announces"*; announcing is not what it needed. Both shapes the row
-  states — a `pub const` beside `EditError`, or a `recourse()` method on
-  it — **add API surface to `crates/editor-core`**, and the
-  authorisation this program inherits is scoped to `EditError`'s
-  `Display` WORDING (Ev, in-chat, 2026-09-04). `EditError` is declared
-  in `crates/editor-core/src/edit.rs`, which is EDIT's territory. Only
-  the viewer arm stays here: a forward at one site in
-  `session/refuse.rs` once `editor-core` exposes the recourse, landing
-  with the EDIT unit that exposes it.
-- **`viewer-preview-names-a-verb-by-its-variant-identifier` is CLOSED
-  — it was already discharged when this program inherited it.**
-  `profile::path::Verb` has had a `Display` since
-  `work/fix/verb-and-dimension-render-through-debug` (FIX, PR 2347,
-  2026-09-11), and `PreviewError`'s arm in `crates/viewer/src/sketch.rs`
-  forwards to it — `{verb}`, not `{verb:?}`. **This entry first said the
-  row "cannot land from here alone" and routed it to PATHS**, which was
-  wrong: the orchestrator re-derived the row's citation and not its
-  premise. The correction is kept visible rather than overwritten
-  because the rule it breaks — *a row's premise ages against the tree
-  exactly like a citation does* — is the one handed to every lane this
-  program dispatches, and the register's own instances of it are mostly
-  the orchestrator's.
-- **`tone-is-a-value-in-frame-and-a-comment-in-two-panes` keeps its
-  place and loses a citation.** `pane/features.rs`'s hand-picked
-  `ui.weak` / `ui.colored_label` pair is there as described, with the
-  rule in a comment; `tree::RowStatus::badge()` is there and takes no
-  tone. The row's THIRD copy at `pane/create.rs:582-586` is not: those
-  lines are the `ShapeKind::Path` notation block today. The subject is
-  re-derived by the lane, not repointed by arithmetic — this register's
-  own rule.
-- **`the-new-document-button-states-its-refusal-twice` waits on the
-  census, one group later than the order puts it.** Its two answers are
-  *"read the refusal"* and *"keep the literal and delete the claim"*,
-  and the row says which is right is what
-  `a-disabled-control-says-why-in-four-shapes` asks generally. The
-  button is a genuine member of that general question — it IS gated on
-  the condition `NewDocument` refuses — so deciding it alone decides
-  the class from its easiest instance. The census goes first and this
-  row applies its rule.
-
-**And the frame.rs cluster is serialized, which the order does not
-say.** Groups 3, 4, part of 5 and `document-news-has-no-home` all edit
-`crates/viewer/src/frame.rs`. Under merge-only rules two lanes in that
-file at once is a conflict bought for nothing, so **at most one
-`frame.rs` lane runs at a time**, whatever the group order allows in
-parallel elsewhere.
-
 ### 7. The frame.rs cluster, adjudicated (2026-09-20)
 
 Groups 3 and 4, two of group 5's three, and two rows the order never
 placed all edit `crates/viewer/src/frame.rs`, which is serialized. This
 section is the order for that file, derived against the tree on
-2026-09-20 rather than from the rows. It supersedes groups 3 and 4 for
-the rows it names. Every claim below is a claim; the evidence is in
-each row's own `## Adjudicated 2026-09-20` section.
+2026-09-20 rather than from the rows — the opening groups it replaces
+are the discharged ones in the table above, and it is where their rows
+now live. Every claim below is a claim; the evidence is in each row's
+own `## Adjudicated 2026-09-20` section.
 
 **The enumeration rule: an OPEN row on this slate whose fix edits
 `crates/viewer/src/frame.rs`.** The table below is the population of
