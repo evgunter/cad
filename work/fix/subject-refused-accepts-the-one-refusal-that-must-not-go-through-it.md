@@ -2,10 +2,11 @@
 id: subject-refused-accepts-the-one-refusal-that-must-not-go-through-it
 kind: issue
 title: Subject::refused accepts NoBodyRoots, the one refusal the registry must not treat as unavailable
-status: review
+status: closed
 opened: 2026-09-15
 branch: fix/subject-refused-routes-no-body
 pr: 2943
+closed: 2026-09-21
 priority: P0
 cost: E
 ---
@@ -120,3 +121,45 @@ converted already made.
   `Unavailable` again. Instruction 3 applies — say whether any existing
   row discriminates the old routing from the new one, and if none does,
   that is part of the defect.
+
+## Closed (2026-09-21) — PR 2943, reading (a) as ruled
+
+`Subject::refused` reads `product::ProductErrorKind::means_no_body` and
+returns `Subject::NoBodyRoots` for that class; every other class is
+`Unavailable` carrying the same one-refusal `kind`/`reason` pairing.
+**Both hand-routing arms are gone** — `checks::run_checks`'s guard and
+`pncad-py`'s `product_memo::checks_report` — so the routing has one home
+and no caller re-derives it. No document changes behaviour: both
+production callers already routed correctly by hand, and this moves
+where the decision is made.
+
+**The ruling held against the tree rather than being assumed to.** The
+lane checked `means_no_body` before implementing: it is exhaustive over
+the kind, true for `NoBodyRoots` alone, and `product.rs`'s own
+`exactly_one_arm_reads_as_no_body` pins the set of arms that read as an
+absence. So the predicate is true of exactly the class the ruling names.
+
+**The pin, and it is the right shape:**
+`the_subject_door_routes_an_absence_away_from_the_unavailable_arm`
+compares the arm the door PICKED against what the classification says of
+the same error — so a door that stops reading the classification reds,
+while a re-classification moves both sides together. Which arm is which
+is not written down on the left. Verified red under a reverted door.
+
+**Nothing could have caught this before.** No row anywhere passed
+`NoBodyRoots` to `refused`, so no existing pin discriminated the old
+routing from the new one — the missing pin was part of the defect, as
+instruction 3 predicts. The nearest row pinned only the `Unavailable`
+pairing over a different error.
+
+**Fence:** one crossing, `crates/pncad-py/src/product_memo.rs` (LIB's),
+announced on `work/lib/log.md`.
+
+**Adjudicated residue, filed nowhere on purpose.** The lane disclosed
+that `pncad-py/src/tests.rs`'s `check_registry_tags_are_stable`
+hand-builds `ChecksError::Product { kind: Some(NoBodyRoots), .. }`, a
+state production can no longer reach. Read at the site: that row pins a
+tag STRING and the tag function reads only the variant, so the map must
+still cover every kind and the row still fails for the reason it names.
+Sound as it stands; recorded here rather than as a row because there is
+no defect to schedule.

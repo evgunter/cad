@@ -2,7 +2,7 @@
 id: exch
 kind: program
 title: EXCH — exchange: STEP and STL
-status: open
+status: ready
 opened: 2026-09-03
 area: kernel
 prefix: exch/

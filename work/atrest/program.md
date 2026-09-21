@@ -2,7 +2,7 @@
 id: atrest
 kind: program
 title: ATREST — what tier 3 accepts and refuses: the at-rest validator's holes in both directions
-status: open
+status: active
 opened: 2026-09-20
 area: kernel
 prefix: atrest/
