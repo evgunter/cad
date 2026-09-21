@@ -199,6 +199,33 @@ pub(crate) fn value_gesture(
     }
 }
 
+/// **Both halves of what one probe row hands [`drag_ops`]**: the four
+/// operations a drag emits and the one-shot triple a TYPED value
+/// spells.
+///
+/// A struct rather than a tuple because the two are passed as separate
+/// arguments and are the same shape at the call, so a transposition
+/// hands the drag arm to the typed parameter with nothing between the
+/// mistake and the user — the argument [`GestureVocabulary`] makes
+/// about its own four members.
+///
+/// **Boxed rather than generic.** Both members are closures minted
+/// here, so a caller never names their types; spelling them as two
+/// type parameters makes this function's return type the widest thing
+/// in the module and says nothing a reader wants. One allocation per
+/// probe row per frame is not a cost this chrome can measure.
+pub(crate) struct ProbeOps<'a> {
+    /// What the pointer drives.
+    pub(crate) gesture: GestureVocabulary<BoxedPreview<'a>>,
+    /// What a typed value spells: a begin, a preview and a commit in
+    /// one batch.
+    pub(crate) typed: Box<dyn Fn([f64; 3]) -> Vec<SessionOp> + 'a>,
+}
+
+/// One preview operation of a probe, minted from the row's three
+/// millimetre boxes.
+type BoxedPreview<'a> = Box<dyn Fn([f64; 3]) -> SessionOp + 'a>;
+
 /// **A FREE-MOVE probe's whole vocabulary**, minted from the one
 /// instance every operation in it names: the four a drag emits, and
 /// the one-shot triple a TYPED value spells.
@@ -212,23 +239,21 @@ pub(crate) fn value_gesture(
 /// `frame_of` is the panel's own writing — the millimetres its three
 /// boxes show composed into the rigid frame a preview carries — and is
 /// the only part of the probe's vocabulary that is not the name's.
-pub(crate) fn free_move_gesture(
+pub(crate) fn free_move_gesture<'a>(
     instance: RecipeNodeId,
-    frame_of: impl Fn([f64; 3]) -> Frame + Copy,
-) -> (
-    GestureVocabulary<impl Fn([f64; 3]) -> SessionOp>,
-    impl Fn([f64; 3]) -> Vec<SessionOp>,
-) {
+    frame_of: impl Fn([f64; 3]) -> Frame + Copy + 'a,
+) -> ProbeOps<'a> {
     let name = FreeMoveName { instance };
     let gesture = GestureName::FreeMove(name);
-    let vocabulary = GestureVocabulary {
-        begin: gesture.begin(),
-        commit: gesture.commit(),
-        cancel: gesture.cancel(),
-        preview: move |mm| name.preview(frame_of(mm)),
-    };
-    let typed = move |mm| vec![name.begin(), name.preview(frame_of(mm)), name.commit()];
-    (vocabulary, typed)
+    ProbeOps {
+        gesture: GestureVocabulary {
+            begin: gesture.begin(),
+            commit: gesture.commit(),
+            cancel: gesture.cancel(),
+            preview: Box::new(move |mm| name.preview(frame_of(mm))),
+        },
+        typed: Box::new(move |mm| vec![name.begin(), name.preview(frame_of(mm)), name.commit()]),
+    }
 }
 
 /// **The one mapping from a `DragValue` to session operations**, and
@@ -943,7 +968,9 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{drag_gesture_ops, free_move_gesture, number_field, value_gesture, vec3_row_ops};
+    use super::{
+        ProbeOps, drag_gesture_ops, free_move_gesture, number_field, value_gesture, vec3_row_ops,
+    };
     use crate::session::{SessionOp, ValueGestureName};
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
@@ -1028,7 +1055,7 @@ mod tests {
                 let laid_out = ui.horizontal(|ui| match vocabulary {
                     Vocabulary::FreeMove => {
                         let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
-                        let (gesture, typed) = free_move_gesture(NODE, frame_of);
+                        let ProbeOps { gesture, typed } = free_move_gesture(NODE, frame_of);
                         vec3_row_ops(ui, 0.5, mm, gesture, typed, ops_ref);
                     }
                     Vocabulary::Slot => {
@@ -1380,7 +1407,7 @@ mod tests {
             "the typed triple drove more than one gesture: {named:?}"
         );
         let drawn = free_move_gesture(NODE, |mm: [f64; 3]| Frame::translation(mm))
-            .0
+            .gesture
             .commit
             .names_gesture();
         assert_eq!(

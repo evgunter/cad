@@ -13,8 +13,8 @@ use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName};
 use crate::widgets::{
-    delete_button, drag_gesture_ops, drag_ops, free_move_gesture, number_field, value_gesture,
-    vec3_row_ops,
+    ProbeOps, delete_button, drag_gesture_ops, drag_ops, free_move_gesture, number_field,
+    value_gesture, vec3_row_ops,
 };
 
 impl ViewerBehavior<'_> {
@@ -434,7 +434,7 @@ impl ViewerBehavior<'_> {
                 // zero y and z. The chrome offers the translation
                 // components; the op vocabulary takes any rigid frame.
                 let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
-                let (gesture, typed) = free_move_gesture(node, frame_of);
+                let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
                 ui.horizontal(|ui| {
                     vec3_row_ops(ui, field.tick, &mut mm, gesture, typed, self.ops);
                 });
