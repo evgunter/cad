@@ -164,3 +164,29 @@ the width bound moved) and
 through `named_field` so the canonical→written→parse→canonical round
 trip is the one under test.
 
+
+
+## Orchestrator's disposition on the partial (2026-09-21)
+
+Accepted as a partial and left OPEN deliberately. Recording it here
+because a row that stays open after a unit touched it otherwise reads
+as a unit that ran out of time.
+
+**What closed**: the commit half, at the constructor, so all ten call
+sites inherit it rather than ten guards inheriting a convention.
+
+**What did not, and why it is not a follow-up to be scheduled
+casually**: the render still spells a value only to `REL_TOLERANCE`.
+Tightening that changes `readout`'s own **ratified** accuracy rule, so
+it is a design question and not a lane's to answer. It now sits clean,
+which is the thing the unit bought beyond the fix: the question *what
+bound does a RENDER owe* no longer has a commit path riding on its
+answer.
+
+**The user-visible cost is disclosed above and is the orchestrator's
+to carry, not the lane's.** Moving the creation forms' parser from
+`egui`'s `default_parser` to `props::field_edit` drops interior-space
+and U+2212 spellings THERE, which the properties panel has never
+accepted. Consistent rather than poorer in one half, and put to Ev in
+chat rather than absorbed silently. If Ev wants both spellings kept,
+that is a new row against the shared parser and not a revert of this.
