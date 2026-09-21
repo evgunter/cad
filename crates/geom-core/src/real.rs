@@ -181,8 +181,16 @@ pub enum SymRegistration {
 /// the same way: asserted at an exact witness, counted
 /// ([`crate::SymCounts::theorems_disputed`]) at an inexact one. Both
 /// are the same question about the same channel, so they read one
-/// marker rather than two roster copies that can drift
-/// (`geom-core/tests/sym11_witness_kind_rows.rs` pins the pair).
+/// marker rather than two roster copies.
+///
+/// **That they cannot drift is a property of the PIN, not of the
+/// marker**, and the difference is one a first cut got wrong: a const
+/// read in two places still lets a scalar declare one thing and answer
+/// another. What closes it is that
+/// `geom-core/tests/sym11_witness_kind_rows.rs`'s `witness_agrees` is
+/// GENERIC — one predicate instantiated at every `impl Real` in the
+/// tree by name — so an impl whose const and whose refusal arm
+/// disagree reds without anyone having written that pair down.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Witness {
     /// **A comparison here is a PROOF.** The value channel is a
@@ -248,9 +256,16 @@ pub trait Real:
     /// declared, never defaulted, because the two things that read it
     /// both fail in the same direction when a scalar under-declares:
     /// [`Real::register_equal`]'s refusal arm and the theorem-vs-numeric
-    /// charge at `Sym<T>::sign_within`. A new lane scalar has to say
-    /// which side of the partition it is on, and its `register_equal`
-    /// arm has to agree (a pin reads both).
+    /// charge at `Sym<T>::sign_within`. **No default, so the compiler
+    /// is what asks**: a new lane scalar does not compile until it says
+    /// which side of the partition it is on, and nothing has to notice
+    /// that it did not.
+    ///
+    /// Its [`Real::register_equal`] arm then has to AGREE, which the
+    /// compiler cannot ask — `witness_agrees` in
+    /// `geom-core/tests/sym11_witness_kind_rows.rs` does, generically,
+    /// at every `impl Real` in the tree: `Exact` ⇔ a separated pair is
+    /// refused `Contradicted`, `Inexact` ⇔ `Disputed`.
     const WITNESS: Witness;
 
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
