@@ -609,6 +609,21 @@ file named the arm until the freeze; the frozen head's run was red on
 the tracker lint after main closed FIX. Block SCALAR-B4's three rows
 are complete; slot 2's reviews concluded earlier, so the block closes
 with this merge.
+
+## Block SCALAR-B4 closed (2026-09-21)
+
+Three slots, three duals, zero counted tally candidates: CURVE3-JET
+(FABLE, #227, no MAJOR on either arm), LANE-0 (OPUS, #229, both MAJORs
+bilateral — the design settled by the orchestrator's ruling), RING-1
+(OPUS, #228, the one MAJOR bilateral and pre-fixed). The block's
+record — pre-draw fields (slots 1–2's class recorded as the plan's H
+before the byte, the cut coming out E), the draw (byte 75), the three
+rows — lands on main with this PR. Exposures the rows carry: the spec
+commits' trailers naming a model (CURVE3-JET's R1 saw one; unit-branch
+orchestrator commits carry none since), the item files naming the arm
+until LANE-0's freeze, the PR bodies' auto-appended vendor footer, two
+sample-number collisions with other programs' branch-side records
+(the META row).
 ## Block SCALAR-B4 drawn; CURVE3-JET dispatched (2026-09-15)
 
 The Curve3 jet door opens block SCALAR-B4 as slot 0 (byte 75 ⇒ slot 0
