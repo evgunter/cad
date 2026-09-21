@@ -930,3 +930,29 @@ branch with instructions to re-verify everything before trusting it.
 LANE-1's implementer had already reported (its file) and its frozen
 head was already green; its dual dispatched on schedule. The restart
 also killed every watcher; re-armed.
+
+## LANE-1 dual concluded (2026-09-21)
+
+Both arms APPROVE WITH FIXES on frozen `e6e66d99f3`: R1 (OPUS) 1 MAJOR
+/ 5 MINOR / 6 NOTE, R2 (FABLE) 1 MAJOR / 4 MINOR / 6 NOTE; both ran
+the two corpus dumps base vs head byte for byte at `f64` and `Dual64`
+(318 rows, diff empty), the `compile_fail` for the right reason, the
+wiring mutants, the red-first. **The one MAJOR is the same finding on
+both arms, by execution** — the fold gives plain-name `f64` callers of
+`validate_pseudomanifold`/`contact_marks` the certified door, so on a
+corrupt M7-8 body the verdict changes from `VolumeUncomputable` to four
+`EdgeCertification` findings, observable through `pncad-py`'s door and
+two tour scenes; the spec's table chose the mechanism and its §1
+denied the consequence — the spec's sentence did not survive ⇒
+bilateral, no tally candidate. The orchestrator's ruling: the fold
+stands (under ruling 3 the plain name IS the certified door; the base's
+hybrid is what the cut removes) and owes a Python pin and a docstring.
+Unique R1: DL3's re-wording inserted the wrong door into ratified text
+(the gather calls the gates, not `_structural`) — restored to the
+mechanism shape; the unguarded "ONE `lo` call" disclosure, guarded by
+R1's own census row; the `_structural` suffix's two semantics
+(`validate_geometric_structural` drops check 7, the tier-3′ twins run
+it closed-form), a pre-existing ATREST shape now uniform — filed, not
+changed. Unique R2: the evalscalar allowlist header written to the
+spec's supertrait list, not the tree's; the unearned `Bounds` on the
+props `_structural` doors. Fix pass dispatched on the FABLE arm.
