@@ -60,7 +60,7 @@ fn double_subtract_crossing_slots<
 /// The full soundness check, generic over the scalar lane: tiers 1/2,
 /// tier 3′ with the op's own contact records, and a rigid-transform
 /// shake-out (downstream consumers re-certify the result cleanly).
-fn assert_result_sound<T: Decide + topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
+fn assert_result_sound<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     out: &BooleanBody<T>,
 ) {
     assert_eq!(validate(&out.body), Ok(()), "tier 1");
