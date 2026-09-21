@@ -223,3 +223,36 @@ that has not closed yet (unlit fuse, and the tree holds many); and
 anything outside `crates/*/src`, `crates/*/tests` and `tools/` — in
 particular `crates/*/README.md` and `crates/*/ASSEMBLY.md`, which the
 `work/docm/` table above reached but this pass did not.
+
+### Four repaired at DOOR's exit sweep (2026-09-21, sweep 19)
+
+DOOR left the tracker on 2026-09-21 and its sweep repaired every
+`work/`-path citation in shipped code that its directory was about to
+break, rather than leaving them as this row's tenth through thirteenth.
+Three were **already dead before the sweep**, and that is the finding
+worth adding: they point at `work/door/all-census-idiom-forces-the-visit-not-the-update`,
+which moved to `work/census/` in the **design-free sweep of
+2026-09-20** — so a re-home breaks these citations exactly as a
+closure does, five days earlier and with no ledger entry to resolve
+them by. **This row's fuse metaphor is too narrow**: it is not only
+that a citation dies the day its program closes, it is that a citation
+dies the day its row MOVES, and rows move far more often than programs
+close.
+
+| citing file | cited path | now |
+| --- | --- | --- |
+| `crates/topo/src/boolean/mod.rs` | `work/door/all-census-idiom-forces-the-visit-not-the-update` | `work/census/` |
+| `crates/topo/src/query.rs` | `work/door/all-census-idiom-forces-the-visit-not-the-update` | `work/census/` |
+| `crates/editor-core/tests/m4_pr1_dims.rs` | `work/door/all-census-idiom-forces-the-visit-not-the-update` | `work/census/` |
+| `crates/editor-core/tests/wire_operand_door.rs` | `work/docm/the-third-datum-axis-phrase-lives-in-mate-member.md` | the row closed (#2984); the citation now states what the code does and names `docs/DOC-LEDGER.md` sweep 19 |
+
+The fourth is shape (2) done as the near-miss above recommends: the row
+it cited had already been dead at `work/docm/` since sweep 14, was
+closed by DOOR's #2984, and would have been dead again at `work/door/`
+within the week — so pointing it at a third directory would have been
+the third wrong answer. It names the ledger instead, which is the only
+form that does not rot.
+
+**The gate this strengthens is still the weak one** (shape 1): assert
+that a cited `work/` path resolves. All four paths above were simply
+absent, and CI said nothing across two sweeps and a re-home.

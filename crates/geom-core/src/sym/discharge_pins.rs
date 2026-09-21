@@ -60,13 +60,14 @@ use crate::predicate::Sign;
 /// A DESTRUCTURE and not a field list: a column added to
 /// [`SymCounts`] is a compile error here until this row says which
 /// side of the partition below it is on.
-fn columns(counts: SymCounts) -> [(&'static str, u64); 7] {
+fn columns(counts: SymCounts) -> [(&'static str, u64); 8] {
     let SymCounts {
         symbolic_zero,
         sign_gated,
         registered,
         registrations_refused,
         registrations_contradicted,
+        theorems_disputed,
         numeric,
         frozen,
     } = counts;
@@ -76,6 +77,7 @@ fn columns(counts: SymCounts) -> [(&'static str, u64); 7] {
         ("registered", registered),
         ("registrations_refused", registrations_refused),
         ("registrations_contradicted", registrations_contradicted),
+        ("theorems_disputed", theorems_disputed),
         ("numeric", numeric),
         ("frozen", frozen),
     ]
@@ -87,10 +89,17 @@ fn columns(counts: SymCounts) -> [(&'static str, u64); 7] {
 /// last assertion of the row pins that); `registrations_refused` and
 /// `registrations_contradicted` count events at the registry door and
 /// at a numeric contradiction, neither of which is a decision being
-/// discharged; `frozen` counts nodes, not decisions.
-const NOT_A_DISCHARGE_KIND: [&str; 4] = [
+/// discharged; `theorems_disputed` counts a decision the numeric
+/// channel answered at an INEXACT witness while the form said zero
+/// ([`SymCounts::theorems_disputed`]) — the decision itself is counted
+/// `numeric`, as a decision with no discharge is, and this column is a
+/// second fact about that same decision rather than a fourth place for
+/// one to land, so no [`Discharge`] reaches it and none may; `frozen`
+/// counts nodes, not decisions.
+const NOT_A_DISCHARGE_KIND: [&str; 5] = [
     "registrations_refused",
     "registrations_contradicted",
+    "theorems_disputed",
     "numeric",
     "frozen",
 ];

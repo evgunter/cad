@@ -63,8 +63,8 @@ it needs explaining beyond this paragraph.
 The 2026-09-20 widening below was still short. AUTH-1 and AUTH-2
 between them changed **thirteen** files under `crates/viewer/src/`;
 `paths` named eight, six of which overlapped. `blend.rs`,
-`datums.rs`, `lib.rs`, `session.rs`, `session/op.rs` and `widgets.rs`
-were all edited by a merged AUTHOR unit while unclaimed, so
+`datums.rs`, `session.rs`, `session/op.rs` and `widgets.rs` were all
+edited by a merged AUTHOR unit while unclaimed, so
 `work.py territory` could not have warned a sibling lane about any of
 them — the second time in two days that this list failed at the one
 job it has.
@@ -76,7 +76,10 @@ units plus the files the eight open rows name in their own bodies
 paragraph in `plan.md` was itself corrected on 2026-09-21 after naming
 the wrong two files). It is evidence, not estimate.
 
-`lib.rs` is deliberately LEFT OUT although both units touched it: the
+`lib.rs` was edited by both units too and is deliberately LEFT OUT
+rather than counted among the five above — the omission is a choice,
+not a sixth miss (CHROME caught the two lists disagreeing, 2026-09-21):
+the
 edits are one-line module declarations, and claiming a file every
 viewer lane touches would make this program appear in every warning
 and so make the warning worth less. Over-claiming has a cost too, and

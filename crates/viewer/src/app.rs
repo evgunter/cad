@@ -175,10 +175,6 @@ const FEATURES_SHARE_CAP: f32 = 0.5;
 /// what sizes the tile.
 const FEATURES_SLACK: f32 = 8.0;
 
-/// The starting display tolerance: 0.1 mm, fine enough that a 24 mm
-/// hole reads as a circle and coarse enough to redraw instantly.
-const INITIAL_DELTA: f64 = 1.0e-4;
-
 /// The document file extension the dialog filters on.
 ///
 /// `cfg`-ed with the dialogs it filters for: the browser build links
@@ -732,7 +728,7 @@ impl ViewerApp {
     /// Every arm of [`StartupError`] except
     /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
     fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
-        let delta = DisplayTolerance::new(INITIAL_DELTA).map_err(StartupError::Scene)?;
+        let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
         // A provisional camera at a square aspect, because no pane has
@@ -2220,16 +2216,6 @@ pub fn initial_layout() -> Tree<Pane> {
         egui_tiles::Linear::new_binary(egui_tiles::LinearDir::Horizontal, [viewport, side], 0.66);
     let root = tiles.insert_container(egui_tiles::Container::Linear(linear));
     Tree::new("viewer_tree", root, tiles)
-}
-
-/// Column-major `f64` matrix to the `f32` the GPU consumes.
-///
-/// Written as a `map` rather than an indexed loop on purpose: the
-/// earlier shape wrote through `get_mut` at statically-in-range
-/// indices, so a wrong index would have produced a *partly converted*
-/// matrix and no error at all. `map` cannot miss a slot.
-pub(crate) fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
-    matrix.map(|column| column.map(|value| value as f32))
 }
 
 /// Run the application, optionally opening `open` at startup.

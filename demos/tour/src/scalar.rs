@@ -12,7 +12,7 @@
 //! so every oracle asserted at f64 holds bit-identically at Probe.
 
 use pncad::document::ContentBits;
-use pncad::geom_core::{Bounds, Decide};
+use pncad::geom_core::Decide;
 // Only the `Scalar for Probe` impl below names it; the recording scalar
 // rides the `probe` feature (see this crate's manifest).
 #[cfg(feature = "probe")]
@@ -106,11 +106,19 @@ pub fn axis_frame<S: Scalar>(
     .expect("the scene's spine axis has a direction and its reference radial is off it")
 }
 
-/// A scalar the tour can build scenes at: kernel-decidable, document-
-/// evaluable (the heat-sink recipe), and exactly f64-extractable for
-/// narration.
+/// A scalar the tour can build scenes at: kernel-decidable, certifying
+/// (every scene is measured through the certified doors, so the bound
+/// is the quadrature's own), document-evaluable (the heat-sink recipe),
+/// and exactly f64-extractable for narration.
 pub trait Scalar:
-    Decide + Bounds + ContentBits + pncad::topo::AtRestPolicy + Send + Sync + Copy + 'static
+    Decide
+    + pncad::geom_core::CertifiedBounds
+    + ContentBits
+    + pncad::topo::AtRestPolicy
+    + Send
+    + Sync
+    + Copy
+    + 'static
 {
     /// The exact f64 value (narration/oracles only — never decisions).
     fn f(self) -> f64;

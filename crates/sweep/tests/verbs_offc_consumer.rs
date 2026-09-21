@@ -741,8 +741,8 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
     body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
         .unwrap();
 
-    // The validator, through production code (`PropsQuadLane`'s
-    // re-derivation lane, which is what tier 3 calls per face).
+    // The validator, through production code (the offset-fit door
+    // check 1 reads off `AtRestPolicy`, which is what tier 3 calls per face).
     let findings = match topo::validate_geometric(&body, Tol::witness()) {
         Ok(()) => Vec::new(),
         Err(e) => e.iter().map(|f| format!("{f:?}")).collect(),

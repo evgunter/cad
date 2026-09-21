@@ -14089,3 +14089,226 @@ asks for a warning count nobody can produce teaches a lane to invent
 one.
 
 Signed (VIEW implementer lane `view/cut-residue`).
+
+## 2026-09-21 — the refusal-floor unit, the cut's residue, and a posture a cut reopened
+
+**#3000 merged** — VGEOM's four refusal-floor doors, the P0 among them.
+`SlotValue::of` now answers `Result` and raises
+`DimensionError::NonFiniteLiteral` — *the same refusal, by name*, that
+`Expr::literal` raises for the continuous half, which makes
+`props.rs`'s standing promise true rather than merely patching it.
+`world_per_px` asks `is_finite` before reading its bound as one, and
+guards the quotient too. `camera::sphere` asks `finite` of the PRODUCT,
+where the overflow is. `gpu.rs`'s two saturating casts became one
+`draw_range` door that refuses. Five mutations, one row red each.
+
+Verified the receipt myself rather than reading it: run 35583567062 is
+39 jobs, **twelve `test (…)` and five `k-lint (gate, …)` all green**,
+`gate ok` green and posted last (09:57:19, after `release-default`'s
+09:57:08). Counted from the check list, not read off `docs-only ok`.
+
+**#3003 merged** — the cut's residue. Nine of `crates/viewer/src`'s
+fifty-two files had no successor claiming them while VIEW is NOT
+DISPATCHING; each now has one whose charter sentence decides it, every
+split written on both sides. Re-derived: 52 files, exactly
+`drafts.rs` left outside the four, and it is AUTHOR's and AUTHOR
+dispatches. The tier rule lost its totals and kept the two counts that
+carry an enumeration rule.
+
+**Four dispatch premises wrong, all four caught by lanes.** I wrote a
+receipt line (`work.py territory` with no argument) that exits 1; asked
+for a lint warning count the tool does not produce; said "the four
+§Charter sections" when there are three; and quoted `work/vgeom/plan.md`
+as naming #2644 as its shape precedent when that file says no such
+thing.
+
+**The fourth is the stale-board rule failing on its second day.** I
+re-derived VGEOM's ROW LIST from `origin/main` and read its PLAN from
+the working tree, which was pinned at `0c530f67ef`. The rule as written
+covers both; I applied it to the artefact I had just been burned on and
+not to the one beside it. And a third variant bit an hour later:
+`git show origin/main:<path>` is only as fresh as the last `git fetch`,
+and mine was two merges behind. **The rule wants both halves: fetch,
+then read the ref.**
+
+## The posture a cut reopened
+
+The 2026-09-20 priority-seam cut (`fb899b019c`) rewrote
+`work/vgeom/plan.md` and took §Charter and §The register with it —
+`work/vgeom/program.md` went on pointing lanes at a §The register that
+had not existed for a day — and it overwrote §Review posture with the
+template for a **newly opened** program: *"OPEN, for this program's
+first dispatch … the first orchestrator answers it here rather than
+inheriting an answer."*
+
+VGEOM is a parent of that cut, not a child of it. The roster entry for
+the cut itself says which programs the v7 triage question is open for —
+EMIT, GATHER and FIT, the three it opened — in the same sentence that
+says *"WIRE and VGEOM are NOT closed and keep their bands 3700-3799 and
+5300-5399"*. And the 2026-09-17 clause is explicit: *"All four inherit
+VIEW's posture verbatim (Ev, in-chat, 2026-09-04, reaffirmed that
+evening) … no duals and no row recorded … Each program's `plan.md`
+§Review posture states it."* Ev reaffirmed it at this session's
+hand-over.
+
+So a template silently reopened a question Ev had answered twice, on a
+program that was mid-wave. All three sections restored, quoting the
+roster rather than re-asserting anything, and the stale *"Nothing
+dispatched"* head line re-pointed at the log.
+
+**This is the morning's `keep_out` finding again with a different
+subject**, and the register rule generalises to cover it: a fence, a
+posture or a status **written by a cut** has no independent authority,
+because nothing re-derives what a cut writes. Two instances in one day,
+from two different cuts, one of them mine.
+
+## 2026-09-21 — the rule register is deleted
+
+Ev's ruling, in chat: lift out anything that reports an **actual
+problem** and that **a prompt update could actually fix** — not
+something categorisable in retrospect that an advance warning would not
+have prevented — *"otherwise it should just be deleted"*.
+
+**Seven candidates were offered and none survived as new text.** Three
+were already written down, and that is the finding rather than an
+embarrassment beside it:
+
+- *verify a tier by its shape, not a job total* →
+  `docs/prompts/implementer-discipline.md` §2 already says *"if you
+  cannot see twelve test jobs and five `k-lint (gate, …)` jobs on a
+  code-tier run, something narrowed it and you should find out what."*
+- *a receipt for a command never run in the form it was written down*
+  → §5 Sweeps already says *"a pattern with no hits recorded is a
+  claim; a hit list is a receipt."* Ev remembered this one by
+  description before I found it.
+- *an un-mergeable PR's CI looks like broken infrastructure* →
+  `memories/agent-lane-operations.md`'s conflicting-PR bullet.
+
+The other four were retrospective categorisation — true after the
+fact, useless before it. **One amendment came of it** (#3019): that
+memory bullet said such a PR gets NO CI run, and its third face is a
+run that COMPLETES with every job dead in 2-3 seconds, a healthy docs
+tier except for `gate ok`, diagnosed with `git merge-tree --write-tree`
+and never from the logs. Six lines, plus one word so the file's own
+restatement sixty lines down stops contradicting it.
+
+**What went.** 1,502 lines to 198. Eighty-seven rules in eighteen days,
+inherited by reference by four live programs each told to read it in
+full before every dispatch. The four `plan.md` §The register sections
+and four `program.md` pointers now name
+`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md` instead, which is where a lane's
+standing obligations were supposed to be all along.
+
+**`the-lane-register-has-no-home-after-views-directory-goes` closes
+without being answered.** It asked where the register should live after
+VIEW's directory goes; it lives nowhere, and VIEW's exit walk loses a
+precondition rather than gaining a step.
+
+**The argument for the ruling, in one line:** three of the last day's
+failures were covered by text that is read at the start of every
+session and was not applied. The register was not preventing those. It
+was recording them, at about five rules a day.
+
+Recoverable at `66d7357417`. One row filed —
+`work/vdoc/register-citations-in-item-files-point-at-deleted-text` —
+for the ten item files that cite a rule of it by a path that still
+resolves to a different file.
+
+## 2026-09-21 — the remnant is re-homed; VIEW is down to two rows
+
+Ev, in chat: *"it seems good to have you finish off view rather than
+leaving a remnant with uncertain status."* Five of the seven open rows
+moved by `git mv`, ids, bodies and history unchanged, each against the
+RECEIVING program's own charter test rather than against a guess at
+subject.
+
+| row | to | the sentence that decided it |
+|---|---|---|
+| `a-derived-pick-index-failure-outshouts-its-cause` | VNEWS | a downstream effect outranking the failure it depends on is a rank defect, and VNEWS's §Charter names `rank-one-discards-the-frames-other-news` as a member of that class |
+| `face-selection-carries-a-bare-stable-name` | VSEAM | typed session state and the door that owns it; `session/select.rs` and `matetool.rs` are both VSEAM's, the second since #3003 |
+| `startup-notices-need-holding-to-badge` | VSEAM | VNEWS's test excludes it in as many words — *"nothing it touches survives the frame that produced it"* — and the row's whole content is that the notices must be HELD |
+| `error-and-check-text-overflows-its-region` (P0, Ev's) | CHROME | CHROME's `keep_out`: *it keeps the viewer's reported defects and its entrenching architecture*; its sibling `the-toolbar-row-does-not-wrap` was VIEW's and closed 2026-09-14 |
+| `a-refusal-offers-no-action-in-the-viewer` (Ev's) | CHROME | same; AUTHOR was considered and rejected, its charter being the authoring goal's GUI half rather than how a refusal is presented |
+
+**Ev's P0 moved whole rather than split.** Its two halves are layout
+and concision, and the concision half reaches into kernel `Display`
+impls — but the row records that half as never investigated, so
+drawing the boundary now would be a guess dressed as a re-home. CHROME
+splits it when it takes it, which the row already instructs.
+
+**Announced, not just moved.** CHROME and VNEWS each have a live
+orchestrator on another machine, so each receiving program's `log.md`
+carries the note — the shape CHROME used when it wrote to VGEOM this
+morning. `work/README.md` allows the move without permission; it does
+not make the move visible, and an unannounced arrival on a board
+someone else is working is how two programs come to disagree about
+what is theirs.
+
+**Said plainly, because it is a real cost:** all three receiving
+programs are already over the track-size ceiling (CHROME 52.5/30,
+VSEAM 39/30, VNEWS 37/30). This does not make them worse at finding
+the rows — the rows were unreachable on a program that does not
+dispatch — but it is load moved onto slates that are already asking to
+be cut.
+
+**What is left of VIEW: two rows**, both in `view/seam-residue`'s lane
+and both the residue of Ev's *panic on crash* ruling — `PickCache::
+indexing`'s seam half and `Coalescing`'s orderly-forget arm having no
+shipped producer, and the `Dying*` fakes mirroring a machine they no
+longer agree with. If either survives that lane open it goes to VSEAM
+on the same test; `evalseam.rs` and `pickcache.rs` are its ground.
+Then VIEW's slate is empty and the exit walk is the only step left.
+
+## 2026-09-21 — the seam residue of the panic ruling (`view/seam-residue`)
+
+The two rows the 2026-09-17 ruling left behind, taken together because
+the second exists to exercise what the first says is unreachable.
+
+**`PickCache::indexing` is one read again.** The `&& self.seam.busy()`
+conjunct had exactly one producer — a worker that had gone quiet — and
+that producer was deleted by the ruling that makes a crashed worker
+panic. The argument is an invariant and not a grep: an attempt is
+recorded `Asked(k)` in the same step that submits `k`, the seam holds
+that request until it answers, and `pump` takes the answer straight to
+`land`, so `Asked` implies `busy` for both shipped implementations.
+The three places a job leaves the seam unanswered are `poll`'s
+non-superseding arm — same key, landed in the same statement — and
+`close`/`forget_worker`, which only three `fn drop` bodies reach.
+
+**The row's first question was posed on an incomplete census, and the
+answer is no.** `IndexService::busy` does not leave the trait: it is
+read directly by `tests/eval_seam.rs` and through the `Drainable`
+adapter every threaded row in that file spins on. It is the seam's own
+observable for *at most one outstanding*; the consumer that stopped
+reading it is one reader of several.
+
+**`Coalescing::forget_worker` stays, with its two arms.** Unreachable
+on a running application, and the function already says so. Answering
+a closed channel with `crashed()` would be a false statement about an
+orderly shutdown and would restore the conflation #2762 removed — the
+same reasoning the module already applies to
+`a_send_that_fails_with_the_channel_still_ours_is_a_crash_too`.
+
+**Both `Dying*` fakes are gone**, and they were two different cases.
+`DyingIndexer` modelled a dead state and had no unique assertion left.
+`DyingEvaluator` modelled a LIVE state (`Outstanding::Canceled`) by a
+route no implementation may take, and the live route — a real cancel
+through the shipped seam — is already driven, with the `Reevaluate`
+recovery the fake could not reach. `dying_worker` went with them: the
+hand-written mirror class is out of `frame_policy.rs` entirely, and
+what drives `Coalescing`'s two endings is `evalseam`'s own `mod tests`
+over the shipped type.
+
+`crates/viewer/README.md`'s *Every "is work outstanding" answer
+consults the seam it asked* is rewritten rather than repaired around.
+It was written by a lane at `030d5021d8` (#2637), not ratified by Ev,
+and `docs/DESIGN.md`'s companion table names that README the
+implementation record the program maintains itself — so this is not an
+[ev] PR. The rule it states now is that the answer comes from whichever
+record can be wrong about it, and the index seam's is the cache's.
+
+Both rows closed. 714 rows green; five mutations recorded on the PR,
+one of which is a receipt for a weak guard rather than a strong one —
+`NotIndexed::Absent`'s sentence is held only by *differs from
+`Building`* and *contains "index"*.

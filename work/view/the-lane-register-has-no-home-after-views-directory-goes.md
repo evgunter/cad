@@ -2,10 +2,12 @@
 id: the-lane-register-has-no-home-after-views-directory-goes
 kind: issue
 title: VIEW's lane register binds four successor programs by reference and dies with work/view/plan.md
-status: open
+status: closed
 opened: 2026-09-17
 priority: P4
 cost: E
+closed: 2026-09-21
+branch: view/delete-the-register
 ---
 
 
@@ -230,3 +232,42 @@ file beside code it says nothing about.
 
 **This row stays open.** The decision is the orchestrator's; it closes
 when the ruling lands and the move with it.
+
+
+## Closed (2026-09-21) — the register is deleted, so it needs no home
+
+Ev's ruling, in chat: lift out anything that reports an **actual
+problem** AND that **a prompt update could actually fix** — not
+something categorisable in retrospect that an advance warning would not
+have prevented — *"otherwise it should just be deleted"*.
+
+**Seven candidates were offered. None survived as new text.** Three
+were already written down and the checking is the whole finding:
+
+| candidate | where it already lives |
+|---|---|
+| verify a tier by shape, not a job total | `docs/prompts/implementer-discipline.md` §2 — *"if you cannot see twelve test jobs and five `k-lint (gate, …)` jobs on a code-tier run, something narrowed it"* |
+| a receipt for a command never run in the form it was written | `implementer-discipline.md` §5 — *"a pattern with no hits recorded is a claim; a hit list is a receipt"* |
+| an un-mergeable PR's CI looks like broken infrastructure | `memories/agent-lane-operations.md`, the conflicting-PR bullet |
+
+The other four were retrospective categorisation. One **amendment**
+came out of it (#3019): that memory bullet said such a PR gets NO CI
+run, and its third face is a run that COMPLETES with every job dead in
+2-3 seconds — a healthy docs tier except for `gate ok` — diagnosed with
+`git merge-tree --write-tree`, never from the logs.
+
+**So the row's question dissolves rather than being answered.** It
+asked where 1,330 lines should live after VIEW's directory goes. They
+live nowhere, VIEW's exit walk loses a precondition, and the four
+successors point at `docs/prompts/` instead — which is where a lane's
+standing obligations were supposed to be all along.
+
+**What the register cost, said plainly, because it is the argument for
+the ruling.** Three of the last day's failures were covered by text
+read at the start of every session and not applied. The register was
+not preventing those; it was recording them, and growing at about five
+rules a day while four live programs were told to read it in full
+before every dispatch.
+
+Recoverable at `66d7357417`, the last commit that carried it — the
+convention `docs/DOC-LEDGER.md` uses for a deleted exit walk.

@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui;
 
-use crate::app::{ViewerBehavior, chrome, to_f32};
+use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::frame;
@@ -16,6 +16,7 @@ use crate::gpu::{IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
+use crate::narrowing::Narrow;
 use crate::pickcache;
 use crate::pickindex::{PickIndex, PictureKey};
 use crate::session::SessionOp;
@@ -23,15 +24,23 @@ use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 
 /// **One sketch-plane segment, placed and appended to an overlay lane**
 /// as the line-list pair the edge pass draws.
+///
+/// **A leg with an end the display seam refuses is not drawn, and it
+/// is not half drawn.** `crate::narrowing` states the rule; what is
+/// particular here is that this lane is the one with an authored
+/// producer: a path whose corner is `7e307` — a number the
+/// add-profile form takes, because it is a number — replays,
+/// flattens, and arrives with coordinates whose narrowing is an
+/// infinity. What used to reach the vertex buffer was that infinity.
 fn push_segment(
     lane: &mut Vec<[f32; 3]>,
     plane: &pncad::profile::SketchPlane<f64>,
     a: [f64; 2],
     b: [f64; 2],
 ) {
-    for [x, y] in [a, b] {
-        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
-        lane.push([world.x as f32, world.y as f32, world.z as f32]);
+    let ends = [a, b].map(|[x, y]| plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    if let Some(pair) = ends.narrow() {
+        lane.extend(pair);
     }
 }
 
@@ -598,11 +607,20 @@ impl ViewerBehavior<'_> {
             // records in the field above.
             *self.datums_vanished = drawn.vanished();
             for drawn in drawn.drawn {
-                for point in drawn.segments {
-                    edges
-                        .datums
-                        .push([point[0] as f32, point[1] as f32, point[2] as f32]);
-                }
+                // The same seam and the same rule as [`push_segment`]:
+                // a datum mark's endpoint the GPU cannot hold is not
+                // drawn. `datums::draws` sizes every mark against the
+                // view and refuses on its own scale, so nothing in
+                // tree produces one — the arm is here so the crate
+                // has ONE disposition for the narrowing rather than a
+                // cast that happens not to fail.
+                edges.datums.extend(
+                    drawn
+                        .segments
+                        .chunks_exact(2)
+                        .filter_map(|leg| [leg[0], leg[1]].narrow())
+                        .flatten(),
+                );
             }
         }
         // **The profiles the document holds**, from the landed
@@ -726,7 +744,12 @@ impl ViewerBehavior<'_> {
         // painted the line, and `perform_batch` then ran after this
         // pane — so on every frame whose batch acted cleanly the
         // `Clear` took it before any frame drew it.
-        let matrix = match self.camera.view_projection(aspect) {
+        // **The matrix the GPU will actually hold**, not the algebra's
+        // own: `Camera::view_projection_f32` is the camera's door at
+        // the display seam, and a projection this module can form and
+        // a GPU cannot hold refuses here by the same route and into
+        // the same badge as one the camera could not form at all.
+        let matrix = match self.camera.view_projection_f32(aspect) {
             Ok(matrix) => {
                 *self.projection_fault = None;
                 matrix
@@ -778,15 +801,32 @@ impl ViewerBehavior<'_> {
             self.notices.push(report.notice());
         }
 
+        // **The pane's own numbers at the same seam the matrix just
+        // crossed.** The size the renderer is told and the point
+        // scale the edge pass sizes marks with are the last two `f64`
+        // the GPU sees, and they cross the one narrowing rather than
+        // a cast written twice here. Nothing in tree produces a
+        // refusal — `aspect()` above has already declined a dimension
+        // that is not positive and finite, and no window is `3.4e38`
+        // physical pixels wide — so what this arm buys is that the
+        // seam has ONE disposition, not a door that refuses over
+        // there and a cast that cannot fail over here.
+        let (Some(viewport_px), Some(point_scale)) = (
+            [viewport.width_px, viewport.height_px].narrow(),
+            pixels_per_point.narrow(),
+        ) else {
+            return;
+        };
         let id_query = match (step, cursor_px) {
-            (IdStep::Ask { serial }, Some(cursor)) => {
-                viewport.ndc_of(cursor).map(|[nx, ny]| IdQuery {
-                    cursor_ndc: [nx as f32, ny as f32],
-                    viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
+            (IdStep::Ask { serial }, Some(cursor)) => viewport
+                .ndc_of(cursor)
+                .and_then(|ndc| ndc.narrow())
+                .map(|cursor_ndc| IdQuery {
+                    cursor_ndc,
+                    viewport_px,
                     serial,
                     answer: Arc::clone(self.id_answer),
-                })
-            }
+                }),
             _ => None,
         };
 
@@ -803,11 +843,11 @@ impl ViewerBehavior<'_> {
             ViewportCallback {
                 scene: Arc::clone(self.scene),
                 revision: self.revision,
-                view_projection: to_f32(&matrix),
+                view_projection: matrix,
                 light_direction: LIGHT_DIRECTION,
                 theme: self.theme,
-                viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
-                pixels_per_point: pixels_per_point as f32,
+                viewport_px,
+                pixels_per_point: point_scale,
                 highlight: highlight.unwrap_or_default(),
                 edges,
                 id_query,

@@ -634,3 +634,15 @@ OPUS reviewing arm. Three facts carried into RING-2's spec: what
 `from_certified` returns under cut (ii) decides whether two register
 sites are hazards; the dry run's red set is conditional on the `hull`
 and `clamped_to` guards; the register wants to be executable.
+
+## LANE-1 merged (2026-09-21)
+
+PR 3010, block SCALAR-B5 slot 1, ordinal 4113. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's bilateral
+MAJOR — the fold's verdict change on M7-8 bodies — was ruled to stand
+and is pinned in-crate; the Python pin the brief asked for was declined
+with evidence (no public door reaches the class) and the gap filed on
+EXCH. Two of the spec's premises were wrong (`run_checks` at `Dual`;
+`Bounds` on `AtRestPolicy`), and the tour needed `CertifiedBounds` on
+its `Scalar` trait; the ledger names them. LANE-2 dispatches on this
+shape.
