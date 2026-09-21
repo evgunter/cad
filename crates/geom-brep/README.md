@@ -38,7 +38,7 @@ escalated typed refusal, never a raw comparison.
 | O2 approximating surface | `crates/geom/src/surfaces/approx.rs` (`Surface::Approx`) |
 | O3 meters and fit | `crates/geom-brep/src/offset_meters.rs`, `offset_fit.rs`, `patch_bound.rs` |
 | O4 shell | `crates/topo/src/shell.rs`, `boolean/voids.rs`, `replace_face.rs`, `offset_together.rs`, `offset_axial.rs` |
-| O5 validator posture | `crates/topo/src/validate.rs` (`recertify_approx`) |
+| O5 validator posture | `crates/topo/src/validate.rs` (`OffsetFitLane::recertify`) |
 
 ## Curved geometry (CURVED-DESIGN C1–C12)
 
@@ -429,8 +429,9 @@ boundary.
 **O5 — The validator re-derives per face, as it does per edge.** Tier 3
 never trusts a stored certificate: `validate.rs` re-runs the O3
 derivation on every `Approx` face on every call through
-`PropsQuadLane::recertify_approx` (`ApproxCertification` on failure;
-`ApproxLaneUnsupported` on a scalar lane that cannot derive it). The
+`geom_brep::OffsetFitLane::recertify`, the door the pass takes as a
+parameter (`ApproxCertification` on failure; `ApproxLaneUnsupported`
+where the scalar's seam hands the pass no door). The
 stored `OffsetCertificate` is provenance, kept for reporting. `Approx`
 faces inherit the NURBS-adjacent exemption from dihedral marks (C7).
 
