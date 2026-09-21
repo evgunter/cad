@@ -497,49 +497,51 @@ fn an_apex_cap_is_a_tiling_and_the_families_that_are_not_refuse() {
 // A cone that is not the fixture
 // ---------------------------------------------------------------------
 
-/// A cone with an arbitrary apex, axis and half-angle.
-fn gcone(apex: geom_core::Point3<f64>, axis: geom_core::Vec3<f64>, alpha: f64) -> Surface<f64> {
-    Surface::Cone {
-        apex,
-        axis,
-        half_angle: alpha,
-        u_ref: if axis.x.abs() < 0.9 {
-            v3(1.0, 0.0, 0.0)
-        } else {
-            v3(0.0, 1.0, 0.0)
-        },
-    }
-}
-
-/// The rim at signed slant `v` on that cone, traversed `u0 -> u1`.
-fn grim(
+/// A cone with an arbitrary apex, axis and half-angle — the fixture
+/// the rows below vary, where every other row in this file holds it
+/// fixed.
+#[derive(Clone, Copy)]
+struct GCone {
     apex: geom_core::Point3<f64>,
     axis: geom_core::Vec3<f64>,
     alpha: f64,
-    v: f64,
-    u0: f64,
-    u1: f64,
-    a: u32,
-    b: u32,
-) -> LoopEdge<f64> {
-    let (s, c) = alpha.sin_cos();
-    let n = axis.normalize();
-    topo::edge(
-        Curve3::Circle {
-            center: apex + n * (v * c),
-            axis: n,
-            radius: v.abs() * s,
-            u_ref: if n.x.abs() < 0.9 {
-                v3(1.0, 0.0, 0.0).cross(n).normalize()
+}
+
+impl GCone {
+    fn surface(self) -> Surface<f64> {
+        Surface::Cone {
+            apex: self.apex,
+            axis: self.axis,
+            half_angle: self.alpha,
+            u_ref: if self.axis.x.abs() < 0.9 {
+                v3(1.0, 0.0, 0.0)
             } else {
-                v3(0.0, 1.0, 0.0).cross(n).normalize()
+                v3(0.0, 1.0, 0.0)
             },
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+        }
+    }
+
+    /// The rim at signed slant `v`, traversed `u0 -> u1`.
+    fn rim(self, v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
+        let (s, c) = self.alpha.sin_cos();
+        let n = self.axis;
+        topo::edge(
+            Curve3::Circle {
+                center: self.apex + n * (v * c),
+                axis: n,
+                radius: v.abs() * s,
+                u_ref: if n.x.abs() < 0.9 {
+                    v3(1.0, 0.0, 0.0).cross(n).normalize()
+                } else {
+                    v3(0.0, 1.0, 0.0).cross(n).normalize()
+                },
+            },
+            u0,
+            u1,
+            a,
+            b,
+        )
+    }
 }
 
 /// **The closed form on cones that are NOT the fixture** — adopted
@@ -554,30 +556,42 @@ fn grim(
 /// derived here rather than read from the fold — including that the
 /// two traversals anchor OPPOSITE flux, which is the sign the fixture
 /// rows cannot see.
+///
+/// **The smallest slant comes from the run's own band, not from a
+/// literal.** Adopting a probe puts it on CI's ε matrix, where the
+/// probe itself ran at one ε: the rim radius `|v|·sin α` a literal
+/// states is decidable at one ε and inside the ambiguity band at
+/// another, and `props_circle_axis_class` is metered at exactly that
+/// radius.
 #[test]
 fn the_apex_cap_measures_on_a_general_cone() {
     for alpha in [0.05_f64, PI / 6.0, 1.4] {
         for apex in [p3(0.0, 0.0, 0.0), p3(0.02, -0.03, 0.05)] {
             for axis in [v3(0.0, 0.0, 1.0), v3(0.0, 0.0, -1.0), v3(1.0, 2.0, 3.0)] {
                 let n = axis.normalize();
-                for v in [0.010_f64, -0.010, 1e-4] {
-                    let surf = gcone(apex, n, alpha);
+                let cone = GCone {
+                    apex,
+                    axis: n,
+                    alpha,
+                };
+                // The SMALLEST cap this row can state at the run's ε,
+                // from the run's own band rather than a literal: the
+                // rim's own radius `|v|·sin α` is the lever
+                // `props_circle_axis_class` is metered at, so a rim
+                // narrower than the escalate band is undecidable by
+                // construction and the fold never gets to answer. A
+                // literal `1e-4` here passed at the default ε and
+                // escalated at 1e-6, where a 5 µm rim sits inside a
+                // 10 µm band.
+                let tiny = 1e3 * band().escalate() / alpha.sin();
+                for v in [0.010_f64, -0.010, tiny] {
+                    let surf = cone.surface();
                     let (s, _c) = alpha.sin_cos();
                     let exact = s * TAU * (v * v).abs() * 0.5;
                     let r = v.abs() * s;
                     let anchored = (apex - geom_core::Point3::origin()).dot(n) * PI * r * r;
-                    let plus = curved_face(
-                        &surf,
-                        &[grim(apex, n, alpha, v, 0.0, TAU, 0, 0)],
-                        true,
-                        band(),
-                    );
-                    let minus = curved_face(
-                        &surf,
-                        &[grim(apex, n, alpha, v, TAU, 0.0, 0, 0)],
-                        true,
-                        band(),
-                    );
+                    let plus = curved_face(&surf, &[cone.rim(v, 0.0, TAU, 0, 0)], true, band());
+                    let minus = curved_face(&surf, &[cone.rim(v, TAU, 0.0, 0, 0)], true, band());
                     let (fp, fm) = match (plus, minus) {
                         (Ok(a), Ok(b)) => (a, b),
                         other => panic!("alpha={alpha} apex={apex:?} axis={n:?} v={v}: {other:?}"),
