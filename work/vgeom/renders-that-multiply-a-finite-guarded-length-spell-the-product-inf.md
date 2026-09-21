@@ -2,13 +2,14 @@
 id: renders-that-multiply-a-finite-guarded-length-spell-the-product-inf
 kind: issue
 title: three chrome renders multiply a finite-guarded length and spell the product inf
-status: review
+status: closed
 opened: 2026-09-16
 refs: [render-mm-overflows-to-inf-for-a-delta-the-door-accepts, the-scientific-arm-rounds-out-of-the-type, viewer-substituted-value-class-is-crate-wide]
 priority: P1
 cost: E
 branch: vgeom/render-spelling
 pr: 3031
+closed: 2026-09-21
 ---
 
 

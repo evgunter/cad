@@ -127,3 +127,48 @@ one is the loudest class in the tree.
 program's log is append-only narrative edited by many sessions. If the
 ruling is ever revisited — by Ev, not by a lane — that is the shape of
 the population, and it does not change the cost argument at all.
+
+## A fourth instance, 2026-09-21 — recorded, and the ruling STANDS
+
+Added by the VGEOM orchestrator, on CIW's closed row, because this
+row is the class's record and an instance that nobody writes down is
+how a "rare" premise stops being checkable.
+
+`work/props/log.md` carried a live conflict block on `origin/main` —
+`<<<<<<< HEAD` at `:1868`, `=======` at `:1981`, `>>>>>>> origin/main`
+at `:2014`, about 146 lines, both halves real narrative. Found twice
+independently the same day, by two lanes' post-merge marker greps:
+CHROME's LANE-1 (which filed
+`work/props/committed-conflict-block-in-the-props-log`) and VGEOM's
+`vgeom/render-spelling`. **Repaired by CHROME at `97217090`** as a
+drive-by; the markers are gone from `main` and CHROME's instance row
+is closed. Verified here:
+`git show origin/main:work/props/log.md | grep -cE '^(<{7}|={7}|>{7})'`
+returns **0**.
+
+**This is not a request to revisit the ruling and nothing here
+reopens it.** Ev's call of 2026-09-04 is recorded above in as many
+words — *close it — the failure is rare and not worth the special
+effort* — and a gate is exactly the kind of standing mechanism that
+is Ev's to decide, not an orchestrator's to re-take because a fourth
+case turned up. Changing it waits for Ev.
+
+What IS worth having on the record, because it is the premise the
+ruling rests on rather than the ruling itself: the instance count is
+now **four** across about three weeks, the newest cost two lanes a
+detour on the same afternoon, and both found it by accident while
+checking their own merges rather than by looking. The failure also
+lands where it is least visible — `lint` does not read `log.md`, so
+`main` was green over it, and a program's log tail is what a
+successor orchestrator reads to learn the live state.
+
+**A duplicate was filed and removed.** `vgeom/render-spelling` filed
+`work/props/props-log-carries-a-committed-conflict-block-on-main`
+before it could see CHROME's row, and that file was deleted at merge
+rather than left beside it — one file, one item. Its one correct
+addition is the paragraph above; its central argument, that the gate
+*"was filed for track J and never built"* and is therefore still
+owed, was wrong: the gate was **decided against**, and the lane read
+the orphaning sentence at `:30` without reading the closure at `:32`.
+That is this repo's own *check that Ev ever agreed, before you wait
+for Ev*, run in the opposite direction and worth the same care.
