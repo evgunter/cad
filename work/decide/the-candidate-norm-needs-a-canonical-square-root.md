@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-21
 priority: P1
 cost: H
+needs_ev: true
 ---
 
 
@@ -111,3 +112,23 @@ and `Min | Max` arms), `sym/signed.rs`, `sym/quotient.rs`'s scale step
 `sqrt_atom`. The rows: `editor-core/tests/m10_derived_frame_tilted_interval`'s
 `sym10_phase1_*` (evidence, `#[ignore]`d). Filed by SYM-10's lane at
 its Phase 1 stop; the unit's PR carries the full tables.
+
+## Decision for Ev (2026-09-21)
+
+Three shapes, put on PR #2970's comment thread (the Phase 1 record
+with the tables this row summarises):
+
+1. **The full canonical root as Phase 2** — every `sqrt` atom the tier
+   keys re-keyed uniformly (the walk, `trig::sqrt_atom`, what a
+   registrant's forms meet), the `D ≥ 0` side condition argued once,
+   the six documents re-measured. Takes the tilted row; as planted it
+   costs the plate's door eight registered decisions and moves its
+   ledger and ceilings.
+2. **The narrow form `r` as Phase 2, on the condition that the plate's
+   split and ceiling do not move down** — the orchestrator's
+   recommendation. Re-keys no existing atom; fires twice on the tilted
+   row; the plant as cut still loses the plate's eight registered
+   decisions, so the condition is a measurement to pass, not a fact
+   in hand.
+3. **Stop after Phase 1** — the row stays red, #2468 holds, and the
+   fork stays with Ev.
