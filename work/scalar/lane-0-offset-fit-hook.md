@@ -5,6 +5,7 @@ title: LANE-0: the f64-only offset-fit absence becomes an Option hook, out of th
 status: open
 opened: 2026-09-21
 branch: scalar/lane-0
+pr: 2981
 ---
 
 ## What
