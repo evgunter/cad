@@ -5,6 +5,8 @@ title: A profile placed on a derived frame whose AXES carry a widened parameter 
 status: open
 opened: 2026-09-04
 parent: SYM-5
+priority: P0
+cost: H
 ---
 
 

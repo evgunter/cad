@@ -4,6 +4,8 @@ kind: issue
 title: EvalService's at-most-one-outstanding rule lives in module prose and no trait clause or row holds an implementor to it
 status: open
 opened: 2026-09-06
+priority: P1
+cost: D
 ---
 
 

@@ -87,6 +87,7 @@ substitution the audit rows used to carry was not free, and the
 direction it cost in is the mate.
 """
 
+import math
 import tempfile
 import unittest
 from pathlib import Path
@@ -271,8 +272,10 @@ class TestBenchLayout(BenchWorkspace):
         composes the pattern's own step and the solve places the shelf
         against that copy. `placed_union` fuses the family into one
         body first, so no copy is left to stand a member on and the
-        head refuses `DanglingHead` — the same face, the same
-        placements, and only the node between them differs.
+        head refuses `DanglingHead` — at the insert, which asks the
+        solve's own admission of the mate and refuses it — the same
+        face, the same placements, and only the node between them
+        differs.
 
         So the two spellings are NOT interchangeable at the mate door,
         and the direction is the one the substitution was paying: the
@@ -305,29 +308,33 @@ class TestBenchLayout(BenchWorkspace):
                 bottom = one(
                     ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart]))
                 )
-                mate = doc.insert(
-                    Node.mate(
-                        family,
-                        cap,
-                        shelf_i,
-                        bottom,
-                        ContactClass.Rest,
-                        seat(POST_SEAT, SEAT_A),
-                    )
+                node = Node.mate(
+                    family,
+                    cap,
+                    shelf_i,
+                    bottom,
+                    ContactClass.Rest,
+                    seat(POST_SEAT, SEAT_A),
                 )
-                solved = solve_document(doc)
-                outcome[name] = solved.fault(mate)
                 if name == "pattern":
+                    mate = doc.insert(node)
+                    solved = solve_document(doc, resolver=self.ws)
+                    outcome[name] = solved.fault(mate)
                     self.assertIsNone(solved.fault(mate))
                     self.assertEqual(solved.role(mate), MateRole.Determining)
                     self.assertEqual(pncad.clusters(doc), [[post_i, shelf_i]])
                     minted = assemble(doc, evaluate(doc, resolver=self.ws)).minted
                     self.assertEqual([d.mate for d in minted], [mate])
                 else:
-                    self.assertIsNotNone(solved.fault(mate))
-                    self.assertEqual(solved.role(mate), MateRole.Refused)
-                    # The cluster never formed, so the two instances
-                    # are still two.
+                    with self.assertRaises(pncad.EditError) as caught:
+                        doc.insert(node)
+                    refusal = caught.exception
+                    outcome[name] = refusal.fault
+                    self.assertEqual(refusal.variant, "mate_refused")
+                    self.assertEqual(refusal.inner_variant, "mate_dangling_head")
+                    self.assertEqual(refusal.fault.head, family)
+                    # The mate never entered, so the two instances are
+                    # still two.
                     self.assertEqual(pncad.clusters(doc), [[post_i], [shelf_i]])
         self.assertIsNone(outcome["pattern"])
         self.assertIsNotNone(outcome["placed_union"])
@@ -498,7 +505,7 @@ class TestBenchStand(BenchWorkspace):
         upper = slab((0.25 * m, 0.75 * m), (0.25 * m, 0.75 * m), (1 * m, 1.5 * m))
         self.assertEqual(doc.last_maintenance, [])
         # `apply`: deleting a mate splits the cluster it coupled.
-        doc.apply(DocEdit.delete_node(mate_2))
+        doc.apply(DocEdit.delete_node(mate_2), resolver=self.ws)
         self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
         # `declare` and `declare_all`, each from that split: a declared
         # flush contact moves no mate graph, so each door's own reading
@@ -507,7 +514,7 @@ class TestBenchStand(BenchWorkspace):
         self.assertEqual(len(findings), 1)
         doc.declare(findings[0])
         self.assertEqual(doc.last_maintenance, [])
-        doc.apply(DocEdit.delete_node(mate_1))
+        doc.apply(DocEdit.delete_node(mate_1), resolver=self.ws)
         self.assertEqual([r.variant for r in doc.last_maintenance], ["split"])
         doc.declare_all(findings)
         self.assertEqual(doc.last_maintenance, [])
@@ -529,8 +536,13 @@ class TestBenchStand(BenchWorkspace):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
         self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i, post_b]])
 
+        # Both halves of a whole-cluster cut move a gauge, so each
+        # side's maintenance solve levers through the workspace.
         outcome = pncad.split(
-            doc, [post_a, shelf_i, post_b, mate_1, mate_2], random_document_id()
+            doc,
+            [post_a, shelf_i, post_b, mate_1, mate_2],
+            random_document_id(),
+            resolver=self.ws,
         )
         # The part is built from empty by inserting the cut nodes, and
         # each mate welds two members as it lands: one join per mate.
@@ -581,7 +593,7 @@ class TestBenchStand(BenchWorkspace):
 
     def test_the_solve_places_every_instance_where_the_scene_puts_it(self):
         doc, (post_a, shelf_i, post_b), (mate_1, mate_2) = self.stand()
-        solved = solve_document(doc)
+        solved = solve_document(doc, resolver=self.ws)
         for node in (post_a, shelf_i, post_b, mate_1, mate_2):
             self.assertIsNone(solved.fault(node), f"{node} records no fault")
         for mate in (mate_1, mate_2):
@@ -660,7 +672,7 @@ class TestAssemblyRefusals(BenchWorkspace):
 
     def test_a_single_planar_rest_leaves_the_pair_free_and_refuses(self):
         doc, (post_a, shelf_i, _), (mate_1, _) = self.stand_planar()
-        fault = solve_document(doc).fault(mate_1)
+        fault = solve_document(doc, resolver=self.ws).fault(mate_1)
         # One planar rest between two parts fixes the seating plane and
         # nothing else — the pair may still slide and spin in it. The
         # solve refuses and names the RESIDUAL in class vocabulary
@@ -695,7 +707,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, lower),
             )
         )
-        poses = solve_document(doc)
+        poses = solve_document(doc, resolver=self.ws)
         fault = poses.fault(clash) or poses.fault(mate_1)
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertIn(pncad.CONTRADICTORY_RECOURSE, str(fault))
@@ -712,17 +724,136 @@ class TestAssemblyRefusals(BenchWorkspace):
         # is untouched, which is the whole reason the solve is total.
         self.assertIsNone(solve_document(other).fault(lone))
 
+    def test_the_lever_is_the_parts_extent(self):
+        """The lever a mate's angular decisions turn on is the mated
+        parts' own extent: a 10 mm part tilted by 1e-8 rad deviates a
+        few 1e-10 m across itself, under the default eps, so the rider
+        is redundant and the mate solves — where a metre lever priced
+        the same tilt at 1e-8 and refused it. A 10 m part tilted the
+        same way deviates 1e-7 m and is refused. Without a resolver
+        there is no extent and the mate faults in the resolver's voice."""
+        tilt = 1e-8 * pncad.rad
+
+        def clocked(size):
+            part = prism(f"pncad-lever-{size}", size, size, size)
+            self.ws.create(part)
+            ref = DocRef(part.id, content_pin(part))
+            doc = Doc(f"pncad-lever-doc-{size}")
+            a_i = doc.insert(Node.instantiate_part(ref))
+            b_i = doc.insert(Node.instantiate_part(ref))
+            a_top = self.instance_face(doc, a_i, CapEnd.End)
+            b_bottom = self.instance_face(doc, b_i, CapEnd.Start)
+            alignment = Alignment(
+                mate_frame((0.0, 0.0, size)),
+                mate_frame((0.0, 0.0, 0.0)),
+                MatePrimitive.frame_coincidence(),
+                AxisSense.Aligned,
+                clocking=tilt,
+            )
+            mate = doc.insert(
+                Node.mate(a_i, a_top, b_i, b_bottom, ContactClass.Rest, alignment),
+                resolver=self.ws,
+            )
+            return doc, mate, a_i
+
+        small, small_mate, small_a = clocked(0.01)
+        self.assertIsNone(solve_document(small, resolver=self.ws).fault(small_mate))
+        self.assertEqual(
+            solve_document(small, resolver=self.ws).role(small_mate),
+            MateRole.Determining,
+        )
+        # No resolver, no extent: the typed refusal, not a guess — the
+        # nested refusal's own word, and the instance it names.
+        fault = solve_document(small).fault(small_mate)
+        self.assertEqual(fault.variant, "mate_unleverable")
+        self.assertEqual(fault.inner_variant, "part_unresolved")
+        self.assertEqual(fault.instance, small_a)
+
+        # A 10 m part: the same rider contradicts the coincidence, and
+        # the edit door — which asks the solve's own per-mate admission
+        # over the parts' extent through `resolver` — refuses it where
+        # it is authored, carrying the solve's fault whole.
+        with self.assertRaises(pncad.EditError) as caught:
+            clocked(10.0)
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "mate_refused")
+        self.assertEqual(refusal.inner_variant, "mate_contradictory")
+        fault = refusal.fault
+        self.assertEqual(fault.variant, "mate_contradictory")
+        self.assertEqual(fault.predicate, "mate_clocking_redundant")
+        # The clash is the tilt priced across the parts: 1e-8 rad over
+        # tens of metres, well past the document's eps.
+        self.assertGreater(fault.clash.meters, small.epsilon)
+
+    def test_a_rider_the_table_decides_against_is_refused_at_the_door(self):
+        """The finding's own mistake, through the document door: a
+        quarter-turn clocking rider on a frame coincidence. The
+        coincidence has already pinned the roll, so the coset table
+        decides the rider contradictory over the mate's own lever —
+        the mated parts' extent, read through `resolver` — and the
+        edit door asks that same admission: `insert` raises typed,
+        `fault` is the solve's own `MateFault` with the lever's roll
+        and arm, and nothing enters the document."""
+        doc, post_i, shelf_i = self.two_instances()
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        alignment = Alignment(
+            mate_frame(POST_SEAT),
+            mate_frame(SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+            (math.pi / 2) * rad,
+        )
+        before = doc.roots
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+                resolver=self.ws,
+            )
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "mate_refused")
+        self.assertEqual(refusal.inner_variant, "mate_contradictory")
+        self.assertEqual(refusal.fault.predicate, "mate_clocking_redundant")
+        self.assertEqual(refusal.fault.lever_tilt, (math.pi / 2) * rad)
+        self.assertIsNotNone(refusal.fault.lever_arm)
+        self.assertEqual(
+            refusal.fault.clash.meters,
+            refusal.fault.lever_tilt.radians * refusal.fault.lever_arm.meters,
+        )
+        self.assertIn("mate_clocking_redundant", str(refusal))
+        self.assertEqual(doc.roots, before, "a refused mate enters nothing")
+        # The same rider INSIDE the band is redundant and admitted, and
+        # the solve places the pair.
+        redundant = Alignment(
+            mate_frame(POST_SEAT),
+            mate_frame(SEAT_A),
+            MatePrimitive.frame_coincidence(),
+            AxisSense.Aligned,
+            0 * rad,
+        )
+        mate = doc.insert(
+            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, redundant),
+            resolver=self.ws,
+        )
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
+        self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
+
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
         face = self.instance_face(doc, post_i, CapEnd.End)
-        mate = doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
-        fault = solve_document(doc).fault(mate)
         # A pair is two instances; a self-mate constrains nothing and
-        # is a recipe mistake, refused rather than folded into a
-        # tautology.
-        self.assertEqual(fault.variant, "mate_self")
-        self.assertEqual(fault.instance, post_i)
+        # is a recipe mistake — a fact about the mate alone, so the
+        # edit door refuses it where it is authored, with the solve's
+        # own fault, and it never enters the document.
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(Node.mate(post_i, face, post_i, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
+        refusal = caught.exception
+        self.assertEqual(refusal.variant, "mate_refused")
+        self.assertEqual(refusal.inner_variant, "mate_self")
+        self.assertEqual(refusal.fault.variant, "mate_self")
+        self.assertEqual(refusal.fault.instance, post_i)
+        self.assertEqual(doc.roots, [post_i], "nothing entered")
 
     def test_a_mate_on_a_transformed_instance_is_read_at_the_transform(self):
         """A mate's reference is a NODE and a NAME. Wrap an instance in
@@ -761,7 +892,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         # The transform is invisible to NAMING (the reference resolves
         # through it to the minting instance) and visible to the SOLVE
         # (which walks from the operand and composes its map).
-        self.assertIsNone(solve_document(doc).fault(mate))
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
         self.assertEqual(pncad.clusters(doc), [[post_a, shelf_i]])
         # Read at the instance instead and it is a different node: the
         # operand is part of what a mate says.
@@ -805,7 +936,7 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, SEAT_A),
             )
         )
-        fault = solve_document(doc).fault(mate)
+        fault = solve_document(doc, resolver=self.ws).fault(mate)
         self.assertEqual(fault.variant, "mate_placer_refused")
         self.assertEqual(fault.placer, lifted)
         self.assertEqual(fault.error, "non_finite_direction")
@@ -933,8 +1064,8 @@ class TestAssemblyRefusals(BenchWorkspace):
                 seat(POST_SEAT, SEAT_A),
             )
         )
-        self.assertIsNone(solve_document(doc).fault(mate))
-        self.assertEqual(solve_document(doc).role(mate), MateRole.Determining)
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
+        self.assertEqual(solve_document(doc, resolver=self.ws).role(mate), MateRole.Determining)
         ev = evaluate(doc, resolver=self.ws)
         product(doc, ev)
         # The union is the root the shelf reaches the product through;
@@ -1058,8 +1189,8 @@ class TestMateFaultPayload(BenchWorkspace):
     def clocked(self, clocking):
         """A frame coincidence with a clocking RIDER: the coincidence
         has already pinned the roll, so any nonzero clocking
-        contradicts it and the solve refuses with the deviation it
-        measured."""
+        contradicts it and the edit door refuses it with the deviation
+        the solve measured."""
         doc, post_i, shelf_i = self.two_instances()
         a_top = self.instance_face(doc, post_i, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
@@ -1070,24 +1201,34 @@ class TestMateFaultPayload(BenchWorkspace):
             AxisSense.Aligned,
             clocking,
         )
-        mate = doc.insert(
-            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
-        )
-        return solve_document(doc).fault(mate)
+        # Decided where the mate is authored, over the parts' extent
+        # through `resolver`: the door refuses it carrying the solve's
+        # own fault, which is what this answers.
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment),
+                resolver=self.ws,
+            )
+        self.assertEqual(caught.exception.variant, "mate_refused")
+        self.assertEqual(caught.exception.inner_variant, "mate_contradictory")
+        return caught.exception.fault
 
     def test_a_levered_clash_carries_both_halves_of_its_lever(self):
         """`clash` IS the product of the two halves.
 
-        The lever is the solve's own SCALE SURROGATE — the larger of
-        the two frame origins' distances and the authored lengths,
-        floored at one metre — and not a contact feature: it names
-        that scale and nothing in the model. So the two halves cross
-        beside the deviation they multiply to, and a caller that wants
-        the tilt reads it rather than dividing prose."""
+        The lever is an upper bound on the mated parts' extent from
+        the datum — each part's reach from its own origin plus its
+        frame's distance, plus the authored lengths — and not a
+        contact feature: it names the parts' scale and nothing else
+        in the model. So the two halves cross beside the deviation
+        they multiply to, and a caller that wants the tilt reads it
+        rather than dividing prose. An authored roll is a TILT; the
+        residual half is for a pure number and stays `None` here."""
         fault = self.clocked(0.25 * rad)
         self.assertEqual(fault.variant, "mate_contradictory")
         self.assertEqual(fault.predicate, "mate_clocking_redundant")
         self.assertEqual(fault.lever_tilt, 0.25 * rad)
+        self.assertIsNone(fault.lever_residual)
         self.assertIsNotNone(fault.lever_arm)
         # To the kernel's own rounding, because the kernel computes
         # the product at the raising site rather than storing a
@@ -1099,21 +1240,86 @@ class TestMateFaultPayload(BenchWorkspace):
         # The arm carries no nested refusal and no classification.
         for absent in (
             "inner_variant", "margin", "margin_low", "margin_high",
-            "zero", "escalate", "field", "value", "extent", "floor",
+            "zero", "escalate", "field", "value",
             "expected_document", "found_document",
         ):
             self.assertIsNone(getattr(fault, absent), absent)
 
     def test_a_mate_that_does_not_measure_a_lever_carries_neither_half(self):
-        """The pair is `None`, not a pair of zeroes: an arm whose
-        predicate measured its margin without a lever names no lever
-        at all."""
+        """The three are `None`, not zeroes: an arm whose predicate
+        measured its margin without a lever names no lever at all."""
         doc, _, (mate_1, _) = self.stand_planar()
-        fault = solve_document(doc).fault(mate_1)
+        fault = solve_document(doc, resolver=self.ws).fault(mate_1)
         self.assertEqual(fault.variant, "mate_under")
         self.assertIsNone(fault.lever_tilt)
+        self.assertIsNone(fault.lever_residual)
         self.assertIsNone(fault.lever_arm)
         self.assertIsNone(fault.clash)
+
+    def test_a_residual_clash_carries_its_pure_number_and_its_arm(self):
+        """A membership margin that levers a PURE NUMBER — here the
+        added coincidence's rotation departing from the held one, the
+        Frobenius norm of `Q − I` — crosses as `lever_residual`, a
+        bare float, beside the arm; `lever_tilt` is for an authored
+        roll and stays `None`. `clash` is the product, to the kernel's
+        own rounding, and the message says the number is
+        dimensionless rather than calling it radians."""
+        doc, post_i, shelf_i = self.two_instances()
+        a_top = self.instance_face(doc, post_i, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
+        held = doc.insert(
+            Node.mate(
+                post_i,
+                a_top,
+                shelf_i,
+                s_bottom,
+                ContactClass.Rest,
+                Alignment(
+                    mate_frame(POST_SEAT),
+                    mate_frame(SEAT_A),
+                    MatePrimitive.frame_coincidence(),
+                    AxisSense.Aligned,
+                    None,
+                ),
+            )
+        )
+        # The same coincidence with the shelf's frame turned onto +x:
+        # no rotation satisfies both.
+        turned = MateFrame(
+            origin=mate_frame(SEAT_A).origin,
+            axis=(1.0, 0.0, 0.0),
+            reference=(0.0, 0.0, 1.0),
+        )
+        added = doc.insert(
+            Node.mate(
+                post_i,
+                a_top,
+                shelf_i,
+                s_bottom,
+                ContactClass.Rest,
+                Alignment(
+                    mate_frame(POST_SEAT),
+                    turned,
+                    MatePrimitive.frame_coincidence(),
+                    AxisSense.Aligned,
+                    None,
+                ),
+            )
+        )
+        fault = solve_document(doc, resolver=self.ws).fault(added)
+        self.assertEqual(fault.variant, "mate_contradictory")
+        self.assertEqual((fault.held, fault.added), (held, added))
+        self.assertEqual(fault.predicate, "mate_member_rotation_identity")
+        self.assertIsNone(fault.lever_tilt)
+        self.assertIsInstance(fault.lever_residual, float)
+        self.assertGreater(fault.lever_residual, 0.0)
+        self.assertIsNotNone(fault.lever_arm)
+        self.assertEqual(
+            fault.clash.meters,
+            fault.lever_residual * fault.lever_arm.meters,
+        )
+        self.assertIn("dimensionless residual", str(fault))
+        self.assertNotIn(" rad", str(fault))
 
     def test_a_solve_read_for_another_document_names_both(self):
         """`SolvedPoses.placement` must answer with a frame or not at
@@ -1133,12 +1339,13 @@ class TestMateFaultPayload(BenchWorkspace):
         self.assertIsNone(fault.mate)
         self.assertIsNone(fault.side)
 
-    def test_a_datum_too_small_to_lever_names_its_scale_and_its_floor(self):
-        """A datum that names a length names the scale a parallelism
-        verdict is levered over. Named below the floor, the verdict
-        would be vacuous rather than tight — at an arm of L the
-        smallest tilt the predicate could call non-parallel is about
-        eps/L — so the solve refuses and reports both numbers."""
+    def test_a_mate_without_its_parts_in_hand_names_the_part_it_cannot_lever(self):
+        """The lever a parallelism verdict is decided over is the mated
+        parts' own extent, so a solve with no resolver has no lever:
+        it refuses `mate_unleverable`, naming the refusal's own word
+        and the instance whose part it could not reach. A datum at a
+        nanometre is no longer a case of its own — the parts on either
+        side carry the lever, at whatever scale the datum names."""
         doc, post_i, shelf_i = self.two_instances()
         a_top = self.instance_face(doc, post_i, CapEnd.End)
         s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
@@ -1150,27 +1357,54 @@ class TestMateFaultPayload(BenchWorkspace):
         alignment = Alignment(
             tiny, tiny, MatePrimitive.frame_coincidence(), AxisSense.Aligned
         )
+        # No rider, so the door asks no lever and admits the mate
+        # without the store; the solve, which levers every pair, then
+        # refuses it in the resolver's voice.
         mate = doc.insert(
             Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
         )
         fault = solve_document(doc).fault(mate)
-        self.assertEqual(fault.variant, "mate_datum_too_small_to_lever")
-        # The nested refusal's own word, beside the two numbers it
-        # qualifies.
-        self.assertEqual(fault.inner_variant, "datum_too_small")
-        self.assertEqual(fault.extent, 1e-9 * m)
-        self.assertLess(fault.extent, fault.floor)
+        self.assertEqual(fault.variant, "mate_unleverable")
+        # The nested refusal's own word, beside the instance it names:
+        # the gauge's part is asked first.
+        self.assertEqual(fault.inner_variant, "part_unresolved")
+        self.assertEqual(fault.instance, post_i)
         self.assertEqual(fault.mate, mate)
+        # Through the store the same mate solves: the nanometre datum
+        # is levered by the parts on either side of it.
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(mate))
+        # A RIDER on the coincidence needs the lever at the door, so the
+        # same insert without the store refuses there, in the same
+        # voice, and with the store it is decided (a zero rider is
+        # redundant and admitted).
+        clocked = Alignment(
+            tiny, tiny, MatePrimitive.frame_coincidence(), AxisSense.Aligned, 0 * rad
+        )
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, clocked)
+            )
+        self.assertEqual(caught.exception.variant, "mate_refused")
+        self.assertEqual(caught.exception.inner_variant, "mate_unleverable")
+        self.assertEqual(caught.exception.fault.inner_variant, "part_unresolved")
+        self.assertEqual(caught.exception.fault.instance, post_i)
+        rider = doc.insert(
+            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, clocked),
+            resolver=self.ws,
+        )
+        self.assertIsNone(solve_document(doc, resolver=self.ws).fault(rider))
         # A lever REFUSED is not a lever measured: the contradictory
-        # arm's two halves are absent here.
+        # arm's halves are absent here.
         self.assertIsNone(fault.lever_tilt)
+        self.assertIsNone(fault.lever_residual)
         self.assertIsNone(fault.lever_arm)
 
     def test_a_mate_frame_in_the_ambiguity_band_carries_the_classifier(self):
-        """The frame ladder's refusal crosses under its own word, and
-        the classifier's payload rides on the words the frame door
-        already uses — `margin`, `zero`, `escalate`, `predicate` — so
-        a caller that learned them at `FrameError` reads them here.
+        """The frame ladder's refusal crosses under its own word, out
+        of the edit door that meets it, and the classifier's payload
+        rides on the words the frame door already uses — `margin`,
+        `zero`, `escalate`, `predicate` — so a caller that learned
+        them at `FrameError` reads them here.
 
         The axis is derived from the run's epsilon rather than
         hard-coded: the band's edges move with the tolerance."""
@@ -1189,10 +1423,16 @@ class TestMateFaultPayload(BenchWorkspace):
             MatePrimitive.frame_coincidence(),
             AxisSense.Aligned,
         )
-        mate = doc.insert(
-            Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
-        )
-        fault = solve_document(doc).fault(mate)
+        # A frame with no definite direction is a fact about the mate
+        # alone: the edit door refuses it where it is authored, and the
+        # fault it carries is the solve's own.
+        with self.assertRaises(pncad.EditError) as caught:
+            doc.insert(
+                Node.mate(post_i, a_top, shelf_i, s_bottom, ContactClass.Rest, alignment)
+            )
+        self.assertEqual(caught.exception.variant, "mate_refused")
+        self.assertEqual(caught.exception.inner_variant, "mate_frame_degenerate")
+        fault = caught.exception.fault
         self.assertEqual(fault.variant, "mate_frame_degenerate")
         # One level in: the word `FrameError` itself crosses under.
         self.assertEqual(fault.inner_variant, "degenerate_aim")

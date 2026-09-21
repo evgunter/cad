@@ -5,6 +5,8 @@ title: three sites cast a Point3 to a GPU corner and the prose reconciling them 
 status: open
 opened: 2026-09-06
 refs: [2083]
+priority: P1
+cost: E
 ---
 
 

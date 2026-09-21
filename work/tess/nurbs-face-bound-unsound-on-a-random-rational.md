@@ -5,6 +5,8 @@ title: nurbs_face_bound is UNSOUND on a random rational surface: r1_random_ratio
 status: open
 opened: 2026-09-04
 refs: [1850, rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes]
+priority: P0
+cost: H
 ---
 
 

@@ -326,17 +326,18 @@ pub fn grid_pitch(metres_per_pixel: f64) -> Option<f64> {
 /// nothing — so the ruling stops at the view depth where one cell of
 /// the pitch spans this many pixels across the view. Past that the
 /// lines would crowd into a smear that says nothing a reader can use,
-/// and every one of them is a line drawn. At a 1-2-5 pitch that aims
-/// for [`TARGET_PITCH_PX`] at the looked-at point, the ruling reaches
-/// between about three and thirteen times that point's depth.
+/// and every one of them is a line drawn. A cell's on-screen span
+/// falls as one over depth, so with the looked-at point's cell inside
+/// the band [`LADDER_STEP`] sets (about 51..126 px on 1-2-5), the
+/// ruling reaches between about four and eleven times that point's
+/// depth.
 const MIN_CELL_PX: f64 = 12.0;
 
 /// **What one grid cell aims to span on screen**, in pixels.
 ///
-/// The pitch ladder picks the rung nearest this. A judgement, and the
-/// range around it is what the ladder's steps are worth: at a 1-2-5
-/// ladder a rung is at most 2.5x the one below, so the realized pitch
-/// stays inside roughly 40..160 px of this whatever the zoom.
+/// The pitch ladder picks the rung nearest this. A judgement; how far
+/// the realized cell strays from it is what the ladder's steps are
+/// worth, and [`LADDER_STEP`] is where that band is stated.
 const TARGET_PITCH_PX: f64 = 80.0;
 
 /// The mantissas of the pitch ladder — a decade, halved and fifthed.
@@ -345,6 +346,33 @@ const TARGET_PITCH_PX: f64 = 80.0;
 /// RULER against a model authored in millimetres, and 2 mm and 5 mm
 /// are lengths a person has a feel for where 1.6 mm is not.
 const PITCH_STEPS: [f64; 3] = [1.0, 2.0, 5.0];
+
+/// **The ladder's widest step**: the largest ratio between adjacent
+/// rungs of [`PITCH_STEPS`], counting the wrap from the last mantissa
+/// to the first one a decade up. 2.5 on 1-2-5 (2 to 5).
+///
+/// **This is the home of the realized-cell band.** [`grid_pitch`]
+/// snaps to the rung nearest in RATIO, so across a step of ratio `r`
+/// the switch comes at its geometric midpoint and the cell at the
+/// looked-at point is never further than √`r` from
+/// [`TARGET_PITCH_PX`] either way: it spans
+/// `TARGET_PITCH_PX / √r ..= TARGET_PITCH_PX * √r` pixels, about
+/// 51..126 px on 1-2-5.
+const LADDER_STEP: f64 = ladder_step();
+
+const fn ladder_step() -> f64 {
+    let last = PITCH_STEPS.len() - 1;
+    let mut widest = PITCH_STEPS[0] * 10.0 / PITCH_STEPS[last];
+    let mut i = 1;
+    while i <= last {
+        let step = PITCH_STEPS[i] / PITCH_STEPS[i - 1];
+        if step > widest {
+            widest = step;
+        }
+        i += 1;
+    }
+    widest
+}
 
 /// **The most grid lines one plane draws per direction.**
 ///
@@ -373,29 +401,49 @@ const AXIS_COVER: f64 = 1.4;
 /// How long the tick across each end of a drawn axis is, in pixels.
 const AXIS_TICK_PX: f64 = 18.0;
 
-/// How long a frame's sketch-+x arrow is, in PIXELS — the mark that
-/// says which way the frame is turned, screen-sized for the reason the
-/// plane's normal tick is.
+/// How long each of a frame's two arrows is, in PIXELS — the marks
+/// that say which way the frame is turned, screen-sized for the reason
+/// the plane's normal tick is. The +x and +y arrows are this one
+/// length from the origin; which is x is said by the head
+/// ([`FRAME_HEADS`]), not by the arm.
 ///
-/// **Longer than [`TARGET_PITCH_PX`] on purpose.** The arrow's shaft
+/// **Shorter than the narrowest cell on purpose.** The arrow's shaft
 /// lies on a grid line (both run along the axis, and both start at the
-/// origin), so the head is the whole of what a reader sees. At less
-/// than one cell the head lands inside the first square, crowded by
-/// the crossing at the origin and by the next one; past a cell it sits
-/// in clear ground with the ruling behind it.
-const FRAME_ARM_PX: f64 = 108.0;
+/// origin), so the head is the whole of what a reader sees, and the
+/// barbs are what keep it off the ruling: each points away from both
+/// axes. What would crowd a head is a CROSSING — the next line across
+/// the axis landing on the tip or between the barbs. At the looked-at
+/// point no cell is narrower than the floor of the band
+/// [`LADDER_STEP`] states (about 51 px), so an arm under that puts
+/// every head inside the first cell, in open ground between the
+/// origin's crossing and the next.
+/// The claim is bounded the way the pitch is: an origin much further
+/// from the eye than the looked-at point sees cells finer than that.
+const FRAME_ARM_PX: f64 = 44.0;
+
+// The arm has to fit inside the narrowest cell the ladder realizes,
+// `FRAME_ARM_PX < TARGET_PITCH_PX / √LADDER_STEP`, squared to stay in
+// const.
+const _: () =
+    assert!(FRAME_ARM_PX * FRAME_ARM_PX * LADDER_STEP < TARGET_PITCH_PX * TARGET_PITCH_PX);
 
 /// How far each barb runs back from an arrow's tip, as a fraction of
 /// that arrow's length. Its half-width across the axis is half again
 /// of this, which is the ordinary look of an arrowhead.
-const FRAME_BARB_FRACTION: f64 = 0.34;
+const FRAME_BARB_FRACTION: f64 = 0.3;
 
-/// How long the sketch-+y arm is as a fraction of the +x one.
+/// **How many heads each arrow wears**, sketch +x then +y.
 ///
-/// The two arms are drawn UNEQUAL on purpose: a grid is symmetric
-/// under a quarter turn, so two arms of one length would say which
-/// pair of directions the axes are without saying which of them is x.
-const FRAME_Y_ARM_FRACTION: f64 = 0.62;
+/// A grid is symmetric under a quarter turn, so two identical arrows
+/// would say which pair of directions the axes are without saying
+/// which of them is x. The arrows are told apart at the HEAD, and by
+/// count rather than by size: two arms of one length keep the mark
+/// balanced about the origin, and a doubled head (the `>>` of a
+/// fast-forward) reads as a different kind of arrow where a slightly
+/// larger one reads as a drawing error. The heads sit nose to tail,
+/// each tip at the root of the head in front of it, which keeps them
+/// two at a slant where a nested pair runs together into one.
+const FRAME_HEADS: [usize; 2] = [2, 1];
 
 /// How long each arm of a drawn point's cross is, in pixels.
 ///
@@ -615,10 +663,11 @@ fn plane_segments(origin: Point3<f64>, normal: UnitVec3<f64>, view: View) -> Vec
 /// **The barbs are the half that is visible, and the reason is the
 /// grid.** The ruling passes through the origin along both axes (that
 /// is what anchoring it there means), so a bare arm drawn along an
-/// axis lies exactly on top of a grid line and shows nothing — which
-/// is what the first cut of this did, and what driving it in the app
-/// found. A barb points AWAY from both axes, so it is the one part of
-/// the mark that cannot coincide with the ruling. The arms stay
+/// axis lies exactly on top of a grid line: in the grid's colour and
+/// at the grid's width, it reads as nothing more than the two blended
+/// strokes' slightly fuller line. A barb points AWAY from both axes, so
+/// it is the one part of the mark that cannot coincide with the ruling.
+/// The arms stay
 /// because an arrowhead floating at a distance reads as debris.
 fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
     let mut out = grid(origin, u, v, u.cross(v), view);
@@ -631,26 +680,30 @@ fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -
         return out;
     };
     let o = [origin.x, origin.y, origin.z];
-    // The two arrows differ in LENGTH as well as direction: a grid is
-    // symmetric under a quarter turn, so equal arrows would name the
-    // pair of directions without saying which of them sketch +x is.
-    for (along, across, len) in [(u, v, arm), (v, u, arm * FRAME_Y_ARM_FRACTION)] {
-        let tip = [
-            origin.x + along.x * len,
-            origin.y + along.y * len,
-            origin.z + along.z * len,
-        ];
-        out.extend([o, tip]);
-        let (back, wide) = (len * FRAME_BARB_FRACTION, len * FRAME_BARB_FRACTION * 0.5);
-        for side in [1.0_f64, -1.0] {
-            out.extend([
-                tip,
-                [
-                    tip[0] - along.x * back + across.x * wide * side,
-                    tip[1] - along.y * back + across.y * wide * side,
-                    tip[2] - along.z * back + across.z * wide * side,
-                ],
-            ]);
+    let (back, wide) = (arm * FRAME_BARB_FRACTION, arm * FRAME_BARB_FRACTION * 0.5);
+    for ((along, across), heads) in [(u, v), (v, u)].into_iter().zip(FRAME_HEADS) {
+        let at = |d: f64| {
+            [
+                origin.x + along.x * d,
+                origin.y + along.y * d,
+                origin.z + along.z * d,
+            ]
+        };
+        out.extend([o, at(arm)]);
+        for head in 0..heads {
+            let tip_at = arm - back * head as f64;
+            let tip = at(tip_at);
+            let root = at(tip_at - back);
+            for side in [1.0_f64, -1.0] {
+                out.extend([
+                    tip,
+                    [
+                        root[0] + across.x * wide * side,
+                        root[1] + across.y * wide * side,
+                        root[2] + across.z * wide * side,
+                    ],
+                ]);
+            }
         }
     }
     out
@@ -1049,4 +1102,57 @@ pub fn datum_view(camera: &Camera, viewport: ViewportSize) -> Result<View, Camer
         up: camera.up(),
         window_px: [width, height],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    /// **The realized cell at the looked-at point stays inside the band
+    /// [`LADDER_STEP`] states, and above the frame arm, at every
+    /// scale.** Swept over twelve decades of metres-per-pixel — which
+    /// is zoom and depth both, since the scale at the looked-at point
+    /// is their product — finely enough to land on both sides of every
+    /// rung switch.
+    ///
+    /// **The value that makes this false** is a snapping rule that is
+    /// not nearest-in-ratio (the linear midpoint would let the cell
+    /// fall below the floor just past each switch), or a ladder whose
+    /// widest step is not the one [`ladder_step`] reads.
+    #[test]
+    fn the_realized_cell_stays_in_the_band_the_arm_relies_on() {
+        let floor_sq = TARGET_PITCH_PX * TARGET_PITCH_PX / LADDER_STEP;
+        let ceiling_sq = TARGET_PITCH_PX * TARGET_PITCH_PX * LADDER_STEP;
+        let (mut lowest, mut highest) = (f64::INFINITY, 0.0_f64);
+        let mut per_pixel = 1.0e-9_f64;
+        while per_pixel < 1.0e3 {
+            let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
+            let cell = pitch / per_pixel;
+            assert!(
+                cell * cell >= floor_sq * (1.0 - 1.0e-9),
+                "at {per_pixel:e} m/px the cell is {cell} px, under the band's floor",
+            );
+            assert!(
+                cell * cell <= ceiling_sq * (1.0 + 1.0e-9),
+                "at {per_pixel:e} m/px the cell is {cell} px, over the band's ceiling",
+            );
+            assert!(
+                cell > FRAME_ARM_PX,
+                "at {per_pixel:e} m/px the cell is {cell} px, no wider than a frame arm",
+            );
+            lowest = lowest.min(cell);
+            highest = highest.max(cell);
+            per_pixel *= 1.001;
+        }
+        // The sweep reached the band's edges rather than sitting inside
+        // it, so the bounds above are the band and not a looser one.
+        assert!(lowest * lowest < floor_sq * 1.01, "lowest cell {lowest} px");
+        assert!(
+            highest * highest > ceiling_sq * 0.99,
+            "highest cell {highest} px"
+        );
+    }
 }

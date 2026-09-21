@@ -13,30 +13,17 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use crate::common::{ang, insert_into, len, scl};
 
 use common::asm;
 use pncad::document::{
-    AssemblyError, Dimension, DocEdit, DocumentId, Expr, MateSide, MintRefusal, Node, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, apply,
+    AssemblyError, DocumentId, Expr, MateSide, MintRefusal, Node, PatternKind, ProfileDoc,
+    RefusedRef,
 };
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::session::{AtRestBadge, DocSession, SessionOp};
-
-fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a length literal")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a scalar literal")
-}
-
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
-    *doc = applied.doc;
-    applied.record.minted.expect("an insert mints an id")
-}
 
 /// The issue's document over the bench's parts: a post, the shelf
 /// lifted by a transform, a two-copy pattern of the lifted shelf, and
@@ -44,20 +31,20 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 /// parts so the session's resolver finds them.
 fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, AssemblyError) {
     let mut asm = ProfileDoc::empty(DocumentId::derive("msolve5-viewer"), tol);
-    let post = insert(&mut asm, Node::instantiate_part(bench.post), tol);
-    let shelf = insert(&mut asm, Node::instantiate_part(bench.shelf), tol);
-    let lifted = insert(
+    let post = insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let shelf = insert_into(&mut asm, Node::instantiate_part(bench.shelf), tol);
+    let lifted = insert_into(
         &mut asm,
         Node::Transform {
             input: shelf,
             translation: [len(0.0), len(0.0), len(0.05)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("an angle literal"),
+            rotation_angle: ang(0.0),
         },
         tol,
     );
     // The second copy clears the post and the first copy.
-    insert(
+    insert_into(
         &mut asm,
         Node::Pattern {
             input: lifted,
@@ -70,7 +57,7 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
         tol,
     );
     let b = asm::in_part(shelf, &bench.shelf_bottom);
-    let mate = insert(
+    let mate = insert_into(
         &mut asm,
         Node::Mate {
             a: common::head(asm::in_part(post, &bench.post_top)),

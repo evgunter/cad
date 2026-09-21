@@ -4,6 +4,8 @@ kind: issue
 title: session::Outstanding and frame::Progress are parallel three-state enums sharing two variant names, and progress() is nearly their identity
 status: open
 opened: 2026-09-06
+priority: P1
+cost: D
 ---
 
 

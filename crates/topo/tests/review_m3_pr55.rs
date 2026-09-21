@@ -50,6 +50,7 @@ fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3])
             ];
             Point3::new(T::from_f64(w[0]), T::from_f64(w[1]), T::from_f64(w[2]))
         },
+        common::FaceGeometry::Certified,
         Tol::witness(),
     );
     body

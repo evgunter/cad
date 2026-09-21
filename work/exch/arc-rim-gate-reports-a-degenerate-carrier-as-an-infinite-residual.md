@@ -5,6 +5,8 @@ title: step-import RimOffWallBoundary's residual is a measurement type carrying 
 status: open
 opened: 2026-09-12
 refs: [step-adopt-let-ok-iso-discards, 2406]
+priority: P3
+cost: E
 ---
 
 ## What

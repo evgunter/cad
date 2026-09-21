@@ -4,6 +4,8 @@ kind: issue
 title: Python has no step-to-profile-edge door: canonical_segments_of and StepSegmentsError reached the facade unbound
 status: open
 opened: 2026-09-16
+priority: P3
+cost: D
 ---
 
 Filed by EDIT's unit

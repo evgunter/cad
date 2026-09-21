@@ -32,27 +32,25 @@
 //! extrude plus the second union; the kiss chain is reused).
 
 use editor_core::{
-    BooleanOp, CapEnd, Dimension, DocEdit, EntityKind, Expr, Node, ProfileVertexRef, RecipeNodeId,
-    RoleSeg, SlotId, StableName,
+    BooleanOp, CapEnd, Dimension, DocEdit, Expr, Node, ProfileVertexRef, RecipeNodeId, RoleSeg,
+    SitedRef, SlotId, StableName,
 };
 
-use crate::fixture::len;
+use crate::fixture;
+use crate::fixture::{len, vname};
 
 use super::{CorpusDoc, MassPin, Recorder};
 
-/// A cap-vertex name at `node`.
-fn cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Vertex,
+/// A cap-vertex name at `node`, on the document's one outer loop.
+fn outer_cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
+    fixture::cap_vertex(
         node,
-        path: vec![RoleSeg::CapVertex(
-            end,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex,
-            },
-        )],
-    }
+        end,
+        ProfileVertexRef {
+            loop_index: 0,
+            vertex,
+        },
+    )
 }
 
 /// The kiss-carry corpus document.
@@ -107,17 +105,21 @@ pub fn document() -> CorpusDoc {
     // resolve in u1's table (the A operand of the union below), so
     // this is `resolve_declarations`' same-operand carried v-v arm,
     // and the record survives into the second union's contacts.
-    let kiss_a = StableName {
-        kind: EntityKind::Vertex,
-        node: u1,
-        path: vec![RoleSeg::FromA(cap_vertex(a, CapEnd::End, 2).into())],
-    };
-    let kiss_b = StableName {
-        kind: EntityKind::Vertex,
-        node: u1,
-        path: vec![RoleSeg::FromB(cap_vertex(b, CapEnd::Start, 0).into())],
-    };
-    let decl = r.insert(Node::declare_rest(vec![(kiss_a, kiss_b)]));
+    let kiss_a = vname(
+        u1,
+        RoleSeg::FromA(outer_cap_vertex(a, CapEnd::End, 2).into()),
+    );
+    let kiss_b = vname(
+        u1,
+        RoleSeg::FromB(outer_cap_vertex(b, CapEnd::Start, 0).into()),
+    );
+    // Both names are rows of `u1`'s table — the same-operand
+    // carried pair — so both are sited there, which is what says
+    // they are operand A's carry and not a cross-operand contact.
+    let decl = r.insert(Node::declare_rest(vec![(
+        SitedRef::new(u1, kiss_a),
+        SitedRef::new(u1, kiss_b),
+    )]));
     let u2 = r.insert(Node::Boolean {
         op: BooleanOp::Union,
         a: u1,

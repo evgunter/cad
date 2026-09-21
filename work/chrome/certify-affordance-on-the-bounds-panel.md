@@ -5,6 +5,8 @@ title: The bounds panel has no on-demand certify affordance for the certified ra
 status: open
 opened: 2026-09-13
 refs: [1183]
+priority: P1
+cost: E
 ---
 
 Filed by DOCM-9, which built the kernel side and was forbidden by its

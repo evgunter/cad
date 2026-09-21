@@ -42,8 +42,7 @@ use std::f64::consts::FRAC_PI_2;
 use common::asm;
 use pncad::document::{
     AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, class_admission, parse_expr,
-    solve_document,
+    ProfileDoc, RecipeNodeId, assemble, class_admission, parse_expr,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, face_frame};
@@ -154,33 +153,24 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     .expect("a literal axis has a definite direction");
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-rotated-bench"), tol);
-    let insert = |doc: &mut ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("an insert mints an id")
-    };
-    let rot_post = insert(&mut doc, Node::instantiate_part(bench.post));
-    let applied = apply(
-        &doc,
-        &DocEdit::SetPlacement {
+    let rot_post = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
+    common::edit_into(
+        &mut doc,
+        DocEdit::SetPlacement {
             node: rot_post,
             frame: rotated,
         },
         tol,
-    )
-    .expect("the placement applies");
-    doc = applied.doc;
-    let rot_shelf = insert(&mut doc, Node::instantiate_part(bench.shelf));
-    let applied = apply(
-        &doc,
-        &DocEdit::SetPlacement {
+    );
+    let rot_shelf = common::insert_into(&mut doc, Node::instantiate_part(bench.shelf), tol);
+    common::edit_into(
+        &mut doc,
+        DocEdit::SetPlacement {
             node: rot_shelf,
             frame: Frame::translation(asm::SHELF_AT),
         },
         tol,
-    )
-    .expect("the placement applies");
-    doc = applied.doc;
+    );
     let path = ws.create(&doc, tol).expect("the rotated assembly stores");
 
     let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);
@@ -224,13 +214,13 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, tol, rest_choice())
+        .proposal(doc, eval, &session.eval_options(), tol, rest_choice())
         .expect("the tool proposes");
 
     // The independent derivation: the picked face's WORLD pose, read
     // through the same shipped door, pulled back with this file's own
     // arithmetic against the placement the solve reports.
-    let poses = solve_document(doc, tol);
+    let poses = common::solve(&session, doc, tol);
     for (side_name, pick_ref, minted) in [
         ("a", &post_a_top, proposal.alignment.a),
         ("b", &shelf_bottom, proposal.alignment.b),
@@ -929,7 +919,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     tool.pick(top);
     tool.pick(bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, tol, rest_choice()) {
+    match tool.proposal(doc, eval, &session.eval_options(), tol, rest_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
             assert_eq!(head, bench.post_b);
         }
@@ -967,37 +957,23 @@ fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     let scope = std::collections::BTreeMap::new();
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-pattern-bench"), tol);
-    let applied = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::instantiate_part(bench.post),
-        },
-        tol,
-    )
-    .expect("the insert applies");
-    doc = applied.doc;
-    let instance = applied.record.minted.expect("an id");
-    let applied = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::Pattern {
-                input: instance,
-                count: parse_expr("3", &scope).expect("a count"),
-                kind: PatternKind::Linear {
-                    direction: [
-                        parse_expr("0.0", &scope).expect("x"),
-                        parse_expr("1.0", &scope).expect("y"),
-                        parse_expr("0.0", &scope).expect("z"),
-                    ],
-                    spacing: parse_expr("50 mm", &scope).expect("a spacing"),
-                },
+    let instance = common::insert_into(&mut doc, Node::instantiate_part(bench.post), tol);
+    let pattern = common::insert_into(
+        &mut doc,
+        Node::Pattern {
+            input: instance,
+            count: parse_expr("3", &scope).expect("a count"),
+            kind: PatternKind::Linear {
+                direction: [
+                    parse_expr("0.0", &scope).expect("x"),
+                    parse_expr("1.0", &scope).expect("y"),
+                    parse_expr("0.0", &scope).expect("z"),
+                ],
+                spacing: parse_expr("50 mm", &scope).expect("a spacing"),
             },
         },
         tol,
-    )
-    .expect("the pattern applies");
-    doc = applied.doc;
-    let pattern = applied.record.minted.expect("an id");
+    );
     let path = ws.create(&doc, tol).expect("the pattern assembly stores");
 
     let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);

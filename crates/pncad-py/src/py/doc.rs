@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 23] {
+) -> [(&'static str, Py<PyAny>); 24] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -125,6 +125,12 @@ fn edit_fields(
             opt(payload
                 .pin
                 .map(|p| Py::new(py, super::store::ContentPin(p)).map(Py::into_any))),
+        ),
+        (
+            "fault",
+            opt(payload
+                .fault
+                .map(|f| Py::new(py, super::mate::MateFault(f.clone())).map(Py::into_any))),
         ),
     ]
 }
@@ -503,6 +509,28 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
         ),
+        // The frame fault's own word rides on `inner_variant` the way
+        // the other nested arms' do; the entry's index is `index`, and
+        // the row's index within the entry stays in the message.
+        E::MaintenanceFrame {
+            index: at, fault, ..
+        } => (
+            word(crate::tags::frame_fault_tag(fault)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*at),
+            none(),
+            none(),
+        ),
         E::ToleranceConflict {
             process: committed,
             document: recorded,
@@ -716,6 +744,18 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
 }
 
 /// A recipe node's identity within a document.
+/// The seam the document's edit door resolves parts through: the
+/// same one `evaluate(doc, resolver=)` crosses, so an edit whose
+/// cluster-record maintenance mints a frame from a solve levers the
+/// mated parts' own extent — and with no resolver refuses typed rather
+/// than recording a frame nothing decided. The reach is built over it
+/// by [`d::PartReach::with_resolver`] at each door.
+pub(crate) fn seam(
+    resolver: Option<&super::store::Workspace>,
+) -> Option<std::sync::Arc<dyn d::PartResolver>> {
+    resolver.map(super::store::Workspace::resolver)
+}
+
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
@@ -803,12 +843,12 @@ impl Doc {
     fn insert_node(
         &mut self,
         node: d::Node<d::ProfileProgram>,
+        resolver: Option<&super::store::Workspace>,
     ) -> Result<Option<NodeId>, d::EditError> {
-        let applied = d::apply(
-            &self.inner,
-            &d::DocEdit::InsertNode { node },
-            Tol::witness(),
-        )?;
+        let tol = Tol::witness();
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let applied = d::apply(&self.inner, &d::DocEdit::InsertNode { node }, tol, &reach)?;
         if applied.record.minted.is_none() {
             return Ok(None);
         }
@@ -907,9 +947,18 @@ impl Doc {
     /// here: the common case is an empty list, and widening every
     /// caller's return type for it would be paying for mates and
     /// strands in documents that have neither.
-    fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
+    #[pyo3(signature = (edit, *, resolver=None))]
+    fn apply(
+        &mut self,
+        py: Python<'_>,
+        edit: &DocEdit,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
-        let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let applied =
+            d::apply(&self.inner, &edit.inner, tol, &reach).map_err(|err| edit_err(py, &err))?;
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
@@ -1062,8 +1111,14 @@ impl Doc {
 
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
-    fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {
-        self.insert_node(node.inner.clone())
+    #[pyo3(signature = (node, *, resolver=None))]
+    fn insert(
+        &mut self,
+        py: Python<'_>,
+        node: &Node,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<NodeId> {
+        self.insert_node(node.inner.clone(), resolver)
             .map_err(|err| edit_err(py, &err))?
             .ok_or_else(|| {
                 // The SAME contract violation `declare` refuses —
@@ -1112,7 +1167,7 @@ impl Doc {
         elevation: Option<super::expr::Expr>,
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
-        self.insert(py, &node)
+        self.insert(py, &node, None)
     }
 
     /// Declare ONE inspected finding: insert a `Declare` node with
@@ -3207,9 +3262,11 @@ impl DocEdit {
     /// inferred about which of the old entries survived or moved.
     /// Dropping one member is this edit without it plus a
     /// `DocEdit.delete_node` of the orphan, one committed action. A
-    /// union's `declare` input is left as it was: a member-space pair
-    /// re-routes to the step its two members now meet at rather than
-    /// being invalidated by the rewrite.
+    /// union's `declare` input is left as it was, so a pair whose two
+    /// members are both still in the list re-routes to the step they
+    /// now meet at; a pair whose member was DROPPED has lost its site
+    /// and refuses at the next evaluation as a vanished name, rather
+    /// than being edited away silently.
     ///
     /// Every check `Doc.insert` makes of a node's inputs is remade
     /// here, of the REWRITTEN node, so this edit cannot reach a state
@@ -3258,7 +3315,7 @@ impl DocEdit {
     /// for a slot this node does not carry (naming the slot it
     /// lacks), `slot_dimension_mismatch` for an expression of the
     /// wrong dimension (carrying the required and offered pair), and
-    /// `unknown_doc_param` / `doc_param_dimension_mismatch` for a
+    /// `slot_unknown_doc_param` / `slot_doc_param_dimension` for a
     /// parameter reference the document does not answer.
     #[staticmethod]
     fn set_param(node: &NodeId, slot: &str, expr: &super::expr::Expr) -> PyResult<Self> {

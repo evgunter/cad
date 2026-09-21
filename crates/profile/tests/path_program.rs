@@ -29,8 +29,8 @@ use common::{coverage_corpus, pinned};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{
-    ArcMode, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind,
-    Start, Step, Target, TipState, Verb, replay,
+    ArcMode, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, RadiusRole, ReplayError,
+    ReplayErrorKind, Start, Step, Target, TipState, Verb, replay,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -40,6 +40,12 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// The recorded program of a chain, kept alongside its pinned loop.
 fn program_of(closed: &ClosedLoop<f64>) -> Vec<Step<f64>> {
     closed.program.clone()
+}
+
+/// Each step as `Debug` renders it — the comparable form of a
+/// recording, `Step` carrying no `PartialEq`.
+fn rendered(program: &[Step<f64>]) -> Vec<String> {
+    program.iter().map(|step| format!("{step:?}")).collect()
 }
 
 /// Every verb a program names, in order — the readable half of a step
@@ -343,6 +349,93 @@ fn the_eye_is_one_fused_step() {
             ));
         }
         ref other => panic!("expected the fused ArcFilletArc step, got {other:?}"),
+    }
+    validate_ok(&pinned(closed));
+}
+
+/// **A partial path reports the prefix of the program it publishes.**
+///
+/// `PartialPath::recorded` is what lets a caller writing a notation
+/// beside a recording address the verb it has just called without
+/// counting the ones before it, so the claim it has to carry is
+/// exactly this: after every verb of a chain, the steps so far ARE the
+/// finished program's prefix, one step per verb, binders included.
+///
+/// The chain mixes the shapes that could break the correspondence — a
+/// leg, an arc, a `fillet` binder (a verb that records a step and
+/// emits geometry only when the next one resolves it), a re-entry pair
+/// and the closer. A `recorded` that omitted binder steps, or that
+/// answered a step late, moves every prefix after the omission and
+/// reds here.
+///
+/// Steps are compared through `Debug`, which renders every authored
+/// field of a step and prints an `f64` as its shortest round-tripping
+/// form — so two steps that render alike hold the same authored
+/// numbers.
+#[test]
+fn a_partial_path_reports_the_prefix_of_the_program_it_publishes() {
+    use profile::{ArcSide, Sweep};
+    let t = Tol::witness();
+    let mut prefixes: Vec<Vec<String>> = Vec::new();
+    let path = Open.at(p2(0.0, 0.0));
+    prefixes.push(rendered(path.recorded()));
+    let path = path.angle(0.0, t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            t,
+        )
+        .unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path.fillet(0.2, t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path.at(p2(4.0, 3.0), t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path.toward(0.0, 1.0, t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let path = path.line(3.0, t).unwrap();
+    prefixes.push(rendered(path.recorded()));
+    let closed = path.line_to(Start, t).unwrap();
+
+    let program = rendered(&program_of(&closed));
+    assert_eq!(
+        verbs(&program_of(&closed)),
+        vec![
+            Verb::At,
+            Verb::Angle,
+            Verb::ArcTo,
+            Verb::Fillet,
+            Verb::At,
+            Verb::Toward,
+            Verb::Line,
+            Verb::LineTo
+        ],
+        "the chain this row walks, binders and all"
+    );
+    assert_eq!(
+        program.len(),
+        prefixes.len() + 1,
+        "one step per verb, and the closing verb records the last one"
+    );
+    for (i, prefix) in prefixes.iter().enumerate() {
+        assert_eq!(
+            prefix.len(),
+            i + 1,
+            "the path had recorded {} verbs, so it holds {} steps",
+            i + 1,
+            i + 1
+        );
+        assert_eq!(
+            prefix.as_slice(),
+            &program[..=i],
+            "the prefix after verb {} is the published program's own prefix",
+            i + 1
+        );
     }
     validate_ok(&pinned(closed));
 }
@@ -844,4 +937,541 @@ fn geometry_refusals_are_the_path_class_and_are_binding_dependent() {
         }) => {}
         other => panic!("a negative fillet radius must refuse typed, got {other:?}"),
     }
+}
+
+// ------------------------------------------------------------------
+// The per-radius emission record
+//
+// A span says which segments a step produced; it cannot say which of
+// that step's radii drew which of them, and for a BINDER it cannot say
+// anything at all — the radius is on one step and the arc it opens is
+// emitted by another. `ReplayStructure::radii` is that fact, and the
+// rows below are what pin it: the address is the step whose RADIUS
+// ARGUMENT drew the arc, whichever step emitted it.
+// ------------------------------------------------------------------
+
+/// The emission record of a chain, in emission order.
+fn radii(closed: &ClosedLoop<f64>) -> Vec<(usize, RadiusRole, usize)> {
+    closed
+        .structure
+        .radii
+        .iter()
+        .map(|e| (e.step, e.role, e.segment))
+        .collect()
+}
+
+/// **A fillet arc is credited to the step that BINDS its radius**, not
+/// to the step that emits it.
+///
+/// The composite §2c walk is the fixture because it holds three binder
+/// shapes at once: a `fillet(r)` whose arc a later arrival emits, a
+/// `fillet_arc(r, spec)` that emits its own, and an
+/// `arc_fillet(spec, r)` whose arc a later straight arrival emits. Each
+/// records at the step holding the radius a reader would edit, and the
+/// row asserts the binders' SPANS are empty beside it — which is what
+/// makes the credit unobtainable from the spans and the reason this
+/// record exists.
+///
+/// The `Sweep` leg records its carrier radius on its own step; the
+/// `arc_fillet(Radius { .. })` extension records none for its incoming
+/// side, because an extension emits no segment — it moves the vertex
+/// the previous leg already owns.
+#[test]
+fn a_fillet_arc_is_credited_to_the_step_that_binds_its_radius() {
+    use profile::{ArcSide, Center, Radius, Sweep};
+    let walk = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .fillet(0.2, Tol::witness())
+        .unwrap()
+        .at(p2(4.0, 3.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.25,
+            Center {
+                c: p2(2.0, 6.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 9.0),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            0.25,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(1.0, 4.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, -1.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        radii(&walk),
+        vec![
+            (2, RadiusRole::Carrier, 0),
+            (3, RadiusRole::Fillet, 2),
+            (6, RadiusRole::Fillet, 4),
+            (7, RadiusRole::Fillet, 6),
+        ],
+        "each radius names the segment its own arc drew"
+    );
+    for step in [3, 7] {
+        assert!(
+            walk.structure.steps[step].is_empty(),
+            "step {step} is a BINDER — it emitted {}, so the segment credited to its \
+             radius cannot have come from its span",
+            walk.structure.steps[step]
+        );
+    }
+    assert!(
+        walk.structure.steps[5].start() <= 2 && 2 < walk.structure.steps[5].end(),
+        "and segment 2 was emitted by the ARRIVAL step 5, which holds no radius: {}",
+        walk.structure.steps[5]
+    );
+}
+
+/// **A fused step records one emission per radius ROLE**: three radii,
+/// three segments, three addresses on one step.
+///
+/// `arc_fillet_arc(Sweep, r, Radius)` is the whole shape — the incoming
+/// carrier the verb authors, the fillet it opens, the arrival carrier
+/// it lands on — and each is a different argument of one step. A
+/// recording that swapped the incoming and arrival roles, or that
+/// shifted a segment by one, would name a different wall for two of
+/// the three and reds here.
+#[test]
+fn a_fused_step_records_one_emission_per_radius_role() {
+    use profile::{ArcSide, Radius, Sweep};
+    let three = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(4.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .arc_fillet_arc(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            0.25,
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(2.0, 6.0))
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        verbs(&program_of(&three))[4],
+        Verb::ArcFilletArc,
+        "step 4 is the fused verb the addresses below name"
+    );
+    assert_eq!(
+        radii(&three),
+        vec![
+            (4, RadiusRole::Carrier, 1),
+            (4, RadiusRole::Fillet, 2),
+            (4, RadiusRole::Carrier2, 3),
+        ],
+        "one step, three radius arguments, three segments — each on its own"
+    );
+    assert!(
+        three.structure.steps[4].is_empty(),
+        "and the fused step emitted {} of them: a `Radius` arrival binds its anchor \
+         and its director on later steps, so all three arcs are emitted by the \
+         binder that completes it",
+        three.structure.steps[4]
+    );
+    let emitter = three.structure.steps[6];
+    assert_eq!(
+        (emitter.start(), emitter.end()),
+        (1, 4),
+        "step 6 is the director binding that emitted them, and it holds no radius \
+         at all — which is why the SPANS alone cannot say which radius drew which"
+    );
+}
+
+/// **An arc no radius argument authored records nothing.**
+///
+/// A `Bulge`, `Via` or `Center` spec authors a carrier from a bulge, a
+/// through-point or a centre, so its arc has no radius address to name
+/// and the record says so by omission rather than by naming an
+/// argument the step does not hold. The fused step's own fillet radius
+/// is still recorded: the two halves of `arc_fillet(Bulge { .. }, r)`
+/// are answered separately.
+#[test]
+fn an_arc_no_radius_drew_records_no_emission() {
+    use profile::{Bulge, Center};
+    let bulged = Open
+        .at(p2(0.0, 0.0))
+        .arc_fillet(
+            Bulge {
+                p: p2(3.0, 0.0),
+                b: 0.2,
+            },
+            0.2,
+            Tol::witness(),
+        )
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .to(p2(3.3, 4.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(0.0, 4.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        radii(&bulged)
+            .iter()
+            .map(|(step, role, _)| (*step, *role))
+            .collect::<Vec<_>>(),
+        vec![(1, RadiusRole::Fillet)],
+        "the bulge spec's arc names no radius; the fillet's own still does"
+    );
+    let centred = Open
+        .at(p2(0.0, 2.0))
+        .line_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+    assert_eq!(
+        radii(&centred)
+            .iter()
+            .map(|(step, role, _)| (*step, *role))
+            .collect::<Vec<_>>(),
+        vec![(3, RadiusRole::Fillet)],
+        "nor does a Center arrival's closing carrier run"
+    );
+}
+
+/// The carrier radius of the segment LEAVING vertex `i`, read back
+/// off the stored chord-and-bulge the way a reader classifies it —
+/// `r = c(1 + b²) / (4|b|)` for chord `c` and bulge `b = tan(θ/4)`.
+/// `None` where the stored segment is straight.
+///
+/// The emission record names a segment; this is what says the segment
+/// it names is the arc the authored radius drew, rather than a
+/// neighbour that happens to be an arc too.
+fn stored_radius(closed: &ClosedLoop<f64>, i: usize) -> Option<f64> {
+    let vs = closed.loop_.vertices();
+    let b = vs[i].bulge();
+    if b == 0.0 {
+        return None;
+    }
+    let a = vs[i].pos();
+    let z = vs[(i + 1) % vs.len()].pos();
+    let chord = (z - a).norm_squared().sqrt();
+    Some(chord * (1.0 + b * b) / (4.0 * b.abs()))
+}
+
+/// **The EXACT-FIT close records its fillet on the closing segment,
+/// and the segment it names is stored at the authored radius.**
+///
+/// `family::resolve_arc_close`'s `else` arm is the branch where the
+/// fillet arc consumes the whole arrival side and IS the closing
+/// segment. `r = 1.0` is the radius that consumes the line × arc
+/// corner's outgoing side exactly
+/// (`fillet_stored_tangency::an_exact_outgoing_fit_leaves_its_joint_undeclared_and_still_validates`
+/// is the fixture); the same chain at `r = 0.5` leaves carrier run
+/// behind and takes the OTHER arm, and the two arms must agree about
+/// what a fillet emission looks like.
+#[test]
+fn the_exact_fit_close_records_its_fillet_on_the_closing_segment() {
+    use profile::Center;
+    let exact = Open
+        .at(p2(0.0, 2.0))
+        .line_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            1.0,
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+    let last = exact.loop_.vertices().len() - 1;
+    assert_eq!(
+        radii(&exact),
+        vec![(3, RadiusRole::Fillet, last)],
+        "the exact fit's one emission is the fillet's, on the CLOSING segment"
+    );
+    assert_eq!(
+        (
+            exact.structure.steps[3].start(),
+            exact.structure.steps[3].end()
+        ),
+        (1, last + 1),
+        "the arrival step emitted the trimmed incoming run and the closing arc"
+    );
+    let got = stored_radius(&exact, last).expect("the closing segment is an arc");
+    assert!(
+        (got - 1.0).abs() < 1e-9,
+        "and the segment it names is stored at the authored radius, not {got}"
+    );
+    let inexact = Open
+        .at(p2(0.0, 2.0))
+        .line_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+    let [(step, role, segment)] = radii(&inexact)[..] else {
+        panic!(
+            "the inexact fit records one emission too: {:?}",
+            radii(&inexact)
+        );
+    };
+    assert_eq!((step, role), (3, RadiusRole::Fillet));
+    let got = stored_radius(&inexact, segment).expect("and it is an arc as well");
+    assert!((got - 0.5).abs() < 1e-9, "at its own radius, not {got}");
+}
+
+/// **A VIA close credits its fillet to the step that BOUND the
+/// radius, not to the step that closes the loop.**
+///
+/// `Via { q, p: Start }` leaves the seam director free, so the close
+/// runs from `ViaArrivalStart::toward_kernel` — which has already
+/// RECORDED the director's own step. There `current_step()` and the
+/// binder's `bound_at` are two different steps, and the director's
+/// holds no radius at all. Every other close in this crate authors
+/// `Center { p: Start }`, where the two coincide and an address read
+/// off `current_step()` passes.
+#[test]
+fn a_via_close_credits_its_fillet_to_the_binder_not_the_closing_step() {
+    use profile::Via;
+    let h = 2.0_f64.sqrt();
+    let closed = Open
+        .at(p2(0.0, 2.0))
+        .line_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .toward(2.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.5,
+            Via {
+                q: p2(h, h),
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        closed.structure.steps.len(),
+        5,
+        "the director binding is a step of its own"
+    );
+    let [(step, role, segment)] = radii(&closed)[..] else {
+        panic!("one radius argument, one arc: {:?}", radii(&closed));
+    };
+    assert_eq!(
+        (step, role),
+        (3, RadiusRole::Fillet),
+        "step 3 is the `fillet_arc` that authored the radius; step 4 is the \
+         director binding that emitted the arcs and holds none"
+    );
+    assert!(
+        closed.structure.steps[4].len() > 1,
+        "step 4 emitted the fillet arc AND the Via arc — {} of them",
+        closed.structure.steps[4]
+    );
+    let got = stored_radius(&closed, segment).expect("the named segment is an arc");
+    assert!(
+        (got - 0.5).abs() < 1e-9,
+        "and it is the FILLET arc, not the Via carrier's: {got}"
+    );
+}
+
+/// **A radius-bearing LEG records its carrier on its own step,
+/// wherever the leg sits** — first emitting step, middle, or last
+/// before the closer.
+///
+/// `family::arc_to_kernel` is the one emission site that addresses
+/// `current_step()` rather than a binder's `bound_at`, and it is
+/// correct exactly because the two coincide for a plain leg. A leg at
+/// three positions of one chain is what measures that: each `Sweep`
+/// and `ArcLen` leg's emission names the step that authored it, and
+/// the straight legs between them contribute nothing.
+#[test]
+fn a_radius_bearing_leg_records_its_own_step_at_every_position() {
+    use profile::{ArcLen, ArcSide, Sweep};
+    let walk = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.5,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .arc_to(
+            ArcLen {
+                r: 3.0,
+                side: ArcSide::Left,
+                len: 1.5,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .arc_to(
+            Sweep {
+                r: 1.5,
+                side: ArcSide::Left,
+                angle: 0.7,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        radii(&walk),
+        vec![
+            (2, RadiusRole::Carrier, 0),
+            (5, RadiusRole::Carrier, 2),
+            (8, RadiusRole::Carrier, 4),
+        ],
+        "each leg's carrier radius names its own step and its own segment"
+    );
+    for (want, (_, _, segment)) in [2.0, 3.0, 1.5].into_iter().zip(radii(&walk)) {
+        let got = stored_radius(&walk, segment).expect("the named segment is an arc");
+        assert!(
+            (got - want).abs() < 1e-6,
+            "segment {segment} is stored at {got}, not the {want} its address names"
+        );
+    }
+    let program: Vec<_> = walk.program.clone();
+    let (_, recorded) =
+        profile::replay_recording(&program, Tol::witness()).expect("the walk replays recording");
+    assert_eq!(recorded.radii, walk.structure.radii);
+    profile::replay_guided(&program, &recorded, Tol::witness())
+        .expect("and replays guided against its own record");
+}
+
+/// **No two emissions of one loop name the same segment.**
+///
+/// `editor-core`'s `eval::wire::edge_radii` reads the per-edge door's
+/// answer with `.find(|(e, _)| *e == want)` — the FIRST pair naming a
+/// canonical segment wins and any second is dropped without a word.
+/// That is sound only while one segment carries at most one emission,
+/// and nothing in the types says so, so it is measured here over
+/// every chain the coverage corpus holds.
+#[test]
+fn no_two_emissions_of_one_loop_name_the_same_segment() {
+    for (i, closed) in coverage_corpus().iter().enumerate() {
+        let mut seen: Vec<usize> = closed.structure.radii.iter().map(|e| e.segment).collect();
+        let n = seen.len();
+        seen.sort_unstable();
+        seen.dedup();
+        assert_eq!(
+            seen.len(),
+            n,
+            "chain {i} records two radii on one segment, which `edge_radii`'s \
+             first-match read would silently drop one of: {:?}",
+            closed.structure.radii
+        );
+        for e in &closed.structure.radii {
+            assert!(
+                e.segment < closed.loop_.vertices().len(),
+                "chain {i}: {e} names a segment the loop does not have"
+            );
+        }
+    }
+}
+
+/// **Every radius ROLE the record vocabulary declares is reached by
+/// the corpus**, so the guided fence's positive half — every corpus
+/// program replayed guided against its own record
+/// (`guided_replay::guided_replay_at_f64_reproduces_plain_replay_bitwise`)
+/// — reproduces each of them.
+///
+/// The role travels inside an emission, so the verb and arc-mode
+/// censuses above cannot see it: `Carrier2` is recorded only where a
+/// radius-bearing ARRIVAL spec resolves, and `ArrivalSpec` is
+/// implemented for `Radius`, `Via` and `Center` alone — so exactly one
+/// shape in the language reaches it, and a corpus without that shape
+/// leaves the guided arm's `Carrier2` comparison unexercised while
+/// every row still passes. Anchored on [`RadiusRole::ALL`], so a role
+/// the vocabulary gains cannot fall behind it.
+#[test]
+fn every_radius_role_is_reached_by_the_corpus() {
+    let seen: Vec<RadiusRole> = coverage_corpus()
+        .iter()
+        .flat_map(|c| c.structure.radii.iter().map(|e| e.role))
+        .collect();
+    let missing: Vec<&RadiusRole> = RadiusRole::ALL
+        .iter()
+        .filter(|r| !seen.contains(r))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "these radius roles are declared but never recorded by the corpus: \
+         {missing:?} — the guided fence reproduces only the roles it reaches, \
+         so add a chain to `coverage_corpus` that authors them"
+    );
 }

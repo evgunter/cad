@@ -31,16 +31,24 @@ posture under §Process.
    middle tier); its residue
    `bandfoot-and-bandcross-arguments-are-read-by-no-document-row` is
    **merged** (PR #2794, middle tier); its residue
-   `editor-core-suites-redefine-the-name-table-helpers` stands open.
+   `editor-core-suites-redefine-the-name-table-helpers` is spec'd and
+   **dispatched** (middle tier, wave 10).
 2. **The edit vocabulary's missing doors** —
    `doc-param-unit-edit-has-no-door` is a unit, not a fork: the
    carry-forward mirror of `with_value`, on the reading the document
    already makes (a unit is presentation metadata, outside `bit_eq`);
    the PR body states that reading. Middle tier.
    `a-declared-union-has-no-one-pass-authoring-path` was ruled by Ev
-   on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended):
-   **dispatched**, kernel unit (`docs/EDIT-DECL-SPEC.md`, v6 dual, block
-   EDIT-B2 slot 0, opus).
+   on the fourth `[ev]` PR (#2795) as SITED declarations (DM4 amended)
+   and is **merged** (PR #2809, kernel unit, v6 dual, block EDIT-B2
+   slot 0, sample #216); its residue
+   `a-declare-orphaned-by-a-cascade-is-never-reported` is **merged**
+   (PR #2874, middle tier, wave 11: the delete that orphans a
+   `Declare` reports it as maintenance; the ruling and its transient
+   put to Ev on `[ev]` #2869); its residue
+   `an-orphaned-declare-joins-the-product-root-set` was ruled a
+   non-issue and **closed** (PR #2882, E-class: the root set is the
+   sink set, non-body roots contribute nothing).
    `deletenode-strands-a-declare-payload-name` (DM7) and
    `authored-step-to-canonical-segment-map-has-no-home` (DM8) were
    ruled on the first `[ev]` PR and are **built** (PRs #2753, #2759,
@@ -53,9 +61,16 @@ posture under §Process.
    (PR #2797, middle tier). `mate-head-entity-kind-is-decided-only-at-assembly`
    is **merged** (PR #2799, middle tier; re-scoped on Ev's question to
    a `FaceName` newtype, so a non-face head does not typecheck); its
-   residue `interface-crossing-heads-are-bare-stable-names` stands
-   open. `no-docedit-splices-a-deleted-node` is deferred on DM6 and is
-   not work.
+   residue `interface-crossing-heads-are-bare-stable-names` is
+   **merged** (PR #2814, middle tier, wave 10); its residue
+   `instantiate-part-crossings-are-names-payload-names-does-not-list`
+   is **merged** (PR #2872, middle tier, wave 11: an instance's
+   crossing `outer`s are payload names, its `inner`s are the part's;
+   the crossing's `mate` id ruled a provenance reference checked at
+   insertion and its row closed in the same pass; the fourth door on
+   `split` disclosed and put to Ev).
+   `no-docedit-splices-a-deleted-node` is deferred on DM6
+   and is not work.
 3. **The persisted recipe's honesty** —
    `blend-selection-canonical-check-load-only` merged (kernel unit);
    its residue `three-door-predicates-are-hand-copied-not-shared`,
@@ -67,15 +82,23 @@ posture under §Process.
    together as round three (PR #2780, middle tier; the census is now
    the code's). `recorded-program-arguments-carry-no-notation` is
    **merged** (PR #2779, middle tier, ruled by DESIGN.md D6 ¶2 and the
-   doc-param precedent; LIB's Python half unparked at that merge).
+   doc-param precedent; LIB's Python half unparked at that merge); its
+   residue `recorded-notation-makes-a-rust-author-count-step-indices`
+   is **merged** (PR #2876, middle tier, wave 12: the recorder hands
+   back its steps and the notation's authoring door derives the
+   index).
    Round three's residue
    `load-door-does-not-check-payload-expression-param-refs` is
    **merged** (PR #2793, middle tier). DM8's residue
    `carrier-radius-door-answers-none-for-chains-though-the-map-now-exists`
-   is **in review** (PR #2804, middle tier, wave 8; crosses WIRE's
+   is **merged** (PR #2804, middle tier, wave 8; crossed WIRE's
    `eval::content_key` and `ProfileValue` by announcement); its residue
-   `fused-arc-fillet-steps-have-no-per-segment-radius-address` stands
-   open.
+   `fused-arc-fillet-steps-have-no-per-segment-radius-address` is
+   **merged** (PR #2892, kernel unit, v6 dual, block EDIT-B2 slot 1,
+   wave 14, sample #223: the replay record says which segment each
+   radius drew and DM8's map reads it; both reviewers
+   APPROVE-WITH-FIXES with no MAJOR; the exact-fit close's unguarded
+   fillet arc, found by both, closed with it).
    `replay-and-load-keep-the-document-without-its-maintenance` was
    ruled and closed (E-class, PR #2771).
 4. **The resolver's doors** — EDIT-PICK, EDIT-PICK2 and EDIT-PICK3
@@ -84,13 +107,28 @@ posture under §Process.
    `[ev]` #2764) and the two rows parked on it closed with EDIT-PICK3;
    `pick-tie-break-width-key-depends-on-scene-magnitude` was ruled by
    Ev on the fourth `[ev]` PR (#2795): the certified tie between faces
-   is refused and the width key goes — **spec'd**, middle tier (wave 9,
-   dispatches as a lane frees); `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
-   stands open; `pick-face-raw-target-path-survives-only-for-rows`
-   is ruled and **in review** (PR #2801, middle tier, wave 7);
+   is refused and the width key goes — **merged** (PR #2816, middle
+   tier, wave 9; the viewer's pick seed is a depth, so only a face
+   answer refuses); `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+   was ruled by Ev on `[ev]` #2889 — the certificate stops at the
+   tessellation by design — and is **closed** (one doc sentence); `pick-face-raw-target-path-survives-only-for-rows`
+   is ruled and **merged** (PR #2801, middle tier, wave 7);
    `pick-refuses-a-crossing-within-rounding-of-a-plane` and
    `pick-a-corner-graze-verdict-depends-on-the-corner-labelling` stand as
    the mechanism's stated classes;
+   `crossing-mate-id-is-provenance-that-nothing-reads` (filed from
+   Ev's condition on `[ev]` #2869) is **merged** (PR #2906, middle
+   tier, wave 15: the field goes; the crossing carries `class`,
+   `outer`, `inner`); `next-id-has-no-layer3-door` (VIEW's filing
+   against DOCM, EDIT's now) is **merged** (PR #2905, E-class, wave
+   15: `Doc::has_minted`, the counter stays private; VIEW's layer-3
+   row unblocked); `a-committed-profile-program-has-no-whole-program-edit`
+   was ruled (B) by Ev on `[ev]` #2904 and is **built and in the
+   dual** as a kernel unit (`docs/EDIT-PROGRAM-SPEC.md`, PR #2927,
+   v6 dual, ordinals 4808/4809, block EDIT-B2 slot 2, wave 17:
+   `SetProgram` carries the program and each step's provenance, the
+   door reports strands, retires stranded names and rebinds kept
+   ones; V2 and DM7 re-worded on the ruling);
    `nodepick-name-doors-take-a-second-evaluation-unpaired` is
    **merged** (PR #2773, middle tier). The pairing row went to PROPS
    with EDIT's door built.
@@ -100,8 +138,21 @@ posture under §Process.
    `assembly-mint-spells-the-entity-kind-refusal-a-seventh-way` is
    **merged** (PR #2719); its residue
    `quoted-parameter-name-in-error-prose-has-no-decision` is ruled and
-   **merged** (E-class, PR #2800), and
+   **merged** (E-class, PR #2800); the load-door residue
+   `param-ref-refusals-spell-two-facts-four-ways` is spec'd and
+   **dispatched** (middle tier, wave 10); and
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
+   `converged-recourse-has-no-home` (re-homed from VNEWS 2026-09-19:
+   the "declare it first" clause written in two crates) is ruled and
+   **merged** (PR #2920, E-class, wave 16: `UNDECLARED_PARAM_RECOURSE`
+   beside `EditError`, both renderings through it, the tripwire test
+   is the pin).
+   Two prose rows filed by waves 10–11 were ruled and **merged** as one
+   E-class unit (PR #2879, wave 13, `edit/prose-one-home`):
+   `doc-param-refusals-keep-two-conventions-inside-one-enum` (the
+   convention's scope is a param reference; nothing renamed) and
+   `payload-carrier-lists-have-seven-prose-homes` (two load-bearing
+   homes, five pointers, the eighth match replaced by the door).
 6. **The Track V mirrors DOCM inherited** — `C6`'s `WireStep` member
    is **built** (PR #2738, dispatched middle tier rather than the
    E-class this line first guessed: the collapse crossed the persisted
@@ -114,18 +165,9 @@ posture under §Process.
 
 ## Process
 
-Three tiers, by the row's weight (Ev, in chat, 2026-09-16):
-
-- **Kernel unit** — standard v6: spec → one implementer drawn from a
-  {opus, opus, fable} block + the cross-model dual on a frozen head →
-  union fix pass; ordinals claimed on main at review dispatch from
-  the band above; recorded at merge; blinding verbatim.
-- **Easy but not trivially so** — excluded from the A/B protocol: one
-  implementer, one style review with a correctness arm (an opus
-  lane), no row recorded.
-- **E-class** (a ruled rename, a prose fix, a one-predicate move
-  whose shape is written in the row) — merges on green CI and the
-  orchestrator's read, no review lane, no row.
+Three tiers, by the row's weight — the tiers and what each one gets
+are `docs/MODEL-AB-LOG.md`'s v7 triage entry, repo-wide since
+2026-09-19. Ordinals for the protocol tier come from the band above.
 
 The tier is named in the row when it is dispatched. Issues are files;
 anything for Ev is an `[ev]` PR. This program runs from a remote

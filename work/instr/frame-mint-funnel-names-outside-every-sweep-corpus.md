@@ -4,6 +4,8 @@ kind: issue
 title: Two frame-mint funnel names, one of them production, reach no k-lint sweep corpus
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 ## What
@@ -181,3 +183,15 @@ cannot tell *"we do not decide this"* from *"we did not run it this
 week"*.
 
 `needs_ev` cleared. Unit 16 is unblocked and stays where it is in lane C.
+
+## Added 2026-09-20 (MSOLVE-8, PR 2896)
+
+Two more production names of the same shape, both in the mate solve,
+which `scripts/k_probe_sweep.sh`'s corpus does not run:
+`mate_axes_parallel` (`crates/editor-core/src/mate/coset.rs`, now the
+`UnitVec3::new` mint of the levered cross product rather than a bare
+`decide`) and `mate_coset_inverse` (`crates/editor-core/src/mate/solve.rs`,
+the transported direction's re-mint). The K-REPORT roster-change
+paragraph for MSOLVE-8 tables them; two test-owned names
+(`fixture_mate_axis`, `pncad_py_test_normal`) follow
+`fixture_frame_axis` and reach no corpus by construction.

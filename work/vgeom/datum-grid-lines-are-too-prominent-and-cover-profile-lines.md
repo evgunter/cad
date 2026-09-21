@@ -2,8 +2,11 @@
 id: datum-grid-lines-are-too-prominent-and-cover-profile-lines
 kind: issue
 title: Datum grid lines are far too prominent and draw over profile lines (Ev-requested, high priority)
-status: open
+status: closed
 opened: 2026-09-17
+branch: vgeom/overlay-lanes
+pr: 2859
+closed: 2026-09-19
 ---
 
 ## Ev's note (verbatim)
@@ -43,3 +46,7 @@ program's order; see the plan's *Ev's requests* section.
 
 Per-lane width is the likely shape: one width per `EdgeOverlay` lane,
 carried in the vertex data or in one draw per lane.
+
+## Closed
+
+Landed by PR 2859 (`vgeom/overlay-lanes`). Each overlay lane has its own draw priority (`marks::EdgeLane`, where `DRAW_ORDER` runs datum grid, committed profile, preview, hovered, selected) and its own width and opacity (`gpu::lane_style`). The edge pass blends in straight alpha. The grid is 1 pt at `theme::DATUM_OPACITY` = 0.5 and draws first, so no profile, preview or mark is covered by it. Profiles stand out by thickness (3 pt, opaque). A theme test holds profile apart from grid and preview under all three palettes and the dichromacies.
