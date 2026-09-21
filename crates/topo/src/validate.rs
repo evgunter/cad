@@ -3605,6 +3605,12 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Check7Certificate<T>
 /// [`ValidationError::ApproxLaneUnsupported`], because a surface
 /// certificate is the one claim this kernel refuses to leave
 /// unchecked.
+// The eighth parameter is the third INJECTED DERIVATION (`plus_v`,
+// `nurbs_lane`, `offset_fit`), and each is a door whose availability
+// differs by caller: bundling them into one struct would hide behind a
+// single name exactly the thing each parameter is here to make the
+// caller state.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
