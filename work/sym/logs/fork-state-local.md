@@ -344,3 +344,54 @@ Proposed split, for Ev to confirm on this PR's thread:
 Reply on this PR's thread (a cloud session cannot message this one):
 what you hold that is not on GitHub (agents, reports, briefs, which
 programs you took after the cut), and agree or counter.
+
+---
+
+## R2's report, verbatim (FABLE; delivered 2026-09-21 00:43Z from the resumed agent)
+
+# SYM-8 review — R2 (blinded), PR #2616 at frozen head b47d4ab621b931c49e7cd9c7847cb849b35c7557
+
+## Verdict: MERGEABLE-AFTER-FIXES
+Rule F's soundness argument holds under every hunt I ran (claim 1 stands). What blocks is a silent contract break in the differential constructors (MAJOR-1) plus a vacuous ordering pin (MINOR-1) and stale citations (MINOR-2). The pad's-four judgement I read as the spec's stop clause literally tripped, honestly disclosed, and the orchestrator's call, not the lane's (MINOR-4).
+
+## Findings on the claims
+**MAJOR-1** — `SymRules::without_the_algebra` (`sym.rs:1477`), `shipped_without_the_door` (`:1493`), `without_rule_e` (`:1505`) are all `..Self::shipped()` and so now carry `manifest_sign: true`; only `none()` (`:1454`) got `false`. Their docs say "M10-9 / M10-8 / M10-10's tier exactly, bit for bit" — all three claims are now false, undisclosed in the PR's deviation list. Consequences: `m10_10_pins_interval::m10_10_the_shipped_set_carries_the_algebra` (`:108–120`, "five algebra dials and nothing else") passes only because both sides carry F; `m10_8_pins`'s `a0_alone()` (`:81`) is "A0 alone" with rule F on and its census (`:50–55`) never names F or E; every M10-8/M10-9 pin row and the leaf-cost row's "algebra OFF (M10-9)" column (`m10_10_evidence_interval.rs:663`) now run with rule F on. Numerically inert on those rows (CI green) — the contract, the censuses and the doc claims are what broke. Rule F is early-walk form-level algebra by SYM-5's own reasoning for rule E, so `without_the_algebra` should shut it and the census should say six. `sure`; DEMONSTRATED BY EXECUTION: `sym_rule_f_r2_probes::r2_the_algebra_off_differential_is_documented_as_m10_9s_tier` reds on the head (prints `true | true | true`).
+
+**MINOR-1** (claim 5) — The "rule-C-on" pin `sym_rule_f_rows::the_manifest_sign_lands_in_symbolic_zero_and_not_sign_gated` (`:128–141`) cannot pin F→C: its rows use `Sym::param`, so `Session::params` is empty and `signed::fold` declines at `signed.rs:293` before looking; and its argument carries a `sqrt` atom rule C could never enclose (`signed.rs:302–310`). Measured: with F SHUT and C ON that residual answers `numeric Zero`, not `sign_gated` — so it is green under either order. The PR body and header (`sym.rs:445`, `manifest.rs:136–138`) present it as the pin. `sure`; DEMONSTRATED BY EXECUTION. My row `r2_the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take` (`abs(1+t²)` with `param_over`, C on) is a real pin: `theorem` shipped, `sign_gated` with F shut — adopt it. The planted C-before-F run itself was NOT executed (box starved; plant script at `/home/evan/cad-lanes/sym-8-r2-tmp/plant.py`) — the prediction (PR row stays green, mine reds) is by inspection, `likely`.
+
+**MINOR-2** (Q4) — `manifestly_nonneg` no longer exists but is cited at `sym.rs:210` (header), `sym.rs:2182` (inside the very `combine` arm this PR edited), `quotient.rs:325`, `sym_rule_e_rows.rs:344,395`; `work/sym/rule-d-reaches-the-unit-bulge-only.md:173,333` too. Doc rot, code right. `sure`, inspection.
+
+**MINOR-3** (spec acceptance, SILENT) — the acceptance asked for "the tilt-U parity row green … or the width it stops at pinned by name with the reason". No gating row exercises `Base::TiltU`: all four rows that do (`m10_derived_frame_tilted_interval.rs:692,693,790,879`) are `#[ignore]`d evidence; the `newell_plane_residual` stop is filed but not pinned. `sure`, inspection.
+
+**MINOR-4** (claim 2, the pad's four) — Read against the split's ordering (theorem/gated/registered/numeric), four decisions moving column 1 → column 3 IS a split moving down, so the spec's Phase-1.3 stop clause ("narrow until it does not") is tripped, and the lane's argument that narrowing cannot separate the pad's atom from tilt-U's is correct — which means the spec's remedy is unavailable and the alternative it names is not shipping. No decision is lost and the pin's comment (`m10_9_pins_interval.rs:126–141`) says exactly what happened. I judge the ship-on defensible, but it is a spec change, not a disclosure — the orchestrator/Ev should ratify it explicitly. `likely`, inspection; the four were NOT re-taken here (heavy row skipped; my `sym8_r2_the_pads_four_re_taken` row is written and pushed, never run).
+
+**Claim 1, soundness — stands.** `positive_poly` (`manifest.rs:213–218`) needs term-wise non-negativity plus one strictly positive term of `Sqrt`/`Abs` atoms over positive arguments; the perfect-square branch is correctly dropped; `D` non-negative suffices because every denominator source (quotient.rs (i)–(iv)) is nonzero on an admitted box and rule F mints no new denominator (`fold_abs` returns the argument, `magnitude` a constant, `y`, or an indet). Frozen nodes (`sym.rs:2265`) and `Hull`/opaque ids are never in `sess.atoms`, so `positive_indet` declines them. EXECUTED: the D=0 edge `abs(1/sqrt(t²)) − 1/sqrt(t²)` is `theorem` at t=0.25, `refused Invalid` over t∈[−0.1,0.4] (clause 1 first), `theorem` over [0.2,0.3]; `1+sqrt(t²)`, `sqrt(1+t²)` at odd power, a product of two positive atoms, and `copysign(t, 1/sqrt(1+t²)) − |t|` all fold to a value-exact zero and are `numeric` with `without_rule_f`; all PR negatives reproduce. `sure`.
+**Adversary (executed):** `E = (x+1)² − x² − 2x − 1 + 1e-30·(1+y²)` is the form `1e-30(1+y²)` (manifestly positive) but at x∈{1e8…1.3e9} the f64 channel evaluates E to −1, so `copysign(1,E) − 1` is a DEFINITE −2 while the form is zero: `Sym<f64>::sign_within`'s contradiction `debug_assert!` (`sym.rs:3272`) FIRES at 6 of 6 points. Not an unsoundness of rule F (E>0 as reals; the f64 lift is not an enclosure) — but rule F is the first rule that turns a one-ulp sign-argument error into a 2.0 margin disagreement, and the panic leaves the thread's session installed ("symbolic sessions do not nest" on the next call). At `Sym<Interval>` over x∈[1e8∓1] the enclosure straddles and the tier answers `theorem`. Also: `sym_rule_f_rows::sound` (`:73–80`) trusts the f64 value at the point — this shape would call a true theorem UNSOUND. NOTE, `sure`.
+
+**Claim 3** (the wall / arms apart) — NOT verified by execution (render and abs-arm plant skipped for the box). By inspection the PR's account is consistent with `newell.rs:156` minting `u_ref` via `orthonormal_basis` on the normalised cap normal. `unsure`.
+**Claim 4** — predicate is strict positivity; `manifest::nonneg` is `manifestly_nonneg`'s body MOVED (old deleted, `trig.rs` diff), call site at `sym.rs:2189` identical in semantics. `sure`, inspection.
+**Claim 6** (cost) — not re-taken; PR's numbers stand as baseline. `unsure`.
+**Claim 7** — `signed.rs` untouched (empty diff); F sets no `gated` of its own, only propagates (`sym.rs:2124,2171`); the re-baselined `m10_7_r1` row asserts `sign_gated == 0` and returns with `without_rule_f`. `sure`, inspection. **Claim 8** — `linalg/vec.rs` untouched (empty diff). `sure`.
+**e2e scope:** `r2_a_manifestly_negative_argument_is_declined_by_both_arms` (executed): `abs(−1/sqrt(1+t²))` and `copysign(1, −1/sqrt(1+t²))` stay `numeric` — the reach is one-sided; a `FaceFrame` on the START cap of the tilt-u body (`n.z = −1/sqrt(P)`) is not reached. NOTE, `sure`. The three editor-core documents (tilt-uv, start-cap, z-touches-zero at half 0.3) are written in `sym8_r2_probes_interval.rs` and pushed, NOT run.
+
+## Style
+- `manifest.rs:63–64` says "`D` needs only non-negativity because a point where `D` vanishes is a point the value channel divided by zero at" — the exact sentence `quotient.rs:57–59` names as "the mistake this paragraph replaces", then defers to it. Conclusion right, prose wrong. `likely`.
+- `manifest.rs:145–150`: `ATOM_DEPTH` comment argues 2–3 and sets 8. `sure`.
+- `manifest.rs:10–23`, `sym.rs:424–433`: the motivation is Duff's spelling ("first two lines are `s = 1.copysign(n.z)`…"), present tense; PROPS #2468 removes it — three sites will read as history. The invariant statement (an atom over a form shown positive) is present and survives. `likely`.
+- Q1: `manifest::magnitude` (`:260–265`) is a third spelling of the atom mint beside `mint_atom` (`sym.rs:2498`) and `trig::sqrt_atom` (`:310–316`); equivalent only because F is early-only. Class of three. `sure`.
+- `positive_poly:217` `!c.is_zero()` is dead by `Poly`'s invariant (documentation, not an assertion). `sure`.
+- Q3: `the_orthonormal_bases_own_atoms_fold_at_the_mint_site` asserts nothing but `sound` — disclosed as non-discriminating; acceptable. `sure`.
+- The header rule table (`sym.rs:1431`) keeps document-specific reach (names tilt-u); `# Cost` (`:547`) is the callgrind section and carries no rule numbers — fine, rule F's cost is in the table and its own section. `sure`.
+
+## CODE QUALITY REPORT
+Counts: MAJOR 1 / MINOR 4 / NOTE 7. Deviations reported: 6 (all defensible; #1, #4 improvements). SILENT: the three differential constructors carrying F (MAJOR-1); no gating tilt-U row (MINOR-3); the ordering pin's vacuity (MINOR-1).
+Idiom/structure 4/5 — `manifest.rs` matches `quotient.rs`/`trig.rs`'s rule-module shape; predicate moved, not copied. Test quality 3/5 — theorem/negative rows value-checked and dial-differential, but the ordering pin is vacuous and the `sound` oracle trusts f64 at the point. Doc/comment honesty 3/5 — the pad's four is disclosed plainly, but three "bit for bit" contracts went false silently and five stale symbol citations remain.
+Questions exercised: Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8 (manifest.rs whole, `combine`'s Abs/Copysign arms, signed.rs whole).
+
+## Gate
+Run 34924029751, head b47d4ab621b931c49e7cd9c7847cb849b35c7557, success; 12 `test (…)` jobs (6 default + 6 interval × eps default/1e-6/1e-12), 5 `k-lint (gate, …)`, `gate ok`.
+
+## Ran locally / skipped
+Ran (dev, `interval,identity-pass-testing,sym-profile-testing`, the seed's features): `cargo test -p geom-core --test all sym_rule_f` — PR's 4 rows green; my 6 rows: 5 green, `r2_the_algebra_off_differential…` red by design. Skipped for the box (seed landed 05:54, editor-core test binary build was OOM-killed twice): the pad's four, tilt-U renders, arms-apart plant, order plant, boss/D-tab splits, two ceilings, two leaf costs, the three e2e documents. All those rows/scripts are written and pushed; PR numbers stand as baseline for each.
+Glimpses: none. `pgrep -f` with my own path only.
+Probe branch `sym/8-review-r2` at **3efcba844** (`crates/geom-core/tests/sym_rule_f_r2_probes.rs`, `crates/editor-core/tests/sym8_r2_probes_interval.rs`, both registered in `all.rs`).
