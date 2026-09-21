@@ -8,7 +8,7 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::contact_verify::tangent_locus_relation;
@@ -21,10 +21,6 @@ use topo::{
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
 fn declared() -> PlaneIdentity<'static> {
@@ -238,7 +234,7 @@ fn probe_tangent_bridges_inband_residual_beyond_the_stated_residue() {
 /// executes this arm; this probe does.)
 #[test]
 fn probe_at_rest_gate_contradicts_a_false_curve_record() {
-    let body = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let z_face = |z: f64| {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
@@ -279,7 +275,7 @@ fn probe_at_rest_gate_contradicts_a_false_curve_record() {
 /// record is refused typed at rest (CensusUnsupported), never blessed.
 #[test]
 fn probe_patch_contact_is_never_certified_at_rest() {
-    let body = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let mut it = body.faces().map(|(k, _)| k);
     let (fa, fb) = (it.next().unwrap(), it.next().unwrap());
     let contacts = ContactRecords {
@@ -308,9 +304,9 @@ fn probe_patch_contact_is_never_certified_at_rest() {
 /// fields).
 #[test]
 fn probe_records_partialeq_bites_on_mutation() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick((0.5, 1.5), (0.25, 1.25), (1.0, 2.0));
-    let decls = flush_declarations(&a, &b);
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness());
+    let decls = flush_declarations(&a, &b, Tol::witness());
     let topo::BooleanResult::Body(out) = topo::union_with(&a, &b, &decls, Tol::witness()).unwrap()
     else {
         panic!("union is a body");
@@ -347,8 +343,8 @@ fn probe_records_partialeq_bites_on_mutation() {
 /// carried this shape no longer declares it.
 #[test]
 fn probe_dev8_false_declaration_is_a_silent_noop_at_the_op() {
-    let c = brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
-    let slot = brick((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5));
+    let c = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
+    let slot = brick::<f64>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness());
     let z_face = |body: &Body<f64>, z: f64| {
         body.faces()
             .find(|(_, f)| match body.get_surface(f.surface) {
@@ -421,9 +417,9 @@ fn probe_aq6_definite_beats_declaration_both_directions() {
 /// and the A/B orientation of a declared pair still verifies.
 #[test]
 fn probe_declared_pair_direction_still_normalized() {
-    let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
-    let b = brick((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
-    let decls = flush_declarations(&a, &b);
+    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+    let decls = flush_declarations(&a, &b, Tol::witness());
     assert!(!decls.coincident_faces.is_empty());
     assert!(
         topo::union_with(&a, &b, &decls, Tol::witness()).is_ok(),

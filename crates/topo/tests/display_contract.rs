@@ -14,6 +14,8 @@ use geom_core::{Band, Indeterminate, MarginDiag};
 use topo::readback::{DanglingRef, ReadbackError};
 use topo::{ContactRefusal, EdgeKey, EntityId, FaceKey, GeomRef, ReplaceFaceError, SurfaceKey};
 
+use test_utils::f6::{assert_f6, assert_f6_every_variant};
+
 /// An in-band margin with a named predicate — the shape a contact
 /// refusal actually carries out of the verification ladder.
 fn in_band() -> Indeterminate {
@@ -24,29 +26,40 @@ fn in_band() -> Indeterminate {
     }
 }
 
-/// Asserts the F6 shape over one rendering: the wanted content is
-/// present, no variant identifier leaks, no Debug punctuation, and the
-/// sentence is not simply the dump.
-fn assert_f6<E: core::fmt::Debug + core::fmt::Display>(err: &E, wants: &[&str], dumps: &[&str]) {
-    let shown = err.to_string();
-    for want in wants {
-        assert!(
-            shown.contains(want),
-            "{err:?} renders as {shown:?}, missing {want:?}"
-        );
-    }
-    for dump in dumps {
-        assert!(
-            !shown.contains(dump),
-            "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
-        );
-    }
-    assert!(
-        !shown.contains('{') && !shown.contains("diag:") && !shown.contains("what:"),
-        "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
-    );
-    assert_ne!(shown, format!("{err:?}"));
+test_utils::f6_variants! {
+    /// `ContactRefusal`'s census: one ident per variant, feeding both
+    /// the wildcard-free `match` rustc checks and the identifier roster
+    /// the weld compares against the rendered cases. The mechanism and
+    /// what it does NOT weld are documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const CONTACT_REFUSAL: ContactRefusal =
+        [Contradicted, Escalated, Undeclared, NotCertifiable];
 }
+
+/// Every `Debug` field name `ContactRefusal`'s payloads carry, as the
+/// punctuation a dump would print — the whole payload vocabulary, not
+/// the subset one row happens to construct.
+///
+/// **What this roster is worth, stated honestly.** It is not what
+/// catches an arm that starts printing `{self:?}`: these are struct
+/// variants, so a full dump carries `{`, which
+/// [`test_utils::f6::assert_f6`] bans unconditionally, and it equals
+/// the value's own `Debug`, which the same helper refuses. What these
+/// entries buy over that is a BRACE-FREE field token in an otherwise
+/// prose sentence, and they are unwelded to the enum, so a payload
+/// field added to an existing variant leaves them short in silence.
+const CONTACT_REFUSAL_FIELDS: &[&str] = &["diag:", "steer:", "what:"];
+
+test_utils::f6_variants! {
+    /// [`ReadbackError`]'s census — see [`CONTACT_REFUSAL`].
+    const READBACK_ERROR: ReadbackError = [Dangling, NoCanonicalFrame, NoCarrier];
+}
+
+/// Every `Debug` field name [`ReadbackError`]'s payloads carry, and
+/// what that is worth — see [`CONTACT_REFUSAL_FIELDS`]. `NoCarrier` is
+/// a UNIT variant, so its dump carries no brace and its whole
+/// fingerprint is the identifier the roster above holds.
+const READBACK_ERROR_FIELDS: &[&str] = &["what:", "carrier:"];
 
 /// Every arm names the contact situation and carries the TWO-arm
 /// menu — except `NotCertifiable`, where a declaration cannot move the
@@ -54,7 +67,6 @@ fn assert_f6<E: core::fmt::Debug + core::fmt::Display>(err: &E, wants: &[&str], 
 /// false lead.
 #[test]
 fn contact_refusal_display_names_its_content_not_its_struct() {
-    let dumps = ["Contradicted", "Escalated", "Undeclared", "NotCertifiable"];
     let cases = [
         (
             ContactRefusal::Contradicted {
@@ -78,15 +90,15 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
             vec!["certifiable set", "the supports meet at no definite angle"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
-    }
+    assert_f6_every_variant(&cases, &CONTACT_REFUSAL, &[], CONTACT_REFUSAL_FIELDS);
     // A `Fit` steer rides the contradiction rather than replacing the
     // menu: the deferral is extra steering, not the recourse. Its own
     // sentence names the `Fit { gap }` variant, so this arm is checked
     // for content and dumps but not for the brace fingerprint — the
     // brace is prose here, and the check that matters is that the
-    // rendering is still not the `Debug` dump.
+    // rendering is still not the `Debug` dump. That is why it does not
+    // go through `assert_f6`: the shared door bans `{` unconditionally,
+    // and an arm whose own prose carries one cannot ask it not to.
     let steered = ContactRefusal::Contradicted {
         diag: in_band(),
         steer: Some(topo::FIT_DEFERRAL),
@@ -95,7 +107,7 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
     for want in [topo::CONTACT_RECOURSE, topo::FIT_DEFERRAL] {
         assert!(shown.contains(want), "{shown:?} is missing {want:?}");
     }
-    for dump in dumps {
+    for dump in CONTACT_REFUSAL.identifiers() {
         assert!(!shown.contains(dump), "{shown:?} leaks the variant name");
     }
     assert_ne!(shown, format!("{steered:?}"));
@@ -115,7 +127,6 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
 /// body — and the keys render through the crate's own noun functions.
 #[test]
 fn readback_error_display_names_its_content_not_its_struct() {
-    let dumps = ["Dangling", "NoCanonicalFrame", "NoCarrier"];
     let cases = [
         (
             ReadbackError::Dangling {
@@ -138,9 +149,7 @@ fn readback_error_display_names_its_content_not_its_struct() {
             vec!["scaffolding", "at rest", "reach rest"],
         ),
     ];
-    for (err, wants) in cases {
-        assert_f6(&err, &wants, &dumps);
-    }
+    assert_f6_every_variant(&cases, &READBACK_ERROR, &[], READBACK_ERROR_FIELDS);
 }
 
 /// **`TogetherEdgeDisagreement`'s sentence is true at every meter that
@@ -182,7 +191,12 @@ fn together_edge_disagreement_display_is_true_at_all_three_meters() {
         assert_f6(
             &err,
             &["carrier", "moved surface", "endpoint", "midpoint", gap],
+            // Deliberately ONE identifier, not an enum mirror: this row
+            // is about one variant's sentence being true at three
+            // raising sites, so the ban list is that variant and the
+            // field roster is what its own payload would dump.
             &["TogetherEdgeDisagreement"],
+            &["edge:", "gap:"],
         );
         // The wrong mechanism stays gone: a sentence that asserts the
         // endpoint story unconditionally is false at the midpoint

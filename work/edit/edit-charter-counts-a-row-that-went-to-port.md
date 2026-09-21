@@ -2,9 +2,10 @@
 id: edit-charter-counts-a-row-that-went-to-port
 kind: issue
 title: EDIT's charter counts the load door's structured refusals among its rows, but that row went to PORT in the same sweep
-status: open
+status: closed
 opened: 2026-09-15
 refs: [load-path-stringifies-structured-refusals]
+closed: 2026-09-16
 ---
 
 
@@ -61,3 +62,10 @@ A sentence in `work/edit/program.md` — drop the third item from the
 charter's parenthetical, add `persist/wire.rs` to the PORT clause in
 `keep_out`. Both are EDIT's to write, and either can ride any EDIT PR
 that touches the file.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Both sentences written in `work/edit/program.md`: the charter's
+parenthetical no longer counts the load door's structured refusals,
+and the PORT clause of `keep_out` names `persist/wire.rs` with the
+row's defect site. The record is two-sided now.

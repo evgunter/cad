@@ -659,3 +659,467 @@ ONE executable check rather than four prose edits that re-rot, and
 whether that check is worth building is the decision to take before
 spending an edit on any of them. If it is not, they close the way `D113`
 closed.
+
+## The roster class was not a class (2026-09-15)
+
+A feasibility probe ran BEFORE a spec was written — the first time this
+program has done that, and it broke the grouping this seat had proposed
+to Ev two hours earlier.
+
+**The claim was that four rows wanted one executable check. Two do.**
+
+- `interrogate-ladder-header-claims-every-rung-and-pins-five` claims
+  coverage of an **enum's variants**, which a roster of test names
+  cannot see. Its welded shape is TINT-1's exhaustive `match`, which has
+  landed, and `display_contract.rs` already carries a complete welded
+  enumeration of `InterrogateError`'s ten variants to copy. **Routed out
+  of the class; cheaper than it looked.**
+- `test-headers-name-fns-that-exist-nowhere` is **closed as wrongly
+  filed, by the seat that filed it this morning.** Both its sites name
+  retired rows on purpose — `m5_pr13_curved.rs` under an explicit
+  *"Lineage: `CENSUS` succeeds …"* heading. The row read a population
+  off a pattern (backticked identifiers resolving nowhere) and assigned
+  it a subject (a roster that over-counts) without reading the sentences
+  around the names. **That is this program's own charter defect,
+  committed while filing against it** — observation 1, one level up from
+  the code.
+- TOPO's `review-d18-probes` stays TOPO's. The mechanism is verified to
+  work in its exact shape (`#[cfg(test)] mod` inside `src/`) and has
+  been offered as a pointer with its limits stated, not as a request.
+
+**The mechanism, which the probe built and ran rather than proposed**:
+read the roster off libtest's own `--list` via a `current_exe()`
+re-exec — the harness's ground truth, **no Rust parsed**, so not a
+fresh instance of `source-scanning-censuses-are-a-tripwire-on-ordinary-rust`.
+The weld is a `roster!` macro whose each entry is an ident feeding three
+consumers: `let _: fn() = $name;` (a retired name is a compile error),
+`stringify!($name)` (the compared string cannot be mistyped), and the
+printed text. Five falsifiers run green, ~3.6 ms per check, and the
+tree already re-execs its own test binary at eighteen sites.
+
+**TINT-4 cut** — `docs/TINT-4-SPEC.md`, branch `tint/4-roster-weld`, ONE
+row and ONE adopting file. The spec names the measurement that can kill
+it (time the self-`--list` inside `editor-core`'s `all.rs` under
+`--features interval`, the largest binary in the tree and the one the
+adopting file lives in) and requires the lane to stop and report if it
+comes out badly. It also states, at the site and in the PR, that the
+mechanism welds **names and never prose** — the m10-6 row's own defect
+has a sentence half this design will never catch, and a lane that ships
+"the roster cannot go stale" would be wrong in exactly TINT-1's way.
+
+**What changed in how this program works.** Observation 2 said a spec
+must name the measurement that would show its mechanism cannot work.
+This is the first spec written after an executed probe rather than
+before one, and the probe's value was not the mechanism — it was
+discovering that two of the four rows were mis-classed, one of them by
+this seat, on the same day. **Probing before speccing found a filing
+error that two reviews would not have**, because no reviewer reads a
+row's premise against the tree; they read a diff.
+
+## TINT-3 landed: fifteen guards, one macro (2026-09-15)
+
+PR #2680, CI green on run 35005522838 — 12 `test (…)`, 5 `k-lint (gate, …)`,
+0 failures. `D382` closed; its own file carries the account.
+
+**The measurement came before the mechanism, for the first time in this
+program, and it held.** `env!("CARGO_MANIFEST_DIR")` and
+`include_str!("all.rs")` inside an exported macro both resolve at the
+INVOCATION site — probe, negative control (definition-site file deleted,
+clean rebuild), spelling control, then re-confirmed independently by the
+review. Had it gone the other way, all fifteen rows would have checked
+`test-utils`' own tree while reporting on fifteen crates, and **nothing
+would have red'd**. That is the failure this program exists to find, and
+it would have shipped green.
+
+**The count was fifteen, and the fifteenth is the row's own rider.**
+`crates/test-utils/tests/all.rs` landed between the re-derivation and the
+fix. The row had asked for `test-utils` to be opted in; it opted itself
+in by growing a copy, which is the class recruiting while the row sat
+still — the pattern the re-derivation pass named in September.
+
+**The unit's real lesson is about what a collapse costs.** The census
+had been detecting each aggregating `all.rs` by a margin of exactly ONE
+literal, supplied by `include_str!("all.rs")`. Collapsing to a macro took
+fourteen of fifteen to zero margin, so detectors had to move — and that
+is indistinguishable, from the outside, from weakening a guard to make
+your own change pass. The review adjudicated it a correction (a
+`||`-needle list widens monotonically; the silencing option of deleting
+fifteen ledger lines was available and not taken) and then found the part
+nobody had said: **fifteen independently-checked facts became one**, and
+the one is exempt from the row that would check it. The fix pass closed
+that in ~25 lines with a row that reds on exactly that mutation and
+nothing else.
+
+So the shape to carry: **a 15→1 collapse is worth it when the fifteen are
+byte-identical, and the honest accounting says what the fifteen were
+buying.** Written at the macro, not only in a PR body.
+
+**Three seats, three corrections, each catching the one before.** The
+lane reported the 33 duplicated helper bodies as "already covered by six
+rows"; the review showed all six are geometry-fixture rows and named
+seven uncovered classes; the fix pass measured past both — `validated`/`vp`
+at **24 copies in 8 distinct bodies**, eight of eleven drifted — and
+corrected the review in turn, finding that two of its seven
+(`fnv`/`digest`, `missing_pairs`) DO have rows on `work/perf/`. **This
+seat repeated the review's claim without checking it.** Filed as
+`cross-crate-test-helper-copies-outside-the-geometry-fixtures`.
+
+**Board**: 8 rows closed. Three units landed, each one's guard proved by
+mutation rather than asserted. TINT-4 is in flight on the roster weld.
+
+## TINT-3 was merged, and not onto main (2026-09-15)
+
+The entry above says TINT-3 landed. It did not. It is on
+`tint/2-stand-down-channel`, and `e4adf05a1` — the merge commit — is
+reachable from that branch and from nothing else.
+
+**What happened, with times.** PR #2656 (TINT-2) merged into `main` at
+17:14:33. PR #2680 (TINT-3) was opened at 17:16:50 with base
+**`tint/2-stand-down-channel`**, because the lane cut its branch off
+TINT-2's head to build on work that had not landed yet — which was the
+right call at the time it was made and stopped being right two minutes
+before the PR existed. Nobody retargeted the base. At 18:46 the merge
+API returned `"merged": true` and it was telling the truth: it merged
+the head into the base it was given.
+
+**Why nothing caught it.** The merge succeeded. CI was green on the
+head. `work.py lint` passed. The log entry above was written from the
+API's `merged: true` and from a green run id, and both of those are
+facts about a PR rather than facts about `main`. There is no state in
+which that API call reports a wrong base, because to the API there is
+no wrong base.
+
+**That is this program's own charter shape, committed by this
+program's orchestrator.** A check that cannot go red is not a check.
+`"merged": true` cannot go red on the thing the orchestrator was
+actually asking — *is this on main* — so reading it as an answer to
+that question was reading a green light on a wire that is not
+connected.
+
+**Who caught it**: TINT-4's style review, as NOTE-1, about forty
+minutes later and while reviewing a different unit. Not the
+orchestrator, and not any gate. That is the third time in this program
+that the outside reader found what the seat doing the work could not
+(observation 1's two are the others).
+
+**The correction, adopted now.** A unit is landed when its merge commit
+is an ancestor of `origin/main`, asserted with
+
+```
+git fetch origin main && git merge-base --is-ancestor <merge-sha> origin/main
+```
+
+and not when an API said `merged`. The log entry naming a unit landed
+is written after that command, not before. And a lane whose branch is
+cut off another unit's branch retargets its PR base to `main` the
+moment that unit lands — or, better, cuts off `main` and merges the
+dependency in, so the base is `main` from the start and there is
+nothing to remember.
+
+**Repaired by**: this PR, which carries `e4adf05a1`'s content onto
+`main` through `tint/orchestrator` (which already contained TINT-3's
+head plus the state sync). `tint/4-roster-weld` does not contain
+TINT-3, so TINT-4 was never blocked on this and its base was always
+`main`.
+
+## TINT-4 landed: a roster welded to libtest's own listing (2026-09-15)
+
+PR #2687, merged at `2101cb36a` and **verified on main by
+`git merge-base --is-ancestor`** rather than by the merge API's
+`merged: true` — the first use of the correction the entry above
+adopted, on the first unit after the one that needed it. CI green on
+the fix-pass head: 39 jobs, 0 failures, twelve `test (…)` and five
+`k-lint (gate, …)`.
+
+`test_utils::roster!` replaces the hand-kept `//!` enumeration in
+`crates/editor-core/tests/r2_m10_6_probes_interval.rs`. Each entry is
+an ident feeding three consumers — `let _: fn() = $row;` so a retired
+name is a compile error, `stringify!($row)` so the compared string
+cannot be mistyped, and the block a human reads — against libtest's own
+`--list` through a `current_exe()` re-exec. **No Rust is parsed**, so
+it is not a fresh instance of
+`source-scanning-censuses-are-a-tripwire-on-ordinary-rust`.
+
+**The review found no MAJOR and one thing worth more than a MAJOR.**
+Entry 4's sense change was correct — the lane corrected a wrong header
+rather than reversing a kernel claim. But the new prose it wrote
+carried a false citation, in the very entry the unit exists to correct.
+That is the empirical answer to the question the unit left open: the
+prose column is unchecked, and **the first substantive sentence written
+into it was wrong**.
+
+**The fix pass's class check is the finding.** Told to check the other
+six sentences, it found **two more wrong and one duplicated**:
+
+- entry 3 said the row asserts `Violated`; it asserts
+  `!matches!(verdict, Holds)`, and after M10-6's MAJ-1 that arm refuses
+  `Unevaluated { WindowSuperset }` — the row's own doc says it "gets no
+  verdict at all";
+- entry 7's figures were all correct, against an item that says of them
+  *"Nowhere else states them"* — so writing them here made a fifth
+  site of a measurement deliberately kept to one. Numbers removed,
+  pointer added;
+- entry 5 overclaimed, entry 2 understated, entry 1 quoted a PR body
+  it cannot read, entry 6 holds.
+
+So of seven sentences in a column nothing computes with, **four were
+wrong or misplaced on arrival**. The column survives — nothing reads
+it, so it cannot make a row green that should be red — but it is now
+constrained to be a string (`const _: &[&str]`, which turns `row: 42`
+into `E0308`) and labelled as reading nothing.
+
+**T2 took shape (a): the guard's name was made true rather than
+narrowed to fit.** A nested `#[test]` is now a violation naming the row
+and telling the author to hoist it, because
+`the_header_roster_names_every_row_in_this_file` is what reaches the
+PASS list, a `--filter` and every future citation. A third falsifier
+now exists for it, red where it was green before the pass.
+
+**T7 is the one this program cares about most.** `roster.rs` carried an
+assertion that could not fail — a check for `": "` in rows the parse
+had already stripped it from. It is not deleted: the parse is factored
+out as `rows_of_listing`, and a new row feeds it a synthetic listing
+with a `: benchmark` line. Mutating the parse makes the new row fail
+while `the_binary_lists_this_very_row` stays green, which is the
+demonstration the old assertion could not have produced.
+
+**Six more errors the lane caught in its own diff before committing**,
+listed in the PR body as a receipt rather than an assurance — among
+them a claim that `harness = false` is "absent from this tree today"
+when `benches/Cargo.toml:88` sets it, and a citation off by one line.
+That is the first time in this program a lane's own adversarial re-read
+caught what the reviewer otherwise would have.
+
+`docs/TINT-4-SPEC.md` is deleted with this sync and recorded in
+`docs/DOC-LEDGER.md`, which says what the spec got right, what it did
+not anticipate (the prose column it sanctioned), and that it was the
+first spec in this program written after an executed probe rather than
+before one.
+
+## The orchestrator relayed a review finding it had not checked (2026-09-15)
+
+TINT-4's review reported that the new prose cites a **D5** that does
+not exist. **D5 exists.** It is M10-6's own deviation D5 in PR #1685,
+whose table reads *"`report_key` takes that tuple **plus the run
+dials**"*, and whose Corrections section says *"D5 said `report_key`
+'is the cache seam' while it omitted every dial and had no consumer.
+Both halves are closed (MINOR-1, D11)."* The same file's OTHER D5
+citation, at `:501`, is accurate and was correctly left alone.
+
+The review's substantive finding held — the sentence's polarity was
+backwards and **D11** is what put the dials in — but the "there is no
+such D5" half was wrong, and this seat put it into a dispatch as an
+established fact. **The lane checked it and corrected the
+orchestrator.**
+
+**Second time in this program.** The first was repeating a reviewer's
+claim that seven helper-copy classes had no rows, when `fnv`/`digest`
+and `missing_pairs` do. Both times the claim arrived from a lane that
+had done careful work, and its carefulness elsewhere was taken as
+warrant for a sentence nobody had run down. That is observation 2's
+mechanism — asserting what has not been executed — with the review in
+the spec's seat, so it is recorded there rather than as a fourth
+observation.
+
+**The correction**: a finding this seat relays into a dispatch as fact
+gets its primary source read first, and the dispatch cites where it
+was read. One API call would have settled this one.
+
+**Do not delete `tint/2-stand-down-channel`.** It is the only ref from
+which `e4adf05a1` — TINT-3's mis-based merge commit — is reachable.
+The repo is merge-only and git is its archive, but a commit reachable
+from exactly one branch stops being reachable when that branch goes.
+Its CONTENT is on main through #2690; the merge commit itself, which is
+the evidence for the entry above, is not.
+
+## TINT-5 landed: the F6 weld got a home, and the token stopped being a promise (2026-09-15)
+
+PR #2694, merged at `645e4d6d1` and **verified on main by
+`git merge-base --is-ancestor`**. CI green on the fix-pass head: 39
+jobs, 0 failures, twelve `test (…)` and five `k-lint (gate, …)`.
+
+`assert_f6_every_variant` and `set_difference` are out of editor-core's
+test binary and in `test-utils` (`f6`, `census`); mesh's inlined
+predicate and topo's local `assert_f6` copy are retired; the live
+defect is closed — `crates/mesh/tests/errors.rs` banned 14 identifiers
+against a 15-variant enum, and the weld **reddened on arrival** naming
+`["Band"]` before the entry was added. That is the first guard in this
+program to red on a live defect rather than a plant.
+
+**The unit's real subject turned out to be the weld's own token.** The
+spec and the first implementation passed the exhaustiveness `match` as
+`fn(&E)` beside a separately-written roster — two loose parameters, and
+the review proved a **no-op token passes green**. So the doc's claim
+that *"the compile error is what stands between that and an accident"*
+was resting on an invariant the type could not carry, in the mechanism
+this unit existed to give a home. The fix pass closed it with the shape
+this program has now proven five times: `test_utils::f6_variants!`
+writes the match arm and the roster entry from **the same
+`$variant:ident`**, so they cannot disagree; `_` is not an `ident`, so
+a wildcard is a macro grammar error; and a no-op is not expressible
+because there is no body to empty. It also closed the "one hole,
+stated" — an author can no longer add the arm and stop, because the arm
+and the roster entry are one token. Eleven of twelve censuses are
+macro-built; `SelectRefusal` is `#[non_exhaustive]` so rustc forces a
+catch-all, and it goes through a named `hand_written` door that says
+what it costs.
+
+**`test-utils` held two set-difference comparators for one day.**
+TINT-4's `roster::violations_against` spelled a both-direction set
+comparison inline; TINT-5 promoted `set_difference` beside it. Two units
+of the program whose subject is *one claim in N copies*, four days
+apart, in the crate whose job is to hold one of each thing. The lane
+**filed** it on three stated blockers; the review **executed** the
+substitution and all three were false — the vacuity floor and the
+nested-module direction are not set directions at all, they are pushed
+before any comparison. `roster.rs` now calls the shared comparator and
+the item is deleted. One definition, four call sites.
+
+**The gate-boundary finding, which generalizes past this unit.**
+`scripts/gates/lib.sh`'s `gate_require_crate_sources` is
+`find crates/*/src -type f -name '*.rs'` — no `tests/`. **Twelve of the
+tree's 22 gates take that file set**, so promoting a helper out of a
+test binary into `src/` does not cross one gate boundary, it crosses
+twelve. Worse, `gate_production_sources` excludes only `#[cfg(test)]`
+mounts, so every file this unit promoted is **production source** to
+every narrowing gate — in a crate whose own header reads *"DEV-ONLY, by
+convention"*. Filed as
+`work/tint/test-utils-is-production-source-to-every-narrowing-gate`.
+"Give the shared thing a home" is also "move it under a different set of
+gates", and nothing in the tree says so anywhere else.
+
+## Two filed rows misstated their own defects, and one was this unit's charter (2026-09-15)
+
+Both found by TINT-5's review, both corrected in its fix pass.
+
+- **`dump-ban-lists-spelled-guts-…`** claimed three identifiers were
+  banned that no rendering could produce. **All three are live**:
+  `EvalError::UnknownParam` is case 1 of the row's list,
+  `Diagnosis::PredicateFlip` is the `ResolveError::Vanished` payload,
+  and `BifurcationKind::AmbiguousBasin` is the `WitnessBifurcation`
+  kind. The filing read "either enum" over a list that renders **five**
+  types and reported the residue as dead. What survives: the list is
+  badly incomplete and unwelded, and `MarginDiag` is genuinely dead.
+- **`sibling-display-contract-suites-hand-mirror-their-enums-too`** —
+  the row this whole unit was cut from — said the missing `Band` entry
+  was *"the one identifier that would catch it going back to `Debug`"*.
+  The pre-merge check banned `{` unconditionally and `Band` is a struct
+  variant, so a full `Debug` regression reddened on the brace whatever
+  the roster held. The real gap is a **brace-free** leak of the word
+  `Band`: smaller, and still real.
+
+A row that misstates its own defect is this program's charter shape
+committed in this program's own paperwork, and it is now the fourth
+distinct way that has happened (see `process-observations.md`).
+
+## The orchestrator shipped three wrong counts into a dispatch (2026-09-15)
+
+The D5 entry above adopted a correction: a finding relayed as fact gets
+its primary source read first. **It did not cover numbers, and numbers
+are where it failed next.**
+
+TINT-5's review reported *"thirteen of the 23 gates"* take
+`gate_require_crate_sources` — and listed **fourteen** names under that
+claim, inconsistent on its own line. This seat relayed it into the fix
+pass dispatch without counting, and added a *"all 23 gates"* of its own.
+Both wrong: **twelve** gates call it (`gate-roster.sh` mentions it only
+in a comment about a vacuous green; `kernel-serde-free.sh` says outright
+it does not use it, its subject being manifests), and there are **22**
+gates (`README.md`, `lib.sh` and `viewer-readme-fence.awk` are not
+gates). The dispatch also said ten `roster::tests` rows where libtest
+lists nine. The lane re-derived every number from `grep` and `--list`
+and corrected all three.
+
+**Fourth time today a number passed downstream came back corrected**,
+and the second where this seat introduced the error rather than
+forwarding it. The correction, widened: **a count in a dispatch is
+derived by the command that produces it, and the dispatch carries the
+command** — not the number alone, so the reader can re-run it. A
+sentence and a number are the same kind of claim, and this program
+exists to say so.
+
+## TINT-6 cut — and the probe refused the obvious shape (2026-09-15)
+
+All five units of the first wave are on main, each verified by
+`git merge-base --is-ancestor` rather than by a merge API's
+`merged: true`. The slate is open at ~55 rows with nothing in flight.
+
+**TINT-6** — `docs/TINT-6-SPEC.md`, branch `tint/6-interrogate-ladder`,
+one row: `interrogate-ladder-header-claims-every-rung-and-pins-five`.
+
+**The probe ran before the spec, and killed the shape this seat reached
+for.** The row was routed to TINT-1's exhaustive-match shape this
+morning, and `f6_variants!` landing in TINT-5 made that look strictly
+better. It is not the shape, because the suite pins a rung by asserting
+a DOOR'S RETURNED ERROR — so a roster of covered rungs has to accumulate
+across rows, and **nextest runs each row in its own process**. That is
+TINT-2's measured wall (pids 12156 and 12157, a shared `static
+AtomicUsize` reading 0 in both), one row over. A spec proposing it would
+have been this seat's third naming a mechanism it had not executed.
+
+**What survives**: one row driving every reachable rung through its own
+door in a single process, welded to the enum by `f6_variants!`, so
+isolation is irrelevant. The spec names the measurement that decides its
+size — are the four unmeasured rungs reachable from a door one test can
+call — and says **both answers are legitimate**, because the honest
+outcome may be that the header narrows rather than that the suite grows.
+`NoBodies` is excluded by name either way; SHELL's row is still open, so
+pinning it would pin a defect.
+
+**Three probes, three corrected groupings.** The roster class was not a
+class; TINT-5's weld turned out to have no home before it could have
+adopters; and this one's obvious mechanism does not exist. The
+discipline observation 2 adopted — a spec names the measurement that
+would show its mechanism cannot work, and the lane takes it first — has
+now been improved on by taking the measurement BEFORE the spec exists,
+three times running.
+
+**Seam announced by BLEND (2026-09-17, at unit 15's fix pass):** BLEND
+unit 15 (`docs/BLEND-15-SPEC.md`, PR #2514) adds ONE source reader to
+`crates/test-utils/src/source.rs` — the `decide*` call-site roster
+reader its two `recourse_roster.rs` suites and `profile`'s
+`fillet_recourse_followability.rs` census currently carry as three
+hand-rolled copies, which both v6 reviewers defeated by mutation (a
+turbofish, a wrapped carrier) — beside `plain_string_literal` and
+`balanced_end`, which it uses. No test mechanism changes; the
+`reader_census.rs` ledger gains the lines the gate demands. Announced
+here and in `work/tcost/log.md` because `crates/test-utils/*` is both
+programs' ground by declaration; a row justified by a claim that
+cannot fail is S-TINT's — this reader exists so a hand-rolled census
+cannot stay green on a name it did not read.
+
+## One row arriving from DOOR, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that FIX carries no design decisions, and
+DOOR was swept on the same rule in the same sitting: it claims no paths,
+so it can never be the owning track for a decision, and four rows left.
+
+**`unit-symbol-proptest-generators-under-cover-with-no-file`.**
+`crates/editor-core/src/expr.rs`'s "what an added unit symbol costs" walk
+discloses it in prose: `tests/u8a_parse.rs`'s two `prop_oneof!`
+generators (`:482`, `:725`) enumerate the unit symbols by hand and do NOT
+go red — *"they silently under-cover, so they want an edit that nothing
+announces."* The file exists because a disclosure is not a schedule.
+
+It lands on S-TINT because `crates/editor-core/tests/u8a_parse.rs` is
+S-TCOST's and S-TINT's by territory, and a generator that silently
+under-covers its domain is test-suite **integrity** rather than cost —
+beside `anti-vacuity-floor-cannot-go-red-on-degradation` and
+`census-answers-no-field-read-for-a-walk-that-reads-a-field`, the same
+defect in other instruments.
+
+**Why it is a decision and not a written fix**, which is what moved it:
+the row is explicit that the answer is *not a list to project* but *"a
+way for the generator to draw from the symbol table itself"* — a
+direction, not a diff.
+
+**Two things to carry.** It shares those two `prop_oneof!` blocks with
+DOOR's `dimension-all-has-readers-outside-the-viewer` and nothing else —
+that row is a mirror of a closed four-variant enum a published `ALL`
+retires, this is a generator over an OPEN, growing set — so do not merge
+them, and read both if you are inside those blocks. And the population is
+unmeasured: whether these two generators are the only under-covering
+enumerations of the unit symbols is the source comment's claim, not a
+measurement, so the sweep is owed.
+
+Signed (DOOR orchestrator).

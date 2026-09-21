@@ -23,10 +23,10 @@
 //!
 //! This crate is where the shared answer lives because it is a
 //! zero-dependency leaf that can sit below everything. Most crates
-//! already dev-depend on it; `pncad`, `pncad-py` and `quantity` do
-//! not, and that is not a detail — `pncad/tests/all.rs` holds the
-//! class's largest unconverted reader, and adding the dev-dependency
-//! is the first step of converting it.
+//! already dev-depend on it; `pncad` and `pncad-py` do not, and that
+//! is not a detail — `pncad/tests/all.rs` holds the class's largest
+//! unconverted reader, and adding the dev-dependency is the first
+//! step of converting it.
 //!
 //! # One lexer, three views, and why the count is three
 //!
@@ -79,12 +79,27 @@
 //! number in prose beside a list that grows is a copy that goes stale
 //! in the silent direction.
 //!
+//! # The one thing here that is not a reader
+//!
+//! [`crate::every_suite_file_is_aggregated!`] is exported from this file and is
+//! a `macro_rules!` that GENERATES A TEST FUNCTION — not a view, not an
+//! operation over one, and not a traversal. It is here because its
+//! expansion's whole body is [`aggregation_violations`] and the two are
+//! one mechanism split by where the compiler has to expand it; homing it
+//! anywhere else would put a call site and its reader in different
+//! files. It is called out because every other paragraph in this header
+//! describes something that reads text, and a fourth category that goes
+//! unmentioned is how a header stops being an enumeration.
+//!
 //! # What it does not model
 //!
 //! It is a lexer, not a parser. An identifier assembled by a macro
 //! (`concat_idents!`, `paste!`) is invisible to any textual walk, a
-//! `pub fn` inside a `macro_rules!` body is text like any other, and
-//! an `include!`d file is not seen at all. Nested block comments,
+//! `pub fn` inside a `macro_rules!` body is text like any other — which
+//! is now a fact about THIS file, since the macro above holds one, and
+//! `crates/test-utils/tests/reader_census.rs` reads that body as text
+//! for exactly that reason — and an `include!`d file is not seen at
+//! all. Nested block comments,
 //! every string prefix (`b`, `c`, `r`, `br`, `cr`) and the
 //! lifetime-versus-char-literal distinction ARE modelled, each with a
 //! row in this module's tests that reds if it stops being.
@@ -1139,10 +1154,16 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 ///    ([`file_module_decls`]), and helper TREES are directories
 ///    carrying a `mod.rs`, which [`suite_files`] already excludes.
 ///
-/// # The two inputs
+/// # The two inputs, and the one caller that supplies them
+///
+/// **There is exactly one caller**, and it is
+/// [`crate::every_suite_file_is_aggregated!`]'s expansion, a hundred lines
+/// below. Both arguments are shaped by where that expansion lands, so
+/// what follows is a constraint on the macro rather than advice to an
+/// author of an `all.rs`; there are no longer fifteen of those.
 ///
 /// `tests_dir` is the crate's `tests/` directory: the walk and each
-/// suite's text are read from it at RUN time, so a caller passes
+/// suite's text are read from it at RUN time, so the macro passes
 /// [`crate_dir`]'s answer rather than a baked path — a nextest archive
 /// replayed on another runner has no compile-time directory.
 ///
@@ -1179,9 +1200,17 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 /// [`crate::every_suite_file_is_aggregated!`], which carries those
 /// tokens in its expansion rather than in the file's text: every
 /// aggregator's margin is zero, and the census recognises the
-/// INVOCATION instead. Both are textual proxies for the same fact, and
-/// the invocation is the narrower proxy — closing it takes deleting the
-/// row, not adding a literal elsewhere in the file.
+/// INVOCATION instead.
+///
+/// Both are textual proxies for the same fact and both can be closed
+/// without touching what they proxy; they differ in how easily. The
+/// margin went to a stray `#[path = "` inside any string literal in the
+/// file. The invocation needle goes to deleting the row, or to renaming
+/// the macro — and the census holds BOTH of those: a needle that names
+/// no macro reds on its own row rather than as fifteen stale ledger
+/// lines. What it does not go to is re-delimiting:
+/// `every_suite_file_is_aggregated! { }` compiles, runs and passes, and
+/// the needle carries no delimiter for that reason.
 #[must_use]
 pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<String> {
     let src = code_and_literals(all_rs);
@@ -1260,6 +1289,23 @@ pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<
 /// probe before this macro was written, for the bare and the
 /// `::core::`-qualified spelling both.
 ///
+/// **That measurement has no mechanical guard and cannot have one, and
+/// here is the reason.** If invocation-site resolution ever flipped,
+/// `crate_dir(env!(…))` and `include_str!("all.rs")` would BOTH answer
+/// for `test-utils`, so every row would compare `test-utils`' own
+/// aggregator against `test-utils`' own `tests/` — self-consistent, and
+/// green in every crate. Nothing in this tree would red, which is the
+/// same failure named three paragraphs above. No guard can be written
+/// for it either: a guard sited in some crate would have to compare what
+/// the macro sees against that crate's directory, and that comparison is
+/// what the macro already is, so it would flip with it. The reason it is
+/// safe to leave unguarded is not that the failure would be loud: it is
+/// that `include_str!` and `env!` resolving at the invocation site is
+/// part of Rust's stability promise, so the flip is a breaking language
+/// change and not a regression this repository can land. A scheduled
+/// re-measure would buy nothing that `rustc`'s own release process does
+/// not, which is why there is not one.
+///
 /// The generated `fn` keeps the name `every_suite_file_is_aggregated`,
 /// so the row's identity in a PASS list, in `--filter` arguments and in
 /// the prose that names it across the tree is unchanged.
@@ -1283,6 +1329,27 @@ pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<
 /// `crates/pncad/` is the deliberate non-carrier and must stay one: its
 /// `tests/` holds a single file, its header says why it has no row, and
 /// the guard named above is what keeps that sentence true.
+///
+/// # What the collapse cost, which is redundancy
+///
+/// Fifteen copies were fifteen INDEPENDENTLY CHECKED facts.
+/// `crates/test-utils/tests/reader_census.rs` reads each `all.rs` and
+/// asserts a `Shared` ledger line against that file's own text, so a
+/// reversion in one of them red'd one file and named it. One macro is
+/// one fact: this body answers for fifteen call sites, and the file it
+/// lives in is dispositioned `Home`, which that row filters out before
+/// it looks at anything. Rewriting this expansion into a hand-rolled
+/// `read_dir` walk therefore leaves all fifteen `Shared` lines green.
+///
+/// `the_aggregation_row_macro_reaches_the_shared_lexer` is the row that
+/// closes it, by reading THIS body as text and asserting it still calls
+/// [`crate_dir`] and [`aggregation_violations`] — measured: that
+/// reversion reds it and nothing else. So the claim is checked, but it
+/// is checked ONCE. A single check with a single subject is a weaker
+/// thing than fifteen checks with fifteen subjects, and that difference
+/// is what collapsing fifteen copies to one is bought with. It is worth
+/// it here because the fifteen were byte-identical and their drift was
+/// the defect; it would not be worth it where the copies differed.
 #[macro_export]
 macro_rules! every_suite_file_is_aggregated {
     () => {
@@ -1297,6 +1364,334 @@ macro_rules! every_suite_file_is_aggregated {
             assert!(violations.is_empty(), "{}", violations.join("\n"));
         }
     };
+}
+
+// ------------------------------------------------------------------
+// The predicate-name census: every `decide*` call site a crate's `src`
+// spells, and every one of them this reader could not read.
+// ------------------------------------------------------------------
+
+/// How a predicate name that is NOT written at its `decide*` call
+/// reaches the funnel.
+///
+/// A census declares one of these per carrier it knows about; anything
+/// it has not declared comes back as an indirect or unreadable site
+/// rather than being dropped.
+#[derive(Clone, Copy, Debug)]
+pub enum NameCarrier {
+    /// A call or struct literal: the names are the plain string
+    /// literals among the DIRECT arguments (or field values) of the
+    /// bracket group the token opens. A literal nested deeper — inside
+    /// a closure body, inside another call — is not an argument of this
+    /// one and is not read as a name.
+    Call(&'static str),
+    /// A `const NAME: &str = "…";` whose value is the name.
+    Const(&'static str),
+}
+
+/// What [`predicate_census`] found.
+///
+/// The last three fields are the point: a reader that silently skipped
+/// what it could not parse would report a complete-looking `names` over
+/// a crate it had not read, and a census green on a gate it never saw
+/// is worse than no census.
+#[derive(Debug, Default)]
+pub struct PredicateCensus {
+    /// The names, from a plain literal at the call or out of a declared
+    /// carrier.
+    pub names: std::collections::BTreeSet<String>,
+    /// `<file>: <expression>` per call whose name-bearing argument is
+    /// not a plain literal, and per declared carrier call that holds no
+    /// literal argument. Each is a site whose carrier the caller must
+    /// declare — declaring it makes that carrier's own call sites part
+    /// of the census, so the chain terminates at literals or stays red.
+    pub indirect: std::collections::BTreeSet<String>,
+    /// `<file>: <text>` per `decide*` occurrence this reader cannot
+    /// even find an argument list for — a spelling it does not know.
+    pub unreadable: std::collections::BTreeSet<String>,
+    /// `<file>:<line>` per `include!` or `#[path]` in the tree walked.
+    /// **This reader walks `<src>/**/*.rs` and nothing else**, so a
+    /// gate in a file pulled in by either is outside what it read; the
+    /// blind spot is stated here so a caller can red on it rather than
+    /// inherit it.
+    pub unwalked: std::collections::BTreeSet<String>,
+}
+
+/// Every predicate name decided under `src`, and every site the reader
+/// could not read.
+///
+/// The funnel is `geom_core::k_stats::decide` and the per-crate
+/// wrappers that forward to it, so the scan is for a `decide` token —
+/// with or without a suffix (`_flagged`, `_invariant`) and with or
+/// without a turbofish — followed by an argument list whose first
+/// argument is the name.
+///
+/// Three hand-rolled copies of this walk stood in three suites before
+/// it existed, and two of them were defeated by mutation with ordinary
+/// spellings: a turbofish, and a one-line wrapper around a declared
+/// carrier. Both are read here; anything still unread is reported, not
+/// dropped.
+#[must_use]
+pub fn predicate_census(src: &std::path::Path, carriers: &[NameCarrier]) -> PredicateCensus {
+    let mut out = PredicateCensus::default();
+    for path in rust_sources(src) {
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("a readable source file {}: {e}", path.display()));
+        // Comments are blanked in place, so prose that spells `decide (`
+        // is not a call site and the offsets still index the file byte
+        // for byte.
+        let code = code_and_literals(&text);
+        // Tokens are LOCATED in the code-only view, where a literal's
+        // bytes are blanked, so prose inside a string that spells
+        // `decide(` is not a call site either; they are READ from the
+        // view that keeps literals. Both are blanked in place, so one
+        // set of offsets indexes both.
+        let bare = code_only(&text);
+        let rel = path
+            .strip_prefix(src)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        for (kind, payload) in funnel_sites(&bare, &code) {
+            match kind {
+                SiteKind::Name => {
+                    out.names.insert(payload);
+                }
+                SiteKind::Indirect => {
+                    out.indirect.insert(format!("{rel}: {payload}"));
+                }
+                SiteKind::Unreadable => {
+                    out.unreadable.insert(format!("{rel}: {payload}"));
+                }
+            }
+        }
+        for carrier in carriers {
+            match *carrier {
+                NameCarrier::Call(token) => {
+                    for open in carrier_groups(&bare, token) {
+                        let Some(end) = balanced_end(&bare, open) else {
+                            out.unreadable.insert(format!("{rel}: {token}(… unclosed"));
+                            continue;
+                        };
+                        let literals = direct_literals(&code[open + 1..end]);
+                        if literals.is_empty() {
+                            out.indirect
+                                .insert(format!("{rel}: {}", one_line(&code[open..=end])));
+                        } else {
+                            out.names.extend(literals);
+                        }
+                    }
+                }
+                NameCarrier::Const(token) => {
+                    if let Some(decl) = find_word(&bare, &format!("const {token}")) {
+                        match const_literal(&code[decl..]) {
+                            Some(name) => {
+                                out.names.insert(name);
+                            }
+                            None => {
+                                out.unreadable.insert(format!("{rel}: const {token}"));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for (needle, raw) in [("include!", &bare), ("#[path", &text)] {
+            let mut at = 0usize;
+            while let Some(hit) = raw[at..].find(needle) {
+                let start = at + hit;
+                at = start + needle.len();
+                out.unwalked
+                    .insert(format!("{rel}:{}", line(raw, start) + 1));
+            }
+        }
+    }
+    out
+}
+
+/// What a `decide*` occurrence turned out to be.
+enum SiteKind {
+    /// A plain string literal at the call: the payload is the name.
+    Name,
+    /// A first argument that is not a plain literal: the payload is the
+    /// expression.
+    Indirect,
+    /// A spelling with no argument list this reader can find: the
+    /// payload is the text it stopped on.
+    Unreadable,
+}
+
+/// Every `decide*` occurrence in a blanked view, classified.
+fn funnel_sites(bare: &str, code: &str) -> Vec<(SiteKind, String)> {
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = bare[at..].find("decide") {
+        let start = at + hit;
+        at = start + "decide".len();
+        if !boundary_before(bare, start) {
+            continue;
+        }
+        // `fn decide<T: Decide>(…)` declares the door; it is not a
+        // call of it, and the crate wrapper's own body holds the call.
+        let before = bare[..start].trim_end();
+        if before.ends_with("fn") && boundary_before(before, before.len() - 2) {
+            continue;
+        }
+        // The suffixed spellings of the same door (`_flagged`,
+        // `_invariant`) are part of the token; a BARE alphanumeric
+        // continuation is a different identifier (`decided`), not a
+        // suffix, and this is not its call site.
+        let mut cursor = at;
+        if bare[cursor..].starts_with('_') {
+            while bare[cursor..]
+                .chars()
+                .next()
+                .is_some_and(|c| c == '_' || c.is_ascii_alphanumeric())
+            {
+                cursor += 1;
+            }
+        } else if bare[cursor..]
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphanumeric())
+        {
+            continue;
+        }
+        let rest = bare[cursor..].trim_start();
+        cursor = bare.len() - rest.len();
+        // A turbofish is part of the call, not a different spelling of
+        // the name: read through it.
+        if rest.starts_with("::<") {
+            match angle_end(bare, cursor + 2) {
+                Some(close) => {
+                    let tail = bare[close + 1..].trim_start();
+                    cursor = bare.len() - tail.len();
+                }
+                None => {
+                    out.push((SiteKind::Unreadable, one_line(&code[start..cursor + 3])));
+                    continue;
+                }
+            }
+        }
+        match bare[cursor..].chars().next() {
+            // A path or a value, not a call: `use …::decide;`,
+            // `decide::inner`, `decide,` in an import list.
+            Some(';' | ',' | ')' | '}' | '>' | '.' | ':') | None => continue,
+            Some('(') => {}
+            // Something between the token and its arguments that this
+            // reader does not know. Loud, because a spelling it cannot
+            // parse is a gate it cannot see.
+            Some(c) => {
+                out.push((
+                    SiteKind::Unreadable,
+                    one_line(&code[start..cursor + c.len_utf8()]),
+                ));
+                continue;
+            }
+        }
+        let open = cursor;
+        at = open + 1;
+        let arg = code[open + 1..].trim_start();
+        match first_literal(arg) {
+            Some(name) => out.push((SiteKind::Name, name)),
+            None => {
+                let expr: String = arg
+                    .chars()
+                    .take_while(|c| *c != ',' && *c != ')')
+                    .collect::<String>()
+                    .trim()
+                    .to_string();
+                out.push((SiteKind::Indirect, expr));
+            }
+        }
+    }
+    out
+}
+
+/// The contents of a plain string literal at the head of `text`.
+fn first_literal(text: &str) -> Option<String> {
+    let rest = text.strip_prefix('"')?;
+    let end = rest.find('"')?;
+    plain_string_literal(&text[..=end + 1]).map(str::to_string)
+}
+
+/// The byte offsets of the `(` or `{` each real occurrence of `token`
+/// opens — real meaning a call or a struct literal, not the item that
+/// declares the name.
+fn carrier_groups(code: &str, token: &str) -> Vec<usize> {
+    const DECLARERS: [&str; 7] = ["fn", "struct", "enum", "impl", "use", "trait", "type"];
+    let mut out = Vec::new();
+    let mut at = 0usize;
+    while let Some(hit) = code[at..].find(token) {
+        let start = at + hit;
+        at = start + token.len();
+        if !boundary_before(code, start) || !boundary_after(code, at) {
+            continue;
+        }
+        let before = code[..start].trim_end();
+        if DECLARERS
+            .iter()
+            .any(|kw| before.ends_with(kw) && boundary_before(before, before.len() - kw.len()))
+        {
+            continue;
+        }
+        let rest = code[at..].trim_start();
+        let skipped = code[at..].len() - rest.len();
+        if rest.starts_with('(') || rest.starts_with('{') {
+            out.push(at + skipped);
+        }
+    }
+    out
+}
+
+/// The plain string literals among a group's DIRECT arguments.
+fn direct_literals(inner: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut depth = 0usize;
+    let bytes = inner.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'(' | b'[' | b'{' => depth += 1,
+            b')' | b']' | b'}' => depth = depth.saturating_sub(1),
+            b'"' if depth == 0 => {
+                if let Some(name) = first_literal(&inner[i..]) {
+                    i += name.len() + 2;
+                    out.push(name);
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    out
+}
+
+/// The first plain literal of a `const NAME: &str = "…";` declaration
+/// whose head starts at the front of `text`.
+fn const_literal(text: &str) -> Option<String> {
+    let end = text.find(';')?;
+    let open = text[..end].find('"')?;
+    first_literal(&text[open..])
+}
+
+/// The offset of `needle` as a whole word, if the view holds one.
+fn find_word(code: &str, needle: &str) -> Option<usize> {
+    let mut at = 0usize;
+    while let Some(hit) = code[at..].find(needle) {
+        let start = at + hit;
+        at = start + needle.len();
+        if boundary_before(code, start) {
+            return Some(start);
+        }
+    }
+    None
+}
+
+/// `text` with its whitespace collapsed, for an assertion message.
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]

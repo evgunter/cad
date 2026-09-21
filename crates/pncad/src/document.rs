@@ -62,8 +62,18 @@
 // an integer — is the whole of what that arm says beyond the name and
 // the key. Carrying the refusal is not carrying the value tree:
 // `MetaValue` and `MetaError` stay out, because the arm names neither.
+// `CarryForwardDoor` rides with `EditError` by that same rule at the
+// carry-forward arm: it is what `EditError::DocParamNotDeclared`
+// carries beside the name, and which of the two doors was refused is
+// the whole of what that arm says beyond the parameter.
+// `Maintenance` rides with `Applied` by the same rule: it is what
+// `Applied::maintenance` answers in — the A11 cluster-record acts an
+// edit forced and the references a delete stranded (DM7) — and a
+// consumer that can hold an `Applied` in a typed field must be able to
+// hold what it carries.
 pub use editor_core::{
-    Applied, AttrKind, Doc, DocEdit, EditError, EditRecord, MetaVersionError, ProgramRefusal, apply,
+    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
+    Maintenance, MetaVersionError, ProgramRefusal, apply, apply_logged, replay_entry,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -93,9 +103,16 @@ pub use editor_core::{
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
 // name the outer type and not the inner one can see that there is a
 // reason and never read it.
+// `SitedFace` is a mate's head — a `SitedRef` whose name is a
+// `FaceName`, so a mate whose head names an edge does not compile —
+// and `FaceName`/`NotAFaceName` are the type that makes that true and
+// the refusal its one constructor answers with. A caller authoring a
+// mate needs all three: the constructor is the door, and its refusal
+// is what a caller who read a name out of a file has to handle.
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceRefusal, SitedRef, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
+    MeasureUnavailableAt, MinClearanceRefusal, NotAFaceName, SitedFace, SitedRef,
+    UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -152,7 +169,15 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // façade that could not spell its TYPE could not build the struct at
 // all, and `UnitSym::canonical_for` is how a caller authoring in
 // metres says so.
-pub use editor_core::{DocParam, DocParamValue, ParamName, UnitSym};
+// `DisplayUnitRefusal` is what `DocParam::with_display_unit` answers
+// when a notation cannot be written — the same `VerbKind` rule: it is
+// that door's `Err`, and a consumer calling the door on a `DocParam`
+// it holds could otherwise read the reason only out of prose.
+// `DistributionRefusal` is the same thing at the third field, for
+// `DocParam::with_distribution`.
+pub use editor_core::{
+    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, UnitSym,
+};
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
 // typed refusals its invariants raise at the edit and persistence
@@ -163,6 +188,13 @@ pub use editor_core::{DocParam, DocParamValue, ParamName, UnitSym};
 // carry, so a caller diagnosing a refusal needs it too. Reading a
 // distribution back is `analysis`'s door, not this one.
 pub use editor_core::{Distribution, DistributionFault, DistributionField};
+
+// WHICH float of a continuous parameter a non-finite refusal is about
+// — the nominal or one of the annotation's offsets. Both doors' typed
+// refusals carry it (`EditError::NonFiniteDocParam`,
+// `NonFiniteSite::DocParam`), so a caller matching either needs to be
+// able to name it.
+pub use editor_core::DocParamField;
 
 // Evaluation: the service, its options, its results, and the payloads
 // a result can carry. `NodeResult`/`NodeValue`/`EvalOutcome` complete
@@ -191,8 +223,9 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // `Mispaired` rides with `Evaluation` by the same rule: it is
 // `Evaluation::prior_refused`'s payload, so a consumer cannot read why
 // a memo was refused without naming it. The name is not the memo's —
-// it is the one payload all three pairing doors carry (DI3), which is
-// why it is spelled for the QUESTION rather than for any one door.
+// it is the one payload every pairing door carries (DI3; which doors
+// those are is `editor-core`'s `ASSEMBLY.md` A2a), which is why it is
+// spelled for the QUESTION rather than for any one door.
 // `Found` rides with `NodeErrorKind` by the same rule: it is the
 // `found` field of the four entity-kind refusals, so a consumer can
 // match those variants but not name what they say was there instead.
@@ -215,7 +248,7 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    save,
+    load_with, save,
 };
 
 // Document identity and content pins.
@@ -261,41 +294,44 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
+    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure, ResolveFault,
+    product_named,
 };
 
 // Mates: the declaration node's
 // authored payload (`Alignment` over two `MateFrame`s, a
 // `MatePrimitive`, an `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
-// cluster-record maintenance (`ClusterMaintenance`), and `MateFault`
+// cluster-record maintenance (`ClusterMaintenance`, one arm of the
+// `Maintenance` row carried above), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
 // carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
 // solve places (`Member` is its answer). `UNDER_RECOURSE` and
 // `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
 // own refusals end on.
-/// Why a mate's datum could not form a lever arm, which
+/// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
 ///
-/// A parallelism verdict is levered over the largest length the mate's
-/// own datum names, and a datum that names one too small decides
-/// nothing: at an arm of `L` the smallest tilt the predicate could call
-/// non-parallel is about ε/L, so a nanometre datum reads every pair as
-/// parallel. WHICH scale was named and WHAT floor it is under —
-/// `extent` and `floor` — is the whole of what the arm says beyond the
-/// name, and a consumer that could match `Unleverable` and not name
-/// this type read those two numbers out of the message prose.
+/// A parallelism verdict is levered over the mated parts' own extent
+/// (`MateReach`), and every arm names the instance whose part's reach
+/// was not in hand and why: the part does not resolve (the resolver's
+/// own fault, unaltered), a face of its body cannot be bounded (which
+/// face, and its `prelude::SurfaceKind`), the body is malformed, has no faces,
+/// or reads back non-finite, or the member stands on no instance. A
+/// consumer that could match `Unleverable` and not name this type
+/// would read all of that out of the message prose.
 ///
 /// Its only home is the refusal holding it: nothing else on the
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, ClusterMaintenance, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
-    gauge_of, member_of, reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal,
+    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach,
+    member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -306,7 +342,7 @@ pub use editor_core::{
 // the solve or mint door, so exposing it here is what lets a tool
 // offer only what the vocabulary can execute instead of discovering
 // the refusal after the edit lands.
-pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
+pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap};
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
 // product, mints every solved mate's declaration into its contact
@@ -415,8 +451,17 @@ pub use editor_core::{
 /// properties refusal are one module hop away at `pncad::topo::…`.
 pub use topo::ShellClassifyError;
 
-// The profile description node type and its document alias.
+// The profile description node type and its document alias, plus the
+// refusal of the door that reads a step's profile edges — matchable
+// here because a caller that asked which edges a step became has to be
+// able to say WHY it was not told.
+//
+// `RecordedNotation` rides with them because a recorded path program is
+// bare `f64`s and a document literal names its notation (D6): it is what
+// a caller writing `25 mm` through the path algebra hands
+// `LoopProgram::from_recorded_with_notation` so the document reads back
+// what they wrote.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedProgramError, StepArg, resolve_loops,
+    RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError, resolve_loops,
 };

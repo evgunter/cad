@@ -12,11 +12,14 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EditError, EvalOptions, Expr, ExprPath, LoopProgram,
-    Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfilePayload, ProfileProgram,
-    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StepArg,
-    ValuePayload, evaluate,
+    Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
+    Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
+    ExprPath, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, ProfileDoc, ProfilePayload,
+    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SlotId, SplitHalf, StepArg, TubeWindow, ValuePayload, evaluate,
 };
+use fixture::{ang, len, scl};
 use geom_core::Tol;
 
 /// Every document below is a frame and then the profile drawn on it,
@@ -31,6 +34,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
                 node: fixture::xy_frame(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -42,6 +46,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
             }),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc
@@ -101,6 +106,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
                 expr: Expr::literal(0.75, Dimension::Length).unwrap(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("a legal radius edit applies");
     assert!(
@@ -148,6 +154,7 @@ fn set_expression_and_expr_at_route_into_programs() {
                 expr: sum,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -168,6 +175,7 @@ fn set_expression_and_expr_at_route_into_programs() {
                 expr: Expr::literal(0.375, Dimension::Length).unwrap(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("sub-path edit applies")
         .doc;
@@ -189,6 +197,7 @@ fn program_slots_refuse_wrong_dimensions() {
             expr: Expr::literal(0.5, Dimension::Angle).unwrap(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             expected: Dimension::Length,
@@ -213,19 +222,19 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
             expr: Expr::literal(0.0, Dimension::Length).unwrap(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
-        Err(EditError::ProfileProgramRefused {
-            node,
-            refusal:
+        Err(EditError::ProfileProgramRefused { node, refusal }) => {
+            assert_eq!(node, PROFILE);
+            match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
                     step: 0,
                     kind,
                     ..
-                },
-        }) => {
-            assert_eq!(node, PROFILE);
-            assert_eq!(kind, profile::PathErrorKind::NonpositiveCircleRadius);
+                } => assert_eq!(kind, profile::PathErrorKind::NonpositiveCircleRadius),
+                other => panic!("r = 0 refuses at the circle's own step, got {other:?}"),
+            }
         }
         other => panic!("r = 0 must refuse at the edit door, got {other:?}"),
     }
@@ -244,6 +253,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 value: DocParam::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -253,6 +263,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 node: fixture::xy_frame(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -271,6 +282,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -282,6 +294,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 value: DocParam::continuous(Dimension::Length, 0.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("SetDocParam never refuses for downstream profile breakage (VQ9)")
         .doc;
@@ -319,6 +332,7 @@ fn insert_node_checks_program_dimensions() {
                 node: fixture::xy_frame(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -338,6 +352,7 @@ fn insert_node_checks_program_dimensions() {
             node: Node::Profile(bad),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             expected: Dimension::Length,
@@ -422,6 +437,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 node: fixture::xy_frame(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -503,20 +519,325 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 node: Node::Profile(program),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         ) {
-            Err(EditError::ProfileProgramRefused {
-                refusal:
-                    ProgramRefusal::Transition {
-                        loop_: 0,
-                        step: 1,
-                        verb,
-                        ..
-                    },
-                ..
-            }) => assert_eq!(verb, Some(profile::Verb::ArcFilletArc)),
+            Err(EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
+                ProgramRefusal::Transition {
+                    loop_: 0,
+                    step: 1,
+                    verb,
+                    ..
+                } => assert_eq!(verb, Some(profile::Verb::ArcFilletArc)),
+                other => panic!("the refusal names the arriving transition, got {other:?}"),
+            },
             other => {
                 panic!("a {arrival:?}-carrying program must refuse at the VQ9 door, got {other:?}")
             }
+        }
+    }
+}
+
+test_utils::f6_variants! {
+    /// **Every node kind**, welded to `Node` by the match the macro
+    /// writes: a variant added to the vocabulary leaves it
+    /// non-exhaustive, and the row below reds until the new kind has a
+    /// value in `one_of_every_node_shape`.
+    const NODE_KIND: ProfileNode = [
+        Datum,
+        Profile,
+        Extrude,
+        Revolve,
+        Tube,
+        HollowTube,
+        Loft,
+        Sweep,
+        Fillet,
+        Chamfer,
+        Shell,
+        Split,
+        Boolean,
+        Union,
+        Transform,
+        Pattern,
+        Part,
+        PlacedUnion,
+        Declare,
+        InstantiatePart,
+        Mate,
+        Measure,
+        Assertion,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// **Every datum kind**, welded the same way: the six shapes carry
+    /// six different slot lists (a plane's origin and normal, a point's
+    /// position alone, an in-plane axis's X and Y with no Z), so the
+    /// node-level roster above would pass over a disagreement inside
+    /// one of them.
+    const DATUM_KIND: Datum = [Plane, Axis, Point, AxisInPlane, Frame, FaceFrame];
+}
+
+type ProfileNode = Node<ProfileProgram>;
+
+fn nid(n: u64) -> RecipeNodeId {
+    RecipeNodeId(n)
+}
+
+fn datum_shapes() -> Vec<Datum> {
+    vec![
+        Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        },
+        Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+        },
+        Datum::Point {
+            position: [len(0.0), len(0.0), len(0.0)],
+        },
+        Datum::AxisInPlane {
+            plane: nid(0),
+            origin: [len(0.0), len(0.0)],
+            direction: [scl(1.0), scl(0.0)],
+        },
+        Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        },
+        Datum::FaceFrame {
+            at: nid(0),
+            face: fixture::fname(nid(0), RoleSeg::Cap(CapEnd::Start)),
+            spin: ang(0.0),
+        },
+    ]
+}
+
+/// One value per node SHAPE — every kind of the roster above, and
+/// every payload shape that answers a different slot list: the six
+/// datums, a tube window open and closed, the three pattern kinds, a
+/// part selected two ways, and a placed union with and without its
+/// count.
+fn one_of_every_node_shape() -> Vec<ProfileNode> {
+    let mut nodes: Vec<ProfileNode> = datum_shapes().into_iter().map(Node::Datum).collect();
+    let window = || TubeWindow::Arc {
+        t0: ang(0.0),
+        t1: ang(1.0),
+    };
+    nodes.extend([
+        Node::Profile(fixture::desc(nid(0), vec![fixture::square(0.0, 0.0, 0.5)])),
+        Node::Extrude {
+            profile: nid(1),
+            distance: len(1.0),
+        },
+        Node::Revolve {
+            profile: nid(1),
+            axis: nid(0),
+            angle: ang(1.0),
+        },
+        Node::Tube {
+            spine: nid(1),
+            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            major_radius: len(1.0),
+            window: TubeWindow::Full,
+            minor_radius: len(0.5),
+        },
+        Node::Tube {
+            spine: nid(1),
+            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            major_radius: len(1.0),
+            window: window(),
+            minor_radius: len(0.5),
+        },
+        Node::HollowTube {
+            spine: nid(1),
+            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            major_radius: len(1.0),
+            window: window(),
+            minor_radius: len(0.5),
+            wall: len(0.1),
+        },
+        Node::Loft {
+            profiles: vec![nid(1), nid(2)],
+            v_degree: Expr::count(1),
+        },
+        Node::Sweep {
+            profile: nid(1),
+            path: nid(2),
+            stations: Expr::count(4),
+            v_degree: Expr::count(1),
+        },
+        Node::Fillet {
+            target: nid(1),
+            radius: len(0.1),
+            selection: Vec::new(),
+        },
+        Node::Chamfer {
+            target: nid(1),
+            distance: len(0.1),
+            selection: Vec::new(),
+        },
+        Node::Shell {
+            target: nid(1),
+            thickness: len(0.1),
+            open: Vec::new(),
+        },
+        Node::Split {
+            target: nid(1),
+            tool: nid(2),
+        },
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: nid(1),
+            b: nid(2),
+            declare: None,
+        },
+        Node::Union {
+            members: vec![nid(1), nid(2)],
+            declare: None,
+        },
+        Node::Transform {
+            input: nid(1),
+            translation: [len(1.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    ]);
+    for kind in [
+        PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(1.0),
+        },
+        PatternKind::Circular {
+            axis: nid(0),
+            step: ang(0.5),
+        },
+        PatternKind::Explicit(Vec::new()),
+    ] {
+        nodes.push(Node::Pattern {
+            input: nid(1),
+            count: Expr::count(3),
+            kind: kind.clone(),
+        });
+        nodes.push(Node::PlacedUnion {
+            input: nid(1),
+            count: Some(Expr::count(3)),
+            kind: kind.clone(),
+        });
+        nodes.push(Node::PlacedUnion {
+            input: nid(1),
+            count: None,
+            kind,
+        });
+    }
+    nodes.extend([
+        Node::Part {
+            of: nid(1),
+            select: PartSelect::Instance(Expr::count(0)),
+        },
+        Node::Part {
+            of: nid(1),
+            select: PartSelect::SplitHalf(SplitHalf::Above),
+        },
+        Node::Declare { pairs: Vec::new() },
+        Node::InstantiatePart {
+            doc_ref: DocRef {
+                id: DocumentId::derive("switch-slots-census"),
+                pin: ContentPin::of_bytes(b"switch-slots-census"),
+            },
+            interface: InterfaceRecord {
+                crossings: Vec::new(),
+            },
+        },
+        Node::Mate {
+            a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
+            b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: MateFrame {
+                    origin: [0.0; 3],
+                    axis: [0.0, 0.0, 1.0],
+                    reference: [1.0, 0.0, 0.0],
+                },
+                b: MateFrame {
+                    origin: [0.0; 3],
+                    axis: [0.0, 0.0, 1.0],
+                    reference: [1.0, 0.0, 0.0],
+                },
+                primitive: MatePrimitive::Coaxial,
+                sense: AxisSense::Aligned,
+                clocking: None,
+            },
+        },
+        Node::Measure {
+            expr: MeasureExpr::value(len(1.0)),
+            refs: Vec::new(),
+        },
+        Node::Assertion {
+            measure: nid(1),
+            bound: len(1.0),
+            dir: AssertionDir::AtLeast,
+        },
+    ]);
+    nodes
+}
+
+/// **`slots()` is `expr()`'s domain, for every node kind** — the
+/// invariant the two matches in `node.rs` keep between them, and the
+/// reason neither door carries a refusal for a slot it cannot read:
+/// `Node::slot_dimension_fault` asserts against it at the site rather
+/// than routing a missing expression to a door as a document's fault.
+///
+/// `profile_nodes_enumerate_program_slots` pins the same thing for one
+/// kind. This row is the whole vocabulary, welded by `NODE_KIND` and
+/// `DATUM_KIND` so a node kind added tomorrow cannot join it unpinned.
+#[test]
+fn every_node_kinds_slots_are_all_readable() {
+    let nodes = one_of_every_node_shape();
+    for node in &nodes {
+        for slot in node.slots() {
+            let Some(expr) = node.expr(slot) else {
+                panic!(
+                    "{node:?} names the slot {} and `expr` does not answer for it",
+                    slot.label()
+                )
+            };
+            assert_eq!(
+                expr.dim(),
+                slot.dimension(),
+                "{node:?}'s {} carries another dimension than the address fixes",
+                slot.label()
+            );
+        }
+    }
+
+    for (rostered, walked) in [
+        (
+            NODE_KIND.identifiers(),
+            nodes
+                .iter()
+                .map(test_utils::f6::variant_identifier)
+                .collect::<Vec<_>>(),
+        ),
+        (
+            DATUM_KIND.identifiers(),
+            datum_shapes()
+                .iter()
+                .map(test_utils::f6::variant_identifier)
+                .collect::<Vec<_>>(),
+        ),
+    ] {
+        let covered: Vec<&str> = walked.iter().map(String::as_str).collect();
+        if let Some(report) = test_utils::census::set_difference(
+            rostered,
+            &covered,
+            "the node roster and the shapes this row walks disagree",
+            "walked here and absent from the roster — add it, spelled as `Debug` renders it",
+            "in the roster and walked by no value — give it one in `one_of_every_node_shape`",
+        ) {
+            panic!("{report}");
         }
     }
 }

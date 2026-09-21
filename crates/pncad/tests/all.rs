@@ -1237,6 +1237,7 @@ fn the_import_surface_is_matchable_and_fillable_through_the_prelude() {
         declared_contacts: vec![ImportContact::VertexRest {
             at: [0.0, 0.0, 0.5],
         }],
+        examine_chart_coherence: true,
     };
     assert!(matches!(
         import_step("not a step file", &options, Tol::witness()),
@@ -1296,6 +1297,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         normalizations,
         curve_promotions,
         instances,
+        coherence,
     } = imported
     else {
         panic!("the box re-imports as a solid, not a wireframe");
@@ -1306,6 +1308,26 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
     named::<Vec<PlacedInstance>>(instances.clone());
+    // The chart-coherence channel, spelled from the prelude down to
+    // the vocabulary a consumer matches on. The import above asked
+    // for no examination, so the field is `None` — which is the
+    // CONFIGURATION half of this channel's distinction and not an
+    // empty report; `topo`'s own door draws the same line about the
+    // two lists inside a report it did produce.
+    named::<Option<CoherenceReport>>(coherence.clone());
+    assert!(
+        coherence.is_none(),
+        "the default import asked for no chart-coherence examination"
+    );
+    // The report's own two lists, spelled from here too, because a
+    // consumer that holds the answer reads them. No `assert_ne!`
+    // against `Some(empty)`: the assertion above is the whole runtime
+    // claim, and the fold it would guard against — an unasked import
+    // rendering as an empty report — is unrepresentable in
+    // `Option<CoherenceReport>` and would fail `is_none` first.
+    let empty = CoherenceReport::default();
+    named::<&Vec<CoherenceFinding>>(&empty.findings);
+    named::<&Vec<Unexamined>>(&empty.unexamined);
 
     // "Not a second computation", as an equality rather than a claim.
     let again = mass_properties(&body, Tol::witness()).expect("imported mass properties");
@@ -1344,6 +1366,7 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         named::<&f64>(&promotion.residual);
         named::<&str>(match promotion.kind {
             PromotedCurveKind::Circle => "circle",
+            PromotedCurveKind::Line => "line",
         });
     }
 }
@@ -1997,6 +2020,7 @@ fn doors_insert(
         &doc,
         &pncad::document::DocEdit::InsertNode { node },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the edit is accepted");
     let minted = applied.record.minted.expect("an insert mints an id");
@@ -2387,6 +2411,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             value: DocParam::continuous(Dimension::Length, 0.25),
         },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the parameter edit applies")
     .doc;
@@ -2732,6 +2757,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
             value: DocParam::continuous(Dimension::Length, 0.75),
         },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;
@@ -2812,12 +2838,21 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
-    let text = pncad::document::save(&origin, std::slice::from_ref(&edit), Tol::witness())
-        .expect("the logged document saves");
+    let text = pncad::document::save(
+        &origin,
+        &[pncad::document::LoggedEdit::bare(edit.clone())],
+        Tol::witness(),
+    )
+    .expect("the logged document saves");
     dir.write("logged.pncad", &text);
-    let replayed = pncad::document::apply(&origin, &edit, Tol::witness())
-        .expect("the edit applies")
-        .doc;
+    let replayed = pncad::document::apply(
+        &origin,
+        &edit,
+        Tol::witness(),
+        &pncad::document::RefusingReach,
+    )
+    .expect("the edit applies")
+    .doc;
     let replayed_pin =
         pncad::document::content_pin(&replayed, Tol::witness()).expect("the pin computes");
     let snapshot_pin =
@@ -2928,6 +2963,7 @@ fn workspace_save_at_the_scanned_path_is_a_resave() {
             value: DocParam::continuous(Dimension::Length, 0.9),
         },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;
@@ -3096,6 +3132,7 @@ fn asm2a_assembly(
                     frame: pncad::document::Frame::translation([dx, 0.0, 0.0]),
                 },
                 Tol::witness(),
+                &pncad::document::RefusingReach,
             )
             .expect("the placement is accepted")
             .doc;
@@ -3324,11 +3361,18 @@ fn asm_r2a_mated_assembly(
         axis: [0.0, 0.0, 1.0],
         reference: [1.0, 0.0, 0.0],
     };
+    // A mate head is a `SitedFace`: the fixture's claim that the name
+    // it just built is a face is made where the name is built.
+    let face_head = |name: pncad::prelude::StableName| {
+        pncad::document::SitedFace::at_mint(
+            pncad::document::FaceName::new(name).expect("the fixture names a face"),
+        )
+    };
     let (doc, _) = doors_insert(
         doc,
         Node::Mate {
-            a: pncad::document::SitedRef::at_mint(name(ids[0])),
-            b: pncad::document::SitedRef::at_mint(name(ids[1])),
+            a: face_head(name(ids[0])),
+            b: face_head(name(ids[1])),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: axis([30.0, 0.0, 0.0]),
@@ -3374,7 +3418,12 @@ fn asm_r2a_child_mated_probe() {
         doc.placements().is_empty(),
         "the pose is solved, not stored"
     );
-    let poses = pncad::document::solve_document(&doc, Tol::witness());
+    let opts = pncad::document::EvalOptions {
+        resolver: Some(std::sync::Arc::new(ws.clone())),
+        ..pncad::document::EvalOptions::default()
+    };
+    let reach = pncad::document::mate_reach::<f64>(&opts, Tol::witness());
+    let poses = pncad::document::solve_document(&doc, &reach, Tol::witness());
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
@@ -3432,8 +3481,17 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 #[test]
 fn asm_r2b_child_crossing_probe() {
     use pncad::document::{DocEdit, Node};
+    use pncad::prelude::FaceName;
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+    let face = |cap| {
+        FaceName::new(StableName {
+            kind: EntityKind::Face,
+            node: WS_PART_BODY,
+            path: vec![RoleSeg::Cap(cap)],
+        })
+        .expect("a crossing's references are face names")
+    };
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
         return; // not the child — nothing to do
     };
@@ -3446,18 +3504,9 @@ fn asm_r2b_child_crossing_probe() {
     let (doc, ids) = asm_r2a_mated_assembly("asm-r2b-probe-asm", doc_ref);
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {
-            mate: ids[0],
             class: ContactClass::Rest,
-            outer: StableName {
-                kind: EntityKind::Face,
-                node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            },
-            inner: StableName {
-                kind: EntityKind::Face,
-                node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Start)],
-            },
+            outer: face(CapEnd::End),
+            inner: face(CapEnd::Start),
         }],
     };
     let doc = pncad::document::apply(
@@ -3466,17 +3515,20 @@ fn asm_r2b_child_crossing_probe() {
             node: Node::instantiate_part_with(doc_ref, record),
         },
         Tol::witness(),
+        &pncad::document::RefusingReach,
     )
     .expect("the crossing-bearing instance inserts")
     .doc;
 
     // The whole cluster split out — accepted, and the remainder is
     // itself a crossing-bearing document.
+    let store: std::sync::Arc<dyn pncad::document::PartResolver> = std::sync::Arc::new(ws.clone());
     let split = pncad::document::split(
         &doc,
         &ids.iter().copied().collect(),
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
         Tol::witness(),
+        Some(&store),
     )
     .expect("a whole-cluster cut splits");
     let text =
@@ -3583,6 +3635,7 @@ fn asm2b_outer(
                     frame: pncad::document::Frame::translation([100.0, 0.0, 0.0]),
                 },
                 Tol::witness(),
+                &pncad::document::RefusingReach,
             )
             .expect("the placement is accepted")
             .doc;
@@ -3808,6 +3861,7 @@ fn asm4_split_and_inline_through_the_real_store() {
         &cut,
         d::DocumentId::derive("asm4-e2e-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     ws_mut
@@ -3827,8 +3881,13 @@ fn asm4_split_and_inline_through_the_real_store() {
         "volumes bit-equal through the store"
     );
 
-    let inlined =
-        d::inline(&out.remainder, out.instance, &ws2, Tol::witness()).expect("inlines back");
+    let inlined = d::inline(
+        &out.remainder,
+        out.instance,
+        &(std::sync::Arc::new(ws2.clone()) as std::sync::Arc<dyn pncad::document::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("inlines back");
     let ev3 = asm2a_eval(&inlined.doc, &ws2);
     let body3 = d::product(&inlined.doc, &ev3, Tol::witness()).expect("gathers");
     assert_eq!(
@@ -3873,6 +3932,7 @@ fn asm4_child_split_probe() {
         &cut,
         d::DocumentId::derive("asm4-probe-new"),
         Tol::witness(),
+        None,
     )
     .expect("legal");
     let text = format!(
@@ -3975,7 +4035,7 @@ fn asm_upd_row3_update_to_store_picks_up_the_resaved_part() {
     assert_eq!(edits.len(), 2, "one edit per site, computed not supplied");
     let mut updated = doc.clone();
     for e in &edits {
-        updated = d::apply(&updated, e, Tol::witness())
+        updated = d::apply(&updated, e, Tol::witness(), &pncad::document::RefusingReach)
             .expect("the group applies")
             .doc;
     }
@@ -4067,7 +4127,9 @@ fn asm_upd_child_update_probe() {
         .expect("the elaboration holds");
     let mut updated = doc;
     for e in &edits {
-        updated = d::apply(&updated, e, Tol::witness()).expect("applies").doc;
+        updated = d::apply(&updated, e, Tol::witness(), &pncad::document::RefusingReach)
+            .expect("applies")
+            .doc;
     }
     let ev = asm2a_eval(&updated, &ws);
     let volume = pncad::topo::mass_properties(
@@ -4270,14 +4332,21 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   direct `editor-core` edge — hands layer 3 the arena keys the
 ///   façade's curation exists to seal.
 ///
-///   **`MeshPick` stays, and that is what closes the raw-target lane
-///   at the façade.** It is the raw index a hand-assembled
-///   `PickTarget` needs, and `PickTarget::pick` is a `&MeshPick` — so
-///   with the index unnameable here, the target whose contract warns
-///   of a confidently wrong name has no constructor a façade consumer
-///   can reach, and `NodePick` is not merely the preferred door but
-///   the only one. `PickTarget` is carried because `pick_face`'s
-///   signature names it, not because it can be built.
+///   **`MeshPick` stays, and the raw-target lane is now closed on
+///   both sides of the seal.** It is the raw index a hand-assembled
+///   `PickTarget` needs, and leaving it unnameable here means no
+///   façade consumer can hold one. The kernel closed the same lane at
+///   the API: both raw mints (`MeshPick::build` and
+///   `PickTarget::new`) live behind `editor-core`'s `test-support`
+///   feature, which no consumer's manifest wires onto an edge of its
+///   own — the claim `scripts/gates/test-features-dev-only.sh` holds
+///   across every manifest in the repository, and the strongest one a
+///   feature carries, because a build COMMAND may always ask for a
+///   feature by name (that gate's header retracted the absolute this
+///   stanza used to make). `NodePick` is not
+///   merely the preferred door but the only one, and `PickTarget` is
+///   carried because `pick_face`'s signature names it, not because it
+///   can be built.
 ///
 ///   **`MeshPickError` left this list, and the construction argument
 ///   above is untouched by that.** An index is BUILT and a refusal is
@@ -4338,7 +4407,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 89] = [
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4364,6 +4433,7 @@ const NOT_CARRIED: [&str; 89] = [
     "EvalScalar",
     "FlipEvidence",
     "FlipSet",
+    "FlipSource",
     "Implicated",
     "Lane",
     "MeshPatchKey",
@@ -4389,8 +4459,10 @@ const NOT_CARRIED: [&str; 89] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
+    "SHADOW_EXEC_MAX_PAIRS",
     "SectionScalar",
     "SeedScalar",
+    "ShadowExecRefusal",
     "ShellLane",
     "SideVerdict",
     "StructureFlip",
@@ -5769,6 +5841,7 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
                 value,
             },
             Tol::witness(),
+            &pncad::document::RefusingReach,
         )
         .expect("the parameter declaration applies")
         .doc
@@ -5888,7 +5961,11 @@ mod unit_vector_witness_through_the_facade {
     }
     fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
         let applied = doc
-            .apply(&DocEdit::InsertNode { node }, Tol::witness())
+            .apply(
+                &DocEdit::InsertNode { node },
+                Tol::witness(),
+                &pncad::document::RefusingReach,
+            )
             .unwrap();
         (applied.doc, applied.record.minted.unwrap())
     }

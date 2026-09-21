@@ -457,7 +457,9 @@ fn describe_section_boundary<T: Decide>(
                     let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
                     Some((c.clone(), mid, arm))
                 }
-                geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => None,
+                geom::Curve3::Line { .. }
+                | geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_) => None,
             });
             let (witness, arm) = match &conic {
                 Some((_, mid, arm)) => (*mid, *arm),

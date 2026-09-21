@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, ParamName,
-    ProfileProgram, RecipeNodeId, SitedRef, SlotId,
+    ProfileProgram, RecipeNodeId, SitedFace, SlotId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -358,9 +358,9 @@ pub enum SessionOp {
         /// The `a` reference — a name and the operand it is read at,
         /// resolving to a member of A11's vocabulary
         /// (`pncad::document::member_of`).
-        a: SitedRef,
+        a: SitedFace,
         /// The `b` reference, same vocabulary.
-        b: SitedRef,
+        b: SitedFace,
         /// The declared contact class.
         class: ContactClass,
         /// The alignment datum (frames in each member's own part
@@ -430,6 +430,51 @@ pub enum SessionOp {
         /// pick.
         plane: RecipeNodeId,
         /// The loop programs, in description order.
+        loops: Vec<LoopProgram>,
+    },
+    /// **Write the path editor's numbers over a committed profile's**
+    /// — the door the add-profile form's editor commits through when
+    /// it is opened on an existing node instead of on nothing. A
+    /// `node` that is not a `Node::Profile` refuses
+    /// [`Refusal::WrongNodeKind`] at the door.
+    ///
+    /// `loops` is the whole program as the editor holds it, lowered in
+    /// the form's notation. What reaches the history is the slot write
+    /// for each argument that MOVED ([`crate::sketch::program_edits`]),
+    /// as ONE action and one undo step — and nothing at all when none
+    /// did, which is what makes opening a profile and applying it
+    /// untouched cost no history entry. A program whose structure
+    /// differs from the committed one's refuses
+    /// [`Refusal::ProfileRestructure`]: the document's edit vocabulary
+    /// writes slots and has no door that rewrites a program's shape. A
+    /// moved argument an expression drives refuses with the affordance
+    /// ([`Refusal::DrivenByExpression`]), exactly as the slot field
+    /// does.
+    ///
+    /// The whole program is checked once before any slot is written,
+    /// so a profile that does not close or validate refuses in the
+    /// insert door's own words ([`Refusal::Edit`]). The slot writes
+    /// then land in an order the door accepts one at a time — each
+    /// write re-validates the program, so a corner moved past another
+    /// can refuse until its neighbour follows. The order is searched
+    /// exactly up to [`crate::session::ORDER_SEARCH_CAP`] writes; a
+    /// program that is valid whole and has no such order is
+    /// [`Refusal::ProfileEditOrder`], and one past the cap whose slot
+    /// order does not land is [`Refusal::ProfileEditOrderCapped`] —
+    /// the cost of the missing whole-program door said out loud rather
+    /// than as a refusal about a state nobody wrote.
+    ///
+    /// `base` is the program the editor was loaded from. A document
+    /// whose program is no longer that one (compared by value) refuses
+    /// [`Refusal::ProfileEditStale`]: the numbers were an edit of a
+    /// program that is not there any more.
+    EditProfile {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// The committed program the editor's numbers were loaded
+        /// from.
+        base: ProfileProgram,
+        /// The loop programs the editor holds, in description order.
         loops: Vec<LoopProgram>,
     },
     /// Insert one extrude of an existing profile node — the extrude
@@ -729,11 +774,17 @@ impl SessionOp {
     /// from the dispatch, and so that a new operation cannot join the
     /// enum without an answer: [`super::DocSession::perform`] consults this
     /// once, before dispatch, and no arm re-guards against the VALUE
-    /// gesture. Four arms do guard against the OTHER one: the
-    /// `*FreeMove` quartet delegates to [`crate::display::DisplayState`], which refuses
-    /// [`crate::display::DisplayFault::FreeMoveInFlight`] off its own state.
+    /// gesture with a table of its own. Six arms guard from a
+    /// GESTURE's state: the `*FreeMove` quartet delegates to
+    /// [`crate::display::DisplayState`], which refuses
+    /// [`crate::display::DisplayFault::FreeMoveInFlight`] off its own
+    /// state, and the two value-gesture begins delegate to
+    /// [`crate::g1::Slot::begin`], which refuses
+    /// [`Refusal::GestureInFlight`] off this one. That rule is rule 1
+    /// and is held once for both drags, which is why no row here
+    /// spells it.
     ///
-    /// Three shapes of `true` sit in the table:
+    /// Four shapes of `true` sit in the table:
     ///
     /// - the ops that DRIVE the gesture ([`SessionOp::PreviewGesture`],
     ///   [`SessionOp::CommitGesture`],
@@ -767,8 +818,25 @@ impl SessionOp {
     ///   under an open drag should be permitted at all is a question
     ///   this table only records the current answer to.
     ///
-    /// Everything else moves the document, the history or the file the
-    /// drag is previewing against, and is refused.
+    /// - the two doors that OPEN a value gesture
+    ///   ([`SessionOp::BeginGesture`],
+    ///   [`SessionOp::BeginParamGesture`]). They are permitted here
+    ///   and refused anyway, one layer down: `DocSession::start`
+    ///   hands them to [`crate::g1::Slot::begin`], whose first rule refuses
+    ///   [`Refusal::GestureInFlight`] off the very state this check
+    ///   reads. A `false` row would be a second spelling of one
+    ///   answer and would make the door's own arm unreachable — the
+    ///   argument `permitted_during_free_move` makes for
+    ///   [`SessionOp::BeginFreeMove`], which is the same rule about
+    ///   the other drag.
+    ///
+    /// Everything else is refused, and 24 of the 25 rows move the
+    /// document, the history or the file the drag is previewing
+    /// against. [`SessionOp::ProbeBounds`] is the twenty-fifth and
+    /// moves none of them: it READS the shown document, which
+    /// mid-drag is the scratch, so a range taken there would be a
+    /// statement about a picture the drag is about to replace and
+    /// would outlive it by one keystroke.
     #[must_use]
     pub fn permitted_during_value_gesture(&self) -> bool {
         match self {
@@ -783,6 +851,8 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SetInstanceHidden { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginParamGesture { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }
@@ -794,8 +864,6 @@ impl SessionOp {
             | Self::SetSlotExpression { .. }
             | Self::SetParam { .. }
             | Self::CreateParam { .. }
-            | Self::BeginGesture { .. }
-            | Self::BeginParamGesture { .. }
             | Self::Undo
             | Self::Redo
             | Self::Open(_)
@@ -803,6 +871,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
@@ -865,7 +934,9 @@ impl SessionOp {
     /// [`crate::display::DisplayState::begin_free_move`] refuses
     /// [`crate::display::DisplayFault::FreeMoveInFlight`] off its own
     /// state, with the same refusal this check raises. A second `false`
-    /// row would be a second spelling of one answer.
+    /// row would be a second spelling of one answer. The value table
+    /// says the same of its own two begins, so the argument is one
+    /// rule about rule 1 rather than one table's exception.
     ///
     /// [`SessionOp::PreviewFreeMove`] and [`SessionOp::CommitFreeMove`]
     /// are `true` here and still refused
@@ -912,6 +983,7 @@ impl SessionOp {
             | Self::AddMate { .. }
             | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
@@ -999,14 +1071,14 @@ impl OpOutcome {
 /// absence is what made the refusal dishonest.
 ///
 /// **A door that cannot act says so rather than vanishing**, which is
-/// the posture `frame::ChooserBackend`'s two dialog controls take: the
+/// the posture `platform::ChooserBackend`'s two dialog controls take: the
 /// door is drawn whatever the selection, the standing and the
 /// evaluation are, and disabled rather than absent when it can do
 /// nothing.
 ///
 /// **How it says so is the OTHER precedent**, and the two part company
 /// exactly here: the dialog controls hand
-/// `frame::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
+/// `platform::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
 /// button — to `on_disabled_hover_text`, which is the shape
 /// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
 /// reason-elsewhere.md` is open about. The one this follows is

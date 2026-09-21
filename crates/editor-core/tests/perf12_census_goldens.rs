@@ -67,6 +67,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
             value: DocParam::Count { value: fins },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
     .doc

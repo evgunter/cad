@@ -235,8 +235,8 @@ fn violations_against(
     // that agrees. The reachable cause is NOT a mis-derived prefix —
     // in a real build both sides of it come from the compiler — it is
     // that this module has no direct rows left. So the message leads
-    // with that, and the `absent` violation below still runs and names
-    // the rostered rows that are gone.
+    // with that, and the comparison below still runs and names the
+    // rostered rows that are gone.
     if mine.is_empty() {
         violations.push(format!(
             "this roster compared itself against nothing: of the {} rows in this binary, \
@@ -258,24 +258,25 @@ fn violations_against(
         ));
     }
 
-    let unrostered: Vec<&&str> = mine.iter().filter(|row| !rostered.contains(row)).collect();
-    if !unrostered.is_empty() {
-        violations.push(format!(
-            "these #[test] rows are in this module and NOT in its roster!{{}} block: \
-             {unrostered:?}. Add each one with a sentence saying what it is for."
-        ));
-    }
-
-    let absent: Vec<&&str> = rostered
-        .iter()
-        .filter(|name| !mine.contains(name))
-        .collect();
-    if !absent.is_empty() {
-        violations.push(format!(
-            "the roster names {absent:?}, which compile as `fn()` in this module but are \
-             not #[test] rows libtest lists under `{prefix}`. A roster names rows, not \
-             helpers."
-        ));
+    // The two set directions are ONE comparison, and this crate holds
+    // exactly one of those (`crate::census::set_difference`). Spelling
+    // the filters again here would be a second copy of a comparator
+    // kept in step by hand, in the module whose subject is a second
+    // list kept in step by hand. The two violations above are NOT set
+    // directions — they are pushed before any comparison and say why
+    // the comparison cannot answer — so they stay their own entries.
+    if let Some(report) = crate::census::set_difference(
+        rostered,
+        &mine,
+        &format!(
+            "this roster!{{}} block and the #[test] rows libtest lists under `{prefix}` disagree"
+        ),
+        "these are #[test] rows in this module and NOT in its roster!{} block — add each \
+         one with a sentence saying what it is for",
+        "these compile as `fn()` in this module but are not #[test] rows libtest lists \
+         under that prefix. A roster names rows, not helpers",
+    ) {
+        violations.push(report);
     }
 
     violations

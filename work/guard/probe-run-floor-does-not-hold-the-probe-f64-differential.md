@@ -4,6 +4,8 @@ kind: issue
 title: RUN_FLOOR's m4_pr8_k_probe ignored row is 1, so the Probe-vs-f64 differential can be deleted silently
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

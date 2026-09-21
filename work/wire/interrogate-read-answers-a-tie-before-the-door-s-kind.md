@@ -2,9 +2,11 @@
 id: interrogate-read-answers-a-tie-before-the-door-s-kind
 kind: unit
 title: interrogate::read refuses Ambiguous for a tied name of the wrong kind, where a unique one of that kind answers WrongKind
-status: dispatched
+status: closed
 opened: 2026-09-15
 branch: wire/tie-before-kind
+pr: 2681
+closed: 2026-09-15
 ---
 
 
@@ -89,3 +91,16 @@ be read together.
   moves on the Python side.
 - `crates/editor-core/src/assembly.rs`, `resolve_face` — the same rule
   already spelled the other way round, for the shape to copy.
+
+## In review (PR 2681, `wire/tie-before-kind`)
+
+`entity_of` takes the door's `wanted` kind and asks it between the
+`NoSuchName` check and the `Entry::Tied` split, so a tied edge name at
+`face_frame` answers `WrongKind { wanted: Face, found: Edge }` where a
+unique one already did. The second question this row named — which
+source the `found` word reads from — is settled with its sibling
+`the-declared-pair-refusal-reads-the-authored-kind`: off the NAME,
+because no key exists yet. `kind_mismatch` now takes an `EntityKind`,
+which keeps the `Body → WholeBody` split in one place and reachable
+from a name, so a tied body name still answers `WholeBody`. `read`'s
+`K::of(key)` arm stays as the asserted invariant backstop.

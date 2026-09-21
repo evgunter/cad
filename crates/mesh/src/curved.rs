@@ -459,9 +459,10 @@ pub(crate) fn tessellate_curved(
 /// comparand and no margin of `mesh`'s.
 ///
 /// **A rimless sphere band passes**: it is a chart rectangle, and the
-/// door says so at its definition — the `Δu = π` the flux lane also
-/// needs is that lane's premise, not the shape's, which is why a
-/// partial sphere wedge meshes here and refuses `mass_properties`.
+/// door says so at its definition — which lunes the flux lane measures
+/// (`Δu = π` for one great circle, the meridian pair's azimuth for two)
+/// is that lane's premise, not the shape's, so a partial sphere wedge
+/// meshes here on the door's answer alone.
 ///
 /// An empty loop is reported by this lane's own name for that state
 /// ([`TessellateError::EmptyLoop`]) before the flatten runs, which

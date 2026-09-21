@@ -4,6 +4,8 @@ kind: issue
 title: editor-core's other rayon maps record their samples into the worker's sink
 status: open
 opened: 2026-09-12
+priority: P3
+cost: E
 ---
 
 

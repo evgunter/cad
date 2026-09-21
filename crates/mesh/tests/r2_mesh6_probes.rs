@@ -167,61 +167,19 @@ fn r2_seam_and_pairing_census_over_the_corpus() {
 #[test]
 fn r2_scaffold_strut_body_through_tessellate() {
     use geom_core::Point3;
-    use topo::{Body, MefSite, MevSite};
+    use topo::{MevSite, test_support};
     let tol = Tol::witness();
-    let pt = Point3::new;
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            pt(1.0, 0.0, 0.0),
-            tol,
-        )
-        .unwrap();
+    // Declined is what this probe wants: the faces stay on the `mvfs`
+    // placeholder, which is why `tessellate` answers `UnsupportedSurface`
+    // here and the strut's effect is read off the census rather than off
+    // a mesh.
+    let cube = test_support::declined_cube::<f64>(tol);
+    let mut body = cube.body;
+    // `mevs[0]` is the bottom rim's A->B edge; its `he_plus` starts at A,
+    // the corner the strut hangs off (that bundle's documented order).
+    let e_ab = cube.mevs[0];
     let strut = |he| MevSite::Fan { he1: he, he2: he };
-    let e_bc = body
-        .mev_line(strut(e_ab.he_minus), pt(1.0, 1.0, 0.0), tol)
-        .unwrap();
-    let e_cd = body
-        .mev_line(strut(e_bc.he_minus), pt(0.0, 1.0, 0.0), tol)
-        .unwrap();
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    let f_bot = body
-        .mef_chord(
-            MefSite::Chords {
-                he1: he_dc,
-                he2: e_ab.he_plus,
-            },
-            tol,
-        )
-        .unwrap();
-    let e_aa = body
-        .mev_line(strut(e_ab.he_plus), pt(0.0, 0.0, 1.0), tol)
-        .unwrap();
-    let e_bb = body
-        .mev_line(strut(e_bc.he_plus), pt(1.0, 0.0, 1.0), tol)
-        .unwrap();
-    let e_cc = body
-        .mev_line(strut(e_cd.he_plus), pt(1.0, 1.0, 1.0), tol)
-        .unwrap();
-    let e_dd = body
-        .mev_line(strut(f_bot.he_plus), pt(0.0, 1.0, 1.0), tol)
-        .unwrap();
-    let chord = |he1, he2| MefSite::Chords { he1, he2 };
-    let f_front = body
-        .mef_chord(chord(e_aa.he_minus, e_bb.he_minus), tol)
-        .unwrap();
-    body.mef_chord(chord(e_bb.he_minus, e_cc.he_minus), tol)
-        .unwrap();
-    body.mef_chord(chord(e_cc.he_minus, e_dd.he_minus), tol)
-        .unwrap();
-    body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), tol)
-        .unwrap();
+    let pt = Point3::new;
     println!(
         "R2-SCAF closed cube: validate_closed = {:?}",
         topo::validate_closed(&body).is_ok()

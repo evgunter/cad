@@ -4,6 +4,8 @@ kind: issue
 title: which nappe of a cone a face or point lies on is decided by five predicates in four files — one fact, five spellings, none reconciled
 status: open
 opened: 2026-09-08
+priority: P1
+cost: D
 ---
 
 

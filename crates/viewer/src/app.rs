@@ -58,17 +58,19 @@ use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraError};
 use crate::display::DisplayView;
-use crate::drafts::Drafts;
+use crate::drafts::{Drafts, ProfileDoors};
 use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
-use crate::frame::{self, IdQueryLog, StatusUpdate};
+use crate::frame::{self, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
+use crate::idpass::IdQueryLog;
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
 use crate::pickcache::{self, PickCache};
 use crate::pickindex::{PickIndex, PictureKey};
+use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp};
@@ -92,7 +94,7 @@ pub use crate::forms::FieldWriting;
 /// anything.** Both arms can answer [`prefs::PrefsStore::unusable`]
 /// with `Some`: `Absent` always does, and the native `FileStore` does
 /// in an environment that names no config directory, which is
-/// [`frame::prefs_path`]'s `None`. So everything the chrome does about
+/// [`platform::prefs_path`]'s `None`. So everything the chrome does about
 /// a store that keeps nothing keys on that read and not on the target
 /// — which is what makes the browser and a desktop launched from a
 /// stripped environment one case, and what leaves a future
@@ -107,7 +109,7 @@ fn prefs_store() -> Store {
     #[cfg(not(target_family = "wasm"))]
     {
         // The path comes from `frame`, the crate's one ambient door.
-        prefs::file::FileStore::new(frame::prefs_path())
+        prefs::file::FileStore::new(platform::prefs_path())
     }
     #[cfg(target_family = "wasm")]
     {
@@ -194,6 +196,25 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
     egui::Color32::from_rgb(color.r, color.g, color.b)
 }
 
+/// `text` in the weight or colour its [`frame::Tone`] asks for.
+///
+/// **The one place the tone-to-chrome mapping is made.** Its two
+/// readers are the toolbar's badge family ([`draw_badge`]) and the
+/// feature tree's row badge, which reads the same tone off
+/// [`crate::tree::RowStatus::tone`] — two families, one rule, so what
+/// `Advisory` looks like is changed here or nowhere.
+///
+/// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
+/// REDUNDANT — everything wearing it says its own words — so this
+/// decides salience and never meaning.
+pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -> egui::RichText {
+    let text = egui::RichText::new(text);
+    match tone {
+        frame::Tone::Advisory => text.weak(),
+        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+    }
+}
+
 /// **Draw one standing-fact badge**, and hand the response back.
 ///
 /// The one draw the badge family has. What a badge SAYS, how loud it
@@ -207,15 +228,7 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 /// leaves no gap behind.
 fn draw_badge(ui: &mut egui::Ui, theme: &Theme, badge: &frame::Badge) -> egui::Response {
     ui.separator();
-    let text = egui::RichText::new(badge.label());
-    // The tone's two spellings, in the one place the mapping is made.
-    // `Theme::unresolved`'s contract is that the colour is REDUNDANT —
-    // every badge wearing it says its own words — so this decides
-    // salience and never meaning.
-    let text = match badge.tone() {
-        frame::Tone::Advisory => text.weak(),
-        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
-    };
+    let text = toned(badge.label(), theme, badge.tone());
     let response = match badge.affordance() {
         frame::Affordance::Read => ui.label(text),
         // Frameless, so a control the reader can open still reads as a
@@ -347,6 +360,22 @@ pub struct ViewerApp {
     /// moves somewhere it can be — so a badge one frame behind is a
     /// badge that appears.
     projection_fault: Option<CameraError>,
+    /// **How many datums the viewport drew nothing of on the last
+    /// frame it drew**, read by [`crate::frame::datums_badge`].
+    ///
+    /// One frame behind for the reason above. Unlike the fault above
+    /// it is not held past the frame that made it: the frame entry
+    /// point (`<ViewerApp as eframe::App>::ui`) zeroes the value the
+    /// panes write and assigns the result back unconditionally, so
+    /// this says what the LAST FRAME found and never what some
+    /// earlier one did.
+    datums_vanished: usize,
+    /// **How many committed profiles the viewport could not draw on
+    /// the last frame it drew** (`crate::sketch::CommittedProfiles::
+    /// undrawn`), read by [`crate::frame::profiles_badge`]. Zeroed and
+    /// assigned back every frame exactly as [`Self::datums_vanished`]
+    /// is.
+    profiles_undrawn: usize,
     /// Whether the next scene to land should have its δ CHOSEN by the
     /// triangle budget, rather than drawn at the δ already in force.
     ///
@@ -395,7 +424,7 @@ pub struct ViewerApp {
     /// switching it can never touch what a file says.
     ///
     /// **It is persisted where the store can keep it.**
-    /// [`Self::remember_theme`] writes it on every switch and
+    /// [`Self::remember_prefs`] writes it on every switch and
     /// `Prefs::resolve_theme` reads it back at startup, so a viewer
     /// reopened remembers. Where the store keeps nothing the switch
     /// still applies to the screen and only the memory is lost, which
@@ -418,7 +447,11 @@ pub struct ViewerApp {
     /// wireframe appears the frame after the section is opened and
     /// leaves the frame after it is closed, which is the same
     /// staleness the preview itself carries and for the same reason.
-    profile_form_drawn: bool,
+    ///
+    /// One latch per door of the profile editor: the add-profile form,
+    /// and the same editor opened on a committed profile
+    /// (`ViewerBehavior::edit_profile_ui`).
+    profile_drawn: ProfileDoors<bool>,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -476,9 +509,9 @@ pub struct ViewerApp {
     /// nothing here survives into the next one.
     notices: Vec<frame::Message>,
     /// Whether the environment can show a file dialog at all — probed
-    /// once at startup ([`frame::chooser_backend`]); the Open/Save As
+    /// once at startup ([`platform::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
-    chooser: frame::ChooserBackend,
+    chooser: platform::ChooserBackend,
     /// Where the theme choice is remembered. Held rather than
     /// rediscovered per save: the path is an environment read, and a
     /// viewer whose config directory moved mid-session would be
@@ -496,6 +529,22 @@ pub struct ViewerApp {
     /// and reading the file there would race the very write it is
     /// about to do.
     keys_pref: Option<String>,
+    /// The directory the last file dialog opened from or saved to —
+    /// the second of the three places a dialog can open
+    /// ([`frame::dialog_dir`]). Loaded from the preferences at startup
+    /// and written back by [`Self::remember_prefs`] on every dialog
+    /// that returns a path, so it outlives the session where the store
+    /// keeps anything and lasts the session where it does not.
+    ///
+    /// Loaded and carried on every target, wasm included, so a write of
+    /// the preferences never drops it; only the native dialogs read it.
+    last_dir: Option<std::path::PathBuf>,
+    /// The directory the viewer was launched from — the last of the
+    /// three places, read once ([`platform::launch_dir`]) because a
+    /// working directory is an environment reading. `None` when it
+    /// could not be read, which the startup notices said.
+    #[cfg(not(target_family = "wasm"))]
+    launch_dir: Option<std::path::PathBuf>,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -715,6 +764,22 @@ impl ViewerApp {
                 .flatten()
                 .map(|n| n.to_string()),
         );
+        // The launch directory, read once for the same reason the
+        // preferences path is: an environment reading belongs to the
+        // process's start, not to the frame that happens to need it.
+        // A directory that cannot be read is said here, once, and the
+        // dialogs fall through it — nothing is invented in its place.
+        #[cfg(not(target_family = "wasm"))]
+        let launch_dir = match platform::launch_dir() {
+            Ok(dir) => Some(dir),
+            Err(error) => {
+                notices.push(format!(
+                    "launch directory unreadable ({error}); a file dialog opens where its \
+                     backend chooses until one is used"
+                ));
+                None
+            }
+        };
 
         // The startup palette reaches the chrome here, not on the
         // first frame: a window that opened dark and turned light one
@@ -741,6 +806,8 @@ impl ViewerApp {
             scene_focus: BTreeSet::new(),
             scene_fault: None,
             projection_fault: None,
+            datums_vanished: 0,
+            profiles_undrawn: 0,
             // The startup document goes through the same door an
             // opened one does: it is small enough that the budget will
             // not move its δ, and a first picture that took a
@@ -751,7 +818,7 @@ impl ViewerApp {
             fit: fitter()?,
             tools: Tools::new(),
             part_chooser: None,
-            profile_form_drawn: false,
+            profile_drawn: ProfileDoors::default(),
             checks_shown: false,
             camera,
             input,
@@ -766,9 +833,12 @@ impl ViewerApp {
             // place this crate puts a thing that went wrong.
             status: frame::startup_notices(&notices),
             notices: Vec::new(),
-            chooser: frame::chooser_backend(),
+            chooser: platform::chooser_backend(),
             store,
             keys_pref: saved.keys,
+            last_dir: saved.last_dir,
+            #[cfg(not(target_family = "wasm"))]
+            launch_dir,
         })
     }
 
@@ -1006,9 +1076,9 @@ impl ViewerApp {
         let Some(stacked) = model_stack(tiles) else {
             return;
         };
-        // Slack over the measured height so the last row is not flush
-        // against the divider.
-        let fraction = ((wanted + FEATURES_SLACK) / stack).clamp(0.0, FEATURES_SHARE_CAP);
+        let Some(fraction) = features_fraction(wanted, stack) else {
+            return;
+        };
         if let Some(Tile::Container(egui_tiles::Container::Linear(linear))) = tiles.get_mut(stacked)
         {
             // Shares are relative, so a pair summing to 2 states the
@@ -1051,6 +1121,7 @@ impl ViewerApp {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
+            let accepted_op = op.clone();
             let outcome = self.session.perform(op);
             // **Where a withdrawal reaches the user**: everything
             // this operation's document transition took out of the
@@ -1087,8 +1158,13 @@ impl ViewerApp {
                 // other half of this rule). One open tool at a time is
                 // what lets this close "the" tool without asking which
                 // op came from which panel.
-                None if tool_edit => self.tools.close(),
-                None => {}
+                None if tool_edit => {
+                    self.tools.close();
+                    self.drafts.accepted(&accepted_op);
+                }
+                // A form whose op committed comes to rest, for the
+                // tool's reason: a refusal leaves it holding its draft.
+                None => self.drafts.accepted(&accepted_op),
             }
         }
         let update = frame::frame_status(&notices, &performed, refusal.as_ref());
@@ -1122,17 +1198,20 @@ impl ViewerApp {
         self.apply_status(update);
     }
 
-    /// Write the current theme choice to the preferences store.
+    /// Write everything the viewer remembers — the theme, the key
+    /// preset, the last dialog directory — to the preferences store.
+    /// Called when the theme changes and when a dialog returns a path
+    /// in a new directory.
     ///
     /// **Best-effort, and it reports.** A write that FAILED — a store
     /// with somewhere to write that could not — is worth one line in
     /// the status area and nothing more: the theme is already applied
-    /// on screen, so a failure here costs the next session's memory of
-    /// it, never this session's work. A store that can never be
+    /// on screen and the path already chosen, so a failure here costs
+    /// the next session's memory of them, never this session's work. A store that can never be
     /// written is not that case and is not reported here at all; it is
     /// a standing fact the toolbar badges, per the guard below.
-    /// Refusing the switch because it could not be recorded
-    /// would be the worse trade.
+    /// Refusing the switch or the path because it could not be
+    /// recorded would be the worse trade.
     ///
     /// The whole document is rewritten rather than patched, so every
     /// setting this viewer understands has to be carried across —
@@ -1140,7 +1219,7 @@ impl ViewerApp {
     /// understand is lost, and that is stated rather than hidden: it
     /// is the price of a hand-written renderer that keeps its
     /// comments, and such a key was already reported on load.
-    fn remember_theme(&mut self) {
+    fn remember_prefs(&mut self) {
         // **A store that keeps nothing is not asked**, and what it
         // would have said is already said: `frame::prefs_badge` reads
         // the same value on the toolbar beside the picker, for as long
@@ -1156,10 +1235,92 @@ impl ViewerApp {
         let prefs = Prefs {
             theme: Some(self.theme.name.to_owned()),
             keys: self.keys_pref.clone(),
+            last_dir: self.last_dir.clone(),
         };
         if let Err(error) = self.store.save(&prefs.to_toml()) {
             self.notices.push(frame::store_refusal(&error));
         }
+    }
+
+    /// Remember the directory a dialog just returned a path in: the
+    /// next dialog opens there when no document says otherwise
+    /// ([`frame::dialog_dir`]), and so does the next run's, where the
+    /// store keeps anything. An unchanged directory writes nothing: the
+    /// file already says it.
+    #[cfg(not(target_family = "wasm"))]
+    fn remember_dir(&mut self, path: &std::path::Path) {
+        let Some(dir) = frame::containing_dir(path) else {
+            return;
+        };
+        if self.last_dir.as_deref() == Some(dir) {
+            return;
+        }
+        self.last_dir = Some(dir.to_owned());
+        self.remember_prefs();
+    }
+
+    /// **The one door both file dialogs go through**, so Open… and
+    /// Save As… cannot disagree about where they start and neither can
+    /// forget to remember where it ended. It opens where
+    /// [`frame::dialog_dir`] says, with `Path::is_dir` as the witness
+    /// that a candidate still exists; offers a saved document's own
+    /// file name to Save As…; and remembers the directory of the path
+    /// it returns ([`Self::remember_dir`]). A THIN veneer over
+    /// `SessionOp::Open` and `SessionOp::Save`: everything it does is
+    /// choose a `Path`.
+    ///
+    /// **It blocks, deliberately.** A modal file chooser is the
+    /// platform's own idea of a modal file chooser, and the alternative
+    /// (an async handle polled across frames) would buy responsiveness
+    /// during an interaction that is already modal, at the cost of a
+    /// second state machine.
+    ///
+    /// **The starting directory reaches the portal and nothing else.**
+    /// `rfd` hands `set_directory` to the portal as `current_folder`;
+    /// its zenity fallback drops it and forwards only the file name, so
+    /// a zenity dialog opens at zenity's own default (the process's
+    /// working directory, which is the launch directory). The directory
+    /// is not spelled into the file name for zenity's sake: which
+    /// backend answers cannot be known from here — with no session-bus
+    /// address in the environment `rfd` still reaches a portal through
+    /// D-Bus autolaunch where one runs — and a portal handed that name
+    /// shows the whole directory path in its name field. A portal that
+    /// lacks `current_folder` on its open dialog shows its own default
+    /// there; its save dialog honours it.
+    ///
+    /// **Absent on wasm**, and so are the bodies of the two button arms
+    /// that call it. That second state machine is exactly what the
+    /// browser would force — `rfd`'s wasm backend offers only the async
+    /// dialog, and there are no paths behind it either — so the browser
+    /// build has no door here, and [`platform::chooser_backend`] says so
+    /// to the chrome by disabling both buttons.
+    #[cfg(not(target_family = "wasm"))]
+    fn file_dialog(&mut self, kind: FileDialog) -> Option<std::path::PathBuf> {
+        let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
+        if let Some(dir) = frame::dialog_dir(
+            self.session.path(),
+            self.last_dir.as_deref(),
+            self.launch_dir.as_deref(),
+            std::path::Path::is_dir,
+        ) {
+            dialog = dialog.set_directory(dir);
+        }
+        let path = match kind {
+            FileDialog::Open => dialog.pick_file(),
+            FileDialog::SaveAs => {
+                if let Some(name) = self
+                    .session
+                    .path()
+                    .and_then(std::path::Path::file_name)
+                    .and_then(std::ffi::OsStr::to_str)
+                {
+                    dialog = dialog.set_file_name(name);
+                }
+                dialog.save_file()
+            }
+        }?;
+        self.remember_dir(&path);
+        Some(path)
     }
 
     /// This application's door onto [`frame::apply`], for the verdict
@@ -1312,32 +1473,32 @@ impl ViewerApp {
             let chooser = self.chooser;
             if ui
                 .add_enabled(chooser.usable(), egui::Button::new("Open…"))
-                .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
                 .clicked()
             {
                 // Unreachable on wasm — `chooser` is `Absent`
                 // there, so the button is disabled and never
                 // reports a click — but unreachable code still has
-                // to compile, and `pick_open` does not exist on
-                // that target. The `cfg` is on the BODY rather
+                // to compile, and `Self::file_dialog` does not exist
+                // on that target. The `cfg` is on the BODY rather
                 // than the button so the browser build still shows
                 // the control and its disabled reason, which is
                 // the #1125 posture: a door that cannot open says
                 // so, it does not vanish.
                 #[cfg(not(target_family = "wasm"))]
-                if let Some(path) = pick_open() {
+                if let Some(path) = self.file_dialog(FileDialog::Open) {
                     ops.push(SessionOp::Open(path));
                 }
             }
             if ui
                 .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
-                .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
                 .clicked()
             {
                 // Unreachable on wasm, for the reason the Open…
                 // arm above states.
                 #[cfg(not(target_family = "wasm"))]
-                if let Some(path) = pick_save(self.session.path()) {
+                if let Some(path) = self.file_dialog(FileDialog::SaveAs) {
                     ops.push(SessionOp::Save(path));
                 }
             }
@@ -1518,6 +1679,23 @@ impl ViewerApp {
             {
                 draw_badge(ui, &self.theme, &badge);
             }
+            // **The datums the last drawn frame drew nothing of.**
+            // Not one of the three above: those hold a refusal until
+            // the seam they name succeeds, and this is a count the
+            // frame re-takes, so it stands for exactly as long as the
+            // view that produced it. What it buys is the one thing the
+            // picture cannot say — that the document HAS datums and
+            // this view draws none of them, which on screen is
+            // indistinguishable from a document with none.
+            if let Some(badge) = frame::datums_badge(self.datums_vanished) {
+                draw_badge(ui, &self.theme, &badge);
+            }
+            // The same kind of count for the committed profiles: a
+            // profile left out of the picture is otherwise a document
+            // without it.
+            if let Some(badge) = frame::profiles_badge(self.profiles_undrawn) {
+                draw_badge(ui, &self.theme, &badge);
+            }
             ui.separator();
             // The palette picker. Every registered theme, by the
             // name `crate::theme` gives it — the registry IS the
@@ -1568,7 +1746,7 @@ impl eframe::App for ViewerApp {
         if chosen != self.theme {
             self.theme = chosen;
             apply_polarity(ui.ctx(), chosen.polarity);
-            self.remember_theme();
+            self.remember_prefs();
         }
 
         let display = self.session.display_view();
@@ -1582,23 +1760,44 @@ impl eframe::App for ViewerApp {
         // are compared afterwards and a frame that changed them asks
         // for another, so the picture catches up on the next one
         // rather than waiting for the next input event.
-        let authored = self.drafts.profile_loops();
+        //
+        // The edit draft is brought up to the document FIRST: a
+        // selection that left its node drops it, and an undo that
+        // changed its program reloads it — so the preview taken below
+        // is of the draft the pane is about to show, not last frame's.
+        self.drafts.sync_profile_edit(
+            self.session.committed_doc(),
+            self.session.selection().node(),
+        );
+        let held = self.drafts.door_loops();
         // **No frame picked, no preview.** The form draws on a frame
         // the document holds, so with none picked there is no plane to
         // place the loops on and nothing honest to show — the form
         // says what it is waiting for instead, exactly as it does for
-        // a shape nobody chose.
-        let preview_plane = self
-            .drafts
-            .profile_plane
-            .zip(self.session.landed_pair())
-            .and_then(|(frame, (doc, evaluation))| sketch::frame_placement(doc, evaluation, frame));
-        let profile_preview = self
-            .profile_form_drawn
-            .then_some(preview_plane)
-            .flatten()
-            .map(|plane| sketch::preview(plane, &authored, self.session.tol(), self.delta.get()));
-        let mut profile_form_drawn = false;
+        // a shape nobody chose. The edit door's frame is the
+        // committed profile's own.
+        let (tol, delta) = (self.session.tol(), self.delta.get());
+        let profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
+            held.as_ref()
+                .filter(|_| drawn)
+                .and_then(|held| held.frame.zip(self.session.landed_pair()))
+                .and_then(|(frame, (doc, evaluation))| {
+                    sketch::frame_placement(doc, evaluation, frame)
+                })
+                .zip(held.as_ref())
+                .map(|(plane, held)| sketch::preview(plane, &held.loops, tol, delta))
+        });
+        // The committed node the edit door is previewing in its place,
+        // which the committed-profile pass leaves out.
+        let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
+        let mut profile_drawn = ProfileDoors::<bool>::default();
+        // **Zeroed here and assigned back below, every frame.** The
+        // viewport writes it while it draws; a frame the viewport does
+        // not draw at all is a frame with no datums vanishing in it,
+        // and this is where that is said rather than left to whatever
+        // the field last held.
+        let mut datums_vanished = 0_usize;
+        let mut profiles_undrawn = 0_usize;
         let mut delta_request: Option<f64> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -1636,10 +1835,13 @@ impl eframe::App for ViewerApp {
                     display: &display,
                     tools: &mut self.tools,
                     part_chooser: &mut self.part_chooser,
-                    profile_preview: &profile_preview,
-                    profile_form_drawn: &mut profile_form_drawn,
+                    profile_previews: &profile_previews,
+                    profile_drawn: &mut profile_drawn,
+                    profile_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
+                    datums_vanished: &mut datums_vanished,
+                    profiles_undrawn: &mut profiles_undrawn,
                     notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
@@ -1653,11 +1855,24 @@ impl eframe::App for ViewerApp {
                 self.tree.ui(&mut behavior, ui);
             });
         self.checks_window(ui.ctx(), &mut ops);
-        self.profile_form_drawn = profile_form_drawn;
+        self.profile_drawn = profile_drawn;
+        self.datums_vanished = datums_vanished;
+        self.profiles_undrawn = profiles_undrawn;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
-        if profile_form_drawn && self.drafts.profile_loops() != authored {
+        let moved =
+            profile_drawn
+                .zip(held.zip(self.drafts.door_loops()))
+                .map(|(drawn, (before, now))| {
+                    drawn
+                        && match (before, now) {
+                            (Some(before), Some(now)) => !before.previews_as(&now),
+                            (None, None) => false,
+                            _ => true,
+                        }
+                });
+        if moved.into_array().contains(&true) {
             ui.ctx().request_repaint();
         }
         // Read AFTER the frame drew, and before anything writes a
@@ -1744,18 +1959,22 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) tools: &'a mut Tools,
     /// The `Add part…` chooser, if open.
     pub(crate) part_chooser: &'a mut Option<PartChooser>,
-    /// What the add-profile form's loops would draw, taken once for
-    /// the frame: the panel says what it refuses and the viewport
-    /// draws what it replayed, from ONE reading.
+    /// What each door of the profile editor's loops would draw, taken
+    /// once for the frame: the panel says what it refuses and the
+    /// viewport draws what it replayed, from ONE reading.
     ///
-    /// `None` is "no preview was taken this frame" — the frame the
-    /// form first comes on screen, before the latch below has told
-    /// anyone to take one. Distinct from `Some(Ok(empty))`, which is
-    /// a preview that WAS taken and drew nothing, and which the form
-    /// is entitled to say so about.
-    pub(crate) profile_preview: &'a Option<Result<ProfilePreview, PreviewError>>,
-    /// Set by the add-profile form while it draws; read next frame.
-    pub(crate) profile_form_drawn: &'a mut bool,
+    /// `None` is "no preview was taken this frame" — the frame a door
+    /// first comes on screen, before the latch below has told anyone
+    /// to take one. Distinct from `Some(Ok(empty))`, which is a
+    /// preview that WAS taken and drew nothing, and which the form is
+    /// entitled to say so about.
+    pub(crate) profile_previews: &'a ProfileDoors<Option<Result<ProfilePreview, PreviewError>>>,
+    /// Set by each door's editor while it draws; read next frame.
+    pub(crate) profile_drawn: &'a mut ProfileDoors<bool>,
+    /// The committed profile the edit door is previewing this frame,
+    /// which the committed-profile pass leaves out
+    /// (`sketch::committed`'s `except`).
+    pub(crate) profile_edited: Option<pncad::document::RecipeNodeId>,
     pub(crate) pending_fit: &'a mut bool,
     /// Where the viewport leaves a view matrix it could not form, for
     /// [`frame::projection_badge`] to read: a read of the camera, so
@@ -1763,6 +1982,25 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
+    /// **How many datums the viewport drew nothing of this frame**,
+    /// for [`frame::datums_badge`] to read.
+    ///
+    /// Written by the viewport pane and read by the toolbar next
+    /// frame, like the fault above — and unlike it, it does not have
+    /// to be cleared by anyone. The frame entry point
+    /// (`<ViewerApp as eframe::App>::ui`) zeroes the local this
+    /// borrows before the panes draw and assigns the result back
+    /// after, whether or not the viewport was one of them, so a
+    /// viewport dragged shut or tabbed away reports none rather than
+    /// leaving the last count it made standing. That is
+    /// `profile_drawn`'s discipline above, and it is the one
+    /// `work/view/projection-fault-has-no-sweeper.md` says the fault
+    /// still lacks.
+    pub(crate) datums_vanished: &'a mut usize,
+    /// How many committed profiles the viewport drew nothing of
+    /// ([`ViewerApp::profiles_undrawn`]); zeroed by the frame entry
+    /// point and written by the viewport, as `datums_vanished` is.
+    pub(crate) profiles_undrawn: &'a mut usize,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -1882,39 +2120,49 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
     }
 }
 
-/// The open dialog: a THIN veneer over `SessionOp::Open`.
-///
-/// Everything it does is choose a `Path`. The blocking call is
-/// deliberate — a modal file chooser is the platform's own idea of a
-/// modal file chooser, and the alternative (an async handle polled
-/// across frames) would buy responsiveness during an interaction that
-/// is already modal, at the cost of a second state machine.
-///
-/// **Absent on wasm**, with the two callers `cfg`-ed to match. That
-/// second state machine is exactly what the browser would force —
-/// `rfd`'s wasm backend offers only the async dialog, and there are
-/// no paths behind it either — so the browser build does not have a
-/// half-open door here; it has no door, and
-/// [`frame::chooser_backend`] is what says so to the chrome.
+/// Which of the two file dialogs [`ViewerApp::file_dialog`] puts up.
 #[cfg(not(target_family = "wasm"))]
-fn pick_open() -> Option<std::path::PathBuf> {
-    rfd::FileDialog::new()
-        .add_filter("document", &[DOC_EXTENSION])
-        .pick_file()
+#[derive(Clone, Copy, Debug)]
+enum FileDialog {
+    /// Open…: pick an existing document.
+    Open,
+    /// Save As…: choose where the document goes, offered its current
+    /// file name when it has one.
+    SaveAs,
 }
 
-/// The save dialog, starting where the current document lives.
+/// **The Features tile's share of the stack it sits in**, capped at
+/// [`FEATURES_SHARE_CAP`], and `None` when the two measurements are
+/// not numbers to divide.
 ///
-/// Absent on wasm for the reason [`pick_open`] states.
-#[cfg(not(target_family = "wasm"))]
-fn pick_save(current: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
-    let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
-    if let Some(path) = current
-        && let Some(dir) = path.parent()
-    {
-        dialog = dialog.set_directory(dir);
+/// **The caller's `stack <= 0.0` arm above is about an EMPTY stack and
+/// this one is about an unmeasurable one**, and they are written apart
+/// because they are different facts: the first is the very first
+/// frame, before either tile has a rectangle, which is a legitimate
+/// state the caller is documented to do nothing in. The second is a
+/// toolkit measurement that is not a length, and there is nothing
+/// legitimate about it.
+///
+/// **A `clamp` is not a bound against the value it cannot order.**
+/// `f32::clamp` returns `self` when `self` is a `NaN`, so a share that
+/// could not be computed used to leave here looking exactly like one
+/// that had been — and `egui_tiles` keeps shares as STATE rather than
+/// recomputing them per frame, so a single poisoned frame left the
+/// pair of panes with a split no later frame and no divider drag could
+/// recover. Refusing keeps the last share the arithmetic actually
+/// produced.
+///
+/// `stack > 0.0` is stated here as well as at the caller rather than
+/// relied on from it: this door's answer has to be true of its own
+/// arguments, and a division whose denominator is checked somewhere
+/// else is checked by nothing when a second caller arrives.
+fn features_fraction(wanted: f32, stack: f32) -> Option<f32> {
+    if !wanted.is_finite() || !(stack.is_finite() && stack > 0.0) {
+        return None;
     }
-    dialog.save_file()
+    // Slack over the measured height so the last row is not flush
+    // against the divider.
+    Some(((wanted + FEATURES_SLACK) / stack).clamp(0.0, FEATURES_SHARE_CAP))
 }
 
 /// The container holding the feature tree and the properties — the
@@ -2027,7 +2275,7 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
     // itself sets), so every other environment keeps winit's own
     // backend choice and needs nothing unset.
     #[cfg(target_os = "linux")]
-    if frame::running_under_wsl() {
+    if platform::running_under_wsl() {
         options.event_loop_builder = Some(Box::new(|builder| {
             use winit::platform::x11::EventLoopBuilderExtX11 as _;
             builder.with_x11();
@@ -2166,9 +2414,91 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{Polarity, Theme, ViewerApp};
+    use super::{FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
     use crate::session::SessionOp;
     use eframe::egui;
+
+    /// **A share that could not be computed is not a share.**
+    ///
+    /// `f32::clamp` returns `self` when `self` is a `NaN`, so both of
+    /// this door's measurements used to arrive at `set_share` in a
+    /// field shaped like a number the layout had produced.
+    ///
+    /// The shape this pins is DISTINGUISHABILITY, and for an `f32`
+    /// answer that takes two rows rather than one. Asserting only that
+    /// the poisoned answer differs from every legitimate one passes
+    /// over a `Some(NaN)` for free — a `NaN` is unequal to everything,
+    /// including itself — which is the broken door's own answer wearing
+    /// the test's approval. So: the poisoned inputs answer `None`, and
+    /// the row below holds that every legitimate input answers a share.
+    /// Neither row alone says anything.
+    ///
+    /// Both arguments are poisoned in turn, because a `NaN` in either
+    /// one reaches the division and a row that poisoned only the
+    /// denominator would have chosen its answer.
+    #[test]
+    fn a_share_that_could_not_be_measured_is_no_share() {
+        for (what, wanted, stack) in [
+            ("a content height", f32::NAN, 500.0),
+            ("a stack height", 100.0, f32::NAN),
+            ("an unbounded stack", 100.0, f32::INFINITY),
+            ("an unbounded content height", f32::INFINITY, 500.0),
+        ] {
+            assert_eq!(
+                features_fraction(wanted, stack),
+                None,
+                "{what} that is not a number",
+            );
+        }
+    }
+
+    /// **Every answer this door does give is a share**: a number, at
+    /// or above nothing, at or below the cap. The row above is a claim
+    /// about `None` and this one is what makes it mean anything — a
+    /// door that answered `None` for everything would satisfy the
+    /// first and fail this.
+    #[test]
+    fn every_share_it_gives_is_a_share() {
+        for (what, wanted, stack) in [
+            ("a tree that wants nothing", 0.0, 500.0),
+            ("a tree taller than the stack", 5_000.0, 500.0),
+            ("an ordinary tree", 100.0, 500.0),
+        ] {
+            let answer = features_fraction(wanted, stack);
+            assert!(
+                matches!(answer, Some(share)
+                    if share.is_finite() && (0.0..=FEATURES_SHARE_CAP).contains(&share)),
+                "{what} answered {answer:?}",
+            );
+        }
+    }
+
+    /// The door's answers are not one answer, which is what makes the
+    /// two rows above a test of anything: a function returning the cap
+    /// for every input satisfies both.
+    #[test]
+    fn the_legitimate_shares_are_distinct() {
+        let floor = features_fraction(0.0, 500.0);
+        let cap = features_fraction(5_000.0, 500.0);
+        let ordinary = features_fraction(100.0, 500.0);
+        assert_ne!(floor, ordinary, "the floor and an ordinary share");
+        assert_ne!(ordinary, cap, "an ordinary share and the cap");
+        // All three pairs. A set of three has three of them, and
+        // checking the two adjacent ones leaves this one unread.
+        assert_ne!(floor, cap, "the floor and the cap");
+        assert_eq!(cap, Some(FEATURES_SHARE_CAP), "the cap is the cap");
+    }
+
+    /// The very first frame, before either tile has a rectangle, is
+    /// the caller's own arm and not this door's — so a zero stack is
+    /// not something this function is asked about. What it IS asked
+    /// about is a denominator it was handed anyway, and it refuses
+    /// rather than dividing by it.
+    #[test]
+    fn an_empty_stack_is_refused_here_too() {
+        assert_eq!(features_fraction(100.0, 0.0), None, "an empty stack");
+        assert_eq!(features_fraction(100.0, -1.0), None, "a negative stack");
+    }
 
     /// The narrowest window this chrome is held to, in points.
     ///

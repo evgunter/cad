@@ -255,10 +255,15 @@ fn r2_a_saturated_span_with_the_pole_antipodal_to_its_midpoint() {
 }
 
 /// **Issue 1598's L-shaped complement at the predicate.** The same two
-/// edges traversed opposite ways: the shape door admits it, the flux
-/// lane's contribution is the NEGATIVE of the half-cap's (equal and
-/// opposite, which is the mechanism the issue records), and the branch
-/// door refuses it naming the meridian.
+/// edges traversed opposite ways. The SHAPE door still admits it — its
+/// carriers are a rim and a certified meridian great circle, and both
+/// rims sit at an extreme, which is all that door asks — and the
+/// BRANCH door still refuses it naming the meridian. What no longer
+/// holds is the middle line: the flux lane gave it the NEGATIVE of the
+/// half-cap's contribution off the same levels, which is how a closed
+/// sphere measured zero, and it now refuses the face by the premise
+/// the two traversals differ on. Three doors, three answers, and the
+/// one that changed is the one the issue was about.
 #[test]
 fn r2_the_l_shaped_complement_at_the_predicate() {
     let bd = band();
@@ -267,16 +272,20 @@ fn r2_the_l_shaped_complement_at_the_predicate() {
     let ell = vec![rim(b, PI, 0.0, 1, 0), great(0.0, b, PI - b, 0, 1)];
     assert_eq!(require_iso_rectangle(&sphere(), &ell, bd), Ok(()));
     let fc_cap = curved_face(&sphere(), &cap, true, bd).expect("cap");
-    let fc_ell = curved_face(&sphere(), &ell, true, bd).expect("L");
+    let fc_ell = curved_face(&sphere(), &ell, true, bd);
     println!(
-        "R2-L cap flux={} area={} | L flux={} area={}",
-        fc_cap.flux, fc_cap.area, fc_ell.flux, fc_ell.area
+        "R2-L cap flux={} area={} | L {fc_ell:?}",
+        fc_cap.flux, fc_cap.area
     );
-    assert_eq!(
-        fc_cap.area, fc_ell.area,
-        "one parse, the same levels for both faces"
+    assert!(
+        matches!(
+            fc_ell,
+            Err(PropsError::NotIsoRectangle {
+                what: "props_rim_interior_side"
+            })
+        ),
+        "issue 1598: the complement's interior side points out of the folded extent"
     );
-    assert_eq!(fc_cap.flux, -fc_ell.flux, "equal and opposite (issue 1598)");
     assert!(matches!(
         require_one_chart_branch(&sphere(), &ell, bd),
         Err(PropsError::NotOneChartBranch { edge: 1, .. })

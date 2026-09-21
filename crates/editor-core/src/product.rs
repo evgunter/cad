@@ -199,6 +199,21 @@ pub enum ProductError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for ProductError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM and FORWARDS its payload's own `Display` — the kernel's
 // refusals and validity findings both carry one, so no arm re-states
@@ -700,10 +715,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // two documents' node ids overlap, which two documents built from
     // one recipe always do.
     if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
-        return Err(ProductError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        });
+        return Err(m.into());
     }
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have

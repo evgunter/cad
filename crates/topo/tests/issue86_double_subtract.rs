@@ -22,7 +22,7 @@
 
 use crate::common;
 
-use common::{flush_declarations, geometric_cube, prism_z};
+use common::{brick, flush_declarations, geometric_cube};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::{
@@ -30,25 +30,24 @@ use topo::{
     validate_pseudomanifold,
 };
 
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
-
 fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>()
 -> BooleanBody<T> {
-    let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
-    let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5));
-    let BooleanResult::Body(s1) =
-        subtract_with(&a, &b1, &flush_declarations(&a, &b1), Tol::witness())
-            .expect("first subtract succeeds")
-    else {
+    let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
+    let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness());
+    let BooleanResult::Body(s1) = subtract_with(
+        &a,
+        &b1,
+        &flush_declarations(&a, &b1, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("first subtract succeeds") else {
         panic!("first subtract yields a body");
     };
-    let b2 = brick::<T>((-1.0, 4.0), (1.0, 2.0), (0.5, 1.5));
+    let b2 = brick::<T>((-1.0, 4.0), (1.0, 2.0), (0.5, 1.5), Tol::witness());
     let BooleanResult::Body(s2) = subtract_with(
         &s1.body,
         &b2,
-        &flush_declarations(&s1.body, &b2),
+        &flush_declarations(&s1.body, &b2, Tol::witness()),
         Tol::witness(),
     )
     .expect("second subtract succeeds (issue #86)") else {
@@ -103,7 +102,7 @@ mod interval {
 /// description is the surface's only non-face reference.
 #[test]
 fn kef_cascade_reports_killed_surface() {
-    let cube = geometric_cube::<f64>();
+    let cube = geometric_cube::<f64>(Tol::witness());
     let mut body: Body<f64> = cube.body;
 
     // Pick any edge; derive its two faces and their surfaces.

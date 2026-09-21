@@ -4,6 +4,8 @@ kind: issue
 title: Most of the tags.rs words minted by two or more maps have never been read against the scoping rule
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 
@@ -148,3 +150,13 @@ a sentence saying the collision is deliberate.
 
 Territory: `crates/pncad-py/*` is LIB's fence and CENSUS's `keep_out`
 announces its pncad-py rows there.
+
+## Four more dispositioned, by EDIT's `edit/param-ref-one-convention` (PR #2819)
+
+The four param-ref words — `slot_unknown_doc_param`,
+`slot_doc_param_dimension`, `payload_unknown_doc_param`,
+`payload_doc_param_dimension` — are now minted at BOTH doors, and
+are dispositioned as ONE fact under the convention stated on
+`editor_core::EditError`'s enum doc.
+
+Population 63 → 67. Read-count 8 → 12.

@@ -84,16 +84,25 @@ impl ViewerBehavior<'_> {
 
 /// How wide the δ field is, in points.
 ///
-/// Wide enough for the longest text
-/// [`crate::scene::DisplayTolerance::render_mm`] can return — which is
-/// [`crate::readout::MAX_CHARS`] characters, the bound the crate's
-/// render searches under — because a render the field cannot show is
-/// clipped, and a clipped render reads as a different δ, which is the
-/// defect the render's own bound exists to prevent.
-/// `the_field_shows_the_longest_render` measures it against egui's own
-/// font metrics rather than asserting it in prose. A pane narrower than
-/// this clips anyway; that is every field in the chrome and is not this
-/// number's to fix.
+/// Wide enough for [`crate::readout::MAX_CHARS`] characters, the bound
+/// the crate's render searches under — because a render the field
+/// cannot show is clipped, and a clipped render reads as a different δ,
+/// which is the defect the render's own bound exists to prevent.
+/// `the_field_shows_every_render_the_bound_covers` measures it against
+/// egui's own font metrics rather than asserting it in prose.
+///
+/// **What the bound does not cover is the top of `f64`.** Four
+/// significant figures round out of the type from `1.7975e308` up, so
+/// [`crate::readout::number`] spells a value there exactly instead, at
+/// twenty-two characters; a δ whose millimetre product lands in that
+/// band is shown clipped here. That is the right way round for a field:
+/// the draft holds the whole text and commits the whole text, so a
+/// clipped exact render round-trips where `1.798e308` committed
+/// infinity. Sizing this box for a δ within a decade of `f64::MAX` would
+/// widen every document's chrome for a tessellation no document has.
+///
+/// A pane narrower than this clips anyway; that is every field in the
+/// chrome and is not this number's to fix.
 const FIELD_WIDTH: f32 = 88.0;
 
 /// The δ field: the display tolerance as a number the user types, in
@@ -418,17 +427,24 @@ mod tests {
         assert_eq!(field.request, Some(0.05 * 1.0e-3));
     }
 
-    /// **The field can show the longest render there is.** A render
-    /// wider than the box is clipped, and a clipped render reads as a
-    /// different δ — so the width is measured against egui's own font
-    /// metrics for the widest text `crate::readout::MAX_CHARS`
+    /// **The field can show every render the character bound covers.** A
+    /// render wider than the box is clipped, and a clipped render reads
+    /// as a different δ — so the width is measured against egui's own
+    /// font metrics for the widest text `crate::readout::MAX_CHARS`
     /// characters can spell out of the alphabet a render uses, rather
     /// than asserted in prose.
+    ///
+    /// **It is the bound that is measured, not the render's worst
+    /// case**, and those are two different things at the top of `f64`:
+    /// there the four-figure arm rounds out of the type and the render
+    /// is the exact twenty-two-character spelling, which this field
+    /// clips. `FIELD_WIDTH`'s own doc is where that is argued; this row
+    /// would not go red for it, so it does not claim it.
     ///
     /// The chrome sets no text styles of its own, so the headless
     /// context's metrics are the application's.
     #[test]
-    fn the_field_shows_the_longest_render() {
+    fn the_field_shows_every_render_the_bound_covers() {
         let ctx = egui::Context::default();
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(

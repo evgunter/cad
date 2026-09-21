@@ -75,6 +75,13 @@ pub fn loop_vector_area<T: SpanLocate>(
                 (w.cross(chord) + axis * (major * minor * (e.t1 - e.t0))) * half
             }
             Curve3::Nurbs(ref payload) => nurbs_vector_area(payload, e.t0, e.t1, ref_point)?,
+            // The spiric's sector integral `∫ P × P′ dv` carries
+            // `√((R + r cos v)² − d²)` against `sin v` and `cos v` — an
+            // elliptic integral, no closed form. The cap it bounds is
+            // the props quadrature lane's (the spiric unit's next PR);
+            // until then the planar cap of a hollowed partial revolve
+            // refuses here, typed.
+            Curve3::Spiric { .. } => return Err(PropsError::Unimplemented),
         };
         // Reversed traversal flips the line integral's sign.
         acc = if e.forward {

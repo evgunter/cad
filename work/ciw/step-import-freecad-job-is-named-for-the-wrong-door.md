@@ -4,6 +4,8 @@ kind: issue
 title: The 'step import (freecad)' job is named for the import door and gates on the export fixtures
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 ## From PORT's `python-cannot-set-options-structs` review (PR #2678)

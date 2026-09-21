@@ -57,18 +57,14 @@ use crate::fixture;
 use corpus::{body_of, eval, failures};
 use editor_core::{
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr,
-    LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, StepArg,
-    evaluate, persist,
+    LoopProgram, Node, ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, SlotId, StepArg, evaluate, persist,
 };
 use fixture::digest::digest;
-use fixture::{ang, axis_in_plane, insert, len, scl, square, step};
+use fixture::{ang, axis_in_plane, insert, len, scl, square, step, tol};
 use geom_brep::RadiusEvidence;
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec3};
 use topo::{Body, BooleanError, FaceKey, SurfaceField};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
 
 /// The declared radius every document below draws its circles at,
 /// meters (dyadic).
@@ -167,7 +163,7 @@ fn spin(
 struct BothSweeps {
     snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<DocEdit<ProfileProgram>>,
+    edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
     sweeps: [RecipeNodeId; 2],
 }
 
@@ -440,8 +436,8 @@ fn a_kernel_built_cylinder_has_no_channel() {
 /// **A polygon profile attaches nothing, because it carries no radius
 /// to attach.**
 ///
-/// The row is the per-edge source's own emptiness statement: a chain
-/// loop holds no single carrier radius, so there is no expression to
+/// The row is the per-edge source's own emptiness statement: every
+/// edge of a polygon is a straight one, so there is no expression to
 /// lower and the walls it sweeps are planes besides. An attach that
 /// stamped something here would be inventing an address.
 #[test]
@@ -535,6 +531,122 @@ fn a_revolved_circle_sources_its_minor_radius_only() {
     assert!(
         !sourced(body, wall, SurfaceField::TorusMajorRadius),
         "the major radius is the distance from the axis, which no slot holds"
+    );
+}
+
+/// **A revolve whose profile has an ON-AXIS edge attaches by POSITION,
+/// not by order.**
+///
+/// A segment lying on the axis of revolution sweeps nothing: the record
+/// exports `None` at its position, and the positions after it are still
+/// their own segments' walls. So a reader that closed that hole —
+/// dropping the `None` and handing back a shorter list — would hand the
+/// arc's radius token to the wall of a different edge, and every wall
+/// after the gap would be off by one. The chain here puts the on-axis
+/// edge FIRST, so the whole rest of the loop is displaced by such a
+/// reader.
+///
+/// Read through the carriers rather than through the record: the one
+/// toroidal wall is the arc's, and it is the only face of the body that
+/// carries any field source at all.
+#[test]
+fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
+    let doc = doc_with_r("seat7-revolve-on-axis");
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    // Negative y is the door's half-plane about the +x axis, and the
+    // first leg runs ALONG that axis from the origin.
+    let mut steps = vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Toward {
+            dx: scl(1.0),
+            dy: scl(0.0),
+        },
+        ProgramStep::Line(len(4.0)),
+        ProgramStep::Toward {
+            dx: scl(0.0),
+            dy: scl(-1.0),
+        },
+        ProgramStep::Line(len(2.0)),
+    ];
+    steps.extend(tangent_arc(param("r"), profile::ArcSide::Right));
+    steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::Chain(steps)],
+        }),
+    );
+    let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
+    let (doc, solid) = insert(
+        doc,
+        Node::Revolve {
+            profile,
+            axis,
+            angle: ang(2.0 * PI),
+        },
+    );
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(
+        bad.is_empty(),
+        "on-axis revolve document:\n{}",
+        bad.join("\n")
+    );
+    // The fixture's own premise: FOUR segments, and one of them minted
+    // no wall. A full revolution splits each wall at its seam, so the
+    // three that did mint one are six faces; a fourth wall — a
+    // degenerate one from the on-axis edge — would be eight.
+    let editor_core::ValuePayload::Profile(pv) =
+        &ev.value(profile).expect("the profile evaluates").payload
+    else {
+        panic!("the profile node carries a profile");
+    };
+    assert_eq!(
+        pv.edge_radii[0].len(),
+        4,
+        "the chain replays to four segments, one of them the on-axis leg"
+    );
+    let body = body_of(&ev, solid);
+    assert_eq!(
+        topo::query::all_faces(body).len(),
+        6,
+        "three of the four segments minted a wall, each split at the seam"
+    );
+    let mut tori = 0;
+    for face in topo::query::all_faces(body) {
+        let carrier = body
+            .get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .expect("a live face on a carrier");
+        let is_torus = matches!(carrier, geom::Surface::Torus { .. });
+        for &field in SurfaceField::ALL {
+            // The arc is the only edge of this loop drawn at a radius,
+            // and a torus is the only carrier its wall can have.
+            let want = is_torus && field == SurfaceField::TorusMinorRadius;
+            assert_eq!(
+                sourced(body, face, field),
+                want,
+                "{face:?} on a {} carrier: {field:?}",
+                if is_torus {
+                    "toroidal"
+                } else {
+                    "straight edge's"
+                }
+            );
+        }
+        tori += usize::from(is_torus);
+    }
+    assert!(
+        tori > 0,
+        "the fixture's arc minted a wall at all, or the row above is vacuous"
     );
 }
 
@@ -840,6 +952,321 @@ fn the_memo_never_serves_a_stale_sweep_token() {
         RadiusEvidence::None,
         "radii {ra} vs {rb} under one token would be a document-reachable contradiction"
     );
+}
+
+// ------------------------------------------------------------------
+// 2b. A CHAIN loop's per-step arc radii
+//
+// The per-edge source's other loop shape. A carrier loop is drawn at
+// one radius and every wall of it carries that one expression (§2
+// above); a chain's arc steps each carry their own, so the address is
+// the profile EDGE and two walls of ONE loop can carry two different
+// expressions. The rows below read the same evidence door §2 does, so
+// what they claim is what a boolean germ would see.
+// ------------------------------------------------------------------
+
+/// One quarter-turn arc at `r`, departing along the incoming tangent.
+///
+/// The `Sweep` mode is the endpoint-FREE arc leg — the arc analog of
+/// `line(len)` — so it needs a bound departure direction and
+/// `ProgramStep::Tangent` is what binds one from the incoming tangent.
+/// Neither of those two steps emits a segment; the arc emits exactly
+/// one, which is what makes it the step a per-edge radius is
+/// addressable at.
+fn tangent_arc(r: Expr, side: profile::ArcSide) -> [ProgramStep; 2] {
+    [
+        ProgramStep::Tangent,
+        ProgramStep::ArcTo(ProgramArcData::Sweep {
+            r,
+            side,
+            angle: ang(PI / 2.0),
+        }),
+    ]
+}
+
+/// A chain heading `+x` from the origin, straight for `4`, then one
+/// quarter-turn arc at `r`, then straight back to the start.
+///
+/// Three segments, one of them an arc: the wall a sweep mints from
+/// segment 1 is a cylinder at `r` and the other two are planes, so a
+/// row can ask for the cylinder by its stored radius and know which
+/// edge it came from.
+fn one_arc_chain(r: Expr) -> LoopProgram {
+    let mut steps = vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Toward {
+            dx: scl(1.0),
+            dy: scl(0.0),
+        },
+        ProgramStep::Line(len(4.0)),
+    ];
+    steps.extend(tangent_arc(r, profile::ArcSide::Left));
+    steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+    LoopProgram::Chain(steps)
+}
+
+/// The step [`one_arc_chain`]'s arc sits at — the address a re-spelling
+/// edit writes through.
+const ARC_STEP: u32 = 4;
+
+/// The same chain with a SECOND quarter-turn arc at `r2`, after two
+/// more units of straight.
+///
+/// Five segments, two of them arcs at different radii. The radii are
+/// the row's discriminator: `cylinder_walls` reports each wall's stored
+/// radius, so a wall at `R` must declare against `r`'s peg and a wall
+/// at `Q` against `q`'s.
+///
+/// `side` turns the whole chain: `Left` authors it counterclockwise and
+/// canonicalization leaves the segment numbering alone, `Right` authors
+/// the mirror image and canonicalization REVERSES it, so canonical
+/// segment `k` is a different edge from program segment `k`.
+fn two_arc_chain(r1: Expr, r2: Expr, side: profile::ArcSide) -> LoopProgram {
+    let mut steps = vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::Toward {
+            dx: scl(1.0),
+            dy: scl(0.0),
+        },
+        ProgramStep::Line(len(4.0)),
+    ];
+    steps.extend(tangent_arc(r1, side));
+    steps.push(ProgramStep::Tangent);
+    steps.push(ProgramStep::Line(len(2.0)));
+    steps.extend(tangent_arc(r2, side));
+    steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+    LoopProgram::Chain(steps)
+}
+
+/// The profile node's content key, out of one evaluation.
+fn key_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> editor_core::ContentKey {
+    ev.value(node).expect("the profile evaluates").content_key
+}
+
+/// **A chain arc's radius reaches the wall it drew, and its SPELLING is
+/// an input to the profile's content key** — the two halves of the
+/// per-edge channel for the loop shape that has more than one radius,
+/// in one row because they are not separable in the safe direction.
+///
+/// The attach half: the chain's arc wall must declare against a peg
+/// extruded from a circle at the same parameter, exactly as a carrier
+/// loop's wall does. Until the door answered per segment there was no
+/// token on that wall at all and the evidence read `None`.
+///
+/// The key half is what makes the attach safe, and it is the reason the
+/// two landed together. Re-spell the arc's radius as the LITERAL of the
+/// same value: the geometry is bit-identical, so a key over resolved
+/// values alone would serve this profile — and the extrude above it —
+/// straight back out of the memo, carrying `r`'s token while the
+/// document says the arc is a literal. The row asserts the key moves
+/// and then asserts what that buys: the served wall's evidence drops to
+/// `None`, because A is a literal and the peg is `r`.
+///
+/// (The spelling pair is param → literal, not two unit spellings of one
+/// number: display units never enter the key by ratified design (D7,
+/// `switch_program_key::display_units_never_enter_the_key`), so
+/// `10 mm` → `0.01 m` is the same expression and moves nothing.)
+#[test]
+fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
+    let doc = doc_with_r("seat7-chain-arc");
+    let (doc, profile_a, a) = extruded(doc, -H, vec![one_arc_chain(param("r"))]);
+    let (doc, _, peg) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let ev1 = memo_eval(&doc, None);
+    assert!(failures(&ev1).is_empty(), "{:?}", failures(&ev1));
+    let (chain, peg_body) = (body_of(&ev1, a), body_of(&ev1, peg));
+    let walls = cylinder_walls(chain);
+    assert_eq!(
+        walls.len(),
+        1,
+        "the chain has exactly one arc, so exactly one cylindrical wall"
+    );
+    let (arc_wall, radius) = walls[0];
+    assert_eq!(radius, R, "the arc wall is the one drawn at `r`");
+    let (peg_face, _) = cylinder_walls(peg_body)[0];
+    assert_eq!(
+        wall_evidence(chain, arc_wall, peg_body, peg_face),
+        RadiusEvidence::Declared,
+        "a chain arc's wall carries the identity of the radius its own step authored"
+    );
+
+    // The arc's radius becomes the LITERAL of the same value.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetParam {
+            node: profile_a,
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: ARC_STEP,
+                arg: StepArg::CarrierRadius,
+            },
+            expr: len(R),
+        },
+    );
+    let ev2 = memo_eval(&doc, Some(&ev1));
+    assert!(failures(&ev2).is_empty(), "{:?}", failures(&ev2));
+    assert_ne!(
+        key_of(&ev1, profile_a),
+        key_of(&ev2, profile_a),
+        "a chain radius re-spelled value-preservingly reaches a stored field, so it must \
+         not share a memo entry with its old spelling"
+    );
+    assert!(
+        ev2.reused > 0,
+        "the peg's half of the document is memo-served, or the row proves nothing about \
+         the memo"
+    );
+    let (chain, peg_body) = (body_of(&ev2, a), body_of(&ev2, peg));
+    let (arc_wall, _) = cylinder_walls(chain)[0];
+    let (peg_face, _) = cylinder_walls(peg_body)[0];
+    assert_eq!(
+        wall_evidence(chain, arc_wall, peg_body, peg_face),
+        RadiusEvidence::None,
+        "the arc is a literal in the document and the peg is `r`; a memo-served wall \
+         would still say `r`"
+    );
+}
+
+/// **Two arcs of one chain carry two different tokens**, each its own
+/// step's.
+///
+/// The mutant this reds is a door that hands every wall of a loop the
+/// loop's FIRST arc radius — the shape the carrier forms' one-radius-
+/// per-loop rule invites, and one that no single-arc row can see. Two
+/// pegs make it visible through the evidence door alone: the wall at
+/// `R` must declare against `r`'s peg and NOT against `q`'s, and the
+/// wall at `Q` the other way round.
+#[test]
+fn each_arc_of_a_chain_carries_its_own_steps_radius() {
+    assert_two_arcs_declare_apart("seat7-chain-two-arcs", profile::ArcSide::Left, false);
+}
+
+/// **The same claim on a chain canonicalization REVERSED**, which is
+/// where the token list's indexing is actually load-bearing.
+///
+/// The walls a sweep exports are indexed by CANONICAL segment and the
+/// expressions live at PROGRAM segments, so the attach hops between the
+/// two through the naming anchor. On a counterclockwise chain that hop
+/// is the identity and the row above cannot see it at all; here the
+/// author wrote the mirror image, canonicalization reverses the chain
+/// to reach the outer role's winding, and a token list built in
+/// canonical order stamps each arc's wall with the other arc's
+/// expression — or with a plane's nothing.
+#[test]
+fn each_arc_of_a_reversed_chain_carries_its_own_steps_radius() {
+    assert_two_arcs_declare_apart("seat7-chain-two-arcs-cw", profile::ArcSide::Right, true);
+}
+
+/// The shared body of the two rows above: a two-arc chain at `r` and
+/// `q`, and a peg extruded from a circle at each, with every arc wall
+/// required to declare against its own step's peg and against no other.
+fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide, want_reversed: bool) {
+    let doc = doc_with_r(id);
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new("q"),
+            value: DocParam::continuous(Dimension::Length, Q),
+        },
+    );
+    let (doc, profile_node, chain) =
+        extruded(doc, -H, vec![two_arc_chain(param("r"), param("q"), side)]);
+    let (doc, _, peg_r) = extruded(doc, 10.0, vec![circle_loop(param("r"))]);
+    let (doc, _, peg_q) = extruded(doc, 20.0, vec![circle_loop(param("q"))]);
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(
+        bad.is_empty(),
+        "two-arc chain document:\n{}",
+        bad.join("\n")
+    );
+    // The fixture's own premise, asserted before anything is asserted
+    // about the attach. A canonical-order token list is visible only on
+    // a loop whose anchor hop is NOT the identity, so a row written to
+    // be the reversed case and silently canonicalized to the identity
+    // one would pass while proving nothing.
+    let editor_core::ValuePayload::Profile(pv) = &ev
+        .value(profile_node)
+        .expect("the profile evaluates")
+        .payload
+    else {
+        panic!("{id}: the profile node carries a profile");
+    };
+    assert_eq!(
+        pv.naming.loops[0].reversed,
+        want_reversed,
+        "{id}: the fixture is written to be the {} case",
+        if want_reversed {
+            "reversed"
+        } else {
+            "identity"
+        }
+    );
+    let (chain, peg_r, peg_q) = (
+        body_of(&ev, chain),
+        body_of(&ev, peg_r),
+        body_of(&ev, peg_q),
+    );
+    let (face_r, _) = cylinder_walls(peg_r)[0];
+    let (face_q, _) = cylinder_walls(peg_q)[0];
+    let walls = cylinder_walls(chain);
+    assert_eq!(walls.len(), 2, "two arc steps, two cylindrical walls");
+    for (wall, radius) in walls {
+        // Which wall this is, read off the geometry rather than off the
+        // channel under test. A chain arc's carrier radius reaches the
+        // wall through the replay's own construction, so it is `R` and
+        // `Q` to within a rounding step and not to the bit — unlike a
+        // carrier loop's, which the sweep takes verbatim.
+        let ((same, same_face), (other, other_face), which) = if (radius - R).abs() < 1e-9 {
+            ((peg_r, face_r), (peg_q, face_q), "the `r` arc's")
+        } else {
+            assert!(
+                (radius - Q).abs() < 1e-9,
+                "a wall at neither declared radius: {radius}"
+            );
+            ((peg_q, face_q), (peg_r, face_r), "the `q` arc's")
+        };
+        assert_eq!(
+            wall_evidence(chain, wall, same, same_face),
+            RadiusEvidence::Declared,
+            "{which} wall must declare against the peg at its own step's parameter"
+        );
+        assert_eq!(
+            wall_evidence(chain, wall, other, other_face),
+            RadiusEvidence::None,
+            "{which} wall declared against the OTHER step's parameter"
+        );
+    }
+}
+
+/// **A chain's STRAIGHT walls carry nothing**, in the same body whose
+/// arc walls carry their tokens.
+///
+/// [`a_polygon_profile_attaches_nothing`] makes this claim about a
+/// profile with no radius anywhere, which a per-LOOP attach satisfies
+/// for free. This is the claim a per-EDGE attach has to earn: the loop
+/// does hold radii, and the planes swept from its straight edges must
+/// still hold no field source at all.
+#[test]
+fn a_chains_straight_walls_carry_no_radius() {
+    let doc = doc_with_r("seat7-chain-straights");
+    let (doc, _, chain) = extruded(doc, -H, vec![one_arc_chain(param("r"))]);
+    let ev = eval::<f64>(&doc);
+    let bad = failures(&ev);
+    assert!(bad.is_empty(), "chain document:\n{}", bad.join("\n"));
+    let body = body_of(&ev, chain);
+    let arcs: Vec<FaceKey> = cylinder_walls(body).into_iter().map(|(f, _)| f).collect();
+    assert_eq!(arcs.len(), 1, "one arc step, one cylindrical wall");
+    for face in topo::query::all_faces(body) {
+        if arcs.contains(&face) {
+            continue;
+        }
+        for &field in SurfaceField::ALL {
+            assert!(
+                !sourced(body, face, field),
+                "a straight edge's wall (or a cap) stamped {field:?} on {face:?}"
+            );
+        }
+    }
 }
 
 // ------------------------------------------------------------------

@@ -5142,3 +5142,564 @@ reachable or name it — but if its re-classification moves which refusal
 that shape hits, a row on this slate is waiting on exactly that.
 
 Signed (WIRE orchestrator).
+
+## 2026-09-15 — `wire-t1` — the tie-before-kind unit, in review (PR 2681)
+
+Three rows of one class, closed together on `wire/tie-before-kind`:
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+`the-declared-pair-refusal-reads-the-authored-kind` and
+`interrogate-read-answers-a-tie-before-the-door-s-kind`.
+
+**The premise holds by construction**, which is the answer the brief
+asked for and the stronger of the two it offered. `NameTable::forward`
+is a private field with exactly two writers — `insert_ref` and
+`insert_tied_ref` — and both refuse a row whose `name.kind` disagrees
+with a candidate's `key.kind()`. `insert` / `insert_tied` are wrappers;
+`project` reaches `Entry::Tied` only through `defer::narrow_into`,
+which is one of those two calls. So it is not "safe today by an
+invariant one module away": the module that holds the invariant is the
+module that holds the only door through which a row can exist.
+
+That decided the authored-kind question with it. The ordering makes the
+kind question precede resolution, a tied name has no single key, so the
+word comes off the NAME — and `the-declared-pair-refusal-…`'s own guess
+("read `k1` and `k2`") is the wrong direction. What the resolved keys
+keep is the fallthrough arm, reachable only on a broken table, under a
+`debug_assert!`: the `resolve_face` split, guard off the name and
+projection answering what the key IS. The same split landed at
+`interrogate::read`.
+
+**Nothing asserted the old behaviour.** All 1239 editor-core rows,
+`pncad` and `viewer` pass unchanged; `m4_pr5_declare`'s existing
+`Ambiguous` row declares a CROSS-operand face pair, which is supported,
+so its tie still refuses. No `.py` row asserts an `ambiguous` outcome at
+either door. No tag string changes — `declare_resolve`,
+`declare_unsupported_pair`, `ambiguous` and `wrong_kind` all exist
+already; what moves is which one a document gets. Two `pncad.pyi`
+docstrings (LIB's path) were re-worded because the change moved what
+they describe.
+
+**The sweep found the fourth instance the brief predicted, and a
+fifth.** The instrument was the caller-side pairing — a multiplicity
+token and a kind token in one non-test `fn` across all of
+`crates/editor-core/src/` — 30 candidates read by hand. Filed:
+`work/wire/the-designation-road-resolves-before-it-asks-the-kind`
+(`named_entity` and the measure reference, one row because all four
+refusals carry `entity_door::Found` and the change is one in
+`entity_door`) and
+`work/shell/clearance-window-selection-asks-how-many-before-what`
+(`clearance::windows_of`, SHELL's ground — a tied face name refuses
+`Unresolved`, and `SelectionRefusal` has no word for a tie at all).
+
+The instrument's own blind spot is stated in the PR and is worth
+carrying forward: **it segments by `fn`, so a resolve in one function
+paired with a kind test in another is invisible to it.** The measure
+site is exactly that shape and was found by reading
+`entity_door::entity`'s call sites instead. A later sweep of this class
+should not reuse the grep alone.
+
+Signed (`wire-t1`).
+
+### Delta after the style review of PR 2681 (`wire-t1`)
+
+No MAJOR, nothing blocked merge; the fix pass is recorded here because
+two of its items correct claims this log itself made.
+
+**The fix minted a fresh instance of its own class, and the review
+caught it.** `DeclareBothOperands` is a multiplicity question raised at
+the door I rewrote, above the kind question, with a 25-line doc comment
+arguing why *rung 3* stays above it and nothing at all about
+both-operands. The argument now written at that site is that
+`DeclareUnsupportedPair` carries `cross_operand`, so the kind refusal
+**cannot be built** over a name that landed in two operands — a field
+of it has no value — where a tie leaves no field empty. That is a
+different shape of reason from "this outranks that", and it is the only
+one available: the kind question there is genuinely unanswerable, not
+merely deferred.
+
+**The disclosure was one quarter of the truth.** I reported one moved
+outcome (`NodeGone` on the second name) and justified it as "the
+ladder's own stated ranking". The ladder ranks within ONE name's walk
+and says nothing about one name's rung 3 against another's rung 2, so
+the justification did not cover the case it was attached to, let alone
+the three it omitted (`Vanished`, both-operands, and `step_diagnosis`'s
+`UnionDeclareStep`). All four change a Python tag. Two are now pinned;
+the rule is restated as this door's own.
+
+**Three "one home" claims that were not.** `declared_pair_supported`
+said "the list, once" beside a `match` that re-enumerated the same
+three shapes; it is now `DeclaredStep`, an enum the door projects from,
+so a fourth shape fails to compile rather than diverging.
+`ladder::vanished`'s "rather than a second spelling" was false while
+`route_declarations` built the same payload inline 1150 lines below;
+that call now goes through it. And two rung-order statements — the
+module header and the ladder's own doc — still described 1, 2, 3 for a
+door that now asks 1, 3, kind, 2.
+
+**For future lanes on this program:** a comment asserting a property the
+code does not have is the shape this program keeps paying for, and a
+one-home unit is exactly where it is least affordable. Writing "once"
+is a claim to check with `rg`, not a summary of intent.
+
+Signed (`wire-t1`).
+
+### Delta round 2 on PR 2681 (`wire-t1`) — the claim, not the code
+
+One MAJOR, on a **sentence**. The delta review ran the experiment my
+prose asserted and it failed: adding a fourth *variant* to
+`DeclaredStep` gave `E0004`, but adding a fourth *pair shape* reusing
+an existing variant compiled clean and silently filed a cross-operand
+vertex-vertex contact under operand 1's list. My PR body and this log
+both stated the property over pair shapes. It held over variants.
+
+**And the paragraph one above it in this log told future lanes that
+"once" is a claim to check with `rg`.** "Fails to compile" is the same
+kind of claim and I wrote a fresh unchecked one directly below the
+warning. That is the finding worth carrying forward, not the enum.
+
+**Why the code allowed it.** `DeclaredStep` carried the SHAPE and none
+of the facts `declared_step` established to pick it, so all three
+orientations were discarded at the return and re-derived at the
+projection from the raw `o1` / `n1.kind` — agreeing with the
+classifier only because both sides happened to read the same inputs.
+Rule 1 one level down, inside the fix for rule 1.
+
+**The bijection was available and is taken.** A private `mod sides`
+holds three witnesses — `SameOperand`, `CrossOperand`, `VertexAndFace`
+— whose fields are unreachable outside it and whose only constructors
+are comparisons of the two sides. `DeclaredStep`'s variants carry
+them; the projection reads orientation off the step and re-derives
+nothing. Experiments, run rather than asserted:
+
+| spelling of the mistake | result |
+| --- | --- |
+| fourth variant, projection untouched | `E0004` non-exhaustive |
+| variant named without its witness | `E0308` mismatched types |
+| reaching past a witness constructor | `E0603` constructor is private |
+| asking the constructor honestly | compiles, returns `None`, refuses |
+| calling a comparison with one side twice | **compiles** — the residue |
+
+The last row is named at the site and in the doc, at that resolution,
+because this door has now shipped one over-stated claim and will not
+ship a second. The other uncaught case — an arm pairing the wrong
+KINDS with a variant — reaches `broke` and fails loud, which is the
+floor and is called the floor.
+
+**A second lesson, cheaper.** My account of why one disclosed outcome
+was unpinnable was wrong, and the tree said so in a doc comment I had
+already cited for something else: `NameTable::project` keeps a
+straddling tie's row verbatim in both halves. I reported a blocker I
+had reasoned to instead of probing. The probe takes four minutes and
+its numbers are on the row now. **Report what you measured, or report
+that you did not measure.**
+
+Signed (`wire-t1`).
+
+## 2026-09-15 — PR 2681 MERGED (`228b076d`): the tie-before-kind class, three rows, four rounds
+
+`declare-door-refuses-a-tie-before-it-asks-the-pairs-kinds`,
+`the-declared-pair-refusal-reads-the-authored-kind` and
+`interrogate-read-answers-a-tie-before-the-door-s-kind` closed together.
+Review → fix → **delta** → fix, and the delta was worth running because
+the fix pass introduced `DeclaredStep`, a mechanism no round had seen.
+
+### The delta's MAJOR was a claim, and the way it was found is the lesson
+
+The fix pass replaced a `bool` with an enum and wrote, in the PR body and
+in this log, *"a fourth **pair shape** is added by adding a variant and
+fails to compile."* **The reviewer did not read the code to check it —
+it ran two experiments:**
+
+- a fourth **variant** → `error[E0004]: non-exhaustive patterns`;
+- a fourth **pair shape** reusing an existing variant → **compiled
+  clean, zero warnings**, with the cross-operand V–V contact landing in
+  operand 1's list carrying operand 2's vertex.
+
+So the property was true of variants and false of pair shapes. And the
+paragraph directly above that claim in this log told future lanes
+*"writing 'once' is a claim to check with `rg`, not a summary of
+intent."* **The claim was written one paragraph below the warning against
+writing it.** The lesson now on the row: *"fails to compile" is the same
+kind of claim as "once"*.
+
+### One row closed by being shown wrong
+
+`the-declared-pair-refusal-reads-the-authored-kind` asked whether
+`kinds: (n1.kind, n2.kind)` should read the resolved key instead. It
+should not, and the reason is forced rather than preferred: once the kind
+is asked BEFORE resolution — which is what the other two rows require — a
+tied name has no single key, so the word must come off the name. The row
+closes because its proposal is refuted, not because it was implemented.
+
+### The both-operands argument, settled
+
+The first round found `DeclareBothOperands` raised before the kind
+question — a multiplicity question outranking the kind question where the
+tie does not. The lane argued rather than moved, and the argument holds:
+`DeclareUnsupportedPair` carries `cross_operand`, a plain `bool` with one
+construction site and no way to say "neither", **so the kind refusal
+cannot be built over a name that landed in both — a field of it has no
+value.** A tie leaves no field empty. Verified by the delta reviewer down
+to the side pick never distinguishing `Unique` from `Tied`.
+
+### What the second fix pass built, and how it was adjudicated
+
+A private `mod sides` whose three witnesses have unreachable fields and
+whose only constructors compare the two sides. The variants carry them;
+the projection re-derives nothing; `declared_step` matches on `(ka, kb)`
+alone, so **the operands left the match entirely** and an arm pairing
+kinds with a wrong operand assumption cannot be written.
+
+**Adjudicated by re-running the experiment rather than reading the
+report** — the whole finding was that a compile-time claim had been
+asserted instead of checked, so accepting one would have repeated it:
+
+- naming the variant without its witness → **`E0308`**, as reported;
+- the **disclosed** residue (`SameOperand::of(oa, oa)`, the comparison
+  called with one side twice) → **compiles**, as reported.
+
+The second check is the one that mattered. It confirms the lane was
+honest about what it could not close, rather than narrowing the claim to
+whatever it happened to achieve. Both residues are named in
+`DeclaredStep`'s own doc — rule 1's procedure completed: take the
+bijection where it exists, and where it does not, write why at the site.
+
+### Two things the lane did that nobody asked for
+
+**It corrected its own blocker with measurements.** Having reported row 3
+unconstructible, it probed and found `NameTable::project` does keep a
+straddling tie in both halves (`in-BOTH=2` at one plane, `4/4/0` at
+another) — exactly as that function's own 40-line doc says. The real
+blocker is narrower: the fixture's two ties are symmetric about one
+plane. Reported as **not measured** rather than dressed up, with the
+numbers and the required fixture shape on the item.
+
+**It withdrew a row it had filed.** The third fault it added to SHELL's
+slate was already there (`named-face-scope-…`, finding 2, 2026-09-13), so
+per `work/README.md` it cross-linked and stated the split instead of
+leaving a duplicate for someone else to reconcile.
+
+### The standing pattern, third instance today
+
+The evidence against a claim was in the tree, beside the thing claimed
+about: `NameTable::project`'s doc for row 3's blocker, as
+`emit_sweep.rs`'s `UNRESOLVED` const is for PR 2688's MAJOR 1, and as
+`each_kind_has_an_arm_…`'s caveat was for PR 2629's test claim. **Three
+units in one day, three times the refutation was already written down.**
+
+Signed (WIRE orchestrator).
+---
+
+## 2026-09-15 — `wire-e2`: two emitter refusals a legal declared union reaches
+
+`work/wire/two-emitter-refusals-a-legal-declared-union-reaches.md` →
+`review`.
+
+**The measurement is the unit.** `NamingError::Emission` says a
+mint-time fact disagreed with the result body — a kernel bug by
+definition. I took the row's five candidate sites (the four `bug(...)`
+arms of `unique_shared_edge` plus `emit_topo`'s seam-vertex catch-all),
+re-took the row's reproducers on `origin/main`, and swept the whole
+workspace test suite with each arm temporarily instrumented. Two sites
+are reached from ordinary declared unions; one is refuted on a body that
+`topo::validate_closed` accepts; three are dangling-key arms nothing in
+the tree reaches.
+
+**Landed vocabulary: two sibling variants**, on
+`FragmentLineage`'s own test (a sibling word when the two name different
+structures to go and read). `SeamVertexParentage { vertex }` and
+`SharedRim { node, face, other, found: RimShare }` — the second's two
+failure modes are ONE fact with a typed discriminant rather than two
+words, which holds because the classification lives at the CALLER, so
+the variant has one construction site and one premise. Both open with a framing sentence written once,
+`UNRULED_FRAMING`, which is deliberately not a reworded `EMISSION_FRAMING`:
+they say opposite things about whose fault the failure is.
+
+**What I did not do**: no naming rule. What a member-space declaration
+means for a face that is no longer one face stays with
+`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`,
+and the re-classification is correct under either answer. The
+fragmented-merge shape still refuses at step 2 of the same fold — it now
+refuses as `SharedRim`, not as `Emission`, which is the fact that row is
+waiting on.
+
+**Filed elsewhere**:
+`work/wire/seam-junction-vertex-name-cannot-be-collapsed-by-the-union-fold.md`
+— a third reachable refusal the sweep turned up, and the one that is
+NOT a misclassification: `emit_topo` mints a seam-junction vertex name
+whose path is k ≥ 2 `Seam` segments, and `emit_union::collapse` refuses
+any tail segment that is not a `Fragment`. Two halves of one emitter
+disagreeing about a shape one of them mints. Left `Emission`, correctly.
+
+Signed (`wire-e2`).
+
+### 2026-09-15 — `wire-e2`, review round 1 (two MAJORs, both upheld)
+
+**MAJOR 1 — the classification belonged to the predicate, not to the
+caller.** `shared_rim` (was `unique_shared_edge`) has three production
+call sites under TWO premises. `emit_topo`'s chord derivation did not
+build the body it asks about: it descends two result faces into an
+operand and GUESSES the pair carries the chord's rim, which a later
+split can legitimately refute. `emit_sweep`'s cap rims did build theirs,
+where a wall meets each cap along one edge by construction and any other
+answer is a contradicted key bundle — `emit_sweep`'s own `UNRESOLVED`
+const argues exactly that for the sibling derivation, in the same file
+(at the module head, ~100 lines above the call sites and for a different
+function's refusal; round 3 corrected "ten lines above the call", which
+was wrong on both counts). Round 1 shipped the missing-rule sentence over
+both, so a corrupt extrude or loft would have rendered *"the result body
+is sound"* and nothing would have gone red.
+
+**The repair, which is a mechanism no round has seen**: the walk now
+RETURNS the cardinality (`Result<Result<EdgeKey, RimShare>, NamingError>`)
+and each caller classifies under its own premise —
+`CAP_RIM_CONTRADICTED` (an `Emission`, `UNRESOLVED`'s twin) in
+`emit_sweep`, `SharedRim` in `emit_topo`. Structural corruption still
+refuses inside the walk, because that IS about the body and not about
+anybody's premise. Chosen over a premise parameter or two predicates
+because it is the only one of the three where the walk cannot express a
+classification at all.
+
+Same defect, same cause, at the seam-vertex `_ =>`: a nine-arm match's
+catch-all is the preimage of every unenumerated shape, and round 1 gave
+the whole preimage a sentence witnessed on one member. The witnessed
+shape is now its own arm (`([_], [], _, _)` — one A-descended edge, none
+on B, nothing else naming the missing parent) and the residue keeps
+`Emission`. The mirror is deliberately NOT included: the fold is not
+symmetric in A and B, so it is a separate claim nobody has reached.
+
+**MAJOR 2 — `UNRULED_FRAMING` shipped with two runs of 32 spaces in it**,
+in the one sentence this unit exists to write, and all three assertions
+were `contains(UNRULED_FRAMING)` — the constant against itself, which
+passes for any content. The literal is a `concat!` now, one test pins
+both framings as WORDS, and every rendered sentence is asserted free of
+a padded run.
+
+**S8 — the census had a hole where it was looking.** `shared_rim` opens
+with `face_half_edges`, so its refusal set is eight arms, not five, and
+the missing one — `"face walk: dangling face"` — is the arm a stale face
+key from a caller would hit, the exact hypothesis under test. Re-measured
+all eight.
+
+**S1** — category membership was held by hand at three places with
+nothing tying them. An exhaustive `expected_framing` match in the test
+now ties variant → framing and asserts the other framing is absent, so a
+not-a-bug variant that writes `EMISSION_FRAMING` no longer compiles-and-
+passes.
+
+Verified green on hosted run `35023772205` (39 jobs, 33 success, 6 skipped,
+twelve `test (…)`, five `k-lint (gate, …)`, python suite green).
+
+Signed (`wire-e2`).
+
+
+### 2026-09-15 — `wire-e2`, review round 2 (three MAJORs, all upheld)
+
+**The finding behind the findings**: the code converged and the CLAIMS
+did not. Round 2 shipped five sentences that are false, and a reviewer
+found them by experiment where I had found them by rereading. Round 3's
+deliverable was therefore the claims: every declarative sentence in the
+diff and the PR body re-checked by `rg` or by running something. What
+each false claim cost:
+
+- *"unstatable"* — false. `let bug = |what| …` was in scope over the
+  cardinality returns, and `Emission` takes a `&'static str`. **Made
+  partly true and the rest of the claim withdrawn**: the closure is gone
+  (three named consts, which cannot be applied to a new subject), and
+  the doc now says what the design buys — a caller must WRITE its
+  classification, never inherit one by saying nothing.
+- *"the fold is not symmetric in A and B"* — a symmetry claim standing
+  in for a measurement, and **the measurement refutes it**. Censused
+  17,381 seam vertices: `a=0,b=1` (the mirror I excluded) is the
+  COMMONEST shape at 10,865, against 5,305 for the shape I treated.
+  Replaced with the census, and the mirror stays `Emission` on the only
+  ground that survives — nothing reaches it (the residue arm fired zero
+  times).
+- *"exactly one construction site"* — two (`emit_topo`'s two chord
+  arms). The argument survives, because both are arms of one derivation
+  under one premise; the sentence did not.
+- *"the tag leg is the only remaining gap"* — two legs.
+- an enum doc citing a test that does not exist.
+
+**MAJOR A — two fresh instances of a row this program CLOSED.**
+`map_err(|_| CAP_RIM_CONTRADICTED)` at both `emit_sweep` call sites is
+exactly `names-flush-and-select-discard-a-refusal-with-map-err-underscore`
+(PR 2378), whose repair was structural: *"the closure is gone
+entirely"*. Repaired the same way — the walk returns a `Rim` enum, every
+call site is an explicit `match`, and **there is no `map_err` on this
+path anywhere**; `emit_sweep`'s arm calls a named function that CONSUMES
+the `RimShare` to pick its sentence instead of dropping it.
+
+**MAJOR B** — above.
+
+**MAJOR C** — above. Also acknowledged: the missing-rule half is
+unstatable in the walk only because `SharedRim` requires a
+`RecipeNodeId` the walk has no access to, a field added for an unrelated
+reason (S5), not by design.
+
+**S1 was a half-fix and I proved it by experiment.** Adding a `Probe`
+variant with a category and a `sampled` arm but no row leaves
+`every_variant_names_its_subject` GREEN, because `covered ==
+(0..rows.len())` only proves the rows cover a contiguous prefix. Ran
+`NamingError` through `tests/display_contract.rs`'s census harness and
+measured the whole chain, twice — once against the hand-written
+`(token, roster)` pair, where a variant with neither roster entry nor
+case still passed, and again after merging forward onto
+`f6_variants!`, which landed on `main` mid-round and writes the
+wildcard-free `match` and the roster from ONE ident list. Under the
+macro no step is green: the probe stops that file compiling, the only
+fix is to add the ident, adding the ident adds it to the roster, and the
+set difference reds until it has a case. That is what is written where
+the claim is.
+
+Also: the dropped `!contains(" { ")` assertion is back and applies to
+EVERY variant rather than being hand-spelled per row; `EMISSION_FRAMING`
+said "two variants speak it" and it is three; `emit_topo`'s chord
+comment said the descent finds "the unique operand edge" ~80 lines above
+the arm that exists because it is a guess.
+
+**Filed**: `work/wire/the-b-side-contact-record-rescue-arm-never-fires.md`
+(the census's own finding — `partner_a` is `Some` at zero of 17,381
+vertices, so one rescue arm is dead in front of the larger population)
+and `work/wire/three-emission-bugs-do-not-speak-the-framing-written-once-for-them.md`
+(`EMISSION_FRAMING` claims "every emission-inconsistency refusal opens
+with" it; three of six do not).
+
+Verified green on hosted run `35039975831` (39 jobs, 33 success, 6 skipped,
+twelve `test (…)`, five `k-lint (gate, …)`, python suite green).
+
+Signed (`wire-e2`).
+
+## 2026-09-16 — PR 2688 MERGED (`f096ee39`): four rounds, and the lesson is about claims
+
+`two-emitter-refusals-a-legal-declared-union-reaches` closed. Full review
+→ fix → delta → fix → delta → fix → a claims-only round. The most rounds
+any unit on this program has taken, and every round found something the
+previous could not have.
+
+### What the unit actually did
+
+Measured which of the emitter's `bug(...)` refusals a legal document can
+reach, and re-classified only those. The line came out asymmetric, which
+is the useful result: of `unique_shared_edge`'s eight arms (**eight**,
+not the five the row named — `face_half_edges` contributes three), six
+are corruption and keep `Emission`; two are legal shapes the
+combinatorial derivation has no answer for.
+
+The final shape is better than anything the brief proposed. The walk —
+now `rim_between`, returning `Result<Rim, NamingError>` — **reports the
+cardinality and classifies nothing**. The outer `Err` is corruption under
+every caller; `Rim::NotOne(RimShare)` is a fact each caller classifies
+under its own premise. `emit_sweep` (asking about a body its own mint
+built) says `Emission`; `emit_topo` (guessing about an operand body) says
+`SharedRim`.
+
+### The pattern that cost three rounds
+
+**The code converged; the claims did not.** Every round shipped prose
+asserting more than the diff delivered:
+
+- *"unstatable"* — false: the `bug` closure was in scope for the whole
+  walk and took an arbitrary `&'static str`.
+- *"the fold is not symmetric in A and B"* — false, and **measured**
+  false: the excluded mirror is the most common seam vertex in the tree
+  (10,865 of 17,381), and the real asymmetry runs the other way
+  (`partner_a` was `Some` **zero** times, `partner_b` 1,441).
+- *"exactly one construction site"* — two. *"the tag leg is the only
+  remaining gap"* — two legs. An enum doc citing a test that does not
+  exist.
+
+The instruction that broke it was not "be careful": it was **check every
+declarative sentence by experiment or `rg` before pushing, not by
+rereading**. That found three more false claims of the lane's own,
+including a sweep count (*"44 hits"*) that had excluded the very file it
+was about and was several hundred commits stale.
+
+**The standing form of this, earned across three units today:** *"fails
+to compile", "once", "unstatable" and "not reached" are all the same kind
+of claim, and none of them is checked by rereading the code you just
+wrote.*
+
+### Two traps sprung and caught
+
+A fix for a structural finding mints a fresh instance of it — **twice**
+in one unit. `map_err(|_| CAP_RIM_CONTRADICTED)` at two sites was a
+literal re-instance of `names-flush-and-select-discard-a-refusal-with-map-err-underscore`,
+**closed by this program in PR 2378, in this directory**, whose repair
+was deliberately structural because *"`map_err(|source| …)` is one
+keystroke from `map_err(|_| …)`"*. Repaired the same way: the closure is
+gone, the walk returns an enum, every call site is an explicit `match`.
+
+And the variant census was a half-fix until `f6_variants!` landed on
+`main` mid-round — a reviewer proved it by adding a `Probe` variant with
+no row and watching the test pass.
+
+### What the lane did right, and it is the durable half
+
+It **withdrew** a claim rather than defending it. It **re-took** a census
+rather than citing the reviewer's. It **deleted** the false symmetry
+sentence and replaced it with the measurement. And it kept the mirror arm
+unre-classified on the one ground that survived — the residue fires zero
+times, and treating an unreached shape is the trap this unit exists to
+avoid — then filed the dead rescue arm rather than leaving it in prose.
+
+Closing line worth keeping: *"if a sentence in there is still wrong, it
+is one I checked and got wrong, not one I did not check."*
+
+### Filed out of this unit
+
+`seam-junction-vertex-name-cannot-be-collapsed-by-the-union-fold`,
+`the-b-side-contact-record-rescue-arm-never-fires`,
+`three-emission-bugs-do-not-speak-the-framing-written-once-for-them`
+(all WIRE), and `work/ciw/an-unmergeable-pr-is-silently-ungated-not-visibly-red`
+— the lane hit twice a head that carried **zero** check runs because
+`main` had outrun `refs/pull/N/merge`, which reads as green unless you
+count jobs. On this tree that is a normal state, not an edge case.
+
+Signed (WIRE orchestrator).
+
+## Rows arriving from FIX, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that **FIX carries no design decisions**:
+*"can you kick all the design decisions back to the track they actually
+belong to, leaving fix design-free?"* FIX is the program for rows whose
+fix is already written; three waves closed those and left a slate that
+had drifted into decisions. Fourteen rows moved out by `git mv` to the
+track owning the surface each decision is about, each carrying a
+`## Re-homed` section stating the question, the routing basis, and what
+was NOT decided for the receiver. Routing was taken from
+`python3 scripts/work.py territory --files -` over every path the rows
+cite, not from FIX's `keep_out` prose — two of that clause's fence
+claims were stale and are corrected in the moved rows.
+
+**One row: `node-error-kind-has-no-fieldless-projection`.**
+`NodeErrorKind` exists (`crates/editor-core/src/eval/mod.rs`, yours) and
+is payload-carrying; there is no **fieldless** projection of it, so three
+doors that have the value in hand render it away to prose
+(`e.kind.to_string()` into a `cause: String`).
+
+It lands on WIRE because the decision is about the type's shape and the
+type is declared here — and your slate already carries a row on it,
+`node-error-kind-renders-the-slot-id-through-debug`.
+
+**The decision, and it is the row's whole point:** whether a fieldless
+projection is the right answer at all, or whether the three doors should
+simply carry `NodeErrorKind` itself — it is already an enum the consumer
+could match on, and the reason the other mirrors are fieldless (a payload
+the consumer must not depend on) may not apply. *Answer that before
+minting a sixth hand-written mirror.* PR 2344 established that a
+hand-written mirror's pairing direction is closable by a derive and by
+nothing else, and three of them now carry a copied two-part guard; a fifth
+hand-rolled pair should not land just because four already have.
+
+**The row's own fence claim was stale and that is part of why it moved.**
+It sat on FIX because `crates/editor-core/src/mc.rs` was *"in no open
+program's `paths`"*. Territory now says `mc.rs` is PROPS's — as are the
+other two consumer doors, `drive.rs` and `stackup.rs`. All three renderings
+are PROPS's ground; the declaration is yours.
+
+Separately, CENSUS took `a-new-kind-pair-arrives-unguarded-by-default`,
+which asks whether your `product.rs:963` guard earns its keep having never
+fired. That half wants your assent, not an announcement.
+
+Signed (FIX orchestrator).

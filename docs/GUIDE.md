@@ -4,12 +4,6 @@
 questions, and export them. It is a library first — everything below
 runs headless, from Rust or from Python, with no GUI in the loop.
 
-One honest note before anything else: **`pncad` is a placeholder
-name.** The project has not been named yet (design question Q9). The
-crate, the Python module, and the prose all say `pncad` today, and
-all of it will be renamed together when the real name is chosen. The
-placeholder is deliberately greppable.
-
 What makes this kernel different from a modelling toolkit you may
 have used before is that **it refuses**. When two faces coincide and
 you have not said they coincide, when a fillet has no corner to sit
@@ -36,8 +30,11 @@ the *document* layer — nodes, edits, evaluation — rather than
 wrapping the Rust authoring calls one for one. Section 2.8 shows why
 that is a deliberate design choice and not a shortfall.
 
-Nothing is published to crates.io or PyPI yet — the project is
-unnamed, so there is nothing to publish under. Build from source.
+Nothing is published to crates.io or PyPI yet, because the project
+has no name to publish under: **`pncad` is a placeholder** (design
+question Q9). The crate, the Python module and the prose all say
+`pncad` today and will be renamed together when the real name is
+chosen; the placeholder is deliberately greppable. Build from source.
 
 ### 1.2 Rust: build, and a first model in a dozen lines
 
@@ -157,17 +154,13 @@ stores the canonical row because there is no notation to keep.
 
 - Section 2 is the canonical journey, end to end, in both languages.
 - Section 3 is parametric modelling — the document layer proper.
-- The corpus index (`docs/guide/examples.md`) maps every worked
-  example in the repo to what it demonstrates.
-- The fail-loud tour (`docs/guide/fail-loud.md`) is the refusal
-  vocabulary, layer by layer.
-- Selecting entities (`docs/guide/selecting.md`) is how you name a
-  face or an edge so a later step can refer to it.
-- Assemblies (`docs/guide/assembly.md`) is the step past one
-  document: a workspace of parts, instances of them, mates, and the
-  gate that says the result is valid at rest.
-- The north-star audit (`docs/guide/north-star-audit.md`) says
-  exactly which demos Python can author today.
+- Section 4 indexes the companion pages — the worked-example corpus,
+  the refusal vocabulary, selecting entities, meshing, assemblies —
+  and is the only list of them, so that it cannot drift from a second
+  copy up here.
+
+If you are here because something already refused and you want to read
+the error rather than the journey, skip to `docs/guide/fail-loud.md`.
 
 ## 2. The canonical journey
 
@@ -1257,11 +1250,15 @@ square = doc.insert(
 )
 cube = doc.insert(Node.extrude(square, Expr.length_in(1, m)))
 
-# A ball, revolved as two quarter arcs, sunk H into the top face.
+# A ball, revolved as two quarter arcs on one carrier, sunk H into the
+# top face: the second arc leaves along the first's tangent (a declared
+# tangent joint at the equator) and is derived from that tangent and
+# its target.
 half = (
     Open.at((0 * m, -R * m))
     .arc_to(Bulge((R * m, 0 * m), math.tan(math.pi / 8)))
-    .arc_continue((0 * m, R * m))
+    .tangent()
+    .tangent_arc_to((0 * m, R * m))
     .line_to(Start)
 )
 frame = doc.sketch_frame(
@@ -1684,7 +1681,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1741,7 +1738,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1757,7 +1754,7 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
     expr: len(1.0),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 
 // Pass the PRIOR evaluation: the frame and the profile are
 // untouched, so their values are reused by content key and only the
@@ -1837,10 +1834,10 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 doc = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.25),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1916,7 +1913,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 let bigger = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.4),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
@@ -1977,7 +1974,7 @@ let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
 let declare = |doc: &Doc<ProfileProgram>, name: &str, value: DocParam| {
-    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol)
+    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 
@@ -2022,7 +2019,7 @@ assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
 doc = apply(&doc, &DocEdit::SetDocParamValue {
     name: ParamName::new("bore_r"),
     value: DocParamValue::Continuous(0.0045),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 assert!(doc.params()[&ParamName::new("bore_r")].distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

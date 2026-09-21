@@ -752,11 +752,13 @@ name = "editor-core"
 version = "0.0.0"
 dependencies = [
  "bvh",
+ "editor-core",
  "geom",
  "geom-brep",
  "geom-core",
  "libm",
  "mesh",
+ "num-bigint",
  "profile",
  "proptest",
  "quantity",
@@ -2962,6 +2964,7 @@ name = "quantity"
 version = "0.0.0"
 dependencies = [
  "proptest",
+ "test-utils",
 ]
 
 [[package]]
@@ -4207,6 +4210,7 @@ dependencies = [
  "pncad",
  "pollster 1.0.1",
  "profile",
+ "quantity",
  "rfd",
  "sweep",
  "test-utils",

@@ -8,6 +8,8 @@ github: 1495
 refs: [1493, 730]
 branch: port/pyopts-four-doors
 pr: 2678
+priority: P3
+cost: D
 ---
 
 ## From GitHub issue 1495
