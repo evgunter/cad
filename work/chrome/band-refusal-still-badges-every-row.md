@@ -129,3 +129,17 @@ an ordinary CHROME dispatch.
 `Failed { message }` sites is the reason to add a VARIANT rather than
 a FIELD, and it is re-taken by the command the row writes out, not
 trusted from its prose. Re-take it at dispatch.
+
+## Cross-reference (added by the `chrome/empty-document-gate` lane)
+
+The new status this row's closing shape proposes is the event
+`has-faults-cannot-red-on-a-new-rowstatus` is about.
+`crates/viewer/src/tree.rs`'s `has_faults` asks
+`matches!(row.status, RowStatus::Failed { .. } | RowStatus::Poisoned
+{ .. })`, so **a `RowStatus` variant added for a refused cluster is
+silently not a fault**: every row carrying it answers `false` to
+*"this document is not building"*, and no build says so.
+
+Whoever takes this row should make that `matches!` exhaustive before
+adding the variant, or take both rows together.
+
