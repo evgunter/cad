@@ -555,6 +555,21 @@ const CORPUS: [(&str, Disposition); 73] = [
     // 900× outside that band and pin the adoption bar there instead).
     ("tests/fixtures/poleguard/poleband_eps12.step", EpsSensitive),
     ("tests/fixtures/poleguard/polefrustum.step", EpsSensitive),
+    // -- tests/fixtures/rim-only-cap/ ---------------------------------
+    // A sphere cap stated as one rim circle and its base disc: the pole
+    // is interior to the sphere face and no meridian or pole vertex is
+    // stated. Both statements of the rim — one closed circle edge, two
+    // half arcs — are adopted as written and pass the gate; what the
+    // mesh lane answers for the sphere face is `meridian_free_cap.rs`'s
+    // row.
+    (
+        "tests/fixtures/rim-only-cap/rimonly1.step",
+        Pass(1, 1, 2, 1, 1),
+    ),
+    (
+        "tests/fixtures/rim-only-cap/rimonly2.step",
+        Pass(1, 1, 2, 2, 2),
+    ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
     // two collinear `EDGE_CURVE`s, which is what every exporter emits
