@@ -2,12 +2,13 @@
 id: vectorslot-slots-has-no-reader
 kind: issue
 title: VectorSlot::slots() is public and unread: deleting it leaves the workspace green
-status: review
+status: closed
 opened: 2026-09-12
 priority: P4
 cost: E
 branch: door/vectorslot-slots-delete
 pr: 2989
+closed: 2026-09-21
 ---
 
 
@@ -84,3 +85,46 @@ binding census's not-bound set.
 
 **Fence:** `crates/editor-core/src/node.rs` is EDIT's (territory; the
 row's own text says DOCM's, which closed on 2026-09-13). Announce there.
+
+## Closed (2026-09-21) — PR 2989, five lines deleted
+
+`VectorSlot::slots` is gone. Nothing else in code changed.
+
+**The brief was wrong and the lane measured instead of obeying.** It
+said *"delete it and the re-export"*; there is no separate re-export of
+the method — `slots` reached `pncad::document` only through the ENUM's
+re-export. The lane probed removing that (`VectorSlot` out of the
+node-vocabulary `pub use` in `crates/pncad/src/document.rs`) and got
+`error[E0432]: unresolved import` from `viewer/src/props.rs` and
+`viewer/tests/panel_display.rs`, so the enum's door is load-bearing and
+the probe was reverted. **`document.rs` is not in the diff**, which also
+keeps the unit to the one unread member. Second brief this wave the
+lanes corrected.
+
+**Measured by deletion, twice, and past `--workspace`.** The row's
+evidence was re-taken at the merge base and again after merging main:
+`cargo check --workspace --all-targets` clean, **plus all seven
+non-workspace roots** from `scripts/doc-gate.sh --print-roots` checked
+individually — `benches`, `demos/tour`, `demos/wild`,
+`interval-transcendentals` and the three `tools/*`. The row's count had
+drifted (36 `.slots()` sites → **41**); all 41 compile without the
+method, so none had a `VectorSlot` receiver.
+
+**The sweep generalised the instruction rather than the symbol**: the
+lane deleted each of the sibling members in turn to see what the
+compiler said. `slot` reds with 2 errors, `label` with 3, `dimension`
+with 2 — so all three have readers and stay, and the "one unread
+member" claim is now a measurement rather than a reading.
+
+**No pin, correctly.** Deleting dead code changes no behaviour, so
+there is no runtime value an assertion could discriminate; the compiler
+is the check, exercised at all eight cargo roots and again by the gate.
+
+**Python:** `VectorSlot` is dispositioned as a whole TYPE in the binding
+census's `NOT_BOUND`, so the census never enumerates its members and a
+member leaving cannot move a row. Confirmed by running the census
+standalone, not inherited from the row.
+
+**Fences:** `crates/editor-core/src/node.rs` (EDIT's) is crossed;
+`crates/pncad/src/document.rs` (LIB's) was probed and reverted and is
+not in the diff.

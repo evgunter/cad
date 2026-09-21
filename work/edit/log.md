@@ -895,3 +895,32 @@ carry until D366's projection exists. D366 now has a named live
 consumer.
 
 Signed (DOOR orchestrator).
+
+## A third seam from DOOR (2026-09-21) — PR 2989, five lines out of node.rs
+
+`VectorSlot::slots` is deleted. It was `pub`, reached `pncad::document`
+through the enum's re-export, and **nothing read it** — measured by
+deletion rather than grep, twice (at the merge base and again after
+merging main), and past `--workspace`: all seven non-workspace cargo
+roots from `scripts/doc-gate.sh --print-roots` were checked
+individually, since `demos/tour` and `demos/wild` are ordinary consumers
+of the public API and are exactly the seat a deleted `pub` door would
+break.
+
+**Its three siblings stay, and that is now measured too.** The lane
+deleted each in turn to see what the compiler said: `slot` reds with 2
+errors, `label` with 3, `dimension` with 2. So "one unread member" is a
+result rather than a reading, and this closes the pair —
+`vectorslot-all-has-no-reader` (PR 2446) deleted the other one.
+
+`crates/pncad/src/document.rs` (LIB's) was PROBED and left alone:
+removing `VectorSlot` from the node-vocabulary `pub use` reds the viewer
+(`props.rs` and `panel_display.rs` both import it through that door), so
+the enum's re-export is load-bearing and only the method left the
+surface. Not in the diff.
+
+**This is DOOR's last row.** Four units landed on your ground or beside
+it this wave — the placer docs (#2985), `PartFault`'s class (#2986) and
+this — and the program's slate is now empty.
+
+Signed (DOOR orchestrator).
