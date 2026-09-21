@@ -551,6 +551,12 @@ enum Base {
     /// the case `Interval::copysign` must answer `[−1, 1]` on. Rule F
     /// must decline it.
     TiltNZ,
+    /// **SYM-12's review R2.** A THIRD document whose `n.z` is
+    /// manifestly negative, neither the start cap nor `FlipZ`: `u`
+    /// flipped instead of `v`, `u = (−1,0,t)`, `v = (0,1,0)`, so the
+    /// face normal is `(−t, 0, −1)/sqrt(1 + t²)` — the same `−1` over a
+    /// `sqrt` atom reached through a different tilt.
+    FlipX,
 }
 
 fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
@@ -586,6 +592,10 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         Base::TiltNZ => (
             [scl(1.0), scl(0.0), scl(0.0)],
             [scl(0.0), t.clone(), scl(1.0)],
+        ),
+        Base::FlipX => (
+            [scl(-1.0), scl(0.0), t.clone()],
+            [scl(0.0), scl(1.0), scl(0.0)],
         ),
     };
     r.insert(Node::Datum(Datum::Frame {
@@ -1405,6 +1415,80 @@ fn m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm() {
             "{name}: and by name (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`): \
              {on_fails:?}"
         );
+    }
+}
+
+/// **SYM-12 review R2 — a third manifestly-negative `n.z` document,
+/// at a different `half`.** `FlipX` (`u = (−1,0,t)`, `v = (0,1,0)`),
+/// one derived frame on its END cap, the boss on that, `half = 2e-3`,
+/// both lifts, rule F off and on. Prints the counts, the first
+/// refusal, and under `Guided` the `carrier_endpoint_end` and
+/// `newell_plane_residual` splits; asserts only what the gating row
+/// asserts on the start cap and `FlipZ`: F shut refuses the carrier
+/// endpoint, F on takes it whole and stops at the Newell straddle by
+/// name.
+#[test]
+#[ignore = "evidence-only: SYM-12 R2's third negative-n.z document"]
+fn r2_sym12_a_third_negative_nz_document_reads_the_end_cap() {
+    use geom_core::sym::report::{start_shape_report, take_shape_report};
+    let half = 2.0e-3;
+    let doc = r2_document(half, Base::FlipX, Place::Derived(1));
+    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        let mut seen = Vec::new();
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on", shipped_with_rule_f()),
+        ] {
+            let t0 = std::time::Instant::now();
+            let (fails, counts) = sym(&doc, lift, rules, budget());
+            let dt = t0.elapsed().as_secs_f64();
+            println!(
+                "flipX derived half={half:e} {lift:?} {label}: {counts:?} ({dt:.1}s)\n  fails {} {}",
+                fails.len(),
+                head(fails.first().map_or("", String::as_str), 200)
+            );
+            if lift == ProfileLift::Guided {
+                start_shape_report();
+                let _ = sym(&doc, lift, rules, budget());
+                let split = crate::m10_8_harness::split(&take_shape_report());
+                let row = |p: &str| split.get(p).copied().unwrap_or([0; 4]);
+                println!(
+                    "  carrier_endpoint_end {:?} newell_plane_residual {:?}",
+                    row("carrier_endpoint_end"),
+                    row("newell_plane_residual")
+                );
+                seen.push((
+                    row("carrier_endpoint_end"),
+                    row("newell_plane_residual"),
+                    fails,
+                ));
+            }
+        }
+        if lift == ProfileLift::Guided {
+            let (off_ep, _, off_fails) = &seen[0];
+            let (on_ep, on_nw, on_fails) = &seen[1];
+            assert_eq!(off_fails.len(), 1, "F shut: one refusal: {off_fails:?}");
+            assert!(
+                off_fails[0].contains("carrier_endpoint_end"),
+                "{off_fails:?}"
+            );
+            assert_eq!(off_ep[3], 1, "F shut: the endpoint is one decision short");
+            assert_eq!(
+                *on_ep,
+                [33, 0, 0, 0],
+                "F on: the end cap's endpoint count to the digit"
+            );
+            assert_eq!(
+                *on_nw,
+                [32, 0, 0, 1],
+                "F on: the end cap's Newell straddle to the digit"
+            );
+            assert_eq!(on_fails.len(), 1, "F on: one refusal: {on_fails:?}");
+            assert!(
+                on_fails[0].contains("newell_plane_residual"),
+                "{on_fails:?}"
+            );
+        }
     }
 }
 
