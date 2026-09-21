@@ -234,7 +234,7 @@ impl<T: Real> fmt::Display for VerbError<T> {
 
 impl<T: Real> core::error::Error for VerbError<T> {}
 
-impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
+impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb<T> {
     /// **Run this one-operand verb against its operand.**
     ///
     /// The operand comes in borrowed, never in the payload. Every
@@ -448,7 +448,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
 /// What `Arity` does speak, unchanged, is the mismatch at every other
 /// door: a `Shell` handed to [`Verb::run`], [`Verb::run_pair`],
 /// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
-impl<T: Decide + PropsQuadLane + CertifiedBounds> Verb<T> {
+impl<T: Decide + PropsQuadLane + CertifiedBounds + topo::AtRestPolicy> Verb<T> {
     /// **Run this hollowing verb against its operand body.**
     ///
     /// The operand comes in borrowed, never in the payload, exactly as

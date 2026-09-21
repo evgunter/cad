@@ -4406,6 +4406,32 @@ does not. Recorded in the PR body and the unit's `## Closed` section.
 
 - `RING-1-SPEC.md` — RING-1, `geom_core::interval` compiles unconditionally; the feature gates only the instantiation (#2971)
 
+## Per-merge deletion — LANE-0's spec (2026-09-21)
+
+Recoverable at `git show eb100e1cbc:docs/LANE-0-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the seam arms supply `Some`
+where the scalar is `f64` (`AtRestPolicy for f64`, the `ShellLane` →
+seam arm for `f64`, `verbs/shell.rs` ~`:248-258`) and `None`
+elsewhere; `f64`-concrete public callers …" — threading the door from
+those arms was measured at 18 public doors and ~1,200 call sites and
+declined by the orchestrator's ruling (recorded in the item and the PR
+body): the `Some` is read at the one per-scalar seam ruling 3 keeps,
+`topo::AtRestPolicy::offset_fit_lane`, and the passes keep the door as
+their `Option` parameter; the `verbs/shell.rs` pointer lands on the
+`Dual` arm (the `f64` arm is `:176`); "(three per trait method)" — the
+fifteen impls are five scalars × three methods; §0's
+`crates/geom-core/src/offset_fit.rs` — the file is
+`crates/geom-brep/src/offset_fit.rs`; "the fixtures the existing `f64`
+rows use" — the sweep fixture is minted through the `_at` instrument
+at a fixed target and cannot be re-derived at the run's ε, so the
+subject is a new patch with the largest bow that certifies at every
+eps row (a bow that refines at every row was measured impossible);
+and the review brief's claim 5 ("mint pointed at remap") cannot
+compile, the live mis-wiring modes being a same-signature closure and
+the `_at` twin, both pinned by pointer identity. Recorded in the PR
+body and the unit's `## Closed` section.
+
+- `LANE-0-SPEC.md` — LANE-0, the `f64`-only offset-fit absence becomes an `Option` hook, out of the lane traits (#2981)
 ## Per-merge deletion — RING-0's spec (2026-09-21)
 
 Recoverable at `git show b32b98bee6:docs/RING-0-SPEC.md` (the fix-pass
