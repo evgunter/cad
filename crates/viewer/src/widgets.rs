@@ -1339,6 +1339,56 @@ mod tests {
             );
         }
     }
+
+    /// **The TYPED arm names the same gesture the drag does**, and it
+    /// is a separate row because it is a separate spelling.
+    ///
+    /// A keystroke with no pointer anywhere emits a whole
+    /// begin/preview/commit of its own
+    /// ([`a_keyboard_bump_with_no_drag_open_still_spells_the_whole_triple`]),
+    /// and that triple is handed to [`drag_ops`] beside the drag's
+    /// four rather than inside them. So the drag row above cannot see
+    /// it, and a probe whose typed arm named a neighbouring instance
+    /// would commit a frame onto a part the user never touched, in
+    /// silence.
+    ///
+    /// Only the free-move vocabulary: the value drag's typed arm is
+    /// `SetSlot` or `SetParam`, a direct edit that drives no gesture
+    /// and names none.
+    #[test]
+    fn the_typed_arm_names_the_gesture_the_drag_does() {
+        let mut probe = Probe::of(Vocabulary::FreeMove);
+        probe.frame(Vec::new());
+        probe.frame(Vec::new());
+        let mut bumped: Vec<SessionOp> = Vec::new();
+        for _ in 0..TAB_BUDGET {
+            probe.key(egui::Key::Tab);
+            bumped = probe.key(egui::Key::ArrowUp);
+            if !bumped.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(
+            bumped.iter().map(kind).collect::<Vec<_>>(),
+            ["begin", "preview", "commit"],
+            "the typed triple this row reads back"
+        );
+        let named: Vec<_> = bumped.iter().filter_map(SessionOp::names_gesture).collect();
+        assert_eq!(named.len(), bumped.len(), "an operation named no gesture");
+        assert!(
+            named.windows(2).all(|pair| pair[0] == pair[1]),
+            "the typed triple drove more than one gesture: {named:?}"
+        );
+        let drawn = free_move_gesture(NODE, |mm: [f64; 3]| Frame::translation(mm))
+            .0
+            .commit
+            .names_gesture();
+        assert_eq!(
+            named.first(),
+            drawn.as_ref(),
+            "the typed triple names an instance the row is not drawing"
+        );
+    }
 }
 
 /// **What a numeric field says, and what saying it commits.**
