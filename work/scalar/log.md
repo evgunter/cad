@@ -696,3 +696,19 @@ remaining gate on the kernel doors at `Interval`, so ruling 3's cut,
 not RING-3's feature drop, is what opens them. Fourteen fix-pass
 items adjudicated; the fix pass runs on OPUS.
 
+
+## LANE-0 in review; RING-1 state-synced (2026-09-21)
+
+LANE-0 (PR 2981) froze at `667e77f7e5` after its code head `5306a7b81b`
+ran green (35565435308; the first head red on three rows of the
+`interval, eps = 1e-12` shard, fixed by the lane). Ordinal 4111 claimed
+on main (PR 2988); byte 16 parity 0 ⇒ R1 OPUS, R2 FABLE, concurrent,
+briefs stored before dispatch. The unit's deviation — the `Some` read at
+a new per-scalar seam trait `OffsetFitScalar` (supertrait of
+`PcurveFittedLane`) rather than threaded from the `f64` seam arms,
+priced at 18 public doors and ~1,100 call sites — is the brief's first
+claim and decides the verdict's severity. The freeze commit is the
+orchestrator's: the item file said "slot 1 (OPUS)", the spec commit's
+wording; RING-1's item carried the same words through its whole dual
+(recorded on its row as an exposure). RING-1 is state-synced
+(`859cbd3880`, main merged) and waits on its run before merging.
