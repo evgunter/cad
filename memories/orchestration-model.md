@@ -90,12 +90,15 @@ Ev's standing instructions for implementation work:
   `[ev]` question — Ev (PR 1916, 2026-09-05): "you don't need to ask me
   about moving things around, unless it has design implications"; just
   do it and log it.
+- **A commit that touches only docs or comments on an already-green
+  head merges immediately, without a fresh CI run** (Ev, 2026-08-27;
+  scope corrected 2026-09-21) — including a merge commit whose conflict
+  resolution touched only those. A commit that reaches code re-earns
+  the gate.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
-  unit's branch. Two conditions: **LAST, after both reviews are
-  delivered** (the A/B row names the implementer's arm, and reviewers
-  read `git log`), and **merge immediately without a fresh CI run** when
-  the commit touches only docs/comments on an already-green head. This
+  unit's branch, **LAST, after both reviews are delivered** (the A/B row
+  names the implementer's arm, and reviewers read `git log`). This
   is for STATE-SYNC only: design conversations, protocol and memory
   amendments, spec ratifications and anything asking Ev a question get
   their OWN PR — burying those in a unit's merge hides exactly what
