@@ -1468,11 +1468,18 @@ impl SymRules {
     }
 
     /// **The shipped set with the form-level algebra OFF** — rules A/B
-    /// per node and rule D shut, the constant fold, the early walk and
-    /// the registered-identity door as they were: the tier exactly as
-    /// M10-9 shipped it, bit for bit, and the differential every claim
-    /// about what the algebra costs and what it buys is measured
-    /// against.
+    /// per node, rule D, rule E and rule F shut, the constant fold, the
+    /// early walk and the registered-identity door as they were: the
+    /// tier exactly as M10-9 shipped it, bit for bit, and the
+    /// differential every claim about what the algebra costs and what
+    /// it buys is measured against.
+    ///
+    /// **SIX dials, and each was added the day its rule shipped.** A
+    /// rule that rewrites a form in the EARLY walk is form-level
+    /// algebra whatever its argument reads, so rule E (SYM-5) and rule
+    /// F (SYM-8) belong here beside A/B and D; leaving one out makes
+    /// this constructor a differential against a tier that never
+    /// existed, silently, while its own doc still claims M10-9's.
     #[must_use]
     pub const fn without_the_algebra() -> Self {
         Self {
@@ -1481,6 +1488,7 @@ impl SymRules {
             early_ab: false,
             trig_of_atan: false,
             common_factor: false,
+            manifest_sign: false,
             ..Self::shipped()
         }
     }
@@ -1488,23 +1496,29 @@ impl SymRules {
     /// **The shipped set with the registered-identity door SHUT** —
     /// M10-8's tier exactly, bit for bit, and the differential every
     /// claim about what M10-9 costs and what it buys is measured
-    /// against ([`Self::registered`]).
+    /// against ([`Self::registered`]). Rule F is shut with it for the
+    /// same reason [`Self::without_the_algebra`] shuts it: M10-8's tier
+    /// had no rule F, and a differential that carries one is not the
+    /// tier it names.
     #[must_use]
     pub const fn shipped_without_the_door() -> Self {
         Self {
             registered: false,
+            manifest_sign: false,
             ..Self::shipped()
         }
     }
     /// **The shipped set with rule E SHUT** — the quotient's common
-    /// factor left uncancelled, every other rule as it is: M10-10's
-    /// tier exactly, bit for bit, and the differential every claim
-    /// about what rule E costs and what it buys is measured against
-    /// ([`Self::common_factor`]).
+    /// factor left uncancelled: M10-10's tier exactly, bit for bit, and
+    /// the differential every claim about what rule E costs and what it
+    /// buys is measured against ([`Self::common_factor`]). Rule F is
+    /// shut with it, because M10-10's tier had none; [`Self::without_rule_f`]
+    /// is the other half of the pair and keeps rule E on.
     #[must_use]
     pub const fn without_rule_e() -> Self {
         Self {
             common_factor: false,
+            manifest_sign: false,
             ..Self::shipped()
         }
     }
