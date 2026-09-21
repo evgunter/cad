@@ -1926,3 +1926,28 @@ coverage-loss filing. R2 also re-derived the cone's closed form on
 general cones — α ∈ {0.05, π/6, 1.4}, both nappes, both traversals,
 off-origin apex — and found the code right where the committed fixtures
 could not have caught a sin/cos swap.
+
+**Ordinal 2408 retired without a row (Ev, in chat, 2026-09-20).** With
+the fable arm out of credits, the choice was to run R1 late and accept
+the 2404 asymmetry, or record the unit with a single review and no A/B
+row. Ev ruled the second: no dual needed for this unit. The number stays
+claimed so nothing reuses it, and the A/B log says why the band has a
+gap rather than a blank.
+
+What that does and does not change. The opus arm's review is the unit's
+**review of record** — its findings bind the fix pass exactly as a
+dual's would, and one of them is a live defect on main. What is not
+claimed is any A/B signal: one arm is no comparison, so there is no
+rubric pair and no tally candidate, and the reviewer's ratings sit here
+as a review rather than in the log as data. PROPS-B3 slot 2 is still
+owed to fable.
+
+For the record, since it bears on how much weight one arm can carry:
+this reviewer executed C1 through C12, re-derived the cone's closed form
+independently on general cones rather than checking the unit's
+arithmetic, found the guard defect by constructing the fifth shape after
+reproducing the unit's four, and rated the unit 4 / 3 / 3. Its
+confidence vocabulary was used honestly — the guard defect `sure` and
+executed, the gate's reachability `unsure` and said so, and its own
+unread coverage declared rather than glossed (the topo battery went
+unrun because the build mutex was held and disk fell to 15 GB).
