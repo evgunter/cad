@@ -7,6 +7,7 @@ opened: 2026-09-12
 refs: [parameter-row-field-has-no-text-door]
 priority: P0
 cost: D
+branch: vgeom/p0-fields
 ---
 
 
@@ -106,3 +107,60 @@ numeric shape discarded real edits — a field reading `1000` in
 millimetres and a user typing `1000.4` got nothing, no edit and no
 refusal — and the echo IS distinguishable, as text, which is what the
 landed guard does.
+
+## The COMMIT half is now closed for every field the chrome builds (2026-09-21, `vgeom/p0-fields`)
+
+The first of the three bullets above — *every OTHER field in the
+crate, which is most of them* — is answered, at the constructor rather
+than at the ten call sites.
+
+**`crate::widgets::number_field` carries the guard now.** It stashes
+what its formatter returned and its parser asks `crate::props::echoed`
+the same question `value_field_ops` asks: text equal to the field's own
+render parses to nothing, text that differs takes the number door. So
+`unit_field`, `named_field`, `named_scalar`, the vector and point
+rows, the two form counts and the panel's new-parameter field all
+inherit it, and `named_field`'s `response.changed()` write-back — which
+`egui` marks exactly when the value MOVED, so the one gesture that
+fired it was an inexact echo — no longer fires on a click that typed
+nothing.
+
+**Cost, stated rather than absorbed.** The parser is now
+`crate::props::field_edit`'s rule (`f64`'s own parse over the trimmed
+text), where it was `egui`'s private `default_parser`. `egui`'s strips
+interior whitespace and maps U+2212 to a hyphen, so `1 234 567` and a
+typographic minus stop parsing in the creation forms. The panel's two
+value fields have never accepted either — `value_field_ops` has read
+text through `field_edit` since AUTH-2 — so this makes the chrome
+consistent rather than making it poorer in one half; it is recorded
+here because it is a user-visible input change nobody asked for.
+
+**What is left, unchanged from the list above.**
+
+- **the render itself**, which still spells a text naming its value
+  only to `REL_TOLERANCE`, so a field can go on SHOWING a number it
+  does not hold. Not taken here: tightening it means changing
+  `readout`'s own ratified accuracy rule, and the bound a RENDER owes
+  is the question this row says a fix would have to answer. The
+  question is now clean, because the commit no longer rides on it.
+  **It moved in one direction this branch:**
+  `the-fields-door-has-no-width-bound-at-all` bounds the field's text
+  by `readout::MAX_CHARS`, so above `1e8` mm (`1e7` with a sign) the
+  field falls from `egui`'s spelling — accurate to `f32`'s
+  16·`f32::EPSILON`, about 1.9·10⁻⁶ — to `readout::number`'s, accurate
+  to `REL_TOLERANCE`. A wider render band, over a commit path that is
+  now closed. The two rows are one door and were taken together for
+  this reason.
+- **`a-typed-field-hands-its-text-over-on-two-frames`**, its own row.
+- **`a-bare-field-still-commits-its-own-render`**, filed by this
+  branch: the floor under the door carries the render as a context
+  default and cannot carry this guard, because `egui::Style` has a
+  `number_formatter` and no parser.
+
+**Rows**: `widgets::field_tests::a_field_whose_render_is_not_exact_still_commits_nothing`
+(the item's own `1000.001` worked example, both signs, plus the value
+the width bound moved) and
+`a_creation_forms_field_commits_nothing_on_a_click_through`, driven
+through `named_field` so the canonical→written→parse→canonical round
+trip is the one under test.
+
