@@ -31,7 +31,7 @@ opposite conventions move that same hazard to the CALL SITE.
 `crates/mesh/src/nurbs_cert.rs`, so `crates/mesh/tests/*.rs` structurally
 cannot name it: `probe_review.rs`'s
 `z1_per_triangle_certificate_falsification` (the `worst_ratio` row hosted
-CI runs as its falsifier — `work/tess/S237.md`), `budget_meter.rs` and
+CI runs as its falsifier — `work/chord/S237.md`), `budget_meter.rs` and
 `m7_nurbs_trimmed.rs`'s promise rows all spell their own messages, as do
 the `crates/geom-brep/tests/` rows in
 `work/tint/enclosure-asserts-print-too-few-digits-to-show-a-last-bit-red.md`.

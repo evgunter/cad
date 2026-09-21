@@ -53,3 +53,10 @@ Same extraction as
 `assert!` / `debug_assert!` with an ordering operator in the condition.
 Message-less `assert_eq!` rows and bare `assert!(flag)` rows were not
 counted.
+
+## Home
+
+Filed on CHORD's slate because most of the list is in CHORD's four files
+(`nurbs_cert.rs`, `sizing.rs`, `chords.rs`); the `crates/mesh/tests/` and
+`curved.rs` entries are TESS's ground and ride along rather than getting a
+second row for one class.
