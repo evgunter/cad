@@ -32,9 +32,7 @@ use crate::forms::{
 };
 use crate::props;
 use crate::readout;
-use crate::session::{
-    DocSession, FreeMoveName, GestureName, SessionOp, ValueGestureName,
-};
+use crate::session::{DocSession, FreeMoveName, GestureName, SessionOp, ValueGestureName};
 use crate::sketch;
 
 /// **The text a numeric field shows**, and the one rule every field in
@@ -923,9 +921,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{
-        drag_gesture_ops, free_move_gesture, number_field, value_gesture, vec3_row_ops,
-    };
+    use super::{drag_gesture_ops, free_move_gesture, number_field, value_gesture, vec3_row_ops};
     use crate::session::{SessionOp, ValueGestureName};
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
@@ -1313,9 +1309,7 @@ mod tests {
                 pressed: true,
                 modifiers: egui::Modifiers::NONE,
             }]);
-            emitted.extend(probe.frame(vec![egui::Event::PointerMoved(
-                x + egui::vec2(40.0, 0.0),
-            )]));
+            emitted.extend(probe.frame(vec![egui::Event::PointerMoved(x + egui::vec2(40.0, 0.0))]));
             emitted.extend(probe.frame(vec![egui::Event::PointerButton {
                 pos: x + egui::vec2(40.0, 0.0),
                 button: egui::PointerButton::Primary,
@@ -1327,7 +1321,10 @@ mod tests {
                 ["begin", "preview", "commit"],
                 "the drag this row reads back"
             );
-            let named: Vec<_> = emitted.iter().filter_map(SessionOp::names_gesture).collect();
+            let named: Vec<_> = emitted
+                .iter()
+                .filter_map(SessionOp::names_gesture)
+                .collect();
             assert_eq!(named.len(), emitted.len(), "an operation named no gesture");
             assert!(
                 named.windows(2).all(|pair| pair[0] == pair[1]),

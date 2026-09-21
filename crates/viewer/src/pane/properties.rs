@@ -11,9 +11,7 @@ use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
-use crate::session::{
-    BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName,
-};
+use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName};
 use crate::widgets::{
     delete_button, drag_gesture_ops, drag_ops, free_move_gesture, number_field, value_gesture,
     vec3_row_ops,

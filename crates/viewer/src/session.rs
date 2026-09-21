@@ -91,9 +91,7 @@ pub mod select;
 
 pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{
-    CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,
-};
+pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{NodeKindWanted, Refusal, admits};
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
