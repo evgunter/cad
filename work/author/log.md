@@ -260,3 +260,71 @@ written, because nothing about the overlap needs explaining.
 A file-list correction with no design implication is not an `[ev]`
 question (Ev, PR 1916: *"you don't need to ask me about moving things
 around"*); it is logged instead.
+
+## 2026-09-21 — AUTH-1's correctness lane, adjudicated; fix pass out
+
+**MERGEABLE-WITH-FIXES.** C1–C7 all survived, four of them RUN rather
+than read, and the reviewer broke one thing by running it. Twelve
+fixes dispatched on the branch (F1–F12, covering both reviews); I
+merge when it is green.
+
+**The one that matters, and it is the spec's own clause failing.**
+`combine::denotes_body` is a NODE-KIND predicate; the evaluator's
+`body_operand` is a VALUE predicate. A `Node::Transform` over a
+`Node::Pattern` is a `denotes_body` node whose value is `Instances`,
+so the gate answers `Ok`, the session door raises nothing, the
+`Datum::FaceFrame` LANDS, and the evaluator refuses
+`WrongOperand { expected: "body", found: "instances" }`. That is
+exactly *"mint a node that refuses later"*, which the spec told the
+unit not to do — reachable through `SessionOp::Open`. Not a MAJOR
+(the kernel still refuses loudly, no wrong geometry), but it fails the
+unit's own contract, so it gates. The fix is to test the landed VALUE
+in a function that already holds the evaluation.
+
+**The deviation was right and not exact, which is a distinction worth
+keeping.** The lane's correction of my `Ambiguous` premise was
+verified from kernel source by the reviewer, independently. What the
+lane then built on it — `denotes_body` as "the viewer's existing
+statement of that same operand door" — is an equality that is not
+one, and `denotes_body`'s own doc names two directions it differs
+while this is a third. **A lane that correctly refutes a bad premise
+can still inherit a bad premise one level down**, and only a second
+reader found it.
+
+**Three findings are one argument with the style lane's three**, which
+is what running two lanes buys: the dead `Ok` half of `face_frame_seat`
+(correctness NOTE-7) and the double derivation (style S4) are the same
+defect, and fixing it also fixes the test that could not discriminate
+`face.node` from `face.feature()` (correctness MINOR-4). Neither lane
+alone would have ordered the fix that way.
+
+**A refusal sentence that lies, found by reading the reachable
+states**: `doc.node(at).is_some_and(..)` conflates "the node is gone"
+with "the node is several bodies", so undoing the feature a latched
+face belongs to tells the author to "project the one you mean first".
+Reachable by exactly the case the PR leans on to argue the latch is
+safe.
+
+**Filed outside the fence, two more rows on CHROME**:
+`denotes-body-enumerates-its-gaps-against-the-operand-door-and-misses-one`
+(P1 — an enumerated list that is short is a false claim, and AUTH-1 is
+the first caller to make the predicate load-bearing as a gate) and
+`a-creation-forms-held-pick-survives-a-document-swap` (P1 — `Drafts`
+is app state nothing resets, `StableName` carries no document
+identity, and the pre-existing `datum_frame` hold has the same hazard,
+so AUTH-1 corrects its doc and leaves the behaviour to the class).
+
+**Recorded on the next unit's row**: the held face pick renders as
+`"feature N body M"` — the same text for all six faces of a box — so
+`add-profile-mints-no-frame`'s half 2 now has a third site, and its
+taker closes three rather than discovering the third afterwards. Two
+stale "unowned residue" lines on that row fixed in passing.
+
+**What I am NOT having the fix pass do**, said here because a scope
+kept is only visible if it is written down: clearing drafts on a
+document swap (the class row above), the two `create.rs` vocabulary
+classes, moving AUTH-1's own per-kind sentence onto the choice (the
+PR says it is a knowing instance of the CHROME row instead), and the
+honest face label (the next unit's). The N5 ladder's rung 1 having no
+counterpart in `interrogate::entity_of` stays a NOTE — the reviewer
+could not reach it.
