@@ -585,4 +585,14 @@ main's new `Spiric` curve variant then broke the exhaustive match at
 the merge and took one arm on the implementer's arm. The fix pass
 folded the one pair the spec had excused and wrote the located-span
 walk once. Two protocol exposures recorded on the row.
+## RING-1 merged (2026-09-21)
 
+PR 2971, block SCALAR-B4 slot 2, ordinal 4110. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual concluded with no
+tally candidate (the one MAJOR bilateral and pre-fixed); the fix pass
+took thirteen items and declined one. Both reviews' end-to-end programs
+established that the lane-trait impls, not the feature, are what keeps a
+default-build caller out of the kernel doors at `Interval` — RING-3 and
+LANE-1..4 specs carry it. One exposure: the PR body's auto-appended
+footer names a vendor and re-appends on every body update; the row
+records it.

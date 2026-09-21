@@ -7237,6 +7237,29 @@ wall (dispatched 01:50Z, PR 02:52Z); impl CI **35555608396** GREEN on
 the head (twelve `test` jobs, five `k-lint (gate, …)`, the python
 suite, `gate ok`; no predicate-count change, no render re-baseline).
 Sample number at merge. Row at merge.
+## LANE-0 review ordinal fixed at dispatch (2026-09-21)
+
+`lane-0-offset-fit-hook` (LANE-0; SCALAR; PR #2981 open — frozen head
+`667e77f7e5`, one tracker-file word past the code head `5306a7b81b`):
+**ordinal 4111** (SCALAR band). Protocol v6 dual: draw = `/dev/urandom`
+byte **16**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the
+frozen head, read-side isolation (v6 item 5), briefs identical and
+stored before either ran, with a line telling both arms that the
+branch's spec commit is the orchestrator's (its trailer says nothing
+about the implementing arm). Pre-draw difficulty **E / structural**
+(recorded branch-side in the block SCALAR-B4 pre-draw section on
+2026-09-21 with the note that the arm — OPUS, byte 75, slot 1 — was
+already known when the sitting cut the unit). Impl phase: ~2 h 45 min
+wall (dispatched 01:50Z, PR 04:34Z, the fixed head 05:38Z); impl CI
+**35565435308** GREEN on the code head (twelve `test` jobs, five
+`k-lint (gate, …)`, the python suite, `gate ok`; the first head red on
+three rows of the `interval, eps = 1e-12` shard, fixed by the lane);
+the frozen head's own run is in flight at dispatch and is claim 10 of
+the brief. The unit landed a deviation the brief puts to both arms as
+its first claim: the `Some` read at a new per-scalar seam trait
+(`OffsetFitScalar`) rather than threaded from the `f64` seam arms.
+Sample number at merge. Row at merge.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
