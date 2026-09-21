@@ -314,16 +314,62 @@ marker — *"21 jobs, `docs-only ok` success, the docs-only tier
 exactly"*. It concludes **success on the full code tier too**: #2390,
 #2392 and #2400 each carry a green `docs-only ok` inside a 38-job
 closure-tier run, alongside `gate ok`. So its presence is no evidence
-of a tier at all. The only evidence is the one already written down two
-rules above — **the COUNT, and `gate ok`** — which is exactly what this
-register says about an unsubstituted matrix placeholder, applied to a
-job name instead of a job name's contents. The reading was never
-falsified because on a docs-only run both facts are true at once, so
-the proxy agreed with itself every time.
+of a tier at all. The evidence is the shape the rule below states —
+**`gate ok`, and the `TIER=` the change filter prints** — which is
+exactly what this register says about an unsubstituted matrix
+placeholder, applied to a job name instead of a job name's contents.
+The reading was never falsified because on a docs-only run both facts
+are true at once, so the proxy agreed with itself every time.
 
-Verify a tier by: **21 jobs** (docs-only) or **38-39 with 12 `test (…)`
-and 5 `k-lint (gate, …)`** (full code), plus `gate ok` success. Never by
-which summarising job reports green.
+**And the replacement it first got was a COUNT, which is the same
+defect one step weaker.** This rule read *"21 jobs (docs-only) or 38-39
+with 12 `test (…)` and 5 `k-lint (gate, …)`"* for fourteen days; a
+docs-only run then showed **22** (PR #2954, run 35550934699, a
+tracker-only diff whose change filter printed `TIER=docs`), so a lane
+following the rule literally reads 22 and concludes it is NOT on the
+docs tier — the opposite of the error the rule exists to prevent. **A
+job total is a number with no enumeration rule**: it moves whenever
+`ci.yml` gains or loses a job, nothing in CI reds when it does, and it
+goes stale silently. The register's own *a count fixed in ONE place*
+and *a count carries its enumeration rule* apply to the register.
+
+**So verify a tier by a printed word and a shape, never by a total.**
+
+- **Which tier am I on: `python3 scripts/ci-filter.py --base <base>`,
+  which prints `TIER=docs|closure|all`.** That is the authoritative
+  answer and the only one that cannot go stale against a workflow
+  change, because the workflow classifies with the same script. Run it
+  on the COMMITTED branch: over an uncommitted tree it reports
+  `falling back to TIER=all: empty change set`, which is the tree's
+  answer and not the branch's. The run prints the same word at the
+  `change filter` job's *classify the change set* step.
+- **Docs tier, on the run: `gate ok` GREEN with every code row
+  SKIPPED.** Those two facts together and nothing else. `docs-only ok`
+  is green on BOTH tiers — the thirteenth proxy, above — so it is
+  never the marker, and the job total is not one either. The three
+  other green rows are `change filter`, `CI half parity + gate wiring
+  (every tier)` and `docs-only ok`; that is the receipt shape the
+  docs-tier rule below already asks a docs-only lane to report.
+- **Full code tier: twelve `test (…)` rows and five
+  `k-lint (gate, …)` rows, present and green, plus `gate ok`.** These
+  two numbers stay because each carries its enumeration rule and
+  `ci.yml` states both: twelve is `{default, interval}` x
+  `{default, 1e-6, 1e-12}` x `shard: [1, 2]` across the two matrix
+  jobs, and five is the literal `klint_rows` list — `dev-default`,
+  `release-default`, `release-budget`, `dev-budget`, `dev-probe`. The
+  workflow's own narrowing annotation says both in one sentence, so a
+  run that gates fewer says so out loud. **Do not carry a TOTAL beside
+  them** — "38-39" was this rule's other count and has the same
+  defect as the 21 did.
+- **`gate ok` RED on a diff that touches `crates/` is not a tier at
+  all**, it is the un-mergeable-PR signature; three quarters of that
+  signature is also true of a healthy docs tier. Diagnose it with
+  `git merge-tree --write-tree origin/main origin/<branch>`, never
+  from the logs. The rule at the end of this register has the whole
+  shape.
+
+Never verify a tier by which summarising job reports green, and never
+by how many rows the run has.
 
 **A viewer test command needs `--no-fail-fast` or it silently does not
 run the suite.** `cargo test -p viewer --features app` — which this
@@ -1323,7 +1369,10 @@ because an unexpanded matrix is how a skipped matrix job is named. This
 was checked rather than assumed: #2952, a `plan.md`-only change, shows
 exactly that shape with `gate ok` **success**. So the discriminator is
 the pair — **`gate ok` RED on a diff that touches `crates/`** — never
-the placeholders or the job count alone.
+the placeholders or the job count alone. The `~22` above is an
+observation on one run and not a marker: the tier rule earlier in this
+register says why a job total cannot be one, and `TIER=` from
+`scripts/ci-filter.py --base <base>` is the word to read instead.
 
 That signature reads as a runner fault, and the orchestrator called it
 one out loud after checking three things that all pointed away from the
