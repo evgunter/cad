@@ -2,7 +2,7 @@
 id: guard
 kind: program
 title: GUARD — the gates and the guards they lack
-status: open
+status: ready
 opened: 2026-09-11
 area: infra
 prefix: guard/

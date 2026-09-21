@@ -2,7 +2,7 @@
 id: carve
 kind: program
 title: CARVE — what a loft or sweep builds from its sections, and the bodies it builds that it should refuse
-status: open
+status: ready
 opened: 2026-09-17
 area: kernel
 prefix: carve/

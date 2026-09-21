@@ -2,7 +2,7 @@
 id: quad
 kind: program
 title: QUAD — the quadrature lane's engines, its budgets and its dials
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: quad/

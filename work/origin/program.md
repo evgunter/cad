@@ -2,7 +2,7 @@
 id: origin
 kind: program
 title: ORIGIN — the D5/N6 identity channel: what a description's source says, and what the Live guard proves
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: origin/
