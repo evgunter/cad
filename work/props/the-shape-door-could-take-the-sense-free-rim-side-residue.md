@@ -2,10 +2,12 @@
 id: the-shape-door-could-take-the-sense-free-rim-side-residue
 kind: issue
 title: props: require_iso_rectangle admits a face whose rims encode different material sides; the sense-free residue unanimous_rim_side already decides it in the gate arm
-status: open
+status: review
 opened: 2026-09-16
 priority: P0
 cost: D
+branch: props/curved-residues
+pr: 2924
 ---
 
 
@@ -48,3 +50,85 @@ complement of a half-cap** has ONE rim, so there is nothing for a
 unanimity rule to compare, and no sense-free door can tell it from the
 half-cap. That residue is `props_rim_interior_side`'s alone and stays
 with the flux lane.
+
+## Taken — measured first (PR 2924, branch `props/curved-residues`)
+
+The ruling was *measure the blast radius, take it only if the
+measurement is clean, and STOP if anything legitimate stops meshing*.
+
+**The change.** `linear_rims_at_extremes` — the door's predicate on
+every linearly-leveled kind — now calls `unanimous_rim_side` instead
+of `require_rims_at_extremes` alone. Unanimity subsumes the level
+rule (it runs it first), so no decide is doubled.
+
+**The charter is unchanged in the two places the door was explicit
+about.** A rimless lune still passes: nothing to compare. A
+ZERO-EXTENT face still passes: with `lo == hi` no rim sits at one
+extreme rather than the other, so no rim encodes a side for another
+to contradict — `rim_side` says exactly that with `DegenerateFace`,
+and the door admits it, because extent is not a shape question. The
+pinned row `a_zero_extent_cylinder_face_passes_the_shape_door_and_not_the_flux_lane`
+is unmoved.
+
+**The measurement.** `crates/mesh/tests/d9_mesh_goldens.rs`'s corpus,
+40 body/δ pairs, at all six of CI's lane/eps points
+(`{default, interval} × {default, 1e-6, 1e-12}`): exactly **one** body
+moved — `apex_crossing_bowtie`, at both its δ — and it moved from one
+REFUSAL to another (`d64f3d06937361f5` → `9cddb7a3543db550`, the same
+digest at every point). **No body that meshes stopped meshing**, and
+no digest of a body that meshes moved at all. The STOP clause is not
+triggered, so the residue is taken.
+
+**Two rows moved with it, both re-baselined here with their reason.**
+
+* `mesh::all mesh11_arc_branch::the_apex_crossing_bowtie_refuses_at_the_door`
+  — the bow tie's second face states two rims that encode different
+  sides, so the shape door names `props_rim_side` before
+  `require_one_chart_branch` is asked. Re-pointed and renamed
+  `..._refuses_at_the_shape_door`. The cost is a witness, not a
+  premise, and it is filed:
+  `work/tess/apex-crossing-branch-premise-has-no-body-level-witness.md`.
+* `topo::all mesh12_rim_row_reach::the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap`
+  — MESH-12's hairline body states two rims `R·Δv = 1.5ε` apart, so
+  "which extreme is this rim at" lands in the ambiguity band and the
+  door ESCALATES: margin `-1.3163737899724026e-9` against
+  `zero = 1e-9`, `escalate = 1e-8` (the axial-sine reading of
+  `R·Δv = 1.5e-9`, shrunk by `cos v̄ = cos 0.5 = 0.8776` — audit note
+  N8, already recorded, and the shrink does not move the verdict:
+  `1.5e-9` is in the same band). That is the correct answer, not a
+  defect: the row's own prose already says the in-band gap is *exactly
+  what cannot be decided*, and the door now says it one predicate
+  earlier than the flux lane's `props_rim_only_extent`. That body does
+  not mesh today either way (the walk emits no triangles for a
+  meridian-free loop — issue 1615), so nothing legitimate lost a mesh.
+  The row is re-baselined to assert the escalation by name.
+
+**The seam note** for the walk's owner is
+`work/tess/shape-door-gained-the-rim-side-unanimity-premise.md`.
+
+**What it does NOT close**, unchanged: the L-shaped complement of a
+half-cap has ONE rim, so unanimity has nothing to compare and no
+sense-free door can tell it from the half-cap. Pinned as
+`iso_rectangle_door::the_one_rim_divergence_survives_the_residue`.
+
+## Fix pass — the band seam, disclosed (PR 2924, R2 review)
+
+The corpus measurement above is a 40-pair golden run and no corpus body
+has a band-scale extent, so it could not see this: **"a zero-extent
+face still passes" is true at exactly zero.** In the ambiguity band the
+same question is undecidable rather than vacuous and the door
+escalates — `0 → Ok`, `1.5 × zero → Escalated { props_rim_side }`,
+`5 × zero → Escalated`, `100 × zero → Ok`, executed on a cylinder wall
+with every offset from the run's own band. It is a CLASS where the
+measurement found one sphere body. The posture is the ratified one and
+is not re-litigated here; the disclosure is in the seam note
+(`work/tess/shape-door-gained-the-rim-side-unanimity-premise.md`) with
+the table, and pinned as
+`iso_rectangle_door::the_doors_zero_extent_charter_is_exactly_at_zero`.
+
+**Two spellings of one rule retired with it.** `unanimous_rim_side`
+answers `Ok(None)` for a rimless parse instead of an error its two
+callers each guarded against separately; the door reads that as "pass"
+and `boundary_material_sign`'s sphere arm as `Unencoded`, which is the
+answer it always gave. One statement of *no rim, no side*, two readings
+of it.
