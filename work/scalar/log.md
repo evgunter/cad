@@ -1049,3 +1049,21 @@ numbers stay as first-parent order until the rule is stated, and the
 B5 record will name the row. The LANE-2 review byte is drawn (126,
 parity 0 ⇒ R1 OPUS, R2 FABLE) and the brief drafted; ordinal 4115
 is claimed when the head freezes.
+
+## LANE-2 in review (2026-09-21)
+
+PR 3038 froze at `991108fbe0` (run 35649109217 green on the first
+head: no red head this unit; ~1 h 57 min dispatch to PR, the lane's
+own estimate ~3 h 45 min and ~1.0M tokens to the hand-back). Ordinal
+4115 claimed on main (PR 3040); byte 126 parity 0 ⇒ R1 OPUS, R2
+FABLE, concurrent, briefs stored before dispatch (sha256
+`fbd17471e734…`). The brief's claims lead with the `f64` face of the
+`_structural` door: a `f64` caller now receives a refusal whose
+`Display` blames the scalar (the lane filed it on ATREST and froze the
+text per the spec) — both arms are asked to rule its class. The other
+deviations: the consult pin on the straddle seat's declared pair (the
+spec's isolator body answers `false` under `Some` too); the red-first
+set is seventeen rows the spec did not name (the spec's five call the
+doors directly); the impl census generalised to both rosters; the
+`Dual64` public-door row built. Three lanes live: RING-2's
+implementer, LANE-2's R1 and R2.
