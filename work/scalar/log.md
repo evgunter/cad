@@ -1155,3 +1155,35 @@ rows red under the mutant. Both: the second copy of the wiring module
 the branch point). Rubric 4/4/3 on both arms. Fix pass dispatched on
 the FABLE arm (thirteen items, `lane2-fix-pass.md`). Three lanes live:
 RING-2's pair and this fix pass.
+
+## RING-2 dual concluded; no tally candidate (2026-09-21)
+
+R1 (OPUS) APPROVE WITH FIXES 2/7/4; R2 (FABLE) APPROVE WITH FIXES
+0/5/7. Both MAJORs are bilateral at differing severity ⇒ excluded:
+the committed tess-budget baseline's diff shows seven or eight LOOSER
+cells per certified column (R1 MAJOR, "could not determine the
+mechanism"; R2 MINOR, mechanism measured — main's own drift between
+the 09-15 cut and the merge base, the gate reading only sizing;
+RING-2's share with only the ring swapped is all tighter), and the PR
+body's red-row table omits the first red head's five rows (R1 MAJOR,
+R2 MINOR). The arithmetic held on both arms: 16,995 corpus rows 2,294
+tighter / 0 looser re-taken independently, the census reproducing the
+hand roster, the differential at zero, the sidecars strict subsets,
+49 digest pads shrunk / 0 grown. `crossing_bracket` against DL1:
+unchanged on both arms, not Ev-gated; R1 shows `from_certified<T:
+CertifiedEnclosure + Enclosure>` gives the same bytes with no trait
+change — ruled to try that route. The meter rows' exactly-zero
+certificate: honest on both arms (every reader walked). Unique R2 by
+execution: the Q9 mutant is misattributed — the outer rule two short
+passes bit for bit; only the inner order produces the `1.96e-6`
+figure; and the newtype is looser than the old ring by one subnormal
+step at the edge corpus (no corpus in the tree sees it). Unique R1:
+`hull.rs`'s "fails under every comparison" sentence false for three
+ring-returning doors; the census's population is prose-keyed
+(`ssi.rs` invisible, `interval.rs` silently left it); the sampler
+slack 4.8×/18.8× the bound. Rubric 4/4/3 on both arms. Pair COUNTS:
+R2 one `ls` of the briefs directory (filenames only; nothing opened);
+R1 saw main's claim commit naming the draw its brief already carries.
+Fix pass dispatched on the OPUS arm (sixteen items,
+`ring2-fix-pass.md`). Block SCALAR-B5 concludes on this fix pass's
+merge with one tally candidate (RING-0's, on the OPUS reviewing arm).
