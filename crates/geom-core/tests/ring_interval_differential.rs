@@ -202,7 +202,11 @@ fn ordered(rng: &mut fuzz::Rng, regime: Regime) -> Ends {
             CORNERS[rng.below(CORNERS.len())],
         ),
     };
-    if a <= b { Ends::new(a, b) } else { Ends::new(b, a) }
+    if a <= b {
+        Ends::new(a, b)
+    } else {
+        Ends::new(b, a)
+    }
 }
 
 /// Rounds per lane at EFFORT 1. The lane's own "ran too thin" floor is
