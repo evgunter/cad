@@ -37,7 +37,11 @@ fn drive(what: &str, rules: SymRules, build: impl FnOnce() -> Sym<Interval>) -> 
     let l = label(out, counts);
     println!(
         "  {what}: {l} | enclosure {:?} | sym0 {} gated {} reg {} numeric {} frozen {}",
-        value, counts.symbolic_zero, counts.sign_gated, counts.registered, counts.numeric,
+        value,
+        counts.symbolic_zero,
+        counts.sign_gated,
+        counts.registered,
+        counts.numeric,
         counts.frozen
     );
     l
@@ -64,29 +68,41 @@ fn r1_the_negative_arms_strictness_on_forms_the_unit_did_not_measure() {
     );
     // −(1 + t²)/(1 + s²): a manifestly non-negative denominator.
     assert_eq!(
-        drive("abs(−(1 + t²)/(1 + s²)) − (1 + t²)/(1 + s²)", sh, || {
-            let d = one_i() + s().powi(2);
-            let x = -((one_i() + t().powi(2)) / d.clone());
-            x.abs() - (one_i() + t().powi(2)) / d
-        }),
+        drive(
+            "abs(−(1 + t²)/(1 + s²)) − (1 + t²)/(1 + s²)",
+            sh,
+            || {
+                let d = one_i() + s().powi(2);
+                let x = -((one_i() + t().powi(2)) / d.clone());
+                x.abs() - (one_i() + t().powi(2)) / d
+            }
+        ),
         "theorem"
     );
     // −(1 + t²)/s²: a denominator that CAN be zero, on a box that
     // excludes it — `quotient`'s four-source argument, reflected.
     assert_eq!(
-        drive("abs(−(1 + t²)/s²) − (1 + t²)/s², s ∈ [0.2, 0.3]", sh, || {
-            let d = s().powi(2);
-            let x = -((one_i() + t().powi(2)) / d.clone());
-            x.abs() - (one_i() + t().powi(2)) / d
-        }),
+        drive(
+            "abs(−(1 + t²)/s²) − (1 + t²)/s², s ∈ [0.2, 0.3]",
+            sh,
+            || {
+                let d = s().powi(2);
+                let x = -((one_i() + t().powi(2)) / d.clone());
+                x.abs() - (one_i() + t().powi(2)) / d
+            }
+        ),
         "theorem"
     );
     // The same over a box that HOLDS s = 0: clause 1's, not the fold's.
-    let holds_zero = drive("… the same over s ∈ [−0.1, 0.3] (D = 0 inside)", sh, || {
-        let d = over("s", -0.1, 0.3).powi(2);
-        let x = -((one_i() + t().powi(2)) / d.clone());
-        x.abs() - (one_i() + t().powi(2)) / d
-    });
+    let holds_zero = drive(
+        "… the same over s ∈ [−0.1, 0.3] (D = 0 inside)",
+        sh,
+        || {
+            let d = over("s", -0.1, 0.3).powi(2);
+            let x = -((one_i() + t().powi(2)) / d.clone());
+            x.abs() - (one_i() + t().powi(2)) / d
+        },
+    );
     assert_ne!(
         holds_zero, "theorem",
         "a box the value channel divided by zero on is clause 1's"
@@ -190,22 +206,36 @@ fn r1_the_positive_arms_two_forced_rows_reflected() {
     println!("=== the negative form that UNDERFLOWS");
     let huge = 1.0e200;
     let x = -1.0f64 / (1.0 + huge * huge);
-    println!("  f64: −1/(1 + t²) at t = 1e200 = {x:e}, sign_negative {}", x.is_sign_negative());
+    println!(
+        "  f64: −1/(1 + t²) at t = 1e200 = {x:e}, sign_negative {}",
+        x.is_sign_negative()
+    );
     assert_eq!(
-        drive("copysign(1, −1/(1 + t²)) + 1 at t = 1e200", SymRules::shipped(), || {
-            let t = over("t", huge, huge);
-            one_i().copysign(-(one_i() / (one_i() + t.powi(2)))) + one_i()
-        }),
+        drive(
+            "copysign(1, −1/(1 + t²)) + 1 at t = 1e200",
+            SymRules::shipped(),
+            || {
+                let t = over("t", huge, huge);
+                one_i().copysign(-(one_i() / (one_i() + t.powi(2)))) + one_i()
+            }
+        ),
         "theorem"
     );
     println!("=== R2's adversary, REFLECTED (manifestly negative, f64 reads positive)");
     let tiny = 1.0e-30;
-    let l = drive("copysign(1, E′) + 1 over x ∈ [1e8 ∓ 1]", SymRules::shipped(), || {
-        let x = over("x", 1.0e8 - 1.0, 1.0e8 + 1.0);
-        let y = over("y", 0.4, 0.6);
-        let e = (x + one_i()).powi(2) - x.powi(2) - k(2.0) * x - one_i()
-            - k(tiny) * (one_i() + y.powi(2));
-        one_i().copysign(e) + one_i()
-    });
+    let l = drive(
+        "copysign(1, E′) + 1 over x ∈ [1e8 ∓ 1]",
+        SymRules::shipped(),
+        || {
+            let x = over("x", 1.0e8 - 1.0, 1.0e8 + 1.0);
+            let y = over("y", 0.4, 0.6);
+            let e = (x + one_i()).powi(2)
+                - x.powi(2)
+                - k(2.0) * x
+                - one_i()
+                - k(tiny) * (one_i() + y.powi(2));
+            one_i().copysign(e) + one_i()
+        },
+    );
     println!("  reflected adversary at the interval lift: {l}");
 }
