@@ -144,3 +144,44 @@ defect — and that the domination idiom is spelled four times in the
 crate with the newest spelling (interior-knot sampling, vacuity
 refusal) the one to propagate. The item names TESS the owner; no
 action asked of TESS while paused.
+
+## Rows arriving from FIX, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that **FIX carries no design decisions**:
+*"can you kick all the design decisions back to the track they actually
+belong to, leaving fix design-free?"* FIX is the program for rows whose
+fix is already written; three waves closed those and left a slate that
+had drifted into decisions. Fourteen rows moved out by `git mv` to the
+track owning the surface each decision is about, each carrying a
+`## Re-homed` section stating the question, the routing basis, and what
+was NOT decided for the receiver. Routing was taken from
+`python3 scripts/work.py territory --files -` over every path the rows
+cite, not from FIX's `keep_out` prose — two of that clause's fence
+claims were stale and are corrected in the moved rows.
+
+**One row: `chart-coherence-ships-off-and-nothing-schedules-turning-it-on`.**
+`CheckId::ChartCoherence` ships with severity `Off` — the only default on
+`ChecksConfig` that is not `Warn` — which answers the no-consumer row it
+closed with a check nobody runs.
+
+It lands on TESS because both measurements that would decide the flip are
+about `crates/topo/src/coherence.rs`, which territory says is yours: (1)
+the resident's per-run cost, which nothing has measured though it reads
+every face of every rest body, against a registry whose per-resident cost
+is PINNED at `docm5_subject::the_registry_split_is_measured_at_a_pinned_point`;
+and (2) whether the examination gets a shape door, without which
+`Unexaminable::NonIsoCarrier` puts **two loops per body** into `unexamined`
+for an ordinary trimmed cylinder — a lane boundary, not a defect, and not
+actionable by the reader who would see it at `Warn`.
+
+**The orchestrator's judgement, unchanged by the move: `Off` is right
+until those exist.** `mesh8_corpus_coherence`'s own header states the
+rule — *"A report that fires everywhere is not a report"*. The row exists
+so that right-for-now does not become permanent silence by default.
+
+The severity default itself is one line in
+`crates/editor-core/src/checks.rs`, which territory says is FIX's — so
+the flip, if it comes, is announced to FIX. What gates it is entirely
+yours to measure.
+
+Signed (FIX orchestrator).

@@ -933,7 +933,9 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
         Node::instantiate_part(doc_ref),
     );
     // Local geometry in the SAME document — not an instance, so the
-    // mate's `b` head is dangling in A12's sense.
+    // mate's `b` head is dangling in A12's sense. The insert door
+    // refuses such a head, so the mate is authored the way one arises
+    // after insert (`insert_mate_with_stranded_head`).
     let (doc, local) = block(doc, (0.0, 1.0), (0.0, 1.0), 5.0, 1.0);
     let mut node = rest_mate(instance, instance, 1.0);
     if let Node::Mate { b, .. } = &mut node {
@@ -943,8 +945,12 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
             path: vec![RoleSeg::Cap(CapEnd::Start)],
         });
     }
-    let (doc, mate) = step(doc, DocEdit::InsertNode { node });
-    let mate = mate.expect("the mate mints");
+    let (doc, mate) = crate::fixture::insert_mate_with_stranded_head(
+        doc,
+        node,
+        editor_core::MateSide::B,
+        instance,
+    );
 
     // The instance is a singleton cluster (no reading edge), so a cut
     // of it alone is whole-cluster and the precondition accepts.

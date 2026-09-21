@@ -4,6 +4,8 @@ kind: issue
 title: the viewer README's 23-hit multi-field-write sweep reads 24 under a re-take of its own rule
 status: open
 opened: 2026-09-14
+priority: P4
+cost: E
 ---
 
 

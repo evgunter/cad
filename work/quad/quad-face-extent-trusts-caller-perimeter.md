@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-31
 github: 1368
 refs: [1366]
+priority: P0
+cost: D
 ---
 
 ## From GitHub issue 1368

@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep tangent.rs perp takes a unit direction it does not check — carrier-derived, so no caller holds the witness yet
 status: open
 opened: 2026-09-15
+priority: P1
+cost: E
 ---
 
 ## Where this came from

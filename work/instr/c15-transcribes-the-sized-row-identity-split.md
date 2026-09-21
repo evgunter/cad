@@ -4,6 +4,8 @@ kind: issue
 title: work/instr/C15.md transcribes the sized-row identity split present-tense, a census reading whose one home is baseline_census.rs
 status: open
 opened: 2026-09-16
+priority: P4
+cost: E
 ---
 
 

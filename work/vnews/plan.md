@@ -215,6 +215,155 @@ still on VIEW's slate: its lane is in flight at PR #2665 and a rename
 mid-review is a merge conflict for nothing. It arrives here when that
 PR merges, or with VIEW's exit walk, whichever is first.
 
+## Dispatch rules this program pays for
+
+**Do not ask a lane for `cargo nextest run --workspace` locally.**
+Learned 2026-09-19/20, at a cost: wave 1's four lanes each carried that
+instruction, and on this box it meant four concurrent workspace builds.
+One lane's run was SIGTERM'd after **4h33m** stuck on a single
+unrelated test with 1,427 rows still unrun; the same lane had
+`scripts/doc-gate.sh --skip-viewer-toolkit` killed by the machine three
+times, once after a 94-minute rustdoc phase. Measured at the end of
+that wave: load average **37**, 0 GB of 9 GB free, 17 `rustc`/`cargo`
+processes.
+
+The instruction was also redundant, which is the part that makes it a
+mistake rather than a trade. `docs/prompts/implementer-discipline.md`
+§2 says hosted CI is the **verification of record** and that a local
+run is an iteration tool which does not replace it — and CI's twelve
+`test (…)` jobs ARE the workspace coverage the local run was asked for.
+The register's rule that produced the instruction (#2293: *the viewer's
+own suite cannot see rosters that live in other crates*) is about what a
+**receipt** must cover, and CI covers it. So the fix is not to narrow
+the method; it is to stop taking a second, slower copy of a receipt CI
+already takes.
+
+What a viewer lane owes locally, and nothing beyond it:
+- `cargo test -p viewer --features app --no-fail-fast`, asserted by
+  SHAPE — every `--test all` row passing, `--lib` one row red (the WGPU
+  adapter) and no other — never against a row count, which moves.
+- the two `scripts/doc-gate.sh` passes **when the diff touches a doc
+  comment**, and only then.
+- anything a tight edit-compile loop genuinely needs.
+
+**And weigh the doc-gate exposure before demanding the skip pass.** The
+skip-mode hole (#2320) is about a link from the renderer-free half INTO
+the `app`-gated half. A diff whose new link is renderer-free to
+renderer-free — both modules ungated `pub mod` in `lib.rs` — has no
+exposure the full pass does not already judge, and the full pass is the
+one CI runs on any branch that touches this crate. Check the gating
+before treating a missing skip-pass receipt as uncovered.
+
+**A named `keep_out` carve-out beats a general fence ruling, and an
+orchestrator's ruling is not a territory amendment.** Adjudicating two
+units on 2026-09-20 this orchestrator ruled that *prose your own diff
+falsifies is yours to fix, and lands with the change that caused it;
+prose that was already wrong is filed across the fence.* That rule is
+**fence-local**. Where `program.md`'s `keep_out` names a file
+specifically — `crates/viewer/README.md`, whose clause says a prose,
+census or citation defect there *"is filed on vdoc and never fixed
+across that fence"* — the carve-out wins and the sentence is filed even
+when this program's own diff falsified it.
+
+Three reasons, so it is not re-litigated. A `keep_out` is a territory
+contract between two live programs, written on both sides; a ruling
+issued in a dispatch message is not an amendment to one. VDOC's whole
+charter is prose, census and citation on that file, so a rule letting
+each of four successor programs fix the sentences its own diffs
+falsified would put four programs in one file — the conflict
+one-file-one-item exists to prevent. And the general rule's
+justification is that such prose *lands with the change that caused
+it*, which holds where the prose sits in the program's own ground and
+not where it does not.
+
+**The same ruling does not license code.** Told to repair a sentence
+in `crates/viewer/src/app.rs`, the tone lane instead made the sentence
+true by adding `app::toned` — better than the letter, and it closed a
+residue row outright. But `app.rs` is **VSEAM's**, not a shared claim,
+and a prose ruling never licensed a new door in another program's file;
+the lane had itself declined to cross for that reason a day earlier and
+was talked out of it by an instruction that did not reach that far. The
+crossing stands and owes a row on the owner's slate naming the door,
+its callers on both sides of the fence, and what its visibility
+forecloses. **Fixing a sentence and adding a function are different
+acts and a fence ruling about one says nothing about the other.**
+
+**Apply the charter's reader test at SPEC time, not at review.** The
+Charter's *"a row belongs here only if a reader would see the
+difference; a rename nobody reads is not news"* is a scoping test —
+does this row belong to a NEWS program at all, rather than to a sibling
+— and it is cheap to run before a lane is dispatched and expensive
+after. `is-instance-collapses-absent-and-wrong-kind` reached its style
+review before anyone asked it: the split it makes is real, its one
+caller draws nothing either way, and `DisplayState::prune` had already
+told the two states apart. The unit is worth having — one decision site
+where there were two, and a `pub` door whose next caller cannot get it
+wrong — but it is NOT news, and nothing on this slate said so until a
+reviewer read the charter back at it.
+
+The consequence is about ORDER, not merit. Three rows in group 6 change
+what a reader is actually told — Undo and Redo disabled in silence over
+a refusal that has words, the range button's third spelling, the New
+document button — and any of them would have been a better wave-1 unit
+than a door nobody can currently misuse. **A row whose fix no reader
+sees goes behind every row whose fix one does.**
+
+**And when a lane refuses the orchestrator's recommended shape, the
+burden is the orchestrator's.** Adjudicating that same unit I proposed
+the panel SAY the absent-node sentence, to make the change news. The
+lane refused and was right on four independent grounds, the decisive
+one being that `pane/properties.rs`'s `standing_ui` already draws
+*"deleted"* three lines earlier from the same lookup on the same
+document — so the sentence would have been a second spelling of news
+already on screen, minting the node-side twin of
+`three-spellings-say-a-parameter-is-not-declared`, which is open on
+this slate against the parameter half of the same function. Two further
+grounds I had not weighed: `session::Standing`'s doc makes the section
+not drawing the SECOND CLAUSE of its own rule (*"the affordances that
+need a live entity switch off"*), and that clause is **GQ7's recorded
+constraint** — ratified design in `crates/viewer/GUI-DESIGN.md`, so the
+shape I recommended would have needed an `[ev]` PR to implement. An
+orchestrator's fix shape is a claim like any other and gets checked
+against the tree before it is issued.
+
+**Read a row's STATUS before you build on its premise — a citation
+check is not a premise check.** Three rows on this slate had premises
+that the tree had already falsified, and the sessions that dispatched
+them, including this one, checked line numbers instead:
+
+- `viewer-preview-names-a-verb-by-its-variant-identifier` had been
+  discharged eight days earlier by a CLOSED row on FIX's slate. The
+  orchestrator re-derived its citation correctly — the render site
+  really had moved — and routed it to PATHS on a premise that was dead.
+- `seat-line-spells-the-list-mark-as-a-literal` told its lane the line
+  *"reaches the chrome as a lost-pick notice's text"*. It does not, and
+  the lane falsified it — then carried the correction into its report
+  and not into its decision, which is the same miss one step in.
+- That same row's central argument — that a `LIST_SEPARATOR` change
+  *"moves the withdrawal join and the preferences join and leaves this
+  one behind"* — rested on a consumer that #2710 had removed **the day
+  after the row was filed**, for failing the very test the row's
+  subject also fails. The unit closed as a negative result.
+
+The instrument is cheap and is not the one anybody ran: **grep the
+subject across `work/` and read the `status:` of every hit**, and read
+the doc comment on the TYPE a row wants to reuse, not only the rule the
+README states about modules. A closed row naming your site is the
+answer to your unit. Both halves of that are already in the register —
+*a sweep owes a TRACKER pass as well as a tree pass*, and *when the
+type's own doc already states the invariant, satisfying it is not a
+preference* — and this program has now paid for both twice in two days.
+
+**A negative result is a deliverable.** Two of the three above closed
+with no diff, and the argument for why is the thing that stops the next
+sweep re-minting them. Write it into the row rather than the PR body,
+which stops being read at merge.
+
+**Concurrency.** Four lanes is the right number for READING work and
+too many for four simultaneous viewer builds. Prefer a wave that mixes
+one or two code lanes with census and adjudication work, which is what
+wave 1 accidentally got right with its fourth lane.
+
 ## The register
 
 **`work/view/plan.md`'s rule register binds every lane dispatched from

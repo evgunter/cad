@@ -4,6 +4,8 @@ kind: issue
 title: the 14 in-src proptest modules stay ungated: a split per file buys 0.62 cpu-s
 status: open
 opened: 2026-09-03
+priority: P4
+cost: E
 ---
 
 

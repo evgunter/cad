@@ -5,6 +5,8 @@ title: Six gated controls carry their only words on on_hover_text, which shows n
 status: open
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
+priority: P1
+cost: E
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at
@@ -42,7 +44,7 @@ the receiver is gated. **Six are:**
 
 The other eleven sit on ungated receivers — `ui.button`, `ui.label`,
 `ui.weak` — and are not members: `pane/create.rs:241`, `:315`, `:996`,
-`pane/properties.rs:806`, `widgets.rs:870` (`delete_button`'s
+`pane/properties.rs:823`, `widgets.rs:870` (`delete_button`'s
 affordance hover, on a plain `ui.button`), `app.rs:228`, `:1375`,
 `:1535`, `:1589`, `:1601`.
 

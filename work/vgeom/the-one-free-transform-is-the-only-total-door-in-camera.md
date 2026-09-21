@@ -5,6 +5,8 @@ title: camera's header promises typed refusal and the transform it just adopted 
 status: open
 opened: 2026-09-06
 refs: [2089]
+priority: P4
+cost: E
 ---
 
 

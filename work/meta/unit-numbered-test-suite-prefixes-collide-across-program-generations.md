@@ -4,6 +4,8 @@ kind: issue
 title: sweep: unit-numbered test-suite prefixes collide across program generations (blend6_ names two units)
 status: open
 opened: 2026-09-08
+priority: P3
+cost: E
 ---
 
 

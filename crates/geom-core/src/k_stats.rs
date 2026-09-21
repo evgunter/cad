@@ -118,16 +118,42 @@
 //! still pay the `RefCell` borrow and an empty-stack check per
 //! decision.
 //!
-//! **What the escalation channel carries is the FUNNEL's escalations**:
-//! an [`Indeterminate`] that `classify` itself returned. A predicate
-//! that asks the funnel, receives a DEFINITE sign, and then mints an
-//! `Indeterminate` of its own (a collapsed lever arm decided `Zero`,
-//! say) hands its caller an escalation the log does not hold — the
-//! frame records the definite verdict and nothing else. Such an
-//! escalation reaches a consumer only through the op's error enum, so
-//! a consumer that reads the log must keep reading those arms too. The
-//! sites, and the unit that closes the gap, are
-//! `work/props/escalation-channel-misses-op-minted-indeterminates.md`.
+//! **What the escalation channel carries is every escalation the
+//! CERTIFICATION doors produce** — [`decide`], [`decide_flagged`],
+//! [`decide_invariant`] and the gate doors below. [`check_unlogged`] is
+//! the deliberate exception and records neither channel (its own docs
+//! say why), so "every escalation this funnel produces" would be one
+//! door too wide.
+//!
+//! A predicate's own indeterminacy is produced here too. A predicate
+//! whose question is only validly posed under a condition on the margin
+//! — a lever arm that must be definitely positive, a discriminant that
+//! must be definitely nonzero, an aggregate that must be a measurement
+//! at all — states that condition by choosing a GATE door
+//! ([`decide_positive`], [`decide_nonzero`], [`gate_measured`]) instead
+//! of reading a sign out of [`decide`] and rejecting it in private. The
+//! rejection is then minted and recorded by `record_escalation`, the
+//! one place this channel is minted, so the frame holds it for the same
+//! reason it holds the funnel's own. A gated decision the gate rejects
+//! records BOTH channels — the classifier's definite verdict, which it
+//! really did reach, and the gate's escalation beside it — so gating
+//! leaves verdict populations untouched.
+//!
+//! **BOTH channels are empty wherever no bracket is open, and that is
+//! load-bearing rather than incidental.** The frame stack is this
+//! thread's; with nothing on it a decision is recorded nowhere, and the
+//! recording is simply dropped — [`splice`] says the same for a
+//! detached run. Four shipped sites open a frame at all
+//! (`editor_core`'s per-node evaluator and its part-cache shield, and
+//! two in `topo::props`), plus the [`detached`] runs in
+//! `editor_core::names::discriminate` and `mesh::tessellate`. So a log
+//! is a per-bracket SIDE channel and never a second copy of an op's
+//! error: every other consumer of a deciding op — the exporters, the
+//! importers, `verbs`, `pncad`, the viewer, the demos, any library
+//! caller — sees an empty one, and reaches an escalation only through
+//! the typed error the op returned. Anything that proposes to read a
+//! fact off this log INSTEAD of off an op's error is proposing it for
+//! the handful of callers that bracket, and for nobody else.
 //!
 //! Recording happens through the [`Probe`] scalar: a transparent `f64`
 //! wrapper whose `Decide` implementation logs `(predicate, margin,
@@ -166,10 +192,11 @@ use core::cell::{Cell, RefCell};
 use core::marker::PhantomData;
 use core::mem::ManuallyDrop;
 
-use crate::predicate::{Band, Decide, Indeterminate, Margin, Sign};
-// Only `Probe`'s impls name these.
+use crate::predicate::{Band, Decide, Indeterminate, Margin, MarginDiag, Sign};
+use crate::real::Real;
+// Only `Probe`'s impls name this.
 #[cfg(feature = "probe")]
-use crate::real::{Bounds, Real};
+use crate::real::Bounds;
 #[cfg(feature = "probe")]
 use crate::tolerance::Tol;
 
@@ -313,22 +340,86 @@ fn classify_in<T: Decide>(
     // certification predicate; an evaluator check (`logged == false`)
     // records neither, for the reason at `check_unlogged`.
     if logged {
-        FRAMES.with(|f| {
-            if let Some(top) = f.borrow_mut().last_mut() {
-                match &outcome {
-                    Ok(sign) => top.recorded.verdicts.push(Verdict {
-                        predicate: name,
-                        sign: *sign,
-                    }),
-                    Err(source) => top
-                        .recorded
-                        .escalations
-                        .push(Escalation { source: *source }),
-                }
+        match &outcome {
+            Ok(sign) => record_verdict(Verdict {
+                predicate: name,
+                sign: *sign,
+            }),
+            Err(source) => {
+                record_escalation(*source);
             }
-        });
+        }
     }
     outcome
+}
+
+/// Pushes one definite decision onto the innermost open frame — the
+/// only write to the verdict channel. With no frame open the verdict is
+/// recorded nowhere, which is what a decision outside every bracket is.
+fn record_verdict(verdict: Verdict) {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            top.recorded.verdicts.push(verdict);
+        }
+    });
+}
+
+/// Pushes one indeterminate outcome onto the innermost open frame and
+/// hands it back — **the only place this channel is MINTED**, so an
+/// escalation that reaches a caller from inside a bracket is on that
+/// bracket's log by construction rather than by each producer
+/// remembering to log it. The minters are [`classify_in`], for the
+/// funnel's own escalation, and [`classify_gated`] / [`gate_measured`],
+/// for the requirement a predicate puts on an answer the funnel gave
+/// definitely.
+///
+/// It is not the only place the channel is WRITTEN: [`splice`] extends
+/// it with a [`detached`] run's escalations, which this function minted
+/// on the same thread into that run's own frame. One mint, two writers.
+///
+/// With no frame open the escalation is recorded nowhere and only
+/// returned — the same posture every other decision has outside a
+/// bracket (module docs).
+fn record_escalation(source: Indeterminate) -> Indeterminate {
+    FRAMES.with(|f| {
+        if let Some(top) = f.borrow_mut().last_mut() {
+            top.recorded.escalations.push(Escalation { source });
+        }
+    });
+    source
+}
+
+/// The gated body: classify through the funnel, then apply the sign
+/// requirement the calling predicate's question depends on. A definite
+/// sign the requirement rejects is an [`Indeterminate`] carrying
+/// [`MarginDiag::Invalid`] — "the question was never validly posed
+/// here" — recorded on the same frame and in the same decision order as
+/// the escalation `classify` itself would have produced.
+///
+/// Both outcomes of one gated decision reach the frame: the funnel's
+/// definite verdict, because the classifier really did decide, and the
+/// gate's escalation beside it. The verdict channel is therefore
+/// unchanged by gating, which is what keeps the verdict-diff engine's
+/// populations comparable across this seam.
+fn classify_gated<T: Decide, R>(
+    name: &'static str,
+    margin: T,
+    band: Band,
+    admits: fn(Sign) -> Option<R>,
+) -> Result<R, Indeterminate> {
+    // `admits` both TESTS the sign and carries it into the caller's own
+    // vocabulary, in one function: a gate that answered `bool` here
+    // would leave every caller converting an already-tested sign a
+    // second time, with an arm for the answer this door escalated — the
+    // shape these doors exist to remove, reproduced one level up.
+    if let Some(admitted) = admits(classify(name, margin, band)?) {
+        return Ok(admitted);
+    }
+    Err(record_escalation(Indeterminate {
+        margin: MarginDiag::Invalid,
+        band,
+        predicate: Some(name),
+    }))
 }
 
 /// **An EVALUATOR check, named for the recorder and NOT logged as a
@@ -466,6 +557,107 @@ pub fn decide_invariant<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     classify(name, margin, band)
+}
+
+/// **The collapsed-arm gate**: [`decide`] for a predicate whose
+/// question is only validly posed when the margin is DEFINITELY
+/// POSITIVE — a lever arm, a metered extent, a subtended length. A
+/// `Zero` or `Negative` answer is not a usable verdict for such a
+/// caller: nothing is wrong with the classification, the quantity it
+/// metered is simply not there, so the caller escalates rather than
+/// guessing.
+///
+/// **That escalation is the funnel's, not the caller's**, which is the
+/// whole reason this door exists. A caller that took `decide`'s
+/// definite sign and minted an [`Indeterminate`] of its own handed its
+/// caller an escalation the frame did not hold — a decision the log
+/// could not see — and the log stayed right only for as long as every
+/// such site remembered. Here the requirement travels INTO the funnel,
+/// so the rejection is minted and recorded where every other escalation
+/// is, and a caller never holds a sign it can reject in private.
+///
+/// The frame records both channels of one gated decision: the definite
+/// verdict the classifier reached, and the gate's escalation beside it.
+///
+/// # Errors
+///
+/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
+/// otherwise, for a definite non-positive sign, an [`Indeterminate`]
+/// carrying [`MarginDiag::Invalid`] under `name`.
+pub fn decide_positive<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    classify_gated(name, margin.value(), band, |sign| {
+        (sign == Sign::Positive).then_some(())
+    })
+}
+
+/// A definite sign a [`decide_nonzero`] decision admits. `Zero` is not
+/// one of its values, which is what lets a caller match the gate's
+/// outcome exhaustively without an arm for an answer the gate escalated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NonzeroSign {
+    /// The margin classified definitely positive.
+    Positive,
+    /// The margin classified definitely negative.
+    Negative,
+}
+
+/// **The collapsed-discriminant gate**: [`decide_positive`]'s sibling
+/// for a predicate that reads a SIDE off the margin's sign and has no
+/// side to read when the margin is definitely zero — two normals whose
+/// tangent planes coincide cannot be paired. Same posture, same
+/// recording: the gate's rejection is the funnel's escalation, on the
+/// frame beside the verdict.
+///
+/// # Errors
+///
+/// [`decide`]'s [`Indeterminate`] for an in-band or invalid margin;
+/// otherwise, for a definite `Zero`, an [`Indeterminate`] carrying
+/// [`MarginDiag::Invalid`] under `name`.
+pub fn decide_nonzero<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<NonzeroSign, Indeterminate> {
+    classify_gated(name, margin.value(), band, |sign| match sign {
+        Sign::Positive => Some(NonzeroSign::Positive),
+        Sign::Negative => Some(NonzeroSign::Negative),
+        Sign::Zero => None,
+    })
+}
+
+/// **The measurement gate** — the funnel's door for a value an op is
+/// about to REPORT rather than classify, when a poisoned aggregate
+/// would otherwise ride out as a number no caller can tell from a
+/// measurement.
+///
+/// It decides nothing and logs no verdict: there is no comparand here
+/// and no sign to reach, so `name` lives only in the escalation this
+/// gate may produce. What it buys is the same thing the sign gates buy
+/// — the op does not mint its own [`Indeterminate`], so the escalation
+/// is on the frame's log by construction.
+///
+/// # Errors
+///
+/// An [`Indeterminate`] carrying [`MarginDiag::Invalid`] under `name`
+/// when `value` is poison: the same payload the classifier produces for
+/// a poisoned margin, because it is the same fact.
+pub fn gate_measured<T: Real>(
+    name: &'static str,
+    value: T,
+    band: Band,
+) -> Result<T, Indeterminate> {
+    if value.is_poison() {
+        return Err(record_escalation(Indeterminate {
+            margin: MarginDiag::Invalid,
+            band,
+            predicate: Some(name),
+        }));
+    }
+    Ok(value)
 }
 
 /// One recorded predicate decision: the funnel's static name and the

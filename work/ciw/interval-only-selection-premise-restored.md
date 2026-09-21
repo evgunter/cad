@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-04
 parent: reinstate-full-configuration-runs
 refs: [1796]
+priority: P4
+cost: E
 ---
 
 ## The finding

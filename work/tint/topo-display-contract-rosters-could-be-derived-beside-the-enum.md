@@ -4,6 +4,8 @@ kind: issue
 title: topo's two display-contract enums could carry a compiler-derived variant list beside the enum, as its own src rows already do
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: a chart singularity has no boundary polygon — sphere and cone faces meeting one are refused, and the polar description is unbuilt
 status: open
 opened: 2026-09-04
+priority: P0
+cost: H
 ---
 
 ## What
