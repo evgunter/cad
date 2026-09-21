@@ -779,3 +779,147 @@ fn an_undrawable_arcs_refusal_says_which_vertex_and_why() {
     assert!(sentence.contains("vertex 7"), "{sentence}");
     assert!(sentence.contains("not a number"), "{sentence}");
 }
+
+/// **A vertex the replay put past the top of the exponent range
+/// refuses, and no arc is involved anywhere.**
+///
+/// Every literal here is a finite number and the chain has no bulge
+/// at all: `At` at `1e308`, a direction, and a leg of `1e308` along
+/// it, whose far end is the sum of the two. `replay` accepts it and
+/// hands back a loop whose second vertex is at `inf`.
+///
+/// That is the population the arc guards cannot reach — they are
+/// under a `bulge == 0.0` `continue`, so a polygon passes all of them
+/// without ever being asked — and what the flattener used to do with
+/// it was emit the point and report success. The vertex the refusal
+/// names is the one whose own position is not a place, which is `1`
+/// and not the `0` both arc rows name.
+#[test]
+fn a_vertex_past_the_exponent_range_refuses_at_the_preview() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(1.0e308, 0.0)),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::Line(1.0e308),
+            Step::LineTo(Target::Point(pt(0.0, 1.0e307))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("a vertex that is not a place has no drawable loop around it");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 1
+            }
+        ),
+        "{refusal}",
+    );
+}
+
+/// **An arc whose frame is finite and whose far side is not refuses
+/// too — a third arm, and the one a frame check cannot see.**
+///
+/// The two rows above refuse on the frame: a radius that is not a
+/// number, a centre that is not a point. Here all four frame values
+/// are ordinary — radius about `5.05e307`, centre about
+/// `(1.29e308, 0)`, a finite sweep and start — and the arc is major
+/// enough to carry its own far side past the top of the range, so
+/// nine of the 256 points it draws are at `inf`.
+///
+/// A guard on the frame is therefore not a guard on the points, which
+/// is what makes this the population rather than a fourth instance:
+/// the question is asked where a coordinate is MINTED.
+#[test]
+fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(8.0e307, -1.0e307)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(8.0e307, 1.0e307)),
+                b: 10.0,
+            }),
+            Step::LineTo(Target::Point(pt(0.0, 0.0))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("an arc whose far side is not a place has no drawable shape");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 0
+            }
+        ),
+        "{refusal}",
+    );
+}
+
+/// **A leg whose separation overflows gets no heading, and the legs
+/// beside it still get theirs.**
+///
+/// `sketch::heading` answers `Option<[f64; 2]>`, so the type says a
+/// unit vector or none. The loop here is drawn — every vertex is an
+/// ordinary finite number, and `preview` hands back all three — but
+/// the diagonal's `dx` and `dy` are each `1.4e308`, and their `hypot`
+/// is the one value in this arithmetic that overflows. An infinite
+/// length is greater than zero, so the old guard let it through and
+/// each component divided by it came back `0.0`.
+///
+/// Both halves are asserted, because neither says anything alone: a
+/// float-valued door that answered its refusal for everything would
+/// pass the first, and one that answered a vector for everything
+/// would pass the second. The vertex that overflows is the ONLY one
+/// that refuses, and the other two answer vectors of length one.
+#[test]
+fn a_leg_whose_separation_overflows_gets_no_heading() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(-7.0e307, -7.0e307)),
+            Step::LineTo(Target::Point(pt(7.0e307, 7.0e307))),
+            Step::LineTo(Target::Point(pt(0.0, 7.0e307))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let drawn = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect("a loop of finite vertices draws");
+    let polyline = &drawn.loops[0];
+    let points = &polyline.points;
+    assert_eq!(points.len(), 3, "{points:?}");
+    assert_eq!(
+        sketch::heading(points, 0, polyline.closed),
+        None,
+        "a separation of 1.4e308 in each axis answered a heading",
+    );
+    for at in [1, 2] {
+        let [dx, dy] = sketch::heading(points, at, polyline.closed)
+            .unwrap_or_else(|| panic!("vertex {at} of a drawn loop has a heading"));
+        let length = dx.hypot(dy);
+        assert!(
+            (length - 1.0).abs() < 1.0e-12,
+            "vertex {at} answered [{dx}, {dy}], of length {length}",
+        );
+    }
+}

@@ -35,10 +35,13 @@
 //! **A fourth question is judged here and belongs to neither list:
 //! whether a replayed loop can be DRAWN.** It is not the profile
 //! layer's, because a loop can be a perfectly good profile and still
-//! have an arc whose radius or centre is not a number — a finite
-//! bulge near the bottom of the exponent range, or two vertices whose
-//! midpoint overflows. And it is not a literal's, because every
-//! literal involved passed the literal door already. It is the
+//! be a shape no point of which is a place — an arc whose radius or
+//! centre is not a number, from a finite bulge near the bottom of the
+//! exponent range or two vertices whose midpoint overflows; a vertex
+//! the replay's own arithmetic put past the top of that range; a
+//! point along an arc whose frame is finite and whose far side is
+//! not. And it is not a literal's, because every literal involved
+//! passed the literal door already. It is the
 //! flattener's, it is answered by
 //! [`PreviewError::Unflattenable`], and it exists because this module
 //! is the one place that turns a loop into coordinates.
@@ -818,10 +821,11 @@ pub enum PreviewError {
         /// The ill-typed verb, `None` for end-of-program.
         verb: Option<Verb>,
     },
-    /// A bulged segment replayed, and the arc it stands for cannot be
-    /// drawn: its radius, its swept angle, its centre or its start
-    /// angle is not a finite number, so no point along it is one
-    /// either.
+    /// A loop replayed and one of the points it would be drawn
+    /// through is not a place: a vertex whose own position is not a
+    /// pair of finite numbers, or a bulged segment whose arc is not
+    /// one — its radius, its swept angle, its centre, its start
+    /// angle, or a point along it.
     ///
     /// **Separate from [`PreviewError::Geometry`]**, which carries the
     /// DRIVER's refusal about a leg somebody authored. This one is the
@@ -831,10 +835,11 @@ pub enum PreviewError {
     Unflattenable {
         /// Which loop could not be drawn.
         loop_: usize,
-        /// The ordinal of its vertex whose outgoing segment refused
-        /// — the loop's OWN vertex, not the authored step, because
-        /// one step can contribute several and the flattener walks
-        /// what replay produced.
+        /// The ordinal of the vertex that refused — its own
+        /// position, or the segment leaving it. The loop's OWN
+        /// vertex, not the authored step, because one step can
+        /// contribute several and the flattener walks what replay
+        /// produced.
         vertex: usize,
     },
     /// A leg's geometry refused — the driver's own rendered refusal.
@@ -880,8 +885,9 @@ impl core::fmt::Display for PreviewError {
             },
             Self::Unflattenable { loop_, vertex } => write!(
                 f,
-                "loop {loop_} vertex {vertex}: the arc leaving it has no drawable \
-                 shape — its radius, sweep or centre is not a number"
+                "loop {loop_} vertex {vertex}: nothing there can be drawn — its \
+                 position, or the radius, sweep, centre or points of the arc \
+                 leaving it, is not a number"
             ),
             Self::Geometry {
                 loop_,
@@ -928,8 +934,9 @@ impl core::error::Error for PreviewError {}
 /// unclosed chain whose provisional close is itself ill-typed — a tip
 /// with a direction and no position, an arc arrival still waiting for
 /// a binder — reports the ORIGINAL end-of-program refusal, never one
-/// belonging to the appended step. A loop that replays and whose arcs
-/// have no drawable shape is [`PreviewError::Unflattenable`] — the
+/// belonging to the appended step. A loop that replays and has a
+/// point no picture can put anywhere is
+/// [`PreviewError::Unflattenable`] — the
 /// one refusal here that is about the PICTURE rather than the
 /// profile, and the reason it is a refusal rather than a loop drawn
 /// short is that a preview is what a form shows instead of the
@@ -1061,7 +1068,7 @@ pub struct CommittedProfile {
 pub struct CommittedProfiles {
     /// One per profile node drawn, in document order.
     pub drawn: Vec<CommittedProfile>,
-    /// The profile nodes whose validated value has an arc the
+    /// The profile nodes whose validated value has a point the
     /// flattener cannot draw ([`PreviewError::Unflattenable`]'s case),
     /// in document order. Drawn not at all rather than with that leg
     /// missing: a loop drawn without one of its legs is a shape the
@@ -1288,6 +1295,16 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
 /// any preview pane resolves.
 const MAX_ARC_POINTS: usize = 256;
 
+/// **Whether a flattened point is a place**: both coordinates finite.
+///
+/// Asked of every coordinate [`flatten`] emits — the loop's own
+/// vertices and an arc's interior points alike — because the drawn
+/// output is what this module answers for, and a polyline carrying a
+/// point that is not a pair of numbers is a picture of nowhere.
+fn drawable(point: [f64; 2]) -> bool {
+    point[0].is_finite() && point[1].is_finite()
+}
+
 /// One loop as a closed polyline: every vertex, with each bulged
 /// segment subdivided finely enough that it sags less than `chord`.
 ///
@@ -1299,10 +1316,13 @@ const MAX_ARC_POINTS: usize = 256;
 ///
 /// # Errors
 ///
-/// The vertex ordinal of the first bulged segment whose arc frame is
-/// not numbers a point can be computed from. **Refused rather than
-/// skipped**: a segment dropped here would leave the loop drawn with a
-/// leg it does not have, which is the same defect one door along.
+/// The vertex ordinal at which a point stopped being one: the
+/// vertex's own position, the arc frame of the segment leaving it, or
+/// a point along that arc. **Refused rather than skipped**: a segment
+/// dropped here would leave the loop drawn with a leg it does not
+/// have, and a vertex dropped would put the legs either side of it
+/// through a corner nobody authored — the same defect one door
+/// along.
 fn flatten(
     vertices: &[ProfileVertex<f64>],
     chord: f64,
@@ -1317,8 +1337,19 @@ fn flatten(
     for (index, vertex) in vertices.iter().enumerate() {
         let from = vertex.pos();
         let to = vertices[(index + 1) % vertices.len()].pos();
+        // The loop's own vertex, asked the same question its arcs are
+        // asked below and asked BEFORE it is emitted. A replay whose
+        // literals are all finite can still land one past the top of
+        // the exponent range, and every guard under this loop is about
+        // an arc — so a loop with no bulges at all reaches none of
+        // them and a polygon drawn through a point that is nowhere is
+        // exactly what this module says it refuses.
+        let place = [from.x, from.y];
+        if !drawable(place) {
+            return Err(index);
+        }
         at.push(out.len());
-        out.push([from.x, from.y]);
+        out.push(place);
         let bulge = vertex.bulge();
         if bulge == 0.0 {
             continue;
@@ -1346,13 +1377,18 @@ fn flatten(
         let start = (from.y - centre[1]).atan2(from.x - centre[0]);
         // **Every point below is `centre + radius·(cos, sin)` of an
         // angle built from `start` and `theta`**, so those four are
-        // what have to BE numbers, and they are asked before any of
-        // them is used. The two guards above this block — `bulge ==
-        // 0.0` and `half == 0.0 || sin_half == 0.0` — are the
-        // degenerate segments a loop legitimately holds, and a value
-        // that is not a number takes neither side of either: a `NaN`
-        // is not equal to zero, so it reads as an ordinary arc all the
-        // way to the coordinates.
+        // asked to be numbers before any of them is used. The two
+        // guards above this block — `bulge == 0.0` and `half == 0.0
+        // || sin_half == 0.0` — are the degenerate segments a loop
+        // legitimately holds, and a value that is not a number takes
+        // neither side of either: a `NaN` is not equal to zero, so it
+        // reads as an ordinary arc all the way to the coordinates.
+        //
+        // **A frame of four numbers does not make a point one**, so
+        // each point is asked again as it is minted: a centre a few
+        // hundred orders of magnitude from the origin and a radius to
+        // match sum past the top of the range on the far side of the
+        // arc, with every value here finite.
         //
         // `radius` carries `centre` with it. `apothem` is
         // `±radius·cos(θ/2)` written as `half / tan(θ/2)`, so it is
@@ -1366,12 +1402,16 @@ fn flatten(
         else {
             return Err(index);
         };
-        for point in 1..count {
-            let angle = start + theta * (point as f64) / (count as f64);
-            out.push([
+        for ordinal in 1..count {
+            let angle = start + theta * (ordinal as f64) / (count as f64);
+            let place = [
                 centre[0] + radius * angle.cos(),
                 centre[1] + radius * angle.sin(),
-            ]);
+            ];
+            if !drawable(place) {
+                return Err(index);
+            }
+            out.push(place);
         }
     }
     Ok((out, at))
@@ -1431,13 +1471,22 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
 pub const TIP_MARK_PX: f64 = 20.0;
 
 /// **Which way the chain leaves the vertex at `at`** — a unit vector,
-/// or `None` where there is no next point to take one from.
+/// or `None` where there is none to be had.
 ///
 /// The next flattened point, which is the tangent to within the chord
 /// tolerance the preview was flattened at. At the LAST vertex of an
 /// open chain there is no leaving direction, so the INCOMING one is
 /// answered instead: that tip is where the chain currently ends, and
 /// the heading a reader wants there is the one it arrived on.
+///
+/// **A separation that is not a finite length has no direction
+/// either**, which is the second thing the `None` arm says. Two
+/// flattened points a few hundred orders of magnitude apart differ by
+/// ordinary numbers whose `hypot` overflows: the length is then `inf`,
+/// which is greater than zero, and each component divided by it is
+/// `0.0`. A zero vector handed out under the name of a unit one is
+/// this arm not being taken — the caller draws its tip mark along
+/// nothing and cannot tell that from a mark it drew.
 pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]> {
     let (from, to) = if at + 1 < points.len() {
         (points[at], points[at + 1])
@@ -1450,7 +1499,9 @@ pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]>
     };
     let (dx, dy) = (to[0] - from[0], to[1] - from[1]);
     let length = dx.hypot(dy);
-    (length > 0.0).then(|| [dx / length, dy / length])
+    // A finite length is what makes the division below a unit vector:
+    // neither component exceeds it, so each quotient lands in [-1, 1].
+    (length.is_finite() && length > 0.0).then(|| [dx / length, dy / length])
 }
 
 #[cfg(test)]
