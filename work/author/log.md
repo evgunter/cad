@@ -842,3 +842,40 @@ sticky across both frames by design. `DocSession::writes_nothing`
 stays at the door anyway, for reasons now written on
 `work/vgeom/a-typed-field-hands-its-text-over-on-two-frames.md` as
 declined-with-reasons rather than as a door that does not exist.
+
+## 2026-09-21 — AUTH-2 MERGED (`8352822c2`); the sitting's second unit is done
+
+Green at 39 jobs on a head that had current `main` merged into it —
+that merge brought real code (geom-core/sym, geom-brep, editor-core
+tests), so the docs-only exemption did NOT apply and the run was
+re-taken in full. The fix-pass lane deliberately did not re-merge
+after its own green, so as not to invalidate it, and handed me the
+decision. That was the right instinct and is worth naming: **a green
+run over a stale base is not a claim about what merges.**
+
+**Two units, both P0 doors, both closed.** A person can place a sketch
+on a picked face, and write a parameter in the unit they think in.
+
+**What this unit cost, and why that is the interesting number**: one
+implementer pass, two review lanes, a fix pass, a TARGETED re-review,
+and a second fix pass. The re-review is the one that would normally be
+skipped, and it is the one that caught a regression against `main` in
+the unit's own subject. The trigger for running it was not diff size
+or a hunch — it was that **the fix pass replaced the design the
+reviews examined**, so the claims those lanes falsified no longer
+described the code. That test is cheap to apply and is now this
+program's rule for when a fix pass earns a fresh arm.
+
+**Four of my premises were falsified across the two units**: the
+`Ambiguous` multi-body hypothesis, the `base_r * 2` text, the
+`partial_mirror!` return type (in an adjudication, not a spec), and
+`set_slot`'s reachability from the Python bindings. Every one was
+caught by a lane or a reviewer, and every one was cheap because the
+surrounding instruction said *decide and say* rather than asserting.
+The adjudication one remains the worst of the four, for the reason
+already logged: a spec is read by someone who will check it; an
+adjudication arrives as a list of things to do.
+
+**Next in the order**: `add-profile-mints-no-frame`, which now carries
+three label sites rather than two, and behind it the two node-kind
+gaps. The slate reads 8 open rows.
