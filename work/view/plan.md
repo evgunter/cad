@@ -192,6 +192,25 @@ applied. Eighty-seven more would have made that worse, and the four
 successor programs inheriting it by reference would each have carried
 the cost of reading it before every dispatch.
 
+## What is left of this slate
+
+**Two rows**, both in `view/seam-residue`'s lane and both residue of
+Ev's *panic on crash* ruling of 2026-09-17:
+`the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer`
+and `the-dying-seam-fakes-mirror-a-machine-they-do-not-share`. If
+either survives that lane open it goes to **VSEAM**, whose ground
+`evalseam.rs` and `pickcache.rs` are.
+
+The other five were re-homed on 2026-09-21 (Ev, in chat) against each
+receiving program's own charter test — one to VNEWS, two to VSEAM, two
+to CHROME, each `git mv` with its id, body and history unchanged and
+each announced in the receiving program's `log.md`. `log.md`'s entry
+for that day has the table and the reasoning.
+
+**This program does not dispatch.** A row that lands on its ground
+from here on goes to the successor whose charter covers it, not onto
+this slate.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or

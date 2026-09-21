@@ -14214,3 +14214,48 @@ Recoverable at `66d7357417`. One row filed —
 `work/vdoc/register-citations-in-item-files-point-at-deleted-text` —
 for the ten item files that cite a rule of it by a path that still
 resolves to a different file.
+
+## 2026-09-21 — the remnant is re-homed; VIEW is down to two rows
+
+Ev, in chat: *"it seems good to have you finish off view rather than
+leaving a remnant with uncertain status."* Five of the seven open rows
+moved by `git mv`, ids, bodies and history unchanged, each against the
+RECEIVING program's own charter test rather than against a guess at
+subject.
+
+| row | to | the sentence that decided it |
+|---|---|---|
+| `a-derived-pick-index-failure-outshouts-its-cause` | VNEWS | a downstream effect outranking the failure it depends on is a rank defect, and VNEWS's §Charter names `rank-one-discards-the-frames-other-news` as a member of that class |
+| `face-selection-carries-a-bare-stable-name` | VSEAM | typed session state and the door that owns it; `session/select.rs` and `matetool.rs` are both VSEAM's, the second since #3003 |
+| `startup-notices-need-holding-to-badge` | VSEAM | VNEWS's test excludes it in as many words — *"nothing it touches survives the frame that produced it"* — and the row's whole content is that the notices must be HELD |
+| `error-and-check-text-overflows-its-region` (P0, Ev's) | CHROME | CHROME's `keep_out`: *it keeps the viewer's reported defects and its entrenching architecture*; its sibling `the-toolbar-row-does-not-wrap` was VIEW's and closed 2026-09-14 |
+| `a-refusal-offers-no-action-in-the-viewer` (Ev's) | CHROME | same; AUTHOR was considered and rejected, its charter being the authoring goal's GUI half rather than how a refusal is presented |
+
+**Ev's P0 moved whole rather than split.** Its two halves are layout
+and concision, and the concision half reaches into kernel `Display`
+impls — but the row records that half as never investigated, so
+drawing the boundary now would be a guess dressed as a re-home. CHROME
+splits it when it takes it, which the row already instructs.
+
+**Announced, not just moved.** CHROME and VNEWS each have a live
+orchestrator on another machine, so each receiving program's `log.md`
+carries the note — the shape CHROME used when it wrote to VGEOM this
+morning. `work/README.md` allows the move without permission; it does
+not make the move visible, and an unannounced arrival on a board
+someone else is working is how two programs come to disagree about
+what is theirs.
+
+**Said plainly, because it is a real cost:** all three receiving
+programs are already over the track-size ceiling (CHROME 52.5/30,
+VSEAM 39/30, VNEWS 37/30). This does not make them worse at finding
+the rows — the rows were unreachable on a program that does not
+dispatch — but it is load moved onto slates that are already asking to
+be cut.
+
+**What is left of VIEW: two rows**, both in `view/seam-residue`'s lane
+and both the residue of Ev's *panic on crash* ruling — `PickCache::
+indexing`'s seam half and `Coalescing`'s orderly-forget arm having no
+shipped producer, and the `Dying*` fakes mirroring a machine they no
+longer agree with. If either survives that lane open it goes to VSEAM
+on the same test; `evalseam.rs` and `pickcache.rs` are its ground.
+Then VIEW's slate is empty and the exit walk is the only step left.
