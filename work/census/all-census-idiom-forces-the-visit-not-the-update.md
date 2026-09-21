@@ -286,3 +286,54 @@ hit — because it closes the hole without a macro.
 
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for you.
+
+## A sibling idiom with a weaker guarantee, measured (S-FIX, 2026-09-21)
+
+Found while adjudicating FIX's `recourse-chain-stops-at-the-second-hop-carriers`
+(PR 2948) from the diff. Recorded here rather than as a second file
+because it is this row's subject — a pin whose doc claims a growth
+alarm it does not have — arriving through a different instrument. Split
+it out if you read it as its own class.
+
+## The shape
+
+An enforcement row builds its own roster of arms as an array literal
+and then asserts the count:
+
+```rust
+let arms = [PatchBoundError::DegreeZero, /* … */ PatchBoundError::DerivedKnots];
+assert_eq!(arms.len(), 7, "an arm was added without a row here");
+```
+
+**`arms.len()` is a compile-time constant.** The assertion cannot fail,
+and the message claims something it cannot check: adding a variant to
+the enum leaves the array at seven and every row green. This is the
+shape `docs/prompts/implementer-discipline.md` §2 names —
+*"a predicate over things fixed at compile time … it is documentation,
+and deleting it is the repair"*.
+
+**It is weaker than the three sites this row already names.** Those at
+least write an exhaustive `match`, so a new variant fails to compile
+and the VISIT is forced; only the NUMBER is unforced. Here there is no
+match over the enum at all, so neither is.
+
+## The population, measured on `d8da18a`
+
+`git grep -l 'an arm was added without a row here' -- 'crates/**/*.rs'`
+— **eleven assertions across ten files in four crates**:
+
+`topo/src/chart_region.rs`, `topo/src/props.rs`, `topo/src/pcurves.rs`,
+`geom-core/src/predicate.rs`, `geom-core/src/spline/knots.rs`,
+`geom-brep/src/patch_bound.rs`, `geom-brep/src/offset_fit.rs`,
+`geom-brep/src/offset_meters.rs`, `geom-brep/src/props/mod.rs`,
+`geom/src/curves/fit.rs`.
+
+**Blind spot of that grep**: it keys on one message string, so a roster
+assertion phrased any other way is invisible to it. The real population
+is at least this.
+
+**Most of these predate PR 2948**, which added five more — so this is a
+house pattern propagating, not one lane's invention, and the fix is a
+convention rather than a bug report. The mechanism question is this
+row's: whichever answer it picks (the discriminant walk reads best) is
+what these eleven should be converted to.

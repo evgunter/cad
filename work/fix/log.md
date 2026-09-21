@@ -2974,3 +2974,70 @@ Four of five closed: `subject-refused`, `quantity-fmt-error`,
 `recourse-chain-stops-at-the-second-hop-carriers` remains, still in a
 lane. Every closed row landed with a pin that could not have existed
 before it, which is instruction 3 paying out four times in one wave.
+
+## Wave 4 closes, and the slate with it (2026-09-21)
+
+`recourse-chain-stops-at-the-second-hop-carriers` CLOSED (PR 2948) —
+four carriers of five, a sixth nobody had counted, and the fifth cut by
+shape and re-homed. **FIX has no open rows.**
+
+Five dispatched, five merged: PRs **2943, 2944, 2945, 2946, 2948**.
+
+### What the wave proves about the design-free slate
+
+The sweep's bet was that a program holding only written-fix rows would
+dispatch cleanly. It did: five lanes, one round back, zero rulings
+needed mid-flight, and every lane that met a decision **stopped and
+asked instead of deciding** — the quantity lane on the census form, the
+fillet lane on the `num` fence, the recourse lane on where to cut. That
+is the difference from waves 1–3, where the orchestrator was ruling
+inside the dispatch loop.
+
+### Instruction 3 went five for five
+
+Every row changed what a refusal carries or how it renders, and every
+time nothing in the tree discriminated the old behaviour from the new
+one. The missing pin was part of the defect five times out of five, and
+the sharpest statement of it is `fillet-leg-carrier`: **nothing was
+re-baselined, because nothing had ever pinned that sentence.**
+
+### Three adjudications that changed an outcome
+
+- **PR 2944 improved on the seat's ruling** and said so rather than
+  burying it. Accepted: a deviation better than the letter owes nothing
+  further.
+- **PR 2945 was sent back one round.** It replaced a case in another
+  program's suite with a stronger one, correctly reasoned — and that is
+  still not a side effect a FIX unit gets to have. Both shapes run now.
+- **PR 2948's loosened pin was ACCEPTED** where 2945's removal was not,
+  and the difference is the whole rule: it corrected a full-string pin
+  that contradicted a convention stated at `COINCIDENCE_RECOURSE`'s own
+  home and that blocked an approved change. Verified at the const before
+  accepting. A test corrected because a change moved what it describes
+  lands with the change; a case deleted for convenience does not.
+
+### A finding no mutation run could catch
+
+The five new enforcement rows each assert
+`assert_eq!(arms.len(), N, "an arm was added without a row here")` over
+a fixed-size array literal — a compile-time constant, so the assertion
+cannot fail and its message claims what it cannot check. Eleven of them
+across ten files in four crates, most predating this PR. Not a reason to
+hold a sound unit; filed as evidence on CENSUS's
+`all-census-idiom-forces-the-visit-not-the-update`, which owns the
+mechanism question. **Caught by reading the diff, which is what this
+program's review posture is for** — a green matrix and a red mutation
+run both say nothing about an assertion that cannot go red.
+
+### What the next seat decides
+
+**The slate is empty, so the exit shape applies — and it should NOT be
+taken yet.** Ev's 2026-09-12 ruling called this program *"a grab bag of
+small things"* against DOOR's *"more coherent home"*, which is a
+statement of what FIX is FOR: the place a one-PR finding on unowned
+ground can land. Closing it removes that home and sends the next such
+finding to `work/issues/`, which `work/README.md` calls the last resort
+it has always been. The recommendation is to keep FIX open and empty,
+and to cut the walk only if Ev would rather the grab-bag role went
+somewhere else. Logged as the seat's recommendation, not as a decision
+taken.
