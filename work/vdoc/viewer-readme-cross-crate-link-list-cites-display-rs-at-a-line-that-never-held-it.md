@@ -68,7 +68,7 @@ rule that produces the population:
 
     rg -n -g '!{app,drafts,forms,gpu,widgets,pane}.rs' -g '!pane/**' -g '!bin/**' -e '(\[`|\]\()(pncad|bvh|editor_core|toml)::' crates/viewer/src
 
-extracted back out of the README with `sed -n 1979p` and run: **15**
+extracted back out of the README with `sed -n 2006p` (the indented block in the **Nowhere** bullet) and run: **15**
 lines, exit 0. The blind spot is stated at the sentence — a link
 resolved through a `use` carries the in-scope name, not the crate, and
 `sketch.rs`'s `` [`ProfileVertex`] `` is exactly that member.
