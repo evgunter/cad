@@ -300,20 +300,44 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
         "an atom keyed by its arguments claimed an identity it has no \
          argument for, among {out:?}"
     );
-    // `abs(x) − abs(−x)` would be rule C's shape (`|x| = ±x` by a
-    // certified sign), but rule C is FILED UNBUILT — so it stays opaque
-    // and the two `abs` atoms do not cancel. Over an interval box the
-    // numeric channel cannot see the identity either (`[1,2] − [1,2] =
-    // [-1,1]` straddles), so it is INDETERMINATE at every width — the
-    // exact widening the symbolic tier exists to beat, and does not here
-    // because the rule that would is not built.
+    // `abs(x) − abs(−x)` IS a theorem, and it is not a value read:
+    // `|Y|` and `|−Y|` name one magnitude, so DECIDE-3's rule G keys
+    // them as one atom and the residual is the zero FORM. This row's
+    // claim — the tier never claims a cancellation it cannot prove
+    // without reading a value — stands: the proof is the KEY, and
+    // `symbolic_zero` is where the receipt records it.
     for (lo, hi) in [(1.0, 2.0), (-1.0, 2.0)] {
         let (s, counts) = with_session(budget(), || {
             let x = p("x", lo, hi);
             sign_of(x.abs() - (-x).abs())
         });
-        assert_ne!(s, Ok(Sign::Zero), "rule C is filed, so |x|−|−x| widens");
-        assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
+        assert_eq!(s, Ok(Sign::Zero), "|x| and |−x| are one magnitude");
+        assert_eq!(counts.sign_gated, 0, "and no value was read: {counts:?}");
+    }
+    // A kink pair that is NOT an identity stays opaque, which is what
+    // the row above used to carry: `|x| − |x + 1|` and `|x| − x` are
+    // different reals over a box that straddles, no key makes them
+    // meet, and the tier says so rather than guessing.
+    for (lo, hi) in [(1.0, 2.0), (-1.0, 2.0)] {
+        let (out, counts) = with_session(budget(), || {
+            let x = p("x", lo, hi);
+            vec![
+                ("|x| − |x+1|", sign_of(x.abs() - (x + lit(1.0)).abs())),
+                ("|x| − x", sign_of(x.abs() - x)),
+            ]
+        });
+        for (name, s) in &out {
+            assert_ne!(
+                *s,
+                Ok(Sign::Zero),
+                "{name} over [{lo}, {hi}] is no identity of reals"
+            );
+        }
+        assert_eq!(
+            counts.sign_gated + counts.symbolic_zero,
+            0,
+            "and nothing was claimed: {counts:?}"
+        );
     }
     // The one fold these DO license: min/max/copysign of zero forms.
     let (folds, _) = with_session(budget(), || {

@@ -2341,13 +2341,15 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 {
                     return Some(gate(f));
                 }
-                // An `abs` NODE goes through rule G's magnitude door
-                // too, and for the same reason: `|Y|` and `|−Y|` are
-                // one real, so the atom is keyed on the sign-normalised
+                // An `abs` NODE goes through rule G's atom door too,
+                // and for the same reason: `|Y|` and `|−Y|` are one
+                // real, so the atom is keyed on the sign-normalised
                 // argument and a root of a perfect square meets the
                 // node whichever way round the document spelled it.
+                // The door mints; it folds nothing, so every rule
+                // above keeps its own predicate.
                 if node.op == SymOp::Abs
-                    && let Some(f) = root::magnitude(a, sess)
+                    && let Some(f) = root::magnitude_atom(a, sess)
                 {
                     return Some(gate(f));
                 }

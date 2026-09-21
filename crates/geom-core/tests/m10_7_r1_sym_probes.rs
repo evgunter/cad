@@ -286,10 +286,18 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
 }
 
 /// Atoms keyed by arguments: `min(x, x) − x`, `floor(1) − 1`,
-/// `max(x, y) − max(y, x)`, `abs(x) − abs(−x)` — none is reached (the
-/// conservative direction). `abs(x) − abs(−x)` would be rule C's second
-/// shape (`|x| = ±x` by a certified sign), but rule C is dial-off, so it
-/// too stays opaque. Pinned so a future fold is a visible move.
+/// `max(x, y) − max(y, x)` — none is reached (the conservative
+/// direction). Pinned so a future fold is a visible move.
+///
+/// `abs(x) − abs(−x)` was the fourth case here and is one no longer.
+/// It was pinned as rule C's second shape (`|x| = ±x` by a certified
+/// SIGN) with rule C dial-off, so a fold could only have come from a
+/// value read — but the residual is an identity of reals that needs no
+/// sign at all, and DECIDE-3's rule G reaches it by KEYING: `|Y|` and
+/// `|−Y|` name one magnitude, so they are one atom and the difference
+/// is the zero form. It has moved to
+/// [`r1_the_two_spellings_of_one_magnitude_are_one_atom`] below, which
+/// asserts the theorem and its dial.
 ///
 /// `copysign(x, 1) − |x|` was the fifth case here and is one no longer:
 /// SYM-8's rule F (`SymRules::manifest_sign`) folds a `copysign` whose
@@ -300,7 +308,7 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
 /// which asserts the fold rather than its absence.
 #[test]
 fn r1_argument_keyed_atoms_stay_conservative() {
-    let cases: [fn() -> Sym<f64>; 4] = [
+    let cases: [fn() -> Sym<f64>; 3] = [
         || {
             let x = p("x", 0.4);
             x.min(x) - x
@@ -309,10 +317,6 @@ fn r1_argument_keyed_atoms_stay_conservative() {
         || {
             let (x, y) = (p("x", 0.4), p("y", 0.9));
             x.max(y) - y.max(x)
-        },
-        || {
-            let x = p("x", 0.4);
-            x.abs() - (-x).abs()
         },
     ];
     for (i, f) in cases.into_iter().enumerate() {
@@ -323,6 +327,35 @@ fn r1_argument_keyed_atoms_stay_conservative() {
             "case {i} decided symbolically: {counts:?}"
         );
     }
+}
+
+/// **`|x|` and `|−x|` are one atom** (DECIDE-3's rule G): the magnitude
+/// door keys an `Abs` atom on the sign-normalised argument, so the two
+/// spellings of one magnitude are one indeterminate and the residual is
+/// the zero FORM — a theorem, no value read, rule C still dial-off.
+/// With rule G shut the two are two atoms again and the tier is
+/// conservative, which is what says the theorem is the rule's and not
+/// something the walk did anyway.
+#[test]
+fn r1_the_two_spellings_of_one_magnitude_are_one_atom() {
+    let residual = || {
+        let x = p("x", 0.4);
+        x.abs() - (-x).abs()
+    };
+    let (_, on) = with_session_rules(budget(), SymRules::shipped(), || zero(residual()));
+    assert_eq!(
+        (on.symbolic_zero, on.sign_gated),
+        (1, 0),
+        "an identity of reals reached by the KEY, not by a read: {on:?}"
+    );
+    let (_, off) = with_session_rules(budget(), SymRules::without_canonical_root(), || {
+        zero(residual())
+    });
+    assert_eq!(
+        off.symbolic_zero + off.sign_gated,
+        0,
+        "and with rule G shut the two spellings are two atoms: {off:?}"
+    );
 }
 
 /// **`copysign(x, 1) − |x|` is a THEOREM under rule F** — the sign

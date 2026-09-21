@@ -434,3 +434,60 @@ fn the_walk_ledger_on_the_unmeasured_documents() {
         }
     }
 }
+
+/// **Which dial moves which line of the plate's ledger.** The unit
+/// that shipped rule G re-baselined the plate's `PLATE_MAX_TERMS` and
+/// both of its `Plain/*` digests and said rule G had moved them; it
+/// had not — the plain walk consults neither new dial, and the two
+/// numbers were stale against the pin before this branch was cut. This
+/// row is what keeps the attribution honest: it replays the plate under
+/// each dial set and asserts that the PLAIN lines are identical across
+/// all of them, so a future claim that a rule of the early walk moved
+/// a plain form reds here first.
+#[test]
+fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
+    let tol = Tol::witness();
+    let doc = the_plate(tol);
+    let (_, nominal) = boxes(&doc).into_iter().next().unwrap();
+    let plain_lines = |ledger: &str| {
+        ledger
+            .lines()
+            .filter(|l| l.trim_start().starts_with("Plain/"))
+            .map(|l| l.trim().to_owned())
+            .collect::<Vec<_>>()
+    };
+    let sets: [(&str, SymRules); 4] = [
+        ("shipped", SymRules::shipped()),
+        ("without_canonical_root", SymRules::without_canonical_root()),
+        ("without_the_reads", SymRules::without_the_reads()),
+        (
+            "both new dials off",
+            SymRules {
+                canonical_root: false,
+                decision_read: false,
+                ..SymRules::shipped()
+            },
+        ),
+    ];
+    let mut seen: Option<(&str, Vec<String>)> = None;
+    for (name, rules) in sets {
+        start_profile();
+        let _ = replay(&doc, &nominal, rules, tol);
+        let p = take_profile();
+        let largest = p.ops.values().map(|o| o.max_terms_out).max().unwrap_or(0);
+        let lines = plain_lines(&p.walk_ledger());
+        println!(
+            "  {name}: largest form {largest}\n    {}",
+            lines.join("\n    ")
+        );
+        match &seen {
+            None => seen = Some((name, lines)),
+            Some((first, want)) => assert_eq!(
+                &lines, want,
+                "{name} builds a different PLAIN walk from {first}: the plain form reads no \
+                 dial of the early walk, so a difference here is a defect and not a \
+                 re-baseline"
+            ),
+        }
+    }
+}

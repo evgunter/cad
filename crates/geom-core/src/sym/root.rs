@@ -71,6 +71,16 @@
 //! instead, because `N/D ≥ 0` would make `D` negative and the sources
 //! above have already settled `D`'s sign.
 //!
+//! **The manifestly NEGATIVE magnitude is not decided here.** Rule G's
+//! magnitude door (`magnitude_of_root`) re-keys only an argument whose sign
+//! no form shows; whether `|X|` folds for a manifestly negative `X` is
+//! rule F's own question and SYM-12's measured decision, and this
+//! module's normalisation is arranged so that rule F's arms see a
+//! signed argument exactly as SYM-8 pinned it. The negative case rule
+//! G DOES settle is its own: a manifestly non-positive DENOMINATOR,
+//! source 3 above, which negates the pair inside the split and touches
+//! rule F's predicate not at all.
+//!
 //! **What is NOT a source, and why it cannot be.** "The session
 //! already holds `sqrt(D')` for `D`'s primitive part, so `D ≥ 0`
 //! wherever that node has a value" is FALSE of the DAG this tier
@@ -159,7 +169,19 @@ fn leading_is_negative(p: &Poly) -> Option<bool> {
 /// `2x − 1` then key the same indeterminate, and a root of a perfect
 /// square meets the `abs` NODE the document spelled whichever way
 /// round `poly_sqrt` happened to return its root.
-fn sign_normalised(f: &Form) -> Option<Form> {
+/// **Only an INDEFINITE argument is normalised**, and the seam is why.
+/// Where the form already shows a sign — `manifest::nonneg` on the
+/// argument or on its negation — that sign is rule F's subject, not a
+/// key convention: whether `|X|` folds for a manifestly NEGATIVE `X`
+/// is a measured decision of its own (SYM-12's), and re-keying such an
+/// argument here would answer it by another route. So a signed
+/// argument is left exactly as written and rule F's arms see what
+/// SYM-8 pinned; an argument neither test can classify has no sign to
+/// preserve, and there the orientation is a free choice made once.
+fn sign_normalised(f: &Form, sess: &Session) -> Option<Form> {
+    if manifest::nonneg(f, sess) || f.neg().is_some_and(|n| manifest::nonneg(&n, sess)) {
+        return Some(f.clone());
+    }
     if leading_is_negative(&f.num)? {
         let mut out = f.neg()?;
         out.gated = f.gated;
@@ -168,25 +190,36 @@ fn sign_normalised(f: &Form) -> Option<Form> {
     Some(f.clone())
 }
 
-/// **The magnitude door**: `|Y|` for any form, sign-normalised so two
-/// spellings of one magnitude are one atom.
+/// **The `Abs` atom's door**: the indeterminate an `abs` NODE mints
+/// once every fold before it has declined, keyed on the sign-normalised
+/// argument so `|Y|` and `|−Y|` are ONE atom.
 ///
-/// Rule F's own predicate answers first ([`manifest::magnitude`]), so
-/// `|Y|` is `Y` itself wherever the FORM already shows `Y`
-/// non-negative. **Non-negativity, not strict positivity**, is the
-/// right test: `abs` reads a value, not a sign bit, so `|Y| = Y` holds
-/// at `Y = 0` too — and it is load-bearing, because `sqrt(|X|²)` must
-/// come back as `|X|` and not as a second `abs` wrapped around the
-/// first. Rule C's certified fold is asked only after it, under rule
-/// C's own dial, which is `combine`'s documented order: the value-free
-/// rule first, so a discharge that can be a theorem is never counted
-/// `sign_gated`.
+/// It folds NOTHING. Every fold at an `abs` node — A0's constant, rule
+/// F's manifest sign, rule C's certified one — has already been asked
+/// by `combine` and declined; what is left for this door is the key,
+/// and the key alone. That is the seam with rule F: this module
+/// decides how a magnitude is NAMED, and rule F decides when one may
+/// be folded away.
+pub(super) fn magnitude_atom(arg: &Form, sess: &mut Session) -> Option<Form> {
+    let f = sign_normalised(arg, sess)?;
+    Some(atom(SymOp::Abs, f, sess))
+}
+
+/// `|R|` for the exact polynomial root `R` of a perfect square — the
+/// magnitude rule G itself produces, as against the one an `abs` NODE
+/// asks for ([`magnitude_atom`]).
 ///
-/// The predicate is read whatever rule F's own dial says: it is a fact
-/// about the form, and what the dial governs is rule F's folds at
-/// `copysign` and `abs` NODES, not whether the fact is true.
-pub(super) fn magnitude(arg: &Form, sess: &mut Session) -> Option<Form> {
-    let f = sign_normalised(arg)?;
+/// Here `|R| = R` for a merely NON-NEGATIVE `R` is taken, and it is
+/// rule G's own step rather than rule F's: the equality being used is
+/// `sqrt(R²) = |R| = R`, an identity of reals at every point `R ≥ 0`
+/// admits, the zero included. Rule F's `abs` arm asks a different
+/// question — whether to fold an `abs` NODE the document wrote — and
+/// answers it on a STRICT predicate for the reason `manifest`'s header
+/// gives; nothing here moves that. Rule C's certified fold is asked
+/// only after the value-free step, which is `combine`'s documented
+/// order.
+fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
+    let f = sign_normalised(&Form::poly(r), sess)?;
     if let Some(m) = manifest::magnitude(&f, sess) {
         return Some(m);
     }
@@ -196,11 +229,6 @@ pub(super) fn magnitude(arg: &Form, sess: &mut Session) -> Option<Form> {
         return Some(g);
     }
     Some(atom(SymOp::Abs, f, sess))
-}
-
-/// `|R|` for the exact polynomial root `R` of a perfect square.
-fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
-    magnitude(&Form::poly(r), sess)
 }
 
 /// `sqrt(p)` in canonical form — the content split of the module

@@ -6,7 +6,7 @@
 //! arm a `Select` takes where its decision's sign is certified over
 //! the box, and the arm `min`/`max` takes, which is the same read
 //! (`max(A, B)` IS `select(B − A, A, B)`). Rule G's side condition
-//! asks for a third ([`enclose_poly`]), under rule C's dial. Three
+//! asks for a third (`enclose_poly`), under rule C's dial. Three
 //! reads; ONE enclosure, and this module is the whole of how a value
 //! is read.
 //!
