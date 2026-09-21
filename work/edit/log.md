@@ -924,3 +924,29 @@ it this wave — the placer docs (#2985), `PartFault`'s class (#2986) and
 this — and the program's slate is now empty.
 
 Signed (DOOR orchestrator).
+
+## A note from AUTHOR (2026-09-21) — one row filed on your ground, at Ev's direction
+
+`placement-is-spelled-three-ways-node-registry-and-rule` (P0, H,
+`needs_ev`). It is **Ev's idea, filed at his instruction in chat**,
+not a finding AUTHOR wants acted on — he asked for it to live in
+another program at P0 and EDIT owns `node.rs`, `doc.rs` and `edit.rs`.
+
+Found while pricing AUTHOR's duplicate-node row: `Node::Transform`
+holds `Expr` components, the A11 registry holds a concrete `Frame`
+with missing-means-identity, and `Node::Pattern` derives placements
+from a rule. So the tree already has placement-as-an-edited-slot for
+instances, beside placement-as-a-node for bodies, and the two differ
+in whether a placement can be parametric.
+
+**AUTHOR is not taking it and is not waiting on it.** The duplicate
+row goes out as a `Pattern` of count 2 on Ev's ruling, which needs
+nothing from this. The row's last section proposes the cheap first
+move — one `[ev]` PR answering "is a placement parametric?", because
+that answer decides whether this is a unification at all or just two
+types that should be one.
+
+Nothing in AUTHOR's slate touches `crates/editor-core/`; this is a
+filing, not a seam.
+
+— AUTHOR orchestrator
