@@ -57,9 +57,16 @@
 //!    follow it. Unchanged from the register's own blind spot.
 //! 4. **A read inside a macro body, or split across two lines by
 //!    rustfmt**, is missed the same way.
-//! 5. The production/test cut is the register's: each top-level
-//!    `#[cfg(test)] mod` BLOCK is skipped by brace matching and the
-//!    walk carries on past it.
+//! 5. The production/test cut is the register's: each `#[cfg(test)]
+//!    mod` BLOCK is skipped and the walk carries on past it. It runs
+//!    over `test_utils::source`'s CODE view — comments and string
+//!    literals blanked, newlines kept — and matches the block's
+//!    brackets with that module's own `balanced_end`, which is exact
+//!    over a blanked view and is why this row rolls no reader of its
+//!    own (`crates/test-utils/tests/reader_census.rs`). The register's
+//!    hand command read raw lines and skipped a line beginning `//`;
+//!    the two agree file for file on this tree, which is the
+//!    cross-check that made the conversion safe.
 //!
 //! # Where it lives, and why here
 //!
@@ -69,6 +76,8 @@
 //! is gated to the ring's own sources.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use test_utils::source;
 
 test_utils::gated_to![
     "crates/geom-core/src/ring_interval.rs",
@@ -144,7 +153,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
 
 /// The repo root: this crate's directory, two levels up.
 fn repo_root() -> std::path::PathBuf {
-    let crate_dir = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"));
+    let crate_dir = source::crate_dir(env!("CARGO_MANIFEST_DIR"));
     crate_dir
         .parent()
         .and_then(std::path::Path::parent)
@@ -163,11 +172,18 @@ fn consumer_files(root: &std::path::Path) -> Vec<(String, String)> {
         .collect();
     dirs.sort();
     for d in dirs {
-        for path in test_utils::source::rust_sources(&d.join("src")) {
-            let text = std::fs::read_to_string(&path).expect("a readable source file");
-            if !text.contains("RingInterval") {
+        for path in source::rust_sources(&d.join("src")) {
+            let raw = std::fs::read_to_string(&path).expect("a readable source file");
+            if !raw.contains("RingInterval") {
                 continue;
             }
+            // **The shared lexer's CODE view**, not the raw text: a
+            // `.lo()` inside a doc comment or a string literal is not
+            // an endpoint read, and blanking keeps the newlines so a
+            // line count over this view is a line count over the file
+            // (`crates/test-utils/tests/reader_census.rs` is the
+            // ledger this entry sits in).
+            let text = source::code_only(&raw);
             let name = path
                 .strip_prefix(root)
                 .expect("a walked file lies under the repo root")
@@ -180,44 +196,59 @@ fn consumer_files(root: &std::path::Path) -> Vec<(String, String)> {
     out
 }
 
-/// The production half: every line outside a top-level
-/// `#[cfg(test)] mod` BLOCK, which the walk skips by brace matching
-/// and then carries on past.
-fn production(text: &str) -> Vec<String> {
-    let lines: Vec<&str> = text.lines().collect();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < lines.len() {
-        if lines[i].trim_start().starts_with("#[cfg(test)]") {
-            let mut j = i + 1;
-            while j < lines.len()
-                && (lines[j].trim_start().starts_with("#[") || lines[j].trim().is_empty())
-            {
-                j += 1;
+/// The production half of the CODE view: every line outside a
+/// `#[cfg(test)] mod` BLOCK, whose extent comes from the shared
+/// lexer's [`source::balanced_end`] rather than from counting braces
+/// by hand — over a blanked view every brace is a real brace, which is
+/// exactly the precondition that helper states.
+fn production(code: &str) -> Vec<String> {
+    let mut skipped: Vec<(usize, usize)> = Vec::new();
+    let mut at = 0usize;
+    while let Some(off) = code[at..].find("#[cfg(test)]") {
+        let gate = at + off;
+        at = gate + "#[cfg(test)]".len();
+        // **The gate is not always adjacent to the item.** Further
+        // attributes may sit between them — `#[allow(clippy::…)]` on a
+        // test module is the tree's commonest spelling, and reading
+        // only the next token is what let a whole test module count as
+        // production. Each one is skipped through the shared lexer's
+        // bracket matcher, over the blanked view where that is exact.
+        let mut cursor = at;
+        loop {
+            cursor = source::skip_ws(code, cursor);
+            if !code[cursor..].starts_with("#[") {
+                break;
             }
-            let opens_a_module = lines.get(j).is_some_and(|l| {
-                let l = l.trim_start();
-                l.starts_with("mod ") || l.starts_with("pub mod ")
-            });
-            if opens_a_module {
-                let (mut depth, mut started, mut k) = (0i32, false, j);
-                while k < lines.len() {
-                    depth += i32::try_from(lines[k].matches('{').count()).unwrap_or(0);
-                    depth -= i32::try_from(lines[k].matches('}').count()).unwrap_or(0);
-                    started |= lines[k].contains('{');
-                    if started && depth <= 0 {
-                        break;
-                    }
-                    k += 1;
-                }
-                i = k + 1;
-                continue;
-            }
+            let Some(close) = source::balanced_end(code, cursor + 1) else {
+                break;
+            };
+            cursor = close + 1;
         }
-        out.push(lines[i].to_string());
-        i += 1;
+        // Only a `mod` opens a block this walk carries on past; a
+        // `#[cfg(test)]` on a function or a `use` gates no block.
+        let item = &code[cursor..];
+        if !(item.starts_with("mod ")
+            || item.starts_with("pub mod ")
+            || item.starts_with("pub(crate) mod ")
+            || item.starts_with("pub(super) mod "))
+        {
+            continue;
+        }
+        let Some(open) = item.find('{') else { continue };
+        let Some(end) = source::balanced_end(code, cursor + open) else {
+            continue;
+        };
+        skipped.push((source::line(code, gate), source::line(code, end)));
+        at = end;
     }
-    out
+    code.lines()
+        .enumerate()
+        .filter(|(i, _)| {
+            let ln = i + 1;
+            !skipped.iter().any(|&(a, b)| ln >= a && ln <= b)
+        })
+        .map(|(_, l)| l.to_string())
+        .collect()
 }
 
 /// Whether the line declares a function — the census's reading of
@@ -241,10 +272,7 @@ fn every_production_endpoint_read_is_counted_and_dispositioned() {
     for (name, text) in consumer_files(&root) {
         let lines = production(&text);
         let reads: Vec<usize> = (0..lines.len())
-            .filter(|i| {
-                let t = lines[*i].trim_start();
-                !t.starts_with("//") && (lines[*i].contains(".lo()") || lines[*i].contains(".hi()"))
-            })
+            .filter(|i| lines[*i].contains(".lo()") || lines[*i].contains(".hi()"))
             .collect();
         if reads.is_empty() {
             continue;
