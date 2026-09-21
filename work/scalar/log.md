@@ -576,3 +576,14 @@ lanes' figures on the PR thread (compile cost measured on the shared
 4-vCPU box; the no-lane count: 3 kernel traits, 15 impls, 959 lines, 14
 call sites, 104 bounded signatures).
 
+## RING-1 merged (2026-09-21)
+
+PR 2971, block SCALAR-B4 slot 2, ordinal 4110. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual concluded with no
+tally candidate (the one MAJOR bilateral and pre-fixed); the fix pass
+took thirteen items and declined one. Both reviews' end-to-end programs
+established that the lane-trait impls, not the feature, are what keeps a
+default-build caller out of the kernel doors at `Interval` — RING-3 and
+LANE-1..4 specs carry it. One exposure: the PR body's auto-appended
+footer names a vendor and re-appends on every body update; the row
+records it.
