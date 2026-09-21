@@ -419,21 +419,26 @@ fn a_shape_both_rules_take_is_what_pins_the_order() {
     );
 }
 
-/// **THE THREE DIFFERENTIAL CONSTRUCTORS DO NOT CARRY RULE F (R2).**
-/// `without_the_algebra`, `shipped_without_the_door` and
-/// `without_rule_e` are documented as M10-9's, M10-8's and M10-10's
-/// tiers "bit for bit"; none of those tiers had rule F, and all three
-/// are spelled `..Self::shipped()`, so each acquired `manifest_sign:
-/// true` the day rule F shipped. This row reds on that head and is the
-/// pin that keeps the next early-walk rule from doing it again.
+/// **THE EARLIER-TIER DIFFERENTIALS DO NOT CARRY RULE F (R2).**
+/// `without_the_algebra` and `without_rule_e` are documented as
+/// M10-9's and M10-10's tiers "bit for bit"; neither tier had rule F,
+/// and both are spelled `..Self::shipped()`, so each acquired
+/// `manifest_sign: true` the day rule F shipped and went on claiming
+/// otherwise. This row reds on that head and is the pin that keeps the
+/// next early-walk rule from doing it again.
+///
+/// `shipped_without_the_door` is deliberately NOT in this list. Its
+/// live contract is "shipped minus the door and nothing else" —
+/// `m10_9_pins_interval`'s census asserts exactly that, and every use
+/// in the tree is a door differential — and its old "M10-8's tier
+/// exactly" sentence was already false before rule F: it has carried
+/// rules A/B and D since M10-10 and rule E since SYM-5. That SENTENCE
+/// is the defect and SYM-8's fix pass retired it. M10-8's tier is
+/// `a0_alone()` in `m10_8_pins_interval`.
 #[test]
 fn the_earlier_tier_differentials_shut_rule_f() {
     for (what, r) in [
         ("without_the_algebra", SymRules::without_the_algebra()),
-        (
-            "shipped_without_the_door",
-            SymRules::shipped_without_the_door(),
-        ),
         ("without_rule_e", SymRules::without_rule_e()),
     ] {
         println!("  {what}.manifest_sign = {}", r.manifest_sign);
@@ -446,6 +451,11 @@ fn the_earlier_tier_differentials_shut_rule_f() {
     assert!(
         SymRules::without_rule_f().common_factor,
         "the rule-F differential keeps rule E on: it is the pair's other half"
+    );
+    assert!(
+        SymRules::shipped_without_the_door().manifest_sign,
+        "the DOOR differential shuts the door and nothing else: shutting a fold rule \
+         with it would measure two things at once"
     );
 }
 

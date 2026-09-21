@@ -1530,18 +1530,27 @@ impl SymRules {
         }
     }
 
-    /// **The shipped set with the registered-identity door SHUT** —
-    /// M10-8's tier exactly, bit for bit, and the differential every
-    /// claim about what M10-9 costs and what it buys is measured
-    /// against ([`Self::registered`]). Rule F is shut with it for the
-    /// same reason [`Self::without_the_algebra`] shuts it: M10-8's tier
-    /// had no rule F, and a differential that carries one is not the
-    /// tier it names.
+    /// **The shipped set with the registered-identity door SHUT, and
+    /// nothing else** — the differential every claim about what the
+    /// DOOR buys is measured against ([`Self::registered`]), and the
+    /// contract `m10_9_pins_interval`'s census asserts.
+    ///
+    /// **It is NOT M10-8's tier, and said so for three units before
+    /// anyone checked.** M10-8's tier is A0 alone beside the door shut
+    /// — `registered: false, ..without_the_algebra()`, which is what
+    /// `m10_8_pins_interval`'s `a0_alone` builds. This constructor has
+    /// carried rules A/B per node and rule D since M10-10 and rule E
+    /// since SYM-5, so the old "M10-8's tier exactly, bit for bit" was
+    /// already false when rule F arrived; SYM-8's reviews caught the
+    /// sentence and read the whole of it onto rule F. The sentence is
+    /// the defect and is retired here. Rule F stays ON, because a
+    /// door differential that also shut a fold rule would measure two
+    /// things at once — [`Self::without_the_algebra`] and
+    /// [`Self::without_rule_e`], which DO name earlier tiers, shut it.
     #[must_use]
     pub const fn shipped_without_the_door() -> Self {
         Self {
             registered: false,
-            manifest_sign: false,
             ..Self::shipped()
         }
     }
