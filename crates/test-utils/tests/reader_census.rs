@@ -379,10 +379,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the query seat's body, code view
     },
     Entry {
-        path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
-        disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
-    },
-    Entry {
         path: "crates/topo/tests/shell_tolerance_chain.rs",
         disposition: Shared, // the shell offset chain's signatures, code view
     },
