@@ -923,3 +923,44 @@ fn a_leg_whose_separation_overflows_gets_no_heading() {
         );
     }
 }
+
+/// **A vertex whose Y is past the range refuses, and its X is an
+/// ordinary number** — which is the only row here that separates the
+/// two coordinates.
+///
+/// `drawable` asks both, and every other fixture in this file carries
+/// its non-finite value in `x`: the vertex row's `inf` is `(inf, 0)`
+/// and the arc row's first bad point is `[inf, -4.6e306]`, so
+/// weakening the predicate to `point[0].is_finite()` alone leaves the
+/// whole viewer suite green. Measured, not supposed: 637 rows passed
+/// under exactly that mutation. This is the row that reds it.
+#[test]
+fn a_vertexs_second_coordinate_is_asked_the_question_too() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(0.0, 1.0e308)),
+            Step::Toward { dx: 0.0, dy: 1.0 },
+            Step::Line(1.0e308),
+            Step::LineTo(Target::Point(pt(1.0e307, 0.0))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("a vertex whose ordinate is not a number has no drawable loop around it");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 1
+            }
+        ),
+        "{refusal}",
+    );
+}

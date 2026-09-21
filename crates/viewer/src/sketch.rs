@@ -1299,6 +1299,12 @@ const MAX_ARC_POINTS: usize = 256;
 /// vertices and an arc's interior points alike — because the drawn
 /// output is what this module answers for, and a polyline carrying a
 /// point that is not a pair of numbers is a picture of nowhere.
+///
+/// **Every is checkable**: the two `out.push` calls in [`flatten`] are
+/// the only places a coordinate joins the output, so a reader holds
+/// the whole population by grepping that function for `out.push`. The
+/// arc frame goes through here too, one call further down, which is
+/// the same question about a `[f64; 2]` and not a second one.
 fn drawable(point: [f64; 2]) -> bool {
     point[0].is_finite() && point[1].is_finite()
 }
@@ -1395,8 +1401,8 @@ fn flatten(
         // chord's own midpoint, which overflows on its own for two
         // vertices near the top of the exponent range — hence
         // `centre`, and `start` after it.
-        let Some(count) = arc_points(radius, theta, chord)
-            .filter(|_| centre[0].is_finite() && centre[1].is_finite() && start.is_finite())
+        let Some(count) =
+            arc_points(radius, theta, chord).filter(|_| drawable(centre) && start.is_finite())
         else {
             return Err(index);
         };
