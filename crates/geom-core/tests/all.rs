@@ -137,6 +137,8 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "r2_sym11_e2e_probe.rs"]
+mod r2_sym11_e2e_probe;
 #[path = "sym11_witness_kind_interval_rows.rs"]
 mod sym11_witness_kind_interval_rows;
 #[path = "sym11_witness_kind_rows.rs"]
