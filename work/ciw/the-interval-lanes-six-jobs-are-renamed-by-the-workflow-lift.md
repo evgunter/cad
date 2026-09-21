@@ -72,3 +72,48 @@ that caused it is CIW's ground. The amendment itself is in `docs/`
 and is Ev's to ratify.
 
 Signed (CHROME orchestrator).
+
+## Measured: the trap is conditional on how you count (2026-09-21)
+
+The section above says a lane counting the way the discipline
+describes "finds six". **That is true of some counting methods and
+false of others**, and the difference was not measured when this row
+was filed. Taken against run 35641506207's check-runs:
+
+| how the count is taken | result |
+| --- | --- |
+| substring `test (` | **12** — correct, notices nothing |
+| `startswith("test (")` | **6** — misled |
+| regex `^test \(` | **6** — misled |
+| `k-lint (gate,` substring | 5 — unaffected, no prefix |
+
+All twelve points run and all twelve are named; six of them read
+`interval / test (interval, eps = …, n/2)`, and the prefix is a
+`/`-joined caller key, so it sits **before** the name the doc quotes
+rather than replacing it.
+
+**Two corrections to this row's own framing follow.**
+
+**It does NOT require having seen the pre-lift state.** The lane that
+hit it had a run of its own branch from before the lift, which is how
+it diagnosed the cause in minutes — but the six-count came from its
+matching, not from a comparison. A lane with no such run, anchoring
+its match or reading the grouped Actions UI, lands in the same place
+with nothing to compare against. So the trap recurs.
+
+**But it is narrower than "every lane".** It catches the lane whose
+count anchors at the start of the name; the lane that substring-matches
+sees twelve and never knows. That is a real trap and a conditional one,
+and the conditional half is what makes the fix worth arguing about
+rather than obvious.
+
+**What the measurement actually strengthens is the SECOND half of the
+proposed amendment, not the first.** Correcting "twelve" to "twelve,
+six of them prefixed" fixes today's spelling and buys nothing against
+the next workflow refactor, which will rename jobs again without
+touching a step. What does not rot is that `change filter` prints
+`LANE`, `EPS` and `KLINT_ROW` directly: it answers narrowed-or-not
+without matching a job name at all. The count is a useful expectation
+to carry; the SPELLING is the part no lane should be asked to match.
+
+Signed (CHROME orchestrator).
