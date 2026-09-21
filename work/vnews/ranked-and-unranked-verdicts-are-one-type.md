@@ -109,3 +109,67 @@ Sequence after `frame-module-has-eight-concerns-and-no-holds-row`'s
 split question is answered, or independently of it — the two touch the
 same file but not the same argument.
 
+## Adjudicated 2026-09-20 (`vnews/frame-cluster-order`)
+
+### The sequencing gate has fired
+
+`work/view/frame-module-has-eight-concerns-and-no-holds-row` is
+**closed**, and so are the three rows this one refs or argues from:
+`status-line-writers-bypass-the-ranking`,
+`camera-fold-clears-status-line` and
+`was-the-status-route-supposed-to-fire-for-an-absent-chooser`. Nothing
+sequences this row any more.
+
+### Citations re-derived against the tree
+
+The claims hold; every number in the body has moved.
+
+| the body says | the tree today |
+|---|---|
+| `frame::apply(status, update)` | `crates/viewer/src/frame.rs:542` |
+| `frame::deliver(notices, status, update)` | `crates/viewer/src/frame.rs:512` |
+| `viewport.rs:46`, in `land` | `crates/viewer/src/pane/viewport.rs:93` |
+| `viewport.rs:178`, the id pass | `crates/viewer/src/pane/viewport.rs:473` |
+| `batch_status`'s `(true, None)` arm, `frame.rs:474` | `crates/viewer/src/frame.rs:586` |
+| the forward when `notices.is_empty()`, `frame.rs:521-523` | `crates/viewer/src/frame.rs:667` |
+
+**One claim in the body is now false as stated.** The two doors are not
+*"ten lines apart, in one file"*: they are **380 lines apart** in
+`pane/viewport.rs`, at `:93` and `:473`. The finding is unaffected and
+arguably sharpened — a reader who could see both doors in one screen at
+least had the comparison in front of them.
+
+**Two facts re-checked because the row rests on them, and both hold.**
+`frame::deliver` has exactly one production caller,
+`pane/viewport.rs:93`; `frame::fold_status`
+(`crates/viewer/src/frame.rs:1125-1133`) answers `Show` or
+`Expire(Subject::Camera)` and never `Clear`, so the row's
+*"no policy that reaches `deliver` answers `Clear`"* is still true.
+`frame::apply` has two production callers outside the module —
+`crates/viewer/src/app.rs:1342` and `crates/viewer/src/pane/viewport.rs:473`
+— so *"`apply` becomes private to `frame`"* is not available without
+the second half of the row's own proposal (`apply` taking the ranked
+type). `crates/viewer/src/pane/viewport.rs:959` is a third `apply` site
+and is inside `#[cfg(test)]` (`:828`), so it is not a production door.
+
+### This row's fix deletes `a-fold-row-composes-a-producer-with-a-dead-door`'s instance
+
+That row names two dead compositions in `frame.rs`'s test module, both
+`apply(status, fold_status(refused))`
+(`crates/viewer/src/frame.rs:2188` and `:2370`). Under the proposal
+above — `apply` taking a ranked type rather than a policy's
+`StatusUpdate` — **both stop compiling**, because `fold_status` returns
+the policy type. So the sibling row is not a question this program has
+to answer ahead of this one, and it must not be spent as a serialized
+`frame.rs` lane before it: taking this row first removes its subject.
+
+### No Ev gate
+
+The doors, the type and the ranking they feed are stated in
+`frame.rs`'s doc comments and in `crates/viewer/README.md`, which the
+`docs/DESIGN.md:33` companion row calls *"the implementation record,
+which the program maintains itself"*. `crates/viewer/GUI-DESIGN.md`
+says nothing about either door. See
+`rank-one-discards-the-frames-other-news`'s adjudication section for
+the searches.
+

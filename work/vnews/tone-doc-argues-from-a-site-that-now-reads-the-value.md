@@ -66,3 +66,37 @@ written by the same lane against the post-move tree and is correct.
 
 Ride the two `frame.rs` members on whichever VNEWS unit next holds that
 file; the `theme.rs` member needs whoever holds `theme.rs`.
+
+## Adjudicated 2026-09-20 (`vnews/frame-cluster-order`)
+
+### Both `frame.rs` members are there, still false, and pinned
+
+- The `Tone` header is `crates/viewer/src/frame.rs:1162-1176`; the
+  false attribution is `:1166-1171` (*"The Features pane argues it
+  explicitly for rows … and until this type existed no value stated
+  it"*).
+- `product_badge`'s doc carries the second at
+  `crates/viewer/src/frame.rs:1764-1768` (*"The Features pane goes
+  further and draws a poisoned row deliberately QUIET"*).
+
+Both are false because the rule is now a value and the pane reads it:
+`tree::RowStatus::tone()` is `crates/viewer/src/tree.rs:149-154` and
+`crates/viewer/src/pane/features.rs:89` draws
+`toned(row.status.badge(), &self.theme, row.status.tone())`, with
+`:81`'s own comment naming `RowStatus::tone()` as the source.
+
+### The `theme.rs` member is out of fence and stays out
+
+`crates/viewer/src/theme.rs:201-205` is there and is still TRUE, as the
+row says. `theme.rs` is one of the eleven files
+`work/view/viewer-src-files-no-successor-claims` reports as claimed by
+no re-scope successor, so it cannot ride a VNEWS lane. The `frame.rs`
+half does not wait on it.
+
+### Disposition
+
+A rider on the `frame.rs` prose pass — two doc sentences, no value
+change, no Ev gate. `crates/viewer/GUI-DESIGN.md` G4's tree clause
+(`:96-99`) states the POISONED-draws-quiet rule itself and is
+untouched by either repair: what moves is only WHO the doc says states
+it, which is a fact about this crate's code and not a design choice.

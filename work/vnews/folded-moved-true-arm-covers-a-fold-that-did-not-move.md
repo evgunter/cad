@@ -62,3 +62,35 @@ name is the part that is arguable.
 VNEWS's: `crates/viewer/src/frame.rs`. It takes with whichever
 `frame.rs` lane is next in the serialized cluster — this is a doc
 comment and possibly a name, not a build of its own.
+
+## Adjudicated 2026-09-20 (`vnews/frame-cluster-order`)
+
+### The premise holds and the citation is exact
+
+`folded_moved` is `crates/viewer/src/frame.rs:2096`, the body is
+`!folded.applied.is_empty() || folded.refused.is_some()` at `:2097`,
+and the first doc line — *"Whether a folded event stream actually moved
+the camera."* — is `:2082`. The rest of that doc comment
+(`:2084-2095`) is the *"what this buys is a statement, not a fix"*
+argument, which is true and stays. The `land` guard is
+`crates/viewer/src/pane/viewport.rs`, and the two assertions the row
+names are `crates/viewer/src/frame.rs:2353` (*"a refusal is a camera
+event too"*) and `crates/viewer/tests/frame_policy.rs`'s `folded_moved`
+row.
+
+### The rename is declined, on this program's own charter
+
+The row leaves the rename to the lane. The charter's test settles it:
+*"a row belongs here only if a reader would see the difference; a
+rename nobody reads is not news."* `folded_moved` is a crate-internal
+predicate with one production caller; renaming it changes nothing a
+reader of the GUI sees, and `work/vnews/plan.md` requires that test at
+SPEC time rather than at review. **So the deliverable is the first doc
+line and nothing else** — which is what the row already recommends and
+what makes it a rider rather than a lane.
+
+### Disposition
+
+A rider on the `frame.rs` prose pass. No Ev gate: `folded_moved` is not
+named in `crates/viewer/GUI-DESIGN.md`, and the sentence being repaired
+is a doc comment in this program's own file.

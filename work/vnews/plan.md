@@ -208,12 +208,177 @@ file at once is a conflict bought for nothing, so **at most one
 `frame.rs` lane runs at a time**, whatever the group order allows in
 parallel elsewhere.
 
+### 7. The frame.rs cluster, adjudicated (2026-09-20)
+
+Groups 3, 4, part of 5 and four rows the order never placed all edit
+`crates/viewer/src/frame.rs`, which is serialized. This section is the
+order for that file, derived against the tree on 2026-09-20 rather
+than from the rows. It supersedes groups 3 and 4 for the rows it
+names. Every claim below is a claim; the evidence is in each row's own
+`## Adjudicated 2026-09-20` section.
+
+**The population is eight, and the enumeration rule is: an OPEN row on
+this slate whose fix edits `crates/viewer/src/frame.rs`.** Re-derived
+by grepping `frame.rs` across `work/vnews/*.md` and reading each hit's
+`status:` and its fix site. Two hits are closed rows
+(`is-instance-collapses-absent-and-wrong-kind`,
+`seat-line-spells-the-list-mark-as-a-literal`), and two open rows
+mention the file without editing it:
+`seat-lines-item-mark-has-no-name` says so itself (*"`frame.rs` is not
+in scope"*), and
+`undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words`
+cites it only as evidence about reachability, its home being `app.rs`.
+
+#### What each row is
+
+| row | what it is | evidence |
+|---|---|---|
+| `ranked-and-unranked-verdicts-are-one-type` | **a build** this program decides | its sequencing gate (`frame-module-has-eight-concerns-and-no-holds-row`) is closed; doors and citations re-derived |
+| `outstanding-and-progress-are-two-three-state-enums-one-hop-apart` | **a decision this program makes**, then a build | no clause in `GUI-DESIGN.md`; its only cited ratification is `crates/viewer/README.md:368`, the implementation record |
+| `rank-one-discards-the-frames-other-news` | **a decision this program makes** | rank 1 is NOT ratified — see below |
+| `one-line-one-subject-loses-a-mixed-frames-expiry` | **a decision this program makes** | same finding; arm 1 is the status quo and not a design change at all |
+| `a-fold-row-composes-a-producer-with-a-dead-door` | **a negative result**, plus a rider | the tree already answers its question at `frame.rs:2337-2349` |
+| `document-news-has-no-home` | **a build**, not dispatchable yet | its fourteen sites include `pane/profile.rs`, which no dispatching program claims |
+| `folded-moved-true-arm-covers-a-fold-that-did-not-move` | **a rider** (one doc line) | the rename is declined on the charter's own reader test |
+| `tone-doc-argues-from-a-site-that-now-reads-the-value` | **a rider** (two doc sentences) | both members verified false at `frame.rs:1166-1171` and `:1764-1768` |
+
+**Nothing in this cluster is a decision for Ev.** Nothing here is
+`needs_ev`, and none of it should become so.
+
+#### The finding that decides the two ranking rows
+
+`rank-one-discards-the-frames-other-news` called rank 1 *"the ratified
+ranking"* and `one-line-one-subject-…` argued its arm 2 against *"rank
+1's ratified 'a refusal wins, alone'"*. **There is no ratification.**
+`crates/viewer/GUI-DESIGN.md` — the Ev-gated document, the one
+`docs/DESIGN.md:33` marks *Ratified* — carries no clause about the
+status line at all; none of `docs/DESIGN.md`'s Q1–Q9 is the status
+line; no `[ev]` commit has ever touched `crates/viewer/src/frame.rs`;
+and the rule's only normative statement is `frame_status`'s doc comment
+(`crates/viewer/src/frame.rs:610-623`), written by an agent in
+`66d7fe11f` on 2026-08-31 and called ratified by another agent in
+`3ef3f9df7` on 2026-09-04. The full search log is in
+`rank-one-discards-the-frames-other-news`'s adjudication section.
+
+`crates/viewer/README.md` is not a gate either: the companion row says
+it is *"the implementation record, which the program maintains
+itself"*, and it has no row of its own in that table.
+
+**One sentence in the source asserts the gate anyway.**
+`crates/viewer/src/frame.rs:656-658` says the per-subject line *"is a
+design question for Ev"*. It is not, and the same sentence also cites
+`work/view/one-line-one-subject-…`, a path the re-scope moved. The
+stale-path half is already filed as
+`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`; the
+false-gate half is this program's and rides the prose pass.
+
+#### Three claims the order and the brief carried that do not hold
+
+1. **Groups 3's *"the second's fork decides what the first collapses
+   INTO"* is false.** `Outstanding`/`Progress` feed the badge channel
+   and `StatusUpdate` feeds the status line; no value of either family
+   is convertible to the other. They share a SHAPE, not a dependency,
+   and are independently decidable.
+2. **Group 4's *"one conversation"* is false.** A refusal and a
+   supersession are both `Subject::Document`
+   (`crates/viewer/src/frame.rs:583-585` and `:2502-2507`), so
+   `one-line-one-subject-…`'s arm 2 leaves
+   `rank-one-discards-…`'s case exactly as it is. The interlock runs
+   one way only: taking `rank-one-discards-…` first makes arm 2
+   cheaper, and not the reverse.
+3. **`a-fold-row-…`'s *"nothing states it anywhere"* is false**, and
+   `ranked-and-unranked-…`'s fix would make its two instances stop
+   compiling. It is not a lane and must not go first.
+
+#### The order
+
+**A. The prose pass — one lane, and it can be the cheapest thing on the
+slate.** `folded-moved-true-arm-covers-a-fold-that-did-not-move` (one
+doc line, `frame.rs:2082`), `tone-doc-argues-from-a-site-that-now-
+reads-the-value`'s two `frame.rs` members (`:1166-1171`, `:1764-1768`),
+`a-fold-row-…`'s disclosure paragraph on `:2182`, the false-gate clause
+at `:656-658`, and `document-news-has-no-home`'s stale *"twelve sites"*
+at `:1345`. **Six sentences in one file, no value changes, one
+serialized slot instead of five.** Under §Review posture's third tier
+this is the orchestrator's-read tier: no correctness is at risk and
+every member is verified in its row.
+
+Two caveats a lane taking it owes. `:656-658` and `:704` are also in
+`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
+table — the crossing is announced and that row's two lines struck, or
+the lane leaves the path alone and repairs only the Ev claim. And
+`theme.rs` is out of fence and stays out.
+
+**B. `ranked-and-unranked-verdicts-are-one-type`.** First of the
+builds, because it is the only row whose fix removes another row's
+subject: `apply` taking a ranked verdict makes `a-fold-row-…`'s two
+dead compositions compile errors. It also decides the type every later
+row in this file writes against.
+
+**C. `rank-one-discards-the-frames-other-news`.** P0, and a decision
+this program now knows it may make. Ahead of `one-line-one-subject-…`
+because a rank-2 list that must already carry a second message beside a
+refusal is the shape that row's arm 2 wants. (The band is worth a
+look: `work/README.md` P0 is *a live wrong answer* or *a defect Ev
+reported*, and this is a silence about a lost hand-placed pose. Left
+as filed; the re-band is the orchestrator's call, not an
+adjudication's.)
+
+**D. `one-line-one-subject-loses-a-mixed-frames-expiry`.** Its three
+arms, costed against the tree rather than the row — arm 1 is the
+status quo and costs one recording sentence.
+
+**E. `outstanding-and-progress-are-two-three-state-enums-one-hop-
+apart`.** Independent of B–D, so it goes wherever the serialized slot
+is free. It reaches `session.rs` and `pickcache.rs`, which are VSEAM's:
+announce.
+
+**Not scheduled: `document-news-has-no-home`.** Its fix edits
+`crates/viewer/src/pane/profile.rs`, which
+`work/view/viewer-src-files-no-successor-claims` reports as claimed by
+no re-scope successor while VIEW is `NOT DISPATCHING` — the same
+blocker this plan already applies to
+`environmental-facts-answer-usable-as-a-bool-with-the-reason-
+elsewhere`. Left `open` rather than `parked`, matching that row.
+
+**And `a-fold-row-composes-a-producer-with-a-dead-door` is never a
+lane.** Its question is answered, its rider is in group A, and its
+crate-wide half is filed as
+`work/vdoc/a-fixture-may-compose-a-dead-door-and-nothing-says-when`. It
+stays open only until the rider lands.
+
+#### One cross-program hazard on this file
+
+`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope` edits
+`crates/viewer/src/frame.rs:657`, `:704` and `:1895`, and
+`work/vseam/projection-fault-has-no-sweeper` names `:1895` too. The
+serialization clause above says *at most one `frame.rs` lane at a
+time* and reads as a rule about this program's lanes; it is not one a
+sibling program's dispatch can see. Whoever dispatches group A
+announces it.
+
 ## Inbound
 
 `joined-notices-nest-their-own-separator` is this program's row and is
 still on VIEW's slate: its lane is in flight at PR #2665 and a rename
 mid-review is a merge conflict for nothing. It arrives here when that
 PR merges, or with VIEW's exit walk, whichever is first.
+
+**Correction (2026-09-20, `vnews/frame-cluster-order`): the trigger
+fired five days ago and nothing moved.** PR #2665 merged
+2026-09-15T15:28:37Z (`bf79ece0e`, *"VIEW: a notice boundary is a mark
+no notice can contain"*); its fix is on `main` —
+`frame::NOTICE_SEPARATOR` is `" • "` built from `frame::NOTICE_MARK`,
+with `frame::LIST_SEPARATOR` beside it. The row still reads
+`status: review`, `pr: 2665` in `work/view/`, and its own `## Answered`
+section records the work as done with the inner-level residue filed as
+`withdrawal-causes-join-on-a-mark-a-fault-may-contain`. So the row
+reads as an in-flight `frame.rs` lane on the board and is not one —
+which matters here, because the serialization clause above is read off
+exactly that. It is VIEW's file and this adjudication does not move it:
+the disposition (close it where it is, or `git mv` it here and close
+it) is the orchestrator's, and either way **no `frame.rs` lane is in
+flight today.**
 
 ## Dispatch rules this program pays for
 

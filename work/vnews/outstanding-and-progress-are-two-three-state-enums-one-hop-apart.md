@@ -52,3 +52,52 @@ consumer input that is still a raw reading rather than a value, and
 door that would mint one. It is not a swap hazard today because there
 is only one `bool` left; it is the asymmetry that makes the rule read
 as applied to half the signature.
+
+## Adjudicated 2026-09-20 (`vnews/frame-cluster-order`)
+
+### The premise holds; every citation has moved
+
+| the body says | the tree today |
+|---|---|
+| `session.rs:547` — `enum Outstanding` | `crates/viewer/src/session.rs:602` |
+| `frame.rs:1579` — `enum Progress` | `crates/viewer/src/frame.rs:1989` |
+| `frame.rs:1616-1623` — the four arms | `crates/viewer/src/frame.rs:2027-2033` |
+| `frame.rs:178` — the `Outstanding` import | `crates/viewer/src/frame.rs:210` |
+| `README.md:349-350` — the bare-`bool` clause | `crates/viewer/README.md:368` |
+| `pickcache.rs:413` — `PickCache::indexing()` | `crates/viewer/src/pickcache.rs:487` |
+
+The substance is unchanged: `Outstanding` is still
+`{ Current, Evaluating, Canceled }` with no payload, `Progress` is
+still `{ Evaluating, Canceled { indexing: bool }, Indexing }`, both
+`Evaluating` and both `Canceled` are in one file's scope, and
+`progress` is still four arms of which two are a rename carrying a
+payload.
+
+### This row does NOT collapse into `ranked-and-unranked-verdicts-are-one-type`
+
+`work/vnews/plan.md`'s §Order group 3 says the two rows are *"one
+conversation"* because *"the second's fork decides what the first
+collapses INTO"*. Checked against the tree, **there is no collapse
+relation between them, in either direction.** They are disjoint type
+families on the two channels `crates/viewer/README.md` distinguishes:
+
+- `Outstanding`/`Progress` answer *what work is outstanding* and feed
+  the **badge** channel — the toolbar spinner
+  (`crates/viewer/src/frame.rs:1979-1987`, the *"one state, not a badge
+  per seam"* argument).
+- `StatusUpdate`/the proposed ranked verdict answer *what the line
+  says* and feed the **status-line** channel.
+
+No value of either family is convertible to, or a special case of, the
+other. What the two rows genuinely share is a SHAPE — two parallel
+vocabularies one hop apart, with the same collapse-or-name-the-
+difference fork — and a shape is not a dependency. They are
+independently decidable, and the only thing that orders them is that
+both edit `crates/viewer/src/frame.rs`, which is serialized.
+
+### No Ev gate
+
+`crates/viewer/GUI-DESIGN.md` carries no clause about either enum;
+`docs/DESIGN.md:33` calls `crates/viewer/README.md` the implementation
+record the program maintains itself, and `README.md:368` is the only
+ratifying sentence the row cites. The fork is this program's.
