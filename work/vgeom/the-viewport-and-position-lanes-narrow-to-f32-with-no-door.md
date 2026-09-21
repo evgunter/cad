@@ -2,10 +2,11 @@
 id: the-viewport-and-position-lanes-narrow-to-f32-with-no-door
 kind: issue
 title: The remaining Rust/GPU float lanes are doored by their producers or not at all, and the f32 narrowing is doored nowhere
-status: dispatched
+status: review
 opened: 2026-09-17
 refs: [2808]
 branch: vgeom/f32-seam
+pr: 3030
 ---
 
 

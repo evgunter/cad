@@ -2,12 +2,13 @@
 id: the-point3-to-gpu-corner-cast-is-at-three-sites
 kind: issue
 title: three sites cast a Point3 to a GPU corner and the prose reconciling them names two
-status: dispatched
+status: review
 opened: 2026-09-06
 refs: [2083]
 priority: P1
 cost: E
 branch: vgeom/f32-seam
+pr: 3030
 ---
 
 
