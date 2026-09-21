@@ -661,6 +661,9 @@ impl<T: SpanLocate> Curve3<T> {
     ///   formulas.
     /// - Ellipse: one `sin_cos`, then the two combinations exactly as
     ///   [`Self::eval`] and [`Self::deriv`] parenthesize them.
+    /// - Spiric: one `sin_cos`, one `sqrt` (`ρ` and `f` shared), then
+    ///   the two combinations exactly as [`Self::eval`] and
+    ///   [`Self::deriv`] parenthesize them.
     /// - Nurbs: the payload's [`NurbsCurve3::ders1`].
     ///
     /// The return is the tuple the NURBS jets return; a consumer
@@ -689,6 +692,22 @@ impl<T: SpanLocate> Curve3<T> {
                 (
                     *center + (*u_ref * (*major * c) + v_ref * (*minor * s)),
                     *u_ref * (-(*major * s)) + v_ref * (*minor * c),
+                )
+            }
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
+                let f1 = -(*minor_radius * rho * s) / f;
+                (
+                    *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s),
+                    m * f1 + *axis * (*minor_radius * c),
                 )
             }
             Curve3::Nurbs(n) => n.ders1(t),
@@ -1888,8 +1907,9 @@ mod tests {
     /// The analytic arms' `ders1` is their `eval` and `deriv` bit for
     /// bit: the line's closed form, the circle's one azimuthal frame
     /// against the two frames the pair builds, the ellipse's one
-    /// `sin_cos` against the pair's two — on the tilted fixtures, at
-    /// parameters that are not special to any of them.
+    /// `sin_cos` against the pair's two, the spiric's one `sin_cos` and
+    /// one `sqrt` against the pair's two of each — on the tilted
+    /// fixtures, at parameters that are not special to any of them.
     #[test]
     fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
         let line = Curve3::Line {
@@ -1900,6 +1920,7 @@ mod tests {
             ("line", line),
             ("circle", tilted_circle()),
             ("ellipse", tilted_ellipse()),
+            ("spiric", tilted_spiric()),
         ] {
             for t in [-7.3, -1.0, 0.0, 0.37, 1.0, FRAC_PI_2, 2.9, TAU, 41.5] {
                 let (p, d) = c.ders1(t);
