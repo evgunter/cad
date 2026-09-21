@@ -19,8 +19,12 @@
 //!   It carries decorations and division exactness witnesses — precisely
 //!   the tightness craft the ring declines to duplicate — which makes it
 //!   the right upper reference for "how much conservatism did we buy?".
-//! - `geom_core::Interval`, the `interval`-feature evaluation scalar,
-//!   behind `#[cfg(feature = "interval")]`. Since M5 PR 1 its backend is
+//! - `geom_core::Interval`, the certification scalar. The type
+//!   compiles in every build; the `interval` cargo feature gates the
+//!   lane-trait impls above this crate and the interval test files,
+//!   which is why this lane — a test file — carries
+//!   `#[cfg(feature = "interval")]` and its sibling does not. Since
+//!   M5 PR 1 its backend is
 //!   `interval-transcendentals` too — so this lane and the one above now
 //!   share an arithmetic core, and it is the *scalar wrapper* (poison
 //!   convention, `Real` lifting, `powi` routing) that is differentially
