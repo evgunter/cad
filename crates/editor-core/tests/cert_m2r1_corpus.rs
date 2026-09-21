@@ -16,11 +16,15 @@ use topo::{AtRestPolicy, Body};
 /// over a table rather than a dump per family, so the two families
 /// print under one set of labels and the rows compare across scalars.
 struct Doors<T: Decide> {
-    pseudomanifold:
-        fn(&Body<T>, &topo::ContactRecords, Tol) -> Result<(), Vec<topo::ValidationError>>,
-    marks: fn(&Body<T>, Tol) -> Result<Vec<String>, Vec<topo::ValidationError>>,
-    mass: fn(&Body<T>, Tol) -> Result<topo::MassProperties<T>, topo::MassPropsError>,
+    pseudomanifold: PseudomanifoldDoor<T>,
+    marks: MarksDoor<T>,
+    mass: MassDoor<T>,
 }
+
+type PseudomanifoldDoor<T> =
+    fn(&Body<T>, &topo::ContactRecords, Tol) -> Result<(), Vec<topo::ValidationError>>;
+type MarksDoor<T> = fn(&Body<T>, Tol) -> Result<Vec<String>, Vec<topo::ValidationError>>;
+type MassDoor<T> = fn(&Body<T>, Tol) -> Result<topo::MassProperties<T>, topo::MassPropsError>;
 
 /// The marks pass's map, rendered in one stable order.
 fn sorted_marks<K: core::fmt::Debug, V: core::fmt::Debug>(

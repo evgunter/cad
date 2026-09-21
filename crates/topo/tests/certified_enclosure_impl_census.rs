@@ -64,7 +64,7 @@ fn impls() -> BTreeSet<String> {
                     "{}: `CertifiedEnclosure for` outside an impl header: {line}",
                     file.display()
                 );
-                let ty = rest.split(|c| c == '{' || c == 'w').next().unwrap_or(rest);
+                let ty = rest.split(['{', 'w']).next().unwrap_or(rest);
                 out.insert(head(ty));
             }
         }
