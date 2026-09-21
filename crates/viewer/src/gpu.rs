@@ -2114,7 +2114,10 @@ mod tests {
 
         // The empty picture draws nothing: `read_id_at` reads this as
         // "there is no answer" rather than submitting an empty pass.
-        assert_eq!(corner_count(&SceneMesh::empty(mesh.bounds(), delta)), Some(0));
+        assert_eq!(
+            corner_count(&SceneMesh::empty(mesh.bounds(), delta)),
+            Some(0)
+        );
     }
 
     /// **A vertex table too long to be a draw range is refused, not
