@@ -42,3 +42,31 @@ is the new one: a STEP file stating a dome as one rim circle and no
 seam imports as a valid solid and refuses at `tessellate`. What a
 caller can do about it (restate the face seamed) is in the variant's
 doc and its `Display`.
+
+## Added at TESS-1's fix pass (2026-09-20)
+
+**`tessellate_err`'s `note` attribute now carries three kinds of
+content under one name** (`crates/pncad-py/src/py/mesh.rs`): an arm's
+own prose about the unbuilt lane (`unsupported_nurbs_face`,
+`unsupported_curve`, `missing_entity`); ANOTHER error's rendered
+sentence (`unsupported_curved_shape` → props' refusal,
+`tolerance_band_unformable` → the band error); and, since TESS-1, a
+bare KIND WORD (`meridian_free_curved_face` → `sphere` / `cone` /
+`cylinder`). A caller cannot tell from the attribute which it is
+holding; the stub's one-line description fits only the first. The
+kind word in particular is a discriminant riding in a prose slot — if
+the python surface wants it branchable it wants its own attribute
+(`surface_kind`, `None` elsewhere), which is a LIB API decision TESS-1
+did not take. Note also that the recourse in that arm's message
+differs per kind (a seamed restatement for sphere and cone, none for a
+cylinder), so a caller branching on the tag alone gets the right
+sentence only by reading the message.
+
+**On why these two files were filed rather than fixed.** Not
+ownership — LIB also owns `tags.rs`, `py/mesh.rs` and `tests.rs`,
+which TESS-1 DID edit. The separator is that those edits were forced
+(the compiler's exhaustive matches, and the tag-roster and
+binding-census tests, red without them), while the stub's docstring
+and the guide's bullet list are forced by nothing and were already
+stale before the unit; bringing them current is a documentation pass
+over the whole refusal surface, not an arm of this change.

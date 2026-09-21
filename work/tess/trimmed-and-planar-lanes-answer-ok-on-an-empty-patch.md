@@ -48,3 +48,29 @@ What the reading could not see: spade's behaviour on collinear and
 near-collinear constraint input; `planar::classify_faces` on a
 self-touching outer loop; whether any `step-import` normalization leaves
 a zero-area trim loop; NURBS faces with degenerate edges generally.
+
+## Counter-reading of the trimmed candidate (TESS-1 fix pass, 2026-09-20)
+
+A reviewer's reading, which this lane re-read and agrees with; **still
+unexecuted**. The trimmed candidate above most plausibly does NOT reach
+`Ok(empty)`. `trimmed::tessellate_trimmed`'s constraint pass classifies
+every intermediate vertex of a realised constraint, and an
+intermediate BOUNDARY vertex refuses `SelfTouchingTrimLoop`. A
+zero-area UV polygon is collinear, so the constraint that closes it
+runs back over every other boundary point of the loop: `realised.len()
+> 1` with boundary intermediates, and the face refuses typed before any
+triangle is kept. The message would be wrong for the cause (the loop
+does not touch itself; it has no area), but it is a typed refusal and
+not a hole.
+
+That arm is also the difference between the lanes: `curved`'s
+constraint pass (`exists_constraint` / `can_add_constraint` /
+`add_constraint`) has no intermediate-vertex classification, which is
+why a zero-height or zero-width curved polygon falls through to an
+empty emission where the trimmed one would not. `planar`'s pass counts
+crossings and has no such refusal either; its row above stands as
+written.
+
+So what this row still owes is an EXECUTION of the trimmed candidate —
+if it refuses `SelfTouchingTrimLoop` as read, the trimmed half closes
+with a note about the message, and the row narrows to `planar`.

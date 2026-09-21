@@ -561,7 +561,10 @@ const CORPUS: [(&str, Disposition); 75] = [
     // stated. Both statements of the rim — one closed circle edge, two
     // half arcs — are adopted as written and pass the gate; what the
     // mesh lane answers for the sphere face is `meridian_free_cap.rs`'s
-    // row.
+    // row. BOTH CENSUSES MOVE BY DESIGN when import learns to re-mint
+    // this face in the seamed form
+    // (`work/exch/import-normalizes-the-rim-only-cap.md`): more faces,
+    // edges and vertices here is that unit working, not a regression.
     (
         "tests/fixtures/rim-only-cap/rimonly1.step",
         Pass(1, 1, 2, 1, 1),

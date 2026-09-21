@@ -1,21 +1,20 @@
-//! **A curved face whose single loop is rims only refuses typed**
-//! ([`TessellateError::MeridianFreeCurvedFace`]), in every profile,
-//! before anything is emitted — and the seamed statement of the same
-//! solid meshes watertight.
+//! **A curved face whose single loop carries no meridian refuses
+//! typed** ([`TessellateError::MeridianFreeCurvedFace`] — its doc is the
+//! home of what the state is and why), before anything is emitted, and
+//! the seamed statement of the same solid meshes watertight.
 //!
-//! The swept-rectangle lane reads a face's v-extent from its meridians
-//! and learns of a pole only as a meridian's endpoint. A loop with no
-//! meridian gives it a zero-height domain, which triangulates to
-//! nothing: without the refusal `tessellate` answers with a hole where
-//! the face is (caught by the cross-face census where debug assertions
-//! run, returned as `Ok` where they do not). Every refusal row below
-//! therefore goes red with the guard removed, either way.
+//! Without the refusal `tessellate` answers with a hole where the face
+//! is: caught by the cross-face census where debug assertions run,
+//! returned as `Ok` where they do not. Every refusal row below therefore
+//! goes red with the guard removed, either way — except the torus row,
+//! which says so itself.
 //!
-//! No native verb mints the face — revolve and the booleans keep the
-//! seamed form, two half-faces on meridians through a valence-2 pole
-//! vertex — so the bodies come through the Euler doors
+//! The bodies come through the Euler doors
 //! (`witness_bodies::one_circle_cut`); the STEP route to the same state
-//! is `step-import/tests/meridian_free_cap.rs`.
+//! is `step-import/tests/meridian_free_cap.rs`. What this file pins
+//! about the kernel's own verbs is the control row and no more: the
+//! revolved dome and one plane-cut ball are stated on meridians through
+//! a pole vertex.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -101,9 +100,11 @@ fn assert_refuses_meridian_free(name: &str, body: &Body<f64>, kind: SurfaceKind,
 /// latitudes.** The cap ABOVE `z` holds the north pole in its interior,
 /// the ball BELOW `z` the south pole; the equator, a shallow cap and a
 /// cap past the equator all refuse alike, because nothing about the
-/// refusal reads the latitude. Each body is a valid solid to the rest of
-/// the kernel — tier 3 passes and the volume is the closed form — which
-/// is what makes this a refusal of a lane and not of the input.
+/// refusal reads the latitude.
+///
+/// Each body passes tier 3 and measures its closed-form volume as the
+/// kernel stands, and both are asserted: that is why the mesh lane has
+/// to refuse the face itself — no door in front of it does yet.
 #[test]
 fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
     let tol = Tol::witness();
@@ -126,6 +127,12 @@ fn a_rim_only_sphere_cap_refuses_at_either_pole_and_any_latitude() {
     for z in [0.0_f64, 0.5, -0.9] {
         let below = one_circle_cut(&unit_rim(z), plane(z, true), Some(sphere(1.0)));
         assert_eq!(topo::validate_geometric(&below, tol), Ok(()), "z = {z}");
+        let exact = PI * (1.0 + z).powi(2) * (2.0 - z) / 3.0;
+        let volume = topo::mass_properties(&below, tol).unwrap().volume;
+        assert!(
+            (volume - exact).abs() <= 1e-10 * exact,
+            "ball below z = {z}: volume {volume} vs {exact}"
+        );
         assert_refuses_meridian_free(
             &format!("ball below z = {z}"),
             &below,
@@ -276,6 +283,12 @@ fn the_seamed_twins_of_the_refused_caps_mesh_watertight() {
 /// refuses a face with no meridian by that name, so the answer is
 /// [`TessellateError::UnsupportedCurvedShape`] and the walk's guard is
 /// behind it. Measured on the outer equator and on the top rim.
+///
+/// **A disposition pin, not a row for the walk's guard**: removing
+/// `walk::require_a_meridian` cannot redden it, because the walk is
+/// never called. What reddens it is the shape door ceasing to refuse
+/// this face — the day the walk's guard would start answering for a
+/// torus.
 #[test]
 fn a_rim_only_torus_face_refuses_at_the_shape_door_on_the_same_fact() {
     let torus = Surface::Torus {

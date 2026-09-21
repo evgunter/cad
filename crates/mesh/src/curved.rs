@@ -30,15 +30,17 @@
 //!    through the apex, and everything below reads ONE chart
 //!    coordinate per edge. This door is `mesh`'s and the flux lane
 //!    must not cite it — the argument is at the predicate.
-//! 3. **EXTENT** — *does the loop span the chart's v direction at
-//!    all?* Asked BY the walk, on its classified traversal list and on
-//!    nothing else (`walk::require_a_meridian`), refusing
-//!    [`TessellateError::MeridianFreeCurvedFace`]. A loop of rims only
-//!    — a sphere cap's or a cone's apex cap's, the pole in the face's
-//!    interior — walks to a rectangle of zero height, which question 4
-//!    cannot tell from a real one (every entry is on its box) and the
-//!    CDT triangulates to nothing. Props admits that face, so neither
-//!    door above refuses it.
+//! 3. **A MERIDIAN** — *does the loop carry a meridian traversal at
+//!    all?* Asked BY the walk, on its traversal kinds
+//!    (`walk::require_a_meridian`), refusing
+//!    [`TessellateError::MeridianFreeCurvedFace`], whose doc carries
+//!    the argument. It is an existence question and not a span one:
+//!    two rims at two levels refuse as one rim does. What it stands in
+//!    front of is a rectangle of zero height, which question 4 admits
+//!    (every entry is on its box —
+//!    `tests::a_zero_height_box_passes_the_walk_consistency_check`) and
+//!    the CDT triangulates to nothing. Props admits the sphere member,
+//!    so neither door above refuses it.
 //! 4. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
 //!    Asked after, on the polygon, BANDED in metres
 //!    ([`require_swept_rectangle`], refusing
@@ -1172,11 +1174,15 @@ mod tests {
     /// the walk alone. The two `continue`s below are exactly the
     /// router's own screens (`tessellate.rs`), so a face that survives
     /// them is a face `tessellate_curved` receives.
-    fn curved_walks(body: &Body<f64>) -> Vec<Walked> {
+    ///
+    /// `name` is the fixture's, carried into the failure message: a
+    /// face that does not walk says which body it belongs to.
+    fn curved_walks(name: &str, body: &Body<f64>) -> Vec<Walked> {
         curved_walk_results(body)
             .into_iter()
             .map(|(fk, walk)| {
-                let (poly, levers) = walk.unwrap();
+                let (poly, levers) =
+                    walk.unwrap_or_else(|e| panic!("{name}: face {fk:?} does not walk: {e:?}"));
                 (fk, poly, levers)
             })
             .collect()
@@ -1514,9 +1520,9 @@ mod tests {
     /// reports its v gap here rather than the 0 m its vanished u lever
     /// would have made of any u — which is what lets this metric see a
     /// pole entry off its box at all.
-    fn worst_entry_off_box(body: &Body<f64>) -> f64 {
+    fn worst_entry_off_box(name: &str, body: &Body<f64>) -> f64 {
         let mut worst: f64 = 0.0;
-        for (_, poly, levers) in curved_walks(body) {
+        for (_, poly, levers) in curved_walks(name, body) {
             for (_, d) in entries_off_bbox(&poly, &levers, bbox(&poly), Eps::exactly(0.0)) {
                 worst = worst.max(d);
             }
@@ -1608,7 +1614,7 @@ mod tests {
                      produce a split, placed body"
                 );
                 for (i, placed) in placed {
-                    let worst = worst_entry_off_box(&placed);
+                    let worst = worst_entry_off_box(name, &placed);
                     if worst != 0.0 {
                         crooked.push(format!("{name} edge {i} @{fracs:?}: {worst} m"));
                     }
@@ -1712,7 +1718,7 @@ mod tests {
     #[test]
     fn every_curved_walk_is_its_own_bounding_rectangle() {
         for (name, body) in fixtures() {
-            let walks = curved_walks(&body);
+            let walks = curved_walks(name, &body);
             assert!(
                 !walks.is_empty(),
                 "{name} contributes no curved walk — it is no longer sweeping this lane"
@@ -1806,6 +1812,45 @@ mod tests {
             }),
             "the two re-entrant corners are the entries strictly inside the box"
         );
+    }
+
+    /// **A zero-height box passes this check**, and a zero-width one
+    /// does too: every entry of a polygon on one `v` (or one `u`) lies
+    /// on its own degenerate bounding box at distance zero, which the
+    /// run's band admits, so [`entries_off_bbox`] finds nothing. That is
+    /// why walk consistency cannot stand in for the questions asked
+    /// before it: the polygon a loop of rims only would walk to is this
+    /// one, and what refuses that loop is `walk::require_a_meridian`,
+    /// not this check. Synthetic, like its neighbours: no walk this
+    /// build produces has zero height.
+    #[test]
+    fn a_zero_height_box_passes_the_walk_consistency_check() {
+        let fk = fixtures()
+            .into_iter()
+            .next()
+            .and_then(|(_, b)| b.faces().next().map(|(fk, _)| fk))
+            .unwrap();
+        for (name, flat) in [
+            (
+                "zero height",
+                uv(&[(0.0, 0.5), (1.0, 0.5), (2.0, 0.5), (3.0, 0.5)]),
+            ),
+            (
+                "zero width",
+                uv(&[(0.5, 0.0), (0.5, 1.0), (0.5, 2.0), (0.5, 3.0)]),
+            ),
+        ] {
+            let b = bbox(&flat);
+            assert!(
+                b.0.to_bits() == b.1.to_bits() || b.2.to_bits() == b.3.to_bits(),
+                "{name}: fixture precondition"
+            );
+            assert_eq!(
+                require_swept_rectangle(fk, &flat, &unit_levers(flat.len()), b, eps()),
+                Ok(()),
+                "{name}"
+            );
+        }
     }
 
     /// **THE BAND'S WITNESS.** A sub-ε off-box entry must be ADMITTED,
@@ -1954,7 +1999,7 @@ mod tests {
         let mut per_fixture: Vec<(&str, usize)> = Vec::new();
         for (name, body) in fixtures() {
             let mut here = 0usize;
-            for (fk, poly, levers) in curved_walks(&body) {
+            for (fk, poly, levers) in curved_walks(name, &body) {
                 let (_, _, v0, v1) = bbox(&poly);
                 let charted = body
                     .get_face(fk)
@@ -2104,7 +2149,7 @@ mod tests {
     #[test]
     fn a_split_then_placed_swept_face_is_not_refused() {
         let body = split_and_placed_frustum_wedge();
-        for (fk, poly, levers) in curved_walks(&body) {
+        for (fk, poly, levers) in curved_walks("split and placed frustum wedge", &body) {
             assert_eq!(
                 require_swept_rectangle(fk, &poly, &levers, bbox(&poly), eps()),
                 Ok(()),
@@ -2113,7 +2158,7 @@ mod tests {
         }
         // The residue, measured through the production path rather than
         // asserted from the issue.
-        let worst = worst_entry_off_box(&body);
+        let worst = worst_entry_off_box("split and placed frustum wedge", &body);
         assert_eq!(
             worst, 0.0,
             "since #653 the three sub-edges share one column bitwise, so this \

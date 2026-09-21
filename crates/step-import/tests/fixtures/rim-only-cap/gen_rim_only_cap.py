@@ -15,6 +15,16 @@ pole vertex.
 Both import as a solid that passes every tier and measures the closed
 form the generator prints; what `mesh::tessellate` answers for the
 sphere face is the row in ../../meridian_free_cap.rs.
+
+THESE FILES' DISPOSITION IS EXPECTED TO CHANGE, BY DESIGN.  A pole
+inside a face is a vertex of it, so the face stated here is not one the
+kernel keeps: work/exch/import-normalizes-the-rim-only-cap.md is the
+unit that makes import re-mint it in the seamed form.  When it lands,
+the two corpus rows in ../../tier_gate.rs (their edge and vertex
+census) and the "adopted as stated" assertions in
+../../meridian_free_cap.rs move with it -- that is the normalization
+working, not a regression.  The files themselves stay as they are: they
+are the input that unit normalizes.
 """
 import math
 import sys
@@ -67,7 +77,7 @@ def build(kind):
     s.add("PRODUCT_DEFINITION_SHAPE('','',#5)")
     s.add("PRODUCT_DEFINITION('design','',#6,#9)")
     s.add("PRODUCT_DEFINITION_FORMATION('','',#7)")
-    s.add("PRODUCT('hc','hc','',(#8))")
+    s.add("PRODUCT('rim-only-cap','rim-only-cap','',(#8))")
     s.add("PRODUCT_CONTEXT('',#2,'mechanical')")
     s.add("PRODUCT_DEFINITION_CONTEXT('part definition',#2,'design')")
     s.n += 1
@@ -146,7 +156,7 @@ def build(kind):
     head = """ISO-10303-21;
 HEADER;
 FILE_DESCRIPTION(('rim-only sphere cap'),'2;1');
-FILE_NAME('hc','2026-08-29T00:00:00',('hand'),('hand'),'hand','hand','');
+FILE_NAME('rim-only-cap','2026-08-29T00:00:00',('hand'),('hand'),'hand','hand','');
 FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
 ENDSEC;
 DATA;

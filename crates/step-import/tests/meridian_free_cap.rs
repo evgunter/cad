@@ -3,13 +3,21 @@
 //! in the sphere face's interior, no meridian edge, no pole vertex —
 //! imports as a `Solid`, passes every tier and measures its closed-form
 //! volume. `mesh::tessellate` then refuses the sphere face typed
-//! (`MeridianFreeCurvedFace`): the swept-rectangle lane reads a face's
-//! v-extent from its meridians, and this loop has none.
+//! (`MeridianFreeCurvedFace`, whose doc says why).
 //!
-//! Two statements of the rim, both adopted as they are written — the
-//! door normalizes neither into the seamed form: two half arcs
-//! (`rimonly2.step`) and one closed circle edge (`rimonly1.step`).
-//! Fixtures: `fixtures/rim-only-cap/gen_rim_only_cap.py`.
+//! Two statements of the rim, both adopted as they are written — two
+//! half arcs (`rimonly2.step`) and one closed circle edge
+//! (`rimonly1.step`). Fixtures:
+//! `fixtures/rim-only-cap/gen_rim_only_cap.py`.
+//!
+//! **This row is expected to change, by design.** A pole inside a face
+//! is a vertex of it, so import owes a normalization that re-mints this
+//! face in the seamed form:
+//! `work/exch/import-normalizes-the-rim-only-cap.md`. The day it lands
+//! the "adopted as stated" assertions below go red and the refusal
+//! stops being reachable from these files — that is the normalization
+//! working. The row then becomes that unit's: the body is normalized,
+//! reported, and meshes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::SurfaceKind;
@@ -25,7 +33,7 @@ fn fixture(name: &str) -> String {
 }
 
 #[test]
-fn an_imported_rim_only_sphere_cap_is_a_valid_solid_the_mesh_lane_refuses_typed() {
+fn an_imported_rim_only_sphere_cap_passes_every_tier_and_the_mesh_lane_refuses_it_typed() {
     let tol = Tol::witness();
     // R = 10 mm, the rim at latitude 0.5 rad: the cap's height and the
     // closed form π h² (3R − h) / 3.
@@ -38,7 +46,13 @@ fn an_imported_rim_only_sphere_cap_is_a_valid_solid_the_mesh_lane_refuses_typed(
         let StepImport::Solid { body, .. } = imported else {
             panic!("{name} imports as a solid");
         };
-        assert_eq!(body.edges().count(), rim_edges, "{name}: adopted as stated");
+        assert_eq!(
+            body.edges().count(),
+            rim_edges,
+            "{name}: adopted as stated. If import now normalizes the rim-only cap \
+             (work/exch/import-normalizes-the-rim-only-cap.md), this red is that unit \
+             working: turn this row into the normalization's own"
+        );
         assert_eq!(topo::validate_geometric(&body, tol), Ok(()), "{name}");
         let volume = topo::mass_properties(&body, tol).unwrap().volume;
         assert!(

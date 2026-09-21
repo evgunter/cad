@@ -85,6 +85,8 @@ mod issue896_pole_guard;
 mod issue897_s65_cost;
 #[path = "k_funnel_composition.rs"]
 mod k_funnel_composition;
+#[path = "loops_the_meridian_guard_admits.rs"]
+mod loops_the_meridian_guard_admits;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]

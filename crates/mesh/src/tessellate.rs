@@ -241,8 +241,8 @@ pub(crate) enum Lane {
 /// not a guarantee about the domain; the domain itself is checked
 /// there — its SHAPE through props' iso-rectangle door before the
 /// walk (`curved::require_iso_rectangle_face`, refusing
-/// [`TessellateError::UnsupportedCurvedShape`]), its v-EXTENT by the
-/// walk itself (`walk::require_a_meridian`, refusing
+/// [`TessellateError::UnsupportedCurvedShape`]), that its loop carries
+/// a meridian by the walk itself (`walk::require_a_meridian`, refusing
 /// [`TessellateError::MeridianFreeCurvedFace`]) and the walk's
 /// consistency after it (`curved::require_swept_rectangle`, refusing
 /// [`TessellateError::UnsupportedCurvedDomain`]).
@@ -588,10 +588,11 @@ fn tessellate_impl(
         let bad = unpaired_chord_segment(&polylines, &patch_triangles, shared_below as u32);
         debug_assert!(
             bad.is_none(),
-            "chord segment {:?} is an edge of {} face triangles rather than 2. The \
-             census counts and cannot say why: either the faces meeting on that \
-             edge emitted it under different ids, or a face there emitted no \
-             triangle along it (issue 897)",
+            "chord segment {:?} is an edge of {} face triangles; a watertight \
+             emission uses every chord segment exactly 2 times. The census counts \
+             and cannot say why. Known causes: the faces meeting on that edge \
+             emitted the segment under different ids, a face there emitted no \
+             triangle along it, or a patch used it more than once (issue 897)",
             bad.map(|(e, _)| e),
             bad.map_or(0, |(_, n)| n)
         );
@@ -610,9 +611,11 @@ fn tessellate_impl(
 /// is traversed both ways by the same face. A count of 1 is the class
 /// this guard exists for — the two sides emitted the segment under
 /// DIFFERENT ids, so neither copy pairs up. It is not the only state
-/// that counts short: a face that emits no triangle along the segment
-/// leaves 1 (its neighbour's) or 0, and the count cannot tell the two
-/// causes apart, so the report states the count and both.
+/// the count catches: a face that emits no triangle along the segment
+/// leaves 1 (its neighbour's) or 0, and a patch that uses a segment
+/// more than once pushes it past 2. The count cannot tell causes
+/// apart, so the report states the count, the expected 2, and the
+/// causes known — without claiming the list is complete.
 ///
 /// `shared_below` is the first id minted after the chord pass. Ids are
 /// minted topology-vertices-then-chords-then-per-face-grid (D9's
@@ -630,11 +633,19 @@ fn tessellate_impl(
 /// `validate_closed` rejects — a chord polyline exists that no face
 /// triangle can use twice, and this census reports it. That firing is
 /// a broken PRECONDITION, not the D2-row-5 kernel bug the assert is
-/// worded for, and it is the one way the guard can be reached by input
-/// rather than by defect. It stays a `debug_assert` on that basis: the
+/// worded for. It stays a `debug_assert` on that basis: the
 /// precondition is documented at the door, an open body is already
 /// outside what `tessellate` promises anything about, and no shipped
 /// build is made to panic by it that was not already garbage-in.
+///
+/// **An open body is not the only input that reaches it.** A CLOSED
+/// body one of whose curved faces walks to a zero-width domain emits
+/// nothing for that face and fires this census: a torus face bounded by
+/// one meridian circle, and the one-face sphere whose loop is a single
+/// seam walked both ways (`mesh/tests/loops_the_meridian_guard_admits.rs`;
+/// `work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
+/// Neither passes tier 3, so both are outside the closed-VALID input
+/// `tessellate` is specified on, but they are input and not defect.
 ///
 /// **The route is documented, not demonstrated, and the difference is
 /// recorded rather than glossed.** A reviewer's probe

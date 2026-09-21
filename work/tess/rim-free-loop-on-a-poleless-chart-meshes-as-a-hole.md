@@ -58,4 +58,39 @@ shape door (`"torus face without a meridian"` — TESS-1's row
 `a_rim_only_torus_face_refuses_at_the_shape_door_on_the_same_fact`).
 
 Not measured: the cylinder and cone members (a loop of generators
-only), and the one-column sphere band.
+only).
+
+## The one-column sphere band, measured (TESS-1 review, 2026-09-19/20)
+
+A reviewer of TESS-1 constructed the member this row had left
+unconstructed, and TESS-1's fix pass landed it as a row:
+`crates/mesh/tests/loops_the_meridian_guard_admits.rs`,
+`the_one_seam_sphere_is_a_zero_width_band_the_census_reports`. The
+body is the one-face, one-seam sphere (V2 / E1 / F1): `mvfs` at the
+north pole, one `mev` along a great-circle arc to the south pole, so
+the face's loop is that meridian walked down and back. Reported by the
+reviewer: tier 3 refuses the body; with debug assertions on
+`tessellate` panics at the cross-face census; with them off it returns
+`Ok` with `patches = [0]` and `check_mesh = Ok(())`. The landed row
+asserts the tier-3 refusal and the census panic (the row is gated on
+debug assertions; the assertions-off half is the reviewer's
+measurement and is not re-run by any row).
+
+**This settles the question the paragraph above left open.** Both
+poles are junctions of that loop, so the narrower statement floated
+there — "no rim AND a chart with no pole" — would not close the class:
+here there is no rim, there ARE poles, and the domain still has zero
+width. The structural fact this class wants is about the COLUMNS the
+meridians stand on (all of them one column), which is a coordinate
+comparison unless it can be read off incidence (one edge used twice by
+one loop, or every meridian incident to the same two pole vertices
+with no rim between them). The unit that takes this row starts there.
+
+The same file also pins the spur disguises of the rim-only cap (a
+meridian strut from the rim toward the pole, walked up and back): they
+carry a meridian, so TESS-1's guard admits them, and the row records
+what answers instead.
+
+The title's "on a chart with no pole" is therefore too narrow — the
+sphere member has poles. Left as filed (the id is the file name);
+read it as "a rim-free loop whose meridians share one column".

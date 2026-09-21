@@ -237,7 +237,7 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
                 face,
                 surface: geom_brep::SurfaceKind::Sphere,
             },
-            vec!["sphere", "rims only", "no meridian", "seamed"],
+            vec!["sphere", "rims only", "is a meridian", "seamed"],
         ),
         (
             TessellateError::Band {
@@ -250,6 +250,39 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
         ),
     ];
     assert_f6_every_variant(&cases, &TESSELLATE_ERROR, &[], TESSELLATE_ERROR_FIELDS);
+}
+
+/// **The meridian-free refusal prescribes a seam only where one
+/// exists.** A sphere or cone face restates on meridians through its
+/// pole or apex; a one-rim cylinder face is unbounded and has no pole to
+/// put a vertex on, so its sentence must not send the caller looking for
+/// one.
+#[test]
+fn the_meridian_free_refusal_prescribes_a_seam_only_where_one_exists() {
+    use geom_brep::SurfaceKind;
+    let shown = |surface| {
+        TessellateError::MeridianFreeCurvedFace {
+            face: topo::FaceKey::default(),
+            surface,
+        }
+        .to_string()
+    };
+    for kind in [SurfaceKind::Sphere, SurfaceKind::Cone] {
+        let text = shown(kind);
+        assert!(
+            text.contains(kind.name()) && text.contains("seamed form") && text.contains("pole"),
+            "{text}"
+        );
+    }
+    let cylinder = shown(SurfaceKind::Cylinder);
+    assert!(
+        cylinder.contains("cylinder") && cylinder.contains("its other rim"),
+        "{cylinder}"
+    );
+    assert!(
+        !cylinder.contains("seamed") && !cylinder.contains("restate it"),
+        "a one-rim cylinder face has no seamed restatement: {cylinder}"
+    );
 }
 
 /// **The failure path's order is ARENA order, not the map's.**

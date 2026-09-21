@@ -1,7 +1,7 @@
 ISO-10303-21;
 HEADER;
 FILE_DESCRIPTION(('rim-only sphere cap'),'2;1');
-FILE_NAME('hc','2026-08-29T00:00:00',('hand'),('hand'),'hand','hand','');
+FILE_NAME('rim-only-cap','2026-08-29T00:00:00',('hand'),('hand'),'hand','hand','');
 FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
 ENDSEC;
 DATA;
@@ -11,7 +11,7 @@ DATA;
 #4 = PRODUCT_DEFINITION_SHAPE('','',#5);
 #5 = PRODUCT_DEFINITION('design','',#6,#9);
 #6 = PRODUCT_DEFINITION_FORMATION('','',#7);
-#7 = PRODUCT('hc','hc','',(#8));
+#7 = PRODUCT('rim-only-cap','rim-only-cap','',(#8));
 #8 = PRODUCT_CONTEXT('',#2,'mechanical');
 #9 = PRODUCT_DEFINITION_CONTEXT('part definition',#2,'design');
 #10 = ADVANCED_BREP_SHAPE_REPRESENTATION('',(#14,#15),#47);

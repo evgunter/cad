@@ -30,8 +30,10 @@
 //!    same v gap at the same band) at every ε row, so no imported body
 //!    can add a rim-continuation positive to any corpus; its only
 //!    reachable witness is a rim-only cap through the Euler doors,
-//!    which this corpus cannot contain because the walk does not mesh
-//!    it (`topo/tests/mesh12_rim_row_reach.rs`, issue 1615).
+//!    which this corpus cannot contain because `tessellate` refuses it
+//!    typed, `MeridianFreeCurvedFace`
+//!    (`topo/tests/mesh12_rim_row_reach.rs`,
+//!    `the_mesh_lane_refuses_the_rim_only_cap_at_every_gap`).
 //! 2. **Every body here goes through the ISO WALK, and the
 //!    examination has no shape door.** It reads faces the walk never
 //!    walks, and `zero findings` says nothing about those. The

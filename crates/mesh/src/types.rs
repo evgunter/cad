@@ -298,35 +298,63 @@ pub enum TessellateError {
         source: geom_brep::props::PropsError,
     },
     /// A curved face's single boundary loop has no meridian traversal:
-    /// every edge of it is a rim (`v = const`) of the face's chart.
+    /// every edge of it classifies as a rim (`v = const`) of the face's
+    /// chart. This doc is the one home of what the state is and why it
+    /// refuses; the guard (`walk::require_a_meridian`) and the other
+    /// sites point here.
     ///
-    /// **The structural fact, and the only thing read.** The
-    /// swept-rectangle lane takes a face's u-extent from its rims and
-    /// its v-extent from its meridians, and learns of a pole only as a
-    /// meridian's endpoint (`walk`'s module docs). A loop that is rims
-    /// only therefore spans no v at all in this lane's terms: the face
-    /// it bounds reaches from that rim row to a pole or an apex in its
-    /// interior — or, on a cylinder, has no far side at all — and
-    /// nothing in the loop says which or where.
-    /// The refusal is decided on the classified traversal list — no
-    /// coordinate, area or triangle count is consulted — and is raised
-    /// before anything is emitted for the face.
+    /// **What is asked, exactly.** Whether a meridian traversal EXISTS
+    /// in the loop's classified traversal list — not whether the loop
+    /// spans any v: two rims at two distinct levels, joined end to end,
+    /// refuse as one rim does. The swept-rectangle lane takes a face's
+    /// v-extent from its meridians and learns of a pole only as a
+    /// meridian's endpoint (`walk`'s module docs); walked, a loop of
+    /// rims only becomes a zero-height domain every entry lies on, which
+    /// triangulates to nothing, and the face would come back as a hole.
+    /// The refusal is raised before anything is emitted for the face,
+    /// in every profile.
     ///
-    /// Valid input, unbuilt lane (D2 addendum row 2). The sphere member
-    /// of the class is a solid the rest of the kernel accepts — a cap
-    /// closed by a disc validates at every tier and measures its exact
-    /// volume — and it is stated by STEP files and by the Euler door;
-    /// no sweep, revolve or boolean mints it. **The recourse is the
-    /// seamed statement of the same face**, which this lane meshes:
-    /// two half-faces whose loops each run the rim's half, a meridian
-    /// to the pole and a meridian back, meeting at a valence-2 pole
-    /// vertex — the form every native verb produces for a dome or a
-    /// cut ball.
+    /// **Decided on the traversal kinds.** No coordinate, area, triangle
+    /// count or ε is read. The kinds themselves are
+    /// `topo::chart_iso::classify_kind`'s, which splits circle carriers
+    /// on `|axis · chart.axis| > 0.5`; that split is structural only
+    /// because the shape door (`curved::require_iso_rectangle_face`) has
+    /// certified every carrier as a rim or a meridian carrier before the
+    /// walk runs.
+    ///
+    /// **Reachable by input, and invalid (D2 addendum row 1).** A chart
+    /// singularity inside a face is a vertex of it: a loop of rims only
+    /// around a sphere's pole or a cone's apex is not a face of this
+    /// kernel, and on a cylinder such a loop bounds no finite face at
+    /// all. The name is accordingly not `Unsupported*`, which row 2
+    /// reserves for valid input. Bodies carrying the face can pass
+    /// `topo`'s validation as it stands — the sphere member measures
+    /// its exact volume — and STEP import and the Euler doors both state
+    /// it, which is why this lane refuses it itself rather than lean on
+    /// a door in front of it.
+    ///
+    /// Row 0 (can the state be made unrepresentable?) is answered no:
+    /// whether an edge is a rim or a meridian is a geometric
+    /// classification of its carrier against the face's chart, not a
+    /// fact the `Loop` or `Edge` types carry, and a loop type indexed by
+    /// its edges' chart kinds would propagate into every signature that
+    /// names a loop.
+    ///
+    /// **The recourse depends on the kind.** A sphere or cone face
+    /// restates in the seamed form this lane meshes — two half-faces,
+    /// each bounded by half the rim and two meridians that meet at a
+    /// vertex on the pole or apex; `mesh/tests/meridian_free_face.rs`
+    /// pins that the revolved dome and a plane-cut ball are stated that
+    /// way and mesh watertight. A cylinder face with one rim is
+    /// unbounded and has no restatement: it needs its other rim. A torus
+    /// loop of rims only is refused earlier, by the shape door
+    /// ([`Self::UnsupportedCurvedShape`]), so this arm names a torus
+    /// only if that door moves.
     ///
     /// Not [`Self::UnsupportedCurvedShape`]: that arm's `source` is
-    /// props' refusal, and props admits this face. Not
+    /// props' refusal, and props admits the sphere member. Not
     /// [`Self::UnsupportedCurvedDomain`]: that arm reports a walk that
-    /// left its own box, and this loop's walk never does.
+    /// left its own box, and this loop's walk would not.
     MeridianFreeCurvedFace {
         /// The offending face.
         face: FaceKey,
@@ -464,19 +492,32 @@ impl core::fmt::Display for TessellateError {
                  quadrature lane; split the face into rectangles or re-author \
                  it",
             ),
-            Self::MeridianFreeCurvedFace { surface, .. } => write!(
-                f,
-                "tessellate: a {} face's boundary loop is rims only — it has \
-                 no meridian edge, so nothing in the loop spans the chart's \
-                 v direction or names the pole, apex or far rim the face \
-                 reaches to, and the swept-rectangle lane has no domain to \
-                 mesh. The input is valid and the lane that would mesh it is \
-                 not built; restate the face in its seamed form — two \
-                 half-faces, each bounded by half the rim and two meridians \
-                 meeting at a pole vertex — which is what revolve and the \
-                 booleans produce and what this lane meshes",
-                surface.name(),
-            ),
+            Self::MeridianFreeCurvedFace { surface, .. } => {
+                use geom_brep::SurfaceKind as K;
+                let recourse = match *surface {
+                    K::Sphere | K::Cone => {
+                        "restate it in the seamed form — two half-faces, each bounded \
+                         by half the rim and two meridians that meet at a vertex on the \
+                         pole or apex — which this lane meshes"
+                    }
+                    K::Cylinder => {
+                        "a cylinder face with a single rim is unbounded, so there is \
+                         nothing to restate — the face needs its other rim"
+                    }
+                    K::Plane | K::Torus | K::Nurbs | K::Approx => {
+                        "restate the face so that its loop carries a meridian edge"
+                    }
+                };
+                write!(
+                    f,
+                    "tessellate: a {} face's boundary loop is rims only — no edge of \
+                     it is a meridian of the face's chart. A pole or apex inside a \
+                     face is a vertex of it, so a loop of rims only does not bound a \
+                     face of this kernel, and the swept-rectangle lane refuses it \
+                     rather than mesh a hole; {recourse}",
+                    surface.name(),
+                )
+            }
             Self::Band { error } => write!(
                 f,
                 "tessellate: the run's tolerance cannot form the decision band \
