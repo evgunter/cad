@@ -1077,10 +1077,37 @@ fn m10_the_tilt_u_derived_boss_stops_on_the_newell_residual_and_names_it() {
 ///   document class the current predicate does not reach.
 ///
 /// Written by the reviews, not run by them (neither box could link the
-/// `editor-core` interval binary); run once by this fix pass and the
-/// readings recorded in the PR body. It asserts the one thing that must
-/// hold everywhere — rule F never REFUSES what the dial-off tier
-/// certifies — and prints the rest.
+/// `editor-core` interval binary); run once by this fix pass. It
+/// asserts the one thing that must hold everywhere — rule F never
+/// REFUSES what the dial-off tier certifies — and prints the rest.
+///
+/// **What it showed, 2026-09-21, dev build** (`SymCounts` as
+/// `sym0 / numeric / frozen`, F off → on): rule F moves NOT ONE COUNT
+/// on any of the four, at either lift.
+///
+/// | document | `Pinned` | `Guided` |
+/// | --- | --- | --- |
+/// | tiltUV derived | 576/746/291 both dials, certifies | 525/308/37 both dials, refuses `carrier_endpoint_end` |
+/// | flipZ derived | 754/568/1270 both dials, certifies | 525/308/37 both dials, refuses `carrier_endpoint_end` |
+/// | tiltNZ derived, `half = 1e-3` | 876/446/1269 both, certifies | 956/526/1467 both, certifies |
+/// | tiltNZ derived, `half = 3e-1` | 876/446/1269 both, certifies | 142/56/0 both, four refusals, the first a clause-1 INVALID newell margin |
+/// | tiltU start-cap | 768/554/1270 both dials, certifies | 573/316/398 both dials, refuses `carrier_endpoint_end` |
+///
+/// Three of those are the reviews' own predictions confirmed by
+/// execution: `flipZ`, `tiltNZ` and the START cap carry an `n.z` the
+/// predicate DECLINES (a negative coefficient, or a bare parameter at
+/// an odd power), and `flipZ`'s `Pinned` reading is the tilt-`u`
+/// document's F-OFF reading to the digit — the same document with the
+/// fold declined, which is what "the reach is one-sided" means at the
+/// document scale.
+///
+/// **`tiltUV` is NOT one of them, and that is a finding.** Both reviews
+/// predicted it as the shape rule F folds (`n.z = 1/sqrt(1 + 2t²)`, an
+/// `Inv` of a `sqrt` atom). Measured, rule F moves nothing there at
+/// either lift. Why is NOT measured here — the fold either never fires
+/// on that document's `n.z` form or fires without reaching a decision —
+/// and saying which needs the render this row does not take. Recorded
+/// rather than explained.
 #[test]
 #[ignore = "evidence-only: the reviews' e2e ladder, four documents x two lifts x two dials"]
 fn sym8_the_reviews_documents_the_unit_did_not_measure() {
