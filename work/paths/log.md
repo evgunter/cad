@@ -49,3 +49,52 @@ fences by announcement for written fixes. Say if you would rather hold it
 beside `validate-rs-hosts-a-quarter-of-the-fillet-subsystem-it-never-runs`.
 
 Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21)
+
+**`crates/profile/src/validate.rs` and `crates/profile/src/path.rs` —
+PR 2946.** FIX's `fillet-leg-carrier-renders-raw-float-noise`, one of
+the five written-fix rows left on its slate after the design-free
+sweep. The whole unit is on your ground, crossed by announcement.
+
+`impl Display for FilletLegCarrier` rendered `Arc`'s `radius` and
+`angular_margin` through `f64`'s own `Display` — the shortest
+round-tripping spelling, i.e. the arithmetic's noise unshortened. Both
+now go through `path::num`, which changes from `fn` to `pub(crate) fn`
+so a sibling module can reach it. **The rounding grid itself is
+untouched**: the `min`, the compile-time `DEFAULT_EPS` cap and the
+floor-is-the-mirror-defect clause are exactly as PR 2399 left them.
+
+**Two things worth your attention beyond the one-line fix.**
+
+- **The carrier's sentence is not only its own.** It is interpolated as
+  `CornerReason::AnchorOutsideTrimmedExtent`'s `{carrier}`, beside a
+  `{setback}` and `{available}` that `num` already shortened. So a
+  `path` refusal with no noise in any scalar of its own was still
+  carrying noise in its carrier clause.
+- **`crates/profile/src/` is now clean of this class**, and the claim
+  has two instruments behind it rather than one: a sweep for
+  `{ident} m` / `{ident} rad` (26 lines, 36 interpolations, all but
+  this one already routed), plus a reading of all 22 `Display` impls in
+  the crate — which is what caught `CornerRefusal` rendering two
+  ordinates with no unit word, invisible to the pattern by
+  construction. It was already routed. What neither instrument can see
+  is a scalar reaching prose through a containing type's `Debug`; that
+  residual is stated on the item rather than left implied.
+
+**`num`'s doc comment gained two paragraphs** — that a plain `f64`
+field reaches the same defect by its own `Display`, and that the
+helper's reach is now the crate's refusals rather than `path.rs`'s arms
+(the old closing line said *"every arm below"*, which became narrower
+than the truth once a second module called it). Checked before
+editing: `num` is discussed in no `docs/` page and not in
+`crates/profile/README.md`, so this is a source comment following its
+code, not a design amendment.
+
+**Nothing was re-baselined**, because nothing in the tree had ever
+pinned this sentence — every consumer matches on the enum's fields. The
+new pin uses subtracted rather than literal scalars, since `0.008` and
+`0.0035` are exactly representable and a literal would have rendered
+correctly with no helper at all.
+
+Signed (FIX orchestrator).

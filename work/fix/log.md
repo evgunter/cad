@@ -2839,3 +2839,138 @@ now states the ruling instead of the question.
 What survives the correction is the practice, which both programs
 already carry: read the other's slate for a row before dispatching it,
 and file nothing there that your own could carry.
+
+## Wave 4 dispatches into a design-free slate (2026-09-21)
+
+The first wave this program has run with nothing on the slate to decide.
+Five rows, five lanes, each brief carrying the three standing
+instructions and an explicit licence the earlier waves did not give:
+**stop rather than implement a ruling the tree contradicts.** Neither
+lane that reported needed it, and both said so with the evidence — which
+is the point of granting it.
+
+### `subject-refused` CLOSED (PR 2943) — the ruling held, checked rather than assumed
+
+The lane read `means_no_body` before implementing: exhaustive over the
+kind, true for `NoBodyRoots` alone, with `exactly_one_arm_reads_as_no_body`
+pinning the set. So the ruling's premise is the tree's. `Subject::refused`
+routes, and **both** hand-routing arms are deleted — the half-fix shape
+(guard added, hand-routing left) was named in the brief and avoided.
+
+**The pin is better than the one I asked for.** I asked for a row that
+goes red if `refused(&NoBodyRoots)` yields `Unavailable`. The lane wrote
+one that compares the arm the door PICKED against what the
+classification says of the same error, so the row follows a
+re-classification instead of hardcoding today's answer. Which arm is
+which is not written down on the left.
+
+### `quantity-fmt-error` CLOSED (PR 2944) — and the lane improved on my ruling
+
+I ruled "fold onto `assert_f6`". The lane landed the census form
+(`assert_f6_every_variant` + `f6_variants!`) and flagged the deviation
+for adjudication rather than burying it. **It was right and I was
+narrow**: bare `assert_f6` takes a `dumps` list, which here would have
+been a hand-typed `&["NonFinite"]` — re-minting the drift the row exists
+to close, and re-spelling the hand-written mirror that
+`work/tint/assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums`
+closed. Accepted under Protocol v5: a deviation better than the letter
+owes nothing further.
+
+**Worth keeping: this is the reviewer-brief trap avoided by the author
+for once.** *"When the diff is itself a fix for a structural finding,
+check whether the fix mints a fresh instance of the defect it closes"* —
+and the brief adds that only a reader who did not write the fix has ever
+caught it. Here the author caught it, in the act of choosing the door.
+
+**The red-first was EXECUTED in three commits**, not argued — green
+under the old form with a planted sibling arm, `E0004` under the census
+form, then runtime red. And the closure claim was MEASURED: CI's
+`RUN_PNCAD_PY=true` is fail-closed via `TIER=all` and proves nothing
+about seeds, so the lane called `pncad_py_seeds` itself before and after
+the manifest edit — 16 members both times, `test-utils` out. A lane
+declining to read a green flag as evidence for a claim it does not
+support is the same discipline wave 3's best lane showed about guards.
+
+### Dispatching notes for the next seat
+
+- **Three lanes ran concurrently under a width-1 build slot.** That is
+  the right number here: the slot serialises the builds anyway, so more
+  lanes buy disk cost rather than throughput. Targets peaked ~5 GB each;
+  reclaiming the two finished ones took the box from 17 GB free back to
+  22 GB. **Reclaim when a report lands, not when a lane runs out** — a
+  finished lane's `target/` is pure waste the moment the report is in
+  hand.
+- **Both lanes disclosed uncertainty as the posture asks.** With no
+  reviewer, the trade is stated explicitly in every brief: less review,
+  more disclosed uncertainty. Both delivered — the `refused` name still
+  carrying an old hint, a pin's roster being two representatives rather
+  than a census, two inherited dispositions not re-derived. None rose to
+  a defect; all four were cheaper to adjudicate than to re-find.
+
+## Wave 4, second half: two more closed, and a wall-clock lesson (2026-09-21)
+
+### `fillet-leg-carrier` CLOSED (PR 2946)
+
+`FilletLegCarrier::Arc`'s two `f64` fields route through `path::num`,
+now `pub(crate)`. Three things worth carrying forward:
+
+- **The pin STATES the defect rather than illustrating it.** Its
+  scalars are subtracted, not typed, because `0.008` and `0.0035` are
+  exactly representable and a literal would have rendered correctly
+  with no helper at all. It asserts the premise before the rendering,
+  so it cannot pass by the subtraction quietly becoming exact, and it
+  asserts `to_bits()` to pin that the shortening is display-only.
+- **Two instruments, not one.** The `{ident} m` sweep keys on a unit
+  word, so the lane also read all 22 `Display` impls in the crate —
+  which found `CornerRefusal` rendering two ordinates with no unit word
+  at all, invisible to the pattern by construction.
+- **The fence question was flagged, not decided**, and the seat ruled:
+  a second consumer of `num` WITHIN the crate does not trip PROPS's
+  cross-crate home question, whose sentence is about where the helper
+  lives across crates and names `geom-core`.
+
+### `remap-name-misses` CLOSED (PR 2945), after one round back
+
+Ten sites, not the row's six — the extra four route through a function
+that did not exist when the row was written, which is the re-derive
+instruction earning its place for the third time this wave.
+
+**The round back is the one worth recording.** The lane REPLACED a case
+in `asm4_split_inline.rs` (S-TCOST's and S-TINT's) with a stronger one,
+for a correct reason: under a flat name the failed node and the name's
+mint coincide, so the old row was blind by construction. The seat sent
+it back anyway. **Narrowing which shapes another program's suite covers
+is not a side effect a FIX unit gets to have** — a case removed for
+convenience is invisible to its owners once it merges, a case added is
+not. Both shapes run now, and the pair pins the property better than
+either: the id and the name coincide in the ordinary shape and come
+apart in the nested one.
+
+### The wall-clock lesson: a docs-only conflict does not re-earn CI
+
+Both of these PRs went green, then conflicted against main — because a
+parallel session added `priority:` and `cost:` to every tracker item
+while our lanes were adding `branch:` and `pr:` to the same headers.
+Purely additive collisions in YAML front matter.
+
+**The seat resolved them and then waited ~35 minutes for two full
+matrices to re-prove a markdown edit.** Ev, in chat, 2026-09-21:
+*"if ci has gone green and then there's a merge conflict but the merge
+conflict is docs/comments only then you don't need to wait for ci to go
+green again to merge."*
+
+The rule was already in the tree for the adjacent case —
+`memories/orchestration-model.md` says to merge without a fresh run
+when a commit touches only docs/comments on an already-green head — but
+it is scoped there to STATE-SYNC commits, so the seat did not read it
+as covering a conflict resolution. It does. **What matters is what the
+resolution TOUCHED, not that a conflict happened.** A resolution that
+reaches code still re-earns the gate.
+
+### Slate
+
+Four of five closed: `subject-refused`, `quantity-fmt-error`,
+`fillet-leg-carrier`, `remap-name-misses`. Only
+`recourse-chain-stops-at-the-second-hop-carriers` remains, still in a
+lane. Every closed row landed with a pin that could not have existed
+before it, which is instruction 3 paying out four times in one wave.
