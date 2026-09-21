@@ -958,27 +958,37 @@ mod offset_fit_door_rows {
     }
 
     /// **The `f64` door re-derives on the mapped pair**, and what it
-    /// hands back is the fit door's own measurement of that pair, limb
+    /// hands back is `geom-brep`'s own certifier run on that pair, limb
     /// for limb, bit for bit — the assertion that the body moved rather
     /// than being rewritten. `rounds` is the FIT's provenance and is
     /// carried, which is why it is read off the operand.
+    ///
+    /// **The reference is the FREE FUNCTION, not the door**, the way
+    /// the mint and recertify twins pin theirs. Comparing the door
+    /// against its own `remap` would compare the door with itself and
+    /// could not see that body re-pointed — at `certify_offset_at`,
+    /// say, which drops the window rule. The free door here is the
+    /// `Tol` one, and the two classify against the same number because
+    /// the operand was minted at this run's ε, which the row asserts
+    /// first rather than assuming.
     #[test]
     fn the_f64_door_re_derives_the_mapped_pair() {
-        let band = Band::linear(Tol::witness()).unwrap();
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
         let map = turned();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
         let mapped = map_approx(&map, &approx, band, Some(OffsetFitLane::fit()))
             .expect("a rigid map of a certified fit re-certifies at the same tolerance");
         let spec = mapped.spec();
-        let reference = OffsetFitLane::fit()
-            .remap(
-                &spec.description,
-                &spec.fit,
-                spec.window,
-                spec.tolerance,
-                band,
-            )
-            .expect("the door measures the mapped pair it was just handed");
+        let geom::SurfaceDescription::Offset { base, d } = &spec.description;
+        assert_eq!(
+            spec.tolerance.to_bits(),
+            approx.tolerance().to_bits(),
+            "the map carries the operand's stored tolerance, which is what makes the `Tol` \
+             certifier below the same classification"
+        );
+        let reference = geom_brep::certify_offset_over(base, &spec.fit, *d, spec.window, tol, band)
+            .expect("`geom-brep`'s certifier measures the mapped pair");
         let got = mapped.certificate();
         for (name, x, y) in [
             ("distance", got.distance, reference.distance),

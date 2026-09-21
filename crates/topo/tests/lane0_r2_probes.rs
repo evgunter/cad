@@ -1,14 +1,15 @@
-//! LANE-0 review probes (R2): the public doors over a body carrying an
-//! `Approx` face, at `f64`, `Dual64`, and behind the features `Probe`
-//! and `Interval`. Every row PRINTS what the door answered — the
-//! certificate limbs by bits at `f64`, the refusal's `Debug` and
-//! `Display` elsewhere — so the same file run at the merge base and at
-//! the head can be diffed byte for byte. Public API only, on purpose:
-//! the file has to compile on both trees.
+//! **The offset-fit seam at every scalar, through the public doors** —
+//! the one-`Approx`-face seed body driven at `f64`, `Dual64`,
+//! `Sym<f64>` and, behind their features, the telemetry probe and the
+//! interval scalar.
 //!
-//! Run with `--nocapture` and diff the stdout.
-
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+//! One scalar answers the seam and four do not, and the rows say what
+//! that costs at each public door: the transform door and the offset
+//! mint reach the seam and refuse by their own typed variant, naming
+//! the scalar's lane; the two validators do NOT reach it on this
+//! subject — an `mvfs` seed carries an empty loop and tier 2 refuses
+//! first — which is recorded here as an assertion rather than left as
+//! a thing a reader would have to run the suite to learn.
 
 use std::sync::Arc;
 
@@ -78,111 +79,127 @@ fn turned<T: Real>() -> Affine3<T> {
     )
 }
 
-/// Every `Approx` surface of `body`, its certificate limb for limb by
-/// bits, plus the stored tolerance.
-fn dump_approx_bits<T: Real>(label: &str, body: &Body<T>) {
-    for (key, s) in body.surfaces() {
-        if let Surface::Approx(a) = s {
-            let c = a.certificate();
-            println!(
-                "{label} {key:?} approx: distance={:016x} on_locus_max={:016x} hull_sup={:016x} \
-                 normal_floor={:016x} curvature_reach={:016x} cells={} samples={} rounds={} \
-                 tolerance={:016x}",
-                c.distance.to_bits(),
-                c.on_locus_max.to_bits(),
-                c.hull_sup.to_bits(),
-                c.normal_floor.to_bits(),
-                c.curvature_reach.to_bits(),
-                c.cells,
-                c.samples,
-                c.rounds,
-                a.tolerance().to_bits(),
-            );
-        }
-    }
-}
-
-fn dump_validation(label: &str, r: &Result<(), Vec<topo::ValidationError>>) {
-    match r {
-        Ok(()) => println!("{label}: Ok(())"),
-        Err(errors) => {
-            for e in errors {
-                println!("{label}: Err {e:?} | display: {e}");
-            }
-        }
-    }
-}
-
-/// The public doors at one scalar. `structural_only` says whether the
-/// scalar may form the certified doors at all (a dual may not).
-fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(label: &str) {
+/// The public doors at one scalar. `lane` is the name the transform
+/// door reports for it, or `None` where the scalar answers the seam.
+fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
+    label: &str,
+    lane: Option<&str>,
+) {
     let (body, face) = approx_seed::<T>();
-    println!("{label}: approx face {face:?}");
-    dump_approx_bits(&format!("{label} seed"), &body);
-    dump_validation(
-        &format!("{label} validate_geometric_structural"),
-        &topo::validate_geometric_structural(&body, tol()),
-    );
-    dump_validation(
-        &format!("{label} validate_pseudomanifold"),
-        &topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
-    );
+
+    // The two validators never reach the offset-fit door on this
+    // subject, at any scalar: the seed's empty loop is a tier-2
+    // refusal and the walk stops there. A row that expected an
+    // offset-fit refusal here would be asserting something the public
+    // validator cannot produce on an `mvfs` seed.
+    for (door, r) in [
+        (
+            "validate_geometric_structural",
+            topo::validate_geometric_structural(&body, tol()),
+        ),
+        (
+            "validate_pseudomanifold",
+            topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
+        ),
+    ] {
+        let Err(errors) = r else {
+            panic!("{label} {door}: the seed body is not tier-2 valid");
+        };
+        assert!(
+            errors
+                .iter()
+                .all(|e| matches!(e, topo::ValidationError::ScaffoldingEmptyLoop { .. })),
+            "{label} {door}: tier 2 refuses this subject before check 1 runs, so any other \
+             finding means the walk changed: {errors:?}"
+        );
+    }
+
+    // The transform door DOES reach the seam.
     match topo::transform_rigid(&body, &turned::<T>(), tol()) {
-        Ok(mapped) => {
-            println!("{label} transform_rigid: Ok");
-            dump_approx_bits(&format!("{label} mapped"), &mapped);
+        Ok(_) => assert!(
+            lane.is_none(),
+            "{label}: this scalar has no fit, so the map may not carry the certificate"
+        ),
+        Err(topo::TransformError::ApproxLaneUnsupported { lane: named }) => {
+            let expected = lane.unwrap_or_else(|| {
+                panic!("{label}: this scalar answers the seam, so the map must re-derive")
+            });
+            assert_eq!(named, expected, "{label}: the refusal names the scalar's lane");
         }
-        Err(e) => println!("{label} transform_rigid: Err {e:?} | display: {e}"),
+        Err(other) => panic!("{label} transform_rigid: {other:?}"),
     }
+
+    // So does the offset mint, on a NURBS-faced seed.
     let (mut nurbs, nface) = nurbs_seed::<T>();
-    match topo::replace_faces_offset(&mut nurbs, &[nface], T::from_f64(0.05), band(), tol()) {
-        Ok(()) => {
-            println!("{label} replace_faces_offset: Ok");
-            dump_approx_bits(&format!("{label} offset"), &nurbs);
+    let minted = topo::replace_faces_offset(&mut nurbs, &[nface], T::from_f64(0.05), band(), tol());
+    match minted {
+        Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f }) => {
+            assert!(
+                lane.is_some(),
+                "{label}: this scalar answers the seam, so the mint must not report its absence"
+            );
+            assert_eq!(f, nface, "{label}: the refusal names the face it could not mint");
         }
-        Err(e) => println!("{label} replace_faces_offset: Err {e:?} | display: {e}"),
+        other => assert!(
+            lane.is_none(),
+            "{label}: a scalar with no fit must report the absence, got {other:?}"
+        ),
     }
+
+    let _ = face;
 }
 
-fn certified_doors_at<T: topo::PropsQuadLane + geom_core::CertifiedBounds + topo::AtRestPolicy>(label: &str) {
+/// The certified doors, for the scalars that may form them at all.
+fn certified_doors_at<T: topo::PropsQuadLane + geom_core::CertifiedBounds + topo::AtRestPolicy>(
+    label: &str,
+) {
     let (body, _) = approx_seed::<T>();
-    dump_validation(
-        &format!("{label} validate_geometric"),
-        &topo::validate_geometric(&body, tol()),
-    );
-    dump_validation(
-        &format!("{label} validate_pseudomanifold_certified"),
-        &topo::validate_pseudomanifold_certified(&body, &ContactRecords::default(), tol()),
-    );
+    for (door, r) in [
+        ("validate_geometric", topo::validate_geometric(&body, tol())),
+        (
+            "validate_pseudomanifold_certified",
+            topo::validate_pseudomanifold_certified(&body, &ContactRecords::default(), tol()),
+        ),
+    ] {
+        let Err(errors) = r else {
+            panic!("{label} {door}: the seed body is not tier-2 valid");
+        };
+        assert!(
+            errors
+                .iter()
+                .all(|e| matches!(e, topo::ValidationError::ScaffoldingEmptyLoop { .. })),
+            "{label} {door}: tier 2 refuses this subject before check 1 runs: {errors:?}"
+        );
+    }
 }
 
 #[test]
-fn dump_f64() {
-    doors_at::<f64>("f64");
+fn the_f64_seam_answers_the_public_doors() {
+    doors_at::<f64>("f64", None);
     certified_doors_at::<f64>("f64");
 }
 
 #[test]
-fn dump_dual64() {
-    doors_at::<geom_core::Dual64>("dual64");
+fn the_dual_tier_has_no_fit_at_the_public_doors() {
+    doors_at::<geom_core::Dual64>("dual64", Some("dual"));
 }
 
 #[test]
-fn dump_sym_f64() {
-    doors_at::<geom_core::Sym<f64>>("sym<f64>");
+fn the_symbolic_tier_has_no_fit_at_the_public_doors() {
+    doors_at::<geom_core::Sym<f64>>("sym<f64>", Some("symbolic"));
     certified_doors_at::<geom_core::Sym<f64>>("sym<f64>");
 }
 
 #[cfg(feature = "probe")]
 #[test]
-fn dump_probe() {
-    doors_at::<geom_core::Probe>("probe");
+fn the_probe_has_no_fit_at_the_public_doors() {
+    doors_at::<geom_core::Probe>("probe", Some("telemetry probe"));
     certified_doors_at::<geom_core::Probe>("probe");
 }
 
 #[cfg(feature = "interval")]
 #[test]
-fn dump_interval() {
-    doors_at::<geom_core::interval::Interval>("interval");
+fn the_interval_scalar_has_no_fit_at_the_public_doors() {
+    doors_at::<geom_core::interval::Interval>("interval", Some("interval"));
     certified_doors_at::<geom_core::interval::Interval>("interval");
 }

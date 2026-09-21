@@ -9245,7 +9245,7 @@ mod review_census_display_keys {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod offset_fit_door_rows {
     use geom_brep::OffsetFitLane;
-    use geom_core::{Band, Decide, Tol};
+    use geom_core::{Band, Tol};
 
     use super::{DeclaredContact, ValidationError, tier3_local_checks_marked};
     use crate::entity::FaceKey;
@@ -9314,7 +9314,7 @@ mod offset_fit_door_rows {
     #[cfg(feature = "probe")]
     #[test]
     fn the_probe_seam_reaches_the_same_refusal() {
-        let (errors, face) = check1::<geom_core::Probe>(geom_core::Probe::offset_fit_lane());
+        let (errors, face) = check1::<geom_core::Probe>(<geom_core::Probe as crate::props::AtRestPolicy>::offset_fit_lane());
         assert!(
             errors.iter().any(
                 |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
@@ -9388,8 +9388,19 @@ mod offset_fit_door_rows {
 
     /// **The door IS the free function**, limb for limb, bit for bit —
     /// the assertion that the bodies moved rather than being rewritten.
-    /// A door wired to a neighbouring routine (the `_at` instrument at
-    /// some other target, say) moves at least `hull_sup`.
+    ///
+    /// **What this row does NOT see**: a door re-pointed at the
+    /// neighbouring `_at` instrument. The certificate's limbs are
+    /// MEASUREMENTS of the pair in front of them and do not move with
+    /// the target; the target only classifies, which is the invariant
+    /// `ApproxCertification`'s own doc asserts. What sees that is the
+    /// wiring row beside the door
+    /// (`geom_brep::offset_fit_lane`'s `wiring_rows`, which compares
+    /// the stored function pointer) and the `_at` census
+    /// (`tests/shell_tolerance_chain.rs`, which reds on a door in that
+    /// file reaching any numeric-target routine but the remap's).
+    /// What this row holds is that the body behind the door is the
+    /// same derivation the free function runs.
     #[test]
     fn the_door_is_the_offset_fit_module_bit_for_bit() {
         let tol = Tol::witness();

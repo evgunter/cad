@@ -196,3 +196,72 @@ fn remap_offset_certificate(
     let geom::SurfaceDescription::Offset { base, d } = description;
     crate::offset_fit::certify_offset_over_at(base, fit, *d, window, tolerance, band)
 }
+
+/// **The door's WIRING, field by field** — the rows that say which
+/// free function each limb of [`OffsetFitLane::fit`] is, rather than
+/// what that function answered.
+///
+/// A row that compares outputs cannot see a door re-pointed at a
+/// routine that agrees on the fixture in front of it — the neighbouring
+/// `_at` instrument at the fixture's own tolerance agrees exactly, and
+/// a same-signature closure can agree by construction. These rows
+/// compare the stored function pointer instead, so a re-point is a
+/// failure no matter what it computes.
+///
+/// Function-pointer identity is what `std::ptr::fn_addr_eq` compares
+/// and is not a language guarantee (identical function bodies may be
+/// merged), which costs nothing here: the three bodies differ, and a
+/// false PASS from a merge would need the re-pointed routine to be
+/// instruction-identical to the one it replaced.
+#[cfg(test)]
+mod wiring_rows {
+    use super::{OffsetFitLane, remap_offset_certificate};
+
+    #[test]
+    fn recertify_is_the_free_recertify() {
+        let lane = OffsetFitLane::fit();
+        assert!(
+            std::ptr::fn_addr_eq(
+                lane.recertify,
+                crate::offset_fit::recertify_approx
+                    as fn(
+                        &geom::ApproxSurface<f64>,
+                        geom_core::Tol,
+                        geom_core::Band,
+                    ) -> Result<geom::OffsetCertificate, crate::OffsetFitError>
+            ),
+            "the recertify limb is wired to something other than `offset_fit::recertify_approx` \
+             — a `_at` instrument at a fixed target answers the same limbs on any one surface, \
+             so only the pointer says which routine ran"
+        );
+    }
+
+    #[test]
+    fn mint_is_the_free_mint() {
+        let lane = OffsetFitLane::fit();
+        assert!(
+            std::ptr::fn_addr_eq(
+                lane.mint,
+                crate::offset_fit::approx_offset_surface
+                    as fn(
+                        std::sync::Arc<geom::surfaces::NurbsSurface<f64>>,
+                        f64,
+                        geom_core::Tol,
+                        geom_core::Band,
+                    )
+                        -> Result<geom::surfaces::Surface<f64>, crate::OffsetFitError>
+            ),
+            "the mint limb is wired to something other than `offset_fit::approx_offset_surface`"
+        );
+    }
+
+    #[test]
+    fn remap_is_the_window_rule_body() {
+        let lane = OffsetFitLane::fit();
+        assert!(
+            std::ptr::fn_addr_eq(lane.remap, remap_offset_certificate as fn(_, _, _, _, _) -> _),
+            "the remap limb is wired to something other than this module's window-rule body"
+        );
+    }
+}
+

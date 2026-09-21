@@ -1082,19 +1082,32 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
 /// A gently bowed polynomial patch over `[0,1]²` — a base whose offset
 /// is genuinely not a NURBS, so the fit has real work to do.
 ///
-/// **The bow is small on purpose, and how small is a property of the
-/// eps matrix.** This patch goes through the `Tol` door, so its fit
-/// target is the RUN's ε and the tightest ε the gate commits is
-/// `1e-12` (`.github/workflows/ci.yml`, the `eps_rows` battery). The
-/// residual the refinement loop reaches scales with the bow, and at
-/// `BOW = 0.15` the loop exhausts its six rounds at `3.3e-10` — fine
-/// at the default `1e-9`, red at `1e-12`. Scaled by `1e-4` the same
-/// loop lands near `3e-14`, inside every row of the battery with room,
-/// and the certificate's limbs stay nonzero, which is what the
-/// bit-identity rows measure.
+/// **The bow is the largest one that certifies at every eps row, and
+/// that is what picks it.** This patch goes through the `Tol` door, so
+/// its fit target is the RUN's ε, and the gate commits three rows —
+/// `1e-6`, the default `1e-9` and `1e-12`
+/// (`.github/workflows/ci.yml`, `EPS_ROWS`). Measured through the mint
+/// door at `d = 0.05`:
+///
+/// | bow | 1e-6 | 1e-9 | 1e-12 |
+/// |---|---|---|---|
+/// | `0.15` | `rounds 0`, `hull_sup 4.4e-7` | `rounds 3`, `9.3e-10` | budget exhausted at `3.3e-10` |
+/// | `1.5e-2` | `rounds 0`, `4.2e-11` | `rounds 0`, `4.2e-11` | `rounds 3`, `8.9e-13` |
+/// | `1.5e-5` | `rounds 0`, `2.9e-15` | `rounds 0`, `2.9e-15` | `rounds 0`, `2.9e-15` |
+///
+/// **No bow refines at every row.** The refinement loop runs only when
+/// the unrefined residual is above the target, so running it at `1e-6`
+/// wants a residual above `1e-6`, while certifying at `1e-12` wants
+/// the converged residual below `1e-12` — and the loop saturates near
+/// `3e-10` on this geometry (six rounds, a 27×27 grid), so the two
+/// cannot both hold. What IS available is a certificate whose limbs
+/// are measurements rather than f64 rounding noise at every row, and
+/// a loop that runs at the tightest one; `1.5e-2` is the largest bow
+/// with both, and `curvature_reach` at it is `1.0e2` rather than the
+/// `1.0e5` a hair-thin bow reports.
 pub(crate) fn bowed_patch() -> geom::NurbsSurface<f64> {
     /// The bow's amplitude in `u`; the `v` bow is two thirds of it.
-    const BOW: f64 = 1.5e-5;
+    const BOW: f64 = 1.5e-2;
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let mut control = Vec::new();
     for i in 0..3 {

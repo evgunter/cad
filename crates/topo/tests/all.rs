@@ -170,8 +170,6 @@ mod r1_mate5_probe;
 mod r1_mate8_decomp_probe;
 #[path = "r1_mate8_probes.rs"]
 mod r1_mate8_probes;
-#[path = "r1_offset_fit_probe.rs"]
-mod r1_offset_fit_probe;
 #[path = "r2_probes.rs"]
 mod r2_probes;
 #[path = "readback_sense_kind.rs"]
