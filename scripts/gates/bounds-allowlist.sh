@@ -498,7 +498,7 @@ BOUNDS_ALLOWLIST=(
   # Neither reaches past the seam: no new public door, no new
   # instantiation site, and the `Bounds` reads are `from_certified` on
   # scalars the quadrature already consumed.
-  'crates/topo/src/props.rs 30 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/props.rs 27 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'

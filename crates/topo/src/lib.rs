@@ -369,8 +369,7 @@ pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
     ShellClassifyError, ShellRole, SignCertificate, VolumeEnclosure, classify_shells,
-    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_closed_form,
-    mass_properties_structural,
+    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;

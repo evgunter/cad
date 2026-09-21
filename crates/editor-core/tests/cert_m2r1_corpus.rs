@@ -10,61 +10,79 @@ use editor_core::product_recorded;
 use geom_core::{Decide, Tol};
 use topo::{AtRestPolicy, Body};
 
-/// The three passes, each scalar through the door its bound can name —
-/// the certified doors here, the `_structural` twins in
-/// [`dump_structural`] — under one set of labels, so the rows compare
-/// across scalars.
-fn dump<T: Decide + geom_core::CertifiedBounds + AtRestPolicy + core::fmt::Debug>(
-    scalar: &str,
-    name: &str,
-    body: &Body<T>,
-    contacts: &topo::ContactRecords,
-) {
-    let tol = Tol::witness();
-    println!(
-        "M2R1C|{scalar}|{name}|pseudomanifold|{:?}",
-        topo::validate_pseudomanifold(body, contacts, tol)
-    );
-    let marks = topo::contact_marks(body, tol).map(|m| {
-        let mut v: Vec<String> = m.iter().map(|(k, m)| format!("{k:?}={m:?}")).collect();
-        v.sort();
-        v
-    });
-    println!("M2R1C|{scalar}|{name}|contact_marks|{marks:?}");
-    println!(
-        "M2R1C|{scalar}|{name}|mass_properties|{:?}",
-        topo::mass_properties(body, tol)
-    );
+/// The three passes at one scalar, as the door table [`dump`] walks:
+/// the certified names ([`certified`]) or their `_structural` twins
+/// ([`structural`]), whichever the scalar's bound can form. One dump
+/// over a table rather than a dump per family, so the two families
+/// print under one set of labels and the rows compare across scalars.
+struct Doors<T: Decide> {
+    pseudomanifold:
+        fn(&Body<T>, &topo::ContactRecords, Tol) -> Result<(), Vec<topo::ValidationError>>,
+    marks: fn(&Body<T>, Tol) -> Result<Vec<String>, Vec<topo::ValidationError>>,
+    mass: fn(&Body<T>, Tol) -> Result<topo::MassProperties<T>, topo::MassPropsError>,
 }
 
-/// [`dump`] through the `_structural` twins — the doors a scalar
-/// without certification rights measures through.
-fn dump_structural<T: Decide + AtRestPolicy + geom_core::Bounds + core::fmt::Debug>(
+/// The marks pass's map, rendered in one stable order.
+fn sorted_marks<K: core::fmt::Debug, V: core::fmt::Debug>(
+    marks: impl IntoIterator<Item = (K, V)>,
+) -> Vec<String> {
+    let mut v: Vec<String> = marks
+        .into_iter()
+        .map(|(k, m)| format!("{k:?}={m:?}"))
+        .collect();
+    v.sort();
+    v
+}
+
+/// The certified doors — every scalar whose bound names the right.
+fn certified<T: Decide + geom_core::CertifiedBounds + AtRestPolicy>() -> Doors<T> {
+    Doors {
+        pseudomanifold: topo::validate_pseudomanifold::<T>,
+        marks: |body, tol| topo::contact_marks(body, tol).map(|m| sorted_marks(m.iter())),
+        mass: topo::mass_properties::<T>,
+    }
+}
+
+/// The `_structural` twins — the doors a scalar without certification
+/// rights measures through.
+fn structural<T: Decide + AtRestPolicy + geom_core::Bounds>() -> Doors<T> {
+    Doors {
+        pseudomanifold: topo::validate_pseudomanifold_structural::<T>,
+        marks: |body, tol| {
+            topo::contact_marks_structural(body, tol).map(|m| sorted_marks(m.iter()))
+        },
+        mass: topo::mass_properties_structural::<T>,
+    }
+}
+
+/// The three passes at one scalar through `doors`, under one set of
+/// labels, so the rows compare across scalars and across the two door
+/// families.
+fn dump<T: Decide + core::fmt::Debug>(
     scalar: &str,
     name: &str,
     body: &Body<T>,
     contacts: &topo::ContactRecords,
+    doors: &Doors<T>,
 ) {
     let tol = Tol::witness();
     println!(
         "M2R1C|{scalar}|{name}|pseudomanifold|{:?}",
-        topo::validate_pseudomanifold_structural(body, contacts, tol)
+        (doors.pseudomanifold)(body, contacts, tol)
     );
-    let marks = topo::contact_marks_structural(body, tol).map(|m| {
-        let mut v: Vec<String> = m.iter().map(|(k, m)| format!("{k:?}={m:?}")).collect();
-        v.sort();
-        v
-    });
-    println!("M2R1C|{scalar}|{name}|contact_marks|{marks:?}");
+    println!(
+        "M2R1C|{scalar}|{name}|contact_marks|{:?}",
+        (doors.marks)(body, tol)
+    );
     println!(
         "M2R1C|{scalar}|{name}|mass_properties|{:?}",
-        topo::mass_properties_structural(body, tol)
+        (doors.mass)(body, tol)
     );
 }
 
 fn run<T: editor_core::EvalScalar + core::fmt::Debug>(
     scalar: &str,
-    dump: fn(&str, &str, &Body<T>, &topo::ContactRecords),
+    doors: &Doors<T>,
 ) -> Vec<(String, editor_core::Product<T>)> {
     let tol = Tol::witness();
     let mut out = Vec::new();
@@ -72,7 +90,7 @@ fn run<T: editor_core::EvalScalar + core::fmt::Debug>(
         let ev = eval::<T>(&doc.doc);
         match product_recorded(&doc.doc, &ev, tol) {
             Ok(p) => {
-                dump(scalar, doc.name, &p.body, &p.contacts);
+                dump(scalar, doc.name, &p.body, &p.contacts, doors);
                 out.push((doc.name.to_string(), p));
             }
             Err(e) => println!("M2R1C|{scalar}|{}|gather|Err({e:?})", doc.name),
@@ -83,7 +101,7 @@ fn run<T: editor_core::EvalScalar + core::fmt::Debug>(
 
 #[test]
 fn m2r1_corpus_f64() {
-    for (n, p) in run::<f64>("f64", dump) {
+    for (n, p) in run::<f64>("f64", &certified()) {
         println!(
             "M2R1C|f64|{n}|validate_geometric|{:?}",
             topo::validate_geometric(&p.body, Tol::witness())
@@ -93,13 +111,13 @@ fn m2r1_corpus_f64() {
 
 #[test]
 fn m2r1_corpus_dual64() {
-    let _ = run::<geom_core::Dual64>("dual64", dump_structural);
+    let _ = run::<geom_core::Dual64>("dual64", &structural());
 }
 
 #[cfg(feature = "interval")]
 #[test]
 fn m2r1_corpus_interval() {
-    for (n, p) in run::<geom_core::Interval>("interval", dump) {
+    for (n, p) in run::<geom_core::Interval>("interval", &certified()) {
         println!(
             "M2R1C|interval|{n}|validate_geometric|{:?}",
             topo::validate_geometric(&p.body, Tol::witness())

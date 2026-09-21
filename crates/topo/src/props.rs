@@ -304,8 +304,13 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
     mass_properties_with(body, band, tol, Some(QuadLane::certified()))
 }
 
-/// [`mass_properties`] holding NO quadrature lane — the walk any
-/// deciding scalar with a bracket can run. Every closed-form face
+/// [`mass_properties`] holding NO quadrature lane — the closed-form
+/// walk, at the certified door's own signature and at plain
+/// `T: Decide`: no bracket is read anywhere on this path, so no bracket
+/// term is spelled. It IS `mass_properties_closed_form` with the band
+/// built inside from `tol`, the one public door onto that walk (the
+/// band-outside entry is `pub(crate)`, for the boolean engine's
+/// backstops, which hold a band already). Every closed-form face
 /// computes exactly as it does through the certified door, and a face
 /// that needs the certified quadrature refuses typed rather than
 /// passing unbounded, so on a closed-form body this door answers the
@@ -317,12 +322,12 @@ pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
 ///
 /// As [`mass_properties`], plus the closed form's typed refusal on
 /// every face the quadrature lane would have enclosed.
-pub fn mass_properties_structural<T: Decide + geom_core::Bounds>(
+pub fn mass_properties_structural<T: Decide>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
-    mass_properties_with(body, band, tol, None)
+    mass_properties_closed_form(body, band, tol)
 }
 
 /// [`mass_properties`] against a caller-built band and the caller's
@@ -778,18 +783,20 @@ impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
     }
 }
 
-/// The closed-form-only walk: plain `T: Decide`, no quadrature lane
-/// and no bracket read — the boolean engine's internal backstops
-/// (`volume_backstop`, `at_infinity_side`) take it, and it is what a
-/// `_structural` door's walk reduces to, which the D9 row at `Dual64`
-/// pins against it. On a conic-trimmed face the closed form refuses
-/// typed (fail-loud). The at-rest measurement door is
-/// [`mass_properties`], which carries the certified lane.
+/// The closed-form-only walk against a caller-held band: plain
+/// `T: Decide`, no quadrature lane and no bracket read — the boolean
+/// engine's internal backstops (`volume_backstop`, `at_infinity_side`)
+/// take it with the band they already hold, and
+/// [`mass_properties_structural`] is this door with the band built
+/// inside, the public spelling of the same walk. On a conic-trimmed
+/// face the closed form refuses typed (fail-loud). The at-rest
+/// measurement door is [`mass_properties`], which carries the certified
+/// lane.
 ///
 /// # Errors
 ///
 /// [`MassPropsError`], as [`mass_properties_structural`].
-pub fn mass_properties_closed_form<T: Decide>(
+pub(crate) fn mass_properties_closed_form<T: Decide>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
@@ -1766,7 +1773,7 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
 /// [`ShellClassifyError`] — [`classify_shells`]'s, plus the closed
 /// form's typed refusal on every face the quadrature lane would have
 /// enclosed.
-pub fn classify_shells_structural<T: Decide + geom_core::Bounds>(
+pub fn classify_shells_structural<T: Decide>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
@@ -1928,7 +1935,14 @@ fn classify_shells_via<T: Decide>(
 /// certification rights — `f64`, the telemetry probe, the interval
 /// scalar, and `Sym` over any of those; a [`geom_core::Dual`] carries a
 /// bracket (D1) and still may not certify (DL1), which is the missing
-/// [`geom_core::CertifiedEnclosure`] impl and nothing else. This type
+/// [`geom_core::CertifiedEnclosure`] impl and nothing else. The tree's
+/// fifth `CertifiedEnclosure` impl, `geom_core::RingInterval`, is a
+/// bracket CURRENCY (the ring the certified reads hand back) and not a
+/// scalar — it implements no [`Decide`], so no door forms at it and no
+/// wiring row is owed. That roster is not left to this sentence:
+/// `topo/tests/certified_enclosure_impl_census.rs` counts the impls in
+/// the tree against `wiring_rows`' instantiations and reds on a sixth
+/// certifying scalar that has no row here. This type
 /// carries that fact to the passes that run at both kinds of scalar:
 /// its one constructor is [`QuadLane::certified`], at
 /// `Decide + CertifiedBounds`, so holding a value IS the statement that
@@ -1953,11 +1967,22 @@ fn classify_shells_via<T: Decide>(
 /// `impl` block is bounded on the right, so the value cannot be
 /// written, let alone handed to a walk:
 ///
-/// ```compile_fail,E0277
+/// ```compile_fail,E0599
 /// use geom_core::Dual64;
 /// use topo::QuadLane;
 /// let _ = QuadLane::<Dual64>::certified();
 /// ```
+///
+/// The code is `E0599` and not [`mass_properties`]'s `E0277`, because
+/// the two are refused at different places: a free function's bound is
+/// an unsatisfied trait obligation on the call (`E0277`), while
+/// `certified` is an associated function that EXISTS on
+/// `QuadLane<Dual64>` and whose `impl` block's bounds are not met, which
+/// `rustc` reports as "the associated function exists … but its trait
+/// bounds were not satisfied" (`E0599`, read off `rustc` on the
+/// snippet). Stable rustdoc verifies only that the block fails to build
+/// (`geom_core::spline::hull`'s rule), so the code beside the fence is a
+/// statement and not a check.
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct QuadLane<T: Decide> {
@@ -2115,11 +2140,27 @@ mod wiring_rows {
 /// is a per-scalar fact. The two absences are different facts, and the
 /// doc on that method says which is which.
 ///
+/// **Why the two lane traits ride along.**
 /// [`geom_brep::PcurveFittedLane`] and
-/// [`crate::chart_region::ChartRegionLane`] ride as supertraits: a
-/// consumer bounded on this policy holds the two lane doors under the
-/// one name it already writes. [`geom_core::Bounds`] deliberately does
-/// not: a name that hands out a bracket door is a bound the `Bounds`
+/// [`crate::chart_region::ChartRegionLane`] are supertraits because they
+/// are the same split, over the same scalars, for the same reason as the
+/// gates: a fitted (rung-3) pcurve's between-samples obligation and the
+/// chart-region overlap predicate are certificates reached through a
+/// scalar's bracket, exactly as the quadrature's flux enclosures are;
+/// `f64`, the telemetry probe, the interval scalar and `Sym` over any of
+/// those can derive them, and a [`Dual`](geom_core::Dual) cannot and
+/// says so in a refusing impl on each side (a dual carries a bracket
+/// since D1 — the refusal stands on DL1, a dual may not certify, which
+/// is [`geom_core::CertifiedEnclosure`]'s absence and not
+/// [`geom_core::Bounds`]'). So `T: AtRestPolicy` reads at every consumer
+/// as "this scalar's at-rest policy, lanes included", where the
+/// alternative is threading two pointwise-identical lane bounds through
+/// every tier-3 signature and generic body helper for no additional
+/// honesty — the refusing side is the same scalar. The bundle holds
+/// until each lane trait goes the way the quadrature lane's did, a bound
+/// or an argument in place of a trait, and it shrinks by one name each
+/// time. [`geom_core::Bounds`] deliberately does
+/// not ride along: a name that hands out a bracket door is a bound the `Bounds`
 /// scope rule's gate cannot read at its use sites, so every door that
 /// reads a bracket spells `Bounds` where the reader can see it.
 pub trait AtRestPolicy:
@@ -2290,7 +2331,7 @@ where
 /// pairing obligation.
 impl<T> AtRestPolicy for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: Decide + geom_core::Bounds,
+    geom_core::Dual<T>: Decide,
 {
     /// The fit is derived at `f64` only — the same reason every other
     /// arm here gives, and a separate fact from the gates below, which
