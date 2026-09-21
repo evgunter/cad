@@ -1705,33 +1705,12 @@ impl PickIndex {
                 };
                 projected.push(entry);
             }
-            let mut best: Option<Candidate> = None;
-            for (segment, pair) in projected.windows(2).enumerate() {
-                let (Some((a, pixel_a)), Some((b, pixel_b))) = (pair[0], pair[1]) else {
-                    continue;
-                };
-                let (distance, closest) = segment_distance_px(cursor, pixel_a, pixel_b);
-                if distance > EDGE_PICK_RADIUS_PX {
-                    continue;
-                }
-                // Strictly nearer only: a tie keeps the earlier
-                // segment, which is what makes the answer total.
-                if best.as_ref().is_none_or(|best| distance < best.distance) {
-                    best = Some(Candidate {
-                        distance,
-                        boundary: id.boundary,
-                        segment,
-                        pixel: closest,
-                        ends: [a, b],
-                    });
-                }
-            }
-            candidates.extend(best);
+            candidates.extend(best_segment(cursor, id.boundary, &projected));
         }
         // The tie-break, stated once: nearest first, then the earlier
         // boundary, then the earlier segment — all integers after the
-        // first, and the first is never NaN (a projected distance is
-        // a finite pixel measure).
+        // first, and the first is a distance [`best_segment`] admitted,
+        // so it is finite.
         candidates.sort_by(|left, right| {
             left.distance
                 .partial_cmp(&right.distance)
@@ -2009,6 +1988,67 @@ fn placement(display: &DisplayView, node: RecipeNodeId) -> impl Fn(Point3<f64>) 
     }
 }
 
+/// **The one drawn edge's own nearest segment**, or `None` when no
+/// segment of it is a candidate at all.
+///
+/// One candidate per drawn edge rather than one per segment: a curved
+/// edge's chords all lie near the cursor together, and the question
+/// being asked is which EDGE the cursor means.
+///
+/// # A distance that is not a measurement is not admitted
+///
+/// The rule this walk states is *within [`EDGE_PICK_RADIUS_PX`]*, and
+/// an ordering cannot say it. `distance > EDGE_PICK_RADIUS_PX` is
+/// **false for a `NaN`**, so a segment whose projection is not a
+/// number took neither side of the reject; the winner test below is
+/// `is_none_or`, which is true for the first candidate, so that
+/// segment was installed as the best — and then held its boundary
+/// against every later candidate, because `distance < best.distance`
+/// is false for every `distance` once `best.distance` is a `NaN`. It
+/// did not lose: it won, and nothing could displace it.
+///
+/// So the admission is the domain test and the ordering together. It
+/// is sited here, at the point the distance is MEASURED, rather than
+/// at the comparison below or at the tie-break sort: a `NaN` admitted
+/// here is also a `NaN` `pixel` re-picked through for the occlusion
+/// probe and a `NaN` in [`EdgePick::distance_px`], whose own doc says
+/// *at most [`EDGE_PICK_RADIUS_PX`], by construction* — this is the
+/// construction, and it is what makes the sort's first key finite.
+///
+/// The NEGATION is what carries the domain test: `distance` is a
+/// square root, so it is never negative and never `-inf`, and both
+/// `inf` and `NaN` fail `<=`. The `is_finite` conjunct spells that
+/// out, and `clippy::neg_cmp_op_on_partial_ord` refuses the bare
+/// `!(a <= b)` that would say it alone.
+fn best_segment(
+    cursor: [f64; 2],
+    boundary: usize,
+    projected: &[Option<(Point3<f64>, [f64; 2])>],
+) -> Option<Candidate> {
+    let mut best: Option<Candidate> = None;
+    for (segment, pair) in projected.windows(2).enumerate() {
+        let (Some((a, pixel_a)), Some((b, pixel_b))) = (pair[0], pair[1]) else {
+            continue;
+        };
+        let (distance, closest) = segment_distance_px(cursor, pixel_a, pixel_b);
+        if !(distance.is_finite() && distance <= EDGE_PICK_RADIUS_PX) {
+            continue;
+        }
+        // Strictly nearer only: a tie keeps the earlier segment, which
+        // is what makes the answer total.
+        if best.as_ref().is_none_or(|best| distance < best.distance) {
+            best = Some(Candidate {
+                distance,
+                boundary,
+                segment,
+                pixel: closest,
+                ends: [a, b],
+            });
+        }
+    }
+    best
+}
+
 /// How far `cursor` is from the segment `a`–`b` in pixels, and the
 /// point of the segment it is that far from.
 fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64; 2]) {
@@ -2281,6 +2321,80 @@ mod tests {
             "the refused part changed nothing"
         );
         assert_eq!(windows.name_in(RecipeNodeId(1), 0, 0), Ok(&name(100)));
+    }
+
+    /// **A segment whose projection is not a measurement does not win
+    /// the boundary** — the substitution shape, not the discard one.
+    ///
+    /// Held at [`best_segment`] because the walk above it cannot be
+    /// driven here: every public door seeds on a ray through the same
+    /// cursor and refuses before the edge walk runs, so a cursor or a
+    /// placement that is not a number takes the face pick's miss and
+    /// never reaches a projected pixel. The row therefore drives the
+    /// function that makes the admission, with the projection handed
+    /// to it.
+    ///
+    /// Both halves, because neither says anything alone: the poisoned
+    /// segments are refused, and the legitimate one still answers with
+    /// its own index and its own distance.
+    #[test]
+    fn a_segment_whose_projection_is_not_a_measurement_does_not_win_the_boundary() {
+        let poisoned = [f64::NAN, f64::NAN];
+        let projected = vec![
+            Some((Point3::new(0.0, 0.0, 0.0), poisoned)),
+            Some((Point3::new(1.0, 0.0, 0.0), poisoned)),
+            Some((Point3::new(2.0, 0.0, 0.0), [0.0, 1.0])),
+            Some((Point3::new(3.0, 0.0, 0.0), [5.0, 1.0])),
+        ];
+        let best = best_segment([0.0, 0.0], 7, &projected)
+            .expect("the third segment is a pixel from the cursor");
+        assert_eq!(
+            best.segment, 2,
+            "a NaN-projecting segment arrived first and was installed as the \
+             best at distance {}, where the edge rule admits only a distance \
+             within EDGE_PICK_RADIUS_PX",
+            best.distance
+        );
+        assert!(
+            (best.distance - 1.0).abs() <= 1.0e-12,
+            "the legitimate segment answers its own distance, not {}",
+            best.distance
+        );
+        assert_eq!(best.boundary, 7, "the candidate carries its own boundary");
+    }
+
+    /// And a boundary with nothing but poisoned projections is a
+    /// boundary the cursor is not over — no candidate, rather than one
+    /// whose distance no later candidate can beat.
+    #[test]
+    fn a_boundary_that_projects_to_nothing_measurable_offers_no_candidate() {
+        let poisoned = [f64::NAN, f64::NAN];
+        let projected = vec![
+            Some((Point3::new(0.0, 0.0, 0.0), poisoned)),
+            Some((Point3::new(1.0, 0.0, 0.0), poisoned)),
+        ];
+        assert!(
+            best_segment([0.0, 0.0], 0, &projected).is_none(),
+            "a distance that is not a measurement is not within the pick radius"
+        );
+    }
+
+    /// The other side of the admission: a segment beyond
+    /// [`EDGE_PICK_RADIUS_PX`] is refused as it always was, and one
+    /// exactly at the radius is admitted.
+    #[test]
+    fn the_radius_still_ends_where_it_did() {
+        let beyond = vec![
+            Some((Point3::new(0.0, 0.0, 0.0), [0.0, EDGE_PICK_RADIUS_PX + 0.5])),
+            Some((Point3::new(1.0, 0.0, 0.0), [5.0, EDGE_PICK_RADIUS_PX + 0.5])),
+        ];
+        assert!(best_segment([0.0, 0.0], 0, &beyond).is_none());
+        let at = vec![
+            Some((Point3::new(0.0, 0.0, 0.0), [0.0, EDGE_PICK_RADIUS_PX])),
+            Some((Point3::new(1.0, 0.0, 0.0), [5.0, EDGE_PICK_RADIUS_PX])),
+        ];
+        let best = best_segment([0.0, 0.0], 0, &at).expect("a segment at the radius is within it");
+        assert!((best.distance - EDGE_PICK_RADIUS_PX).abs() <= 1.0e-12);
     }
 
     /// The id map's keys are the windows' own entities, so the two

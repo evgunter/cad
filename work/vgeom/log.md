@@ -481,3 +481,71 @@ by `git mv`, keeping their ids; otherwise CHROME takes them in a later
 wave and announces it here.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-21 — `vgeom/p0-fields`: the three P0 rows left, two doors
+
+The rest of Order's *four cheap P0 rows*, after `vgeom/refusal-floor`
+took the fourth. Two of the three closed; the third is half closed and
+says which half.
+
+**The fields' door had the truth half of a rule and not the width
+half.** `readout`'s header calls `widgets::number_text` *the fields'
+door* onto one render rule, and `MAX_CHARS` ends that rule's search —
+but `number_text` tested only `reads_back`, and `reads_back`'s own doc
+says *width is no part of reading back*. So the widget's spelling was
+kept at any length: 311 characters for `f64::MAX`, because `emath`
+compares in `f32` and `almost_equal(inf, inf)` is `a == b`, so its
+first candidate is accepted. The bound applied is the one that already
+existed, not a second policy. Measured, not clipped: a `DragValue`
+renders through a `TextWrapMode::Extend` button, so the panel was
+pushed out rather than cut off, and no numeric field in the chrome
+carries a `desired_width` at all — the two that do are name
+`TextEdit`s and `pane/view.rs`'s `MAX_CHARS`-sized `FIELD_WIDTH` is fed
+by `render_mm`, not by this door.
+
+**The two rows are one door and had to be taken together.** Bounding
+the width WIDENS the render's error band above `1e8` mm — from
+`egui`'s `f32` 1.9·10⁻⁶ to `readout`'s 5·10⁻⁴ — and a field's render
+is its commit path. So the echo guard AUTH-2 landed for the panel's
+two value fields moved to `widgets::number_field`, the one constructor
+every numeric field in the crate goes through, and the commit half of
+`a-fields-text-commits-within-the-renders-own-tolerance` is closed
+crate-wide. Its RENDER half is not, and that row stays open saying so:
+the bound a render owes is a change to `readout`'s ratified accuracy
+rule and was not made here.
+
+**Cost recorded rather than absorbed**: the guard lives in a
+`custom_parser`, so every field now reads text through
+`props::field_edit` where it read it through `egui`'s private
+`default_parser`. Interior whitespace and U+2212 stop parsing in the
+creation forms. The panel's fields have never accepted either, so this
+unifies rather than degrades — but it is a user-visible input change
+and the row says so.
+
+**And the floor cannot carry it.** `install_number_formatter` puts the
+render on `egui::Style::number_formatter`; there is no parser
+counterpart, so a bare `egui::DragValue` shows the right text and
+still commits it. Filed as
+`a-bare-field-still-commits-its-own-render` with the fork written out,
+and pinned by a row rather than argued.
+
+**The NaN pick: at the measurement, and the public door cannot carry a
+row.** The per-edge walk is now `pickindex::best_segment`, admitting
+`distance.is_finite() && distance <= EDGE_PICK_RADIUS_PX`. Sited there
+rather than at the winner test because the candidate also carries a
+`pixel` the occlusion probe re-picks through and an
+`EdgePick::distance_px` whose doc says *at most EDGE_PICK_RADIUS_PX, by
+construction*. The negative result: every public door seeds on a ray
+through the same cursor and refuses first, so a cursor or a
+`moved_roots` frame that is not a number makes the face pick miss and
+`edge_near` is never entered — the rows are at `best_segment`, with the
+reason written at them.
+
+**Overlap, not claimed**: the same guard is the second of the two
+repairs `pickindex-tie-break-rests-on-a-comment` (P1, open) names. That
+row records it and stays open for the orchestrator to judge.
+
+**Territory**: `pickindex.rs` is claimed by VGEOM, VSEAM and FIT.
+Checked before taking it — no branch and no log entry on either, and
+nothing on VSEAM's `ui-thread-work-after-the-index-seam`. The numeric
+doors are VGEOM's by `program.md`'s own clause.
