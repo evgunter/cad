@@ -2,11 +2,13 @@
 id: add-parameter-form-authors-canonical-only
 kind: issue
 title: The add-parameter form authors only the canonical unit, though the kernel's written_length/written_angle doors are total
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [1776]
 priority: P0
 cost: E
+branch: author/param-notation
+rides_with: parameter-row-field-has-no-text-door
 ---
 
 
@@ -42,7 +44,7 @@ picked yet", when Create is refused anyway. The bullet is struck
 rather than re-pointed because there is no surviving subject to point
 at: the defect it described was fixed, not moved. (It was never load-
 bearing for this item, which is about the declared UNIT, not the tick;
-`work/chrome/drag-tick-has-three-homes.md` is where the tick question
+`work/chrome/drag-tick-has-three-homes.md` (CHROME's, and still there) is where the tick question
 lives, and it now records `add_param_ui` as one of the two converted
 sites.)
 
@@ -120,3 +122,13 @@ the canonical unit. Read at `385c01b3`.
 
 `work/issues/doc-param-unit-edit-has-no-door.md` re-pointed to
 `work/edit/…` — EDIT claimed the item; it is open.
+
+## Dispatched 2026-09-21 — riding AUTH-2
+
+`docs/AUTH-2-SPEC.md`, branch `author/param-notation`, as the CREATE
+half of one notation unit; `parameter-row-field-has-no-text-door` is
+the carrier and the EDIT half. Filed as a rides-along rather than
+folded in: this row's own finding — the form mints through
+`props::doc_param` into `DocParam::continuous` where
+`written_length`/`written_angle` are total — is a separate fact with
+its own evidence, and closing the carrier is not closing it.
