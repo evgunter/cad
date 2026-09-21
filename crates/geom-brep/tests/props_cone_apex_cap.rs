@@ -310,3 +310,55 @@ fn the_two_traversals_encode_opposite_material_sides() {
     };
     assert_eq!(a, b.flip(), "the two traversals must disagree: {a:?} {b:?}");
 }
+
+// ---------------------------------------------------------------------
+// The recorded population
+// ---------------------------------------------------------------------
+
+/// The `(predicate, sign)` multiset one `curved_face` call records.
+fn verdict_multiset(edges: &[LoopEdge<f64>]) -> Vec<(String, usize)> {
+    let bracket = geom_core::k_stats::Bracket::open();
+    let _ = curved_face(&cone(), edges, true, band());
+    let log = bracket.finish();
+    let mut got: Vec<(String, usize)> = Vec::new();
+    for v in &log.verdicts {
+        let key = format!("{} {:?}", v.predicate, v.sign);
+        match got.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, n)) => *n += 1,
+            None => got.push((key, 1)),
+        }
+    }
+    got.sort();
+    got
+}
+
+/// **The apex cap's own verdicts, named — and no new COMPARAND among
+/// them.** The fold decides `props_rim_only_extent` once per
+/// generator-free rim boundary and `props_rim_only_closed` once per
+/// folded apex, and both are quantities the arm already read:
+/// `props_rim_only_extent` is `require_extent`'s own cone comparand
+/// (the bare slant difference) asked one step earlier, hence the two
+/// records here, and `props_rim_only_closed` is the `Δu` angle at the
+/// azimuthal arm `props_du_consistent` already meters. `Δu` itself
+/// costs nothing to agree on: one rim is one group, so neither
+/// `props_rim_level_group` nor `props_du_consistent` is asked.
+#[test]
+fn the_apex_cap_records_its_two_named_decides() {
+    let got = verdict_multiset(&[rim(SL, 0.0, TAU, 0, 0)]);
+    let want: Vec<(String, usize)> = [
+        ("props_circle_axis_class Positive", 1),
+        ("props_cone_nappe Positive", 1),
+        ("props_cone_nappe Zero", 1),
+        ("props_face_extent Positive", 1),
+        ("props_rim_axis_parallel Zero", 1),
+        ("props_rim_center_on_axis Zero", 1),
+        ("props_rim_fit Zero", 1),
+        ("props_rim_level Zero", 1),
+        ("props_rim_only_closed Zero", 1),
+        ("props_rim_only_extent Zero", 1),
+    ]
+    .into_iter()
+    .map(|(k, n)| (k.to_string(), n))
+    .collect();
+    assert_eq!(got, want, "the apex cap's recorded population");
+}
