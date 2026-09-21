@@ -1350,6 +1350,26 @@ right up until the second run reproduced it exactly. And **a 403 on
 `rerun-failed-jobs` is not a dead end**: re-running would have proved
 nothing here, because the conflict survives a re-run.
 
+**A board re-derived from the working tree is re-derived from
+whatever commit that tree is pinned at.** The orchestrator opened
+`work/vgeom/` to pick the next unit and read two rows at `status: open`
+over a program log that ended at its opening state. Both false: the
+fixes had merged as #2967 six hours earlier and both rows were closed
+on `main`. This clone sat on the orchestrator branch at `0c530f67ef`,
+and nothing about `cat`ting a file says which commit it came from — a
+tracker file looks identical whether it is current or a week stale, and
+the tracker is exactly the artefact every lane edits in parallel.
+
+It is the same defect the staleness row (#2990) filed one level down —
+a status recorded somewhere nothing checks — and it compounds the same
+way: an orchestrator that mis-reads the board dispatches a unit that is
+already done, or declines one that is not.
+
+**So a board read is `git show origin/main:<path>`, never `cat <path>`,
+unless the tree was fetched and merged in this turn.** The same holds
+for `git grep`: pass `origin/main` as the tree. It costs one word per
+read and it is the only form whose answer names its own commit.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
