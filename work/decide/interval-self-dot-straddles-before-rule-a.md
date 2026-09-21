@@ -2,11 +2,12 @@
 id: interval-self-dot-straddles-before-rule-a
 kind: issue
 title: clause 1 refuses rule A on wide boxes because Vec::dot's v·v is an interval product, not a square
-status: open
+status: closed
 opened: 2026-09-05
 refs: [1828]
 priority: P1
 cost: H
+closed: 2026-09-21
 ---
 
 **Found by M10-8's R1 review (NOTE-9), by execution.** Rule A of the
@@ -62,3 +63,47 @@ for `v·v`), which is PROPS' file and its linalg interval-honesty lane's ground:
 seam is announced there and PROPS may simply take the row.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## CLOSED by DECIDE-1's census and measurement (2026-09-21)
+
+**The mechanism does not reach the certification path.** Measured, not
+assumed, in both halves (`docs/DECIDE-1-SPEC.md`; the two tables are the
+PR body's, and the PR is this row's record):
+
+- **The static census.** No site in `crates/*/src` multiplies an
+  enclosure by ITSELF at `Interval` or `Sym<Interval>` on a
+  certification path a measured document takes. Every length on that
+  path is `norm_squared().sqrt()`, and `norm_squared` has squared
+  component-wise through the tight `Real::powi(2)` since M2 PR 4 —
+  which is the very door this row asked for ("a `Vec::norm_sq` door
+  that squares component-wise through `powi(2)`, used by the carrier
+  constructors"). `Sym::powi` hands the value channel to `T::powi`, so
+  a `powi(2)` on a `Sym<Interval>` is that tight square.
+  `scripts/gates/interval-square-allowlist.sh` is green on the branch
+  and is the standing receipt for the adjacent scalar spelling
+  `e * e`; the hand sweep for `x.dot(x)` and `dot(a, a)` — which that
+  gate structurally cannot see — turned up one production site at
+  `Sym<Interval>`, `topo::transform::check_rigid`'s three unit-column
+  residuals, whose consumer is a `sign_within` and not a `sqrt` and
+  which no measured document decides. It is filed on SHELL's slate
+  (`check-rigid-squares-a-column-by-multiplying-two-copies-of-it`), and
+  the gate's own blind spot on that spelling is filed on GUARD's
+  (`self-dot-has-no-gate-the-interval-square-one-cannot-see-it`).
+- **The dynamic measurement.** Zero clause-1 `Invalid` refusals on the
+  six documents at ε = default, `1e-6` and `1e-12`, at the nominal and
+  at ceiling + δ. Every replay that was blocked at all was blocked by
+  exactly one predicate, and every one of those was `Indeterminate` —
+  a real margin the band could not classify (`assert_bound`'s
+  dependency-widened enclosure on the plate, `arc_diameter_clearance`
+  and `dihedral_wedge` on the annulus, `carrier_matches_mapped_source`
+  on the link and the bracket) — never a domain violation. The
+  instrument is `crates/editor-core/tests/decide_1_self_dot_interval.rs`
+  and its ceilings reproduce `m10_10_pins_interval`'s pinned table at
+  every ε.
+
+**The pins that stand** for the SOUND outcome on a hand-spelled
+product are R1's, unchanged:
+`r1_rule_a_never_fires_on_a_straddling_argument` and
+`r1_rule_a_decides_zero_at_every_width_and_off_it_widens`
+(`crates/geom-core/tests/m10_8_r1_sym_probes.rs`). `Vec::dot`'s
+association is untouched, as the row's own D9 note requires.

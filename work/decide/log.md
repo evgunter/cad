@@ -117,3 +117,38 @@ no draw, no ordinal, no row. Spec `docs/DECIDE-1-SPEC.md`; branch
 `decide/1-self-dot-census`; the lane is dispatched from this commit on
 this box (a fresh lane, private target). Block SYM-B2's slot 2
 (SYM-10) stays open; this unit takes no slot.
+
+## DECIDE-1 measured and the row CLOSED (2026-09-21): the mechanism does not reach the certification path
+
+Both halves of the spec's stop clause hold. **The static census** found
+no self-product at `Interval`/`Sym<Interval>` on a certification path a
+measured document takes: the lane swept `x.dot(x)`, `dot(a, a)` and the
+interval-square gate's own three blind spots (indexed, repeated-call and
+ALL-CAPS operands) over `crates/*/src`, and ran the gate itself green
+(440 files, no unratified `x * x` outside the seven allowlisted). Every
+hit was f64-only, under `#[cfg(test)]`, nonnegative by construction, or
+consumed by `mid(·)` into an f64 seed — except one:
+`topo::transform::check_rigid`'s three unit-column residuals, generic
+over `T: Decide` and reached at `Sym<Interval>` from `eval/wire.rs`'s
+placement, whose consumer is a `sign_within` rather than a `sqrt` (so
+not clause 1's class) and which none of the six documents decides. It is
+filed on SHELL's slate, and the gate's structural blindness to the
+self-dot spelling on GUARD's.
+
+**The dynamic measurement** recorded ZERO clause-1 `Invalid` refusals on
+the six documents at ε = default, `1e-6` and `1e-12`, at the nominal and
+at ceiling + δ. Every blocked replay was blocked by exactly one
+predicate and every one was `Indeterminate` — a real margin over the
+band, never a domain violation. The instrument is
+`crates/editor-core/tests/decide_1_self_dot_interval.rs` (ignored,
+prints) and its measured ceilings reproduce `m10_10_pins_interval`'s
+pinned table digit for digit at all three ε, which is what says the
+census measured the documents the pins measure.
+
+Phase 2 is empty; `Vec::dot`, `powi` and the allowlist gate's logic are
+untouched. Two deviations, both stated in the PR body: the ceiling is
+MEASURED per run rather than read off `m10_9_pins`' table (that table is
+M10-9's tier's, and replaying at another tier's refusing end gives a
+zero over a replay that was never blocked), and the pad is measured
+opt-in because its replay under the shape report is killed for memory on
+a box this size — its ceiling instrument row is in the PR.
