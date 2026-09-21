@@ -392,6 +392,17 @@ impl ViewerBehavior<'_> {
     /// again here would be one fact spelled twice in one pane, which is
     /// what the parameter half of this panel already does and is not a
     /// pattern to copy.
+    ///
+    /// **The section's gate and the toggle's are two different tests,
+    /// and each control reads the one its own door runs.**
+    /// [`crate::display::instance_check`] decides whether there is a
+    /// section at all — it is the kind test, and a node of another kind
+    /// has no per-instance display state to show. What the hide toggle
+    /// pushes runs [`crate::display::display_check`], the full
+    /// admission test, so an instance whose geometry is fused into a
+    /// drawn root with another's is a live instance with a section and
+    /// no display operation that can address it: the toggle is gated on
+    /// the door's test and carries the door's own sentence.
     pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
         // The fault is discarded HERE, at the party that decides the
         // two refusals are one answer, rather than by a door that
@@ -401,8 +412,27 @@ impl ViewerBehavior<'_> {
         }
         ui.separator();
         ui.label(format!("instance {}", node.0));
+        // The admission test `SetInstanceHidden` itself runs, read once
+        // for the section: the toggle below is offered exactly where
+        // the op would accept it, and the free-move probe runs this
+        // same test before its own.
+        let addressable = crate::display::display_check(self.session.doc(), node);
         let mut shown = !self.display.hidden.contains(&node);
-        if ui.checkbox(&mut shown, "shown in viewport").changed() {
+        let toggle = ui.add_enabled(
+            addressable.is_ok(),
+            egui::Checkbox::new(&mut shown, "shown in viewport"),
+        );
+        if let Err(fault) = addressable {
+            // The sentence the click would have been answered with,
+            // visible under the control it governs rather than behind
+            // a hover. The probe below would refuse this very fault —
+            // `free_move_check` runs `display_check` first — so the
+            // section ends here rather than saying it a second time
+            // under a second heading.
+            ui.weak(fault.to_string());
+            return;
+        }
+        if toggle.changed() {
             self.ops.push(SessionOp::SetInstanceHidden {
                 instance: node,
                 hidden: !shown,
@@ -773,6 +803,19 @@ impl ViewerBehavior<'_> {
     /// driven slot's value is not the user's to move, so a range for it
     /// would answer a question they cannot act on. The reading itself
     /// lands in [`Self::slot_notes_ui`], in the slot's own written unit.
+    ///
+    /// **The condition is the door's and so are the words.**
+    /// `Session::probe_bounds` refuses a driven slot with the ratified
+    /// affordance, so the button is gated on the driver alone and its
+    /// disabled words are [`Refusal::affordance`]'s one composition —
+    /// the same sentence the status line shows on the click and the
+    /// same one [`Self::slot_notes_ui`] draws under the row above.
+    /// **The row's VALUE is not a second conjunct**: a slot the
+    /// document holds a bare literal for always evaluates, because
+    /// `Node::slots` fixes each slot's dimension and every door — the
+    /// edits and the load alike — refuses an expression that disagrees
+    /// with it. A gate that also read the value would owe a sentence
+    /// for a state no document can be in.
     pub(crate) fn range_button(
         &mut self,
         ui: &mut egui::Ui,
@@ -780,14 +823,13 @@ impl ViewerBehavior<'_> {
         row: &SlotRow,
         label: &str,
     ) {
-        let offered = !row.driver.is_driven() && row.value.is_ok();
-        let button = ui.add_enabled(offered, egui::Button::new(label).small());
-        let button = if offered {
-            button.on_hover_text(
+        let driven = probe_affordance(row);
+        let button = ui.add_enabled(driven.is_none(), egui::Button::new(label).small());
+        let button = match driven {
+            None => button.on_hover_text(
                 "probe how far this can move before something new fails (tens of evaluations)",
-            )
-        } else {
-            button.on_disabled_hover_text("a computed slot has no range of its own to probe")
+            ),
+            Some(affordance) => button.on_disabled_hover_text(affordance),
         };
         if button.clicked() {
             self.ops.push(SessionOp::ProbeBounds {
@@ -829,5 +871,119 @@ impl ViewerBehavior<'_> {
                 self.ops.push(SessionOp::ProbeBounds { target });
             }
         });
+    }
+}
+
+/// **The affordance a slot's range button owes, or `None` where the
+/// probe is the user's to ask for.**
+///
+/// The condition is `Session::probe_bounds`'s own — a driven slot,
+/// which `guard_driven` refuses — and the words are
+/// [`Refusal::affordance`]'s one composition, so the button's
+/// pre-click sentence and the status line's post-click one cannot be
+/// two sentences. Read off the row alone, which is what lets a test
+/// hold it against the refusal's own rendering.
+fn probe_affordance(row: &SlotRow) -> Option<String> {
+    match &row.driver {
+        SlotDriver::Literal => None,
+        SlotDriver::Expression { params } => Some(Refusal::affordance(
+            params,
+            row.value.as_ref().ok().copied(),
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::probe_affordance;
+    use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
+    use crate::session::Refusal;
+    use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
+
+    const NODE: RecipeNodeId = RecipeNodeId(4);
+
+    fn thickness() -> ParamName {
+        ParamName("thickness".to_owned())
+    }
+
+    /// One extrude distance row, driven or not, with the value the
+    /// document's parameters give it.
+    fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
+        SlotRow {
+            slot: SlotId::Distance,
+            dimension: Dimension::Length,
+            structural: false,
+            driver,
+            value,
+            unit: None,
+            source: None,
+        }
+    }
+
+    /// **The disabled range button says exactly what the click would
+    /// have been answered with.**
+    ///
+    /// The runtime value that makes this false is a second wording at
+    /// the control: a sentence minted here rather than read from
+    /// [`Refusal::affordance`] stops matching the refusal
+    /// `SessionOp::ProbeBounds` raises for the same row, which is the
+    /// drift the affordance's one home exists to prevent.
+    #[test]
+    fn a_driven_slots_range_button_carries_the_refusals_own_sentence() {
+        let current = SlotValue::Continuous(0.004);
+        let row = distance_row(
+            SlotDriver::Expression {
+                params: vec![thickness()],
+            },
+            Ok(current),
+        );
+        let refused = Refusal::DrivenByExpression {
+            node: NODE,
+            slot: SlotId::Distance,
+            params: vec![thickness()],
+            current: Some(current),
+        };
+        assert_eq!(
+            probe_affordance(&row).expect("a driven slot is refused the probe"),
+            refused.to_string(),
+            "the button's words and the status line's are one sentence"
+        );
+    }
+
+    /// **A slot the user can write is offered the probe**, with no
+    /// sentence owed: `probe_bounds` would accept the click.
+    #[test]
+    fn a_literal_slot_is_offered_the_probe() {
+        assert_eq!(
+            probe_affordance(&distance_row(
+                SlotDriver::Literal,
+                Ok(SlotValue::Continuous(0.008))
+            )),
+            None
+        );
+    }
+
+    /// **The driver decides the arm, and a driven row with no value
+    /// still gets the affordance** — naming what to edit instead is
+    /// most of what that reader needs, and the sentence drops the
+    /// "currently" clause rather than the whole affordance.
+    #[test]
+    fn a_driven_slot_that_did_not_evaluate_still_gets_the_affordance() {
+        let row = distance_row(
+            SlotDriver::Expression {
+                params: vec![thickness()],
+            },
+            Err(SlotFault::NoExpression),
+        );
+        let words = probe_affordance(&row).expect("a driven slot is refused the probe");
+        assert_eq!(
+            words,
+            Refusal::affordance(&[thickness()], None),
+            "no current value to name, and the affordance says so"
+        );
+        assert!(words.contains("thickness"), "{words}");
     }
 }

@@ -93,6 +93,81 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
     );
 }
 
+/// **A slot the document holds a bare literal for always has a value**
+/// — which is why the range button beside it is gated on the driver
+/// alone.
+///
+/// `props::slot_row` evaluates each slot with the branch
+/// `SlotId::dimension` picks, so the only way a leaf carrying no
+/// parameter reference fails to evaluate is a Count/continuous
+/// disagreement between the slot and its expression. Every door asks
+/// one predicate about that (`Node::slot_dimension_fault`, asked by
+/// the edit doors and by the load door alike), so no document reaches
+/// the panel holding one. A second conjunct on the value would
+/// therefore gate on a state nothing can reach — and would owe a
+/// sentence for it, which the panel used to answer with *"a computed
+/// slot has no range of its own to probe"* about a slot that is not
+/// computed.
+///
+/// Both halves are asserted: the rows a literal document produces, and
+/// the door that refuses the expression which would break them.
+#[test]
+fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
+    let tol = Tol::witness();
+    let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
+        pncad::document::Doc::empty_derived("gui3-literal-range", tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        pncad::document::Node::Extrude {
+            profile,
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+
+    let rows = props::slot_rows(&doc, extrude);
+    assert!(
+        rows.iter().any(|row| row.driver == SlotDriver::Literal),
+        "the fixture is about literal rows"
+    );
+    for row in &rows {
+        if row.driver == SlotDriver::Literal {
+            assert!(
+                row.value.is_ok(),
+                "{} is a literal with no value: {:?}",
+                row.slot.label(),
+                row.value
+            );
+        }
+    }
+
+    // The door that keeps it that way: a Count literal in a continuous
+    // slot is the shape whose row would evaluate to
+    // `CountExprInContinuousEval`, and it is refused rather than
+    // stored.
+    let refused = pncad::document::apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: extrude,
+            slot: SlotId::Distance,
+            expr: pncad::document::Expr::count(3),
+        },
+        tol,
+        &pncad::document::RefusingReach,
+    );
+    assert!(
+        matches!(
+            refused,
+            Err(pncad::document::EditError::SlotDimensionMismatch {
+                slot: SlotId::Distance,
+                ..
+            })
+        ),
+        "the slot's dimension is the address's, not the expression's: {refused:?}"
+    );
+}
+
 #[test]
 fn an_expression_driven_dimension_refuses_with_the_affordance() {
     let tol = Tol::witness();
