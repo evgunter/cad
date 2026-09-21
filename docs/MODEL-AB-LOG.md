@@ -7200,6 +7200,23 @@ named). Sample number at merge. Row at merge. This is block
 SCALAR-B3's last slot to reach review: the block record merges from
 `scalar/orchestrator` when all three duals conclude.
 
+
+## CURVE3-JET review ordinal fixed at dispatch (2026-09-21)
+
+`curve3-eval-and-deriv-at-one-t-run-two-basis-passes` (CURVE3-JET;
+SCALAR; PR #2708 open — frozen head `88c47557b`): **ordinal 4109**
+(SCALAR band). Protocol v6 dual: draw = `/dev/urandom` byte **84**,
+parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the frozen head,
+read-side isolation (v6 item 5), briefs identical and stored before
+either ran. Pre-draw difficulty **M / structural, low side** (recorded
+branch-side at the block draw; block SCALAR-B4 slot 0, byte 75 ⇒ slot 0
+FABLE). Impl phase: the lane pushed the unit and died on a usage-limit
+429 while polling its final run, so the PR body is its report (no
+token figure); ~2 h 47 min wall; first head red on rustfmt only; impl
+CI **35039865934** GREEN on the head (twelve `test` jobs, five `k-lint
+(gate, …)`, the python suite; no predicate-count change, no render
+re-baseline, the tour digests identical at base and head). Sample
+number at merge. Row at merge.
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
