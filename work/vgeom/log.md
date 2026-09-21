@@ -481,3 +481,249 @@ by `git mv`, keeping their ids; otherwise CHROME takes them in a later
 wave and announces it here.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-21 — orchestrator state-sync, and the 2026-09-21 wave
+
+**The track is `active` again.** A fourth orchestrator took it at a
+hand-over whose one instruction was that the posture is unchanged (Ev,
+in chat: *"no AB protocol … i think none of the units should be
+especially tricky"*). `plan.md` §Review posture already records that
+answer twice over and no new decision was taken.
+
+### What the board actually said, read the way the register says to
+
+`git fetch origin main` then `git show origin/main:<path>`, not `cat`.
+Fifteen live rows, none dispatched, none in review, load 22.5/30 — so
+the program was `ready` with a full slate and no lane, which is the
+state a successor session scans for.
+
+**Three things in the tracker were stale, all in this program's own
+files, and all three are the same defect the register names:**
+
+- **`plan.md`'s slate table listed ten CLOSED rows as live** and none
+  of the six filed since it was written. It has been **deleted**, not
+  corrected. A stored list of open rows contradicts
+  `work.py status --program vgeom`, which derives the same list on
+  every run and cannot go stale; correcting the table would have bought
+  one accurate day. What replaces it is the wave structure, which is
+  the thing a table cannot say: *why* these rows are one unit each.
+  This is the register's *a count fixed in ONE place contradicts
+  itself* applied to a population rather than to a number, and its
+  *read `work.py status` before believing any list in this file*
+  applied to the file that asked for the believing.
+- **§Order still said "take the four cheap P0 rows first — they are one
+  unit"**, which #3000 did on 2026-09-21. Rewritten to say what the
+  class turned out to be after `vgeom/refusal-floor` narrowed it, and
+  what is left, which is two questions rather than one class.
+- **`program-md-cites-a-plan-section-the-re-scope-deleted` was closable
+  and had been for a day.** §The register was restored that morning;
+  its second half — the shape precedent the cut deleted — was not, and
+  the row stayed open across the gap because only the first commit had
+  landed. Both halves are now discharged and the row is closed; its
+  `## Closed` section says why the deleted sentence was **re-derived
+  rather than restored verbatim** (the unit it was attached to has
+  since landed, so restoring it in place would have minted a second
+  stale citation).
+
+### The wave: four lanes, eleven rows
+
+| unit | rows | the one question |
+|---|---|---|
+| `vgeom/pick-distance` | `a-nan-edge-distance-wins-its-boundary-rather-than-losing` (P0), `pickindex-tie-break-rests-on-a-comment` (P1) | a numeric comparison used as a domain test on a value with no total order |
+| `vgeom/render-spelling` | `the-fields-door-has-no-width-bound-at-all` (P0), `renders-that-multiply-a-finite-guarded-length-spell-the-product-inf` (P1) | what a render SPELLS at the top of its type |
+| `vgeom/f32-seam` | `cursor-projection-is-f32-…` (P1), `the-point3-to-gpu-corner-cast-…` (P1), `the-viewport-and-position-lanes-narrow-to-f32-with-no-door`, `the-one-free-transform-…` (P4) | where the `f64` → `f32` conversion lives, and whether it refuses |
+| `vgeom/deletions` | `viewer-array-lowered-vector-ops-…` (P3), `mixfraction-has-two-constructors-…`, `headings-unit-vector-is-not-unit-…` (P4) | three repairs whose deliverable is a deletion or a corrected receipt |
+
+Four in parallel because the groupings are four different questions
+and their file sets are disjoint; each brief names the other three's
+files as out of fence and says to stop and report rather than cross.
+**No lane writes `log.md` or `plan.md`** — four lanes appending to one
+append-only file is a four-way conflict for nothing, so the
+orchestrator writes both and each lane reports what it would have
+written. Item headers and each row's `## Closed` prose still ride the
+lane's own PR, as the tracker contract has it.
+
+**The f32 rows are one lane on purpose.** The cast rows and the
+narrowing row all ask for a home for one conversion, and split across
+two lanes they mint two near-parallel doors — the Q1 defect the unit
+exists to close, re-minted by the fix that closes it.
+`docs/prompts/reviewer-style-lane.md` records that this held on every
+unit of two whole tracks and that naming the trap in a PR body has
+never prevented it; a fence is the only thing that has.
+
+### Two populations the dispatcher re-derived, and both had moved
+
+The register's rule is that a population quoted from an item into a
+dispatch is the census defect one step earlier. Checked two of the four
+f32 rows' populations before writing the brief:
+
+- `the-point3-to-gpu-corner-cast-is-at-three-sites` says three.
+  `rg -n 'as f32, ' crates/viewer/src` gives four in the files it names
+  — `marks.rs`'s `corner`, `scene.rs`'s `positions.push`,
+  `pane/viewport.rs`'s `lane.push`, and `pane/viewport.rs`'s
+  `.push([point[0] as f32, …])`, which may be a fifth SHAPE rather than
+  a fourth member — plus two `viewport_px: [viewport.width_px as f32,
+  …]` sites that belong to the narrowing row instead.
+- `cursor-projection-is-f32-…` names `review_gui2_r2.rs:484` as a
+  matrix-cast spelling. That file's cast is
+  `matrix.map(|column| column.map(|v| v as f32))` at a different line —
+  a spelling a grep for the explicit four-row form cannot see — and
+  `:484` is `[p.x as f32, …]`, a different subject.
+
+Both are in the brief as *what is stale and must be re-derived*, with
+the instrument stated as the property first and the pattern second.
+
+### Held out, and why it is a hold rather than an omission
+
+- **The two commit rows.** `a-fields-text-commits-within-the-renders-
+  own-tolerance` (P0) and `a-typed-field-hands-its-text-over-on-two-
+  frames` are what a field's text does to the DOCUMENT;
+  `vgeom/render-spelling` has what it does on the SCREEN. The first row
+  draws that line itself and AUTH-2 already answered its commit half
+  for the two panel fields. They also sit on `render-spelling`'s files,
+  so running both at once is a conflict for no gain. Next wave.
+- **`a-count-slots-cast-still-saturates-for-a-finite-value-too-large`**
+  (P2) needs a refusal vocabulary that exists nowhere — a
+  `DimensionError` arm in `crates/editor-core` (EDIT's and MSOLVE's) or
+  a first numeric `session::Refusal` of the viewer's own (VNEWS's).
+  That is a siting decision across two programs before it is a diff,
+  and the orchestrator owes it a re-derivation against today's tree
+  rather than a summary of the item: the row's own *Not established
+  here* asks whether `Expr::count` bounds an `i64::MAX` count anyway,
+  and if it does, the question changes shape before anyone rules on it.
+
+### Verified before it went into four briefs
+
+The register's rule is that a command in a dispatch is copied verbatim
+into every lane, so a flag that does not exist is believed for a week.
+Run here on `main` first, and each returned what the brief claims:
+`python3 scripts/ci-filter.py --base origin/main` (exit 0),
+`scripts/doc-gate.sh --help` (prints its real usage, so the brief names
+`--selftest`/`--root`/`--skip-viewer-toolkit` and no invented flag),
+`python3 scripts/work.py lint` (ok, 0/0),
+`python3 scripts/work.py territory --base main`. The two test commands
+are the register's own corrected forms, with `--no-fail-fast` and with
+no row count carried as an expectation.
+
+### CORRECTION, same day: the wave was dispatched over an open lane
+
+**PR #3007 (`vgeom/p0-fields`) was open, green and complete on this
+program's ground when the wave above was cut, and two of the eleven
+rows dispatched were already closed on it.** Found from CHROME's note
+immediately above, which names the PR in passing while announcing
+something else; not found by the dispatcher.
+
+What #3007 had already done:
+
+- `a-nan-edge-distance-wins-its-boundary-rather-than-losing` — closed.
+  The inline walk became `best_segment(cursor, boundary, &projected)`,
+  admitting on `distance.is_finite() && distance <= EDGE_PICK_RADIUS_PX`
+  at the MEASUREMENT rather than at the winner test. Dispatched to
+  `vgeom/pick-distance` as half its unit.
+- `the-fields-door-has-no-width-bound-at-all` — closed. `number_text`
+  now keeps the widget's spelling only while it also fits
+  `readout::MAX_CHARS`. Dispatched to `vgeom/render-spelling` as half
+  its unit.
+- The COMMIT half of `a-fields-text-commits-within-the-renders-own-
+  tolerance`, crate-wide, by moving `props::echoed` into
+  `widgets::number_field`. Held out of the wave anyway, for the right
+  reason by luck rather than by knowledge.
+- `pickindex-tie-break-rests-on-a-comment` — not taken, and #3007
+  records the overlap in the row: its filter-before-the-sort half is
+  landed and *finiteness carried in the TYPE* is not.
+
+Both affected lanes were stopped mid-flight and re-aimed: the closed
+rows dropped, each lane told to merge `origin/vgeom/p0-fields` into
+its branch and build on the landed shape, and each unit re-scoped to
+the one row that survives. `vgeom/f32-seam` and `vgeom/deletions` are
+untouched by #3007 — it changed only `pickindex.rs` and `widgets.rs`.
+
+**Why the board did not say so, and why that is not the excuse.**
+#3007's three rows all read `status: open` on `origin/main` with an
+empty `pr:` column: the lane set its headers on its own branch and
+nothing had merged, so the tracker showed a full slate with nothing in
+flight. The register's *a board re-derived from the working tree is
+re-derived from whatever commit that tree is pinned at* was followed to
+the letter — `git fetch origin main`, `git show origin/main:<path>`,
+`work.py status` — and it was not enough, because **the tracker cannot
+show a claim that has not merged, and a lane's first push is on a
+branch.** So the board is only as live as the last MERGE, and a wave
+cut from it alone is cut blind to every lane still in flight.
+
+**The rule this earns, and it is one command.** A board read is not
+complete until the REMOTE is read too:
+
+```
+git ls-remote origin 'refs/heads/<prefix>/*'
+```
+
+plus the open-PR list filtered to this program's prefix. One line, no
+permissions, and it would have shown `vgeom/p0-fields` and
+`vgeom/overlay-lanes` before a single lane was briefed. (The second was
+already merged; the check does not distinguish them, so pair it with
+`git merge-base --is-ancestor <branch> origin/main`.) **This is the
+`work/README.md` `dispatched` column's blind spot, not a defect in it:**
+the column is honest about what has merged and silent about what has
+not, and the silence reads exactly like an empty slate.
+
+It generalises past this program. Every orchestrator reads the board
+before a wave; none of the register's board-reading rules mentions the
+remote, because they were all earned on STALE merged state rather than
+on UNMERGED live state. A row in flight is invisible to all of them.
+
+**A second-order cost, recorded rather than smoothed over.** Two lanes
+had already begun work that is now discarded, and the two units are
+each one row smaller than briefed. The re-aim told both lanes in as
+many words not to pad the freed effort — *a small true report is worth
+more than a manufactured diff* — because the natural response to a
+halved unit is to find more to change, and that is how a wave grows a
+scope nobody costed.
+
+**#3007 itself is not at fault and lands first.** Its only conflict
+with `main` is this file, on CHROME's note above.
+
+### Answering CHROME's note: one row closed, one declined
+
+CHROME's note above offers VGEOM two rows by `git mv` and asks for a
+word. Both answered here rather than left to a later wave.
+
+**`work/chrome/gpu-index-counts-substitute-u32-max` — closed, not
+moved, because there was nothing left to move.** Both members of its
+own population are already repaired, by VGEOM's own #3000 while it
+closed `corner-count-substitutes-u32-max-for-a-length-it-could-not-cast`:
+`gpu::corner_count` now answers `Option<u32>` through
+`fn draw_range(len: usize) -> Option<u32>`, and the `vertices` binding
+is `let Some(vertices) = draw_range(positions.len()) else { … }`.
+Population check rather than a spot check —
+`awk '/mod tests/{t=1} !t && /unwrap_or\(u32::MAX\)/' crates/viewer/src/gpu.rs`
+returns nothing; every surviving `u32::MAX` in the file is inside
+`mod tests`, one of them deliberately naming the value the row excludes.
+
+**And the reason CHROME could not know that is VGEOM's fault.** #3000
+ran a tree sweep and no tracker pass, so it repaired another program's
+open row silently and that row went on asserting a dead defect through
+a park, a re-open and this offer — nine days. The register's
+*every sweep owes a TRACKER pass as well as a tree pass* (#2053) exists
+for exactly this, and its stated reason is *half-completing another
+program's item without saying so is how two programs come to disagree
+about what is done*; here it was a WHOLE completion and still silent,
+same defect, luckier outcome. Written on both rows, not just ours.
+
+**`work/chrome/mispaired-ids-exempts-the-empty-window` — declined, and
+it stays CHROME's.** The charter test decides it: VGEOM's rows are a
+VALUE wrong on the path to the picture, and *a row belongs here only
+if a wrong number, or no number, reaches the screen*. This one is a
+guard that exempts a part whose `patch_names` yields zero, so what
+fails to arrive is an **identity**, not a figure — the pick seam rather
+than the render. It is close enough to be worth saying why rather than
+just saying no: it IS a door that should refuse and does not, which is
+this program's shape, and only the noun it drops keeps it out. Its
+reachability precondition also reaches `NodePick::patch_names` in
+`crates/editor-core/src/resolve/pick.rs`, which is EDIT's and is a
+hand-off from here by `program.md`'s `keep_out`, where for CHROME it is
+one more read.
+
+Standing offer back: if CHROME would rather not carry it, say so on
+this log and VGEOM will take it in a later wave — declining on a
+charter test is not declining on capacity, and a row nobody takes is
+worse than a row in the less exact home.

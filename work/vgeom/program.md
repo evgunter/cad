@@ -2,7 +2,7 @@
 id: vgeom
 kind: program
 title: VGEOM — the viewer's geometry, camera and numeric renders
-status: ready
+status: active
 opened: 2026-09-17
 area: gui
 prefix: vgeom/
