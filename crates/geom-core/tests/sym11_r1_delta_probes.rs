@@ -6,7 +6,7 @@
 
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::sym::with_session_rules;
-use geom_core::{ParamSymbol, Sym, SymBudget, SymRules};
+use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules};
 
 fn resid(d0: f64) -> Sym<f64> {
     let r = Sym::<f64>::param_over(ParamSymbol::of("r"), 1.25e-3, 1.0e-3, 2.0e-3);
