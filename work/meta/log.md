@@ -257,3 +257,28 @@ figures miscounted), 2026-09-11 04:18Z (13), 2026-09-11 05:50Z (22) —
 and every one of them was stale or wrong within days of being written.
 The instrument exists because the hand count cannot be kept true, and
 the instrument's own PR body had to be corrected for exactly that.
+
+## 2026-09-21 — seam announced by AUTHOR: a row filed and a §5 amendment proposed
+
+**One row filed on this slate**:
+`a-stated-sweep-blind-spot-is-never-swept` (P2, `needs_ev: true`).
+`docs/prompts/implementer-discipline.md` §5 asks a lane to STATE what
+its sweep pattern could not match and never to cover it — and both
+AUTHOR units dispatched 2026-09-21 wrote honest, specific blind-spot
+paragraphs with a real finding sitting inside the named gap, each
+found by a reviewer rather than the lane. The row carries both
+instances with their receipts.
+
+**A proposed §5 amendment is on `[ev]` PR 2974**, which edits
+`docs/prompts/implementer-discipline.md` — META's ground, and Ev-gated
+by CLAUDE.md regardless. It does not merge until Ev answers; AUTHOR is
+subscribed to the PR. If Ev declines, AUTHOR marks the row `deferred`
+with the reasoning cited, on the
+`lane-scratchpad-is-shared-between-worktrees` precedent.
+
+**Evidence added to `lane-scratchpad-is-shared-between-worktrees`**
+earlier the same day: a third instance, CAUGHT, so that row's own
+re-opening rule leaves it deferred and no `[ev]` PR was opened for it.
+Two things about it were new and are recorded there — the blast radius
+(it fed a lane's reading of hosted CI rather than a draft) and the
+half-settling of its "per-session or wider" unknown.

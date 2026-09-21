@@ -1096,3 +1096,40 @@ nine findings:
 Declined: the integration tests' hand-copied barb counts. The
 constants are private, so the copy cannot be avoided.
 `TIP_MARK_PX` was left alone and put to Ev in chat.
+
+## 2026-09-21 — seam announced by AUTHOR, and three rows filed
+
+**Seam.** AUTHOR widened its territory to the files its units actually
+work: `crates/viewer/src/pane/create.rs`, `pane/properties.rs`,
+`drafts.rs`, `session/author.rs`, `session/refuse.rs` — all shared
+with CHROME, legitimately (`work/README.md`, 2026-09-20). AUTHOR's
+opening `paths` named three files and none of them was where AUTH-1 or
+AUTH-2 landed, so `work.py territory` could not have warned either
+lane. AUTHOR's `work/author/program.md` records it; no `keep_out` was
+written on either side, because nothing about the overlap needs
+explaining beyond that.
+
+**Live AUTHOR lanes on this ground as of this note**: `author/face-frame-seat`
+(PR 2955, in review) in `pane/create.rs`, `forms.rs`, `drafts.rs`,
+`session/author.rs`, `session/refuse.rs`; `author/param-notation` in
+`pane/properties.rs`, `props.rs`, `session/op.rs`, `session.rs`.
+
+**Three rows filed on this slate** by AUTH-1's style reviewer, none of
+them AUTHOR's to take:
+
+- `a-fifth-spelling-of-this-seat-is-empty` (P1) — `seat_line`'s own
+  doc says the sentence is composed centrally *"because two copies is
+  how the two drift"*, and there are now five copies. Two rows already
+  here are the same shape with different subjects
+  (`viewer-states-the-empty-document-rule-in-four-places-…`,
+  `four-spellings-of-one-finiteness-predicate-in-datums-rs`); whether
+  the three are one unit is CHROME's call.
+- `four-pick-state-vocabularies-in-one-create-module` (P1) — the Q8
+  end-to-end read of `pane/create.rs` at ~1175 lines.
+- `a-per-kind-sentence-lives-in-the-widget-not-on-the-choice` (P4) —
+  and AUTH-1 minted the newest instance while closing a different one,
+  which is the fresh-instance trap landing where the reviewer brief
+  says it lands.
+
+AUTHOR is fixing its own instances of the last one inside PR 2955; the
+CLASS is CHROME's and is what these rows carry.
