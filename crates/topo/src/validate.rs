@@ -9276,9 +9276,9 @@ mod offset_fit_door_rows {
     fn no_door_refuses_the_approx_face_by_name() {
         let (errors, face) = check1::<f64>(None);
         assert!(
-            errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)),
+            errors.iter().any(
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+            ),
             "check 1 must report the face it could not re-derive: {errors:?}"
         );
     }
@@ -9310,13 +9310,33 @@ mod offset_fit_door_rows {
     #[cfg(feature = "probe")]
     #[test]
     fn the_probe_seam_reaches_the_same_refusal() {
-        let (errors, face) =
-            check1::<geom_core::Probe>(geom_core::Probe::offset_fit_lane());
+        let (errors, face) = check1::<geom_core::Probe>(geom_core::Probe::offset_fit_lane());
         assert!(
-            errors
-                .iter()
-                .any(|e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)),
+            errors.iter().any(
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+            ),
             "the probe scalar has no fit, so its face must report the absence: {errors:?}"
+        );
+    }
+
+    /// **The seam is what the passes actually read.** The rows above
+    /// name the door by hand; this one takes [`tier3_local_checks`],
+    /// which reads `T::offset_fit_lane()` — so an `f64` arm that stopped
+    /// answering would refuse every `Approx` face in production, and
+    /// this is the row that says so.
+    #[test]
+    fn the_f64_seam_is_what_check_1_reads() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (body, face) = approx_faced_body::<f64>();
+        let declarations: [DeclaredContact; 0] = [];
+        let (errors, _) = super::tier3_local_checks(&body, &declarations, band, tol, None);
+        assert!(
+            !errors.iter().any(
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+            ),
+            "the `f64` seam answers the door, so check 1 must re-derive rather than refuse: \
+             {errors:?}"
         );
     }
 
@@ -9362,7 +9382,11 @@ mod offset_fit_door_rows {
             ("on_locus_max", door.on_locus_max, free.on_locus_max),
             ("hull_sup", door.hull_sup, free.hull_sup),
             ("normal_floor", door.normal_floor, free.normal_floor),
-            ("curvature_reach", door.curvature_reach, free.curvature_reach),
+            (
+                "curvature_reach",
+                door.curvature_reach,
+                free.curvature_reach,
+            ),
         ] {
             assert_eq!(a.to_bits(), b.to_bits(), "{name} moved behind the door");
         }

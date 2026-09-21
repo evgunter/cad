@@ -975,7 +975,13 @@ mod offset_fit_door_rows {
             .expect("a rigid map of a certified fit re-certifies at the same tolerance");
         let spec = mapped.spec();
         let reference = OffsetFitLane::fit()
-            .remap(&spec.description, &spec.fit, spec.window, spec.tolerance, band)
+            .remap(
+                &spec.description,
+                &spec.fit,
+                spec.window,
+                spec.tolerance,
+                band,
+            )
             .expect("the door measures the mapped pair it was just handed");
         let got = mapped.certificate();
         for (name, x, y) in [

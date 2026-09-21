@@ -2230,9 +2230,7 @@ mod offset_fit_door_rows {
 
     /// The `+0.05` mint on the bowed patch, through whatever door the
     /// caller names.
-    fn mint(
-        door: Option<OffsetFitLane<f64>>,
-    ) -> Result<Surface<f64>, ReplaceFaceError<f64>> {
+    fn mint(door: Option<OffsetFitLane<f64>>) -> Result<Surface<f64>, ReplaceFaceError<f64>> {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let (_, face) = crate::fixtures::approx_faced_body::<f64>();
@@ -2262,9 +2260,12 @@ mod offset_fit_door_rows {
         let Ok(Surface::Approx(through_door)) = mint(Some(OffsetFitLane::fit())) else {
             panic!("the bowed patch's offset fits at the witness tolerance");
         };
-        let Ok(Surface::Approx(free)) =
-            geom_brep::approx_offset_surface(Arc::new(crate::fixtures::bowed_patch()), 0.05, tol, band)
-        else {
+        let Ok(Surface::Approx(free)) = geom_brep::approx_offset_surface(
+            Arc::new(crate::fixtures::bowed_patch()),
+            0.05,
+            tol,
+            band,
+        ) else {
             panic!("the free function mints the same surface");
         };
         let (a, b) = (through_door.certificate(), free.certificate());
@@ -2277,7 +2278,10 @@ mod offset_fit_door_rows {
         ] {
             assert_eq!(x.to_bits(), y.to_bits(), "{name} moved behind the door");
         }
-        assert_eq!((a.cells, a.samples, a.rounds), (b.cells, b.samples, b.rounds));
+        assert_eq!(
+            (a.cells, a.samples, a.rounds),
+            (b.cells, b.samples, b.rounds)
+        );
         assert_eq!(
             through_door.tolerance().to_bits(),
             free.tolerance().to_bits(),
