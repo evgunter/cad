@@ -4,7 +4,7 @@
 //! instantiation at the scalar (the lane impls above this crate and the
 //! interval test files) and not the scalar itself.
 //!
-//! Deliberately NOT `#![cfg(feature = "interval")]`: a gated file would
+//! Deliberately carries no crate-level interval gate: a gated file would
 //! say nothing about the build this suite is a claim about. Deliberately
 //! ε-free as well — every band here is a literal [`Band::new`] and no
 //! row reads the global `Tolerance`, so the suite reads identically at
