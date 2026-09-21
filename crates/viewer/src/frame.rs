@@ -2467,7 +2467,9 @@ mod tests {
         );
 
         // The silent arms, each paired with the silence it gets:
-        // [`badge_site`] is where the argument for both lives.
+        // `badge_site` is where the argument for both lives. (Plain
+        // backticks: a bracketed link in a `//` comment is checked by
+        // nothing, so it must not wear the spelling rustdoc gates.)
         for (quiet, site) in [
             (ProductError::NoBodyRoots, BadgeSite::NotAFault),
             (ProductError::RootFailed { node }, BadgeSite::FeatureTree),

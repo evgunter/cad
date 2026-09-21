@@ -13,7 +13,7 @@ branch: chrome/empty-document-gate
 ## Where this came from
 
 WIRE's PR 2629 gave the empty-document classification one home —
-`ProductErrorKind::is_empty_document` in `crates/editor-core/src/product.rs` —
+`ProductErrorKind::means_no_body` in `crates/editor-core/src/product.rs` —
 and reduced four consumers to citing it, two of them in `crates/viewer`
 (announced on `work/chrome/log.md`). Its style review then found that the
 viewer keeps arguing the rule anyway, in places the citation did not
@@ -30,7 +30,7 @@ call `crates/viewer/README.md` already makes one layer up for `Refusal`.
 reads
 
 ```rust
-!(fault.kind().is_empty_document()
+!(fault.kind().means_no_body()
     || matches!(fault, ProductError::RootFailed { .. }
                      | ProductError::RootPoisoned { .. }
                      | ProductError::UnknownNode { .. }))
@@ -49,7 +49,7 @@ here that **cannot red when a tenth `ProductError` arm lands**: arm
 eleven is silently declined or silently badged, whichever way the
 expression happens to be written, and no build anywhere says so. The
 `editor-core` side now reds twice by name for a new arm (at `kind()`, and
-at `is_empty_document`); the viewer side, which is where a user actually
+at `means_no_body`); the viewer side, which is where a user actually
 sees the consequence, reds not at all.
 
 The honest shape is one cited rule plus one local policy **both
@@ -65,7 +65,7 @@ reads one value at two levels (`fault.kind()` against
 
 | site | what it says |
 | --- | --- |
-| `frame.rs`, `product_badge`'s doc | *"Nothing here is wrong to report"* — a restatement sitting immediately after a citation of the rule it restates, with the *"deleting the last feature"* worked example now duplicated rather than moved (it is also in `is_empty_document`'s doc) |
+| `frame.rs`, `product_badge`'s doc | *"Nothing here is wrong to report"* — a restatement sitting immediately after a citation of the rule it restates, with the *"deleting the last feature"* worked example now duplicated rather than moved (it is also in `means_no_body`'s doc) |
 | `frame.rs`, the in-module test's comment above the four quiet arms | *"An empty document is not malformed, and the three per-node states are the feature tree's to badge"* — disclosed by 2629 and deliberately left, because rewriting another program's test comment is past what an announced seam is for |
 | `crates/viewer/src/pickindex.rs` | *"deleting the last feature … a document that has only datums or profiles … An empty document is a state, not a fault"* — the same classification, the same two worked examples, independently written a third time in the viewer |
 
@@ -96,12 +96,15 @@ Filed by the WIRE orchestrator under
 
 Taken on `chrome/empty-document-gate`.
 
-**The name in this file is stale and the shape is not.** WIRE renamed
-`is_empty_document` to `means_no_body` before this row was written
-(its own log records the rename and the argument for it: a kind is not
-a document). Every citation above should be read as `means_no_body`.
-The filter's shape, the ten classes and the three-arm policy were all
-as described.
+**The name this file was written with never existed on main**, and
+the body above is corrected rather than annotated: WIRE renamed
+`is_empty_document` to `means_no_body` inside PR 2629's own lane, on
+the argument that a kind is not a document (`work/wire/log.md`). The
+old spelling is what rotted this unit's premise in the first place, so
+leaving it in place for a later reader to grep for would repeat the
+defect the row is about. The shape the row described — the filter, the
+ten classes, the three-arm policy, all three restatement sites — was
+true of the tree.
 
 **The gate.** `frame::badge_site`, a `match` exhaustive over
 `ProductErrorKind` returning `frame::BadgeSite` — `Frame`,
@@ -141,11 +144,44 @@ through `means_no_body` reds *left: FeatureTree right: NotAFault* —
 that last one is the row the old test could not have: `product_badge`
 is `None` either way.
 
-**Found outside the fence**:
-`two-more-viewer-sites-restate-the-empty-document-rule` (app.rs's
-badge-column comment and `SceneMesh::nothing`'s doc), filed on this
-slate in the same PR.
+**Found outside the fence**, all on this slate in the same PR:
+`six-viewer-sites-restate-the-empty-document-rule-and-its-badge-policy`
+(the class is wider than this row's three — two more in `app.rs`, two
+in `scene.rs`, one in `pane/viewport.rs`, one in `session.rs`);
+`has-faults-cannot-red-on-a-new-rowstatus` (the same `matches!`
+defect in `tree.rs`, cross-referenced to
+`band-refusal-still-badges-every-row`, whose proposed fix is to add
+the very `RowStatus` variant it cannot see); and
+`a-citation-in-a-line-comment-is-not-checked`.
+
+**The instrument sweep's criterion was wrong, and that is recorded
+rather than quietly fixed.** It excluded `tree::has_faults` on the
+word EXTERNAL — a multi-arm `matches!` over a subset of a
+viewer-owned enum is exactly as silent as one over `ProductErrorKind`.
+The prose sweep's key phrase also missed `scene.rs`'s *"denoting no
+body"* on an inflection of its own stem. Both are stated on the row
+above.
 
 The behavioural half, `at-rest-badge-reports-an-empty-document-as-a-
 refusal`, is untouched: `session.rs` was out of this wave.
 
+## The fix pass
+
+The gate's doc was itself restating `means_no_body` at three sites in
+the diff that closes the row — including at `BadgeSite::NotAFault`,
+a brand-new site with no citation on it at all. All three now cite.
+Two further things landed with them: the `RowStatus` count the policy
+argues from is a measurement of another module's enum, so it has a
+guard (`the_tree_still_has_exactly_the_three_states_this_policy_
+pairs_with`, which reds both on a fifth variant at compile time and
+on a policy edit at runtime); and the doc now says what the compiler
+does NOT buy — exhaustiveness over the classes, not liveness of the
+cited call, which a later edit could leave unreachable with nothing
+but the in-module row to catch it.
+
+`frame.rs`'s module header also named nine of the ten badge doors
+(`profiles_badge` was missing) and `datums_badge` carried an
+unguarded "beside eight others"; both corrected, the latter by
+dropping the count rather than restating it. `crates/viewer/README.md`
+remains the only complete enumeration and the only one the repaired
+`frame_policy` scan reads.
