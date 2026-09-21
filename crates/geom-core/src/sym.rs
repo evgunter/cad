@@ -596,10 +596,13 @@
 //! **Who asks for the forms.** The `Decide` impl has three callers of
 //! the walks and only one is the tier deciding: its DECISION path asks
 //! a form only where the numeric channel cannot answer; the
-//! contradiction ASSERTION runs the discharge on every DEFINITE margin
-//! wherever debug assertions are on — dev, test, and this workspace's
-//! release profile, so every profile measured here and only the
-//! published build not; and the shape report, when installed, renders
+//! contradiction CHECK runs the discharge on every DEFINITE margin —
+//! at an EXACT witness wherever debug assertions are on (dev, test,
+//! and this workspace's release profile, so every profile measured
+//! here and only the published build not), and at an INEXACT one in
+//! every profile, because there it is a receipt column and not an
+//! assertion ([`SymCounts::theorems_disputed`]); and the shape report,
+//! when installed, renders
 //! blocked residuals through the walks. On the slab at its nominal the
 //! decision path builds 9,686 plain forms in 980 calls and 36 early
 //! forms in 16; the assertion builds 918 plain and 1,958 early forms
@@ -1219,6 +1222,74 @@ pub struct SymCounts {
     /// different events, one of which happens after the other could
     /// not.
     pub registrations_contradicted: u64,
+    /// **Decisions where the form claimed ZERO under a DEFINITE numeric
+    /// sign at an INEXACT witness** — the two channels in contradiction
+    /// at a scalar whose value channel is one rounded number
+    /// ([`crate::Witness::Inexact`]). Those scalars are exactly `f64`,
+    /// [`crate::Probe`], and `Dual<T>` and `Sym<T>` over either of
+    /// them; every other lane scalar in the tree is
+    /// [`crate::Interval`]-backed and exact. The numeric answer is
+    /// returned, the form's answer is not, and this column is how the
+    /// run says the two disagreed.
+    ///
+    /// **BOTH discharge kinds land here**, and the name covers both:
+    /// a [`Discharge::Theorem`] is zero unconditionally and a
+    /// [`Discharge::SignGated`] zero over the leaf's box on the
+    /// strength of one sign read — "a theorem CONDITIONAL on a sign
+    /// read", as [`SymCounts::sign_gated`] puts it. Splitting them
+    /// would report one suspicion as two kinds of fact: at an inexact
+    /// witness rule C's sign read came from the SAME point channel the
+    /// margin did, so the gated kind's premise is exactly as suspect as
+    /// the plain kind's, and no shipped run can produce a gated one at
+    /// all (`SymRules::shipped` has rule C dial-off). The row that
+    /// drives one is
+    /// `geom-core/tests/sym11_witness_kind_rows.rs`'s
+    /// `sym11_a_gated_theorem_disputes_into_the_same_column`.
+    ///
+    /// **One decision can be charged HERE and in
+    /// [`SymCounts::registrations_contradicted`] at once**, by design:
+    /// the door is asked first and raises that column when a REGISTERED
+    /// zero meets the definite sign, and the walks then run and raise
+    /// this one if the form also discharges as a theorem without the
+    /// registry. They are two different claims about one decision — an
+    /// axiom this box denies, and a theorem this channel cannot see —
+    /// and a reader summing the two columns is counting events, not
+    /// decisions.
+    ///
+    /// **It is zero at [`crate::Interval`] by construction, and not by
+    /// measurement**: there the witness is EXACT, a definite non-zero
+    /// sign is a certified bracket that excludes zero, and the
+    /// contradiction is a soundness defect in one of the two channels
+    /// — asserted, never counted ([`Decide::sign_within`]). So a
+    /// non-zero count here is always an inexact lane's, which is the
+    /// unit-test lane and not a shipped one.
+    ///
+    /// **A refusal column, beside
+    /// [`SymCounts::registrations_contradicted`], and NOT a discharge
+    /// kind**: no decision lands here instead of in `numeric` — the
+    /// decision is counted `numeric` as it always was, and this column
+    /// is a second fact about it. It is not a K token either: the
+    /// sample the funnel records is the numeric channel's own
+    /// `Definite(sign)`, a classified margin like any other, so the K
+    /// vocabulary needs nothing new. `sym/discharge_pins.rs` names it
+    /// in `NOT_A_DISCHARGE_KIND` with that reason.
+    ///
+    /// **A dispute names no predicate on the receipt**, which is a
+    /// disclosed gap rather than a property: a reader sees that some
+    /// decision disputed and cannot see which
+    /// (`work/sym/a-dispute-names-no-predicate-on-the-receipt`).
+    ///
+    /// What a non-zero count means is that the form is a theorem of
+    /// the reals which this channel's arithmetic cannot see — a far
+    /// placement whose rounding exceeds the band, rule F's
+    /// amplification of a one-ulp sign error into a whole `2.0`, or a
+    /// pole the point channel has no clause 1 to refuse. It is NOT
+    /// evidence against the form: the rows that measure both
+    /// mechanisms (`geom-core/tests/sym11_witness_kind_rows.rs`,
+    /// `sweep/tests/sym11_far_placement_rows.rs`) drive the same
+    /// residuals at `Sym<Interval>`, where every one of them is a
+    /// plain theorem.
+    pub theorems_disputed: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
     /// **Nodes this session's plain walk froze** into indeterminates (a
@@ -1269,6 +1340,7 @@ impl SymCounts {
         self.registered += other.registered;
         self.registrations_refused += other.registrations_refused;
         self.registrations_contradicted += other.registrations_contradicted;
+        self.theorems_disputed += other.theorems_disputed;
         self.numeric += other.numeric;
     }
 }
@@ -2847,6 +2919,40 @@ fn count_registration_contradicted() {
     });
 }
 
+/// **Does this node's form claim zero where the value channel answered
+/// a definite non-zero sign?** — the theorem-vs-numeric contradiction,
+/// as ONE predicate, so the two arms of
+/// [`Decide::sign_within`]'s charge cannot come to differ on what a
+/// contradiction is.
+///
+/// Both discharge kinds count: a [`Discharge::Theorem`] is zero
+/// unconditionally, a [`Discharge::SignGated`] zero over the leaf's box
+/// on the strength of one sign read, and over THIS box — the one the
+/// value channel just classified — both say the margin is zero where it
+/// says it is not. [`Discharge::Registered`] is deliberately absent:
+/// a registered zero contradicted by a definite sign is the door's own
+/// event and is counted at the door
+/// ([`SymCounts::registrations_contradicted`], raised just above this
+/// call).
+///
+/// It RUNS THE WALKS ([`discharge`]), which is the cost each arm pays.
+fn contradicts(id: SymId) -> bool {
+    matches!(
+        discharge(id),
+        Some(Discharge::Theorem | Discharge::SignGated)
+    )
+}
+
+/// Records a decision whose form was a THEOREM or a GATED theorem under
+/// a definite numeric sign at an INEXACT witness.
+fn count_theorem_disputed() {
+    SESSION.with(|s| {
+        if let Some(sess) = s.borrow_mut().as_mut() {
+            sess.counts.theorems_disputed += 1;
+        }
+    });
+}
+
 /// Records how one decision was answered, for the session's receipt.
 fn count_decision(discharge: Option<Discharge>) {
     SESSION.with(|s| {
@@ -3178,6 +3284,13 @@ impl<T: Real> Neg for Sym<T> {
 }
 
 impl<T: Real> Real for Sym<T> {
+    /// **The LANE SCALAR's.** A `Sym<T>` carries `T`'s value channel
+    /// unchanged — the tier reads no value and widens no enclosure —
+    /// so a comparison at `Sym<T>` proves exactly what one at `T`
+    /// proves. This is the const [`Decide::sign_within`] below charges
+    /// the theorem-vs-numeric contradiction by.
+    const WITNESS: crate::real::Witness = T::WITNESS;
+
     fn from_f64(x: f64) -> Self {
         Self::nullary(T::from_f64(x), SymOp::Lit, x.to_bits())
     }
@@ -3369,10 +3482,36 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// Building it was a measurable share of the tier's cost (a reviewer
 /// clocked one leaf replay at 57 ms against 1.4 ms numeric), and the
 /// forms skipped here are exactly the expensive ones: the margins that
-/// are NOT identities, which is most of them. A debug assertion keeps
-/// the shortcut honest — if a form ever IS zero under a definite
-/// numeric sign, the two channels contradict each other and that is a
-/// soundness bug in one of them, not a fast path to take quietly.
+/// are NOT identities, which is most of them.
+///
+/// **And the shortcut is kept honest PER WITNESS KIND**
+/// ([`crate::Witness`], declared on the lane scalar). The sentence
+/// above — "a certified enclosure that excludes zero is a proof" — is
+/// a claim about the VALUE CHANNEL, and it is true at exactly the
+/// scalars whose witness is exact:
+///
+/// - **At an EXACT witness** ([`crate::Interval`]) the enclosure
+///   proves it, so a form that IS zero under a definite numeric sign
+///   means the two channels contradict each other: an enclosure does
+///   not contain its real, or the form is wrong. That is a soundness
+///   bug in one of them and not a fast path to take quietly, and the
+///   `debug_assert!` below is the answer.
+/// - **At an INEXACT witness** (`f64`, [`crate::Probe`]) the same
+///   answer is a comparison of ONE ROUNDED NUMBER against the band,
+///   and it is wrong in three measured ways: at a far placement the
+///   rounding exceeds the band; under rule F a one-ulp error in a
+///   sign argument becomes a whole `2.0` at the margin, because
+///   `copysign`'s output is `±1` however small its argument's error
+///   was; and at a pole the channel evaluates `1/0` to an infinity
+///   and has no clause 1 to refuse with. The form's theorem is
+///   correct wherever the function is defined, so the disagreement is
+///   a DISPUTE: the numeric answer is kept, the run says so on the
+///   receipt ([`SymCounts::theorems_disputed`]), and nothing panics.
+///
+/// It is the same partition [`Sym::register_equal`] already forwards
+/// for the registry door — [`SymRegistration::Contradicted`] from an
+/// exact witness, [`SymRegistration::Disputed`] from an inexact one —
+/// drawn for the theorem channels, and both read the one marker.
 ///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
@@ -3388,10 +3527,13 @@ impl<T: Decide> Decide for Sym<T> {
         if definitely_nonzero {
             // **A REGISTERED zero here is a CONTRADICTED AXIOM**, and it
             // is checked in release rather than asserted in debug: a
-            // constructor stated an identity that is false over this
-            // box, the enclosure proves it, and the numeric answer wins
-            // — but the run has to SAY so. Never a fold; counted; the
-            // receipt reports it (`SymCounts::registrations_contradicted`).
+            // constructor stated an identity this box's numeric answer
+            // denies, and the numeric answer wins — but the run has to
+            // SAY so. Never a fold; counted; the receipt reports it
+            // (`SymCounts::registrations_contradicted`). Counted at
+            // every witness kind, never asserted at any: what the
+            // witness kind decides is how strong the denial is, and
+            // this column records the event rather than grading it.
             //
             // Ordering matters: this asks the DOOR memo only, and only
             // where a registration exists, so a document with no arc
@@ -3399,21 +3541,50 @@ impl<T: Decide> Decide for Sym<T> {
             if door_zero(self.node) {
                 count_registration_contradicted();
             }
-            // The assertion below RUNS THE DISCHARGE — the plain walk
-            // and the early one — on every definite margin, in every
-            // profile with debug assertions on (dev, test, and this
-            // workspace's release). The cost profile charges those
-            // walks to `Origin::Assertion`, apart from the decision's.
+            // **The contradiction, charged by WITNESS KIND.** Each arm
+            // asks [`contradicts`], which RUNS THE DISCHARGE — the
+            // plain walk and the early one — and the cost profile
+            // charges those walks to `Origin::Assertion`, apart from
+            // the decision's. `T::WITNESS` is a const, so the arm this
+            // lane takes is fixed at monomorphization and the other one
+            // is not compiled.
+            //
+            // **WHEN each arm pays for that walk is NOT the same, and
+            // the asymmetry is the point.** The exact arm asks inside a
+            // `debug_assert!`, so with debug assertions off it asks
+            // nothing and the walk does not happen; the inexact arm
+            // asks unconditionally, because the count is a receipt
+            // column and a column that exists only under debug
+            // assertions is a column a run cannot be asked for. This
+            // workspace ships `[profile.release] debug-assertions =
+            // true`, so both arms walk in every profile it builds.
             #[cfg(feature = "sym-profile-testing")]
             let origin = profile::set_origin(profile::Origin::Assertion);
-            debug_assert!(
-                !matches!(
-                    discharge(self.node),
-                    Some(Discharge::Theorem | Discharge::SignGated)
+            match T::WITNESS {
+                // An EXACT witness is a certified bracket that
+                // excludes zero: a proof that the margin is not zero,
+                // which no normal form over the parameters can
+                // contradict. If one does, an enclosure does not
+                // contain its real or the form is wrong — a soundness
+                // bug in one of the two channels, and this codebase
+                // fails loud on it.
+                crate::Witness::Exact => debug_assert!(
+                    !contradicts(self.node),
+                    "the numeric channel proved this margin nonzero and the form says it is \
+                     identically zero: the two channels contradict each other"
                 ),
-                "the numeric channel proved this margin nonzero and the form says it is \
-                 identically zero: the two channels contradict each other"
-            );
+                // An INEXACT witness compared one rounded number. The
+                // form's theorem holds wherever the function is
+                // defined; what this channel answered is a point
+                // reading the band could not save. So the numeric
+                // answer is kept — the ratified numeric-first order is
+                // untouched — and the disagreement is COUNTED.
+                crate::Witness::Inexact => {
+                    if contradicts(self.node) {
+                        count_theorem_disputed();
+                    }
+                }
+            }
             #[cfg(feature = "sym-profile-testing")]
             profile::set_origin(origin);
             count_decision(None);
