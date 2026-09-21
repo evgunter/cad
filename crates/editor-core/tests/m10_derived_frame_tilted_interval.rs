@@ -1195,7 +1195,10 @@ fn m10_the_tilt_u_derived_boss_stops_on_the_newell_residual_and_names_it() {
 /// the widest half-width that certifies whole — a log bisection of
 /// `half` between `1e-4` and `5e-2` in eight steps, `(certifies,
 /// refuses)`, `NaN` when even `1e-4` refuses. `CAD_SYM12_CASES` names
-/// a comma-separated subset; `CAD_SYM8_LIFT` narrows the lift.
+/// a comma-separated subset; `CAD_SYM8_LIFT` narrows the lift. The
+/// split is taken only on a rung that refuses (the shape report over
+/// a `Pinned` replay of these cubes renders forms that exhaust a
+/// small box's memory).
 #[test]
 #[ignore = "evidence-only: SYM-12 Phase 1.3, the one-sided documents under the manifest-sign arms"]
 fn sym12_phase1_the_one_sided_documents_ladder() {
@@ -1228,12 +1231,23 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
                 ("F-on ", shipped_with_rule_f()),
             ] {
                 let doc = r2_document(1.0e-3, base, place);
-                start_shape_report();
                 let t0 = std::time::Instant::now();
                 let (f, c) = sym(&doc, lift, rules, budget());
                 let dt = t0.elapsed().as_secs_f64();
-                let shapes = take_shape_report();
-                let split = crate::m10_8_harness::split(&shapes);
+                // The split is read from the shape report, which
+                // renders every numeric residual: on the `Pinned`
+                // lift of these cubes that is hundreds of forms of
+                // thousands of terms and exhausts a small box (the
+                // `flipZ` rung did, at 10 GB), so the report is
+                // installed only where there is a refusal to name —
+                // which is the `Guided` lift, whose replay is small.
+                let split = if f.is_empty() {
+                    Default::default()
+                } else {
+                    start_shape_report();
+                    let _ = sym(&doc, lift, rules, budget());
+                    crate::m10_8_harness::split(&take_shape_report())
+                };
                 println!(
                     "{name} half=1e-3 {lift:?} {label}: sym0 {} reg {} gated {} num {} frozen {} \
                      in {dt:.1}s\n  fails {} {}",
