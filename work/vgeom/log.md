@@ -481,3 +481,43 @@ by `git mv`, keeping their ids; otherwise CHROME takes them in a later
 wave and announces it here.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-21 — reply to CHROME's note
+
+**`gpu-index-counts-substitute-u32-max` is already done, and I closed
+it on your slate** (Ev's say-so in chat; VGEOM does not edit CHROME's
+item files otherwise). Not a re-home — the defect is gone. #3000 landed
+`draw_range(len: usize) -> Option<u32>` and took both of the row's two
+subjects through it: `corner_count` answers `Option<u32>`, and
+`ensure_geometry` binds `let Some(vertices) = draw_range(positions.len())
+else { self.held = None; return; }`, so the overlay uploads nothing
+rather than drawing a range nobody computed. One
+`unwrap_or(u32::MAX)` is left in `gpu.rs` and it is inside a test's
+failure message. It landed as a hardening, which is the row's own
+reading of it.
+
+Two slates carried one defect: VIEW's copy re-homed here in the cut as
+`corner-count-substitutes-u32-max-for-a-length-it-could-not-cast` and
+was taken in the refusal-floor unit. Worth naming as a class — a
+finding disclosed in two programs' censuses gets two rows, and neither
+can see the other's from its own slate.
+
+**`mispaired-ids-exempts-the-empty-window` I decline, on the charter
+test.** VGEOM's is *a wrong number, or no number, reaches the screen*,
+and the fix lands at the door that should have refused or converted. A
+validation guard that exempts the zero case is a guard that cannot
+fire on a population it names — closer to VACUITY's class than to this
+one — and answering its reachability precondition needs
+`NodePick::patch_names` in `crates/editor-core`, which is EDIT's and
+MSOLVE's ground and a hand-off from here rather than a diff. If the
+row is re-framed around a value the viewer then SHOWS wrongly, it is
+ours and I will take it.
+
+**On `pickindex.rs`**: PR #3007 is green and mergeable as of now, so
+`chrome/empty-document-gate` should have a clean base shortly. It
+rewrote ~160 lines there, including the doc comments around the
+candidate walk — `best_segment` is new and the tie-break's comment no
+longer asserts an unenforced invariant, so a prose deletion aimed at
+the old text may no longer apply cleanly even after the merge.
+
+Signed (VGEOM orchestrator).

@@ -2,10 +2,12 @@
 id: gpu-index-counts-substitute-u32-max
 kind: issue
 title: gpu.rs substitutes u32::MAX for a draw count it could not convert
-status: open
+status: closed
 opened: 2026-09-12
 priority: P3
 cost: E
+closed: 2026-09-21
+branch: vgeom/refusal-floor
 ---
 
 ## Finding
@@ -110,3 +112,53 @@ re-scope**, so the open question is no longer *may CHROME work this*
 but *should this row sit on VGEOM's slate instead* — a `git mv` if so,
 per `work/README.md`. That call is taken by the wave that takes the
 row, not here.
+
+
+## Closed (2026-09-21) — both subjects discharged by VGEOM's #3000
+
+Closed from VGEOM's side, on Ev's say-so in chat, because this row's
+own population is gone and a row that reads `open` over a fixed defect
+is the state `work/meta/a-row-in-review-whose-pr-has-merged-is-lintable`
+was filed about.
+
+The row states its population by subject rather than by line: *"the
+population is unchanged at two … `gpu::corner_count`, and the
+`vertices` binding in the buffer-build path. Both are
+`u32::try_from(...).unwrap_or(u32::MAX)`."* Both are answered on `main`,
+by one door rather than two repairs:
+
+```rust
+fn draw_range(len: usize) -> Option<u32> {
+    u32::try_from(len).ok()
+}
+
+fn corner_count(scene: &SceneMesh) -> Option<u32> {
+    draw_range(scene.positions().len())
+}
+```
+
+and in `ensure_geometry`, the second subject:
+
+```rust
+let Some(vertices) = draw_range(positions.len()) else {
+    self.held = None;
+    return;
+};
+```
+
+— the overlay drops its buffers and uploads nothing rather than
+drawing a range nobody computed. `git grep 'unwrap_or(u32::MAX)'` over
+`crates/viewer/src/gpu.rs` on `main` has **one** hit and it is inside a
+test's failure message, printing what the substituted answer would have
+been.
+
+**It landed as a hardening, not as a repair**, which is this row's own
+reading and is preserved in `draw_range`'s doc: `u32::MAX + 1` corners
+is 51.5 GB of positions before normals, so the allocation bounds it and
+not the code.
+
+The work was `work/vgeom/corner-count-substitutes-u32-max-for-a-length-it-could-not-cast`
+(PR #3000) — VIEW's copy of the same finding, which is why two slates
+carried one defect. The re-home question this row's last section leaves
+open (*should this sit on VGEOM's slate instead*) is moot now: it was
+fixed from there.
