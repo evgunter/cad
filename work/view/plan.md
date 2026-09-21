@@ -314,16 +314,62 @@ marker — *"21 jobs, `docs-only ok` success, the docs-only tier
 exactly"*. It concludes **success on the full code tier too**: #2390,
 #2392 and #2400 each carry a green `docs-only ok` inside a 38-job
 closure-tier run, alongside `gate ok`. So its presence is no evidence
-of a tier at all. The only evidence is the one already written down two
-rules above — **the COUNT, and `gate ok`** — which is exactly what this
-register says about an unsubstituted matrix placeholder, applied to a
-job name instead of a job name's contents. The reading was never
-falsified because on a docs-only run both facts are true at once, so
-the proxy agreed with itself every time.
+of a tier at all. The evidence is the shape the rule below states —
+**`gate ok`, and the `TIER=` the change filter prints** — which is
+exactly what this register says about an unsubstituted matrix
+placeholder, applied to a job name instead of a job name's contents.
+The reading was never falsified because on a docs-only run both facts
+are true at once, so the proxy agreed with itself every time.
 
-Verify a tier by: **21 jobs** (docs-only) or **38-39 with 12 `test (…)`
-and 5 `k-lint (gate, …)`** (full code), plus `gate ok` success. Never by
-which summarising job reports green.
+**And the replacement it first got was a COUNT, which is the same
+defect one step weaker.** This rule read *"21 jobs (docs-only) or 38-39
+with 12 `test (…)` and 5 `k-lint (gate, …)`"* for fourteen days; a
+docs-only run then showed **22** (PR #2954, run 35550934699, a
+tracker-only diff whose change filter printed `TIER=docs`), so a lane
+following the rule literally reads 22 and concludes it is NOT on the
+docs tier — the opposite of the error the rule exists to prevent. **A
+job total is a number with no enumeration rule**: it moves whenever
+`ci.yml` gains or loses a job, nothing in CI reds when it does, and it
+goes stale silently. The register's own *a count fixed in ONE place*
+and *a count carries its enumeration rule* apply to the register.
+
+**So verify a tier by a printed word and a shape, never by a total.**
+
+- **Which tier am I on: `python3 scripts/ci-filter.py --base <base>`,
+  which prints `TIER=docs|closure|all`.** That is the authoritative
+  answer and the only one that cannot go stale against a workflow
+  change, because the workflow classifies with the same script. Run it
+  on the COMMITTED branch: over an uncommitted tree it reports
+  `falling back to TIER=all: empty change set`, which is the tree's
+  answer and not the branch's. The run prints the same word at the
+  `change filter` job's *classify the change set* step.
+- **Docs tier, on the run: `gate ok` GREEN with every code row
+  SKIPPED.** Those two facts together and nothing else. `docs-only ok`
+  is green on BOTH tiers — the thirteenth proxy, above — so it is
+  never the marker, and the job total is not one either. The three
+  other green rows are `change filter`, `CI half parity + gate wiring
+  (every tier)` and `docs-only ok`; that is the receipt shape the
+  docs-tier rule below already asks a docs-only lane to report.
+- **Full code tier: twelve `test (…)` rows and five
+  `k-lint (gate, …)` rows, present and green, plus `gate ok`.** These
+  two numbers stay because each carries its enumeration rule and
+  `ci.yml` states both: twelve is `{default, interval}` x
+  `{default, 1e-6, 1e-12}` x `shard: [1, 2]` across the two matrix
+  jobs, and five is the literal `klint_rows` list — `dev-default`,
+  `release-default`, `release-budget`, `dev-budget`, `dev-probe`. The
+  workflow's own narrowing annotation says both in one sentence, so a
+  run that gates fewer says so out loud. **Do not carry a TOTAL beside
+  them** — "38-39" was this rule's other count and has the same
+  defect as the 21 did.
+- **`gate ok` RED on a diff that touches `crates/` is not a tier at
+  all**, it is the un-mergeable-PR signature; three quarters of that
+  signature is also true of a healthy docs tier. Diagnose it with
+  `git merge-tree --write-tree origin/main origin/<branch>`, never
+  from the logs. The rule at the end of this register has the whole
+  shape.
+
+Never verify a tier by which summarising job reports green, and never
+by how many rows the run has.
 
 **A viewer test command needs `--no-fail-fast` or it silently does not
 run the suite.** `cargo test -p viewer --features app` — which this
@@ -1224,6 +1270,18 @@ conspired: the shallow history, and the register's own split-span trap
 — the sentence spans a `///` continuation, so the whole-phrase pickaxe
 returned nothing even where the history reached.
 
+**But `is-shallow-repository` is not the test, and on THIS repository it
+gives the wrong answer.** `.git/shallow` exists here, so that command
+says `true` — and `git log origin/main` still reaches
+`c857d68a42 initial commit`. The grafts are for refs fetched shallowly
+at some point; main's own history was deepened and is complete. A
+reviewer caught the orchestrator asserting the opposite in a dispatch,
+after the orchestrator had already reached for "the clone is shallow"
+to explain a nil `--grep` whose real cause was a wrong pattern. **The
+test is whether the history you are searching reaches the initial
+commit** (`git log <ref> | tail -1`), not whether a shallow file exists.
+Discounting a nil result on a complete history throws away evidence.
+
 So a provenance receipt owes three things, not one: **the SHA must
 resolve** (`git cat-file -t` it, or look it up on GitHub when the clone
 is shallow), the search must be a **fragment short enough to survive a
@@ -1311,7 +1369,10 @@ because an unexpanded matrix is how a skipped matrix job is named. This
 was checked rather than assumed: #2952, a `plan.md`-only change, shows
 exactly that shape with `gate ok` **success**. So the discriminator is
 the pair — **`gate ok` RED on a diff that touches `crates/`** — never
-the placeholders or the job count alone.
+the placeholders or the job count alone. The `~22` above is an
+observation on one run and not a marker: the tier rule earlier in this
+register says why a job total cannot be one, and `TIER=` from
+`scripts/ci-filter.py --base <base>` is the word to read instead.
 
 That signature reads as a runner fault, and the orchestrator called it
 one out loud after checking three things that all pointed away from the
@@ -1337,6 +1398,71 @@ register already says so, and this one was mis-read as infrastructure
 right up until the second run reproduced it exactly. And **a 403 on
 `rerun-failed-jobs` is not a dead end**: re-running would have proved
 nothing here, because the conflict survives a re-run.
+
+**A board re-derived from the working tree is re-derived from
+whatever commit that tree is pinned at.** The orchestrator opened
+`work/vgeom/` to pick the next unit and read two rows at `status: open`
+over a program log that ended at its opening state. Both false: the
+fixes had merged as #2967 six hours earlier and both rows were closed
+on `main`. This clone sat on the orchestrator branch at `0c530f67ef`,
+and nothing about `cat`ting a file says which commit it came from — a
+tracker file looks identical whether it is current or a week stale, and
+the tracker is exactly the artefact every lane edits in parallel.
+
+It is the same defect the staleness row (#2990) filed one level down —
+a status recorded somewhere nothing checks — and it compounds the same
+way: an orchestrator that mis-reads the board dispatches a unit that is
+already done, or declines one that is not.
+
+**So a board read is `git show origin/main:<path>`, never `cat <path>`,
+unless the tree was fetched and merged in this turn.** The same holds
+for `git grep`: pass `origin/main` as the tree. It costs one word per
+read and it is the only form whose answer names its own commit.
+
+**A receipt that was never run in the form it was written down in.**
+Three of this program's defects in one day are one shape. #2994's
+`\`-continued literal was re-minted by `cargo fmt` in the same commit
+that introduced it, so the author's own tree never showed the two runs
+of fourteen spaces. The un-mergeable-PR rule below listed four
+symptoms, three of which fire on a perfectly healthy docs tier. And
+#2998's census rule printed
+`rg -U --no-heading -o '...'` while telling the reader to take "the
+lines that begin `let`" — without `-n`, `--no-heading` prefixes every
+match with `path:`, so that reading returns **0** against a stated 22,
+and the PR body's own receipt silently carried the `-n` form.
+
+The tell in all three is **a rule stated as a description of the output
+rather than as the command that produces the answer.** A description
+cannot be run, so nothing ever runs it, and it stays plausible
+indefinitely. The practice that replaces it: print a command whose
+output IS the number (end it in `| wc -l` if you must), then run the
+exact text you printed, extracted from the file with `sed -n Np`
+rather than retyped. #2998's correction earned its keep the same hour:
+fixing the pattern so it could be run admitted a qualified path, and
+the population moved 22 → 24 — two `egui::` binds at the chrome
+boundary that the old spelling could not see.
+
+**A fence written in the same commit as the program it fences has no
+independent authority.** The four-track cut (`f8a822e8c1`) wrote
+eighty-six rows' new homes and four `keep_out` clauses in one pass, and
+nothing re-derived the clauses afterwards. One of them told every VDOC
+lane that `crates/viewer/README.md` "is ratified design beside the code
+per CLAUDE.md" and that a decision-row change "waits for Ev". It does
+not and it does not: CLAUDE.md's sign-off exception covers the
+`crates/<crate>/README.md` pages **`docs/DESIGN.md`'s companion table
+lists**, and that table does not list this one — its
+`crates/viewer/GUI-DESIGN.md` row says the README "beside it is the
+implementation record, which the program maintains itself". The fence
+invented a sign-off requirement on a page four open rows touch, and it
+survived two units before a lane read it.
+
+Corollary, because it makes the class checkable: **a `keep_out` that
+asserts a sign-off requirement is a claim about CLAUDE.md, not a local
+decision** — the companion table either lists the page or it does not,
+and `grep -cE '^\| `<path>`' docs/DESIGN.md` settles it. The general
+instrument is CLAUDE.md's own and it is cheap: *check that Ev ever
+agreed, before you wait for Ev*, `git log --all -S` over a short
+phrase. Here it returned the cut's own commit and nothing behind it.
 
 ## Exit shape
 

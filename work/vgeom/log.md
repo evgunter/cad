@@ -250,3 +250,191 @@ rewriting `sketch.rs`.
 
 The review ran on reading alone: the machine-wide build slot was held
 for an hour. CI is the test record.
+
+## 2026-09-21 — `vgeom/sketch-infinity`: two guards in `sketch.rs`
+
+Both rows were *a guard that stops a zero and admits an infinity*, and
+both doors already had their recourse in the signature, so nothing was
+substituted for a value the arithmetic could not compute.
+
+`heading` guarded `length > 0.0` over `dx.hypot(dy)` and an infinity
+is greater than zero, so it answered `Some([0.0, 0.0])` — a zero
+vector through a door whose `None` exists to say there is no heading.
+The guard is now `length.is_finite() && length > 0.0`.
+
+**The first draft of this entry said that conjunct is also what makes
+the division a unit vector. It is not**, and the review caught it. It
+bounds each quotient to `[-1, 1]`, which is what the code comment
+claims; it does not deliver unit length, because at the bottom of the
+subnormal range the division has no precision to divide with —
+`dx = dy = 5e-324` answers `[1.0, 1.0]`, of length `1.4142`. Four
+separations were driven through `preview` and the driver refuses the
+degenerate junction two steps earlier at `Tol::witness()` and at
+`1e-12`; below `1e-12` was not tried, so that is a negative result
+about the search. The residue is
+`headings-unit-vector-is-not-unit-at-the-bottom-of-the-range`, filed
+rather than left in a row that gets deleted.
+
+Also corrected from the first draft: `dx.hypot(dy)` over two
+`1.4e308` differences answers **`inf`**, not `1.98e308`. That figure
+is the true result, which is what `f64` has no room for.
+
+`flatten` emitted `[from.x, from.y]` above every guard, and the arc
+guards it sits above are all under a `bulge == 0.0` `continue` — so a
+polygon reached none of them. It now asks one predicate, `drawable`,
+of every coordinate it emits.
+
+**The second row's title says vertices and its body says *"the
+population is every coordinate `flatten` emits"*, and the body is
+right.** #2798's guard asks about the arc's FRAME — radius, sweep,
+centre, start — and a finite frame does not make a finite point: a
+major arc of radius `5.05e307` about a centre at `1.29e308` carries
+its own far side past the top of the range, and nine of its 256
+points come out `inf` with every guarded value a number. That is a
+third arm, found by executing the arithmetic over a scan rather than
+by reading the guard, and it is guarded here too.
+
+**Every producer is authored finite literals.** The heading case is a
+path with corners at `±7e307`: each vertex finite, each `d` finite at
+`1.4e308`, and `hypot` the only thing in the chain that overflows.
+The vertex case is `At(1e308,0)`, `Toward(1,0)`, `Line(1e308)`, whose
+sum replay hands back as `inf`. This is the register's *hunt the
+producer, not the input*, twice.
+
+**A measured negative.** All three producers fail validation, so none
+reaches `committed`, whose `undrawn` count feeds `frame.rs`'s badge —
+that sentence stays true of every profile it counts today, and it is
+narrower than the mechanism behind it, filed as
+`work/vnews/the-profiles-badge-names-the-arc-case-only.md`.
+
+Certification: the rows are red on `origin/main`'s `sketch.rs` from a
+committed tree with every pre-existing row green, and on the fixed
+tree each guard deleted alone reds one named row and nothing else.
+
+**The review's two follow-ups landed here rather than after, because
+both sit in rows this PR closes.** `flatten` was still spelling
+`drawable`'s own question by hand over `centre` eleven lines below the
+call that names it — a second copy of the predicate the same diff
+introduced to unify, in the same function, with the trap named in the
+PR body that did not prevent it. And `drawable`'s SECOND conjunct was
+asserted nowhere: deleting `point[1].is_finite()` left the whole
+viewer suite green at 637 rows, because every fixture carried its
+non-finite coordinate in `x`. Two rows were added — one vertex whose
+ordinate is the bad one, and one arc whose frame check is the only
+thing that asks, which is the `arc_points`-answers-ONE arm where the
+interior loop never runs and nothing else would notice a centre at
+`[inf, 5e-7]`.
+
+**The eps matrix caught a fixture this lane had not thought about,
+twice over.** The one-segment arc row was first written at a micron
+so that `arc_points` would answer the one-segment floor, and hosted
+CI's `eps = 1e-6` rows refused its junction at replay two steps before
+the flattener saw it — turn margin `3.75e-7 m`, which at that
+tolerance is tangency. The arc is millimetre-scale now and buys the
+floor from a COARSE display tolerance instead, which is a δ the caller
+chooses. **A fixture whose scale is near a gated eps row's is a
+fixture about that row**, and the lane's local verification had been
+single-eps, which is how it reached CI.
+
+Running the viewer suite at all three rows afterwards turned up a
+SECOND red that is not this lane's and that hosted CI cannot see:
+`pane::profile::tests::drawing_a_locked_split_circle_above_the_cap_leaves_it_alone`
+fails on `main` at `eps = 1e-6` — a `chord_side` margin of `1.127e-6`
+inside that row's escalation band — and the viewer's `app`-feature
+rows run in exactly one CI step, at the default eps only. Filed as
+`work/chrome/a-split-circle-fixture-sits-inside-the-1e-6-escalation-band.md`
+and `work/ciw/the-viewer-app-feature-rows-gate-one-eps-of-three.md`.
+
+**And the sweep was tree-only, which the plan's rule says is half of
+one.** A tracker pass would have reached
+`the-viewport-and-position-lanes-narrow-to-f32-with-no-door`, whose
+recorded negative result — *no in-tree producer of a non-finite value
+in any of these lanes* — this unit's three fixtures falsify:
+`push_segment` narrows exactly what `flatten` emits, and `7e307_f64
+as f32` is `inf`. That row now carries the producer, and the reading
+it forces back onto this unit is that at these magnitudes the picture
+is already nowhere one door along — so *"the production consumer
+reaches it"* is true of the door and an overstatement about the
+drawing.
+
+## 2026-09-21 — `vgeom/refusal-floor`: Order item 1, four doors in one class
+
+Four rows, one argument, four files:
+`a-count-slot-launders-a-typed-nan-into-zero` (P0, `props.rs`),
+`world-per-px-answers-a-scale-for-a-viewport-it-could-not-measure`
+(`input.rs`), `finite-bounds-yield-an-infinite-scene-radius`
+(`camera.rs`) and
+`corner-count-substitutes-u32-max-for-a-length-it-could-not-cast`
+(`gpu.rs`). All four closed. The unit's shape is CHROME's
+`chrome/datums-substitution-sweep` (#2644) rather than a second one:
+the door answers an `Option` or a `Result`, the callers take the
+refusal through the nothing-to-do they already have, and the doc
+comment says why a floor or a substitute would be the wrong repair.
+
+**What the class turned out to be, stated more narrowly than the plan
+states it.** The plan's Order says *every row here is a non-finite
+value reaching a place that assumed it could not*. Three of the four
+are not that. `world_per_px` is the plan's shape exactly — an ordering
+used as a domain test on a value with no order. The other three are a
+**guard sited one arithmetic upstream of the overflow it is for**:
+`camera.rs` bounds `lo` and `hi` and the loss is in `half[i]²`;
+`props.rs` splits on the dimension before any literal exists, so the
+finiteness refusal it points at is never on the path; `gpu.rs`'s cast
+is downstream of a length nothing bounds. In all three the guard is
+correct about what it looks at, which is why each survived a sweep.
+The useful test is not *does a non-finite value get in* but **does the
+door's own answer get asked the question the door's prose asks of its
+inputs**.
+
+**What the sweep found that the four rows did not predict.**
+
+- **The same cast has a finite arm.** `SlotValue::of`'s `value as i64`
+  saturates for `1e30` as surely as for `inf` — `i64::MAX`, executed —
+  and that half is NOT fixed here, because unlike the non-finite half
+  it has no refusal to raise: `DimensionError::NonFiniteLiteral`
+  exists and says the right sentence, and nothing anywhere says *this
+  count does not fit*. Minting one reaches `crates/editor-core`
+  (EDIT's and MSOLVE's) or `session::Refusal` (VNEWS's). Filed on this
+  slate as
+  `a-count-slots-cast-still-saturates-for-a-finite-value-too-large`
+  with the fork written out.
+- **Fixing the P0 created a news gap.** The drag path maps the new
+  refusal through `Refusal::Dimension` and it reaches the status line;
+  the TYPED path has no operation to carry one and is silent. Better
+  than committing zero, and not what `field_edit`'s doc promises.
+  Filed on VNEWS as `a-refused-typed-value-reaches-no-word`, beside
+  `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words`,
+  which may want the same answer.
+- **`camera.rs`'s centre overflows too**, at the same site —
+  `lo = 1e308`, `hi = 1.7e308` gives `centre = [inf, 0, 0]` — and it
+  needs no guard: scanned over every pair of magnitudes from `1e150`
+  to `1e308` in both signs and the first 64 floats above each, 126
+  non-finite centres and **none with a finite radius**. So the radius
+  guard covers it, and the argument is in the doc comment rather than
+  in an assertion nothing can break.
+- **`world_per_px`'s quotient overflows independently of its height.**
+  The row is about the height; the same door divides an ordinary
+  visible height by the smallest subnormal to infinity. Guarded here,
+  for #2644's stated reason.
+
+**Two reachability claims are NOT upgraded by this unit, and the PR
+says so in the same words the rows do.** `world-per-px` carries a
+*"Reachability: no producer found"* over this crate's own writers of
+`ViewportSize` — not a proof about egui's layout — and nothing here
+searched further. `corner-count` says outright it is a door hardening
+and not a reachable defect: `u32::MAX + 1` corners is 51.5 GB of
+positions and the allocation is the bound, not the code.
+
+**Each row's table re-derived rather than quoted**, per the register:
+`camera.rs`'s four executed rows reproduce under a verbatim replica of
+`sphere`'s arithmetic, and the threshold is sharper than the row's *a
+few hundred orders of magnitude* — one axis overflows above `1e154`,
+three above about `7.7e153`.
+
+**Mutation, five ways, one row each.** Deleting the camera radius
+guard, restoring `height_px <= 0.0`, dropping the quotient's
+`is_finite`, restoring `unwrap_or(u32::MAX)` inside `draw_range`, and
+deleting the `Count` arm's `is_finite` conjunct each red exactly one
+of the four new rows and nothing else in the 798-row app-feature suite
+(besides `gpu::tests::every_pass_builds_on_a_real_device`, the
+standing WGPU-adapter red on a box with no Vulkan).

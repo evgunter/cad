@@ -941,7 +941,9 @@ pub struct ShellRetired {
 /// rights cannot form the call — there is no arm and no refusal — and
 /// the recourse is not a weaker shell but the ordinary one, built at a
 /// certifying scalar.
-pub fn shell<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn shell<
+    T: Decide + PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     thickness: T,
     tol: Tol,
@@ -964,7 +966,9 @@ pub fn shell<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
 /// The certification bound is [`shell`]'s, for [`shell`]'s reason.
-pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn shell_open<
+    T: Decide + PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     thickness: T,
     open_faces: &[FaceKey],
@@ -1520,7 +1524,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // structurally: the void-ceiling row asserts the designated
         // void face DIES, and the pairing row reads each thin solid's
         // twin through the record
-        // (`work/topo/check-9-nesting-is-line-bounded-only.md`).
+        // (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),

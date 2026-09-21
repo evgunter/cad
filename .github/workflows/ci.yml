@@ -2720,10 +2720,12 @@ jobs:
           lane: interval
       # The two lanes compile the SAME 172 registry crates (measured
       # 2026-09-03 on two `--workspace` cold runs: the sets are equal, and
-      # `interval-transcendentals` is in both because geom-core carries it
-      # as a dev-dependency). What differs is feature flags on WORKSPACE
-      # crates, which rust-cache strips before saving. So these two entries
-      # hold near-identical bytes and could in principle be one — they are
+      # `interval-transcendentals` was in both because geom-core carried
+      # it as a dev-dependency; it is in both today because geom-core
+      # carries it as a dependency). What differs is feature flags on
+      # WORKSPACE crates, which rust-cache strips before saving. So these
+      # two entries hold near-identical bytes and could in principle be
+      # one — they are
       # kept apart because the CACHE SEPARATION note on `build-interval`
       # argues the separation on the graphs rather than on this
       # measurement, and one job-night is not worth re-opening it.
@@ -3593,7 +3595,7 @@ jobs:
       # either tree as non-triggering (its _is_docs).
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
-      # The `interval` feature's backend is the in-repo
+      # The interval scalar's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
       # job needs no system packages at all now that mold is gone (see the
       # LINKER note at the top of this file).
@@ -3994,7 +3996,7 @@ jobs:
     # Tier `closure` never reaches this: interval-transcendentals/ is its
     # own workspace, so ANY change under it is tier `all`.
     if: github.event_name != 'push' && needs.filter.outputs.run_interval_backend == 'true'
-    # The `interval` feature's backend lives in its own workspace
+    # The interval scalar's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
     # M5 PR 1's review asked for one — and it catches what the kernel's

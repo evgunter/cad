@@ -714,9 +714,11 @@ pub enum ValidationError {
         /// The fit door's typed refusal.
         error: geom_brep::OffsetFitError,
     },
-    /// Tier 3: a face carries an approximating surface and this scalar
-    /// has no re-derivation lane ([`crate::props::PropsQuadLane`]'s
-    /// `recertify_approx` answering `None`).
+    /// Tier 3: a face carries an approximating surface and the pass
+    /// was handed no re-derivation door.
+    ///
+    /// Where `Some` comes from, and what its absence means:
+    /// [`crate::AtRestPolicy::offset_fit_lane`].
     ///
     /// Reported rather than skipped: a surface certificate is the one
     /// claim this kernel refuses to leave unchecked, and passing a
@@ -2767,7 +2769,9 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// be failing on is the bound — `E0277`, *required by a bound in
 /// `validate_geometric`*, `CertifiedEnclosure` not implemented for
 /// `Dual<f64>`.
-pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn validate_geometric<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
@@ -2831,7 +2835,7 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 ///
 /// As [`validate_geometric`].
 pub fn validate_geometric_certificate<
-    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     tol: Tol,
@@ -2878,7 +2882,9 @@ pub fn validate_geometric_certificate<
 ///
 /// As [`validate_geometric`], less [`ValidationError::NegativeVolume`]
 /// and [`ValidationError::VolumeUncomputable`].
-pub fn validate_geometric_structural<T: crate::props::PropsQuadLane>(
+pub fn validate_geometric_structural<
+    T: crate::props::PropsQuadLane + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
@@ -2891,7 +2897,9 @@ pub fn validate_geometric_structural<T: crate::props::PropsQuadLane>(
 /// # Errors
 ///
 /// As [`validate_geometric_structural`].
-pub fn validate_geometric_structural_declared<T: crate::props::PropsQuadLane>(
+pub fn validate_geometric_structural_declared<
+    T: crate::props::PropsQuadLane + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
@@ -2907,7 +2915,7 @@ pub fn validate_geometric_structural_declared<T: crate::props::PropsQuadLane>(
 /// [`validate_geometric_certified`] is: the two public doors differ in
 /// exactly what they are entitled to claim, and letting a caller pick
 /// the argument would let it claim more than its bound allows.
-fn structural_declared_via<T: crate::props::PropsQuadLane>(
+fn structural_declared_via<T: crate::props::PropsQuadLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
@@ -2931,6 +2939,7 @@ fn structural_declared_via<T: crate::props::PropsQuadLane>(
         tol,
         &|_, _, _| None,
         nurbs_lane,
+        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
     if errors.is_empty() {
         Ok(())
@@ -3046,7 +3055,9 @@ fn certificate_of_a_clean_verdict<C>(
 /// # Errors
 ///
 /// As [`validate_geometric`].
-pub fn validate_geometric_declared<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn validate_geometric_declared<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
@@ -3071,7 +3082,7 @@ pub fn validate_geometric_declared<T: crate::props::PropsQuadLane + geom_core::C
 /// As [`validate_geometric_declared`].
 pub fn validate_geometric_certificate_declared<
     'b,
-    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
     body: &'b Body<T>,
     declarations: &[DeclaredContact],
@@ -3124,7 +3135,7 @@ fn lane_certificate<T: crate::props::PropsQuadLane>(
     Some(crate::props::mass_properties_with(body, band, tol))
 }
 
-pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
+pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     band: Band,
@@ -3140,6 +3151,7 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
         tol,
         &lane_certificate,
         nurbs_lane,
+        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     )
 }
 
@@ -3456,7 +3468,7 @@ pub(crate) fn material_arm_error(
 /// **Check 2 makes no claim about an M7-8 edge here**, at any scalar,
 /// for the reason [`validate_pseudomanifold`] states at length;
 /// [`contact_marks_certified`] is the same pass with the lane supplied.
-pub fn contact_marks<T: crate::props::PropsQuadLane>(
+pub fn contact_marks<T: crate::props::PropsQuadLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
@@ -3473,7 +3485,7 @@ pub fn contact_marks<T: crate::props::PropsQuadLane>(
 ///
 /// As [`contact_marks`], with check 4's material arm reading the
 /// declarations.
-pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
+pub fn contact_marks_declared<T: crate::props::PropsQuadLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
@@ -3490,7 +3502,9 @@ pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
 /// # Errors
 ///
 /// As [`contact_marks`].
-pub fn contact_marks_certified<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn contact_marks_certified<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
@@ -3504,7 +3518,7 @@ pub fn contact_marks_certified<T: crate::props::PropsQuadLane + geom_core::Certi
 ///
 /// As [`contact_marks_declared`].
 pub fn contact_marks_declared_certified<
-    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     declarations: &[DeclaredContact],
@@ -3520,7 +3534,7 @@ pub fn contact_marks_declared_certified<
 
 /// The marks pass with check 2's lane as an argument — the shared body
 /// of the lane-keeping door and its certified twin.
-fn contact_marks_declared_via<T: crate::props::PropsQuadLane>(
+fn contact_marks_declared_via<T: crate::props::PropsQuadLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
@@ -3545,6 +3559,7 @@ fn contact_marks_declared_via<T: crate::props::PropsQuadLane>(
         tol,
         &lane_certificate,
         nurbs_lane,
+        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
     if errors.is_empty() {
         Ok(marks)
@@ -3589,6 +3604,21 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Check7Certificate<T>
 /// ([`geom_brep::EdgeCurve::needs_nurbs_lane`] asks the question
 /// before the claim is made). Every other carrier class is
 /// re-certified identically either way.
+///
+/// `offset_fit` is check 1's re-derivation door for an `Approx` face
+/// ([`geom_brep::OffsetFitLane`]), handed in for a THIRD reason: what
+/// its absence means is
+/// [`crate::AtRestPolicy::offset_fit_lane`]'s subject, not this
+/// caller's rights. `None` is not a skip — the face is reported
+/// [`ValidationError::ApproxLaneUnsupported`], because a surface
+/// certificate is the one claim this kernel refuses to leave
+/// unchecked.
+// The eighth parameter is the third INJECTED DERIVATION (`plus_v`,
+// `nurbs_lane`, `offset_fit`), and each is a door whose availability
+// differs by caller: bundling them into one struct would hide behind a
+// single name exactly the thing each parameter is here to make the
+// caller state.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
@@ -3597,6 +3627,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     tol: Tol,
     plus_v: PlusVCheck<'_, T>,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> (Vec<ValidationError>, Check7Certificate<T>) {
     let mut errors = Vec::new();
     let mut certificate: Check7Certificate<T> = None;
@@ -3642,18 +3673,19 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             // carrier is** — never against the surface's own stored
             // tolerance. O3's ratified claim is `≤ ε_precision`, and a
             // mint's parameter is not that claim; see
-            // `PropsQuadLane::recertify_approx` for the argument, and
-            // for why ε-tightening turning a loosely-minted surface red
-            // is D4's blessed behaviour rather than a regression. The
-            // witness travels; the value is read once, inside the
-            // lane, so this site cannot hand it a number of its own.
-            Some(Surface::Approx(approx)) => match T::recertify_approx(approx, tol, band) {
-                Some(Ok(_)) => {}
-                Some(Err(error)) => {
-                    errors.push(ValidationError::ApproxCertification {
-                        face: face_key,
-                        error,
-                    });
+            // `geom_brep::OffsetFitLane::recertify` for the argument,
+            // and for why ε-tightening turning a loosely-minted surface
+            // red is D4's blessed behaviour rather than a regression.
+            // The witness travels; the value is read once, inside the
+            // door, so this site cannot hand it a number of its own.
+            Some(Surface::Approx(approx)) => match offset_fit {
+                Some(lane) => {
+                    if let Err(error) = lane.recertify(approx, tol, band) {
+                        errors.push(ValidationError::ApproxCertification {
+                            face: face_key,
+                            error,
+                        });
+                    }
                 }
                 None => {
                     errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
@@ -4112,8 +4144,8 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             let mut side_mixed = false;
             for i in 1..(geom_brep::CERT_SAMPLES - 1) {
                 let t = curve.sample_param(i);
-                let p = curve.carrier().eval(t);
-                let jet = geom_brep::tangent_jet(s_plus, s_minus, p, curve.carrier().deriv(t));
+                let (p, tau) = curve.carrier().ders1(t);
+                let jet = geom_brep::tangent_jet(s_plus, s_minus, p, tau);
                 let arm = geom_brep::folded_lever_arm(s_plus, s_minus, p, extent);
                 match classify_material_pairing(
                     s_plus,
@@ -4678,7 +4710,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //   that circle's disc. `disc_side` decides the class exactly and
     //   belongs to `boolean::contain`; reaching it from here is a
     //   widening this unit does not take, so the arm is silent
-    //   (`work/topo/check-9-nesting-is-line-bounded-only.md`).
+    //   (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
     // - **`NoWalk`** — arc-bearing over fewer than three vertices,
     //   where the polygon has zero area and the walk answers `Out`
     //   for every interior point. Silent for the same reason.
@@ -5224,7 +5256,9 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// aggregate gate take it. This door keeps its lane so a
 /// [`Dual`](geom_core::Dual) body can still go through the tier-3′
 /// pass, which is the capability H-R3 protects.
-pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane + geom_core::Bounds>(
+pub fn validate_pseudomanifold<
+    T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -5264,7 +5298,9 @@ pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane + geom_core::Bound
 /// # Errors
 ///
 /// As [`validate_pseudomanifold`].
-pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane + geom_core::Bounds>(
+pub fn validate_pseudomanifold_certificate<
+    T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -5295,7 +5331,7 @@ pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane + geom
 ///
 /// As [`validate_pseudomanifold`].
 pub fn validate_pseudomanifold_certificate_certified<
-    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
@@ -5317,7 +5353,7 @@ pub fn validate_pseudomanifold_certificate_certified<
 ///
 /// As [`validate_pseudomanifold`].
 pub fn validate_pseudomanifold_certified<
-    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds,
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
@@ -5328,7 +5364,9 @@ pub fn validate_pseudomanifold_certified<
 
 /// The tier-3′ pass with check 2's lane as an argument — the shared
 /// body of the lane-keeping door and its certified twin.
-fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane + geom_core::Bounds>(
+fn pseudomanifold_certificate_via<
+    T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -9208,5 +9246,189 @@ mod review_census_display_keys {
             }
             assert!(!msg.contains(" { "), "no struct braces: {msg}");
         }
+    }
+}
+
+/// **Check 1's offset-fit door, as the pass takes it** — the rows that
+/// say what each of its two answers costs.
+///
+/// The battery is called directly because these rows are about the
+/// PARAMETER: the public doors read the scalar's own seam
+/// (`crate::AtRestPolicy::offset_fit_lane`), and a row that could only reach the
+/// door the seam hands it could not tell an absent door from a scalar
+/// that has none.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod offset_fit_door_rows {
+    use geom_brep::OffsetFitLane;
+    use geom_core::{Band, Tol};
+
+    use super::{DeclaredContact, ValidationError, tier3_local_checks_marked};
+    use crate::entity::FaceKey;
+    use crate::fixtures::approx_faced_body;
+
+    /// The battery over the one-`Approx`-face seed body, with whatever
+    /// door the caller names.
+    fn check1<T: crate::props::PropsQuadLane>(
+        door: Option<OffsetFitLane<T>>,
+    ) -> (Vec<ValidationError>, FaceKey) {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (body, face) = approx_faced_body::<T>();
+        let declarations: [DeclaredContact; 0] = [];
+        let mut marks = slotmap::SecondaryMap::new();
+        let (errors, _) = tier3_local_checks_marked(
+            &body,
+            &declarations,
+            band,
+            &mut marks,
+            tol,
+            &|_, _, _| None,
+            None,
+            door,
+        );
+        (errors, face)
+    }
+
+    /// **No door: the face is REPORTED, not skipped**, with the variant
+    /// and the payload the absence has always had.
+    #[test]
+    fn no_door_refuses_the_approx_face_by_name() {
+        let (errors, face) = check1::<f64>(None);
+        assert!(
+            errors.iter().any(
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+            ),
+            "check 1 must report the face it could not re-derive: {errors:?}"
+        );
+    }
+
+    /// **The `f64` door: the same face passes check 1**, and the
+    /// certificate arm never fires — the door re-derives the claim the
+    /// mint made, on the surface the mint made it about.
+    #[test]
+    fn the_f64_door_re_derives_the_approx_face() {
+        let (errors, _) = check1::<f64>(Some(OffsetFitLane::fit()));
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::ApproxLaneUnsupported { .. })),
+            "the `f64` door is present, so the absence arm may not fire: {errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::ApproxCertification { .. })),
+            "the surface was minted at this tolerance, so its re-derivation must hold: {errors:?}"
+        );
+    }
+
+    /// **A refusing scalar reaches the same arm through its own seam.**
+    /// The subject is the `f64` mint's surface lifted verbatim, which is
+    /// the point: an `ApproxSurface<T>` is representable here, so the
+    /// face arrives and the absence is about the DERIVATION.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn the_probe_seam_reaches_the_same_refusal() {
+        let (errors, face) = check1::<geom_core::Probe>(
+            <geom_core::Probe as crate::props::AtRestPolicy>::offset_fit_lane(),
+        );
+        assert!(
+            errors.iter().any(
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+            ),
+            "the probe scalar has no fit, so its face must report the absence: {errors:?}"
+        );
+    }
+
+    /// **The seam is what the passes actually read.** The rows above
+    /// name the door by hand; this one takes [`tier3_local_checks`],
+    /// which reads `T::offset_fit_lane()` — so an `f64` arm that stopped
+    /// answering would refuse every `Approx` face in production, and
+    /// this is the row that says so.
+    #[test]
+    fn the_f64_seam_is_what_check_1_reads() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (body, face) = approx_faced_body::<f64>();
+        let declarations: [DeclaredContact; 0] = [];
+        let (errors, _) = super::tier3_local_checks(&body, &declarations, band, tol, None);
+        assert!(
+            !errors.iter().any(
+                |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
+            ),
+            "the `f64` seam answers the door, so check 1 must re-derive rather than refuse: \
+             {errors:?}"
+        );
+    }
+
+    /// A scalar with no offset fit: its seam answers `None`. One row
+    /// per scalar rather than one row with `cfg`'d statements inside
+    /// it, because a `cfg` on a STATEMENT is a non-additive feature
+    /// gate (`scripts/check-interval-cfg-additive.py`) while a `cfg`
+    /// on a whole `#[test]` fn is test-only code.
+    fn no_door<T: crate::props::AtRestPolicy>(named: &str) {
+        assert!(
+            T::offset_fit_lane().is_none(),
+            "{named} has no offset fit, so its seam must answer `None`"
+        );
+    }
+
+    /// **The seam's roster**: `f64` answers the door, and the tiers
+    /// over it do not. A scalar that gained one silently would pass
+    /// every green corpus and only these rows.
+    #[test]
+    fn only_f64_answers_the_seam() {
+        assert!(
+            <f64 as crate::props::AtRestPolicy>::offset_fit_lane().is_some(),
+            "the `f64` fit is the door's one constructor"
+        );
+        no_door::<geom_core::Sym<f64>>("the symbolic tier over `f64`");
+        no_door::<geom_core::Dual<f64>>("the dual tier over `f64`");
+    }
+
+    /// The recording scalar is `f64` with a sink attached everywhere
+    /// else, and it still has no fit: the fit is written at `f64` the
+    /// TYPE, not at "whatever behaves like `f64`".
+    #[cfg(feature = "probe")]
+    #[test]
+    fn the_probe_has_no_door() {
+        no_door::<geom_core::Probe>("the telemetry probe");
+    }
+
+    /// The certifying interval scalar certifies plenty and still has no
+    /// fit — the arm that makes the two absences distinguishable.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn the_interval_scalar_has_no_door() {
+        no_door::<geom_core::interval::Interval>("the interval scalar");
+    }
+
+    /// **The door IS the free function**, limb for limb, bit for bit —
+    /// the assertion that the bodies moved rather than being rewritten.
+    ///
+    /// **What this row does NOT see**: a door re-pointed at the
+    /// neighbouring `_at` instrument. The certificate's limbs are
+    /// MEASUREMENTS of the pair in front of them and do not move with
+    /// the target; the target only classifies, which is the invariant
+    /// `ApproxCertification`'s own doc asserts. What sees that is the
+    /// wiring row beside the door
+    /// (`geom_brep::offset_fit_lane`'s `wiring_rows`, which compares
+    /// the stored function pointer) and the `_at` census
+    /// (`tests/shell_tolerance_chain.rs`, which reds on a door in that
+    /// file reaching any numeric-target routine but the remap's).
+    /// What this row holds is that the body behind the door is the
+    /// same derivation the free function runs.
+    #[test]
+    fn the_door_is_the_offset_fit_module_bit_for_bit() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let approx = crate::fixtures::bowed_offset_approx::<f64>();
+        let door = OffsetFitLane::fit()
+            .recertify(&approx, tol, band)
+            .expect("the surface re-certifies at the tolerance it was minted at");
+        let free = geom_brep::recertify_approx(&approx, tol, band)
+            .expect("the free function agrees that it re-certifies");
+        crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
     }
 }

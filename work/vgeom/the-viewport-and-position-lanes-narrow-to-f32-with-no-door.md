@@ -71,6 +71,47 @@ each lane's immediate producer, one step back, and the register's own
 rule is that a value which is a number at every guard and stops being
 one downstream is invisible to a sweep over guards.
 
+## A producer, 2026-09-21: the negative result has a counterexample
+
+Found by `vgeom/sketch-infinity` (the two `sketch.rs` guard rows),
+whose three fixtures are authored profiles of finite literals whose
+coordinates are a few hundred orders of magnitude out. **Every one of
+them narrows to an infinity**, executed: `8e307_f64 as f32`,
+`7e307_f64 as f32` and `1.0e308_f64 as f32` are each `inf`, against a
+threshold of `f32::MAX ≈ 3.40e38`.
+
+The lane is `crate::pane::viewport`'s `push_segment`, which is
+`push_loop`'s only emitter and takes exactly what
+`sketch::flatten` emits:
+
+```
+let world = plane.to_world(Point2::new(x, y));
+lane.push([world.x as f32, world.y as f32, world.z as f32]);
+```
+
+So this row's **negative result is now false as stated**, in a lane it
+did not list. The producer is not a non-finite value reaching a
+narrowing — it is an ordinary finite `f64` that the narrowing itself
+turns into one, which is the arm the row's own closing paragraph
+predicted a guard sweep could not see. It reaches through the
+add-profile form: a path authored with a corner at `7e307` replays,
+flattens and is drawn.
+
+**This is a producer for the narrowing, not for the lanes above it**
+— `ViewportSize`, `pixels_per_point` and the aspect doors are
+untouched by it, and their negative results stand.
+
+**Two consequences for the reader.** The first is this row's: the
+`f64 → f32` bullet now has a witness a person can author rather than a
+witness the lane can merely hold. The second belongs to whoever reads
+`vgeom/sketch-infinity`'s reachability argument: at those magnitudes
+the picture is already nowhere one door along, guard or no guard, so
+*"the production consumer reaches it"* is true of the door and an
+overstatement about the picture. The guards there are still right —
+a flattener that reports success over a point that is not a place is
+wrong whatever the next consumer does with it — but they do not by
+themselves make the drawing correct at `7e307`.
+
 ## What a fix would have to decide
 
 The `MixFraction` answer does not transfer: a viewport dimension has

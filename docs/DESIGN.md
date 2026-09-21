@@ -1015,7 +1015,7 @@ Each layer depends only on the layers below it.
 |---|---|
 | `test-utils` | The shared test scaffolding several suites would otherwise each hand-roll: the fuzz/property harness (seed + effort dial), the `Display`-contract predicate, the anti-vacuity floor and its tightness companion, the shared Rust lexer, and the header-roster weld. A dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
 | `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, spline hulls |
-| `interval-transcendentals` | The `interval` feature's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
+| `interval-transcendentals` | The interval scalar's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
 | `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
@@ -1305,11 +1305,12 @@ Cross-milestone commitments; each binds at the layer named.
 
 - Evaluation code (evaluators, derivatives, transforms, measurements)
   is generic over a `Real` trait we define. Instantiations: `f64`,
-  `Interval` (the in-house `interval-transcendentals` backend, behind
-  the `interval` feature), `Dual<T>` (one in-house generic type;
-  `num-dual` is a dev-only oracle because its std-backed
-  transcendentals cannot satisfy the value-channel bit-identity
-  contract), and `Sym`.
+  `Interval` (the in-house `interval-transcendentals` backend; the
+  `interval` feature gates the kernel's lane-trait impls at it and the
+  interval test files, not the type, which compiles in every build),
+  `Dual<T>` (one in-house generic type; `num-dual` is a dev-only oracle
+  because its std-backed transcendentals cannot satisfy the
+  value-channel bit-identity contract), and `Sym`.
 - Every topology-determining branch goes through a *named predicate
   function* returning a trilean sign plus margin, generic over `T`. No
   raw `<` on control-flow paths.

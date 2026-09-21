@@ -66,6 +66,35 @@ Nothing is known about how often a seam worker dies — the parent item
 says the same, and it is still true: this is filed because the state is
 silent and permanent, not because it is frequent.
 
+## RULED (Ev, in-chat, 2026-09-16): loud, Actionable, and the fit seam refuses
+
+**It is loud, not silent.** A badge, by the provenance rule the item
+already cites — a whole-run environmental fact outliving the frame it
+started on.
+
+**`Tone::Actionable`.** The orchestrator raised `Advisory` on the
+ground that nothing in the app can revive a worker; Ev's answer is that
+it could hardly be anything else. The reasoning holds on the
+vocabulary's own words: `Advisory` is *"there is nothing to do about
+it"*, and restarting the viewer IS something to do — a dead worker
+means every later answer on that seam is missing for the life of the
+window, which is exactly a verdict a reader needs to act on. The
+restart belongs in the badge's own text, so the tone and the recourse
+agree.
+
+**The fit seam REFUSES the index build** rather than taking the
+un-budgeted one. Today a dead fitter makes `settled` `Some(self.delta)`
+and the index builds at the δ in force — the un-budgeted build the
+display budget exists to prevent, taken silently, on exactly the
+documents the budget was cut for. Ev: *"presumably it should refuse."*
+
+**The consequence a taker should state rather than discover**: on a
+document large enough to need the budget, refusing means no index, so
+no picking, for the life of the window. That is the right trade — a
+frozen window is worse than a dead one, and the badge now says why —
+but it is a second silent-capability loss stacked on the first, and the
+badge text should account for both rather than naming only the fitter.
+
 ## SUPERSEDED (Ev, in-chat, 2026-09-17): a crashed worker panics
 
 The ruling above was made on a description of the cost that was wrong,

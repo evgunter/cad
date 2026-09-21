@@ -17,9 +17,18 @@
 //! be run against a tree where the doors carry three separate bodies and
 //! against one where they delegate, and the two compared.
 //!
-//! **CI EXECUTES BOTH HALVES.** The ungated test runs on every merge;
-//! `every_door_names_its_own_sample_for_the_recording_scalar` carries the
-//! `probe` gate, and this file is rostered in
+//! It also holds one row that is not about the doors but about the
+//! vocabulary they record in: the third of the discharge vocabulary's
+//! seam pins,
+//! `every_discharge_kind_retags_its_sample_with_a_token_of_its_own`,
+//! which is here because its subject
+//! (`geom_core::k_stats::SampleOutcome`) exists only under `probe` and
+//! this is a probe suite CI RUNS. `sym::discharge_pins` carries the
+//! argument for all three rows.
+//!
+//! **CI EXECUTES BOTH HALVES.** The ungated tests run on every merge;
+//! `every_door_names_its_own_sample_for_the_recording_scalar` and the
+//! seam row above carry the `probe` gate, and this file is rostered in
 //! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
 //! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
 //! by `--check-executed`. The name-channel claim is therefore a gate. By
@@ -240,4 +249,79 @@ fn a_gate_outside_every_bracket_still_refuses() {
             .predicate,
         Some("unbracketed")
     );
+}
+
+/// **SEAM 3 — `Discharge` against `SampleOutcome`.** Every discharge
+/// kind retags its K sample with a token of its own, and the tokens a
+/// discharge writes are exactly the three this row classifies as
+/// discharge kinds; the rest — the definite signs, `Indeterminate`,
+/// `Invalid` — are classified margins the numeric channel wrote, and
+/// no discharge reaches them.
+///
+/// The third of the three rows the discharge vocabulary is held
+/// together by; the other two are `sym::discharge_pins`, whose module
+/// docs carry the argument for all three. It is HERE, and not there,
+/// because `SampleOutcome` exists only under `probe` and a
+/// `probe`-gated row inside the library is compiled by CI and run by
+/// nothing — this suite is rostered as one the probe sweep executes
+/// (the module header above).
+///
+/// `geom_core::sym::discharge_sample_outcomes` is the production
+/// projection `Sym::sign_within` retags through, not a copy of it.
+#[test]
+#[cfg(feature = "probe")]
+fn every_discharge_kind_retags_its_sample_with_a_token_of_its_own() {
+    use geom_core::k_stats::SampleOutcome;
+    use geom_core::sym::discharge_sample_outcomes;
+
+    // Every K token, once, classified — a DISCHARGE kind's token or
+    // one of the margins the numeric channel classified. The `match`
+    // is exhaustive, so a new `SampleOutcome` is a compile error here
+    // until this row says which it is.
+    let tokens: Vec<(SampleOutcome, bool)> = SampleOutcome::ALL
+        .into_iter()
+        .map(|outcome| {
+            let from_a_discharge = match outcome {
+                SampleOutcome::SymbolicZero
+                | SampleOutcome::SignGated
+                | SampleOutcome::Registered => true,
+                SampleOutcome::Definite(_)
+                | SampleOutcome::Indeterminate
+                | SampleOutcome::Invalid => false,
+            };
+            (outcome, from_a_discharge)
+        })
+        .collect();
+
+    let retagged = discharge_sample_outcomes();
+    for (i, (kind, outcome)) in retagged.iter().enumerate() {
+        assert!(
+            !retagged[..i].iter().any(|(_, o)| o == outcome),
+            "{kind} retags its sample with `{}`, which another discharge kind already writes \
+             — so the K corpus cannot tell the two populations apart and one of them is \
+             scored as the other: {retagged:?}",
+            outcome.token()
+        );
+    }
+    for (outcome, from_a_discharge) in tokens {
+        assert_eq!(
+            retagged.iter().any(|(_, o)| *o == outcome),
+            from_a_discharge,
+            "`{}` is {} and is {} by a discharge kind — a discharge-kind token no kind \
+             writes is a population the sweep never records, and a numeric token a \
+             discharge writes is a margin scored against a band it was never classified \
+             against: {retagged:?}",
+            outcome.token(),
+            if from_a_discharge {
+                "a discharge kind's token"
+            } else {
+                "not a discharge kind's token"
+            },
+            if retagged.iter().any(|(_, o)| *o == outcome) {
+                "written"
+            } else {
+                "not written"
+            }
+        );
+    }
 }

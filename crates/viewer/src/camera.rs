@@ -918,6 +918,24 @@ pub fn cursor_projection(
 }
 
 /// The centre and radius of a box's bounding sphere.
+///
+/// **The endpoints being numbers does not make the radius one**, and
+/// the radius is what the caller frames against. Squaring spends the
+/// exponent twice, so a box a few hundred orders of magnitude across
+/// — `±1e155` on one axis is enough — sums to infinity with every
+/// endpoint an ordinary finite number, and `radius < MIN_SCENE_RADIUS`
+/// is false for an infinity. The check is therefore on the PRODUCT as
+/// well as on the inputs, which is [`finite`]'s question asked where
+/// the overflow is rather than only where the caller's numbers are.
+///
+/// **The centre needs no check of its own.** `0.5 * (lo + hi)`
+/// overflows only when one endpoint is past half of `f64::MAX`, and at
+/// that magnitude the spacing of the representable numbers is about
+/// `2e292`, so the same axis's `hi - lo` is either exactly zero — a
+/// radius of zero, refused below — or at least that spacing, whose
+/// square is infinite. Measured over every pair of magnitudes from
+/// `1e150` to `1e308` in both signs and the first 64 floats above each:
+/// 126 non-finite centres, none of them with a finite radius.
 fn sphere(bounds: &Aabb) -> Result<(Point3<f64>, f64), CameraError> {
     let lo = [
         bounds.min(Axis::X),
@@ -946,6 +964,7 @@ fn sphere(bounds: &Aabb) -> Result<(Point3<f64>, f64), CameraError> {
         0.5 * (hi[2] - lo[2]),
     ];
     let radius: f64 = (half[0] * half[0] + half[1] * half[1] + half[2] * half[2]).sqrt();
+    finite("scene radius", radius)?;
     if radius < MIN_SCENE_RADIUS {
         return Err(CameraError::DegenerateScene { radius });
     }

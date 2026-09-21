@@ -99,13 +99,18 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             && !off.early_ab
             && !off.sqrt_square
             && !off.pythagoras
-            && !off.common_factor,
+            && !off.common_factor
+            && !off.manifest_sign,
         "the algebra off: {off:?}"
     );
-    // FIVE dials since SYM-5: rule E (the quotient's common factor) is
-    // form-level algebra in the early walk like the other four, and
-    // `without_the_algebra` is M10-9's tier bit for bit, which had no
-    // rule E. `m10_9_pins_interval` holds M10-9's rows under it.
+    // SIX dials since SYM-8: rule E (the quotient's common factor,
+    // SYM-5) and rule F (the manifest sign, SYM-8) are form-level
+    // algebra in the early walk like the other four, and
+    // `without_the_algebra` is M10-9's tier bit for bit, which had
+    // neither. `m10_9_pins_interval` holds M10-9's rows under it. A
+    // dial left out of this list makes the differential one against a
+    // tier that never existed — SYM-8's review found exactly that, with
+    // rule F on BOTH sides of it.
     assert_eq!(
         SymRules {
             trig_of_atan: true,
@@ -113,10 +118,11 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             sqrt_square: true,
             pythagoras: true,
             common_factor: true,
+            manifest_sign: true,
             ..off
         },
         s,
-        "`without_the_algebra` differs from `shipped` in the five algebra dials and nothing else"
+        "`without_the_algebra` differs from `shipped` in the six algebra dials and nothing else"
     );
 }
 

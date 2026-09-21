@@ -65,16 +65,16 @@ truthfully what else it cannot see. And
 preserves one sweep's blind spots as a file so they outlive a
 directory — a record, not a rule.
 
-## The proposed amendment (for Ev)
+## The amendment, and the argument either way
 
-One sentence in §5, carried on the `[ev]` PR this row is flagged for.
-The argument for it: **a blind spot a lane can name is a blind spot a
-lane can grep**, because naming it is the hard half. `ui.label` and
+One paragraph in §5, carried on the `[ev]` PR this row is flagged for
+(#2975). The argument for it: **a blind spot a lane can name is a
+blind spot a lane can grep**, because naming it is the hard half. `ui.label` and
 "a `match` on `Dimension`" are each one command. The rule already
 makes a lane do the expensive thinking and then stops one line short
 of the cheap check.
 
-The argument against, which Ev should weigh: it makes every sweep at
+The argument against: it makes every sweep at
 least two passes, and a blind spot that is genuinely unsearchable
 ("anything outside `crates/viewer/src`") gets a sentence saying so
 rather than a pass — so the rule has to permit that answer without
@@ -94,22 +94,21 @@ Ev's ruling on PR 2975: *"can you instead make a small edit to the
 previous paragraph to the effect of 'and try to check that blind
 spot'"*.
 
-Taken, and the shape of the correction is the part worth keeping. I
-proposed an eleven-line paragraph of its own carrying the two
-instances as evidence. What landed is a clause inside §5's existing
-opening paragraph, because **`docs/prompts/` is read in full by every
-lane on every dispatch**, and a standing instruction pays its length
-on every read while evidence pays once. The evidence belongs here, in
-the row, which is where it now is.
+Taken. The shape of the correction is the part worth keeping: I
+proposed a paragraph of its own carrying both instances as evidence,
+and what landed is a clause inside §5's existing opening paragraph.
+**`docs/prompts/` is read in full by every lane on every dispatch**,
+so a standing instruction pays its length on every read while evidence
+pays once. The evidence belongs here, in the row, which is where it
+now is — the section above already argues both sides of it.
 
 The rule as landed: state what your pattern could not match, **then
 try to check that blind spot**, with a second pass shaped at the gap
-you just named, and report that one too — and where a gap genuinely
-cannot be searched, say that and say why, so an unsearchable gap stays
-a legitimate answer.
+you just named, and report that one too; and where a gap genuinely
+cannot be searched, say that and say why.
 
-The two instances that motivated it are recorded above and are
-unchanged by the smaller wording: both lanes wrote honest, specific
-blind-spot paragraphs, in both the finding was sitting in the named
-gap and had been put there by that unit's own diff, and in both a
-reviewer found what one command would have.
+That last clause is kept deliberately. Without it the instruction
+reads as demanding a second grep in cases where there is not one to
+run — "anything outside this crate", a factor spelled as arithmetic —
+and a lane that cannot comply with a rule routes around it. An
+unsearchable gap stays a legitimate answer; a lazy one does not.

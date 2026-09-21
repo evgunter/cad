@@ -602,7 +602,8 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
     let outcome = session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,
-        value: SlotValue::of(Dimension::Length, from_written(2.0, IN.def())),
+        value: SlotValue::of(Dimension::Length, from_written(2.0, IN.def()))
+            .expect("a finite length is a value"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let row = props::slot_rows(session.doc(), extrude)
@@ -665,7 +666,8 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     // notation beside it does not.
     let outcome = session.perform(SessionOp::SetParam {
         name: name.clone(),
-        value: SlotValue::of(before.dimension, from_written(60.0, unit)),
+        value: SlotValue::of(before.dimension, from_written(60.0, unit))
+            .expect("a finite angle is a value"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let after = row(&session);
@@ -872,4 +874,170 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         );
     }
     assert_eq!(canonical(Dimension::Count), 1.0);
+}
+
+/// **A field's own render, typed back, is not an edit** — the guard,
+/// over the band where it has something to refuse.
+///
+/// The band is the render's, not the parser's: `readout::number`
+/// spells the shortest text that reads back within
+/// `readout::REL_TOLERANCE` of the value, so a field can be showing a
+/// text that names its value only to 5·10⁻⁴. That text is also what an
+/// `egui::DragValue` commits when focus leaves it, so a field that
+/// took its own render for an edit would move the value by up to that
+/// much and charge an undo step for a click nobody meant as one.
+///
+/// **Each row is built on a value whose render is NOT exact**, which
+/// is what lets it go red: the `assert_ne!` below is the fixture's own
+/// guard, and a row over a value that renders exactly could not fail
+/// on the tolerance at all.
+#[test]
+fn a_fields_own_render_typed_back_is_not_an_edit() {
+    // Canonical values, one per dimension that has a notation, each
+    // chosen so the shortest text that reads back is not the value.
+    let cases: [(Dimension, f64); 3] = [
+        (Dimension::Length, 0.040_000_019),
+        (Dimension::Angle, 1.000_000_4),
+        (Dimension::Scalar, 7.000_002_5),
+    ];
+    for (dimension, canonical) in cases {
+        let unit = rendering_unit(dimension, None);
+        let showing = props::shown_in(unit, canonical);
+        let text = viewer::readout::number(showing);
+        let read: f64 = text
+            .parse()
+            .unwrap_or_else(|_| panic!("{showing} renders as {text}, which is not a number"));
+        assert_ne!(
+            read, showing,
+            "{dimension}: {showing} renders as {text}, which reads back exactly — this row \
+             would pass on an exact comparison and holds nothing"
+        );
+        assert!(
+            props::echoed(&text, &text),
+            "{dimension}: the chrome's own render, handed back, is not an edit"
+        );
+        // And a number the user actually moved still is.
+        assert!(
+            !props::echoed(&viewer::readout::number(showing * 2.0), &text),
+            "{dimension}: a number nobody echoed is an edit"
+        );
+    }
+}
+
+/// **The guard has no band, and this row is what says so.**
+///
+/// The deltas shrink geometrically from one a person would plainly
+/// type down to the last one an `f64` at this magnitude can hold, so a
+/// guard shaped as a tolerance is red here at WHATEVER tolerance it is
+/// set to: widening or narrowing a band only moves which of these rows
+/// fails, never whether one does. That is what a fixture inside a
+/// chosen band plus one far outside it cannot do — it goes green at
+/// every tolerance but the one it was written against.
+///
+/// `1000` in millimetres is the case the residue is about: a metre
+/// written in the notation a person works in, where 5·10⁻⁴ of the
+/// value is half a millimetre.
+#[test]
+fn no_delta_from_the_render_is_small_enough_to_be_an_echo() {
+    let showing = 1000.0_f64;
+    let rendered = viewer::readout::number(showing);
+    assert!(
+        props::echoed(&rendered, &rendered),
+        "the render itself is the echo"
+    );
+    let mut delta = 0.5_f64;
+    let mut rows = 0_u32;
+    // Down to the last delta this magnitude can still hold: below it
+    // the sum IS the value and there is no other number to type.
+    while showing + delta > showing {
+        let typed = format!("{}", showing + delta);
+        assert!(
+            !props::echoed(&typed, &rendered),
+            "a field showing {rendered} was typed {typed} and called it an echo"
+        );
+        delta /= 2.0;
+        rows += 1;
+    }
+    assert!(
+        rows > 40,
+        "only {rows} deltas: the sweep must reach the bottom of the type, \
+         or it is one fixture again"
+    );
+}
+
+/// **Whitespace is not part of what a field says.** The parser trims
+/// before reading, so the guard does too — a user who selects the
+/// text and retypes it with a space has still typed the render.
+#[test]
+fn the_guard_trims_the_way_the_parser_does() {
+    assert!(props::echoed("  40.0 ", "40.0"));
+    assert!(!props::echoed("40", "40.0"));
+}
+
+/// **A field showing SOURCE is compared against its source.** A slot
+/// driven by an expression, and a slot whose value did not evaluate,
+/// show text rather than a number — the same guard answers for them,
+/// so re-typing the source is not an edit and a number typed over it
+/// is, which is what the driven refusal is owed: it is raised at the
+/// door, and a guard that swallowed the write would leave the user
+/// with no sentence at all.
+#[test]
+fn a_field_showing_source_echoes_its_source_and_nothing_else() {
+    assert!(props::echoed("w * 2", "w * 2"));
+    assert!(!props::echoed("40", "w * 2"));
+    assert!(!props::echoed("w * 3", "w * 2"));
+}
+
+/// **The create form mints the notation it was authoring in**, through
+/// the total doors — `props::doc_param` over a picked unit is a
+/// declaration whose `display_unit` is that unit and whose value is
+/// the canonical one it was handed, unscaled.
+#[test]
+fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
+    let minted = props::doc_param(
+        Dimension::Length,
+        SlotValue::Continuous(0.05),
+        Some(MM.def()),
+    );
+    assert_eq!(
+        minted,
+        DocParam::written_length(WrittenLength::canonical_in(0.05, pncad::prelude::MM))
+    );
+    let row = props::param_rows(&common::declared(
+        "mint-mm",
+        &ParamName::new("base_r"),
+        minted,
+    ))
+    .pop()
+    .expect("the declared parameter");
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05), "and not rescaled");
+    assert_eq!(in_written(row.value.as_f64(), MM.def()), 50.0);
+
+    // The angle door is its mirror, and a dimension with no notation
+    // takes the canonical declaration — there is nothing to pick.
+    let angle = props::doc_param(
+        Dimension::Angle,
+        SlotValue::Continuous(1.0),
+        Some(DEG.def()),
+    );
+    assert_eq!(
+        props::param_rows(&common::declared(
+            "mint-deg",
+            &ParamName::new("sweep"),
+            angle
+        ))
+        .pop()
+        .and_then(|row| row.unit)
+        .map(|u| u.symbol()),
+        Some("deg")
+    );
+    assert_eq!(
+        props::doc_param(Dimension::Scalar, SlotValue::Continuous(2.0), None),
+        DocParam::continuous(Dimension::Scalar, 2.0)
+    );
+    assert_eq!(
+        props::doc_param(Dimension::Count, SlotValue::Count(6), None),
+        DocParam::Count { value: 6 }
+    );
 }

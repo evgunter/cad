@@ -93,16 +93,17 @@ validate IS asking it to certify.
 **Proposal**: the E4 sensitivity pass evaluates WITHOUT the
 certified gates: the evaluation service gains a scalar-policy seam
 — certified validation (the product gather's `validate_geometric`,
-`recertify_approx`, the census door) runs at scalars with
-certification rights (f64's decide-with-escalation lane and
-`Interval`), and is structurally absent at `Dual`. This is sound
-because the sensitivity is OF THE AS-BUILT BODY: the dual's value
-channel is bit-identical to the f64 build (D9), which was already
-validated in the f64 evaluation E4 rides beside; re-validating the
-same bits through refusing arms adds no information and subtracts
-availability. The E4 driver asserts (cheaply, by content key
-equality of the value channel where it needs a hook) that it is
-differentiating the build the f64 run validated.
+the offset fit's `OffsetFitLane::recertify`, the census door) runs
+at scalars with certification rights (f64's decide-with-escalation
+lane and `Interval`), and is structurally absent at `Dual`. This
+is sound because the sensitivity is OF THE AS-BUILT BODY: the
+dual's value channel is bit-identical to the f64 build (D9), which
+was already validated in the f64 evaluation E4 rides beside;
+re-validating the same bits through refusing arms adds no
+information and subtracts availability. The E4 driver asserts
+(cheaply, by content key equality of the value channel where it
+needs a hook) that it is differentiating the build the f64 run
+validated.
 
 - Not a weakening: nothing a dual pass produces is consumed as a
   certificate anywhere (DL1); its outputs are E4-marked

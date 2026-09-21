@@ -28,6 +28,10 @@ was compiling concurrently. Hosted rows come from `gh api
 repos/evgunter/cad/actions/runs/<id>/jobs`, medians over 11 recent
 full-matrix runs unless stated.
 
+§9's local rows are the exception and say so: they ran on a shared
+4-vCPU box with another lane compiling, not on `LOCAL-BUILD-PERF.md`'s
+box under the build slot, and they carry their own environment block.
+
 **Carry ratios, not seconds, between the two.** Local is 4 cores / 8
 threads; runners are 2 vCPU. §6 records a case where that mattered by 3×.
 
@@ -94,14 +98,17 @@ findings below more surprising, not less.
 |---|---|---|
 | `f64` | `real.rs:593` | yes |
 | `Probe` | `k_stats.rs:325` | **yes — always compiled** |
-| `Interval` | `interval.rs:234` | **no — behind the `interval` feature** |
+| `Interval` | `interval.rs:234` | **yes — the impls compile in every build; what the `interval` feature gates is the lane-trait impls above this crate and the interval test files** |
 | `Dual<T>` | `dual.rs:410` | only via tests |
 
 `Dual<T: KinkJacobian>` has two inhabitants: `Dual<f64>` and
 `Dual<Interval>`.
 
 Counting concrete scalar type arguments in codegen'd symbol names
-(`nm -S --defined-only <rlib> | rustfilt`):
+(`nm -S --defined-only <rlib> | rustfilt`), censused 2026-08-12, when
+the `interval` module was itself gated — `geom-core`'s own row reads 44
+today (§9); the consuming crates' rows still read zero without the
+feature:
 
 | unit | text symbols | `f64` | `Probe` | `Interval` | `Dual` |
 |---|---|---|---|---|---|
@@ -110,7 +117,9 @@ Counting concrete scalar type arguments in codegen'd symbol names
 | topo | 1,581 | 231 | 164 | **0** | **0** |
 | editor-core | 12,591 | 490 | 1 | **0** | **0** |
 
-**`Interval` is absent from every default build.** The scalar that
+**No default build INSTANTIATES `Interval`**, which is the cost this
+table is about; the impls themselves are compiled in every build. The
+scalar that
 actually multiplies `Real`-generic code on every build is `Probe` — the
 K-experiment recording scalar, a transparent `f64` newtype, which is
 feature-gated nowhere.
@@ -438,6 +447,96 @@ code. But:
   enclosure cost regime that `geom-core/Cargo.toml` has always claimed.
   Anyone sizing interval-vs-`f64` runtime off an opt-0 leg is reading a
   flattered number.
+
+---
+
+## 9. Addendum — the TYPE and the INSTANTIATION priced apart (2026-09-21)
+
+§4d above measures the feature as one thing. It is two, and they price
+differently: the `geom_core::interval` MODULE (the scalar, its
+arithmetic and its `Real`/`Decide`/`Bounds`/`SpanLocate` impls, over the
+`interval-transcendentals` backend) and the kernel's INSTANTIATION at
+that scalar (the lane impls in the crates above `geom-core` and the
+interval test files).
+
+### The 2026-09-15 battery
+
+Method as in "Reproducing" below, with the CI build job's env block
+(`CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL=1`, `line-tables-only` debug,
+`CARGO_PROFILE_TEST_STRIP=debuginfo`), `CARGO_INCREMENTAL=0` and a fresh
+target directory per row on a 4-vCPU box. Min of two runs. Another lane
+was compiling on the same box throughout, so the rows carry that noise
+and the `--tests` deltas are ±50 s at best.
+
+| # | measurement | run 1 | run 2 | **min** | target |
+|---|---|---|---|---|---|
+| 1 | `build --workspace`, default (baseline) | 107.3 | 112.2 | **107.3** | 410M |
+| 2 | `build --workspace`, type ungated, instantiation still gated | 105.6 | 107.9 | **105.6** | 410M |
+| 3 | `build --workspace --features interval` (= the feature dropped) | 155.6 | 145.9 | **145.9** | 551M |
+| 4a | `build --workspace --tests`, default | 617.3 | 567.7 | **567.7** | 2.1G |
+| 4b | `build --workspace --tests`, type ungated | 578.0 | — | **578.0** | 2.1G |
+| 4c | `build --workspace --tests --features interval` | 631.2 | 771.5 | **631.2** | 2.4G |
+| 5a | `build -p geom-core`, default | 8.0 | 9.0 | **8.0** | 34M |
+| 5b | `build -p geom-core`, type ungated | 8.3 | 8.7 | **8.3** | 34M |
+
+Against the baseline: the **type** is **−1.7 s (0%, noise)** on the lib
+build, +10 s (+2%, one run, inside the noise) on `--tests`, +0.3 s
+(+4%, noise) at `-p geom-core`, and +0 target either way. Dropping the
+**feature** is **+38.6 s (+36%)** on the lib build, **+63.5 s (+11%)**
+on `--tests`, +141 MB / +0.3 GB of target.
+
+The dependency graph (`cargo tree --workspace -e normal --prefix none |
+sort -u | wc -l`) goes **84 → 85** when the type is ungated, and the one
+addition is `interval-transcendentals`: in-repo, `libm`-only, and its
+own gmp-backed oracle is a dev-dependency of *that* crate, so it enters
+no kernel build.
+
+So the gate's cost is the instantiation, which is what §3 and §4d
+already showed from the other side (`Interval`: 0 symbols instantiated
+in a default build; +22.3%/+17.3% of LLVM IR in geom-brep/topo with the
+feature on). The type was ungated on that basis.
+
+### At the landing (2026-09-21)
+
+**No local re-take is recorded here.** `memories/local-battery-scope.md`
+puts committed measurements on hosted CI, one reproducible box class,
+every sample with its own environment block. The landing box (a shared
+container: 4 vCPU, 15 GB RAM, rustc 1.97.0, `CARGO_INCREMENTAL=0`, the
+CI build job's opt-level-1 profile env, one-minute load 4.5–10 with two
+other lanes compiling) read 153 s on the default `build --workspace`
+against the battery's 107 s above: a 43 % slower baseline is a
+different regime, not the same noise, so the two cannot be differenced,
+and a second local box class in this doc would be that rule bent
+twice.
+
+The hosted numbers instead, from this branch's two full runs: run
+**35555608396** (head `cf15f29bc5`) and run **35559102712** (head
+`30ca6a8697`), whole-run wall 60 min and 28 min, with `build + archive
+(default)` **418 s** and `build + archive (interval)` **506 s** on the
+later one. Both are single samples over whatever rust-cache state the
+runner restored, so they bound nothing finer than "no gross
+regression", and neither is a measurement of the type: for that, the
+2026-09-15 battery above is what this doc has.
+
+Symbol level, reproducible at any head: `nm --defined-only
+target/debug/deps/libgeom_core-*.rlib | grep ' T ' | grep 8interval |
+wc -l` over a default `cargo build -p geom-core` answers **44**, where
+a gated module answered 0. Forty-three of those are
+`geom_core::interval`; the forty-fourth is a `PartialOrd` impl for the
+backend's `Decoration`, which the module filter matches too — which is
+why the filter and the number are written down together. The consuming
+crates' `Interval` counts stay at zero without the feature. §3's table
+carries this split in its own row rather than being reinterpreted from
+here.
+
+Two of §7's five reasons NOT to merge the lanes were about the type and
+have gone with it: `docs/DESIGN.md` Q1 no longer says the scalar lives
+behind the feature (it says the feature gates the lane-trait impls and
+the interval test files), and `ring_interval.rs` no longer leans on the
+module being absent from a default build. The other three — the
+wall-vs-billed asymmetry, the f64-only build having live consumers, and
+the **126** interval-gated test files being a test cost rather than a
+build cost — are untouched by this, and row 3 above is what merging the lanes would cost today.
 
 ---
 

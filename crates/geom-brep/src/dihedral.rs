@@ -389,8 +389,8 @@ pub fn must_carry_over_edge<T: Decide>(
     }
     for i in 1..crate::CERT_SAMPLES - 1 {
         let t = crate::sample_param(t0, t1, i);
-        let p = carrier.eval(t);
-        let reading = tangent_second_order(s1, s2, p, carrier.deriv(t), extent, band);
+        let (p, tau) = carrier.ders1(t);
+        let reading = tangent_second_order(s1, s2, p, tau, extent, band);
         match reading.verdict {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return MustCarryVerdict::UnderDetermined,

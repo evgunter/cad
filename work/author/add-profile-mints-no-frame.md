@@ -70,8 +70,10 @@ indistinguishable in the picker" is true exactly as written.
 
 ## Where it stands
 
-`gauth` and `gui` are both closed; this is unowned residue until a
-program claims it.
+~~`gauth` and `gui` are both closed; this is unowned residue until a
+program claims it.~~ **Spent.** CHROME claimed it, and AUTHOR has it
+since the 2026-09-20 priority-seam cut (`work/author/log.md`). It is
+next in `work/author/plan.md`'s order, behind AUTH-1.
 
 (At DOCM's exit sweep, `refs` names the PRs `sketch-frame-from-face` stood for: `sketch-frame-from-face` = #1829 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
 
@@ -100,5 +102,37 @@ where the claim was first made and the sibling inherited it; a
 correction living only in the row that copied it leaves the source
 standing.
 
-**Where it stands** (below) says this is unowned residue awaiting a
-claim. It is on CHROME's slate, which is the claim.
+**Where it stands** (above) said this was unowned residue awaiting a
+claim; it is AUTHOR's, which is the claim, and that section now says
+so directly.
+
+## A third label site, from AUTH-1's correctness review (2026-09-21)
+
+This row's half 2 is *"the picker names frames by node number"*. The
+same defect now has a third site, and a taker should close all three
+together rather than discovering the third afterwards.
+
+AUTH-1 (PR 2955) renders the add-datum form's held FACE pick as
+`format!("feature {} body {}", node, body)` — **the same text for all
+six faces of a box**, and it stays on screen after the selection is
+cleared, so an author can commit against a pick nothing in the
+viewport is showing and cannot tell from the form which face it is
+(the reviewer's NOTE-6). That is this row's complaint exactly, one
+door over: a node id where the useful label is what the thing IS.
+
+So the three sites are:
+
+- `add_profile_ui`'s ComboBox — `format!("feature {}", id.0)` for
+  every frame of either kind (this row, half 2);
+- `tree.rs`'s rows — `"Datum frame"` / `"Datum frame (on face)"`,
+  which distinguish the KINDS and never say WHICH frame (this row,
+  already);
+- and now `add_datum_ui`'s face pick.
+
+**The third one raises this row's value rather than changing it.** A
+face frame's honest label is the face it sits on, which this row
+already said; AUTH-1 makes that true of a second form and of a pick
+that is not even a node. Note the label work also wants
+`Display for BlendTarget` (`crates/viewer/src/blend.rs`), whose doc
+already argues the sentence belongs in one home — AUTH-1's fix pass
+routes its own site through it, so the shape is in the tree to copy.
