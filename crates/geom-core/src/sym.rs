@@ -477,6 +477,20 @@
 //! (754 → 876) at a sixth of the cost (2.6 → 0.4 s at `1e-3`,
 //! 2.3 → 0.3 s at `5e-2`). The authored twin is untouched.
 //!
+//! **And the reach is ONE-SIDED, measured.** The predicate refuses a
+//! negative coefficient outright, so the START cap of that same cube —
+//! whose normal is the negation, `n.z = −1/sqrt(P(t))` — is NOT
+//! reached: its replay reads the tilt-`u` document's rule-F-OFF numbers
+//! to the digit. A manifest-NEGATIVE arm (`abs(−X) = X`,
+//! `copysign(1, −X) = −1` for a manifestly positive `X`, identities of
+//! reals exactly as the folded ones are) is the next shape and is not
+//! taken here. So are a frame whose `n.z` is a bare parameter over a
+//! `sqrt` atom, and — unexplained, and the reviews predicted otherwise
+//! — a tilt about `u` AND `v`, on which the rule moves no count at
+//! all (`editor-core/tests/m10_derived_frame_tilted_interval`'s
+//! `sym8_the_reviews_documents_the_unit_did_not_measure` carries the
+//! table).
+//!
 //! **What it moves on the measured documents: nothing, with one
 //! exception.** Every per-predicate split at the nominal is
 //! BIT-IDENTICAL with the rule on and off on seven of the eight
@@ -489,18 +503,33 @@
 //! `symbolic_zero` 858 → 854, `registered` 104 → 128, `numeric`
 //! 991 → 971, `frozen` 2750 either way — the same 1953 decisions, 24
 //! of them moving into the door, twenty out of `numeric` and FOUR out
-//! of `symbolic_zero`. Those four are the unit's disclosed finding:
-//! opening an atom the early walk was cancelling OVER can cost that
-//! walk a theorem, which is
-//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class
-//! and the same hazard rule E ships with. No decision is lost, and the
-//! registry re-takes all four.
+//! of `symbolic_zero`. Those four are the unit's finding: opening an
+//! atom the early walk was cancelling OVER can cost that walk a
+//! theorem, which is
+//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class.
+//! No decision is lost, the registry re-takes all four, and both counts
+//! are pinned side by side (`m10_9_pins_interval`'s `Study` carries
+//! `symbolic_zero` beside `registered` since SYM-8, so a later change
+//! costing four more theorems reds).
 //!
-//! **What it costs** — the affordability line's own instrument, one
-//! whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
-//! release, rule F off → on: plate at `1e2 · ε` 0.493 → 0.501 s, plate
-//! at its REAL study 0.527 → 0.482, annulus 0.439 → 0.401, bracket
-//! 2.490 → 2.368, link 3.285 → 3.321, pad 19.734 → 18.796. On the
+//! **The difference from rule E, stated rather than glossed**: rule E
+//! also loses a theorem to an opened form, and that loss is
+//! demonstrated at the SCALAR
+//! (`sym_rule_e_rows::rule_e_can_cost_a_theorem_to_the_coefficient_ring`)
+//! with no measured document paying it. Rule F's is realised ON a
+//! measured document. The spec's Phase-1.3 stop clause reads on that,
+//! and shipping the rule on anyway is a spec deviation RATIFIED by the
+//! SYM orchestrator on 2026-09-21 — not a disclosure the lane made for
+//! itself (`work/decide/SYM-8.md` carries the ruling and its reason).
+//!
+//! **What it costs — and this is the ONE place the numbers live**
+//! (the rule table above points here rather than repeating them, and
+//! the PR body quoted them from here). The affordability line's own
+//! instrument, one whole-box leaf
+//! (`m10_10_leaf_cost_with_and_without_the_algebra`), release, rule F
+//! off → on: plate at `1e2 · ε` 0.493 → 0.501 s, plate at its REAL
+//! study 0.527 → 0.482, annulus 0.439 → 0.401, bracket 2.490 → 2.368,
+//! link 3.285 → 3.321, pad 19.734 → 18.796. On the
 //! ceiling-bisection instrument the eight documents read 0.43 → 0.42,
 //! 1.14 → 1.14, 0.32 → 0.31, 9.74 → 9.25, 2.06 → 1.99, 0.26 → 0.25,
 //! 0.21 → 0.20 and 0.59 → 0.58 seconds a probe. The rule is free to
@@ -1436,7 +1465,7 @@ impl SymRules {
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
-    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | one whole-box leaf, release: plate 0.49 → 0.50 s, annulus 0.44 → 0.40, bracket 2.49 → 2.37, link 3.29 → 3.32, pad 19.73 → 18.80 — free to the measurement's noise | **yes**, with the pad's four `symbolic_zero` → `registered` disclosed |
+    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | free to the measurement's noise and cheaper on most — the six leaf numbers live once, in the module header's rule-F section | **yes**, with the pad's four `symbolic_zero` → `registered` ratified as a spec deviation |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it

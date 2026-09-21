@@ -88,3 +88,40 @@ it is held to the same predicate here, because
 `abs(X) = X` on a syntactically non-negative `X` losing ten decisions
 on R1's boss, and because one predicate with one argument is what a
 measurement can narrow.
+
+## The pad's four: RULED (SYM orchestrator, 2026-09-21)
+
+Both blinded reviews (R1 Opus, R2 Fable; MERGEABLE-AFTER-FIXES on both
+sides) read the spec's Phase 1.3 stop clause — *"If a split moves DOWN
+or a ceiling falls under the fold, that is the unit's first finding and
+the rule's predicate is narrowed until it does not"* — as **literally
+tripped**: on R2's rounded pad, at the scale it certifies whole at,
+rule F moves `symbolic_zero` 858 → 854, `registered` 104 → 128 and
+`numeric` 991 → 971, so four decisions go from a theorem the tier
+proved to an axiom a constructor stated. Both judged the ship-on
+defensible; neither judged it the lane's to make.
+
+**The ruling: rule F ships ON, and the clause is a spec deviation
+ratified here.** It is the SYM orchestrator's call, made on
+2026-09-21, and Ev may overrule it. The reasons, on the record:
+
+- no decision is LOST — the 1953 decisions are the same 1953, and
+  nothing rises into `numeric`; twenty leave it;
+- no per-predicate split moves at any measured document's nominal, and
+  no whole-certifying ceiling moves by a digit on any of the eight,
+  with the over-band set at ceiling + δ identical too;
+- the four are re-taken by the registry, which is a weaker instrument
+  than the tier's own arithmetic and still a discharge;
+- the spec's own remedy is unavailable: the lane showed by execution
+  that narrowing cannot separate the pad's atom from the tilt-`u`
+  document's — both are `abs(n.z)` of one construction — so "narrow
+  until it does not" and "stop" are the same instruction here, and
+  stopping costs the reach the unit was drawn for;
+- what moved is now GUARDED rather than commented:
+  `m10_9_pins_interval`'s `Study` pins `symbolic_zero` beside
+  `registered` on all five documents, so a later change costing four
+  more theorems reds.
+
+This is recorded as "spec clause not met, ruled" and not as a
+disclosure. The distinction matters because a disclosure is a lane
+saying what it did; this is a program saying what it will accept.
