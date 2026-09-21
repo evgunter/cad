@@ -67,7 +67,7 @@ fn the_declared_seat_through_the_four_doors_at_f64() {
     let structural_cert =
         topo::validate_pseudomanifold_certificate_structural(&seat.body, &records, tol);
     assert_eq!(
-        structural.clone().map(|()| ()),
+        structural.clone(),
         structural_cert.map(|_| ()),
         "the two structural forms agree"
     );
