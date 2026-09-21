@@ -44,7 +44,7 @@ prose-census instrument, not a list of noticed sentences.
   not** — the reason a badge here would double up is that the tree
   already carries the tone, which is now a value both channels read.
 
-**One in `theme.rs` (~`:201-205`), NOT stale but a fourth home:**
+**One in `theme.rs` (`:318-322`), NOT stale but a fourth home:**
 `Theme::unresolved`'s doc re-derives the classification in prose —
 *"(A POISONED badge is not on the list: a row showing someone else's
 failure draws quiet, so the colour stays on the row to act on.)"* It is
@@ -53,13 +53,13 @@ know which statuses are actionable, and a restatement that happens to
 agree today is how the next divergence starts. It wants a citation of
 `RowStatus::tone()` in place of the re-derivation.
 
-**One in `crates/viewer/README.md` (~`:835`)** — filed separately on
+**One in `crates/viewer/README.md` (`:833-836`)** — filed separately on
 VDOC as `viewer-readme-attributes-the-tone-rule-to-the-pane`, because
 that file is VDOC's and a prose defect there is filed, never fixed.
 
 ## What is NOT a member
 
-`theme.rs`'s dichromacy carve-out (~`:461-464`) — *"every badge that
+`theme.rs`'s dichromacy carve-out (`:578-581`) — *"every badge that
 uses it carries its own words"* — is untouched and stays true;
 `app::toned`'s doc now carries that same contract at the one place the
 mapping is made. `crates/viewer/tests/tree_badges.rs`'s tone prose was
@@ -88,7 +88,17 @@ Both are false because the rule is now a value and the pane reads it:
 
 ### The `theme.rs` member is out of fence and stays out
 
-`crates/viewer/src/theme.rs:201-205` is there and is still TRUE, as the
+**Its citation moved under this branch and every citation in the file
+was repointed with it.** `main` rewrote `crates/viewer/src/theme.rs`
+between this branch's base and its merge-in, so the row's four
+approximate pointers were re-derived rather than shifted: the
+`Theme::unresolved` doc is now `:318-322` (was `~:201-205`), the
+dichromacy carve-out `:578-581` (was `~:461-464`), and the
+`crates/viewer/README.md` member `:833-836` (was `~:835`). Class-wide
+over the file, because `work/view/plan.md`'s rule is that a half-fixed
+count or citation is worse than a uniformly stale one.
+
+`crates/viewer/src/theme.rs:318-322` is there and is still TRUE, as the
 row says. `theme.rs` is one of the eleven files
 `work/view/viewer-src-files-no-successor-claims` reports as claimed by
 no re-scope successor, so it cannot ride a VNEWS lane. The `frame.rs`
@@ -103,8 +113,8 @@ owners, so the rider disposes of half of it and no more:
 |---|---|
 | `crates/viewer/src/frame.rs:1166-1171` | rides group A's carrier |
 | `crates/viewer/src/frame.rs:1764-1768` | rides group A's carrier |
-| `crates/viewer/src/theme.rs:201-205` | **stays open on this row** — `theme.rs` is claimed by no dispatching program |
-| `crates/viewer/README.md` (~`:835`) | already filed on VDOC as `viewer-readme-attributes-the-tone-rule-to-the-pane`; not this row's |
+| `crates/viewer/src/theme.rs:318-322` | **stays open on this row** — `theme.rs` is claimed by no dispatching program |
+| `crates/viewer/README.md:833-836` | already filed on VDOC as `viewer-readme-attributes-the-tone-rule-to-the-pane`; not this row's |
 
 So **this row stays open after group A lands**, carrying the `theme.rs`
 member alone, and its `rides_with:` names the carrier for the half that

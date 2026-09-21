@@ -448,9 +448,11 @@ section records the work as done with the inner-level residue filed as
 `withdrawal-causes-join-on-a-mark-a-fault-may-contain`. So the row
 reads as an in-flight `frame.rs` lane on the board and is not one —
 which matters here, because the serialization clause above is read off
-exactly that. **The VNEWS orchestrator is moving and closing it**; this
-section re-points when that lands. Either way **no `frame.rs` lane is
-in flight today**, which is what group A's slot depends on.
+exactly that. **Resolved on `main` while this branch was open**: the
+row is `work/vnews/joined-notices-nest-their-own-separator.md`,
+`status: closed`, `closed: 2026-09-15`. So the §Inbound above is
+discharged and **no `frame.rs` lane is in flight**, which is what group
+A's slot depends on.
 
 (The first draft of this paragraph declined to act because the file is
 VIEW's. That was wrong on `work/README.md`'s own terms — *"a lane does
