@@ -1838,3 +1838,113 @@ fn no_normal_makes_a_datum_draw_something_that_is_not_a_drawing() {
         }
     }
 }
+
+/// **A patch that holds more lattice lines than the backstop rules is
+/// ruled SMALLER, completely** — not ruled as far as the backstop
+/// reaches and then handed over in the shape of a whole ruling.
+///
+/// The claim a reader can check, and the one truncation breaks, is
+/// that the drawing CLOSES: each family's lines run between the
+/// other family's outermost lines, so the picture is a rectangle with
+/// four edges rather than a rectangle with one side ruled off past
+/// where the lines crossing it stop. Truncating the line list leaves
+/// the lines of one family running to a bound the other family never
+/// reached, and the two families' extents disagree by whatever the
+/// backstop cut.
+///
+/// **The backstop is reachable from an ordinary seat**, which is what
+/// makes this worth a row: the widths below are a plane seen at half a
+/// degree — an orbit position, not a pathology — on windows a display
+/// can be. The narrow pair fixes the premise, that while the backstop
+/// is slack the ruling tracks the window: tripling the window triples
+/// the ruled width. The wide pair is where it bites — doubling
+/// the window past it moves the ruling not at all.
+#[test]
+fn a_patch_past_the_grid_backstop_is_shrunk_rather_than_truncated() {
+    let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
+    // Half a degree above the plane, looking at the origin: the seat
+    // that rules a plane out toward its horizon and so asks for the
+    // most lines a view can ask for.
+    let elevation = 0.5_f64.to_radians();
+    let eye = [0.0, -elevation.cos(), elevation.sin()];
+    // The ruled width at each window width, and the row's own claim
+    // checked at each: the two families rule one rectangle.
+    let ruled_width = |width_px: f64| -> f64 {
+        let mut view = view_at(eye, [0.0, 0.0, 0.0]);
+        view.window_px = [width_px, 800.0];
+        let segments = &drawn_under(&doc, tol, view)[0].segments;
+        // The plane's normal tick is the one mark off the plane.
+        let ruled: Vec<[[f64; 3]; 2]> = segments
+            .chunks_exact(2)
+            .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+            .map(|pair| [pair[0], pair[1]])
+            .collect();
+        assert!(!ruled.is_empty(), "a {width_px}-pixel window ruled nothing");
+        // A ruled line holds one plane coordinate and runs along the
+        // other, so which coordinate it holds names its family.
+        let family = |held: usize| -> Vec<&[[f64; 3]; 2]> {
+            ruled
+                .iter()
+                .filter(|line| (line[0][held] - line[1][held]).abs() < 1.0e-12)
+                .collect()
+        };
+        let (held_x, held_y) = (family(0), family(1));
+        assert_eq!(
+            held_x.len() + held_y.len(),
+            ruled.len(),
+            "a {width_px}-pixel window ruled a line belonging to both families \
+             or to neither",
+        );
+        assert!(
+            !held_x.is_empty() && !held_y.is_empty(),
+            "a {width_px}-pixel window ruled only one family: \
+             {} holding x, {} holding y",
+            held_x.len(),
+            held_y.len(),
+        );
+        let box_of = |lines: &[&[[f64; 3]; 2]]| {
+            let mut bounds = [
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+            ];
+            for line in lines {
+                for point in line.iter() {
+                    bounds = [
+                        bounds[0].min(point[0]),
+                        bounds[1].max(point[0]),
+                        bounds[2].min(point[1]),
+                        bounds[3].max(point[1]),
+                    ];
+                }
+            }
+            bounds
+        };
+        let (a, b) = (box_of(&held_x), box_of(&held_y));
+        assert_eq!(
+            a, b,
+            "at {width_px} pixels the two families rule different rectangles \
+             — {a:?} against {b:?} — so the drawing does not close",
+        );
+        a[1] - a[0]
+    };
+    let (narrow, tripled) = (ruled_width(1280.0), ruled_width(3840.0));
+    let (wide, doubled) = (ruled_width(7680.0), ruled_width(15360.0));
+    // The premise: while the backstop is slack the ruling is the
+    // window's, so a row that only ever read a constant would red
+    // here.
+    assert!(
+        (tripled / narrow - 3.0).abs() < 0.05,
+        "tripling the window over a {narrow:.1} m ruling gave {tripled:.1} m, \
+         not three times it",
+    );
+    // And where it bites, the patch stops growing rather than the line
+    // list stopping: the window asking for twice as much gets the same
+    // rectangle back.
+    assert!(
+        doubled == wide && wide < tripled * 1.75,
+        "the backstop did not bite: {tripled:.1} m at 3840 px, {wide:.1} m at \
+         7680 px, {doubled:.1} m at 15360 px",
+    );
+}
