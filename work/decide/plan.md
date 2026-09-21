@@ -7,11 +7,10 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## The slate
 
-**17.5 budget points** of dispatchable work against a ceiling of 30.
+**12.5 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `SYM-10` | H | the decision door and the floor: manifest order, a manifest bound, and rule C's read of a Select — the folds the sign-hull frame needs |
 | P1 | `SYM-9` | H | what a refused decision may retry: the wider ring and the kept atom, measured first on the six documents |
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `revolve-carriers-state-only-the-rim` | H | the revolve latitude carriers register the rim identity but cannot state the span one: the builder is never handed the far endpoint |
@@ -19,10 +18,11 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## Order
 
-`SYM-10` first — the decision door and the floor. It is the ruled unit
-with a written spec (`docs/SYM-10-SPEC.md`), and `SYM-9` describes a
-change to the manifest it defines, so taking it first means SYM-9 is
-an edit rather than a re-design (`SYM-8`, rule F, merged 2026-09-21).
+`DECIDE-3` first — the canonical root at the mint site, SYM-10's Phase
+2 as Ev ruled it (#2970; SYM-10 closed on Phase 1, 2026-09-21). `SYM-9`
+describes a retry over the atoms DECIDE-3 re-keys, so it follows
+(block DECIDE-B1 slot 1), and `rule-d-reaches-the-unit-bulge-only`
+(the ring's width at the boss) after it (slot 2).
 
 Then `declared-tangency-needs-the-registered-identity-door`, which is
 what the PATHS fillet family is waiting on (and which waits on BLEND's

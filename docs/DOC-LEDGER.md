@@ -4620,3 +4620,22 @@ or token, so what the three rows assert is injectivity rather than
 totality. Recorded in the PR body and the item's `## CLOSED` section.
 
 - `DECIDE-2-SPEC.md` — DECIDE-2, one pin per seam for the discharge vocabulary (#3011)
+
+## Per-merge deletion — SYM-10's spec (2026-09-21)
+
+Recoverable at `git show 96ffd6847:docs/SYM-10-SPEC.md` (the
+`needs_ev` head; the unit stopped at Phase 1). Its sentences that did
+not survive: Phase 2's three folds as the remedy ("the folds the
+measurement picks" — the measurement picked none of them: every
+combination of the three left the tilted row red, and a FOURTH piece,
+the canonical square root, is the remedy, ruled by Ev on #2970 as the
+full form at the mint site and taken by DECIDE-3); fold 2's premise
+("once `‖v‖` and `‖n‖` fold to 1" — `‖n‖` does, the candidates
+`e_k × n` are unit only for `n ⟂ e_k`, so the floor is a read, not a
+bound); "the three rows green WITHOUT edits to their assertions" as
+this unit's acceptance (owed by DECIDE-3 now); "hosted CI runs only on
+PRs to `main`" (it ran on this PR against `props/sign-hull`, and the
+three rows are red on the base too). Recorded in the PR body and the
+unit's "Closed on Phase 1" section.
+
+- `SYM-10-SPEC.md` — SYM-10, the decision door and the floor (#2970)
