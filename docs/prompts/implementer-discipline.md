@@ -208,6 +208,17 @@ an unverified claim, not a negative result. Note also that a sweep is accurate
 as of your merge base, not your merge: a long-running lane owes a re-sweep
 before it lands.
 
+**Sweep the blind spot you just named.** Stating what your pattern could
+not match is the hard half and you have already done it — so shape a second
+pass at it and report that one too. Two AUTHOR units on 2026-09-21 wrote
+honest, specific blind-spot paragraphs (`ui.label` unmatched by a `ui.weak`
+grep; "a unit vocabulary reached through a `match` on `Dimension`" unmatched
+by a symbol grep) and in both the finding was sitting in the named gap, added
+by that unit's own diff, and found by a reviewer. Each cost one command. Where
+a blind spot genuinely cannot be searched — "anything outside this crate", a
+factor spelled as arithmetic — say that, and say why; an unsearchable gap is a
+legitimate answer and a lazy one is not.
+
 **Assume it is a class.** The trigger above is your own judgement that the
 defect has siblings, and that judgement is where this rule misses. Before you
 write the scope sentence, grep for the **shape** — not the symbol — and put
