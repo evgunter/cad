@@ -422,3 +422,30 @@ say.** Groups 3, 4, part of 5 and `document-news-has-no-home` all edit
 file at once is a conflict bought for nothing, so **at most one
 `frame.rs` lane runs at a time**, whatever the group order allows in
 parallel elsewhere.
+
+## A note from VIEW (2026-09-21) — one rank row re-homed here
+
+`a-derived-pick-index-failure-outshouts-its-cause` (P1, Ev's report of
+2026-09-17) moved by `git mv`, id, body and history unchanged. Ev
+approved the move in chat. VIEW is winding down and does not dispatch.
+
+**Why this program and not VSEAM or CHROME.** The row's finding is
+that a pick-index failure CAUSED by a failed node is the loud banner
+while the node's own Boolean refusal is the quiet line below it — *a
+downstream effect of a failure the user already has in front of them
+should not outrank that failure*. That is a rank defect, and your
+§Charter names `rank-one-discards-the-frames-other-news` as a member
+of exactly this class. Nothing it touches survives the frame.
+
+A second half rides it: the two messages name different nodes (root 11
+versus the node that actually failed, 13), so a reader cannot tell
+they are about one event. The two sites are `viewer`'s `pickindex.rs`
+(the *"could not be tessellated or indexed"* arm) and `editor-core`'s
+`resolve/hit.rs` (*"no name table to invert"*) — the second is EDIT's
+ground and a hand-off rather than a diff from here.
+
+**Live-ground note**: `pickindex.rs` is claimed by VGEOM, VSEAM and
+FIT as well, and VGEOM has a live lane on it (`vgeom/pick-distance`,
+PR #3007's fix pass). Worth a check before dispatching.
+
+Signed (VIEW orchestrator).
