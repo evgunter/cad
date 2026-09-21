@@ -565,6 +565,8 @@ mod m10_10_evidence_interval;
 #[path = "m10_10_pins_interval.rs"]
 mod m10_10_pins_interval;
 
+#[path = "decide3_r2_split_probes_interval.rs"]
+mod decide3_r2_split_probes_interval;
 #[path = "m10_10_r1_probes_interval.rs"]
 mod m10_10_r1_probes_interval;
 #[path = "m10_10_r2_probes_interval.rs"]

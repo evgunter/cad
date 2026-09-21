@@ -226,6 +226,30 @@ fn r2_content_squares_and_nesting() {
     );
 }
 
+/// A manifestly NEGATIVE denominator — rule E's scale step keeps the
+/// sign on the denominator, and no source of the side condition reads
+/// a denominator that is negative wherever it has a value.
+#[test]
+fn r2_a_negative_denominator_is_not_a_source() {
+    let s = SymRules::shipped();
+    row(
+        "sqrt(x/(-1-y²)) - sqrt(-x/(1+y²)), x in [-2,-1], y in [-1,1]",
+        how(s, || {
+            let x = over("x", -2.0, -1.0);
+            let y = over("y", -1.0, 1.0);
+            (x / (lit(-1.0) - y.powi(2))).sqrt() - ((-x) / (lit(1.0) + y.powi(2))).sqrt()
+        }),
+    );
+    row(
+        "sqrt(-x/(1+y²)) - sqrt(-x)/sqrt(1+y²), x in [-2,-1], y in [-1,1]",
+        how(s, || {
+            let x = over("x", -2.0, -1.0);
+            let y = over("y", -1.0, 1.0);
+            ((-x) / (lit(1.0) + y.powi(2))).sqrt() - (-x).sqrt() / (lit(1.0) + y.powi(2)).sqrt()
+        }),
+    );
+}
+
 /// Source 3 depends on minting ORDER: the walk expands the RIGHT child
 /// first, so `sqrt(P²/x) · sqrt(x)` mints `sqrt(x)` before the quotient
 /// and splits, while `sqrt(x) · sqrt(P²/x)` mints the quotient first
