@@ -259,7 +259,7 @@ fn divide(p: &Poly, g: &Mono) -> Option<Poly> {
 
 /// `r` where `n = r·d` as polynomials, or `None` where no such rational
 /// exists. Both halves are sorted by monomial, so one zip decides it.
-pub(super) fn constant_ratio(n: &Poly, d: &Poly) -> Option<Rat> {
+fn constant_ratio(n: &Poly, d: &Poly) -> Option<Rat> {
     if n.terms().len() != d.terms().len() || d.is_zero() {
         return None;
     }

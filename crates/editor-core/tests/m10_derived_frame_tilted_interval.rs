@@ -979,7 +979,6 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
             explain_depth(0);
             println!("=== tilted derived half={hname} {lift:?} shipped ({dt:.1}s)");
             println!("    counts {counts:?}");
-            println!("    plant fires {:?}", geom_core::sym::sym10_plant_fires());
             println!(
                 "    refusals {:?}",
                 refusal.iter().map(|r| head(r, 300)).collect::<Vec<_>>()
@@ -1022,20 +1021,18 @@ fn sym10_phase1_the_tilted_rows_residual_rendered() {
     }
 }
 
-/// **SYM-10 Phase 1.3 — the hand-plant table's tilted half.** The
-/// acceptance row's four cells (`ε/8` and `1e-3`, `Pinned` and
-/// `Guided`) for the derived boss under the shipped set, plus the
-/// authored twin under `Guided` at `ε/8`: refusal count, first refusal
-/// and counts, under whatever `CAD_SYM10_PLANT` names — one run per
-/// combination of plants makes one row of the table.
+/// **SYM-10 Phase 1.3 — the acceptance row's four cells, with their
+/// counts.** `ε/8` and `1e-3`, `Pinned` and `Guided`, for the derived
+/// boss under the shipped set, plus the authored twin under `Guided`
+/// at `ε/8`: refusal count, first refusal and the counts — the row the
+/// hand-plant table was read off (each combination of the planted
+/// folds, switched by `CAD_SYM10_PLANT` on the branch's commits
+/// `2a479c267` and `2d4c986bd`, made one line of it; the folds are not
+/// in the tree, the table is in the unit's PR).
 #[test]
-#[ignore = "evidence-only: SYM-10 Phase 1.3, the hand-plant table (tilted rows)"]
+#[ignore = "evidence-only: SYM-10 Phase 1.3, the acceptance row's cells with counts"]
 fn sym10_phase1_hand_plant_table_tilted() {
     let eps = Tol::witness().eps();
-    println!(
-        "=== plants {:?}",
-        std::env::var("CAD_SYM10_PLANT").unwrap_or_default()
-    );
     for (hname, half) in [("eps/8", eps / 8.0), ("1e-3", 1.0e-3)] {
         for lift in [ProfileLift::Guided, ProfileLift::Pinned] {
             let t0 = std::time::Instant::now();
@@ -1045,9 +1042,8 @@ fn sym10_phase1_hand_plant_table_tilted() {
                 SymRules::shipped(),
                 budget(),
             );
-            let fires = geom_core::sym::sym10_plant_fires();
             println!(
-                "derived {hname} {lift:?}: fails {} in {:.1}s | sym0 {} gated {} num {} frozen {} | fires {fires:?}\n    {}",
+                "derived {hname} {lift:?}: fails {} in {:.1}s | sym0 {} gated {} num {} frozen {}\n    {}",
                 f.len(),
                 t0.elapsed().as_secs_f64(),
                 c.symbolic_zero,
@@ -1065,12 +1061,11 @@ fn sym10_phase1_hand_plant_table_tilted() {
         budget(),
     );
     println!(
-        "authored eps/8 Guided: fails {} | sym0 {} gated {} num {} frozen {} | fires {:?}",
+        "authored eps/8 Guided: fails {} | sym0 {} gated {} num {} frozen {}",
         f.len(),
         c.symbolic_zero,
         c.sign_gated,
         c.numeric,
         c.frozen,
-        geom_core::sym::sym10_plant_fires()
     );
 }

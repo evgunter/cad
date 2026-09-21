@@ -2,7 +2,7 @@
 id: SYM-10
 kind: unit
 title: the decision door and the floor: manifest order, a manifest bound, and rule C's read of a Select — the folds the sign-hull frame needs
-status: spec
+status: review
 opened: 2026-09-19
 branch: sym/10-decision-door
 refs: [the-decision-door-is-opaque-to-the-tier, 2468, 2728]
@@ -25,3 +25,26 @@ Phase 1 renders the red rows' chains and hand-plants each piece before
 any rule is written; a fourth piece stops the unit and returns the fork
 to Ev. Block SYM-B2 slot 2 (H / NUMERIC, FABLE per the draw; SYM-9
 displaced to the next block). Spec: `docs/SYM-10-SPEC.md`.
+
+## Phase 1 stopped the unit (2026-09-21)
+
+The measurement is in the PR's body and on three rows. The three
+pieces, hand-planted in every combination (and with an UNSOUND floor
+fold for good measure), leave SYM-5's acceptance row red with the same
+enclosure; the decision read alone reproduces PROPS's option-E result
+(one face earlier, 45% wider). A **fourth piece** turns it green
+together with the two READS (the `Select` read and the same read at
+`min`/`max`; manifest order only upgrades 16 gated decisions to
+theorems, the manifest bound never reaches the floor because the
+candidates are not unit): the CANONICAL SQUARE ROOT —
+`work/decide/the-candidate-norm-needs-a-canonical-square-root` — which
+costs the plate's door eight registered decisions and moves its
+ledger and ceilings, so it is a canonical-form decision over every
+`sqrt` atom the tier keys, and the fork returns to Ev per #2728. The
+derived-frame row's `none` rung cannot be met by any dial
+(`the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`);
+its A0 rung is `a0-leaves-max-and-min-of-constants-opaque`. The walk
+ledger moved in digests only (every count identical on the plate; the
+slab unmoved). No rule was written; the plants live in the branch's
+history (`2a479c267`, `2d4c986bd`) and the three probe rows stay as
+evidence.

@@ -2016,43 +2016,6 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
 /// cancellation the plain form already reaches. Every atom this mints
 /// is recorded in the session ([`Session::atoms`]) so that reduction
 /// can look its argument form back up.
-/// SYM-10 PHASE 1 MEASUREMENT ONLY: which hand-planted folds are on,
-/// from `CAD_SYM10_PLANT` (`1` manifest order, `2` manifest bound, `u`
-/// the UNSOUND floor plant, `3` the decision read, `4` the certified
-/// order read at min/max, `z` equal-arm select, `p` plants in the
-/// plain walk too).
-fn plant(ch: char) -> bool {
-    static PLANT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    PLANT
-        .get_or_init(|| std::env::var("CAD_SYM10_PLANT").unwrap_or_default())
-        .contains(ch)
-}
-
-static PLANT_FIRES: [std::sync::atomic::AtomicUsize; 7] = [
-    std::sync::atomic::AtomicUsize::new(0),
-    std::sync::atomic::AtomicUsize::new(0),
-    std::sync::atomic::AtomicUsize::new(0),
-    std::sync::atomic::AtomicUsize::new(0),
-    std::sync::atomic::AtomicUsize::new(0),
-    std::sync::atomic::AtomicUsize::new(0),
-    std::sync::atomic::AtomicUsize::new(0),
-];
-
-fn plant_fired(i: usize) {
-    PLANT_FIRES[i].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-}
-
-/// SYM-10 PHASE 1 MEASUREMENT ONLY: how often each plant fired
-/// (`[order, bound, unsound-floor, decision, certified-order, equal-arm, canonical-sqrt]`),
-/// and resets the counters.
-pub fn sym10_plant_fires() -> [usize; 7] {
-    let mut out = [0; 7];
-    for (i, c) in PLANT_FIRES.iter().enumerate() {
-        out[i] = c.swap(0, std::sync::atomic::Ordering::Relaxed);
-    }
-    out
-}
-
 fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) -> Option<Form> {
     let (a, b, third) = (kids[0], kids[1], kids[2]);
     let budget = sess.budget;
@@ -2176,23 +2139,6 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             if c && let Some(f) = signed::fold(node.op, a, &sess.params, budget) {
                 return Some(gate(f));
             }
-            // SYM-10 PHASE 1 PLANT `q`: the canonical square root.
-            if plant('q')
-                && node.op == SymOp::Sqrt
-                && (early || plant('p'))
-                && let Some(f) = signed::sqrt_canon(a, sess, early)
-            {
-                plant_fired(6);
-                return Some(gate(f));
-            }
-            if plant('r')
-                && node.op == SymOp::Sqrt
-                && (early || plant('p'))
-                && let Some(f) = signed::sqrt_narrow(a, sess, early)
-            {
-                plant_fired(6);
-                return Some(gate(f));
-            }
             atom1(node.op, sess)
         }
         // Rule D (early walk only): `sin`/`cos` of `q · atan(X)` in
@@ -2259,37 +2205,6 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 z.gated = a.gated || b.gated;
                 return Some(z);
             }
-            // SYM-10 PHASE 1 PLANTS at min/max.
-            if matches!(node.op, SymOp::Min | SymOp::Max) && (early || plant('p')) {
-                if plant('1')
-                    && let Some(mut f) = manifest::fold_order(node.op, a, b, sess, budget)
-                {
-                    plant_fired(0);
-                    f.gated |= a.gated || b.gated;
-                    return Some(f);
-                }
-                if plant('2')
-                    && let Some(mut f) = manifest::fold_bound(node.op, a, b, sess)
-                {
-                    plant_fired(1);
-                    f.gated |= a.gated || b.gated;
-                    return Some(f);
-                }
-                if plant('u')
-                    && let Some(mut f) = manifest::fold_bound_unsound(node.op, a, b, sess)
-                {
-                    plant_fired(2);
-                    f.gated |= a.gated || b.gated;
-                    return Some(f);
-                }
-                if plant('4')
-                    && let Some(mut f) = signed::order(node.op, a, b, sess, budget)
-                {
-                    plant_fired(4);
-                    f.gated |= a.gated || b.gated;
-                    return Some(f);
-                }
-            }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
             mint_atom(sess, id, early, || AtomInfo {
                 op: node.op,
@@ -2330,23 +2245,6 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 };
                 let mut f = arm.clone();
                 f.gated = a.gated || arm.gated;
-                return Some(f);
-            }
-            // SYM-10 PHASE 1 PLANTS at the decision door.
-            if plant('z') && (b.digest() == third.digest() || (b.is_zero() && third.is_zero())) {
-                plant_fired(5);
-                let mut f = if b.is_zero() { Form::zero() } else { b.clone() };
-                f.gated = a.gated || b.gated || third.gated;
-                return Some(f);
-            }
-            if plant('3')
-                && (early || plant('p'))
-                && let Some(le) = signed::decision(a, sess)
-            {
-                plant_fired(3);
-                let arm = if le { b } else { third };
-                let mut f = arm.clone();
-                f.gated = true;
                 return Some(f);
             }
             let id = indet_atom(

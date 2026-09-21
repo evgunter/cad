@@ -705,15 +705,22 @@ fn sym5_phase1_the_newell_refusal_at_5e_2() {
 /// **SYM-10 Phase 1.2 — the derived-frame row's refusal under `none`
 /// and under A0, rendered.** `boss_on_widened_box(5e-2)` under
 /// `Pinned` at the two rungs `m10_the_derived_frames_refusal_is_not_a_freeze`
-/// asserts: counts, every refusal, and the blocked residual's plain
-/// form with its atom census (no early walk runs at either rung, so
-/// the plain form is the whole of what the tier held).
+/// asserts: counts, the per-predicate split, every refusal, and the
+/// blocked residual's plain form with its atom census (no early walk
+/// runs at either rung, so the plain form is the whole of what the
+/// tier held). What it showed on the sign-hull construction: under
+/// `none` the attachment gate's `carrier_endpoint_start` is 32
+/// THEOREMS and the first refusal is the boss's side plane's
+/// `newell_plane_residual`, a clause-1 `Invalid` the tier is never
+/// asked about; under A0 (replacing) the gate's residual freezes
+/// (`sqrt` over three frozen kids, frozen 10) and refuses numerically,
+/// because A0 folds `sqrt`/`abs` of a constant and not `max`/`min` of
+/// two constants, which the folded frame is made of
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
 #[test]
 #[ignore = "evidence-only: SYM-10 Phase 1.2, the derived-frame row's refusal rendered"]
 fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
-    use geom_core::sym::report::{
-        ShapeOutcome, name_param, start_shape_report, take_shape_report,
-    };
+    use geom_core::sym::report::{ShapeOutcome, name_param, start_shape_report, take_shape_report};
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let analyzed = analyzed_box(&derived, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
@@ -748,7 +755,6 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
         for (pred, row) in crate::m10_8_harness::split(&shapes) {
             println!("    split {pred:<36} {row:?}");
         }
-        println!("    plant fires {:?}", geom_core::sym::sym10_plant_fires());
         println!("    refusals {}", fails.len());
         for f in &fails {
             println!("      {}", head(f, 400));
