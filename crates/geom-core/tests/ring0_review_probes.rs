@@ -38,19 +38,6 @@ fn d_refuses(d: DInterval) -> bool {
     d.is_nai() || d.is_empty() || d.decoration() < Decoration::Def
 }
 
-#[cfg(feature = "interval")]
-fn i_refuses(
-    lo: f64,
-    hi: f64,
-    f: impl Fn(geom_core::Interval, geom_core::Interval) -> geom_core::Interval,
-    blo: f64,
-    bhi: f64,
-) -> bool {
-    let a = geom_core::Interval::from_bounds(lo, hi);
-    let b = geom_core::Interval::from_bounds(blo, bhi);
-    !f(a, b).is_certified()
-}
-
 // ---------------------------------------------------- division corners
 
 /// The division claim, in the shape the H5 survey asked it and the
@@ -104,6 +91,15 @@ fn division_touching_zero_refuses_on_both_sides() {
 #[cfg(feature = "interval")]
 #[test]
 fn division_touching_zero_refuses_at_the_interval_scalar() {
+    // The scalar wrapper's refusal, spelled inline rather than through
+    // a gated helper: `scripts/check-interval-cfg-additive.py` admits
+    // only whole gated items of a few kinds under `crates/*/tests`, so
+    // that a name present in both builds runs the same code in both.
+    let refuses = |blo: f64, bhi: f64| {
+        let a = geom_core::Interval::from_bounds(1.0, 2.0);
+        let b = geom_core::Interval::from_bounds(blo, bhi);
+        !(a / b).is_certified()
+    };
     for (blo, bhi) in [
         (-1.0, 1.0),
         (0.0, 0.0),
@@ -111,12 +107,9 @@ fn division_touching_zero_refuses_at_the_interval_scalar() {
         (-5e-324, 0.0),
         (-0.0, 1.0),
     ] {
-        assert!(
-            i_refuses(1.0, 2.0, |a, b| a / b, blo, bhi),
-            "[{blo:e},{bhi:e}]"
-        );
+        assert!(refuses(blo, bhi), "[{blo:e},{bhi:e}]");
     }
-    assert!(!i_refuses(1.0, 2.0, |a, b| a / b, 5e-324, 1.0));
+    assert!(!refuses(5e-324, 1.0));
 }
 
 // --------------------------------------- the collapsed/absent classes
