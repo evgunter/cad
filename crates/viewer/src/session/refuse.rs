@@ -12,15 +12,27 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Datum, Dimension, DimensionError, DocumentId, EditError, Node, ParamName, ParseError,
-    ProfileProgram, RecipeNodeId, SlotId,
+    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, Evaluation, Node,
+    ParamName, ParseError, ProfileProgram, RecipeNodeId, SlotId, ValuePayload,
 };
+use pncad::prelude::{StableName, SurfaceKind};
+use pncad::select::{InterrogateError, face_carrier_kind};
 use pncad::workspace::WorkspaceError;
+
+// The recourse this module's `NoSuchParam` arm ends on, read from its
+// one home beside the error whose door raises the other half of the
+// pair. A direct edge on the owning crate rather than a new re-export
+// added to `pncad`'s root — the ruling `pncad`'s own crate docs state
+// for a name the facade does not carry, and the same one this crate's
+// `bvh` and `Rgba8` edges cite.
+use editor_core::edit::UNDECLARED_PARAM_RECOURSE;
 
 use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::props::{self, SlotValue};
+use crate::session::FaceSelection;
+use crate::sketch::Restructure;
 
 /// The node kind a creation op's seat requires — the payload of
 /// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
@@ -135,13 +147,31 @@ pub enum Refusal {
     /// goes to the edit door; dragging its row comes here. The two
     /// cannot be made one refusal without putting back the pre-check
     /// the door already refuses — so what is converged is what the
-    /// user must DO: this arm names the same recourse the door names
-    /// ("declare it first"), over the same fact. What stays apart is
+    /// user must DO: this arm renders the same recourse the door
+    /// renders — [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`], its
+    /// one home — over the same fact. What stays apart is
     /// the frame, and it has to: the door's sentence is about an edit
     /// that was refused, and a drag has no edit behind it, so a
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
     NoSuchParam(ParamName),
+    /// A parameter's value field was given text that is not a number.
+    ///
+    /// **A document parameter holds a number, not an expression** —
+    /// `DocParam::Continuous` holds an `f64` — so there is no
+    /// `SetDocParamExpression` for such text to reach and no partial
+    /// reading of it that would be honest. A slot's field takes the
+    /// expression door here; a parameter's says why it has none, which
+    /// is itself the affordance.
+    ///
+    /// **Raised only for text that PARSED.** Text that did not carries
+    /// [`Self::Parse`], whose sentence names the token and its offset;
+    /// re-wording it at this door would be a second opinion about a
+    /// refusal the parser already made.
+    ParamNotANumber {
+        /// The parameter whose field was typed into.
+        name: ParamName,
+    },
     /// The CREATE door was asked for a name that is already declared.
     ///
     /// `DocEdit::SetDocParam` is create-or-replace and stays so at the
@@ -260,6 +290,54 @@ pub enum Refusal {
         /// asked for.
         id: DocumentId,
     },
+    /// The path editor's program does not have the committed
+    /// profile's shape ([`crate::sketch::program_edits`]'s refusal):
+    /// the document's edit vocabulary writes a program's numbers and
+    /// has no door that changes its verbs, arc forms, targets or loop
+    /// count. The editor locks those controls on a committed node;
+    /// this is the door behind them.
+    ProfileRestructure {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// Where the shapes differ.
+        why: Restructure,
+    },
+    /// The editor's numbers are a valid profile TOGETHER — the whole
+    /// program was checked before any slot was written — and no order
+    /// of the one-slot writes that reach them keeps every intermediate
+    /// program valid: each write re-validates the whole program, and
+    /// every order was searched (`session::accepted_order`, exact up
+    /// to [`super::ORDER_SEARCH_CAP`] writes). The refusal carried is
+    /// the last intermediate state the search met; what the variant
+    /// names is the cost of the whole-program edit the vocabulary
+    /// lacks.
+    ProfileEditOrder {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// The edit door's refusal of the intermediate state.
+        error: Box<EditError>,
+    },
+    /// [`Self::ProfileEditOrder`]'s question left unanswered: the
+    /// edit moves more arguments than the order search covers
+    /// ([`super::ORDER_SEARCH_CAP`]), and writing them in slot order
+    /// passes through a state the door refuses. Another order may
+    /// land; the search for one was not run.
+    ProfileEditOrderCapped {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// How many arguments the edit moves.
+        writes: usize,
+        /// The most the order search covers.
+        cap: usize,
+    },
+    /// The path editor's numbers were loaded from a program the
+    /// document no longer holds (an undo, or an edit from elsewhere,
+    /// landed in between): they are an edit of something that is not
+    /// there any more, and are not written over what is.
+    ProfileEditStale {
+        /// The profile node.
+        node: RecipeNodeId,
+    },
 }
 
 impl Refusal {
@@ -283,6 +361,7 @@ impl Refusal {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
+            | Self::ParamNotANumber { .. }
             | Self::ParamExists { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
@@ -293,6 +372,10 @@ impl Refusal {
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
+            | Self::ProfileRestructure { .. }
+            | Self::ProfileEditOrder { .. }
+            | Self::ProfileEditOrderCapped { .. }
+            | Self::ProfileEditStale { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision, so it
             // is matched exhaustively rather than defaulted: the
@@ -425,7 +508,15 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchParam(name) => {
                 write!(
                     f,
-                    "no document parameter named {} — declare it first",
+                    "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
+                    name.0
+                )
+            }
+            Self::ParamNotANumber { name } => {
+                write!(
+                    f,
+                    "parameter {} holds a number, not an expression — write a number, with a \
+                     unit if you want one (50 mm)",
                     name.0
                 )
             }
@@ -470,8 +561,215 @@ impl core::fmt::Display for Refusal {
                 "document {id} is the open document — a document cannot be an instance of \
                  itself; pick another part"
             ),
+            Self::ProfileRestructure { node, why } => {
+                write!(f, "feature {} was not edited: {why}", node.0)
+            }
+            Self::ProfileEditOrder { node, error } => write!(
+                f,
+                "feature {}'s new numbers make a valid profile together, but every order of \
+                 one-argument writes passes through a state the door refuses ({error}); the \
+                 document has no edit that writes a whole program at once",
+                node.0
+            ),
+            Self::ProfileEditOrderCapped { node, writes, cap } => write!(
+                f,
+                "feature {}'s new numbers make a valid profile together, but writing their {writes} \
+                 arguments one at a time in order passes through a state the door refuses, and \
+                 the search for another order was not run: it is capped at {cap} arguments — \
+                 apply the edit in smaller steps",
+                node.0
+            ),
+            Self::ProfileEditStale { node } => write!(
+                f,
+                "feature {}'s profile changed since the editor loaded it; its numbers were not \
+                 written — the editor now shows the profile as it is",
+                node.0
+            ),
         }
     }
 }
 
 impl core::error::Error for Refusal {}
+
+/// **"Nothing is picked yet", for a frame on a face — one string, two
+/// readers.**
+///
+/// [`FaceFrameFault::NoFace`]'s sentence and the unmet-seat sentence
+/// [`crate::forms::DatumKindChoice`] gives that kind are the SAME
+/// sentence: the gate's "no face" and the form's "still waiting for a
+/// pick" are one state said from two sides. Two literals would be two
+/// spellings to keep in step, with the form suppressing one of them
+/// and nothing able to notice they had drifted, so there is one
+/// literal and nothing to keep in step.
+pub const NO_FACE_PICKED: &str = "pick a face in the viewport to read the frame off";
+
+/// **Why a face frame may not be authored on the face the viewport
+/// has picked** — the add-datum form's `frame on face` affordance,
+/// as a value.
+///
+/// Every arm is a fact about the pick and the landed evaluation, and
+/// none is a sentence a widget composed: the form renders these and
+/// decides nothing, so a headless row can drive the same question the
+/// button asks ([`face_frame_seat`]).
+///
+/// **An AFFORDANCE, never the safety.** `Datum::FaceFrame` refuses a
+/// non-planar carrier and a name that stops resolving at its own
+/// evaluation (DM1b), and an `at` whose value is not one body at the
+/// evaluator's single-body operand door. This says the same things one
+/// step earlier, so the author learns before the node lands rather
+/// than from a badge on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaceFrameFault {
+    /// Nothing is picked, or what is picked is not a face. A frame on
+    /// a face has no seat to fall back on: the face IS the pick.
+    NoFace,
+    /// Nothing has landed yet, so there is no evaluation to read the
+    /// face against. Distinct from a face that fails to resolve — one
+    /// is the document not having been answered yet, the other is an
+    /// answer that does not hold this name.
+    NotLanded,
+    /// The node the face was picked on EVALUATED to more than one
+    /// body, so it is not a node a face frame may be read out of: a
+    /// split's sides, a pattern's instances and a placer's map of
+    /// either are several bodies, and the frame node's `at` goes
+    /// through the evaluator's single-body operand door. The recipe's
+    /// way of naming one of several is `Node::Part`.
+    ///
+    /// **A question about the VALUE, which is the door's own
+    /// question.** A node-kind predicate answers a different one:
+    /// `Node::Transform` is shape-preserving over its input, so a
+    /// transform of a pattern is body-denoting by kind and several
+    /// bodies by value.
+    NotOneBody {
+        /// The node whose body the ray met.
+        at: RecipeNodeId,
+    },
+    /// The name does not resolve to one face in this evaluation — a
+    /// stale pick, a tie, a failed node, or a node this document no
+    /// longer holds at all. The interrogation door's own refusal,
+    /// CARRIED rather than flattened to a string here, for
+    /// [`crate::drafts::CommitFault`]'s reason.
+    ///
+    /// **A pick whose node an undo took away arrives here**, as
+    /// [`InterrogateError::NodeNotEvaluated`] — the door's own word
+    /// for a node id this evaluation has no result for. It is not
+    /// [`Self::NotOneBody`]: "several bodies" is a claim about a value
+    /// that exists, and telling an author to project the one they mean
+    /// would be advice about a feature that is gone.
+    Unresolved {
+        /// The interrogation door's refusal.
+        error: InterrogateError,
+    },
+    /// The face's carrier is not a plane, and a sketch frame wants
+    /// one. Names the kind it actually is, because "not a plane" alone
+    /// leaves the author guessing which of their faces is curved.
+    NotPlanar {
+        /// The carrier kind the tag read answered.
+        carrier: SurfaceKind,
+    },
+}
+
+impl core::fmt::Display for FaceFrameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoFace => f.write_str(NO_FACE_PICKED),
+            Self::NotLanded => {
+                f.write_str("the document has not evaluated yet, so the picked face cannot be read")
+            }
+            Self::NotOneBody { at } => write!(
+                f,
+                "feature {}'s value is several bodies, so a face on it names no single body to \
+                 read a frame out of — project the one you mean first",
+                at.0
+            ),
+            Self::Unresolved { error } => write!(f, "that face does not resolve: {error}"),
+            Self::NotPlanar { carrier } => write!(
+                f,
+                "a sketch frame is read off a PLANAR face, and that one's carrier is a {} — \
+                 the kernel's own word for it",
+                carrier.name()
+            ),
+        }
+    }
+}
+
+impl core::error::Error for FaceFrameFault {}
+
+/// **May a face frame be authored on this pick, and if not, why not?**
+/// — the add-datum form's `frame on face` gate, asked of values.
+///
+/// A free function beside [`admits`] for [`admits`]' own reason: the
+/// question is about a pick and an evaluation, not about a session, so
+/// a headless row asks it exactly as the widget does. The widget
+/// RENDERS the answer and decides nothing.
+///
+/// `Ok` carries the two picks the seat needs — the node whose body the
+/// ray met and the frozen face name — in the order
+/// [`crate::session::DatumSpec::FaceFrame`] takes them.
+///
+/// # Errors
+///
+/// Every [`FaceFrameFault`]: no face picked, nothing landed, an `at`
+/// whose VALUE is several bodies, a name that does not resolve (which
+/// includes an `at` this document no longer holds), and a carrier that
+/// is not a plane.
+pub fn face_frame_seat(
+    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    picked: Option<&FaceSelection>,
+) -> Result<(RecipeNodeId, StableName), FaceFrameFault> {
+    let face = picked.ok_or(FaceFrameFault::NoFace)?;
+    // The PAIR is what a session hands out; every question below is
+    // of the evaluation, including whether the document still holds
+    // the node — an evaluation has no result for a node its document
+    // does not have, and the interrogation door says so in its own
+    // words.
+    let (_doc, ev) = landed.ok_or(FaceFrameFault::NotLanded)?;
+    // `at` is the node whose BODY the ray met, never the feature that
+    // minted the face: the name is read out of that body's own table,
+    // and a flat shrunk by a later fillet is a smaller face there than
+    // the feature that swept it holds.
+    let at = face.node;
+    // The evaluator's operand door is over the VALUE, so this is too.
+    // A node KIND predicate answers a different question: `Transform`
+    // is shape-preserving over its input, so a transform of a pattern
+    // is body-denoting by kind and `Instances` by value, and a seat
+    // gated on the kind would mint a node that refuses on arrival.
+    //
+    // A node with no value AT ALL — the one an undo took away, most of
+    // all — is left to the interrogation below, which names why it has
+    // none. "Several bodies, project the one you mean" would be advice
+    // about a feature that is gone.
+    if ev
+        .value(at)
+        .is_some_and(|value| !is_one_body(&value.payload))
+    {
+        return Err(FaceFrameFault::NotOneBody { at });
+    }
+    // DM1b as a TAG READ, consulting no number: the same comparison
+    // the node itself makes at evaluation.
+    match face_carrier_kind(ev, at, &face.name) {
+        Ok(SurfaceKind::Plane) => Ok((at, face.name.clone())),
+        Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
+        Err(error) => Err(FaceFrameFault::Unresolved { error }),
+    }
+}
+
+/// **Whether an evaluated value IS one body** — the evaluator's
+/// single-body operand door (`eval::wire::body_operand`) asked of a
+/// value the viewer is holding.
+///
+/// The same two shapes that door takes: a `Body` payload, or a
+/// boolean's non-empty result. Everything else — a split's two sides,
+/// a pattern's or a placer's instances, a datum, a profile — is a
+/// value it refuses `WrongOperand`.
+///
+/// **Not [`crate::combine::denotes_body`]**, which answers the
+/// narrower question a body SEAT asks, off the node vocabulary alone,
+/// before any value exists. A seat that has an evaluation in hand can
+/// ask the door's own question instead of a predicate that tracks it.
+fn is_one_body(payload: &ValuePayload<f64>) -> bool {
+    matches!(
+        payload,
+        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. })
+    )
+}

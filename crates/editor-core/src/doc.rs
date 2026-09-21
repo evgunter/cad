@@ -788,10 +788,10 @@ pub struct Doc<P> {
 /// on that.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Carrier {
-    /// The nodes' name-carrying payloads — a fillet or chamfer
-    /// selection, a `Declare` pair, a `Mate` head, a `Measure` ref —
-    /// by [`Node::payload_names`], which stays the one list of NODE
-    /// carriers (DM7).
+    /// The nodes' name-carrying payloads, read through
+    /// [`Node::payload_names`] — which stays the one list of NODE
+    /// carriers (DM7), so this variant names the field and not its
+    /// contents.
     Payloads,
     /// The appearance store's keys: a `StableName` under Declare's N5
     /// semantics (`DocEdit::SetAppearance`), held by the document
@@ -912,6 +912,32 @@ impl<P> Doc<P> {
         self.nodes.get(&id)
     }
 
+    /// **Could this document have minted `id`** — the one reading of
+    /// the mint counter that leaves this crate, and the one DI1's
+    /// minting-entry walk asks of a history entry
+    /// (`crates/editor-core/IDENTITY.md`).
+    ///
+    /// True exactly when `id` is below the counter. The counter is
+    /// monotone — never decremented, because deletion does not free
+    /// ids (spec D3) — so along any forward path of [`Doc::apply`]s
+    /// this answer goes false to true and never back. That is what
+    /// makes DI1's walk — up the history until the counter drops
+    /// below the held id — land on the entry that minted it: the
+    /// predicate is false above the mint and true from the mint on.
+    ///
+    /// **What a `true` does NOT mean**: not that the node is there.
+    /// A minted id may since have been deleted, and its id is not
+    /// reused, so the predicate keeps answering true for it forever.
+    /// Liveness is [`Doc::node`]'s question, and DI1's rule asks both
+    /// — descent first, then liveness.
+    ///
+    /// The counter itself stays private: a caller can ask whether a
+    /// particular id is behind it and cannot read where it stands, so
+    /// the monotonicity argument stays on the side that owns it.
+    pub fn has_minted(&self, id: RecipeNodeId) -> bool {
+        id.0 < self.next_id
+    }
+
     /// Live node ids in insertion order.
     pub fn order(&self) -> &[RecipeNodeId] {
         &self.order
@@ -942,8 +968,9 @@ impl<P> Doc<P> {
 
     /// Replaces the whole placement registry — the ONE door A11's
     /// cluster-record maintenance writes through
-    /// ([`crate::mate::solve::reconcile`]), so re-keying is a single
-    /// observable act rather than a scatter of per-row edits.
+    /// ([`crate::mate::solve::maintain`], deriving the rows or
+    /// re-applying recorded ones), so re-keying is a single observable
+    /// act rather than a scatter of per-row edits.
     pub(crate) fn set_placements(&mut self, rows: BTreeMap<RecipeNodeId, crate::placement::Frame>) {
         self.placements = rows;
     }
@@ -1317,9 +1344,10 @@ mod tests {
 
     use super::{Carrier, Doc, NameCarrier};
     use crate::appearance::AppearanceRecord;
+    use crate::ident::{ContentPin, DocRef, DocumentId};
     use crate::mate::ContactClass;
-    use crate::names::{EntityKind, StableName};
-    use crate::node::{Node, RecipeNodeId};
+    use crate::names::{EntityKind, FaceName, StableName};
+    use crate::node::{InterfaceCrossing, InterfaceRecord, Node, RecipeNodeId, SitedRef};
     use crate::program::ProfileDoc;
     use geom_core::Tol;
 
@@ -1430,16 +1458,52 @@ mod tests {
         doc.nodes.insert(
             RecipeNodeId(0),
             Node::Declare {
-                pairs: vec![((first.clone(), second.clone()), ContactClass::Rest)],
+                pairs: vec![(
+                    (
+                        SitedRef::at_mint(first.clone()),
+                        SitedRef::at_mint(second.clone()),
+                    ),
+                    ContactClass::Rest,
+                )],
             },
         );
         doc.nodes.insert(
             RecipeNodeId(1),
             Node::Declare {
-                pairs: vec![((third.clone(), third.clone()), ContactClass::Tangent)],
+                pairs: vec![(
+                    (
+                        SitedRef::at_mint(third.clone()),
+                        SitedRef::at_mint(third.clone()),
+                    ),
+                    ContactClass::Tangent,
+                )],
             },
         );
-        doc.order = vec![RecipeNodeId(1), RecipeNodeId(0)];
+        // The third payload shape this walk reaches: an instance's
+        // interface record. Its crossing's `outer` is a name in THIS
+        // document and is carried by the INSTANCE — which is what a
+        // DM7 strand over it names — while its `inner` is no name of
+        // this document at all (`Node::payload_names`' arm says why),
+        // so its absence below is asserted by the same equality.
+        let crossed = name(11, EntityKind::Face);
+        doc.nodes.insert(
+            RecipeNodeId(2),
+            Node::InstantiatePart {
+                doc_ref: DocRef {
+                    id: DocumentId::derive("carriers-part"),
+                    pin: ContentPin([7u8; 32]),
+                },
+                interface: InterfaceRecord {
+                    crossings: vec![InterfaceCrossing::Mate {
+                        class: ContactClass::Rest,
+                        outer: FaceName::new(crossed.clone()).expect("the fixture spells a face"),
+                        inner: FaceName::new(name(12, EntityKind::Face))
+                            .expect("the fixture spells a face"),
+                    }],
+                },
+            },
+        );
+        doc.order = vec![RecipeNodeId(2), RecipeNodeId(1), RecipeNodeId(0)];
         for key in [&painted_b, &painted_a] {
             doc.appearance
                 .insert(key.clone(), AppearanceRecord::default());
@@ -1448,6 +1512,10 @@ mod tests {
         assert_eq!(
             doc.name_carriers().collect::<Vec<_>>(),
             vec![
+                NameCarrier::Payload {
+                    node: RecipeNodeId(2),
+                    name: &crossed,
+                },
                 NameCarrier::Payload {
                     node: RecipeNodeId(1),
                     name: &third,

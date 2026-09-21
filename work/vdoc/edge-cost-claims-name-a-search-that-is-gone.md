@@ -5,6 +5,8 @@ title: Two cost paragraphs describe a name search the window index replaced
 status: open
 opened: 2026-09-04
 refs: [1768]
+priority: P4
+cost: E
 ---
 
 Found by CHROME's style lane on PR 1768. The Q4 case: the code moved

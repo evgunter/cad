@@ -163,10 +163,10 @@ pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
-    BoundsReading, DatumSpec, DocSession, EdgeSelection, FaceSelection, Hovered, Landing,
-    NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection, SessionOp,
-    Standing,
+    BoundsReading, DatumSpec, DocSession, EdgeSelection, FaceFrameFault, FaceSelection, Hovered,
+    Landing, NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection,
+    SessionOp, Standing,
 };
-pub use theme::{Mark, Polarity, Safety, Theme};
+pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};
 pub use tree::{RowStatus, TreeRow};

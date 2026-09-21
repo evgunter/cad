@@ -888,20 +888,34 @@ jobs:
   # (`filter` and `docs-only` also carry no `if:`; neither runs a check.)
   # No toolchain, no cargo, no cache: greps and a stdlib python reader
   # over the two CI halves, the workflow directory, and the citing files.
-  # Measured on three docs-tier runs: 8, 9 and 12 s wall clock, finishing
-  # before `filter`, so the added critical-path latency on a docs PR is
-  # zero and the cost is one extra billed job-minute.
+  # WHAT THIS PARAGRAPH USED TO SAY, AND WHY IT IS WORTH KEEPING THE
+  # CORRECTION IN VIEW. It read: "Measured on three docs-tier runs: 8, 9
+  # and 12 s wall clock, finishing before `filter`, so the added
+  # critical-path latency on a docs PR is zero" — true of a job with
+  # three steps, and left standing while this one grew to eighteen. On
+  # run `#9263` (2026-09-17, a docs-only PR) the job took 2 m 12 s of a
+  # 2 m 32 s run, `gate ok` started six seconds after it ended, and
+  # `filter` had been done for a minute and three quarters. The claim of
+  # zero was off by the whole of the run.
   #
-  # THIS JOB'S WALL CLOCK IS RE-TAKEN BY NOTHING, and this is the one
-  # place it is written down — the `python-lint` step below sends its
-  # billing argument here rather than restating the range. It is left
-  # unguarded on the same reasoning docs/CI-MINUTES-2026-08.md gives for
-  # its own figures: seconds on a hosted runner are a property of a box
-  # on a day, so a pin would red on noise and a bound would pass through
-  # the drift it exists to catch. What the two arguments that read this
-  # figure actually need is only that the job stays FAR under a minute,
-  # and the BILLED minute — the number that would change a decision — is
-  # what that register tracks for the whole workflow.
+  # THE SENTENCE UNDER IT IS HOW: "THIS JOB'S WALL CLOCK IS RE-TAKEN BY
+  # NOTHING." A figure nothing re-takes and a paragraph that reasons from
+  # it are a pair that can only drift apart, and this one drifted by two
+  # orders of magnitude without a single red. The reasoning it gave for
+  # staying unpinned is still right — seconds on a hosted runner are a
+  # property of a box on a day, so a pin reds on noise and a bound passes
+  # through the drift it exists to catch — so what changed is not the
+  # posture but what the prose is allowed to claim: this comment records
+  # a reading WITH THE RUN IT CAME FROM, and no argument elsewhere in
+  # this file gets to conclude "free" from it. The `python-lint` step
+  # below sends its billing argument here, and the billed minute — the
+  # number that would change a decision — is what
+  # docs/CI-MINUTES-2026-08.md tracks for the whole workflow.
+  #
+  # WHERE IT STANDS NOW: the selftest gate at the head of `steps:` takes
+  # the docs-tier job back to roughly the checks alone. The 2026-09-17
+  # per-row readings that decided which rows to gate — 129 s of fixtures
+  # against 18 s of checks — are at `scripts/ci-reach.py`.
   #
   # THIS IS THE ONE JOB THAT DOES NOT PRUNE local-only tooling, and the
   # exception is the reason it exists: its subject IS the agreement
@@ -939,10 +953,48 @@ jobs:
     # about one billed minute and no toolchain, cargo or cache.
     steps:
       - uses: actions/checkout@v4
-      - name: gate roster parity (both halves run every gate)
+      # THE SELFTESTS IN THIS JOB ARE GATED; ITS CHECKS ARE NOT. S61's siting
+      # rule is why this job carries no `if:` — every check below is about
+      # prose, `work/`, `docs/` or `local-scripts/`, the file classes that
+      # classify TIER=docs — and none of that changes here. What changes is the
+      # OTHER half of each row. Every reader in this job ships a `--selftest`
+      # that builds a fixture tree under `--root` and asserts the reader
+      # refuses it; not one of them reads the real tree, so a selftest's inputs
+      # are ITS OWN SCRIPT. On the 2026-09-17 docs-tier run (`#9263`) those
+      # fixtures were 129 of this job's 147 seconds of work against 18 for the
+      # checks, and every one of those seconds was a guaranteed no-op.
+      #
+      # So the same rule that sites the checks here gates the fixtures: a
+      # selftest runs when the change set reaches the checkers. The argument,
+      # the prefix list, and why the answer is a raw path test rather than
+      # `scripts/ci-filter.py`'s classification — that filter fails open and one
+      # of the gated fixtures is its own — are at `scripts/ci-reach.py`.
+      #
+      # THIS ROW'S OWN SELFTEST IS UNGATED, and it is the only one. Everything
+      # in it decides whether the others run, so gating it on its own answer
+      # would let a bug that always answered `false` skip the fixture that
+      # catches it, once, in silence — `scripts/ci-filter.py --selftest` is in
+      # `TIER_BLIND` for the same shape of reason. `check-ci-mirror-parity.py`'s
+      # claim 7 enforces both halves of this paragraph.
+      #
+      # The fetch is the one `work tracker territory` below also needs; it is
+      # `|| true` because a diff this cannot take answers `true` and runs
+      # everything, and that step takes its own.
+      - name: the checker selftests' own inputs (does this diff reach them?)
+        id: reach
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
-          scripts/gates/gate-roster.sh --selftest
-          scripts/gates/gate-roster.sh
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            git fetch --depth=1 origin "$BASE_SHA" || true
+          fi
+          python3 scripts/ci-reach.py --selftest
+          python3 scripts/ci-reach.py --event "${{ github.event_name }}" --base "$BASE_SHA"
+      - name: gate roster parity (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: scripts/gates/gate-roster.sh --selftest
+      - name: gate roster parity (both halves run every gate)
+        run: scripts/gates/gate-roster.sh
       # Every check OUTSIDE scripts/gates/ is named by hand in both
       # halves, so nothing detected a lost row on either side. Two
       # separate enumerations of that population each missed a member,
@@ -954,10 +1006,11 @@ jobs:
       # its subject is which job a step belongs to and whether that job
       # carries an `if:`, and the bash version read that with a regex
       # that could not see an uppercase job name.
+      - name: CI half parity (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: python3 scripts/check-ci-mirror-parity.py --selftest
       - name: CI half parity (both halves name the same checks)
-        run: |
-          python3 scripts/check-ci-mirror-parity.py --selftest
-          python3 scripts/check-ci-mirror-parity.py
+        run: python3 scripts/check-ci-mirror-parity.py
       # A GATE THAT CANNOT FAIL. `PIPESTATUS` names the last pipeline the
       # shell ran, and EVERY command rewrites it — including the assignment
       # on the line above the read. A step spelled `... | tee … ||
@@ -989,10 +1042,11 @@ jobs:
       # alone, and its own shell splitter is written against the CMD_BREAK
       # comment there, which records meeting the `&`-in-a-redirection
       # defect twice.
+      - name: status capture (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: python3 scripts/check-status-capture.py --selftest
       - name: status capture (PIPESTATUS is read before anything rewrites it)
-        run: |
-          python3 scripts/check-status-capture.py --selftest
-          python3 scripts/check-status-capture.py
+        run: python3 scripts/check-status-capture.py
       # THE LANE ROSTER THE HELPER WORKS FROM, HELD AGAINST THE ONE
       # render.yml DECLARES: every lane fact in
       # `local-scripts/render-hosted.sh` — the lanes, what `--lane all`
@@ -1002,10 +1056,11 @@ jobs:
       # its inputs are a workflow file and `local-scripts/`, a tree that
       # classifies TIER=docs and that every hosted job but this one
       # deletes at checkout.
+      - name: render lane parity (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: python3 scripts/check-render-lane-parity.py --selftest
       - name: render lane parity (the helper knows the lanes render.yml declares)
-        run: |
-          python3 scripts/check-render-lane-parity.py --selftest
-          python3 scripts/check-render-lane-parity.py
+        run: python3 scripts/check-render-lane-parity.py
       # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
       # its own rather than by association. `scripts/ci-filter.py` decides
       # whether every `if: run_build` job below runs at all, and its `docs`
@@ -1023,6 +1078,7 @@ jobs:
       # free enough to sit in a job with no toolchain. The siting argument
       # above turns on WHERE the check runs, not on what it costs.
       - name: change filter selftest (the docs tier fails open)
+        if: steps.reach.outputs.selftests == 'true'
         run: python3 scripts/ci-filter.py --selftest
       # THE PIN READER'S OWN TESTS. `scripts/ci-pin.py` is what nightly.yml's
       # four pin-reading steps call to get a tool version out of THIS file's
@@ -1048,6 +1104,7 @@ jobs:
       # It sits in this job anyway because the job carries no `if:` and needs
       # no toolchain — stdlib python against temp fixtures.
       - name: pin reader selftest (ci.yml's env block is read, not guessed)
+        if: steps.reach.outputs.selftests == 'true'
         run: scripts/ci-pin.py --selftest
       # THE APT PREAMBLE'S SELFTEST, and the reason it is a selftest at all:
       # the mirror whose broken index reddened four runs across two branches
@@ -1063,6 +1120,7 @@ jobs:
       # no `if:`, and this needs no toolchain and no root — apt is pointed at
       # a scratch tree with `-o Dir::*` and touches no system file.
       - name: apt preamble selftest (the narrowed update survives a bad index)
+        if: steps.reach.outputs.selftests == 'true'
         run: scripts/apt-install.sh --selftest
       # AND THE DOOR IS THE ONLY DOOR. The row above proves the wrapper
       # works; this one proves it is what every apt call site uses. The two
@@ -1079,18 +1137,20 @@ jobs:
       # workflow file, every composite action and every tracked shell script
       # — `local-scripts/` among them, a tree that classifies TIER=docs and
       # that every hosted job but this one deletes at checkout.
+      - name: install wrappers (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: python3 scripts/check-install-wrappers.py --selftest
       - name: install wrappers (a wrapped idiom is spelled only through its wrapper)
-        run: |
-          python3 scripts/check-install-wrappers.py --selftest
-          python3 scripts/check-install-wrappers.py
+        run: python3 scripts/check-install-wrappers.py
       # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
       # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
       # the same reason as every row above. Stdlib python and git; the
       # selftest builds a scratch repo.
+      - name: work tracker lint (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: python3 scripts/work.py --selftest
       - name: work tracker lint (work/ items resolve and docs/ holds no plan or log)
-        run: |
-          python3 scripts/work.py --selftest
-          python3 scripts/work.py lint
+        run: python3 scripts/work.py lint
       # TERRITORY IS ADVISORY. Every path in this PR's diff that another
       # program's globs own is printed as a warning annotation; nothing reds.
       # The diff is base-sha..HEAD on the merge ref, which is the PR's own
@@ -1112,13 +1172,15 @@ jobs:
       # k-lint unifications, so a bug in it would sit behind whichever of the
       # five legs is slowest to be read.
       - name: tess-budget cut-stamp selftest (the baseline's provenance)
+        if: steps.reach.outputs.selftests == 'true'
         run: scripts/tess_budget_cut.sh --selftest
       # The claims in the tree about what CI does to probe-gated suites.
       # Prose is this guard's input, so this is where it can fire.
+      - name: probe type-check loop citations (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: scripts/gates/probe-suite-census.sh --selftest
       - name: probe type-check loop citations
-        run: |
-          scripts/gates/probe-suite-census.sh --selftest
-          scripts/gates/probe-suite-census.sh --citations
+        run: scripts/gates/probe-suite-census.sh --citations
       # The viewer crate's vocabulary/driver boundary. SITED HERE FOR
       # THIS JOB'S OWN REASON: two of its checks read
       # `crates/viewer/README.md` (the driver and vocabulary tables it
@@ -1129,10 +1191,11 @@ jobs:
       # ghost row or deleting a table would merge with every one of
       # those arms unrun. TIER_BLIND names it, so this cannot drift
       # back.
+      - name: viewer module kinds (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: scripts/gates/viewer-module-kinds.sh --selftest
       - name: viewer module kinds (vocabulary/driver boundary)
-        run: |
-          scripts/gates/viewer-module-kinds.sh --selftest
-          scripts/gates/viewer-module-kinds.sh
+        run: scripts/gates/viewer-module-kinds.sh
       # The viewer crate's closed-vocabulary rule: a membership list is
       # declared once, and a hand-written one under crates/viewer/src
       # reds unless `crates/viewer/README.md`'s "The lists that stay
@@ -1143,10 +1206,11 @@ jobs:
       # change set it exists to judge — and TIER=docs skips every
       # `if: run_build` job. TIER_BLIND names it, so this cannot drift
       # back.
+      - name: viewer vocabularies are declared once (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: scripts/gates/viewer-vocab-declared-once.sh --selftest
       - name: viewer vocabularies are declared once (no hand-written ALL)
-        run: |
-          scripts/gates/viewer-vocab-declared-once.sh --selftest
-          scripts/gates/viewer-vocab-declared-once.sh
+        run: scripts/gates/viewer-vocab-declared-once.sh
       # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
       # this job what it is are exactly the two ruff needs.
       #
@@ -1200,10 +1264,20 @@ jobs:
       # is missing or not "1". Delete the line and the job reds naming
       # it; flip it to "0" and the job reds naming it; ruff runs required
       # either way. `check-python-lint.py --selftest` plants both edits.
+      # THE SELFTEST CARRIES THE DECLARATION TOO, and it is not decoration
+      # here either. `check-python-lint.py` reads GITHUB_ACTIONS to decide a
+      # skip is forbidden AND fails if this line is missing — in `--selftest`
+      # mode as much as in the check, because the marker it is keeping honest
+      # is the one in THIS file. Splitting the old combined row and leaving the
+      # `env:` on the check alone reddened the job (`#9269`) with exactly that
+      # diagnosis, which is the guard doing its job.
+      - name: python lint (selftest)
+        if: steps.reach.outputs.selftests == 'true'
+        run: python3 scripts/check-python-lint.py --selftest
+        env:
+          REQUIRE_RUFF: "1"
       - name: python lint (ruff, every tracked .py and .pyi)
-        run: |
-          python3 scripts/check-python-lint.py --selftest
-          python3 scripts/check-python-lint.py
+        run: python3 scripts/check-python-lint.py
         env:
           REQUIRE_RUFF: "1"
 
@@ -2646,10 +2720,12 @@ jobs:
           lane: interval
       # The two lanes compile the SAME 172 registry crates (measured
       # 2026-09-03 on two `--workspace` cold runs: the sets are equal, and
-      # `interval-transcendentals` is in both because geom-core carries it
-      # as a dev-dependency). What differs is feature flags on WORKSPACE
-      # crates, which rust-cache strips before saving. So these two entries
-      # hold near-identical bytes and could in principle be one — they are
+      # `interval-transcendentals` was in both because geom-core carried
+      # it as a dev-dependency; it is in both today because geom-core
+      # carries it as a dependency). What differs is feature flags on
+      # WORKSPACE crates, which rust-cache strips before saving. So these
+      # two entries hold near-identical bytes and could in principle be
+      # one — they are
       # kept apart because the CACHE SEPARATION note on `build-interval`
       # argues the separation on the graphs rather than on this
       # measurement, and one job-night is not worth re-opening it.
@@ -3519,7 +3595,7 @@ jobs:
       # either tree as non-triggering (its _is_docs).
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
-      # The `interval` feature's backend is the in-repo
+      # The interval scalar's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
       # job needs no system packages at all now that mold is gone (see the
       # LINKER note at the top of this file).
@@ -3920,7 +3996,7 @@ jobs:
     # Tier `closure` never reaches this: interval-transcendentals/ is its
     # own workspace, so ANY change under it is tier `all`.
     if: github.event_name != 'push' && needs.filter.outputs.run_interval_backend == 'true'
-    # The `interval` feature's backend lives in its own workspace
+    # The interval scalar's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
     # M5 PR 1's review asked for one — and it catches what the kernel's

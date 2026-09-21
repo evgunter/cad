@@ -4,16 +4,18 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId};
+use pncad::document::{Axis3, Dimension, Frame, Node, ParamName, RecipeNodeId};
 use pncad::quantity::{self, UnitDef};
 
 use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
-use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing};
+use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName};
 use crate::widgets::{
-    GestureVocabulary, delete_button, drag_gesture_ops, drag_ops, number_field, vec3_row_ops,
+    FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker, delete_button,
+    free_move_gesture, length_picker, number_field, pick_unit, unit_field, value_field_ops,
+    value_gesture, vec3_row_ops,
 };
 
 impl ViewerBehavior<'_> {
@@ -38,9 +40,7 @@ impl ViewerBehavior<'_> {
                 if groups.is_empty() {
                     ui.weak("this feature carries no parameters");
                 }
-                for group in &groups {
-                    self.slot_group_ui(ui, node, group);
-                }
+                self.feature_rows_ui(ui, node, &groups);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -58,9 +58,7 @@ impl ViewerBehavior<'_> {
                 // re-derived so the rows and the edits land on the
                 // node `slot_groups` answered for.
                 if let Some(feature) = self.session.selection().node() {
-                    for group in &groups {
-                        self.slot_group_ui(ui, feature, group);
-                    }
+                    self.feature_rows_ui(ui, feature, &groups);
                 }
             }
             Selection::Param(name) => {
@@ -77,46 +75,54 @@ impl ViewerBehavior<'_> {
                     // value a slot field is written by — a parameter
                     // written in millimetres reads in millimetres.
                     let field = FieldWriting::of(row.dimension, row.unit);
-                    let mut value = field.shown(row.value.as_f64());
                     ui.horizontal(|ui| {
-                        let widget = ui.add(number_field(&mut value, field.tick));
-                        // **A LABEL, where a slot row has a picker.**
-                        // Not "the way a slot row says it": a slot's
-                        // unit is said by a `ComboBox` that CHANGES it
-                        // (`slot_unit_ui`), and `length_picker`'s rule
-                        // — the unit is the picker's to say, not the
-                        // field's — is why nothing else beside a slot
-                        // field states it. A parameter has no such
-                        // picker to be the one that says it, because
-                        // there is no edit for one to push
-                        // (`work/issues/doc-param-unit-edit-has-no-door.md`),
-                        // and a number with no notation beside it at
-                        // all is worse than a notation nobody can
-                        // change. The dimensionless row and a `Count`
-                        // have nothing to say here.
-                        if let Some(unit) = field.unit.filter(|u| !u.symbol().is_empty()) {
-                            ui.weak(unit.symbol());
-                        }
-                        drag_ops(
-                            &widget,
-                            field.authored(value),
-                            GestureVocabulary {
-                                begin: SessionOp::BeginParamGesture { name: name.clone() },
-                                preview: |value| SessionOp::PreviewParamGesture {
+                        // **The two doors a parameter's field has.** A
+                        // bare number is a value in the notation the
+                        // field is written in and nothing else moves;
+                        // anything else is text for
+                        // `SessionOp::SetParamText`, which reads a
+                        // number and its notation through the one
+                        // parser and refuses what is neither. The
+                        // panel parses nothing, and the field itself
+                        // is the slot row's — one function, because
+                        // the two rows differ only in which operation
+                        // each door spells.
+                        //
+                        // **A parameter always shows its number.** It
+                        // is never driven by anything, so there is no
+                        // source for the field to show instead and no
+                        // fixed text to pin over it.
+                        value_field_ops(
+                            ui,
+                            FieldShowing {
+                                writing: field,
+                                dimension: row.dimension,
+                                number: field.shown(row.value.as_f64()),
+                                text: None,
+                            },
+                            value_gesture(ValueGestureName::Param(name.clone())),
+                            FieldVocabulary {
+                                number: |value| SessionOp::SetParam {
                                     name: name.clone(),
                                     value,
                                 },
-                                commit: SessionOp::CommitParamGesture { name: name.clone() },
-                                cancel: SessionOp::CancelGesture,
-                            },
-                            |value| {
-                                vec![SessionOp::SetParam {
+                                text: |text| SessionOp::SetParamText {
                                     name: name.clone(),
-                                    value: SlotValue::of(row.dimension, value),
-                                }]
+                                    text,
+                                },
                             },
                             self.ops,
                         );
+                        // **The unit is the picker's to say.** A
+                        // parameter's notation is a fact the document
+                        // stores and an edit changes
+                        // (`SessionOp::SetParamUnit`, over
+                        // `DocEdit::SetDocParamUnit`), so the row says
+                        // it the way a slot row does: with the control
+                        // that changes it. The dimensionless row and a
+                        // `Count` have no notation to offer and draw
+                        // nothing.
+                        self.param_unit_ui(ui, &row);
                     });
                     self.param_bounds_ui(ui, &row);
                 } else {
@@ -135,8 +141,53 @@ impl ViewerBehavior<'_> {
         self.add_param_ui(ui);
     }
 
+    /// **A feature's editing rows**: its slot rows — and, for a
+    /// profile, the add-profile form's own editor above them
+    /// ([`ViewerBehavior::edit_profile_ui`]).
+    ///
+    /// Under the editor the slot rows are FOLDED, not dropped: they are
+    /// the door for what the editor's number fields do not carry —
+    /// driving an argument by an expression, re-noting its unit,
+    /// probing its range. A profile the editor cannot hold (an argument
+    /// already driven) shows its refusal and the rows open.
+    fn feature_rows_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, groups: &[SlotGroup]) {
+        let profile = matches!(
+            self.session.committed_doc().node(node),
+            Some(Node::Profile(_))
+        );
+        if profile && self.edit_profile_ui(ui, node) {
+            egui::CollapsingHeader::new("arguments")
+                .id_salt(("profile_arguments", node.0))
+                .show(ui, |ui| {
+                    ui.weak(
+                        "each argument as a slot: drive it by an expression, change the unit it \
+                         is written in, or probe its range — an edit here reloads the editor above",
+                    );
+                    for group in groups {
+                        self.slot_group_ui(ui, node, group);
+                    }
+                });
+        } else {
+            for group in groups {
+                self.slot_group_ui(ui, node, group);
+            }
+        }
+    }
+
     /// The create half of the document-parameters section: name,
-    /// dimension, value, one [`SessionOp::CreateParam`] on commit.
+    /// dimension, value, the NOTATION to write it in, one
+    /// [`SessionOp::CreateParam`] on commit.
+    ///
+    /// **The unit is the form's, not this form's.** A length picked
+    /// here is `Drafts::length_unit`, the one every creation form in
+    /// the crate writes its lengths in — a form's notation is a
+    /// statement about how the person at the keyboard is working, and
+    /// somebody declaring a parameter in millimetres is not then
+    /// authoring the extrude that consumes it in metres. The panel's
+    /// pickers are per literal for the opposite reason, and a
+    /// parameter's DECLARED notation is one of those: it is changed
+    /// afterwards at its own row ([`ViewerBehavior::param_unit_ui`]),
+    /// not here.
     ///
     /// Two deliberate frictions, both refusals-in-advance. The
     /// dimension starts UNPICKED and Create waits for it — the offer
@@ -181,21 +232,44 @@ impl ViewerBehavior<'_> {
                     dimension.to_string(),
                 );
             }
-            // The form authors in the canonical unit — a new
-            // parameter's declaration names that notation
-            // (`props::doc_param`) — so the tick is the canonical one
-            // for the dimension picked, and the panel's own rule
-            // answers it rather than a constant beside it. With no
-            // dimension picked yet there is no tick to derive and
-            // Create is refused anyway; a length's serves as the
-            // placeholder.
+            // **The form authors in the notation the picker says**, and
+            // the draft behind the field stays canonical whatever it
+            // says (`widgets::unit_field`) — so the tick handed over is
+            // the CANONICAL one for the dimension picked and the field
+            // divides it by the same factor it divides the value by.
+            // The tick a person feels is therefore
+            // `FieldWriting::of(dimension, unit).tick`, derived rather
+            // than stated, and applying the factor here as well would
+            // apply it twice. With no dimension picked yet there is no
+            // tick to derive and Create is refused anyway; a length's
+            // serves as the placeholder.
             let speed = self
                 .drafts
                 .new_param_dimension
                 .map_or(FIELD_DRAG_SPEED, |dimension| {
                     FieldWriting::of(dimension, None).tick
                 });
-            ui.add(number_field(&mut self.drafts.new_param_value, speed));
+            match self.new_param_unit() {
+                Some(unit) => unit_field(ui, unit, speed, &mut self.drafts.new_param_value),
+                // A `Count` and a bare `Scalar` name no notation, so
+                // the field is the number itself and no picker is
+                // drawn beside it.
+                None => {
+                    ui.add(number_field(&mut self.drafts.new_param_value, speed));
+                }
+            }
+            // Drawn AFTER the field it governs, which is the forms'
+            // rule (`widgets::length_picker`): the pick is an input
+            // event, so the field it re-writes is next frame's.
+            match self.drafts.new_param_dimension {
+                Some(Dimension::Length) => {
+                    length_picker(ui, "add_param", &mut self.drafts.length_unit);
+                }
+                Some(Dimension::Angle) => {
+                    angle_picker(ui, "add_param", &mut self.drafts.angle_unit);
+                }
+                Some(Dimension::Scalar | Dimension::Count) | None => {}
+            }
         });
         let name = self.drafts.new_param_name.trim();
         let existing = if name.is_empty() {
@@ -231,12 +305,39 @@ impl ViewerBehavior<'_> {
                 value: crate::props::doc_param(
                     dimension,
                     SlotValue::of(dimension, self.drafts.new_param_value),
+                    self.new_param_unit(),
                 ),
             });
             self.drafts.new_param_name.clear();
             self.drafts.new_param_dimension = None;
             self.drafts.new_param_value = 0.0;
             self.drafts.new_param_offer = None;
+        }
+    }
+
+    /// **The notation the add-parameter form is authoring in** — the
+    /// form's own unit for the dimension picked, and `None` where
+    /// there is no notation to name (a `Count`, a bare `Scalar`, or no
+    /// dimension picked yet).
+    ///
+    /// One answer read by TWO places — the field beside it and the
+    /// declaration the Create button mints — so the number on screen
+    /// and the unit the document remembers cannot disagree.
+    ///
+    /// **The picker is a third place and does not read it**, which is
+    /// the honest state of this form. `length_picker` and
+    /// `angle_picker` write a typed draft (`Drafts::length_unit`,
+    /// `angle_unit`), so the ladder below is spelled a second time to
+    /// choose between them and the two could disagree. It is an
+    /// instance of the crate's `Dimension`-to-unit ladder class, filed
+    /// on CHROME, and the pairing it protects — a length picker that
+    /// could write a `deg` — is the one the typed drafts already make
+    /// unrepresentable.
+    fn new_param_unit(&self) -> Option<UnitDef> {
+        match self.drafts.new_param_dimension? {
+            Dimension::Length => Some(self.drafts.length_unit.def()),
+            Dimension::Angle => Some(self.drafts.angle_unit.def()),
+            Dimension::Scalar | Dimension::Count => None,
         }
     }
 
@@ -346,11 +447,28 @@ impl ViewerBehavior<'_> {
     }
 
     /// The selected instance's display controls: the hide toggle and
-    /// the free-move probe. Draws nothing for a non-instance node —
-    /// the section is about per-instance display state, which other
-    /// nodes do not have.
+    /// the free-move probe. Draws nothing for a node the document does
+    /// not admit display state on — the section is about per-instance
+    /// display state, which neither another kind of node nor an id the
+    /// document no longer holds has.
+    ///
+    /// **Silence is the whole answer for both refusals, and for the
+    /// absent id it is half of a rule rather than a discard.** A
+    /// selection outlives the thing it names ([`Standing`]: *a vanished
+    /// reference is a STATE, not an event*), so this door really is
+    /// reached with an id the document no longer holds — and in that
+    /// frame [`Self::standing_ui`] has already drawn the vanished
+    /// verdict, from the same `doc().node(..)` lookup, directly above
+    /// this section. The rule's other clause is that *the affordances
+    /// that need a live entity switch off*, which is this. Saying it
+    /// again here would be one fact spelled twice in one pane, which is
+    /// what the parameter half of this panel already does and is not a
+    /// pattern to copy.
     pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
-        if !crate::display::is_instance(self.session.doc(), node) {
+        // The fault is discarded HERE, at the party that decides the
+        // two refusals are one answer, rather than by a door that
+        // answered a `bool` and could not have offered anything else.
+        if crate::display::instance_check(self.session.doc(), node).is_err() {
             return;
         }
         ui.separator();
@@ -395,32 +513,9 @@ impl ViewerBehavior<'_> {
                 // zero y and z. The chrome offers the translation
                 // components; the op vocabulary takes any rigid frame.
                 let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
+                let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
                 ui.horizontal(|ui| {
-                    vec3_row_ops(
-                        ui,
-                        field.tick,
-                        &mut mm,
-                        GestureVocabulary {
-                            begin: SessionOp::BeginFreeMove { instance: node },
-                            preview: |mm| SessionOp::PreviewFreeMove {
-                                instance: node,
-                                frame: frame_of(mm),
-                            },
-                            commit: SessionOp::CommitFreeMove { instance: node },
-                            cancel: SessionOp::CancelFreeMove,
-                        },
-                        |mm| {
-                            vec![
-                                SessionOp::BeginFreeMove { instance: node },
-                                SessionOp::PreviewFreeMove {
-                                    instance: node,
-                                    frame: frame_of(mm),
-                                },
-                                SessionOp::CommitFreeMove { instance: node },
-                            ]
-                        },
-                        self.ops,
-                    );
+                    vec3_row_ops(ui, field.tick, &mut mm, gesture, typed, self.ops);
                 });
             }
         }
@@ -530,7 +625,7 @@ impl ViewerBehavior<'_> {
         if let Err(ref error) = row.value {
             ui.weak(format!("{error}"));
         }
-        let mut number = field.shown(match row.value {
+        let number = field.shown(match row.value {
             Ok(value) => value.as_f64(),
             Err(_) => 0.0,
         });
@@ -546,79 +641,73 @@ impl ViewerBehavior<'_> {
         } else {
             None
         };
-        // The parser runs inside `ui.add`, so what it read comes back
-        // out through a cell rather than a return value.
-        let typed: core::cell::RefCell<Option<props::FieldEdit>> = core::cell::RefCell::new(None);
-        let mut widget = number_field(&mut number, field.tick)
-            .update_while_editing(false)
-            .custom_parser(|text| match props::field_edit(text) {
-                props::FieldEdit::Number(value) => {
-                    *typed.borrow_mut() = Some(props::FieldEdit::Number(value));
-                    Some(value)
-                }
-                // Rejected as a number, which is what routes it to the
-                // expression door and leaves the field's value where
-                // it was until the document answers.
-                edit => {
-                    *typed.borrow_mut() = Some(edit);
-                    None
-                }
-            });
-        if let Some(text) = fixed {
-            widget = widget.custom_formatter(move |_, _| text.clone());
-        }
-        let widget = ui.add(widget);
-        drag_gesture_ops(
-            &widget,
-            field.authored(number),
-            GestureVocabulary {
-                begin: SessionOp::BeginGesture {
-                    node,
-                    slot: row.slot,
-                },
-                preview: |value| SessionOp::PreviewGesture {
+        // **The panel's value field, both doors and the gesture** —
+        // the parameter row's field is this same call with its own
+        // two operations. What a slot contributes is the fixed text
+        // above: a row showing SOURCE rather than a number echoes
+        // that source, and a number typed over it is no echo of
+        // anything, so the driven slot's refusal stays reachable and
+        // is owed its affordance even when the number happens to
+        // match.
+        value_field_ops(
+            ui,
+            FieldShowing {
+                writing: field,
+                dimension: row.dimension,
+                number,
+                text: fixed,
+            },
+            value_gesture(ValueGestureName::Slot {
+                node,
+                slot: row.slot,
+            }),
+            FieldVocabulary {
+                number: |value| SessionOp::SetSlot {
                     node,
                     slot: row.slot,
                     value,
                 },
-                commit: SessionOp::CommitGesture {
+                text: |text| SessionOp::SetSlotExpression {
                     node,
                     slot: row.slot,
+                    text,
                 },
-                cancel: SessionOp::CancelGesture,
             },
             self.ops,
         );
-        // **Text that says what the slot already says is not an
-        // edit.** The field commits on leaving it, so clicking into
-        // one and clicking away again must not cost an undo step. A
-        // DRIVEN slot is exempt for the number arm: writing a number
-        // over a computation is the refusal's own case, and it is owed
-        // its affordance even when the number happens to match.
-        match typed.into_inner() {
-            Some(props::FieldEdit::Number(written)) => {
-                let value = SlotValue::of(row.dimension, field.authored(written));
-                if row.driver.is_driven() || row.value != Ok(value) {
-                    self.ops.push(SessionOp::SetSlot {
-                        node,
-                        slot: row.slot,
-                        value,
-                    });
-                }
-            }
-            Some(props::FieldEdit::Expression(text)) => {
-                if row.source.as_deref() != Some(text.as_str()) {
-                    self.ops.push(SessionOp::SetSlotExpression {
-                        node,
-                        slot: row.slot,
-                        text,
-                    });
-                }
-            }
-            // An emptied field is not an edit: there is no expression
-            // it could mean, and blanking a dimension is not a way to
-            // delete anything in this vocabulary.
-            Some(props::FieldEdit::Empty) | None => {}
+    }
+
+    /// The written-unit picker for a document parameter's row.
+    ///
+    /// **"How do I want this number written" is an edit**, here as at
+    /// a slot row: the notation rides on the declaration and persists,
+    /// so the picker emits `SessionOp::SetParamUnit` and the change
+    /// enters the history like any other.
+    ///
+    /// Nothing is drawn for a dimension with no units (`Scalar`,
+    /// `Count`) — there is no notation to offer for a number that is
+    /// not a quantity. Both halves of that answer come from
+    /// `props`: `rendering_unit` says what the row is written in and
+    /// answers `None` for exactly those dimensions, and
+    /// `widgets::pick_unit` reads their options off
+    /// `props::unit_options`, which is the same closed table.
+    ///
+    /// The combo itself is `widgets::pick_unit`, the creation forms'
+    /// — the options, the width and the selected row are one
+    /// question at every picker in the chrome. What this row adds is
+    /// that a pick is an EDIT, and that re-picking the row already
+    /// shown is not one.
+    pub(crate) fn param_unit_ui(&mut self, ui: &mut egui::Ui, row: &ParamRow) {
+        let Some(written) = props::rendering_unit(row.dimension, row.unit) else {
+            return;
+        };
+        if let Some(unit) = pick_unit(ui, "param_unit", &row.name.0, row.dimension, written)
+            && unit != written
+        {
+            self.ops.push(SessionOp::SetParamUnit {
+                name: row.name.clone(),
+                unit,
+            });
         }
     }
 
@@ -658,10 +747,11 @@ impl ViewerBehavior<'_> {
         // node (a plane's origin and its normal) draw two pickers, and
         // egui identifies a popup by its id.
         egui::ComboBox::from_id_salt((node.0, format!("{:?}", first.slot), "unit"))
-            // Wide enough for the longest symbol the table carries
-            // (`pi rad`) plus the combo's arrow.
             .selected_text(label)
-            .width(72.0)
+            // The pickers' one width (`widgets::UNIT_PICKER_WIDTH`):
+            // this combo draws the same table's symbols and cannot be
+            // narrower than they are.
+            .width(UNIT_PICKER_WIDTH)
             .show_ui(ui, |ui| {
                 for option in options {
                     let picked = common == Some(option);

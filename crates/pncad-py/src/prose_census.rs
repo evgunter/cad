@@ -1721,14 +1721,6 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
          work/wire/node-error-kind-renders-the-slot-id-through-debug.md",
     ),
     (
-        "crates/step-import/src/error.rs",
-        "StepImportError",
-        "source",
-        2,
-        "a live panic on a public door — EXCH's, filed at\
-         work/issues/debug-in-prose-at-blend-and-step-import.md",
-    ),
-    (
         "crates/topo/src/boolean/voids.rs",
         "VoidInsertError",
         "e",
@@ -1812,14 +1804,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a\
          match binding, and this census types patterns and fields",
-    ),
-    (
-        "crates/sweep/src/blend/mod.rs",
-        "BlendError",
-        "other",
-        1,
-        "a catch-all arm binds the name, and a pattern naming no variant path\
-         declares no field type to read it at",
     ),
     (
         "crates/topo/src/boolean/mod.rs",

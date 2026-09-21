@@ -5,6 +5,8 @@ title: cursor_projection's home argument names f64 doors for an f32 function, an
 status: open
 opened: 2026-09-06
 refs: [2089]
+priority: P1
+cost: D
 ---
 
 

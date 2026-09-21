@@ -237,6 +237,14 @@ pub mod surgery;
 // exists whenever `debug_assertions` does.
 #[doc(hidden)]
 mod test_support_impl;
+// The Euler-op fixture family, a sibling of the module above rather
+// than a section of it: nothing here has a non-test consumer, so it is
+// gated on the test arms alone and its file-level `#![allow]` stays
+// exactly as wide as the code that earns it. Its own docs state what
+// separates it from `fixtures`.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_fixtures;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
@@ -249,12 +257,25 @@ mod test_support_impl;
 // a rustdoc directive, not a visibility one.
 #[doc(hidden)]
 pub mod test_support {
-    //! The public door onto [`crate::test_support_impl`], open exactly
-    //! when a test needs to name its contents from another crate. That
-    //! module's docs state both gates and why they differ.
+    //! The public door onto this crate's test vocabulary, open exactly
+    //! when a test needs to name it from another crate. Two modules
+    //! come through it: [`crate::test_support_impl`], whose docs state
+    //! both gates, why they differ and which home a new item belongs
+    //! in, and [`crate::test_support_fixtures`], the Euler-op fixture
+    //! family, which carries this module's own gate exactly.
     use geom_core::Real;
 
     use crate::body::Body;
+    // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
+    // is the only suite that wants the literal, and it restates it on
+    // purpose — a guard that reached for the constant the builder uses
+    // would be comparing that constant against itself.
+    pub use crate::test_support_fixtures::{
+        CubeOps, CylFrame, FaceGeometry, Prism, PrismOps, StraddleSeat,
+        assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet, declined_cube,
+        describe_as_intersections, face_surface_of_he, flush_declarations, geometric_cube, line,
+        mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
+    };
     pub use crate::test_support_impl::ArenaCounts;
 
     /// The topology-arena lengths of `body`. A free function because

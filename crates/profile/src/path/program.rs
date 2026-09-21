@@ -8,8 +8,9 @@
 //! Four things carry the design; the rest of the module is their
 //! vocabulary ([`Target`] with its [`TargetKind`] tag, [`ArcData`]
 //! with its [`ArcMode`] tag,
-//! [`TipState`], [`ReplayError`], [`DynTip`]) and the mode dispatchers
-//! the arms call.
+//! [`TipState`], [`ReplayError`], [`DynTip`]) and the arc-spec
+//! dispatchers the arms call (`spec_dispatch!`, one declaration each,
+//! projected into the match and its [`SpecForms`]).
 //!
 //! 1. `transition_table!` — the one declaration. One row per
 //!    (state, verb, kernel fn, next state), expanded into all four
@@ -34,8 +35,9 @@
 //! # What the construction makes unwritable — precisely
 //!
 //! The binder bodies are never duplicated here, the lattice is never
-//! re-stated as data, and — since the table shipped — neither surface
-//! is written twice. Two distinct properties hold, and both are worth
+//! re-stated as data by hand — [`Verb::states`] and [`arc_specs_at`]
+//! are projected from the same declarations the driver is — and,
+//! since the table shipped, neither surface is written twice. Two distinct properties hold, and both are worth
 //! stating exactly rather than generously:
 //!
 //! **Unwritable, by the table:** a transition present in one surface
@@ -350,28 +352,68 @@ arc_modes! {
     }
 }
 
-/// **The transition table — ONE declaration, FOUR projections**
+impl<T: Real> ArcData<T> {
+    /// **Whether this spec's carrier was authored by a RADIUS
+    /// argument.**
+    ///
+    /// Three of the six modes carry one — `Radius`, `Sweep` and
+    /// `ArcLen` — and three author the same carrier from a bulge, a
+    /// through-point or a centre and carry none. That is what decides
+    /// whether an arc emitted from this spec has an address for the
+    /// replay's radius-emission record: an arc no radius drew has no
+    /// radius to name.
+    ///
+    /// Total over the mode vocabulary with no wildcard arm, exactly as
+    /// the spec dispatchers below are: a mode the vocabulary gains
+    /// breaks here rather than defaulting to "no radius" and dropping
+    /// its arcs out of the record silently.
+    ///
+    /// **Its mirror is a document-layer table.** `editor-core`'s
+    /// `spec_slots` decides, over the same six modes, whether the spec
+    /// holds a `CarrierRadius`/`CarrierRadius2` ARGUMENT — the address
+    /// the emission this predicate admits is read against. The two
+    /// decide one fact in two crates, and
+    /// `edit_step_segments::every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither`
+    /// is where they are held to it; without that row the only thing
+    /// that notices a disagreement is `eval::wire::edge_radii`'s
+    /// `unreachable!`, after the emission has been recorded with
+    /// nowhere to land.
+    #[must_use]
+    pub fn carries_radius(&self) -> bool {
+        match self {
+            Self::Radius { .. } | Self::Sweep { .. } | Self::ArcLen { .. } => true,
+            Self::Bulge { .. } | Self::Via { .. } | Self::Center { .. } => false,
+        }
+    }
+}
+
+/// **The transition table — ONE declaration, SIX projections**
 /// (PATHS-DESIGN §2c rounds 13–15, lean (a)).
 ///
 /// A verb is declared exactly once, with one `on` row per lattice
 /// state it is well-typed at, and the macro expands each row into all
-/// four artifacts: the **typed method** on that state, the **driver
-/// arm** in [`apply`], the [`Step`] variant, and the [`Verb`] tag. So
-/// none of those four is written twice and no two of them can drift: a
-/// missing row is missing from all four, consistently and loudly, and
-/// an inconsistent pair is unwritable because there is no second place
-/// to write it. Those four are the whole of what the macro expands.
+/// six artifacts: the **typed method** on that state, the **driver
+/// arm** in [`apply`], the [`Step`] variant, the [`Verb`] tag, the
+/// verb's row set ([`Verb::states`]) and, for an arc-spec verb, the
+/// forms its spec takes there ([`arc_specs_at`]). So none of those is
+/// written twice and no two of them can drift: a missing row is
+/// missing from all six, consistently and loudly, and an inconsistent
+/// pair is unwritable because there is no second place to write it.
+/// Those six are the whole of what the macro expands.
 ///
 /// **The round-9 exhaustiveness pressure does NOT ride this table.**
 /// That pressure is over the ARC-MODE vocabulary — [`ArcData`] — and
 /// this table is over the VERB vocabulary. The mode vocabulary has its
 /// own declaration (`arc_modes!` above) and its own census anchor
-/// ([`ArcMode::ALL`]), and the sites that must handle each mode —
-/// `do_arc_to_point`, `do_arc_to_directed` and the fused dispatchers
-/// below this invocation — are hand-written matches this macro does
-/// not produce. The pressure is real at each of them, and rustc is
-/// what enforces it; what the mode declaration adds is that a mode
-/// cannot go missing from a spelling this crate cannot see.
+/// ([`ArcMode::ALL`]), and the sites that must handle each mode are
+/// the arc-spec dispatchers below this invocation, each declared once
+/// by `spec_dispatch!` with no wildcard arm — so rustc enforces the
+/// pressure at each of them, and what the mode declaration adds is
+/// that a mode cannot go missing from a spelling this crate cannot
+/// see. An arm's `specs [..]` names the dispatcher its spec goes
+/// through; that it names the one the arm CALLS is the one fact here
+/// written beside a call rather than projected from it, and
+/// `tests/arc_spec_census.rs` walks every cell to pin it.
 ///
 /// # What the table does not reach
 ///
@@ -410,7 +452,10 @@ arc_modes! {
 ///         /// rustdoc for the generated typed method
 ///         on [generics] SelfTy;
 ///         fn name [ (mut self, a: A) -> Out ] { body }
-///         arms { DynTip::X(p) => expr, … }
+///         arms { X(p) => expr,              // X: a DynTip/TipState
+///                Y(p) specs [FORMS] => expr, … } // variant; FORMS: the
+///                                                // dispatcher(s) of the
+///                                                // step's arc specs
 ///     }
 /// }
 /// ```
@@ -423,8 +468,10 @@ arc_modes! {
 /// private to their module); either way the `Step::` construction is
 /// the row's, which is what makes a deleted row break the variant. The `arms` name the
 /// concrete [`DynTip`] variants the row's (possibly marker-generic)
-/// state covers; a state the row does not name falls through to the
-/// table's one lattice-violation arm.
+/// state covers — by the variant name alone, which [`TipState`]
+/// shares, so the same token is the driver's pattern and the row set's
+/// entry; a state the row does not name falls through to the table's
+/// one lattice-violation arm.
 ///
 /// `free fn` rows are for the complete-loop program forms, which are
 /// free functions rather than methods on a tip; `path` re-exports
@@ -450,14 +497,22 @@ macro_rules! transition_table {
                         $(#[doc = $mdoc:literal])*
                         on [ $($gen:tt)* ] $self_ty:ty ;
                         fn $mname:ident [ $($sig:tt)* ] $mbody:block
-                        arms { $tip0:pat => $arm0:expr $(, $tip:pat => $arm:expr)* $(,)? }
+                        arms {
+                            $st0:ident $(( $b0:pat ))? $(specs [ $($slot0:ident),* ])? => $arm0:expr
+                            $(, $st:ident $(( $b:pat ))? $(specs [ $($slot:ident),* ])? => $arm:expr)*
+                            $(,)?
+                        }
                     }
                 )*
                 $(
                     free {
                         $(#[doc = $fndoc:literal])*
                         fn $fname:ident [ $($fsig:tt)* ] $fbody:block
-                        arms { $ftip0:pat => $farm0:expr $(, $ftip:pat => $farm:expr)* $(,)? }
+                        arms {
+                            $fst0:ident $(( $fb0:pat ))? => $farm0:expr
+                            $(, $fst:ident $(( $fb:pat ))? => $farm:expr)*
+                            $(,)?
+                        }
                     }
                 )*
             }
@@ -560,16 +615,60 @@ macro_rules! transition_table {
             };
             match (tip, step) {
                 $($(
-                    ($tip0, Step::$name $bind) => $arm0,
-                    $( ($tip, Step::$name $bind) => $arm, )*
+                    (DynTip::$st0 $(($b0))?, Step::$name $bind) => $arm0,
+                    $( (DynTip::$st $(($b))?, Step::$name $bind) => $arm, )*
                 )*$(
-                    ($ftip0, Step::$name $bind) => $farm0,
-                    $( ($ftip, Step::$name $bind) => $farm, )*
+                    (DynTip::$fst0 $(($fb0))?, Step::$name $bind) => $farm0,
+                    $( (DynTip::$fst $(($fb))?, Step::$name $bind) => $farm, )*
                 )*)*
                 (other, unusable) => Err(ReplayErrorKind::Transition {
                     state: other.state(),
                     verb: Some(unusable.verb()),
                 }),
+            }
+        }
+
+        impl Verb {
+            /// **The lattice states this verb has a row at**, in
+            /// declaration order — read off the same arms `apply`
+            /// is expanded from, so a state is listed here exactly
+            /// when the driver has an arm for it.
+            ///
+            /// A row is where the lattice stops refusing on the VERB;
+            /// an arc-carrying verb can still refuse on its spec's
+            /// mode, which [`arc_specs_at`] answers.
+            #[must_use]
+            pub fn states(self) -> &'static [TipState] {
+                match self {
+                    $( Verb::$name => &[
+                        $( TipState::$st0, $( TipState::$st, )* )*
+                        $( TipState::$fst0, $( TipState::$fst, )* )*
+                    ], )*
+                }
+            }
+        }
+
+        /// **Which arc-spec forms `verb` takes at `state`**: one
+        /// [`SpecForms`] per [`ArcData`] the step carries, in the
+        /// step's field order (`arc_fillet_arc` has two — the incoming
+        /// spec, then the arrival). Empty when the verb carries no arc
+        /// spec, or has no row at `state` ([`Verb::states`]).
+        ///
+        /// Each row's arm names the dispatcher its spec goes through
+        /// (`specs [..]`), beside the call; the forms themselves are
+        /// read off that dispatcher's own arms by `spec_dispatch!`, so
+        /// the admitted (mode, target) pairs are written once. That an
+        /// arm's `specs` names the dispatcher it actually calls is
+        /// pinned by the replay census in `tests/path_program.rs`,
+        /// which walks every (verb, state, mode, target) cell.
+        #[must_use]
+        pub fn arc_specs_at(verb: Verb, state: TipState) -> &'static [&'static SpecForms] {
+            match (verb, state) {
+                $($(
+                    (Verb::$name, TipState::$st0) => &[ $($( &$slot0 ),*)? ],
+                    $( (Verb::$name, TipState::$st) => &[ $($( &$slot ),*)? ], )*
+                )*)*
+                _ => &[],
             }
         }
     };
@@ -589,7 +688,7 @@ transition_table! {
                 self.at_kernel(Step::At(p), p)
             }
             arms {
-                DynTip::Entry => {
+                Entry => {
                     let mut p0 = Open.at(p);
                     p0.core.adopt(guide());
                     Ok(Applied::Tip(DynTip::PlainPoint(p0)))
@@ -613,8 +712,8 @@ transition_table! {
                 self.at_kernel(p, tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::PlainPoint(p0.at(p, tol)?))),
-                DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.at(p, tol)?))),
+                Open(p0) => Ok(Applied::Tip(DynTip::PlainPoint(p0.at(p, tol)?))),
+                Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.at(p, tol)?))),
             }
         }
         row {
@@ -625,7 +724,7 @@ transition_table! {
                 self.at_kernel(Step::At(p), p)
             }
             arms {
-                DynTip::RadiusArrival(p0) => Ok(Applied::Tip(DynTip::RadiusArrivalAt(p0.at(p)))),
+                RadiusArrival(p0) => Ok(Applied::Tip(DynTip::RadiusArrivalAt(p0.at(p)))),
             }
         }
         row {
@@ -636,7 +735,7 @@ transition_table! {
                 self.at_kernel(Step::At(p), p, tol)
             }
             arms {
-                DynTip::RadiusArrivalDir(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.at(p, tol)?))),
+                RadiusArrivalDir(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.at(p, tol)?))),
             }
         }
     }
@@ -651,7 +750,7 @@ transition_table! {
                 self.director(Step::Angle(theta), super::Dir::from_angle(theta))
             }
             arms {
-                DynTip::Entry => {
+                Entry => {
                     let mut p0 = Open.angle(theta);
                     p0.core.adopt(guide());
                     Ok(Applied::Tip(DynTip::Angle(p0)))
@@ -681,9 +780,9 @@ transition_table! {
                 self.director(super::Dir::from_angle(theta), tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.angle(theta, tol)?))),
-                DynTip::PlainPoint(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.angle(theta, tol)?))),
-                DynTip::DirectedPoint(p0) =>
+                Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.angle(theta, tol)?))),
+                PlainPoint(p0) => Ok(Applied::Tip(DynTip::DirectedPlain(p0.angle(theta, tol)?))),
+                DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedIncoming(p0.angle(theta, tol)?))),
             }
         }
@@ -694,7 +793,7 @@ transition_table! {
                 self.angle_kernel(Step::Angle(theta), theta)
             }
             arms {
-                DynTip::RadiusArrival(p0) =>
+                RadiusArrival(p0) =>
                     Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.angle(theta)))),
             }
         }
@@ -706,7 +805,7 @@ transition_table! {
                 self.angle_kernel(Step::Angle(theta), theta, tol)
             }
             arms {
-                DynTip::RadiusArrivalAt(p0) =>
+                RadiusArrivalAt(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
             }
         }
@@ -718,7 +817,7 @@ transition_table! {
                 self.angle_kernel(Step::Angle(theta), theta, tol)
             }
             arms {
-                DynTip::ViaArrival(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
+                ViaArrival(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.angle(theta, tol)?))),
             }
         }
         row {
@@ -728,7 +827,7 @@ transition_table! {
                 self.angle_kernel(Step::Angle(theta), theta, tol)
             }
             arms {
-                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?)),
+                ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?)),
             }
         }
     }
@@ -756,7 +855,7 @@ transition_table! {
                 Ok(self.director(Step::Toward { dx, dy }, dir))
             }
             arms {
-                DynTip::Entry => {
+                Entry => {
                     let mut p0 = Open.toward(dx, dy, tol)?;
                     p0.core.adopt(guide());
                     Ok(Applied::Tip(DynTip::Angle(p0)))
@@ -787,10 +886,10 @@ transition_table! {
                 self.director(super::unit_from_components(dx, dy, tol)?, tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.toward(dx, dy, tol)?))),
-                DynTip::PlainPoint(p0) =>
+                Open(p0) => Ok(Applied::Tip(DynTip::Angle(p0.toward(dx, dy, tol)?))),
+                PlainPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPlain(p0.toward(dx, dy, tol)?))),
-                DynTip::DirectedPoint(p0) =>
+                DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedIncoming(p0.toward(dx, dy, tol)?))),
             }
         }
@@ -802,7 +901,7 @@ transition_table! {
                 self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
-                DynTip::RadiusArrival(p0) =>
+                RadiusArrival(p0) =>
                     Ok(Applied::Tip(DynTip::RadiusArrivalDir(p0.toward(dx, dy, tol)?))),
             }
         }
@@ -814,7 +913,7 @@ transition_table! {
                 self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
-                DynTip::RadiusArrivalAt(p0) =>
+                RadiusArrivalAt(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy, tol)?))),
             }
         }
@@ -826,7 +925,7 @@ transition_table! {
                 self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
-                DynTip::ViaArrival(p0) =>
+                ViaArrival(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPoint(p0.toward(dx, dy, tol)?))),
             }
         }
@@ -837,7 +936,7 @@ transition_table! {
                 self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
-                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?)),
+                ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?)),
             }
         }
     }
@@ -857,7 +956,7 @@ transition_table! {
                 self.tangent_kernel()
             }
             arms {
-                DynTip::DirectedPoint(p0) =>
+                DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedIncoming(p0.tangent()))),
             }
         }
@@ -886,7 +985,7 @@ transition_table! {
                 self.cusp_kernel()
             }
             arms {
-                DynTip::DirectedPoint(p0) =>
+                DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedIncoming(p0.cusp()))),
             }
         }
@@ -909,7 +1008,7 @@ transition_table! {
                 self.turn_kernel(delta, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) =>
+                DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedIncoming(p0.turn(delta, tol)?))),
             }
         }
@@ -946,8 +1045,8 @@ transition_table! {
                 self.line_kernel(len, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
-                DynTip::DirectedIncoming(p0) =>
+                DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
+                DirectedIncoming(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
             }
         }
@@ -986,7 +1085,7 @@ transition_table! {
                 self.straight_continuation_kernel(len, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) =>
+                DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
             }
         }
@@ -1008,8 +1107,8 @@ transition_table! {
                 <Tgt as super::LineTarget<T, F>>::line_from(self, target, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => do_line_to(p0, target, tol),
-                DynTip::DirectedPoint(p0) => do_line_to(p0, target, tol),
+                PlainPoint(p0) => do_line_to(p0, target, tol),
+                DirectedPoint(p0) => do_line_to(p0, target, tol),
             }
         }
     }
@@ -1075,7 +1174,7 @@ transition_table! {
                 <Tgt as super::ContinueTarget<T>>::continue_from(self, target, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) => do_continue_to(p0, target, tol),
+                DirectedPoint(p0) => do_continue_to(p0, target, tol),
             }
         }
     }
@@ -1108,8 +1207,8 @@ transition_table! {
                 <S as super::family::PointLeg<T, F>>::leg_from(self, spec, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => do_arc_to_point(p0, spec, TipState::PlainPoint, tol),
-                DynTip::DirectedPoint(p0) => do_arc_to_point(p0, spec, TipState::DirectedPoint, tol),
+                PlainPoint(p0) specs [ARC_TO_POINT] => do_arc_to_point(p0, spec, TipState::PlainPoint, tol),
+                DirectedPoint(p0) specs [ARC_TO_POINT] => do_arc_to_point(p0, spec, TipState::DirectedPoint, tol),
             }
         }
         row {
@@ -1128,8 +1227,8 @@ transition_table! {
                 self.arc_to_kernel(spec, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_arc_to_directed(p0, spec, TipState::DirectedPlain, tol),
-                DynTip::DirectedIncoming(p0) =>
+                DirectedPlain(p0) specs [ARC_TO_DIRECTED] => do_arc_to_directed(p0, spec, TipState::DirectedPlain, tol),
+                DirectedIncoming(p0) specs [ARC_TO_DIRECTED] =>
                     do_arc_to_directed(p0, spec, TipState::DirectedIncoming, tol),
             }
         }
@@ -1149,8 +1248,8 @@ transition_table! {
                 <Tgt as super::TangentArcTarget<T, F>>::tangent_arc_from(self, target, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_tangent_arc_to(p0, target, tol),
-                DynTip::DirectedIncoming(p0) => do_tangent_arc_to(p0, target, tol),
+                DirectedPlain(p0) => do_tangent_arc_to(p0, target, tol),
+                DirectedIncoming(p0) => do_tangent_arc_to(p0, target, tol),
             }
         }
     }
@@ -1184,8 +1283,8 @@ transition_table! {
                 self.fillet_kernel(radius, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
-                DynTip::DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
+                DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
+                DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
             }
         }
         row {
@@ -1205,7 +1304,7 @@ transition_table! {
                 self.fillet_kernel(radius, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
+                DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(p0.fillet(radius, tol)?))),
             }
         }
     }
@@ -1235,14 +1334,14 @@ transition_table! {
                 self.fillet_arc_kernel(radius, spec, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_arrival(
+                DirectedPlain(p0) specs [ARRIVAL] => do_arrival(
                     p0.fillet(radius, tol)?,
                     spec,
                     TipState::DirectedPlain,
                     Verb::FilletArc,
                     tol,
                 ),
-                DynTip::DirectedIncoming(p0) => do_arrival(
+                DirectedIncoming(p0) specs [ARRIVAL] => do_arrival(
                     p0.fillet(radius, tol)?,
                     spec,
                     TipState::DirectedIncoming,
@@ -1267,7 +1366,7 @@ transition_table! {
                 self.fillet_arc_kernel(radius, spec, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) => do_arrival(
+                DirectedPoint(p0) specs [ARRIVAL] => do_arrival(
                     p0.fillet(radius, tol)?,
                     spec,
                     TipState::DirectedPoint,
@@ -1308,8 +1407,8 @@ transition_table! {
                 self.arc_fillet_kernel(step, spec, radius, tol)
             }
             arms {
-                DynTip::Entry => {
-                    let mut p0 = do_fused_entry(spec, radius, tol)?;
+                Entry specs [FUSED_ENTRY] => {
+                    let mut p0 = do_fused_entry(spec, radius, Verb::ArcFillet, tol)?;
                     p0.core.adopt(guide());
                     Ok(Applied::Tip(DynTip::Open(p0)))
                 }
@@ -1333,7 +1432,7 @@ transition_table! {
                 self.arc_fillet_kernel(spec, radius, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_point(
+                PlainPoint(p0) specs [FUSED_POINT] => Ok(Applied::Tip(DynTip::Open(do_fused_point(
                     p0,
                     spec,
                     radius,
@@ -1362,7 +1461,7 @@ transition_table! {
                 self.arc_fillet_kernel(spec, radius, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_leg_end(
+                DirectedPoint(p0) specs [FUSED_LEG_END] => Ok(Applied::Tip(DynTip::Open(do_fused_leg_end(
                     p0,
                     spec,
                     radius,
@@ -1391,7 +1490,7 @@ transition_table! {
                 self.arc_fillet_kernel(spec, radius, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
+                DirectedPlain(p0) specs [FUSED_DIRECTED] => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
                     p0,
                     spec,
                     radius,
@@ -1399,7 +1498,7 @@ transition_table! {
                     Verb::ArcFillet,
                     tol,
                 )?))),
-                DynTip::DirectedIncoming(p0) => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
+                DirectedIncoming(p0) specs [FUSED_DIRECTED] => Ok(Applied::Tip(DynTip::Open(do_fused_directed(
                     p0,
                     spec,
                     radius,
@@ -1445,8 +1544,8 @@ transition_table! {
                 // fillet in a single step (the eye): the guide has to
                 // be in the core before the arrival half runs, not
                 // after the step lands.
-                DynTip::Entry => {
-                    let mut open = do_fused_entry(spec, radius, tol)?;
+                Entry specs [FUSED_ENTRY, ARRIVAL] => {
+                    let mut open = do_fused_entry(spec, radius, Verb::ArcFilletArc, tol)?;
                     open.core.adopt(guide());
                     do_arrival(open, spec2, TipState::Entry, Verb::ArcFilletArc, tol)
                 }
@@ -1472,7 +1571,7 @@ transition_table! {
                 self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
             }
             arms {
-                DynTip::PlainPoint(p0) => do_arrival(
+                PlainPoint(p0) specs [FUSED_POINT, ARRIVAL] => do_arrival(
                     do_fused_point(p0, spec, radius, TipState::PlainPoint, Verb::ArcFilletArc, tol)?,
                     spec2,
                     TipState::PlainPoint,
@@ -1502,7 +1601,7 @@ transition_table! {
                 self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
             }
             arms {
-                DynTip::DirectedPoint(p0) => do_arrival(
+                DirectedPoint(p0) specs [FUSED_LEG_END, ARRIVAL] => do_arrival(
                     do_fused_leg_end(
                         p0,
                         spec,
@@ -1538,7 +1637,7 @@ transition_table! {
                 self.arc_fillet_arc_kernel(spec, radius, spec2, tol)
             }
             arms {
-                DynTip::DirectedPlain(p0) => do_arrival(
+                DirectedPlain(p0) specs [FUSED_DIRECTED, ARRIVAL] => do_arrival(
                     do_fused_directed(
                         p0,
                         spec,
@@ -1552,7 +1651,7 @@ transition_table! {
                     Verb::ArcFilletArc,
                     tol,
                 ),
-                DynTip::DirectedIncoming(p0) => do_arrival(
+                DirectedIncoming(p0) specs [FUSED_DIRECTED, ARRIVAL] => do_arrival(
                     do_fused_directed(
                         p0,
                         spec,
@@ -1628,7 +1727,7 @@ transition_table! {
                 self.end_side_at(anchor, tol)
             }
             arms {
-                DynTip::Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.to(anchor, tol)?))),
+                Angle(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.to(anchor, tol)?))),
             }
         }
     }
@@ -1649,7 +1748,7 @@ transition_table! {
                 self.close_at_seam(tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Closed(p0.to(Start, tol)?)),
+                Open(p0) => Ok(Applied::Closed(p0.to(Start, tol)?)),
             }
         }
     }
@@ -1701,7 +1800,7 @@ transition_table! {
                 })
             }
             arms {
-                DynTip::Entry => Ok(Applied::Closed(circle(centre, radius, tol)?)),
+                Entry => Ok(Applied::Closed(circle(centre, radius, tol)?)),
             }
         }
     }
@@ -1763,7 +1862,7 @@ transition_table! {
                 })
             }
             arms {
-                DynTip::Entry => Ok(Applied::Closed(
+                Entry => Ok(Applied::Closed(
                     circle_split(centre, radius, n, phase, tol)?,
                 )),
             }
@@ -1995,35 +2094,6 @@ enum Applied<T: Real> {
 
 type Applying<T> = Result<Applied<T>, ReplayErrorKind<T>>;
 
-/// **A declared seam ARRIVAL on an arc row that does not serve it.**
-/// One spelling for the whole class, in both return shapes the fused
-/// doors and the leg rows force apart.
-///
-/// The seam's arrival declaration rides the closing verbs' TARGET
-/// (PATHS-DESIGN §6's revised PQ4). The endpoint-full arc modes fix
-/// their own end direction from authored data, so declaring the arrival
-/// would author one fact twice — except on `Bulge`, where the
-/// declaration is a CHECK against the tangent the bulge already fixes
-/// and `do_arc_to_point` serves it. Everything else is a lattice
-/// violation: unrepresentable on the typed surface, a `Transition` at
-/// the wire.
-fn declared_arrival_not_on_this_row<T: Real, R>(
-    state: TipState,
-    verb: Verb,
-) -> Result<R, ReplayErrorKind<T>> {
-    Err(ReplayErrorKind::Transition {
-        state,
-        verb: Some(verb),
-    })
-}
-
-fn violation<T: Real>(state: TipState, verb: Verb) -> Applying<T> {
-    Err(ReplayErrorKind::Transition {
-        state,
-        verb: Some(verb),
-    })
-}
-
 // The flavor-generic target dispatchers. Each branch names exactly ONE
 // binder — the one well-typed at that (state, verb, target/mode).
 
@@ -2057,105 +2127,6 @@ fn do_continue_to<T: Decide>(
     }
 }
 
-/// The sharp arc leg's mode dispatch: the endpoint-full modes from a
-/// Point tip — one row per admissible (state, mode) pair of the §2c
-/// matrix, each calling the one typed `arc_to(spec)` binder.
-fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
-    p: PartialPath<T, HasPos<F>, NoAng>,
-    spec: ArcData<T>,
-    state: TipState,
-    tol: Tol,
-) -> Applying<T> {
-    match spec {
-        // See `declared_arrival_not_on_this_row`; `Bulge` is served
-        // by the two rows above.
-        ArcData::Via {
-            target: Target::StartArriving,
-            ..
-        }
-        | ArcData::Center {
-            target: Target::StartArriving,
-            ..
-        } => declared_arrival_not_on_this_row(state, Verb::ArcTo),
-        ArcData::Bulge {
-            target: Target::Point(q),
-            b,
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Bulge { p: q, b }, tol)?,
-        ))),
-        ArcData::Bulge {
-            target: Target::Start,
-            b,
-        } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?)),
-        // The sharp arc seam with its tangent joint declared.
-        ArcData::Bulge {
-            target: Target::StartArriving,
-            b,
-        } => Ok(Applied::Closed(p.arc_to(
-            Bulge {
-                p: Start.arrives_tangent(),
-                b,
-            },
-            tol,
-        )?)),
-        ArcData::Via {
-            q,
-            target: Target::Point(t),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Via { q, p: t }, tol)?,
-        ))),
-        ArcData::Via {
-            q,
-            target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_to(Via { q, p: Start }, tol)?)),
-        ArcData::Center {
-            c,
-            winding,
-            target: Target::Point(t),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(Center { c, winding, p: t }, tol)?,
-        ))),
-        ArcData::Center {
-            c,
-            winding,
-            target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_to(
-            Center {
-                c,
-                winding,
-                p: Start,
-            },
-            tol,
-        )?)),
-        ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
-            violation(state, Verb::ArcTo)
-        }
-    }
-}
-
-/// The endpoint-free sharp legs from a Directed tip.
-fn do_arc_to_directed<T: ArcCarrierScalar, F: Flavor>(
-    p: PartialPath<T, HasPos<F>, HasAng>,
-    spec: ArcData<T>,
-    state: TipState,
-    tol: Tol,
-) -> Applying<T> {
-    match spec {
-        ArcData::Sweep { r, side, angle } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(super::Sweep { r, side, angle }, tol)?,
-        ))),
-        ArcData::ArcLen { r, side, len } => Ok(Applied::Tip(DynTip::DirectedPoint(
-            p.arc_to(super::ArcLen { r, side, len }, tol)?,
-        ))),
-        // Spelled out rather than `_`: a mode the table gains must be
-        // ADJUDICATED at every dispatcher, not silently refused here.
-        ArcData::Radius { .. }
-        | ArcData::Bulge { .. }
-        | ArcData::Via { .. }
-        | ArcData::Center { .. } => violation(state, Verb::ArcTo),
-    }
-}
-
 fn do_tangent_arc_to<T: Decide, F: Flavor>(
     p: PartialPath<T, HasPos<F>, HasAng>,
     t: Target<T>,
@@ -2172,47 +2143,205 @@ fn do_tangent_arc_to<T: Decide, F: Flavor>(
     }
 }
 
-/// Applies an ARC-ARRIVAL spec to an opened fillet — the shared second
-/// half of the `FilletArc` / `ArcFilletArc` rows, dispatching each mode
-/// to its own `ArrivalSpec` impl (the typed surface's exact code).
-fn do_arrival<T: ArcCarrierScalar>(
-    open: PartialPath<T, NoPos, NoAng>,
-    spec: ArcData<T>,
-    state: TipState,
-    verb: Verb,
-    tol: Tol,
-) -> Applying<T> {
-    use super::family::ArrivalSpec;
-    let core = open.core;
-    match spec {
-        // See `declared_arrival_not_on_this_row`.
-        ArcData::Bulge {
-            target: Target::StartArriving,
-            ..
+// ------------------------------------------------------------------
+// The arc-spec dispatchers
+// ------------------------------------------------------------------
+
+/// **The arc-spec forms one dispatcher admits** — one (mode, target
+/// form) pair per arm it serves, in declaration order. The target form
+/// is `None` for the endpoint-free modes (`Radius`, `Sweep`, `ArcLen`),
+/// which carry no target.
+///
+/// Read off the dispatcher's own arms by `spec_dispatch!`, so the set
+/// a form offers is the set the replay accepts: a pair is listed here
+/// exactly when its arm exists. [`arc_specs_at`] says which dispatcher
+/// a (verb, state) cell's spec goes through.
+#[derive(Debug)]
+pub struct SpecForms {
+    forms: &'static [(ArcMode, Option<TargetKind>)],
+}
+
+impl SpecForms {
+    /// Every admitted (mode, target form) pair, in declaration order.
+    #[must_use]
+    pub fn forms(&self) -> &'static [(ArcMode, Option<TargetKind>)] {
+        self.forms
+    }
+
+    /// Whether `mode` is admitted with at least one target form.
+    #[must_use]
+    pub fn admits_mode(&self, mode: ArcMode) -> bool {
+        self.forms.iter().any(|&(m, _)| m == mode)
+    }
+
+    /// Whether `mode` is admitted with the target form `target`
+    /// (`None` for the endpoint-free modes).
+    #[must_use]
+    pub fn admits(&self, mode: ArcMode, target: Option<TargetKind>) -> bool {
+        self.forms.contains(&(mode, target))
+    }
+
+    /// The target forms `mode` is admitted with, in declaration order;
+    /// empty for an endpoint-free mode and for a refused one.
+    pub fn targets(&self, mode: ArcMode) -> impl Iterator<Item = TargetKind> + 'static {
+        self.forms
+            .iter()
+            .filter(move |&&(m, _)| m == mode)
+            .filter_map(|&(_, target)| target)
+    }
+}
+
+macro_rules! spec_target {
+    () => {
+        None
+    };
+    ($tk:ident) => {
+        Some(TargetKind::$tk)
+    };
+}
+
+/// **One arc-spec dispatcher, declared once, projected twice**: the
+/// `match` the driver runs and the [`SpecForms`] a form reads.
+///
+/// ```text
+/// forms NAME;                                // the SpecForms const
+/// fn name [ <generics>(params) -> Out ]      // the dispatcher
+/// match spec refuse <refusal expr>;          // scrutinee; what a
+///                                            // refused form raises
+/// admit {
+///     Mode { fields } @ Form(binding) => expr,   // endpoint-full
+///     Mode { fields } => expr,                   // endpoint-free
+/// }
+/// refuse { Mode @ Form, Mode, … }
+/// ```
+///
+/// An `admit` arm is one (mode, target form) pair: it expands into the
+/// match arm AND the pair's entry in the forms, so the two cannot
+/// disagree. The `refuse` list names every other cell — there is no
+/// wildcard, so a mode or target form the vocabulary gains breaks every
+/// dispatcher until it is ADJUDICATED at each, and rustc's
+/// unreachable-pattern check catches a cell named twice. A refused cell
+/// is a lattice violation: unrepresentable on the typed surface, a
+/// [`ReplayErrorKind::Transition`] at the wire.
+macro_rules! spec_dispatch {
+    (
+        $(#[doc = $doc:literal])*
+        forms $forms:ident;
+        fn $name:ident [ $($sig:tt)* ]
+        match $spec:ident refuse $refusal:expr;
+        admit {
+            $(
+                $mode:ident { $($f:ident),* } $(@ $tk:ident $(( $bind:ident ))?)? => $arm:expr,
+            )*
         }
-        | ArcData::Via {
-            target: Target::StartArriving,
-            ..
+        refuse { $( $rmode:ident $(@ $rtk:ident)? ),* $(,)? }
+    ) => {
+        $(#[doc = $doc])*
+        pub const $forms: SpecForms = SpecForms {
+            forms: &[ $( (ArcMode::$mode, spec_target!($($tk)?)) ),* ],
+        };
+
+        $(#[doc = $doc])*
+        fn $name $($sig)* {
+            match $spec {
+                $( ArcData::$mode { $($f,)* $(target: Target::$tk $(($bind))?)? } => $arm, )*
+                $( ArcData::$rmode { $(target: Target::$rtk { .. },)? .. } )|* => Err($refusal),
+            }
         }
-        | ArcData::Center {
-            target: Target::StartArriving,
-            ..
-        } => declared_arrival_not_on_this_row(state, verb),
-        ArcData::Center {
-            c,
-            winding,
-            target: Target::Point(p),
-        } => Ok(Applied::Tip(DynTip::DirectedPoint(ArrivalSpec::apply(
-            core,
-            super::Center { c, winding, p },
+    };
+}
+
+// A declared seam ARRIVAL (`StartArriving`) is admitted on `Bulge` legs
+// alone. The seam's arrival declaration rides the closing verbs' TARGET
+// (PATHS-DESIGN §6's revised PQ4); the endpoint-full arc modes fix their
+// own end direction from authored data, so declaring the arrival would
+// author one fact twice — except on `Bulge`, where the declaration is a
+// CHECK against the tangent the bulge already fixes. `Via` and `Center`
+// could take the same check and do not yet (issue 1579).
+
+spec_dispatch! {
+    /// The sharp arc leg from a Point tip: the endpoint-full modes.
+    forms ARC_TO_POINT;
+    fn do_arc_to_point [<T: ArcCarrierScalar, F: Flavor>(
+        p: PartialPath<T, HasPos<F>, NoAng>,
+        spec: ArcData<T>,
+        state: TipState,
+        tol: Tol,
+    ) -> Applying<T>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(Verb::ArcTo) };
+    admit {
+        Bulge { b } @ Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Bulge { p: q, b }, tol)?,
+        ))),
+        Bulge { b } @ Start => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?)),
+        // The sharp arc seam with its tangent joint declared.
+        Bulge { b } @ StartArriving => Ok(Applied::Closed(p.arc_to(
+            Bulge {
+                p: Start.arrives_tangent(),
+                b,
+            },
             tol,
-        )?))),
-        ArcData::Center {
-            c,
-            winding,
-            target: Target::Start,
-        } => Ok(Applied::Closed(ArrivalSpec::apply(
-            core,
+        )?)),
+        Via { q } @ Point(t) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Via { q, p: t }, tol)?,
+        ))),
+        Via { q } @ Start => Ok(Applied::Closed(p.arc_to(Via { q, p: Start }, tol)?)),
+        Center { c, winding } @ Point(t) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(Center { c, winding, p: t }, tol)?,
+        ))),
+        Center { c, winding } @ Start => Ok(Applied::Closed(p.arc_to(
+            Center {
+                c,
+                winding,
+                p: Start,
+            },
+            tol,
+        )?)),
+    }
+    refuse { Via @ StartArriving, Center @ StartArriving, Radius, Sweep, ArcLen }
+}
+
+spec_dispatch! {
+    /// The sharp arc leg from a Directed tip: the endpoint-free modes.
+    forms ARC_TO_DIRECTED;
+    fn do_arc_to_directed [<T: ArcCarrierScalar, F: Flavor>(
+        p: PartialPath<T, HasPos<F>, HasAng>,
+        spec: ArcData<T>,
+        state: TipState,
+        tol: Tol,
+    ) -> Applying<T>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(Verb::ArcTo) };
+    admit {
+        Sweep { r, side, angle } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(super::Sweep { r, side, angle }, tol)?,
+        ))),
+        ArcLen { r, side, len } => Ok(Applied::Tip(DynTip::DirectedPoint(
+            p.arc_to(super::ArcLen { r, side, len }, tol)?,
+        ))),
+    }
+    refuse { Radius, Bulge, Via, Center }
+}
+
+spec_dispatch! {
+    /// An ARC ARRIVAL on an opened fillet — the shared second half of
+    /// the `FilletArc` / `ArcFilletArc` rows, each mode through its own
+    /// `ArrivalSpec` impl (the typed surface's exact code). `Bulge` is
+    /// never an arrival: no chord exists there.
+    forms ARRIVAL;
+    fn do_arrival [<T: ArcCarrierScalar>(
+        open: PartialPath<T, NoPos, NoAng>,
+        spec: ArcData<T>,
+        state: TipState,
+        verb: Verb,
+        tol: Tol,
+    ) -> Applying<T>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(verb) };
+    admit {
+        Center { c, winding } @ Point(p) => Ok(Applied::Tip(DynTip::DirectedPoint(
+            super::family::ArrivalSpec::apply(open.core, super::Center { c, winding, p }, tol)?,
+        ))),
+        Center { c, winding } @ Start => Ok(Applied::Closed(super::family::ArrivalSpec::apply(
+            open.core,
             super::Center {
                 c,
                 winding,
@@ -2220,211 +2349,117 @@ fn do_arrival<T: ArcCarrierScalar>(
             },
             tol,
         )?)),
-        ArcData::Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(ArrivalSpec::apply(
-            core,
-            super::Radius { r, side },
-            tol,
-        )?))),
-        ArcData::Via {
-            q,
-            target: Target::Point(p),
-        } => Ok(Applied::Tip(DynTip::ViaArrival(ArrivalSpec::apply(
-            core,
-            super::Via { q, p },
-            tol,
-        )?))),
-        ArcData::Via {
-            q,
-            target: Target::Start,
-        } => Ok(Applied::Tip(DynTip::ViaArrivalStart(ArrivalSpec::apply(
-            core,
-            super::Via { q, p: Start },
-            tol,
-        )?))),
-        ArcData::Bulge { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
-            violation(state, verb)
-        }
+        Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(
+            super::family::ArrivalSpec::apply(open.core, super::Radius { r, side }, tol)?,
+        ))),
+        Via { q } @ Point(p) => Ok(Applied::Tip(DynTip::ViaArrival(
+            super::family::ArrivalSpec::apply(open.core, super::Via { q, p }, tol)?,
+        ))),
+        Via { q } @ Start => Ok(Applied::Tip(DynTip::ViaArrivalStart(
+            super::family::ArrivalSpec::apply(open.core, super::Via { q, p: Start }, tol)?,
+        ))),
+    }
+    refuse { Center @ StartArriving, Via @ StartArriving, Bulge, Sweep, ArcLen }
+}
+
+spec_dispatch! {
+    /// The fused incoming from a PLAIN point tip: the endpoint-full
+    /// modes, to an interior anchor.
+    forms FUSED_POINT;
+    fn do_fused_point [<T: ArcCarrierScalar>(
+        p: PartialPath<T, HasPos<Plain>, NoAng>,
+        spec: ArcData<T>,
+        radius: T,
+        state: TipState,
+        verb: Verb,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(verb) };
+    admit {
+        Bulge { b } @ Point(q) => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius, tol)?),
+        Via { q } @ Point(t) => Ok(p.arc_fillet(super::Via { q, p: t }, radius, tol)?),
+        Center { c, winding } @ Point(t) => {
+            Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?)
+        },
+    }
+    refuse {
+        Bulge @ Start, Bulge @ StartArriving,
+        Via @ Start, Via @ StartArriving,
+        Center @ Start, Center @ StartArriving,
+        Radius, Sweep, ArcLen,
     }
 }
 
-/// The fused incoming from a PLAIN point tip (the endpoint-full modes).
-fn do_fused_point<T: ArcCarrierScalar>(
-    p: PartialPath<T, HasPos<Plain>, NoAng>,
-    spec: ArcData<T>,
-    radius: T,
-    state: TipState,
-    verb: Verb,
-    tol: Tol,
-) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
-    match spec {
-        // See `declared_arrival_not_on_this_row`.
-        ArcData::Bulge {
-            target: Target::StartArriving,
-            ..
-        }
-        | ArcData::Via {
-            target: Target::StartArriving,
-            ..
-        }
-        | ArcData::Center {
-            target: Target::StartArriving,
-            ..
-        } => declared_arrival_not_on_this_row(state, verb),
-        ArcData::Bulge {
-            target: Target::Point(q),
-            b,
-        } => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius, tol)?),
-        ArcData::Via {
-            q,
-            target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Via { q, p: t }, radius, tol)?),
-        ArcData::Center {
-            c,
-            winding,
-            target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?),
-        ArcData::Bulge {
-            target: Target::Start,
-            ..
-        }
-        | ArcData::Via {
-            target: Target::Start,
-            ..
-        }
-        | ArcData::Center {
-            target: Target::Start,
-            ..
-        }
-        | ArcData::Radius { .. }
-        | ArcData::Sweep { .. }
-        | ArcData::ArcLen { .. } => Err(ReplayErrorKind::Transition {
-            state,
-            verb: Some(verb),
-        }),
+spec_dispatch! {
+    /// The fused incoming from a DIRECTED POINT (leg end): the
+    /// endpoint-full modes plus `Radius` — arc extension (§2c
+    /// dissolution).
+    forms FUSED_LEG_END;
+    fn do_fused_leg_end [<T: ArcCarrierScalar>(
+        p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+        spec: ArcData<T>,
+        radius: T,
+        state: TipState,
+        verb: Verb,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(verb) };
+    admit {
+        Bulge { b } @ Point(q) => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius, tol)?),
+        Via { q } @ Point(t) => Ok(p.arc_fillet(super::Via { q, p: t }, radius, tol)?),
+        Center { c, winding } @ Point(t) => {
+            Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?)
+        },
+        Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius, tol)?),
+    }
+    refuse {
+        Bulge @ Start, Bulge @ StartArriving,
+        Via @ Start, Via @ StartArriving,
+        Center @ Start, Center @ StartArriving,
+        Sweep, ArcLen,
     }
 }
 
-/// The fused incoming from a DIRECTED POINT (leg end): the endpoint-full
-/// modes plus `Radius` — arc extension (§2c dissolution).
-fn do_fused_leg_end<T: ArcCarrierScalar>(
-    p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
-    spec: ArcData<T>,
-    radius: T,
-    state: TipState,
-    verb: Verb,
-    tol: Tol,
-) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
-    match spec {
-        // See `declared_arrival_not_on_this_row`.
-        ArcData::Bulge {
-            target: Target::StartArriving,
-            ..
-        }
-        | ArcData::Via {
-            target: Target::StartArriving,
-            ..
-        }
-        | ArcData::Center {
-            target: Target::StartArriving,
-            ..
-        } => declared_arrival_not_on_this_row(state, verb),
-        ArcData::Bulge {
-            target: Target::Point(q),
-            b,
-        } => Ok(p.arc_fillet(super::Bulge { p: q, b }, radius, tol)?),
-        ArcData::Via {
-            q,
-            target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Via { q, p: t }, radius, tol)?),
-        ArcData::Center {
-            c,
-            winding,
-            target: Target::Point(t),
-        } => Ok(p.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?),
-        ArcData::Radius { r, side } => Ok(p.arc_fillet(super::Radius { r, side }, radius, tol)?),
-        ArcData::Bulge {
-            target: Target::Start,
-            ..
-        }
-        | ArcData::Via {
-            target: Target::Start,
-            ..
-        }
-        | ArcData::Center {
-            target: Target::Start,
-            ..
-        }
-        | ArcData::Sweep { .. }
-        | ArcData::ArcLen { .. } => Err(ReplayErrorKind::Transition {
-            state,
-            verb: Some(verb),
-        }),
-    }
-}
-
-/// The fused incoming from a DIRECTED tip (the endpoint-free modes).
-fn do_fused_directed<T: ArcCarrierScalar, F: Flavor>(
-    p: PartialPath<T, HasPos<F>, HasAng>,
-    spec: ArcData<T>,
-    radius: T,
-    state: TipState,
-    verb: Verb,
-    tol: Tol,
-) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
-    match spec {
-        ArcData::Sweep { r, side, angle } => {
+spec_dispatch! {
+    /// The fused incoming from a DIRECTED tip: the endpoint-free modes.
+    forms FUSED_DIRECTED;
+    fn do_fused_directed [<T: ArcCarrierScalar, F: Flavor>(
+        p: PartialPath<T, HasPos<F>, HasAng>,
+        spec: ArcData<T>,
+        radius: T,
+        state: TipState,
+        verb: Verb,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>>]
+    match spec refuse ReplayErrorKind::Transition { state, verb: Some(verb) };
+    admit {
+        Sweep { r, side, angle } => {
             Ok(p.arc_fillet(super::Sweep { r, side, angle }, radius, tol)?)
-        }
-        ArcData::ArcLen { r, side, len } => {
-            Ok(p.arc_fillet(super::ArcLen { r, side, len }, radius, tol)?)
-        }
-        ArcData::Radius { .. }
-        | ArcData::Bulge { .. }
-        | ArcData::Via { .. }
-        | ArcData::Center { .. } => Err(ReplayErrorKind::Transition {
-            state,
-            verb: Some(verb),
-        }),
+        },
+        ArcLen { r, side, len } => Ok(p.arc_fillet(super::ArcLen { r, side, len }, radius, tol)?),
     }
+    refuse { Radius, Bulge, Via, Center }
 }
 
-/// The fused incoming at the ENTRY (`Center` alone can seed).
-fn do_fused_entry<T: ArcCarrierScalar>(
-    spec: ArcData<T>,
-    radius: T,
-    tol: Tol,
-) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>> {
-    match spec {
-        // See `declared_arrival_not_on_this_row`.
-        ArcData::Bulge {
-            target: Target::StartArriving,
-            ..
-        }
-        | ArcData::Via {
-            target: Target::StartArriving,
-            ..
-        }
-        | ArcData::Center {
-            target: Target::StartArriving,
-            ..
-        } => declared_arrival_not_on_this_row(TipState::Entry, Verb::ArcFillet),
-        ArcData::Center {
-            c,
-            winding,
-            target: Target::Point(t),
-        } => Ok(Open.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?),
-        ArcData::Center {
-            target: Target::Start,
-            ..
-        }
-        | ArcData::Radius { .. }
-        | ArcData::Bulge { .. }
-        | ArcData::Via { .. }
-        | ArcData::Sweep { .. }
-        | ArcData::ArcLen { .. } => Err(ReplayErrorKind::Transition {
-            state: TipState::Entry,
-            verb: Some(Verb::ArcFillet),
-        }),
+spec_dispatch! {
+    /// The fused incoming at the ENTRY: `Center` alone can seed, to an
+    /// interior anchor.
+    forms FUSED_ENTRY;
+    fn do_fused_entry [<T: ArcCarrierScalar>(
+        spec: ArcData<T>,
+        radius: T,
+        verb: Verb,
+        tol: Tol,
+    ) -> Result<PartialPath<T, NoPos, NoAng>, ReplayErrorKind<T>>]
+    match spec refuse ReplayErrorKind::Transition { state: TipState::Entry, verb: Some(verb) };
+    admit {
+        Center { c, winding } @ Point(t) => {
+            Ok(Open.arc_fillet(super::Center { c, winding, p: t }, radius, tol)?)
+        },
+    }
+    refuse {
+        Center @ Start, Center @ StartArriving,
+        Radius, Bulge, Via, Sweep, ArcLen,
     }
 }
 
@@ -2496,7 +2531,8 @@ pub fn replay_recording<T: ArcCarrierScalar>(
 /// [`PathError::Structure`] for a decision that could not be
 /// reproduced. A record describing a different number of resolutions
 /// than the program reaches is refused the same way, and so is one
-/// whose per-step segment spans this pass did not reproduce.
+/// whose per-step segment spans — or whose per-radius emissions —
+/// this pass did not reproduce.
 pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
@@ -2539,6 +2575,30 @@ pub fn replay_guided<T: ArcCarrierScalar>(
                 Decision::StepSpan { step },
                 DecisionValue::Span(*recorded),
                 DecisionValue::Span(*found),
+            )));
+        }
+    }
+    // The radius emissions, checked here for the reason the spans are:
+    // this pass reports what IT emitted, so the record is consumed
+    // rather than carried along unread, and a pass that emitted an arc
+    // from a different authored radius than the record names says so.
+    if structure.radii.len() != closed.structure.radii.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.radii.len(),
+            closed.structure.radii.len(),
+        )));
+    }
+    for (at, (recorded, found)) in structure
+        .radii
+        .iter()
+        .zip(&closed.structure.radii)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::RadiusEmission { at },
+                DecisionValue::Emission(*recorded),
+                DecisionValue::Emission(*found),
             )));
         }
     }

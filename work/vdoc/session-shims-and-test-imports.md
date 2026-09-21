@@ -5,6 +5,8 @@ title: The split's pub use shims leave two spellings of every moved path, and re
 status: open
 opened: 2026-09-04
 refs: [viewer-session-god-module-split]
+priority: P4
+cost: E
 ---
 
 

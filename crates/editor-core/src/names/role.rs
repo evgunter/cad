@@ -402,12 +402,24 @@ impl core::error::Error for NotAFaceName {}
 /// program that does not compile rather than a document some door has
 /// to refuse.
 ///
-/// **Three boundaries produce names from data and each calls
-/// [`FaceName::new`]**: the wire (this type's `Deserialize`, so a file
-/// whose mate head names an edge refuses at the load door's parse),
-/// the Python binding's name-from-text door, and any future reader of
-/// authored text. Everything inside the crate receives a `FaceName`
-/// already made.
+/// **Where a `FaceName` comes from — the whole census, and its one
+/// home.** Three boundaries turn DATA into a face name and each calls
+/// [`FaceName::new`], which is where the kind is still a question:
+///
+/// - the WIRE — this type's `Deserialize`, so a file whose mate head
+///   or interface crossing names an edge refuses at the load door's
+///   own parse;
+/// - the PYTHON binding's name-from-text door
+///   (`pncad-py`'s `py::doc`), which answers the refusal as a typed
+///   Python error;
+/// - the VIEWER's picked face (`viewer`'s mate tool), where a pick is
+///   data until the kind is asked.
+///
+/// Inside the crate a face name is never re-asked, only re-derived:
+/// `FaceName::map_derivation` (crate-private, below) is the single
+/// door, and its signature cannot change a kind. The split's remap
+/// (`refactor::remap_face`) and the `Rebind` repair
+/// (`Node::rebind_payload_names`) are its two callers.
 ///
 /// The inner name is reachable by [`Deref`](core::ops::Deref) and
 /// [`AsRef`], never by a public field: a field could be assigned and
@@ -429,6 +441,33 @@ impl FaceName {
     /// The name back out, owned.
     pub fn into_name(self) -> StableName {
         self.0
+    }
+
+    /// **The one in-crate way a face name is re-made**: this face's
+    /// DERIVATION rewritten, its kind untouched.
+    ///
+    /// `rewrite` is handed the minting node and the role path — the
+    /// whole of what a name derives from — and answers the new pair.
+    /// It is never handed the KIND and cannot return one, so a rewrite
+    /// that produced a non-face is not a state this signature can
+    /// express: there is no arm to refuse, assert away or call
+    /// unreachable. That is the difference from [`FaceName::new`],
+    /// which is the door for data whose kind is still a question.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `rewrite` answers — the rewrite's own miss, carried
+    /// through unchanged.
+    pub(crate) fn map_derivation<E>(
+        &self,
+        rewrite: impl FnOnce(RecipeNodeId, &[RoleSeg]) -> Result<(RecipeNodeId, RolePath), E>,
+    ) -> Result<Self, E> {
+        let (node, path) = rewrite(self.0.node, &self.0.path)?;
+        Ok(Self(StableName {
+            kind: self.0.kind,
+            node,
+            path,
+        }))
     }
 }
 
@@ -807,11 +846,12 @@ pub enum RoleSeg {
     /// member's own names are therefore a function of the member's
     /// identity alone — neither its position nor how many members
     /// precede it — which is what lets a member be dropped without
-    /// renaming the rest. A declaration written in these names keeps
-    /// that identity through the fold's MERGES: a member's face that a
-    /// declared merge has consumed resolves, at the step its pair is
-    /// fed to, to the accumulation's `Merged` row whose flat
-    /// constituent set holds it. A face consumed any other way — by a
+    /// renaming the rest. A declaration, which names a member's entity
+    /// SITED at that member and is rewritten into this wrapper at the
+    /// routing door, keeps that identity through the fold's MERGES: a
+    /// member's face that a declared merge has consumed resolves, at
+    /// the step its pair is fed to, to the accumulation's `Merged` row
+    /// whose flat constituent set holds it. A face consumed any other way — by a
     /// split, by containment, or inside a merged row later fragmented
     /// — is not looked through, and a pair naming it is order-shaped
     /// ([`crate::Node::Union`] states the bound).
@@ -1267,12 +1307,11 @@ pub(crate) use name_free_seg;
 /// PATTERN rather than a predicate.
 ///
 /// A union's value is a fold of the pair verb, so a fold table is a
-/// boolean table and this is the same list for both. Three matches
+/// boolean table and this is the same list for both. Two matches
 /// classify segments by it and each does something different with the
 /// half it does recognize — the rewrite descends a name's head
-/// (`emit_union`'s `collapse`), rebuilds its tail, and the routing
-/// walk (`eval::wire`'s `latest_member`) reads member ids out of it.
-/// Only the negative answer is common, so only the negative answer is
+/// (`emit_union`'s `collapse`) and rebuilds its tail. Only the
+/// negative answer is common, so only the negative answer is
 /// shared, and it is shared as an or-pattern for the reason
 /// [`name_free_seg`] is: none of the three loses its exhaustiveness,
 /// so a variant added to [`RoleSeg`] and not added here still stops

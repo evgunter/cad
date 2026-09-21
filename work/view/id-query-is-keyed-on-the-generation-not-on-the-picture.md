@@ -4,9 +4,11 @@ kind: issue
 title: The id query is re-asked on a new generation, so a scene rebuilt at the same generation leaves a stale GPU answer to be compared
 status: closed
 opened: 2026-09-15
+closed: 2026-09-14
 branch: view/id-query-key
 pr: 2622
-closed: 2026-09-15
+priority: P1
+cost: D
 ---
 
 

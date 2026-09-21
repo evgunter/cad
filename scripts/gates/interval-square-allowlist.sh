@@ -288,6 +288,11 @@ CENSUS_REGISTER=(
   "two-statement|crates/geom-brep/src/props/quad.rs|let a3 = a1 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
   "two-statement|crates/geom-brep/src/props/quad.rs|let a5 = a3 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
   "two-statement|crates/geom-brep/src/props/quad.rs|let a7 = a5 * a2|1|no factor straddles zero: a1 is pt(s.abs()) and a2 is a1.sqr(), both nonnegative, so the plain product is already the tight bound"
+  # The spiric's radial pair: `rho = R + r·cos v` is AFFINE in `c`, and
+  # the product the matcher pairs it with (`rho * c` in `deriv2`'s f″)
+  # multiplies two distinct quantities, ρ and cos v — there is no x·x
+  # here for `powi` to tighten.
+  "two-statement|crates/geom/src/curves.rs|let rho = major + minor * c|1|not a square: rho = R + r·cos v is affine in c, and rho * c (deriv2's f″ term) is a product of two distinct quantities, ρ and cos v"
 )
 
 # Set by `--register FILE`, which replaces the array above. It exists so

@@ -2,8 +2,11 @@
 id: mate-frames-resolve-from-a-face-at-evaluation
 kind: issue
 title: a MateFrame arm that names a face and resolves at evaluation, and A11's inputs sentence
-status: open
+status: parked
 opened: 2026-09-09
+blocked_on: [MSOLVE-9]
+priority: P0
+cost: H
 ---
 
 Handed over by LIB under Ev's ruling (F) on
@@ -53,3 +56,16 @@ the wording is this program's to draft.
 
 (A) — a door that freezes a face's frame into authored numbers — is
 not built separately: freezing is materializing the arm.
+
+## Drafted (2026-09-19, MSOLVE orchestrator)
+
+Spec `docs/MSOLVE-9-SPEC.md`; the A11 rule 5 inputs sentence drafted
+in `crates/editor-core/ASSEMBLY.md` on the same `[ev]` PR, for Ev.
+DESIGN.md itself carries no A11 sentence (measured: `grep -n A11
+docs/DESIGN.md` is empty; the ratified home is the companion page),
+so the revision is the page's sentence plus the two module docs and
+the Python docstring the unit repoints. The road: `MateReach` gains
+`face_pose`, answered from the cached `PartValue`'s own body and name
+table in the part's coordinates — so no placement pull-back, which
+is what the viewer's tool does today and what the arm retires.
+Parked on MSOLVE-9.

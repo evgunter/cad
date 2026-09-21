@@ -4,7 +4,9 @@ kind: issue
 title: nurbs_face_bound is UNSOUND on a random rational surface: r1_random_rational_soundness_sweep failed hosted at seed 0xdae51dbd4e1b79fd
 status: open
 opened: 2026-09-04
-refs: [1850]
+refs: [1850, rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes]
+priority: P0
+cost: H
 ---
 
 
@@ -124,3 +126,61 @@ Evidence added by the `dup-brick` lane (S-DUP), which drew the seed.
 ## Re-homed at S-MESH's exit (2026-09-16)
 
 Moved from `work/mesh/` to TESS (opened at this exit as S-MESH's successor for the tessellation kernel) when S-MESH closed (`docs/S-MESH-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## CORRECTION, 2026-09-18 — one defect, not two, and it is not in `mesh`
+
+Measured by TESS's diagnostic lane (`tess/nurbs-bound-diag` at
+`db4cb45a8`); the orchestrator checked the message order and the
+refinement site against the tree.
+
+**"The failure" above reads the assertion's tuples backwards.** The
+message prints `(sampled) vs (bound)`, so on 2026-09-04 `6.996e-1` was
+the sampled `wvv` and `7.116e-1` the bound: `vv` PASSED with 1.7 % of
+room. The red component was `uu`, by two ULPs (sampled
+2.66033199807363996, bound 2.66033199807363907) — the same defect as
+the 2026-09-16 instance. "Why this is a real finding" §, "What is
+owed" item 2's `vv` pointer and item 3, and "it is NOT the same defect"
+are all wrong as written; they are left in place as the record and
+this section supersedes them. The 2026-09-04 seed no longer reproduces:
+`47437f2b4` changed the generator's `mk`, so the seed draws other
+surfaces now (it reproduces with the old `mk` restored).
+
+**The cause** is `geom_brep::patch_bound::rational_cells` hulling the
+`f64`-refined net — PROPS' file, filed there with the exact-arithmetic
+measurements:
+`work/tess/rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes.md`.
+The certificate IS the defect (the described surface's true `‖S_uu‖`
+exceeds `muu` by 3e-16 relative, in exact rational arithmetic), not the
+test's bare `<=`.
+
+**What stays TESS's on this row:**
+
+1. The assertion messages that made the misreading possible —
+   `r1_random_rational_soundness_sweep` prints `{:.3e}` and
+   `assert_dominates` `{:.6e}`, neither labels which tuple is which.
+   Print `{:.17e}`, labelled, and name the red component.
+2. `nurbs_cert.rs`'s header sentence "interval (ring) arithmetic end to
+   end", false on the rational arm today; re-worded or kept according
+   to the close PROPS lands.
+3. This row closes when the sweep is green over a bilinear-stratified
+   census on PROPS' fix — the general sweep draws bilinear patches 1/9
+   of the time, which is why two hosted hits took 4,385 runs.
+
+## 2026-09-18 — item 1 of "What stays TESS's" landed; the row stays open
+
+`r1_random_rational_soundness_sweep`, `assert_dominates` and their
+siblings in `crates/mesh` now fail through one spelling,
+`nurbs_cert::tests::Domination`: every number labelled with its side
+(`sampled` / `certified`), printed at `{:.17e}`, and each escaping
+component named with its excess. The 2026-09-16 seed now reads
+
+```
+UNSOUND at trial 29 (degree 1x1): `uu` ESCAPES: sampled 1.24859234123372476e0
+exceeds certified 1.24859234123372431e0 by 4.44089209850062616e-16 (3.557e-16
+of the certified); all components (uu, uv, vv): sampled (…) against certified (…)
+```
+
+**What is asserted did not change** — the comparison is still the bare
+`<=` with no allowance, so the row still goes red on the seeds that
+expose PROPS' defect, and that is correct until PROPS' fix lands. Items
+2 and 3 above are untouched.

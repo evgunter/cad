@@ -13756,3 +13756,47 @@ and `the-dying-seam-fakes-mirror-a-machine-they-do-not-share`.
 
 Signed (VIEW implementer lane `view/dead-seam-badge`, after Ev's
 second ruling).
+
+## 2026-09-21 — five rows were merged and never closed
+
+Found by the `vseam/gesture-naming` lane, which read VSEAM's Order item
+7 as waiting on `two-hand-written-copies-of-the-g1-gesture-machine` and
+then found `crates/viewer/src/g1.rs` sitting on `main`. The row still
+read `status: review`.
+
+It was not one row. Five VIEW rows carried `status: review` with a `pr:`
+whose work is on `main`:
+
+| row | PR | merged |
+|---|---|---|
+| `id-query-is-keyed-on-the-generation-not-on-the-picture` | 2622 | 2026-09-14 |
+| `a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see` | 2662 | 2026-09-15 |
+| `the-two-seams-are-hand-maintained-twins` | 2666 | 2026-09-15 |
+| `the-picture-key-never-became-a-type` | 2670 | 2026-09-15 |
+| `two-hand-written-copies-of-the-g1-gesture-machine` | 2672 | 2026-09-15 |
+
+The orchestrator merged all five and closed none of them. `review` means
+*a PR is open over this*, so for six days the board said five units were
+awaiting review that had already landed.
+
+**It propagated.** The cut (#2806) deliberately kept the `review` rows on
+VIEW rather than re-homing them, on the stated ground that *"their lanes
+are editing those exact files on `view/` branches"*. That premise was
+false when it was written — every one of those branches had merged — so
+five rows stayed on a program that is winding down instead of going to
+the successors that own their ground, and VSEAM's plan recorded a wait on
+a trigger that had already fired.
+
+**Two instrument errors while establishing this, both already in the
+register and both made anyway.** `git log --grep="Merge pull request
+#N "` returned nothing for all five, which reads as *not merged*; the
+repository uses at least two merge-commit title formats and these five
+landed as `VIEW: … (#N)`. The pattern was the wrong population, not the
+answer. And the first reading of that nil result was *the clone is
+shallow, so the pickaxe proves nothing* — also a register rule, also
+reached for, and also wrong here: the history goes back to 2026-07-13.
+A nil result has more than one explanation and the rule that names one
+of them is not a diagnosis.
+
+Closed with their merge dates. `4889b7c3d2` and its four siblings each
+carry two parents, so merge-only held; only the bookkeeping lapsed.

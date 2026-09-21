@@ -989,6 +989,45 @@ pub struct Indeterminate {
 pub const COINCIDENCE_RECOURSE: &str =
     "declare the coincidence, move the geometry, or lower the tolerance";
 
+/// The one answer a refusal gives when the table that routes its
+/// recourse by predicate name does not carry the name that escalated:
+/// it NAMES the hole. Never a category asserted over the unknown name,
+/// never silence — both read as a statement about the escalation, and
+/// neither is one anybody made.
+///
+/// Every `Display` that routes a recourse by predicate name composes
+/// this on its fall-through arm. The home is here because the crates
+/// that route are `profile` and `sweep`, and this crate is the only
+/// ancestor they share: `sweep` depends on `profile`, `profile` on
+/// `geom-core` alone, so a sentence held in either of them is out of
+/// reach of the other.
+///
+/// **It reports an absence, never a denial.** The refusal it tails has
+/// already rendered [`Indeterminate`]'s own Display, which ends in
+/// [`COINCIDENCE_RECOURSE`] — real advice. So this says the TABLE holds
+/// nothing further, not that the advice above is not advice; a door
+/// that has DECIDED a predicate needs nothing further says so itself
+/// rather than reaching this sentence.
+///
+/// The predicate is spelled the way [`IndeterminatePayload`] spells it
+/// in the same refusal — `'name'`, and a nameless decision named as
+/// one — so one refusal does not carry two spellings of one field.
+#[derive(Debug, Clone, Copy)]
+pub struct MissingRecourse<'a>(pub Option<&'a str>);
+
+impl fmt::Display for MissingRecourse<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded")?,
+            None => f.write_str("no recourse is recorded for this unnamed decision")?,
+        }
+        f.write_str(
+            ": the shared clause above is all this door can say about it, and that absence \
+             is a gap in the error table rather than a finding that nothing further applies",
+        )
+    }
+}
+
 /// Borrowed margin-payload view of an [`Indeterminate`]: the predicate
 /// name, the margin/enclosure data, and the band — WITHOUT the shared
 /// recourse tail. For per-site Display impls that compose the
@@ -1627,10 +1666,9 @@ mod tests {
             )
         );
 
-        // The interval variant's wording (the variant itself is not
-        // feature-gated — it is constructed here directly; the interval
-        // scalar that produces it organically lives behind the `interval`
-        // feature and has its own tests).
+        // The interval variant's wording; it is constructed here
+        // directly, because the interval scalar that produces it
+        // organically has its own tests.
         let enclosure = Indeterminate {
             margin: MarginDiag::Enclosure {
                 lo: -2e-9,

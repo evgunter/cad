@@ -5,6 +5,8 @@ title: the lift census comparator classes a lift whose vertex table is bit-ident
 status: open
 opened: 2026-09-08
 refs: [2135]
+priority: P0
+cost: D
 ---
 
 Found by BOOL-10 (PR 2135) when `repair_same_carrier` was re-targeted

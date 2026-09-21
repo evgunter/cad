@@ -1,7 +1,7 @@
 //! GUI-1 Part B: the hit-test service (`resolve::pick`) end-to-end
 //! through the public doors — every face of a real tessellated box
 //! picks to a distinct resolvable `StableName`; a ray down a shared
-//! edge resolves by the documented tie-break; a miss is the typed
+//! edge refuses with both the faces it belongs to; a miss is the typed
 //! miss; unusable nodes surface their typed `HitTestError`; two-body
 //! occlusion orders by `t` regardless of target order; and the whole
 //! thing is deterministic.
@@ -148,12 +148,12 @@ fn picks_every_face_of_a_box() {
 }
 
 /// A ray down the shared edge `x = 1 ∧ z = 1` hits the top and +x
-/// faces at the same exact `t`; the documented tie-break (earlier
-/// target, then earlier flat triangle = earlier patch in face-arena
-/// order) picks the LOWER-indexed of the two patches — asserted
-/// against the mesh, and repeatable.
+/// faces at the same exact `t`, and the geometry does not say which
+/// of them is in front — so the door names NEITHER and refuses with
+/// both, one true hit each, listed in face-arena order. Repeatable,
+/// and asserted against the mesh's own two patches.
 #[test]
-fn edge_ray_between_two_faces_resolves_deterministically() {
+fn an_edge_ray_between_two_faces_refuses_with_both() {
     let doc = ProfileDoc::empty_derived("gui1_pick_edge", Tol::witness());
     let (doc, ext) = cube_doc_node(doc, 0.0);
     let ev = run(&doc);
@@ -165,21 +165,22 @@ fn edge_ray_between_two_faces_resolves_deterministically() {
     // (z = 1) and the +x (x = 1) faces. All coordinates dyadic, so
     // both faces' exact tests answer t = 1.0 bit-exactly.
     let r = ray([2.0, 0.5, 2.0], [-1.0, 0.0, -1.0]);
-    let hit = pick_face(&ev, &targets, &r)
-        .expect("no hit-test error")
-        .expect("edge ray hits");
-    assert_eq!(hit.t, 1.0);
+    let Err(HitTestError::Ambiguous { hits }) = pick_face(&ev, &targets, &r) else {
+        panic!("the edge ray is tied between two faces and refuses");
+    };
+    assert_eq!(hits.len(), 2, "one hit per tied face: {hits:?}");
+    for hit in &hits {
+        assert_eq!(hit.t, 1.0, "each tied hit is the exact dyadic t");
+    }
 
-    // Determinism: the same pick answers identically.
-    let again = pick_face(&ev, &targets, &r)
-        .expect("no hit-test error")
-        .expect("edge ray hits");
-    assert_eq!(hit.name, again.name);
-    assert_eq!(hit.t.to_bits(), again.t.to_bits());
+    // Determinism: the same pick refuses identically.
+    let Err(HitTestError::Ambiguous { hits: again }) = pick_face(&ev, &targets, &r) else {
+        panic!("and refuses the same way on the second ask");
+    };
+    assert_eq!(hits, again, "the refusal is the same value, to the bit");
 
-    // The documented tie-break: of the two patches containing the
-    // edge, the one earlier in `Mesh::patches` (face-arena) order
-    // wins, because flat triangle order is patch-major.
+    // The refusal LISTS the two patches containing the edge in
+    // face-arena order, because flat triangle order is patch-major.
     let top = mesh
         .patches
         .iter()
@@ -190,11 +191,22 @@ fn edge_ray_between_two_faces_resolves_deterministically() {
         .iter()
         .position(|p| patch_on_plane(&mesh, p, 0, 1.0))
         .expect("+x patch");
-    let expected = &mesh.patches[top.min(px)];
-    let got = resolved_patch(&doc, &ev, &mesh, &hit.name);
+    let mut expected = [top, px];
+    expected.sort_unstable();
+    let got: Vec<usize> = hits
+        .iter()
+        .map(|hit| {
+            let face = resolved_patch(&doc, &ev, &mesh, &hit.name).face;
+            mesh.patches
+                .iter()
+                .position(|p| p.face == face)
+                .expect("the tied face is a patch of this mesh")
+        })
+        .collect();
     assert_eq!(
-        got.face, expected.face,
-        "tie resolves to the earlier patch (top {top}, +x {px})"
+        got,
+        expected.to_vec(),
+        "both tied faces are named, earlier patch first (top {top}, +x {px})"
     );
 }
 

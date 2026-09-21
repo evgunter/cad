@@ -103,7 +103,10 @@ fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
 
 /// A host with one kept instance of `doc_ref` mated to a local block:
 /// the mate welds nothing before the split (its far end is no member)
-/// and welds the kept instance to the new part instance after it.
+/// and welds the kept instance to the new part instance after it. The
+/// insert door refuses a head that resolves to no member, so the mate
+/// is authored the way such a head arises after insert
+/// (`insert_mate_with_stranded_head`).
 fn kept_instance_mated_to_a_local_block(
     label: &str,
     doc_ref: DocRef,
@@ -111,7 +114,12 @@ fn kept_instance_mated_to_a_local_block(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, kept) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, cut, body) = local_block(doc, 3.0);
-    let (doc, _) = insert(doc, mate(in_part(kept, CapEnd::Start), local_cap(body)));
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
+        doc,
+        mate(in_part(kept, CapEnd::Start), local_cap(body)),
+        editor_core::MateSide::B,
+        kept,
+    );
     assert_eq!(
         clusters(&doc),
         vec![vec![kept]],
@@ -137,6 +145,7 @@ fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
         &cut,
         DocumentId::derive("eval4-r1-cell"),
         Tol::witness(),
+        None,
     )
     .expect("a local block whose only outside reference is a mate operand cuts");
     assert_eq!(
@@ -183,11 +192,17 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
     );
     assert_eq!(clusters(&doc), vec![vec![a, b]], "one cluster, two members");
 
+    // Both sides of this cut move a gauge (the remainder's mate delete
+    // splits the cluster, the part's mate insert joins it), so each
+    // side's maintenance solve levers the instances' part through the
+    // store — a cut given no resolver refuses the same solve typed.
+    let store: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let out = split(
         &doc,
         &BTreeSet::from([a, b, joint]),
         DocumentId::derive("eval4-r2-cell"),
         Tol::witness(),
+        Some(&store),
     )
     .expect("a whole cluster and its mate cut");
     let (pa, pb) = (out.node_map[&a], out.node_map[&b]);
@@ -232,11 +247,17 @@ fn inline_records_the_split_its_re_anchoring_performs() {
         &cut,
         DocumentId::derive("eval4-r3-cell"),
         Tol::witness(),
+        None,
     )
     .expect("cuts");
     store.insert(out.part.clone(), Tol::witness());
-    let back = inline(&out.remainder, out.instance, &store, Tol::witness())
-        .expect("the instance inlines back");
+    let back = inline(
+        &out.remainder,
+        out.instance,
+        &(std::sync::Arc::new(store) as std::sync::Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("the instance inlines back");
     assert_eq!(
         clusters(&back.doc),
         vec![vec![kept]],

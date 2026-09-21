@@ -1056,8 +1056,8 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     let mut det = true;
                     for i in 1..(geom_brep::CERT_SAMPLES - 1) {
                         let t = geom_brep::sample_param(t0, t1, i);
-                        let p = c.carrier().eval(t);
-                        let jet = geom_brep::tangent_jet(surf1, surf2, p, c.carrier().deriv(t));
+                        let (p, tau) = c.carrier().ders1(t);
+                        let jet = geom_brep::tangent_jet(surf1, surf2, p, tau);
                         let arm = geom_brep::curvature_lever_arm(surf1, p)
                             .min(geom_brep::curvature_lever_arm(surf2, p))
                             .min(extent);
@@ -2519,56 +2519,27 @@ mod tests {
     #[test]
     fn nurbs_faces_refuse_typed_at_both_doors() {
         use crate::boolean::{BooleanDeclarations, SweepStrategy, boolean_op_with};
-        use crate::euler::{MefSite, MevSite};
-        use crate::fixtures::ops_cube;
+        use crate::test_support_fixtures::{FaceGeometry, UNIT_SQUARE, declined_cube, prism_ops};
         use geom_core::Point3;
 
-        // The ops_cube recipe, x-shifted (the fixture is anchored at
-        // the origin; the far copy needs disjoint certified boxes so
-        // the realized sweep examines no pair at all).
+        // `declined_cube`, x-shifted: the same builder under one
+        // translating map. The fixture is anchored at the origin, and
+        // this operand needs a disjoint certified box so the realized
+        // sweep examines no pair at all.
         let far_cube = |dx: f64| {
-            let pt = |x: f64, y: f64, z: f64| Point3::new(x + dx, y, z);
             let mut body = crate::Body::<f64>::new();
-            let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
-            let e_ab = body
-                .mev_line(
-                    MevSite::Lone {
-                        r#loop: seed.r#loop,
-                    },
-                    pt(1.0, 0.0, 0.0),
-                    Tol::witness(),
-                )
-                .unwrap();
-            let strut = |body: &mut crate::Body<f64>, at, x, y, z| {
-                body.mev_line(
-                    MevSite::Fan { he1: at, he2: at },
-                    pt(x, y, z),
-                    Tol::witness(),
-                )
-                .unwrap()
-            };
-            let mef = |body: &mut crate::Body<f64>, he1, he2| {
-                body.mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
-                    .unwrap()
-            };
-            let e_bc = strut(&mut body, e_ab.he_minus, 1.0, 1.0, 0.0);
-            let e_cd = strut(&mut body, e_bc.he_minus, 0.0, 1.0, 0.0);
-            let he_dc = body
-                .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-                .unwrap();
-            let f_bottom = mef(&mut body, he_dc, e_ab.he_plus);
-            let e_aa = strut(&mut body, e_ab.he_plus, 0.0, 0.0, 1.0);
-            let e_bb = strut(&mut body, e_bc.he_plus, 1.0, 0.0, 1.0);
-            let e_cc = strut(&mut body, e_cd.he_plus, 1.0, 1.0, 1.0);
-            let e_dd = strut(&mut body, f_bottom.he_plus, 0.0, 1.0, 1.0);
-            let f_front = mef(&mut body, e_aa.he_minus, e_bb.he_minus);
-            let _ = mef(&mut body, e_bb.he_minus, e_cc.he_minus);
-            let _ = mef(&mut body, e_cc.he_minus, e_dd.he_minus);
-            let _ = mef(&mut body, e_dd.he_minus, f_front.he_plus);
+            prism_ops(
+                &mut body,
+                &UNIT_SQUARE,
+                (0.0, 1.0),
+                |x, y, z| Point3::new(x + dx, y, z),
+                FaceGeometry::Declined,
+                Tol::witness(),
+            );
             body
         };
 
-        let a = ops_cube(Tol::witness()).body;
+        let a = declined_cube::<f64>(Tol::witness()).body;
         let b = far_cube(10.0);
         let err = boolean_op_with(
             BooleanOp::Union,

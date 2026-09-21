@@ -138,6 +138,7 @@ use geom_core::{
     Vec2,
 };
 
+use crate::path::num;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
@@ -254,6 +255,13 @@ pub enum FilletLegCarrier {
 }
 
 impl fmt::Display for FilletLegCarrier {
+    /// Both scalars render through `path::num`, the one grid
+    /// this crate's refusal sentences are spelled on: this sentence is
+    /// interpolated into
+    /// [`crate::path::CornerReason::AnchorOutsideTrimmedExtent`]'s,
+    /// whose own scalars are already shortened, so a raw `f64` here
+    /// would put the arithmetic's noise inside a sentence otherwise
+    /// free of it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Line => f.write_str("straight"),
@@ -262,7 +270,9 @@ impl fmt::Display for FilletLegCarrier {
                 angular_margin,
             } => write!(
                 f,
-                "circular (carrier radius {radius} m, angular margin {angular_margin} rad)"
+                "circular (carrier radius {radius} m, angular margin {angular_margin} rad)",
+                radius = num(radius),
+                angular_margin = num(angular_margin)
             ),
         }
     }
@@ -624,6 +634,163 @@ pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
     })
 }
 
+/// Every predicate this crate decides whose ONLY recourse is the shared
+/// coincidence clause the escalation's own payload already carries,
+/// with what its margin measures.
+///
+/// Each of these meters a separation, a length or a side — a quantity
+/// whose levers are exactly the three [`COINCIDENCE_RECOURSE`] names
+/// (declare the coincidence, move the geometry, lower the tolerance).
+/// A door that could add a fourth lever for one of them owes it a
+/// sentence of its own and takes the name off this list.
+///
+/// **Being here is a DECISION and reads as one.**
+/// [`crate::PathError::Escalated`] renders a listed name with the
+/// shared clause and says nothing about a gap; a name that is neither
+/// routed to a sentence nor listed here renders
+/// [`geom_core::MissingRecourse`], which is the honest answer for a
+/// name nobody has looked at. Silence is not available to either.
+///
+/// The reasons are what each margin IS, not where the escalation
+/// travels: which error type carries a refusal is a fact about the call
+/// graph that nothing here computes.
+/// `recourse_roster::every_decided_name_is_routed_or_listed_with_its_reason`
+/// holds this list against the names the crate's `src` actually
+/// decides, in both directions.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
+    (
+        "arc_apex_identity",
+        "two arc apexes told apart by their separation",
+    ),
+    (
+        "arc_span",
+        "an arc's span, as the clearance between its chord's reach and its apex",
+    ),
+    (
+        "canonical_order_x",
+        "two points ordered by their x difference, at the exact-order band",
+    ),
+    (
+        "canonical_order_y",
+        "two points ordered by their y difference, at the exact-order band",
+    ),
+    (
+        "collinear_overlap",
+        "the overlap of two collinear segments along their shared carrier",
+    ),
+    (
+        "contact_at_shared_vertex",
+        "a contact point told apart from a loop vertex by their separation",
+    ),
+    (
+        "line_span",
+        "how far inside a segment a point falls, from whichever end is nearer",
+    ),
+    (
+        "loop_orientation",
+        "a loop's signed area, levered by its perimeter",
+    ),
+    ("path_arc_bulge", "an authored bulge told apart from zero"),
+    (
+        "path_arc_center_equidistant",
+        "an authored centre's two radii told apart",
+    ),
+    (
+        "path_arc_center_radius",
+        "an authored radius metered against zero",
+    ),
+    ("path_arc_chord", "an authored chord metered against zero"),
+    (
+        "path_arc_sweep",
+        "an authored sweep angle metered against zero",
+    ),
+    (
+        "path_arc_via_offset",
+        "a via point's lateral offset from the chord it bulges",
+    ),
+    (
+        "path_carrier_identity",
+        "two arc carriers told apart by their centre separation plus their radius difference",
+    ),
+    (
+        "path_carrier_meet",
+        "whether a ray and a circle meet at all: the circle's radius against the ray's \
+         perpendicular distance from its centre",
+    ),
+    (
+        "path_circle_radius",
+        "a circle's radius metered against zero",
+    ),
+    (
+        "path_collinear_target",
+        "a declared target's lateral miss from the tip's direction",
+    ),
+    (
+        "path_corner_advance",
+        "where the corner sits along a STRAIGHT side's carrier — forward of the incoming \
+         anchor, or back from the arrival's",
+    ),
+    (
+        "path_corner_advance_arc",
+        "the same window on a CIRCULAR carrier: the swept extent from the anchor forward to \
+         the corner, levered to metres",
+    ),
+    (
+        "path_corner_reach_arc",
+        "the swept extent from the corner forward to a circular arrival's anchor, levered to \
+         metres",
+    ),
+    (
+        "path_corner_turn",
+        "the turn BETWEEN the two carriers at the corner, levered by the anchor separation",
+    ),
+    (
+        "path_director_norm",
+        "a director's length metered against zero",
+    ),
+    (
+        "path_fillet_radius",
+        "an authored fillet radius metered against zero",
+    ),
+    (
+        "path_seam_arrival_lever",
+        "the lever arm the seam arrival's own turn and side gates are metered through",
+    ),
+    (
+        "ray_advance",
+        "how far along a containment ray a crossing falls",
+    ),
+    (
+        "ray_side",
+        "which side of a containment ray a point falls on",
+    ),
+];
+
+/// What [`SHARED_CLAUSE_ONLY`] records for `predicate`, if it is listed.
+#[must_use]
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub fn shared_clause_only(predicate: &str) -> Option<&'static str> {
+    SHARED_CLAUSE_ONLY
+        .iter()
+        .find(|(name, _)| *name == predicate)
+        .map(|(_, reason)| *reason)
+}
+
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
 /// D9: never a panic). All indices reference the *input* profile.
@@ -850,6 +1017,28 @@ impl fmt::Display for ProfileError {
                 // the S6 two-tolerance sweep): the recourse levers ride
                 // `{source}` (the shared carrier); this addendum adds
                 // only the site-specific mechanics of the declare lever.
+                //
+                // IT IS KEYED ON A (SITE, NAME) PAIR, and it appends
+                // nothing for every other pair. That default is honest
+                // because the note is not a recourse: the levers are
+                // already rendered by `{source}`, and a pair it does not
+                // match is one with no extra MECHANICS to add, never one
+                // whose recourse is missing. A recourse that went silent
+                // here would be the failure this crate's own roster
+                // exists to stop — see `validate::SHARED_CLAUSE_ONLY`,
+                // where a predicate with nothing beyond the shared clause
+                // says so out loud.
+                //
+                // The three names below ALSO carry a sentence at
+                // `PathError::Escalated`'s stored-form arm, and the two
+                // deliberately differ: here the segment pair is one the
+                // CALLER authored, so the declare lever is theirs to
+                // pull and this note says how; there the loop is one the
+                // fillet door is about to store, so declaring is advice
+                // about a declaration the caller never wrote, and the
+                // arm names the stored form's own two levers instead.
+                // `review_recourse_roster_r2_probes` pins this key;
+                // `fillet_recourse_followability` pins the other.
                 let near_tangency = matches!(site, EscalationSite::SegmentPair(_, _))
                     && matches!(
                         source.predicate,

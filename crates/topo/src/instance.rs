@@ -315,11 +315,11 @@ mod tests {
     use geom_core::Tol;
 
     use crate::body::Body;
-    use crate::fixtures::ops_cube;
     use crate::instance::graft_disjoint;
+    use crate::test_support_fixtures::declined_cube;
 
     fn cube() -> Body<f64> {
-        ops_cube(Tol::witness()).body
+        declined_cube::<f64>(Tol::witness()).body
     }
 
     /// **Disjointness.** The graft adds a SECOND solid; every arena

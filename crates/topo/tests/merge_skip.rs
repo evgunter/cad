@@ -29,9 +29,9 @@ use topo::{
 /// 1 + 1 − (0.5 · 0.75 · 1).
 #[test]
 fn skipped_declared_merge_is_tier3_green_and_visible() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (0.0, 1.0));
-    let decls = flush_declarations(&a, &b);
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (0.0, 1.0), Tol::witness());
+    let decls = flush_declarations(&a, &b, Tol::witness());
     assert_eq!(decls.coincident_faces.len(), 2, "both caps declared");
     let r = union_with(&a, &b, &decls, Tol::witness()).expect("declared flush-caps union runs");
     let BooleanResult::Body(bb) = r else {

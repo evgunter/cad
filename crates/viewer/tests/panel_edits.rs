@@ -13,8 +13,10 @@
 
 use crate::common;
 
-use pncad::document::{DocEdit, SlotId};
+use pncad::document::{DocEdit, DocParam, ParamName, SlotId};
 use pncad::geom_core::Tol;
+use pncad::prelude::MM;
+use pncad::quantity::WrittenLength;
 use viewer::props::{SlotDriver, SlotValue};
 use viewer::session::{DocSession, Refusal, Selection, SessionOp};
 use viewer::{props, tree};
@@ -423,15 +425,65 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
     assert!(shown.rank() < Refusal::NoGesture.rank());
 }
 
+test_utils::f6_variants! {
+    /// Every `Refusal` arm's identifier, as the ban list the six
+    /// sampled renderings are held to. The `match` the macro writes is
+    /// exhaustive, so an arm added to `Refusal` stops this file
+    /// compiling until it is listed here and the ban covers it. No
+    /// count is written down: the `match` is what holds the roster
+    /// complete, and a number beside it would be a second claim with
+    /// nothing checking it.
+    ///
+    /// **The roster is the enum's, not the sample's.** A rendering that
+    /// leaks a SIBLING arm's identifier is as much a dump as one that
+    /// leaks its own, and a per-arm check cannot see it.
+    const REFUSAL: Refusal = [
+        DrivenByExpression,
+        NoSuchSlot,
+        NoSuchParam,
+        ParamNotANumber,
+        ParamExists,
+        EmptyName,
+        WrongNodeKind,
+        Edit,
+        Dimension,
+        Parse,
+        NoGesture,
+        GestureInFlight,
+        WrongGesture,
+        Io,
+        NothingToDo,
+        Display,
+        SlotUnit,
+        NoDocumentDirectory,
+        Workspace,
+        SelfInstance,
+        ProfileRestructure,
+        ProfileEditOrder,
+        ProfileEditOrderCapped,
+        ProfileEditStale,
+    ];
+}
+
+/// The `Debug` punctuation that would be a dump in a `Refusal`
+/// sentence: the two field names the payloads carry, and the quotation
+/// mark a `{:?}` over a `String` or a `ParamName` leaves behind.
+///
+/// `{` is [`test_utils::f6::assert_f6`]'s own and is banned whatever
+/// this list says; the quotation mark is this row's extra clause, and
+/// the doc comment below says why it is asserted of these six arms
+/// rather than of the vocabulary.
+const REFUSAL_FIELDS: &[&str] = &["node:", "name:", "\""];
+
 /// **Six refusals a panel can provoke render as sentences** — six,
 /// named, and not a claim about the vocabulary. Each is a real op
 /// through a real door, so the rendering asserted is the one a person
 /// reads.
 ///
 /// **The universal is not asserted here, because a sample cannot hold
-/// it.** `Refusal` has 18 arms and one of them is `Edit`, which
-/// forwards ~50 sub-variants, so what decides the rendering is the
-/// payload's variant one level down — `crates/pncad-py/src/
+/// it.** One of `Refusal`'s arms is `Edit`, which forwards a whole
+/// second vocabulary, so what decides the rendering is the payload's
+/// variant one level down — `crates/pncad-py/src/
 /// prose_census.rs` states exactly that failure mode, and a roster
 /// that picks its own samples excludes the failing mode by
 /// construction. The two vocabulary-wide halves live elsewhere, and
@@ -446,11 +498,16 @@ fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
 /// * **that no rendering carries the field-brace fingerprint** is
 ///   `prose_census`'s, a census over SITES rather than samples.
 ///
-/// The shape asserted below is F6's — editor-core's ratified `Display`
-/// contract (`crates/editor-core/tests/display_contract.rs`): no
-/// brace, no `Debug` field punctuation, no variant identifier, and
-/// never simply the dump — **plus a quotation mark**, which F6 does
-/// not list and this row asserts anyway.
+/// The shape asserted below is F6's, through the one door that holds
+/// it ([`test_utils::f6::assert_f6`]): no brace, no `Debug` field
+/// punctuation, no variant identifier, and never simply the dump —
+/// **plus a quotation mark**, which F6 does not list and this row
+/// asserts anyway, passed as one more banned token.
+///
+/// **The identifier ban is the ENUM's roster, not each arm's own**
+/// ([`REFUSAL`]). A rendering that leaks a sibling arm's identifier is
+/// a dump as surely as one that leaks its own, and the per-arm check
+/// this row used to spell could not see it.
 ///
 /// That extra clause is the one that catches the case this row exists
 /// for. A `{:?}` over a `String` or a `ParamName` renders `"width"`:
@@ -550,38 +607,17 @@ fn refusals_render_as_sentences() {
         "and it is the EXISTING declaration's, not the one asked for: {shown}"
     );
 
-    for (arm, refusal) in [
-        ("Io", &io),
-        ("Edit", &edit),
-        ("NoSuchParam", &lookup),
-        ("WrongNodeKind", &kind),
-        ("NoSuchSlot", &slot),
-        ("ParamExists", &exists),
-    ] {
-        let rendered = refusal.to_string();
-        assert!(
-            !rendered.contains('{')
-                && !rendered.contains('"')
-                && !rendered.contains("node:")
-                && !rendered.contains("name:"),
-            "{arm} is a sentence, not a debug dump: {rendered}"
-        );
-        assert!(
-            !rendered.contains(arm),
-            "{arm} leaves its variant name standing: {rendered}"
-        );
-        assert_ne!(
-            rendered,
-            format!("{refusal:?}"),
-            "{arm} renders as its own dump"
-        );
+    for refusal in [&io, &edit, &lookup, &kind, &slot, &exists] {
+        test_utils::f6::assert_f6(refusal, &[], REFUSAL.identifiers(), REFUSAL_FIELDS);
     }
 
     // And the one mistake that reaches two doors reaches one recourse:
     // the typed route and the dragged route name the same thing to do.
+    // Asserted against the CONST both renderings read, so the clause
+    // cannot come back as a second literal without this row reddening.
+    let recourse = editor_core::edit::UNDECLARED_PARAM_RECOURSE;
     assert!(
-        edit.to_string().contains("declare it first")
-            && lookup.to_string().contains("declare it first"),
+        edit.to_string().contains(recourse) && lookup.to_string().contains(recourse),
         "typed {edit}\ndragged {lookup}"
     );
 }
@@ -817,4 +853,319 @@ fn the_create_door_refuses_an_existing_name_and_setparam_still_replaces() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
+}
+
+/// **`50 mm` sets the value AND the notation, as one undo step.**
+///
+/// The text door reads both out of one literal — `parse_expr` applies
+/// the unit factor once, on the way in — and commits them as one
+/// action, so the history gains exactly one state and an undo puts
+/// both halves back.
+#[test]
+fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-written",
+            &name,
+            DocParam::written_length(WrittenLength::in_unit(20.0, MM)),
+        ),
+        tol,
+    );
+    let before = session.history().len();
+
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "50 mm".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(session.history().len(), before + 1, "one undo step");
+    assert_eq!(
+        outcome.committed.len(),
+        1,
+        "one action, whatever it is made of"
+    );
+
+    let row = param_row(&session, &name);
+    assert_eq!(
+        row.value,
+        SlotValue::Continuous(0.05),
+        "fifty millimetres is 0.05 m — applied once, by the parser"
+    );
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(
+        props::in_written(row.value.as_f64(), row.unit.expect("a length row")),
+        50.0,
+        "and the row reads back as 50 beside mm"
+    );
+
+    // One action, so ONE undo takes both halves back.
+    session.perform(SessionOp::Undo);
+    let row = param_row(&session, &name);
+    assert_eq!(row.value, SlotValue::Continuous(0.02));
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+}
+
+/// **A number that changes only the notation moves only the
+/// notation**, and the same text a second time is not an edit at all:
+/// the door submits the edits that change something and nothing else.
+#[test]
+fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-noop",
+            &name,
+            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+        ),
+        tol,
+    );
+    let before = session.history().len();
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "50 mm".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(outcome.committed.is_empty(), "nothing changed, so no edit");
+    assert_eq!(session.history().len(), before, "and no undo step");
+
+    // The same value, said in another notation: the notation moves and
+    // the value does not.
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "0.05 m".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(matches!(
+        outcome.committed.as_slice(),
+        [DocEdit::SetDocParamUnit { .. }]
+    ));
+    let row = param_row(&session, &name);
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("m"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05));
+}
+
+/// **A document parameter holds a number, not an expression** — the
+/// refusal says so, by name, and nothing moves.
+///
+/// **Two spellings, because the layer that refuses differs.**
+/// `base_r * 2` does not reach this door at all: `2` is a count and
+/// the expression vocabulary refuses a count times a length without an
+/// explicit promotion, so what a user reads there is the parser's
+/// sentence about the multiply. `base_r * 2.0` and a bare `base_r`
+/// both parse, and those are the texts this door has to answer for.
+#[test]
+fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-expression",
+            &name,
+            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+        ),
+        tol,
+    );
+    let before = session.history().len();
+    for text in ["base_r * 2.0", "base_r"] {
+        let outcome = session.perform(SessionOp::SetParamText {
+            name: name.clone(),
+            text: text.to_owned(),
+        });
+        let refusal = outcome.refusal.expect("a parameter takes no expression");
+        assert!(
+            matches!(refusal, Refusal::ParamNotANumber { .. }),
+            "{text}: {refusal:?}"
+        );
+        let shown = refusal.to_string();
+        assert!(
+            shown.contains("holds a number, not an expression"),
+            "the sentence says what a parameter is: {shown}"
+        );
+    }
+    // The count-promotion spelling is refused one layer earlier, by
+    // the parser, and carries the parser's own sentence.
+    let refusal = session
+        .perform(SessionOp::SetParamText {
+            name: name.clone(),
+            text: "base_r * 2".to_owned(),
+        })
+        .refusal
+        .expect("a count times a length needs an explicit promotion");
+    assert!(matches!(refusal, Refusal::Parse(_)), "{refusal:?}");
+    assert_eq!(session.history().len(), before, "and nothing moved");
+    assert_eq!(
+        param_row(&session, &name).value,
+        SlotValue::Continuous(0.05)
+    );
+}
+
+/// **An unknown unit carries the parser's own refusal**, which names
+/// the token and its offset — not a sentence re-composed at this door.
+#[test]
+fn an_unknown_unit_carries_the_parsers_own_wording() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-unknown-unit",
+            &name,
+            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+        ),
+        tol,
+    );
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "50 furlong".to_owned(),
+    });
+    let refusal = outcome.refusal.expect("furlong is not a table row");
+    assert!(matches!(refusal, Refusal::Parse(_)), "{refusal:?}");
+    let shown = refusal.to_string();
+    assert!(
+        shown.contains("furlong") && shown.contains("is not a unit symbol"),
+        "the parser's own sentence, naming the token: {shown}"
+    );
+    assert!(
+        !shown.contains("holds a number, not an expression"),
+        "and not this door's: {shown}"
+    );
+    assert_eq!(
+        param_row(&session, &name).value,
+        SlotValue::Continuous(0.05)
+    );
+}
+
+/// **A unit that does not measure the declared dimension is refused by
+/// the edit door**, in the door's words, and the all-or-nothing action
+/// means the value it was paired with does not land either.
+#[test]
+fn a_wrong_dimension_unit_refuses_the_whole_action() {
+    let tol = Tol::witness();
+    let name = ParamName::new("sweep");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-mismatch",
+            &name,
+            DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
+        ),
+        tol,
+    );
+    let before = session.history().len();
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "50 mm".to_owned(),
+    });
+    let refusal = outcome
+        .refusal
+        .expect("millimetres do not measure an angle");
+    assert!(matches!(refusal, Refusal::Edit(_)), "{refusal:?}");
+    let shown = refusal.to_string();
+    assert!(
+        shown.contains("declared angle") && shown.contains("measures length"),
+        "the edit door names both dimensions: {shown}"
+    );
+    assert_eq!(session.history().len(), before, "nothing was recorded");
+    let row = param_row(&session, &name);
+    assert_eq!(
+        row.value,
+        SlotValue::Continuous(1.0),
+        "and the value the action carried did not land either"
+    );
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("rad"));
+}
+
+/// **The row's unit picker moves the notation and nothing else** — one
+/// `SetDocParamUnit`, and the stored value bit-identical.
+#[test]
+fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-picker",
+            &name,
+            DocParam::continuous(pncad::document::Dimension::Length, 0.05),
+        ),
+        tol,
+    );
+    let outcome = session.perform(SessionOp::SetParamUnit {
+        name: name.clone(),
+        unit: MM.def(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(matches!(
+        outcome.committed.as_slice(),
+        [DocEdit::SetDocParamUnit { .. }]
+    ));
+    let row = param_row(&session, &name);
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05));
+
+    // A count names no notation, and the door says so rather than
+    // this one guessing.
+    let holes = ParamName::new("holes");
+    let mut counted = DocSession::inline(
+        common::declared("auth2-picker-count", &holes, DocParam::Count { value: 6 }),
+        tol,
+    );
+    let refusal = counted
+        .perform(SessionOp::SetParamUnit {
+            name: holes,
+            unit: MM.def(),
+        })
+        .refusal
+        .expect("a count has no display unit");
+    assert!(
+        refusal.to_string().contains("no display unit to change"),
+        "{refusal}"
+    );
+}
+
+/// **A refusal names the half the user was editing.**
+///
+/// `8 mm` typed into a COUNT parameter's field is a value edit with a
+/// notation on it. The notation half has nothing to say about a count
+/// — a count is an integer and names no unit under any declaration —
+/// so the door submits the value edit alone and what the user reads
+/// is the refusal of the thing they did: a count declared where a
+/// continuous value was typed. Answering it in the notation's words
+/// ("it has no display unit to change") would describe a change
+/// nobody asked for.
+#[test]
+fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
+    let tol = Tol::witness();
+    let holes = ParamName::new("holes");
+    let mut session = DocSession::inline(
+        common::declared("auth2-count-text", &holes, DocParam::Count { value: 6 }),
+        tol,
+    );
+    let before = session.history().len();
+    let refusal = session
+        .perform(SessionOp::SetParamText {
+            name: holes.clone(),
+            text: "8 mm".to_owned(),
+        })
+        .refusal
+        .expect("a count takes no continuous value");
+    let shown = refusal.to_string();
+    assert!(
+        shown.contains("declared count") && shown.contains("value edit"),
+        "the sentence names the value half: {shown}"
+    );
+    assert!(
+        !shown.contains("display unit"),
+        "and not a notation change nobody asked for: {shown}"
+    );
+    assert_eq!(session.history().len(), before, "and nothing moved");
+    assert_eq!(param_row(&session, &holes).value, SlotValue::Count(6));
+}
+
+/// The panel row for `name`, as the panel reads it.
+fn param_row(session: &DocSession, name: &ParamName) -> props::ParamRow {
+    props::param_rows(session.doc())
+        .into_iter()
+        .find(|row| &row.name == name)
+        .expect("the parameter row")
 }

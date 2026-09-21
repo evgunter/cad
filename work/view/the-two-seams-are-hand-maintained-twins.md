@@ -4,9 +4,11 @@ kind: issue
 title: evalseam is two modules with one coalescing machine copied four times, and nothing in it says so
 status: closed
 opened: 2026-09-05
+closed: 2026-09-15
 branch: view/seam-twins
 pr: 2666
-closed: 2026-09-15
+priority: P1
+cost: D
 ---
 
 

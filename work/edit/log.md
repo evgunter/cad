@@ -535,3 +535,282 @@ mid-flight; everything pushed survived, the mate-head fix pass had
 already pushed its whole record and the orchestrator closed it, the
 other two were relaunched. Banked: the board is rendered on main by a
 bot after every merge, so a branch never commits `STATUS.md`.
+
+## 2026-09-19 — eighth sitting: wave 9 merged (EDIT-DECL, the tie refusal), wave 10 dispatched, a weekly-limit outage
+
+Merged since the seventh sitting: the raw pick mints behind a
+`test-support` feature (#2801 — `PickTarget::new` and `MeshPick::build`
+under `cfg(any(test, feature))` through the self-dev-dependency
+pattern; the `compile_fail` unreachability row could not be honest
+because `--workspace` doc-test runs unify the feature on, so CI's two
+feature-off compiles and the manifest gate carry the claim; the review
+caught a false compile-consequence claim and three prose absolutes the
+repo had retracted once already); the per-edge chain radius attach
+(#2804 — `step_radii`/`segment_radii`/`walls[i][j]` end to end, 2 of
+355 corpus keys move and both are `declared_tangency`'s; the review
+found the fused-step account wrong and the fix pass corrected it by
+measurement: `arc_fillet` is a binder with an empty span); the wave-10
+claim (#2813 — three rows ruled and spec'd: crossing references as
+`FaceName`s, one param-ref convention at both doors, one home for the
+suite helpers); the crossing references (#2814 — the review found the
+unit had minted a third divergent answer to "this remap cannot fail",
+and the fix pass replaced all three with `FaceName::map_derivation`,
+which keeps the kind by signature); and wave 9's two units.
+
+**EDIT-DECL (#2809, kernel unit, block EDIT-B2 slot 0; sample #216,
+ordinals 4804/4805 claimed on main by #2817, parity byte 77 ⇒ R1
+fable / R2 opus).** Ev's sited-declarations ruling is the code and the
+five-edit workaround is gone. The dual converged on one bilateral
+MAJOR (R1 1/7/3 NOT-MERGEABLE-AS-IS, R2 1/4/5 APPROVE-WITH-FIXES;
+tally +0): a union's undeclared contact against a fold-minted row
+degraded to an "emission bug" — the exact class the ruling made
+unrepresentable was where the detect→declare protocol was not total.
+The orchestrator ruled the refusal's shape with the decision
+unchanged (a `Merged` row's contact refused at its first constituent,
+the set carried on the finding; a row no member stands for refuses
+typed `UndeclarableContact`, `Fragment` the only face row a contact
+can reach because `Seam` never mints a face); the spec carried the
+amendment and was deleted at merge (ledgered; recoverable at the SHA
+the ledger names). Ev is told on the next `[ev]` PR: a mechanism of
+the ruling moved. Both reviewers also found the site-is-the-side
+mutant surviving and the second side of `payload_read_sites`
+unguarded; the fix pass pinned both and the compile-time twin.
+
+**The tie refusal (#2816, middle tier).** The order is `precedes`
+alone, a tie among one face's triangles is one answer (the hull, the
+smallest rounded `t`), a tie between faces is `HitTestError::Ambiguous
+{ hits }`; the width and position keys are gone. The review found the
+one MAJOR that mattered: the refusal reached the viewer's pick SEED,
+so a cursor on a shared edge stopped picking the edge — the
+clear-intent case Ev asked not to refuse (18 of 66 segment-midpoint
+cursors on the shipped plate). The fix pass made the seed a DEPTH
+(`front_of`, two readers), gave the group rule one home
+(`resolve::pick::answer_of`), merged every display group's answer
+before refusing, and measured `aim_lost` by identity (0 lost).
+
+Wave 10's remaining two lanes (one param-ref convention, the suite
+helpers' one home) are running. The weekly API limit stopped every
+lane mid-flight on 2026-09-17 at 11:0x UTC and was lifted on
+2026-09-19; every lane had pushed a green head before it stopped and
+each was resumed in place. Filed this sitting by the lanes:
+`fused-arc-fillet-steps-have-no-per-segment-radius-address`,
+`instantiate-part-crossings-are-names-payload-names-does-not-list`,
+`a-declare-orphaned-by-a-cascade-is-never-reported`,
+`work/issues/test-support-convention-has-no-prose-home`,
+`work/issues/loft-walls-carry-no-per-edge-radius-address`,
+`work/lib/python-flush-findings-do-not-carry-their-sites`.
+
+## 2026-09-19 — ninth sitting: wave 10 merged, waves 11–13 cut and merged, two batches put to Ev
+
+Merged since the eighth sitting, each after one opus style review and
+the union fix pass unless noted: one param-ref convention at both
+doors (#2819 — the load door's `{Slot,Payload}` × `{UnknownDocParam,
+DocParamDimension}`, the edit door's four arms and tag words following;
+the review found the guard measuring a SET, so the pairwise swap of
+the two pairs survived every row, and the fix pass folded the
+reviewer's probe in as the mapping half; the class the review named,
+`EditError`'s declaration siblings, ruled at wave 13 below); the suite
+helpers' one home (#2867 — 26 byte-identical deletions, 14 diverged
+copies retired, 8 adapters, one door widened; the review found the
+class a name grep cannot see, seven `name1` copies of `minted` and
+five diverged `in_copy`s, and the fix pass replaced the hand-written
+list with a shape census; two residue rows re-scoped onto TCOST's
+slate); an instance's crossing `outer`s as payload names (#2872 —
+the insert door, `Rebind` and DM7's strand walk reach the record with
+no code of their own; the review found the FOURTH door the same list
+opens, `split`'s `PartNameReachesRemainder` now refusing a cut that
+takes an instance naming a kept node, and that no accepted cut mints
+a record at all; the fix pass ruled and built the crossing's `mate`
+id as a provenance reference checked live at insertion, closing the
+row the unit had filed; `REFERENCES.md` §0's false "only door that
+refuses" sentence re-worded, no ratification found); the delete that
+orphans a `Declare` (#2874 — `Maintenance::OrphanedDeclare`, a
+transition rule beside DM7's strands; one spec row unbuildable as
+ruled — `apply` is a function of `(document, edit)`, so deleting the
+`Declare` itself reports the orphan at the consumer's step and removes
+it at the next — ruled to stand, with the net over a cascade filed on
+CHROME's affordance row; the review found the consumer scan copying
+`roots::is_sink`, and the fix pass gave "who consumes this node" one
+home across the crate; a semantic merge with #2872 went red on the
+close-out head and was fixed by the orchestrator); and the two prose
+rows of wave 13 as one E-class unit (#2879 — the payload-carrier list
+has two homes and every other site points; the param-ref convention's
+scope is a reference and the enum doc states the two families; the
+lane found a ninth prose home and completed the load-bearing
+`REFERENCES.md` list, which had itself been missing two carriers).
+Wave 12's recorded-notation door (#2876 — `PartialPath::recorded` and
+`RecordedNotation::set_after`, the index derived and never counted;
+review MERGEABLE, four MINORs all prose) is in its fix pass.
+
+Put to Ev on `[ev]` #2869, in two batches: the EDIT-DECL refusal
+against a fold-minted row (with the proposed DM4 paragraph on the
+branch), the tie refusal's pick seed becoming a depth; then the orphan
+report and its transient, the crossing `mate` ruling, the fourth door
+on `split` (AQ8's wording offered), and the §0 sentence. No reply as
+of this sitting. Filed this sitting: `crossing-mate-back-pointer-…`
+(closed in the same wave), `payload-carrier-lists-have-seven-prose-homes`
+(closed at wave 13), `doc-param-refusals-keep-two-conventions-inside-one-enum`
+(closed at wave 13), `an-orphaned-declare-joins-the-product-root-set`
+(open — a `Declare` as a product root wants a ruling),
+`work/tcost/named-copies-of-fixture-doors-under-other-names`,
+`work/tcost/inline-name-table-reads-bypass-the-fixture-door`; CHROME's
+and LIB's rows appended where a unit widened them.
+
+## 2026-09-19 — tenth sitting: wave 12 merged, one row ruled a non-issue, wave 14 cut as a kernel unit
+
+Merged: the recorded-notation door that derives the step index (#2876
+— `PartialPath::recorded` on every builder state and
+`RecordedNotation::set_after`, the index never counted; a new writing-
+door arm `NotationBeforeAnyStep`, unreachable from Python today and
+said so on the tag map; the review's four MINORs all prose or counts,
+the fix pass giving the step-index conversion one home across ten
+sites, `program_index` — the lane's spelling over the brief's, since
+four of the sites are loop indices; a close-out merge conflict in
+`display_contract.rs`'s import list resolved by the orchestrator) and
+the orphaned-`Declare`-as-root row ruled a non-issue as an orchestrator
+E-class commit (#2882 — A10's root set is exactly the sink set and
+non-body roots contribute nothing, a mate the standing precedent; one
+paragraph on `roots::is_sink`). Wave 14 cut (#2884):
+`fused-arc-fillet-steps-have-no-per-segment-radius-address` ruled and
+spec'd as a kernel unit, `docs/EDIT-RADIUS-SPEC.md`, block EDIT-B2
+slot 1 (OPUS) — the replay record gains a per-radius emission record,
+DM8's map reads it in place of "one radius, one segment", and the
+key's feed widens so attached ⊆ keyed holds by construction; PATHS's
+and BLEND's seams announced. The implementer is dispatched; the dual
+follows on its frozen head. Ev has not yet replied on `[ev]` #2869.
+
+## 2026-09-20 — eleventh sitting: wave 14 merged (EDIT-RADIUS), two `[ev]` answers, one row filed
+
+Merged: EDIT-RADIUS (#2892, kernel unit, block EDIT-B2 slot 1, v6
+dual, ordinals 4806/4807 claimed on #2893, sample #223 — the replay
+record says which segment each radius drew: `ReplayStructure.radii`, a
+fillet arc credited to the step that bound its radius and a carrier
+arc to the fused verb's own step, DM8's map reading it through the one
+checked permutation both of its doors now share; the finding's own
+`FilletArc { Via }` arrival authored green; the spec's premise 2 and
+its three-radii row corrected by the implementer before the build.
+The dual: R1 fable 0/4/6, R2 opus 0/5/3, both APPROVE-WITH-FIXES, no
+MAJOR, tally +0; convergent on the guided fence's `Carrier2` blind
+spot, the exact-fit close's fillet arc that nothing re-read (the PR's
+stated reason for not filing measured false by both), the refusal
+sentence's doubled word and two false PR-body sentences; R2 alone on
+`segment_radii`'s carrier arm skipping the span check the chain arm
+goes through — the factoring minting the class it closed, one arm
+out. The fix pass built the union under eleven rulings: one checked
+walk for both arms with a typed refusal for a carrier record carrying
+emissions, the exact-fit arm through `record_fillet_arc` (the door now
+refuses the doubled-bulge mutant outright — the PATHS row both
+reviewers filed is closed by the PR, the duplicate folded), one
+address spelling and one `Option` for the pending fillet, the two mode
+vocabularies pinned against each other, a `Radius`-arrival chain in
+the coverage corpus with its interval relay pinned and explained, the
+§5 preamble one home; one red CI run on the way, the lane not having
+built `--features interval` locally). The spec is deleted and
+ledgered; the slot-1 line is on `edit/b2-block`; slot 2 (FABLE) banks.
+**Sample-number correction, disclosed on the row**: the next free
+sample was #223, not #217 — EDIT-DECL's "#216, prior highest #215"
+of the eighth sitting was written against a stale count while BOOL4
+held #217 and other programs #218–#222; #216 is unique and stands.
+
+Ev: `[ev]` #2869 ratified and merged (Ev's condition — "if there is no
+architecturally nicer way to do all of these" — answered per item on
+the PR: only the crossing mate id might have a nicer shape, and it is
+filed as `crossing-mate-id-is-provenance-that-nothing-reads`, #2890).
+`[ev]` #2889 opened on `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+(compose each candidate's `t` interval with its triangle's certified
+deviation, by patch surface kind); Ev asked what was being proposed
+and restated ε (kernel-to-real) against δ (tessellation-to-kernel);
+answered that the proposal is about δ alone, with the user-visible
+consequence (a pick within the sag of an edge between two curved
+faces refuses) and the three alternatives restated. Awaiting Ev's
+reading.
+
+## 2026-09-20 — twelfth sitting: Ev ruled the pick certificate, wave 15 merged, the whole-program edit put to Ev
+
+Ev: `[ev]` #2889 ruled (b) — "referring to the tesselation is probably
+correct? it's what the user can see", confirmed on the PR: the pick is
+a question about the picture the user sees, the tessellation IS what
+is picked, so the certified `t` interval stops at the triangle by
+design. `pick-wide-candidate-needs-a-bound-over-mesh-coordinate-error`
+closed by design with one sentence at `crossing`'s "what the bounds
+bound" paragraph; no kernel unit; merged (#2889). `[ev]` #2904 opened
+(the seventh): `a-committed-profile-program-has-no-whole-program-edit`
+is a design change on two ratified pages — V2's "structure changes
+only by re-authoring" and DM7's "reported at the delete" — because
+every holder of a profile name holds a `ProfileEdgeRef` by index and a
+reshaped program re-denotes those indices silently. Recommendation
+(B): `SetProgram { node, loops, provenance }`, the door reporting
+strands for dropped or changed steps and rewriting names on kept steps
+to their new index as its own `Maintenance` arm; alternatives (A)
+refuse-when-referenced, (C) program only (rejected), (D) leave V2.
+Awaiting Ev; block EDIT-B2 slot 2 (FABLE) banks for it.
+
+Wave 15 cut (#2902) and merged. `next-id-has-no-layer3-door` (E-class,
+#2905): `Doc::has_minted(id)` is the counter's one public reading,
+the counter stays private, four rows each red under `<` → `<=`; DI1's
+parenthetical names the door (a description the code moved,
+ratification `087779036`); the parked VIEW row
+`layer3-recipenodeid-aliases-across-rewinds` is `open` again with its
+`blocked_on` cleared — the walk is VIEW's. `crossing-mate-id-is-provenance-that-nothing-reads`
+(middle tier, #2906): `InterfaceCrossing::Mate` is `{ class, outer,
+inner }`, the refusal names the crossing by `outer`, a file carrying
+the old field refuses typed at the load door, no codec touched; the
+review was MERGEABLE 0/2/3 (two unguarded claims, both probed:
+the one refusal site handing in `outer`, each crossing field feeding
+the content key); the fix pass gave the read-only wire walk one home
+beside `doctored` (the three copies the review took for read-only
+were write-walk copies and now call it), the "no provenance" argument
+one home, and the Python census a written rule for a same-named
+property spelling an arm — an additive roster and guard listing four
+members, which run against the merge base names the very accident
+this unit fixed; Ev's 2026-09-09 census rule untouched; one row filed
+on S-DUP's slate (the by-line header split at sixteen more sites).
+The split walk that writes the record stays unreachable (AQ8), said
+so on the row.
+
+The slate: C6/D366 stay visibility rows; the two pick rows stand as
+the mechanism's stated classes; `focus-marking` and `layer3` are
+VIEW's work; `a-committed-profile-program` is on `[ev]` #2904. No
+lane is live.
+
+## 2026-09-20 — thirteenth sitting: wave 16 merged, Ev ruled (B) on the whole-program edit, wave 17 built and in the dual
+
+Wave 16 (`converged-recourse-has-no-home`, E-class, #2920) merged:
+`UNDECLARED_PARAM_RECOURSE` beside `EditError` is the one home of
+"declare it first"; both renderings go through it (the viewer by a
+direct `editor-core` edge, the ruling `pncad`'s crate docs state for a
+name the façade does not carry), the tripwire test is the pin, nine
+code copies swept, rendered text byte-identical on both sides. Two
+deviations, both taken: `story_parametric`'s narrative comment names
+the const; no root re-export and no façade carry (out of LIB's
+censuses by construction).
+
+Ev: `[ev]` #2904 ruled (B) — "(B) makes sense!". Wave 17 cut (#2921):
+`docs/EDIT-PROGRAM-SPEC.md`, kernel unit, v6 dual, block EDIT-B2
+slot 2 (FABLE); V2 and DM7 re-worded on the ruling inside the unit.
+Built on `edit/program-edit` (#2927, frozen head `1a3359122`, 41
+files): `DocEdit::SetProgram { node, loops, provenance }`, the
+provenance's shape refused first as one `ProvenanceMalformed` arm over
+a seven-arm fault enum, the insert door's own checks, a segment map
+read off both replay records (kept = continued and equal span length),
+the walk over every name carrier filtered by the minting node's
+anchoring profile, `Maintenance::Rebound`, persisted, `reshaped_rod`
+the corpus's first `SetProgram`, `DocEdit.set_program` in Python.
+Two of the spec's premises fell to measurement before the build —
+premise 3's vertex convention (a vertex is carried by the segment
+ARRIVING at it) and premise 4's carrier filter (`name.node == profile`
+finds nothing; a profile mints no name) — the third spec in a row on
+this program to carry a false premise, disclosed in the claim entry
+and put to both reviewers as a standing hazard. One deviation is
+design-shaped and goes to Ev: a stranded name is RETIRED to a
+coordinate past the loop's end so it resolves `Vanished` instead of
+aliasing the new program's segment (left in place, a second fillet on
+the rod silently shrank to one — measured). Ordinals 4808/4809 claimed
+on main (#2931); byte 254, parity 0: R1 opus, R2 fable; both
+dispatched concurrently on the frozen head. Two rows filed by the
+build: VIEW's `the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`
+and EDIT's `an-unknown-edit-tag-in-a-log-refuses-without-naming-it`.
+
+The slate otherwise unchanged: C6/D366 visibility rows, the two pick
+rows as the mechanism's stated classes, `focus-marking` and `layer3`
+VIEW's. Two reviewer lanes live.

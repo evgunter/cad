@@ -15,6 +15,9 @@ from pncad import (
     monte_carlo,
     sample_offset,
     ArcSide,
+    ArcSweep,
+    Center,
+    Via,
     ChecksConfig,
     Severity,
     Bulge,
@@ -105,6 +108,10 @@ Open.at((0 * mm, 0 * mm)).line_to(Start).close()  # ty: error
 
 # A closed loop continues into nothing.
 Open.at((0 * mm, 0 * mm)).line_to(Start).line_to(Start)  # ty: error
+
+# The declared arrival closes a Bulge leg but not a Via or Center one.
+Open.at((0 * mm, 0 * mm)).line_to((1 * mm, 0 * mm)).arc_to(Via((1 * mm, 1 * mm), Start.arrives_tangent()))  # ty: error
+Open.at((0 * mm, 0 * mm)).line_to((1 * mm, 0 * mm)).arc_to(Center((0 * mm, 1 * mm), ArcSweep.Ccw, Start.arrives_tangent()))  # ty: error
 
 # A bare number is not a Length, and radians are not a Length either.
 Open.at((0.0, 0.0))  # ty: error

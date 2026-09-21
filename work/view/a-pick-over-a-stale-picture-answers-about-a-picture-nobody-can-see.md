@@ -5,8 +5,10 @@ title: A click over a stale picture resolves against the current index, so it se
 status: closed
 branch: view/stale-pick
 opened: 2026-09-15
-pr: 2662
 closed: 2026-09-15
+pr: 2662
+priority: P0
+cost: D
 ---
 
 
@@ -46,35 +48,6 @@ mandate to. Whoever takes this owes the reachability question too: the
 window needs a refused `scene_focused` over a landed index, which no
 test in `crates/viewer/` currently arranges.
 
-<<<<<<< HEAD
-## RULED (Ev, in-chat, 2026-09-15): refuse
-
-**Refuse the pick.** The item's first option, in the shape
-`pickcache::unindexed` already has for *no index to ask*: a typed
-refusal saying the picture is older than what the cursor is pointing
-at, rather than an answer about geometry the screen is not showing.
-
-This settles the product question and nothing else. What a taker still
-owes is unchanged and is the harder half:
-
-- the **reachability question** the item already names — the window
-  needs a refused `scene_focused` over a landed index, and no test in
-  `crates/viewer/` arranges a tessellation failure on demand, so the
-  refusal's own row has nowhere to stand yet. A stated impossibility is
-  an acceptable outcome there; an assertion about something adjacent is
-  not.
-- the refusal's **wording and its home**: `pickcache::unindexed`'s
-  existing sentence is about an index that does not exist, and this one
-  is about an index that exists and does not describe the picture.
-  Whether that is a second arm of the same vocabulary or its own is a
-  code decision, not a further product one.
-- **where the gate goes.** `drawn_index` deliberately does not cover the
-  pick path, and the rule in `crates/viewer/README.md`'s *A pick id is
-  one index's word* says so in as many words. Refusing means that
-  sentence changes — the document-side reads are no longer simply
-  ungated — so the README's rule is re-stated by whoever lands this, as
-  record of what the code then does.
-=======
 
 ## Closed by the refusal it was ruled into
 
@@ -107,4 +80,3 @@ held by its one call site being one line.
 
 **The README's rule is re-stated** — *A pick id is one index's word* no
 longer says the pick path is deliberately ungated.
->>>>>>> origin/main

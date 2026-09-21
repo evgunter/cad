@@ -43,10 +43,10 @@ use crate::fixture;
 
 use crate::wire::doctored;
 use editor_core::{
-    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocumentId, EditError,
-    EntityKind, Expr, Frame, MateFrame, MatePrimitive, MeasureExpr, Node, ParamName, PersistError,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load,
-    save,
+    Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocParam, DocRef, DocumentId,
+    EditError, EntityKind, Expr, FaceName, Frame, InterfaceCrossing, InterfaceRecord, MateFrame,
+    MatePrimitive, MeasureExpr, Node, ParamName, PersistError, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, load, save,
 };
 use fixture::resolver::{PART_BODY, PartStore};
 use fixture::{insert, len, on_frame, square, step};
@@ -103,6 +103,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
             node: assertion(frame_node, len(1.0)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::AssertionTarget { measure: m, .. }) => assert_eq!(m, frame_node),
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
@@ -135,6 +136,7 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
             node: assertion(measure, fixture::ang(0.5)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::AssertionDimension {
             measured: Dimension::Length,
@@ -168,6 +170,7 @@ fn saved_assertion(doc: &ProfileDoc, measure: RecipeNodeId, bound: Expr) -> (Str
             node: assertion(measure, bound),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a well-dimensioned assertion inserts");
     let id = applied.record.minted.expect("the insert minted an id");
@@ -226,6 +229,17 @@ fn retype_bound(text: &str, assertion: RecipeNodeId) -> String {
 /// `#[cfg(test)]` item in the library, and the library cannot reach
 /// `tests/fixture` — so they are two, named for the difference.
 fn instances_of_a_stored_part(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, _, ids) = instances_and_ref_of_a_stored_part(label, n);
+    (doc, ids)
+}
+
+/// The same fixture, keeping the reference it minted the instances
+/// from — for a row that inserts a FURTHER instance of the same part,
+/// which is the only way to author one carrying an interface record.
+fn instances_and_ref_of_a_stored_part(
+    label: &str,
+    n: usize,
+) -> (ProfileDoc, DocRef, Vec<RecipeNodeId>) {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -235,7 +249,7 @@ fn instances_of_a_stored_part(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeN
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (doc, doc_ref, ids)
 }
 
 fn part(label: &str) -> ProfileDoc {
@@ -262,13 +276,18 @@ fn in_part(instance: RecipeNodeId) -> StableName {
         kind: EntityKind::Face,
         node: instance,
         path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
-            }
-            .into(),
+            of: part_face().into(),
         }],
+    }
+}
+
+/// The part-local face `in_part` wraps: one spelling, so a crossing
+/// built here names the same face on both sides of the seam.
+fn part_face() -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node: PART_BODY,
+        path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     }
 }
 
@@ -316,6 +335,7 @@ fn a_non_finite_alignment_is_refused_at_the_edit_door() {
             node: mate(ids[0], ids[1], [f64::NAN, 0.0, 0.0]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::NonFiniteAlignment { .. }) => {}
         other => panic!("a non-finite alignment must refuse typed, got {other:?}"),
@@ -406,6 +426,164 @@ fn a_face_to_face_mate_round_trips() {
     assert_eq!(b.name.kind, EntityKind::Face);
 }
 
+// ---- An interface crossing's two references ----
+
+/// A name as a face name, for a fixture that spells a face.
+fn face(name: StableName) -> FaceName {
+    FaceName::new(name).expect("the fixture spells a face")
+}
+
+/// A document carrying one instance whose interface record holds a
+/// single FACE-TO-FACE crossing, saved and loaded once — the control
+/// the row below corrupts, and the round trip in its own right.
+///
+/// The record is authored through `Node::instantiate_part_with` rather
+/// than harvested from a split: the split's own crossings are pinned
+/// by `fix_pattern_mate_crossing`, and what this seat needs is a
+/// crossing on the WIRE, which the door is public for.
+fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
+    let (doc, doc_ref, ids) = instances_and_ref_of_a_stored_part(label, 2);
+    let record = InterfaceRecord {
+        crossings: vec![InterfaceCrossing::Mate {
+            class: ContactClass::Rest,
+            outer: face(in_part(ids[0])),
+            inner: face(part_face()),
+        }],
+    };
+    let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
+    (text, id)
+}
+
+/// Retypes one reference of a saved crossing — its KIND and nothing
+/// else.
+///
+/// It is also half the receipt that the typed field costs no bytes: it
+/// reaches `kind` INSIDE `["Mate"][side]`, and asserts that object is
+/// the bare name's own three fields, so a `FaceName` that stopped
+/// being `#[serde(transparent)]` would redden here. The other half is
+/// the literal `a_crossings_references_are_bare_names_on_the_wire`
+/// pins.
+fn retype_crossing(text: &str, instance: RecipeNodeId, side: &str, kind: EntityKind) -> String {
+    doctored(text, |wire| {
+        let reference = &mut wire["snapshot"]["nodes"][instance.0.to_string()]["InstantiatePart"]["interface"]
+            ["crossings"][0]["Mate"][side];
+        let mut keys: Vec<&str> = reference
+            .as_object()
+            .expect("a crossing reference is a bare name object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["kind", "node", "path"],
+            "a crossing reference is a bare `StableName` on the wire, unwrapped"
+        );
+        let field = &mut reference["kind"];
+        assert_eq!(
+            *field,
+            serde_json::json!("Face"),
+            "the surgery is aimed at a face reference"
+        );
+        *field = serde_json::json!(format!("{kind:?}"));
+    })
+}
+
+/// **A saved crossing reference that is not a face refuses at the load
+/// door.** A crossing is written out of two mate heads, each a
+/// `SitedFace` over a `FaceName`, so its `outer`/`inner` are face names
+/// by construction and the record's type says so.
+///
+/// There is no edit-door twin, for the reason the mate head's row has
+/// none: an edge-referenced crossing is a program that does not compile
+/// (`InterfaceCrossing`'s own `compile_fail` row), and
+/// `Node::instantiate_part_with` — the split's public door, and the
+/// only way to author a non-empty record — takes the typed record, so a
+/// FILE is the last place one can be spelled. The rule is asked there
+/// by the same one constructor, `FaceName`'s `Deserialize`, so the
+/// refusal is the load door's own `Unreadable`.
+///
+/// Both references and all three non-face kinds, because the type fixes
+/// one question and both fields ask it.
+#[test]
+fn a_saved_crossing_reference_that_is_not_a_face_refuses_at_the_load_door() {
+    for kind in [EntityKind::Body, EntityKind::Edge, EntityKind::Vertex] {
+        for side in ["outer", "inner"] {
+            let (text, instance) = saved_crossing("onepred-crossing");
+            let corrupt = retype_crossing(&text, instance, side, kind);
+            match load(&corrupt, Tol::witness()) {
+                Err(PersistError::Unreadable { detail, .. }) => {
+                    assert!(
+                        detail.contains(kind_noun(kind)),
+                        "the refusal names what the crossing reference denoted, got {detail:?}"
+                    );
+                }
+                other => {
+                    panic!("a {kind:?} crossing reference must refuse typed at load, got {other:?}")
+                }
+            }
+        }
+    }
+}
+
+/// **The control**: the same document with both references naming faces
+/// saves, loads and keeps its record — so the row above measures the
+/// kind and not the fixture.
+///
+/// Its assertion is THE RECORD SURVIVES, and the two `let … else`
+/// panics are the whole of it: the instance comes back an
+/// `InstantiatePart` carrying an interface, and that interface carries
+/// exactly one `Mate` crossing. Nothing follows them, because the kind
+/// is no longer a runtime question here — the fields are `FaceName`s,
+/// so a load that answered otherwise would not typecheck.
+#[test]
+fn a_face_referenced_crossing_round_trips() {
+    let (text, instance) = saved_crossing("onepred-crossing-ok");
+    let loaded = load(&text, Tol::witness()).expect("a face-referenced crossing loads");
+    let Some(Node::InstantiatePart { interface, .. }) = loaded.doc.node(instance) else {
+        panic!("the crossing-bearing instance survives the round trip");
+    };
+    let [InterfaceCrossing::Mate { .. }] = &interface.crossings[..] else {
+        panic!("the one crossing survives the round trip");
+    };
+}
+
+/// **A crossing's two references are BARE names on the wire**, pinned
+/// against a literal.
+///
+/// `FaceName` is `#[serde(transparent)]`, so fixing the kind in the
+/// TYPE costs no bytes and moves no pin — and that is a claim about
+/// bytes, which only bytes can hold. `wire_rv_bytes`' variant pins
+/// never see a crossing (no fixture there carries an interface
+/// record), so this row is where the claim lives: the whole crossing,
+/// serialized, against the JSON it must be. A wrapper around either
+/// field, or a renamed one, reddens it.
+#[test]
+fn a_crossings_references_are_bare_names_on_the_wire() {
+    let reference = |node: u64| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(node),
+        path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
+    };
+    let crossing = InterfaceCrossing::Mate {
+        class: ContactClass::Rest,
+        outer: face(reference(3)),
+        inner: face(reference(5)),
+    };
+    assert_eq!(
+        serde_json::to_value(&crossing).expect("a crossing serializes"),
+        serde_json::json!({
+            "Mate": {
+                "class": "rest",
+                "outer": { "kind": "Face", "node": 3, "path": [{ "Cap": "Start" }] },
+                "inner": { "kind": "Face", "node": 5, "path": [{ "Cap": "Start" }] },
+            }
+        })
+    );
+}
+
 // ---- The A11 placement registry ----
 
 /// **A placement on a node that instantiates nothing — both doors.**
@@ -431,6 +609,7 @@ fn a_placement_on_a_non_instance_is_refused_at_both_doors() {
             frame: Frame::translation([1.0, 0.0, 0.0]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, other),
         other => panic!("a placement on a non-instance must refuse typed, got {other:?}"),
@@ -465,6 +644,7 @@ fn an_improper_placement_is_refused_at_both_doors() {
             frame: mirror,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::ImproperPlacement { determinant, .. }) => {
             assert!(determinant < 0.0, "the refusal carries the determinant");
@@ -625,6 +805,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
             witness: witness(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::WitnessOnNonSketch { node }) => assert_eq!(node, non_sketch),
         other => panic!("a witness on a non-sketch must refuse typed, got {other:?}"),
@@ -652,9 +833,14 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     // Deleted rather than invented, so the id stays BELOW the mint
     // counter and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `IdBeyondCounter`.
-    let doc = apply(&doc, &DocEdit::DeleteNode { id: gone }, Tol::witness())
-        .expect("the extrude has no consumer")
-        .doc;
+    let doc = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: gone },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the extrude has no consumer")
+    .doc;
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -662,6 +848,7 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
             witness: witness(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::UnknownNode { id }) => assert_eq!(id, gone),
         other => panic!("a witness on a missing node must refuse typed, got {other:?}"),
@@ -691,7 +878,12 @@ fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
 #[test]
 fn a_non_positive_epsilon_is_refused_at_both_doors() {
     let (doc, _) = with_measure();
-    match apply(&doc, &DocEdit::SetTolerance { eps: 0.0 }, Tol::witness()) {
+    match apply(
+        &doc,
+        &DocEdit::SetTolerance { eps: 0.0 },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    ) {
         Err(EditError::InvalidTolerance { value }) => assert_eq!(value, 0.0),
         other => panic!("a zero ε must refuse typed, got {other:?}"),
     }
@@ -761,6 +953,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
                 value: value.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         ) {
             Err(EditError::NonFiniteDocParam { name: n, field }) => {
                 assert_eq!(n, name);
@@ -773,7 +966,7 @@ fn a_non_finite_doc_param_is_refused_at_both_doors_naming_the_field() {
             name: name.clone(),
             value,
         };
-        match save(&doc, &[edit], Tol::witness()) {
+        match save(&doc, &[edit.into()], Tol::witness()) {
             Err(PersistError::NonFinite {
                 site: NonFiniteSite::Edit { index: 0, inner },
             }) => match *inner {
@@ -817,6 +1010,7 @@ fn a_continuous_parameter_declared_count_is_refused_at_both_doors_in_different_w
             value: DocParam::continuous(Dimension::Count, 3.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::ContinuousParamCannotBeCount { name: n }) => assert_eq!(n, name),
         other => panic!("a count-dimensioned continuous param must refuse typed, got {other:?}"),

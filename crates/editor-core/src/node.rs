@@ -20,6 +20,13 @@ use topo::ContactClass;
 /// Both matches stay exhaustive: a new [`Node`] variant absent
 /// from this list breaks both builds, and adding it to this list is one
 /// decision at one site.
+///
+/// [`Node::payload_read_sites`] is a THIRD reader, and of a weaker
+/// claim: a variant that references no name references nothing to
+/// have a read site FOR, so this pattern is the no-site answer's
+/// bulk. The variants it does not cover — the named ones whose
+/// references are read at their own mints — are spelled beside it
+/// there, so that match is exhaustive too.
 macro_rules! name_free_node {
     () => {
         $crate::node::Node::Datum(
@@ -42,7 +49,6 @@ macro_rules! name_free_node {
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
-            | $crate::node::Node::InstantiatePart { .. }
             | $crate::node::Node::Assertion { .. }
     };
 }
@@ -473,11 +479,6 @@ impl VectorSlot {
         }
     }
 
-    /// All three of this family's slots, component order (x, y, z).
-    pub fn slots(self) -> [SlotId; 3] {
-        Axis3::ALL.map(|axis| self.slot(axis))
-    }
-
     /// The family as a prose noun — the one spelling a user-facing
     /// rendering uses.
     pub fn label(self) -> &'static str {
@@ -799,6 +800,61 @@ pub enum Datum {
 /// gave: a crossing is whatever KIND of edge crossed, and mates are
 /// the only kind of edge that can cross today. A second kind extends
 /// this enum rather than retrofitting a shape onto the first.
+///
+/// **A crossing's two references are FACE names** ([`FaceName`]), the
+/// kind fixed by the type as a mate head's is. A crossing is written
+/// out of the two heads of a mate ([`SitedFace`]s), so the fields are
+/// face names by construction, and this is the record SAYING what the
+/// split guarantees rather than the readers re-asking it. The wire
+/// asks the question once, in `FaceName`'s `Deserialize`, so a file
+/// whose crossing names an edge refuses at the load door's parse; the
+/// split's own re-wrap is one call at this boundary rather than one
+/// per reader.
+///
+/// **A crossing cannot be built from a bare name**, which is the whole
+/// claim, pinned where a claim about types belongs:
+///
+/// ```compile_fail,E0308
+/// let _ = editor_core::InterfaceCrossing::Mate {
+///     class: editor_core::ContactClass::Rest,
+///     outer: named(editor_core::EntityKind::Edge),
+///     inner: named(editor_core::EntityKind::Edge),
+/// };
+///
+/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
+///     editor_core::StableName {
+///         kind,
+///         node: editor_core::RecipeNodeId(0),
+///         path: Vec::new(),
+///     }
+/// }
+/// ```
+///
+/// The RUNNING twin below — the same body, differing only in that the
+/// two references are made through [`FaceName::new`] — is why that
+/// block proves anything; [`SitedFace`]'s doc states the rule, for the
+/// pair it states it about.
+///
+/// ```
+/// let face = || {
+///     editor_core::FaceName::new(named(editor_core::EntityKind::Face))
+///         .expect("a face name is a face")
+/// };
+///
+/// let _ = editor_core::InterfaceCrossing::Mate {
+///     class: editor_core::ContactClass::Rest,
+///     outer: face(),
+///     inner: face(),
+/// };
+///
+/// fn named(kind: editor_core::EntityKind) -> editor_core::StableName {
+///     editor_core::StableName {
+///         kind,
+///         node: editor_core::RecipeNodeId(0),
+///         path: Vec::new(),
+///     }
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum InterfaceCrossing {
@@ -810,20 +866,26 @@ pub enum InterfaceCrossing {
     /// is the reference that moved into the part, spelled in the
     /// PART's own names — unwrapped, because that is what the part's
     /// product answers to and re-verification resolves against. The
-    /// wrapped form (`outer_head / InPart{ inner }`) is what the
+    /// wrapped form (`outer / InPart{ inner }`) is what the
     /// remainder's mate now reads, and re-wrapping is the split's
     /// rebind, so storing the wrapper twice would be storing a
     /// derivable fact.
+    ///
+    /// **No provenance.** A crossing carries what the seam needs and
+    /// nothing about where it came from: the mate the split observed
+    /// is not a field, because no door resolves it, nothing
+    /// recomputes from it, and an id the record cannot keep honest —
+    /// a later delete of the mate is not reported — is a reference
+    /// with no reader to protect.
     Mate {
-        /// The crossing mate, in the remainder.
-        mate: RecipeNodeId,
         /// The class the crossing declares.
         #[serde(with = "crate::persist::kernel_wire::contact_class")]
         class: crate::mate::ContactClass,
-        /// The remainder-side reference.
-        outer: StableName,
-        /// The part-side reference, in the part's own names.
-        inner: StableName,
+        /// The remainder-side reference — the one the mate keeps.
+        outer: FaceName,
+        /// The part-side reference, in the part's own names — the one
+        /// that moved, remapped into the part's node numbering.
+        inner: FaceName,
     },
 }
 
@@ -1104,9 +1166,9 @@ impl SitedRef {
 /// whose head is a bare [`StableName`] does not compile, so no door
 /// downstream has a document to refuse.
 ///
-/// The three boundaries that turn data into names — the wire, the
-/// Python binding, and the viewer's picked face — call
-/// [`FaceName::new`] and answer its refusal in their own vocabulary.
+/// Where a face name comes from is [`FaceName`]'s own doc: the three
+/// boundaries that turn DATA into one, and the single in-crate door
+/// that re-derives one without re-asking the kind.
 ///
 /// **`at` is an A12 READING edge** — never consuming, or the mated
 /// bodies would leave A10's root set. It names the OPERAND the mate is
@@ -1968,23 +2030,39 @@ pub enum Node<P> {
     ///
     /// Members that touch refuse `UndeclaredContact` exactly as a pair
     /// boolean's operands do, and the recourse is the same one: a
-    /// [`Node::Declare`] input. Its pairs name entities in THIS node's
-    /// own name space — [`crate::RoleSeg::FromMember`] rows for a
-    /// member's entity, and the `Seam`/`Merged`/`Fragment` rows this
-    /// node minted at an earlier fold step for an entity of the
-    /// accumulation. A declaration therefore says "this face of member
-    /// `m` meets that face of member `n`" and records no fold position:
-    /// the step each pair is fed at is DERIVED from the member ids its
-    /// two names carry, so reordering or dropping a member re-derives
-    /// the routing rather than invalidating the declaration.
+    /// [`Node::Declare`] input. Its pairs name SITED entities
+    /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,
+    /// with that member beside it. A declaration therefore says "this
+    /// face of member `m` meets that face of member `n`" while naming
+    /// nothing of this node's own, which is what lets it be authored
+    /// BEFORE the union: the `Declare` goes in first and the union
+    /// carrying its edge second, in two edits.
     ///
-    /// Two names in ONE member are that member's own CARRIED contact,
-    /// fed at the step that member joins at — member 0's at step 1,
-    /// where it is operand A — which is the pair chain's rule for a
-    /// carried contact, on a member instead of an operand.
+    /// It records no fold position either: the step each pair is fed
+    /// at is DERIVED from where its two sites sit in `members`, so
+    /// REORDERING the list re-derives the routing rather than
+    /// invalidating the declaration. Dropping a declared member is
+    /// the other case and is not silent: its site is no longer in the
+    /// list, and the next evaluation refuses that pair as a vanished
+    /// name (N5), since `SetMembers` leaves `declare` as it was. And
+    /// the SITE is the side —
+    /// the later member is the joining operand, the earlier is inside
+    /// the accumulation — so two members that are transforms of one
+    /// body, whose tables are identical (N1), are told apart by the
+    /// pair itself.
     ///
-    /// A member-space declaration resolves at its step through the
-    /// MERGES the fold has performed. A declared merge consumes the
+    /// Two sites in ONE member are that member's own CARRIED contact,
+    /// fed at the step that member joins at — member 0's at the first
+    /// step, where it is operand A — which is the pair chain's rule for
+    /// a carried contact, on a member instead of an operand.
+    ///
+    /// A row the FOLD mints (a `Seam`, a `Merged`, a `Fragment`, the
+    /// output body) is not a declaration subject at all: it exists
+    /// only in this node's own evaluation, after the `Declare` that
+    /// would name it, so there is no node to site it at.
+    ///
+    /// A declared pair resolves at its step through the MERGES the
+    /// fold has performed. A declared merge consumes the
     /// two faces it joins and publishes a `Merged` row in their place,
     /// and a member's face that is inside such a row by the time its
     /// pair's step runs resolves TO that row — the one whose flat
@@ -2013,9 +2091,15 @@ pub enum Node<P> {
         /// [`crate::DocEdit::SetMembers`] leaves it as it was.
         declare: Option<RecipeNodeId>,
     },
-    /// A rigid placement of an upstream body (F4: Transform).
+    /// **A rigid placement of an upstream value** (F4: Transform):
+    /// ONE map, applied to every body the input's value carries, in
+    /// that value's own order. Shape-preserving — a body places as a
+    /// body, an `Instances` value places as `Instances` — so what
+    /// this node takes is a placer's operand and not a body seat
+    /// (`eval::wire`'s `placeable_operand`).
     Transform {
-        /// The body placed.
+        /// The value placed: a body, a boolean's non-empty result, or
+        /// an `Instances` value taken whole.
         input: RecipeNodeId,
         /// Translation components, Length ([`SlotId::Translation`]).
         translation: [Expr; 3],
@@ -2024,10 +2108,17 @@ pub enum Node<P> {
         /// Rotation angle ([`SlotId::RotationAngle`]).
         rotation_angle: Expr,
     },
-    /// A pattern of an upstream body with a STRUCTURAL Count-typed
-    /// index expression (spec D3/A8; N1 `Instance(i)` will index it).
+    /// **A pattern of an upstream value** with a STRUCTURAL
+    /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
+    /// will index it): the input is the MASTER, placed WHOLE at every
+    /// placement. It takes the same operand [`Node::Transform`] does
+    /// (`eval::wire`'s `placeable_operand`), but it is not
+    /// shape-preserving the way a transform is — the value is
+    /// `Instances` whatever the master was: N bodies for a one-body
+    /// master, N·M placement-major for an `Instances` master of M.
     Pattern {
-        /// The body replicated.
+        /// The master replicated: a body, a boolean's non-empty
+        /// result, or an `Instances` value placed whole.
         input: RecipeNodeId,
         /// Instance count — the structural slot ([`SlotId::Count`]).
         count: Expr,
@@ -2059,10 +2150,12 @@ pub enum Node<P> {
     /// Because it moves nothing and renames nothing, an `Instance`
     /// selection is a pass-through of A11's member walk too
     /// ([`crate::mate::member_of`]): a mate read at one, or below
-    /// one, stands on the same member the pattern's copy does. It is
-    /// also the only node a pattern of a pattern can be built
-    /// through, a pattern's own value being many bodies where a
-    /// pattern's input is one.
+    /// one, stands on the same member the pattern's copy does.
+    ///
+    /// A pattern of a pattern does NOT need this projection — a
+    /// placer takes an `Instances` value whole — so a `Part` between
+    /// two patterns is a user saying WHICH copy to replicate, a
+    /// different document from the nest without it.
     Part {
         /// The split or pattern whose value is read.
         of: RecipeNodeId,
@@ -2115,6 +2208,77 @@ pub enum Node<P> {
     /// explicit `Rebind` edit (PR 4) is the repair. Blocking the
     /// delete would force cascade-or-pre-repair, worse than the
     /// typed-failure flow.
+    ///
+    /// **A declared entity is SITED** (DM4): each side is a
+    /// [`SitedRef`] — the entity's name, and the node it is READ AT,
+    /// which is one of the consumer's operands (a member, for a
+    /// union). A declaration therefore names only what exists BEFORE
+    /// the consumer, and is authored in one pass: the `Declare` is
+    /// inserted first and the boolean or union carrying its edge
+    /// second. The site is also the SIDE — a name carried by both
+    /// operands says which one it means — so nothing about a
+    /// declaration depends on the consumer's own name space. A
+    /// `Declare` left with no consumer is a legal document — it
+    /// evaluates to its own payload and refuses nothing — so what
+    /// says the node went inert is the delete that TOOK its last
+    /// consumer, as a [`crate::edit::Maintenance::OrphanedDeclare`]
+    /// on the accepted edit — the delete door's orphan report,
+    /// beside DM7's strands, whose arm carries the transition rule.
+    ///
+    /// **A union's own fold rows are therefore UNREPRESENTABLE here,
+    /// not refused** — a `Seam`, a `Merged`, a `Fragment` or the
+    /// output body of the union is minted by the union's evaluation
+    /// and has no node it is read at. A pair of bare [`StableName`]s,
+    /// which is the only spelling that could have named one, does not
+    /// typecheck:
+    ///
+    /// ```compile_fail,E0308
+    /// let _: editor_core::Node<editor_core::ProfileProgram> =
+    ///     editor_core::Node::declare_rest(vec![(named(), named())]);
+    ///
+    /// fn named() -> editor_core::StableName {
+    ///     editor_core::StableName {
+    ///         kind: editor_core::EntityKind::Face,
+    ///         node: editor_core::RecipeNodeId(0),
+    ///         path: Vec::new(),
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// **What that row proves, and what it does not.** Stable rustdoc
+    /// checks only that the block FAILS to build; the `,E0308` beside
+    /// it is not enforced, so a typo or a missing import would pass it
+    /// just as well. The twin below is the same body with the ONE
+    /// difference this claim is about — each side wrapped in a
+    /// [`SitedRef`] — and it RUNS, so a defect anywhere but the side's
+    /// type reddens here instead of satisfying the block above for the
+    /// wrong reason. (The idiom is `quantity::units`'; the mate head
+    /// above states it too.)
+    ///
+    /// ```
+    /// let _: editor_core::Node<editor_core::ProfileProgram> =
+    ///     editor_core::Node::declare_rest(vec![(sited(), sited())]);
+    ///
+    /// fn sited() -> editor_core::SitedRef {
+    ///     editor_core::SitedRef::new(editor_core::RecipeNodeId(0), named())
+    /// }
+    ///
+    /// fn named() -> editor_core::StableName {
+    ///     editor_core::StableName {
+    ///         kind: editor_core::EntityKind::Face,
+    ///         node: editor_core::RecipeNodeId(0),
+    ///         path: Vec::new(),
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// The persisted form is the other door the class could have come
+    /// in through, and it refuses there instead of loading: the
+    /// `Unreadable` detail is serde's own missing-field message, and
+    /// the crate adds no constructor sentence to it — there is no
+    /// analogue of the mate head's constructor refusal for a side
+    /// whose SHAPE is wrong rather than whose kind is
+    /// (`a_declared_pair_side_that_is_a_bare_name_does_not_load`).
     Declare {
         /// The declared contact pairs, each with the CLASS it asserts
         /// (CONTACT-DESIGN C4).
@@ -2127,7 +2291,7 @@ pub enum Node<P> {
         /// fall back to, because defaulting would let a `Tangent`
         /// intent be verified against the conformal table.
         #[serde(with = "crate::persist::kernel_wire::contact_class::pairs")]
-        pairs: Vec<((StableName, StableName), ContactClass)>,
+        pairs: Vec<((SitedRef, SitedRef), ContactClass)>,
     },
     /// An instance of another document's product (ASSEMBLY-DESIGN
     /// A2/A3, ASM-2A D-1): a LEAF — its material crosses the document
@@ -3110,7 +3274,8 @@ impl<P> Node<P> {
 
     /// The [`StableName`]s this payload REFERENCES — `Declare` pairs, a
     /// blend's selection, a shell's open list, a derived frame's face, a
-    /// measure's references, a mate's two heads. Document data, never DAG
+    /// measure's references, a mate's two heads, an instance's interface
+    /// crossings' `outer`s. Document data, never DAG
     /// edges ([`Node::inputs`] excludes them): the edit door checks at
     /// insertion that each one names a live node, and a later delete may
     /// strand it, which is NAMING-DESIGN N5's dangling-reference
@@ -3119,9 +3284,34 @@ impl<P> Node<P> {
     /// The single answer to "which payloads carry a name": every reader
     /// reads this rather than its own copy of the list. The negative
     /// half is [`name_free_node`], shared with the rewriting twin.
+    ///
+    /// **The list has TWO prose homes and no others**: this doc, beside
+    /// the match that enforces it, and `REFERENCES.md` §0's `Carriers:`
+    /// clause, which a reader without the code reads. A new carrier is
+    /// therefore two edits. Every other site says what it DOES with the
+    /// list and points here for what is in it, so a site that spells
+    /// variant names is a third home to delete rather than maintain.
+    ///
+    /// The question is asked IN THIS DOCUMENT'S NAME SPACE, which is
+    /// the space every reader of the answer reasons in — the insert
+    /// door's liveness check, `Rebind`, DM7's strand walk through
+    /// `Doc::name_carriers` (which `split`'s
+    /// `PartNameReachesRemainder` precondition reads too), the insert
+    /// census in `crate::resolve`. A reference a payload holds in
+    /// ANOTHER document's id space is therefore not a name here: an
+    /// instance's crossing `inner` is the one such reference, and the
+    /// arm below is the ONE home for the reason it is out of scope
+    /// rather than absent — every other site says "not a name of this
+    /// document" and points here.
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
-            Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
+            // A declared pair's two NAMES. The sites beside them
+            // are node ids, not names, and are listed by
+            // [`Node::payload_read_sites`].
+            Node::Declare { pairs } => pairs
+                .iter()
+                .flat_map(|((a, b), _)| [&a.name, &b.name])
+                .collect(),
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 selection.iter().collect()
             }
@@ -3140,6 +3330,38 @@ impl<P> Node<P> {
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.
             Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
+            // An instance's interface record: each crossing's `outer`,
+            // in record order.
+            //
+            // An `outer` is a REMAINDER name — it denotes a face in
+            // THIS document, on a node this document can delete and
+            // under a name this document can rebind — so it is a
+            // payload name like a mate's head, and the same FOUR
+            // doors reach it: the insert door's liveness check,
+            // `DocEdit::Rebind`, DM7's strand report, and `split`'s
+            // `PartNameReachesRemainder` precondition, which refuses
+            // a cut that TAKES an instance whose record names a kept
+            // node — a part cannot name the remainder.
+            //
+            // An `inner` is NOT listed, and the reason is the id space
+            // it is spelled in: the PART's. Its `node` is a part-side
+            // id, which this document may not hold or may hold as an
+            // unrelated node, so the insert door's liveness check over
+            // it would be a wrong check and `Rebind` a wrong repair.
+            // Its life is the pinned product's, re-verified at every
+            // evaluation ([`crate::eval::NodeErrorKind::CrossingUnverified`],
+            // ASSEMBLY A4). That is what makes this list's "single
+            // answer" claim TRUE BY SCOPE: it lists the names in THIS
+            // document's name space, which is the space every reader
+            // of it reasons in.
+            Node::InstantiatePart { interface, .. } => interface
+                .crossings
+                .iter()
+                .map(|crossing| {
+                    let InterfaceCrossing::Mate { outer, .. } = crossing;
+                    outer.as_ref()
+                })
+                .collect(),
             name_free_node!() => Vec::new(),
         }
     }
@@ -3162,11 +3384,37 @@ impl<P> Node<P> {
                 0
             }
         }
+        /// A FACE-typed payload name rewritten onto `to` when it is
+        /// exactly `from`, or `None` when it is some other name —
+        /// the one re-derivation both face-name payloads use (a
+        /// mate's heads, an instance's crossing `outer`s).
+        ///
+        /// A face name's kind is the TYPE's, not this rewrite's:
+        /// [`crate::DocEdit::Rebind`] refuses a cross-kind pair at
+        /// its own door, so what `to` contributes is its DERIVATION,
+        /// and `FaceName::map_derivation` is the one in-crate door
+        /// for that. It cannot change a kind, so there is no arm to
+        /// assert away and `Infallible` is the whole of what can go
+        /// wrong.
+        fn rebind_face(name: &FaceName, from: &StableName, to: &StableName) -> Option<FaceName> {
+            if name.as_ref() != from {
+                return None;
+            }
+            let Ok(next) = name.map_derivation(|_, _| {
+                Ok::<_, core::convert::Infallible>((to.node, to.path.clone()))
+            });
+            Some(next)
+        }
         let mut hits = 0usize;
         match self {
+            // The NAME rewrites; the SITE stays. A site is the node
+            // the author chose to read the entity at — an operand of
+            // the consumer — and moving it would re-author which
+            // member the declaration is about, which is not a repair
+            // for a name whose minting node went away.
             Node::Declare { pairs } => {
-                for name in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
-                    hits += rewrite(name, from, to);
+                for r in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
+                    hits += rewrite(&mut r.name, from, to);
                 }
             }
             // A SORTED payload re-canonicalizes through the same door
@@ -3205,23 +3453,7 @@ impl<P> Node<P> {
             // re-authoring the mate.
             Node::Mate { a, b, .. } => {
                 for r in [a, b] {
-                    if &*r.name != from {
-                        continue;
-                    }
-                    // A head's kind is the type's (`FaceName`), and a
-                    // rebind never crosses entity kinds — its door
-                    // refuses that pair — so `to` is a face whenever
-                    // it can replace a head at all. A `to` that is not
-                    // is this crate's bug: asserted here, and answered
-                    // by rewriting nothing, which leaves the count at
-                    // zero and the rebind refusing `RebindNoReferences`
-                    // rather than writing a head the type forbids.
-                    let Ok(next) = FaceName::new(to.clone()) else {
-                        debug_assert!(
-                            false,
-                            "a rebind reached a mate head across entity kinds: \
-                             `DocEdit::Rebind` refuses that pair at its own door"
-                        );
+                    let Some(next) = rebind_face(&r.name, from, to) else {
                         continue;
                     };
                     let at_mint = r.at == r.name.node;
@@ -3245,6 +3477,24 @@ impl<P> Node<P> {
                     hits += rewrite(&mut r.name, from, to);
                 }
             }
+            // An instance's crossing `outer`s — the reading twin's
+            // list, rewritten. No re-canonicalization: a record is
+            // ordered by the split's collection order and each
+            // crossing is keyed by its own mate, so a rebind can make
+            // two `outer`s equal but never two CROSSINGS equal, and
+            // there is no set to collapse. An `inner` is not a name in
+            // this document (the reading twin says why) and is not
+            // rewritten.
+            Node::InstantiatePart { interface, .. } => {
+                for crossing in interface.crossings.iter_mut() {
+                    let InterfaceCrossing::Mate { outer, .. } = crossing;
+                    let Some(next) = rebind_face(outer, from, to) else {
+                        continue;
+                    };
+                    *outer = next;
+                    hits += 1;
+                }
+            }
             name_free_node!() => {}
         }
         hits
@@ -3257,7 +3507,8 @@ impl<P> Node<P> {
     }
 
     /// **The nodes a payload's references are READ AT that are not
-    /// also DAG inputs** — today, a mate's two operands.
+    /// also DAG inputs** — a mate's two operands and a declared
+    /// pair's two sites.
     ///
     /// The insert door checks these are live exactly as it checks a
     /// payload name's head, and for the same reason: a never-existed
@@ -3272,7 +3523,36 @@ impl<P> Node<P> {
     pub fn payload_read_sites(&self) -> Vec<RecipeNodeId> {
         match self {
             Node::Mate { a, b, .. } => vec![a.at, b.at],
-            _ => Vec::new(),
+            // A declared pair's sites are the consumer's operands, so
+            // they are reading edges exactly as a mate's are: this
+            // node has no `inputs`, and a site that is not the
+            // consumer's operand is the EVALUATION's refusal, not the
+            // insert door's.
+            Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a.at, b.at]).collect(),
+            // EXHAUSTIVE, with no wildcard, so a new [`Node`] variant
+            // is classified here or does not compile — the promise
+            // the twins above already keep. Three groups: the
+            // name-free variants, which reference nothing that could
+            // have a read site (one home for that list,
+            // [`name_free_node`]); the named variants whose
+            // references are read at a node the DAG ALREADY CARRIES
+            // — a blend's and a shell's at the body they consume, a
+            // derived frame's and a measure's at an `at` that
+            // [`Node::inputs`] reports — so the input check covers
+            // the site and there is nothing extra to name here; and
+            // an instance, whose interface record holds NO node id at
+            // all ([`InterfaceCrossing::Mate`] argues why). A crossing
+            // is a class and two face names: the `outer` is a payload
+            // name, checked as one by the reading twin's list, and the
+            // `inner` is spelled in the part's id space, which no door
+            // here may read.
+            name_free_node!()
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
+            | Node::Datum(Datum::FaceFrame { .. })
+            | Node::InstantiatePart { .. }
+            | Node::Measure { .. } => Vec::new(),
         }
     }
 
@@ -3406,7 +3686,7 @@ impl<P> Node<P> {
     /// classes is being claimed, and a pair that means something else
     /// cannot arrive here by omission. Mixed-class nodes build
     /// [`Node::Declare`] directly.
-    pub fn declare_rest(pairs: Vec<(StableName, StableName)>) -> Self {
+    pub fn declare_rest(pairs: Vec<(SitedRef, SitedRef)>) -> Self {
         Node::Declare {
             pairs: pairs.into_iter().map(|p| (p, ContactClass::Rest)).collect(),
         }

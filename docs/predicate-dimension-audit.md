@@ -240,10 +240,14 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 #652). Re-deriving:
 
 ```sh
-# code half — every funnel site, all ten spellings, both crates.
+# code half — every funnel site, all twelve spellings, both crates.
 # It also matches doc-comment prose and `fn` definitions; the ledger
 # above says which, and they are subtractions, not sites.
-grep -rnE '\b(decide|decide_flagged|decide_invariant|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+# `decide_positive` / `decide_nonzero` are `decide` with the caller's
+# sign requirement folded in, so their sites are rows of this table
+# like any other; `gate_measured` is deliberately absent — it classifies
+# no margin and has no comparand to dimension.
+grep -rnE '\b(decide|decide_flagged|decide_invariant|decide_positive|decide_nonzero|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
@@ -266,11 +270,14 @@ disclosed rather than discovered.
 **Eight names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 248 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate` —
-seven through `predicate: Some("…")` (`carrier_kind`,
+six through `predicate: Some("…")` (`carrier_kind`,
 `contact_tangent_independent`, `contact_rest_senses_opposed`,
-`contact_rest_ladder_invariant`, `transversality`,
-`plane_nurbs_transversality_reported`, `validate_probe`) and one
-through an `invalid(band, "…")` helper (`bool_contfp_boundary`).
+`contact_rest_ladder_invariant`, `transversality`, `validate_probe`),
+one through an `invalid(band, "…")` helper (`bool_contfp_boundary`),
+and one — `plane_nurbs_transversality_reported` — as the name argument
+of a `k_stats::gate_measured` call, which records the escalation on the
+open frame but classifies nothing, so it is outside this table for the
+same reason the other seven are.
 None decides anything, none appears in the M7 baseline, and none has a
 comparand to dimension.
 
@@ -298,6 +305,10 @@ which is what actually moves the number.
 
 | site | predicate | comparand | dim | status |
 |---|---|---|---|---|
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC; the kind's deciding door, registered here because `topo`'s rim mint decides through it) | spiric_minor_positive | the minor radius | m | OK (new in CURVED-SPIRIC) |
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_ring | `major_radius − minor_radius` — the ring convention's length | m | OK (new in CURVED-SPIRIC) |
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_two_ovals | `(major_radius − minor_radius) − \|offset\|` — the length the two-oval regime closes by, decided before any root (the `offset_axial_rim_torus_reach` comparand, re-decided at the kind's own door) | m | OK (new in CURVED-SPIRIC) |
+| geom/src/curves.rs `Curve3::spiric` (CURVED-SPIRIC) | spiric_frame_orthogonal | `axis · u_ref`, a cosine of unit vectors, levered at `major_radius + minor_radius` (the farthest point the frame places) | m | OK (new in CURVED-SPIRIC) |
 | dihedral.rs:140 | dihedral_arm | min(curvature arms, extent) | m | OK |
 | dihedral.rs:151 | dihedral_wedge | sinθ (unit-gradient cross) × arm | m | OK |
 | enters.rs:84 | enters_material_arm | caller arm (contract: m) | m | OK |
@@ -349,8 +360,9 @@ which is what actually moves the number.
 | props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Unit) | rooted (sin,cos) CHORD × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N1 RETIRED** (S81: one rule, one arm. Was Δ(sin,cos) componentwise × `major` on the torus) |
 | props/curved.rs (`du_of_rims`) | props_du_consistent | Δu (rad) × `RimArms::azimuth` | m | OK |
 | props/curved.rs (`require_rim_interior_sides`) | props_rim_interior_side | `rim_offset_margin` pointed by σ: the same per-kind comparand as `props_rim_side`, bare (Length) / × `RimArms::level` (Unit), multiplied by an exact ±1 | m | OK (note N2; σ is a product of two discrete signs and reads no margin of its own) |
-| props/curved.rs (`sphere_rim_only_pole_level`, and `boundary_material_sign`'s sphere arm) | props_rim_only_extent | `sphere_extent_margin` — `(hi − lo)·R`, `require_extent`'s own sphere comparand asked one step earlier, from the one helper both read | m | OK (note N9: ONE comparand under TWO names, so a meridian-free rim-bearing sphere face records both; note N8 applies verbatim — the sine extent shrinks by `cos v̄` near the poles, in the FOLDING direction here, which is the direction that serves the cap) |
-| props/curved.rs (`require_rim_only_closed`) | props_rim_only_closed | `(Δu − τ)` × `RimArms::azimuth` — the arc a folded-pole rim fails to close by | m | OK (the azimuthal arm `props_du_consistent` already meters) |
+| props/curved.rs (`sphere_rim_only_pole_level`, `cone_apex_level`, and `boundary_material_sign`'s sphere arm) | props_rim_only_extent | per kind, `require_extent`'s OWN comparand asked one step earlier: `sphere_extent_margin` — `(hi − lo)·R` — on the sphere, from the one helper both read; the bare slant difference `hi − lo` on the cone, as `require_extent`'s cone call reads it | m | OK (note N9: ONE comparand under TWO names, so a meridian-free rim-bearing sphere face records both; note N8 applies verbatim — the sine extent shrinks by `cos v̄` near the poles, in the FOLDING direction here, which is the direction that serves the cap) |
+| props/curved.rs (`require_rim_only_closed`) | props_rim_only_closed | `(Δu − τ)` × `RimArms::azimuth` — the arc a rim whose face folded a missing extreme fails to close by; the sphere's pole and the cone's apex share it, at each kind's own azimuthal arm (`R`, and the cone's first rim radius) | m | OK (the azimuthal arm `props_du_consistent` already meters) |
+| props/curved.rs (`require_rim_only_closed`) | props_rim_only_join | `‖p_end(i) − p_start(i+1)‖` over the group's arcs, cyclically — a point deviation, bare (metres already), the comparand `require_rim_incidence` meters an incidence with | m | OK (the tiling half of the closure guard: the sum says the spans total a turn, this says the arcs actually chain, and a sum without a chain covered half a circle and answered a whole cap) |
 | props/curved.rs (`linear_rim_side`'s nested `side`) | props_rim_side | per-kind: bare (Length) / × `RimArms::level` (Unit) | m | FIXED (#89's unit); note N8 open — the sphere margin reads the PRIMARY component (`lo + hi − 2·sin v`), an axial quantity that shrinks by `cos v̄` near the poles, refusing direction |
 | props/curved.rs (`cylinder_boundary`'s line arm / `cone_boundary`'s line arm) | props_meridian_axial / props_meridian_generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
 | props/curved.rs (the four `*_boundary` parses) | props_meridian_on_surface / props_rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
@@ -368,6 +380,7 @@ which is what actually moves the number.
 | props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N7 RETIRED** (N1 RETIRED earlier. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement — an axial-only `(sin v, 0)` pair whose chord collapsed by `cos v̄`, merging distinct near-polar rims in the ACCEPTING direction on both names, this refusing one included — is retired by the full `(sin v, cos v)` pair (issue 893 / S-CERT; this verdict column previously said `OK` while N7's own prose recorded the collapse). Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in suites CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs` and the near-polar rows of `geom-brep/tests/cert1_sphere_polar.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
+| props/quad.rs (`piece_monotone`, asked once per trim piece by `trim_cells`) | props_trim_piece_monotone | `Margin::metered(span, rate)` — `span` is the control polygon's LEAST advance along the unit chord direction, a chart-parameter length (a convexity fact on the Bézier differences, which are the derivative's own coefficients up to the positive `p/h`); `rate` is the chart's metric rate along that same direction, `|S_u·ĉ_u + S_v·ĉ_v|` bounded BELOW over the piece box | m | OK (added with the trimmed-region quadrature, TRIM-2 PR-1. Clause (iii)'s metric door: a parameter-space span crosses to model space through a per-kind rate, and the rate here is the chart's own directional derivative rather than a carrier speed. Both factors round toward REFUSING — the span is the `lo()` of the bracketed dot product, and a derivative hull that straddles zero in every component answers rate `0`, hence margin `0`, hence Zero. Only a definite `Positive` admits the piece; `Zero` and the ambiguity band alike bisect the piece and re-ask, to `TRIM_MONOTONE_DEPTH`, and then refuse `QuadratureUnsupported` naming this row — the lane never pads a piece it cannot certify is a graph over its chord. **The margin carries the ROUND's lever as well as the image's, and a reader of this row has to know it**: `span` is the REFINED block's least advance, so it halves with every uniform cut and every bisection AND scales with the face. Measured (the v6 dual, both arms independently): the same smooth parabolic arc certifies at every round on a 10 µm face, refuses at round 4 on a 1 µm face, and refuses at every round on a 0.1 µm face — that is the lane's resolution speaking, not the image's shape, which is why the refusal names an UNRESOLVED margin rather than a cusp. Nothing on today's corpus is near the band (the fixture's scale is 1e-3 and round 0 is decades clear). An in-band verdict ESCALATES, as it does from every other lane in this file: bisection halves the very span the margin meters, so it cannot resolve one. Pinned by `geom-brep`'s `q5_a_fold_over_its_chord_refuses_typed` (a fold that survives every bisection) and `q5b_a_piece_that_only_looks_folded_resolves_by_bisection` (the curvature artefact the ladder is FOR — a refusal is cheap to get right by refusing everything).) |
 | ssi.rs:645 | ssi_cs_tangency | radius/axis distance differences | m | OK |
 | ssi/certify.rs:366–524 | ssi_on_locus / hull_sup / foot / chart | residuals, /2R linearizations, foot distances | m | OK |
 | ssi/certify.rs:836 | ssi_tube_transversality | sin (unit triple product) × arm | m | OK |
@@ -480,8 +493,13 @@ which is what actually moves the number.
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_cap_line | the moved caps' meeting line's own distance from the axis (`ρ_L`, a norm of metre coordinates) — `Zero` routes to the pole arm rather than refusing | m | OK (new in VERBS-RIMCAP) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_datum_arm | the old corner's distance from its own profile circle's centre (2-D norm in the meridian half-plane, metres) — the carried-datum direction's lever, dead exactly when no direction exists | m | OK (new in VERBS-RIMCAP) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_concentric / offset_axial_rim_great | rim-carrier centre to sphere centre distance; carrier radius minus operand sphere radius — both metre data of the stored geometry | m | OK (new in VERBS-RIMCAP) |
-| offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_plane | sin(carrier axis, moved cap normal) × the body's radial extent — the length the tilt would move a rim point by (the `offset_axial_latitude_tilt` idiom) | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (VERBS-RIMCAP, reused by CURVED-SPIRIC's torus rim arm) | offset_axial_rim_plane | sin(carrier axis, moved cap normal) × the body's radial extent — the length the tilt would move a rim point by (the `offset_axial_latitude_tilt` idiom) | m | OK (new in VERBS-RIMCAP) |
 | offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_reach | moved sphere radius minus the moved cap's stand-off `\|t\|` — the length the section circle dies by at tangency, decided before the root `√(r² − t²)` is taken | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_torus_reach | inner-equator radius of the moved torus minus the moved cap's stand-off, `(R − r′) − \|d\|` — the length the two-oval regime closes by, decided before the root `√((R − r′)² − d²)` (the `offset_axial_rim_reach` idiom) | m | OK (new in CURVED-SPIRIC) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_side | `m·(q_mid − c)` for the OLD rim's midpoint, `m = axis × cap normal`: a projection of a metre vector, equal to `±ρ(q_mid) ∈ ±[R − r, R + r]` since the midpoint lies in the meridian plane — unlevered | m | OK (new in CURVED-SPIRIC) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_sense | `old.axis · cap normal`, a cosine of unit vectors, levered at the body's radial extent | m | OK (new in CURVED-SPIRIC) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_meridian | the old rim circle's centre's distance from the tube-centre circle in `(ρ, h)` — the `offset_axial_seam_meridian` comparand on a distinct-charts edge | m | OK (new in CURVED-SPIRIC) |
+| offset_axial.rs (CURVED-SPIRIC) | offset_axial_rim_tube | the old rim circle's radius minus the operand tube's minor radius | m | OK (new in CURVED-SPIRIC) |
 | offset_axial.rs (SHELL-7) | offset_axial_centre | a point's distance from the axis (a norm of metre coordinates) — a surface's centre, origin or apex at classification and a same-surface or two-chart circle's centre at the carrier mint, one helper (`centre_on_axis`) and one name for every site; unlevered, since a length carries its own scale and the extent levers only the sines here | m | OK (one name since SHELL-7; `offset_axial_latitude` and `offset_axial_seam_latitude` folded into it) |
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
@@ -900,7 +918,12 @@ suites are green:
   refused before reaching it — `boundary_material_sign`'s three
   linearly-leveled arms run the premise first, so the population loses
   the non-rectangular faces it used to include and the K stream stops
-  carrying sides that were a property of loop-flattening order.
+  carrying sides that were a property of loop-flattening order. It also
+  records at the SHAPE door now, once per rim of every rim-bearing
+  linearly-leveled face `require_iso_rectangle` is asked about
+  (`linear_rims_at_extremes`, which takes the sense-free unanimity
+  residue): a population the door contributed nothing to before, on the
+  same comparand and lever as the two lanes above.
 
 Notes (verified honest, kept for the design conversation):
 

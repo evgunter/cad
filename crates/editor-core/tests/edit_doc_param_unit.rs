@@ -95,6 +95,7 @@ fn fixture() -> ProfileDoc {
                 value,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("the fixture parameters are valid")
         .doc;
@@ -145,6 +146,7 @@ fn rebuilding_a_parameter_to_re_spell_its_unit_drops_the_distribution() {
             value: rebuilt,
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("create-or-replace accepts it")
     .doc;
@@ -179,6 +181,7 @@ fn the_unit_door_carries_the_declaration_forward() {
             unit: mm(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a unit edit on a declared Length parameter applies")
     .doc;
@@ -257,6 +260,7 @@ fn the_unit_door_refuses_typed() {
                 unit,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("refused")
     };
@@ -300,7 +304,8 @@ fn the_unit_door_refuses_typed() {
     // carry-forward edits do not render one indistinguishable refusal.
     let notation = refuse("nonesuch", mm()).to_string();
     assert!(
-        notation.contains("a notation edit") && notation.contains("declare it first"),
+        notation.contains("a notation edit")
+            && notation.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
         "the sentence names the notation door and keeps its recourse: {notation:?}"
     );
     let value = apply(
@@ -310,11 +315,13 @@ fn the_unit_door_refuses_typed() {
             value: DocParamValue::Continuous(1.0),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("the value door refuses the same undeclared name")
     .to_string();
     assert!(
-        value.contains("a value edit") && value.contains("declare it first"),
+        value.contains("a value edit")
+            && value.contains(editor_core::edit::UNDECLARED_PARAM_RECOURSE),
         "and the value door names itself, with the same recourse: {value:?}"
     );
     assert_ne!(
@@ -346,6 +353,7 @@ fn the_mismatch_sentence_says_which_dimension_is_which() {
             unit: deg(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("refused")
     .to_string();
@@ -390,6 +398,7 @@ fn bit_eq_is_blind_to_the_notation_edit() {
             unit: mm(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("applies")
     .doc;
@@ -425,11 +434,17 @@ fn the_unit_edit_saves_replays_and_loads() {
             unit: deg(),
         },
     ];
-    let text = save(&snapshot, &edits, Tol::witness()).expect("a legal log saves");
+    let text = save(
+        &snapshot,
+        &editor_core::LoggedEdit::bare_all(&edits),
+        Tol::witness(),
+    )
+    .expect("a legal log saves");
     let loaded = load(&text, Tol::witness()).expect("and loads");
     assert_eq!(loaded.edits.len(), 2, "the log round-tripped");
     assert_eq!(
-        loaded.edits[0], edits[0],
+        loaded.edits[0],
+        editor_core::LoggedEdit::from(edits[0].clone()),
         "the edit itself round-tripped, notation and all"
     );
     match loaded.doc.params()[&p("wall")] {
@@ -454,7 +469,12 @@ fn the_unit_edit_saves_replays_and_loads() {
         unit: deg(),
     }];
     assert!(
-        save(&snapshot, &bad, Tol::witness()).is_err(),
+        save(
+            &snapshot,
+            &editor_core::LoggedEdit::bare_all(&bad),
+            Tol::witness()
+        )
+        .is_err(),
         "save refuses a log that cannot replay"
     );
 }
@@ -528,7 +548,8 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         &[DocEdit::SetDocParamUnit {
             name: p("wall"),
             unit: mm(),
-        }],
+        }
+        .into()],
         Tol::witness(),
     )
     .expect("the legal log saves");
@@ -546,7 +567,8 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         };
         // Door 1: `apply`.
         assert_eq!(
-            apply(&doc, &direct, Tol::witness()).expect_err("apply refuses"),
+            apply(&doc, &direct, Tol::witness(), &editor_core::RefusingReach)
+                .expect_err("apply refuses"),
             want,
             "apply's refusal"
         );
@@ -557,7 +579,7 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
         assert_eq!(
             Doc::replay(
                 DocumentId::derive("edit-doc-param-unit"),
-                &log,
+                &editor_core::LoggedEdit::bare_all(&log),
                 Tol::witness()
             )
             .expect_err("replay refuses"),
@@ -574,7 +596,7 @@ fn the_three_refusals_are_symmetric_across_apply_replay_and_load() {
             other => panic!("load refused with {other:?}, not EditReplay"),
         }
         // Door 4: and `save` of the same log refuses identically.
-        match save(&doc, &[direct], Tol::witness()).expect_err("save refuses") {
+        match save(&doc, &[direct.into()], Tol::witness()).expect_err("save refuses") {
             PersistError::EditReplay { error, .. } => assert_eq!(error, want, "save's refusal"),
             other => panic!("save refused with {other:?}"),
         }
@@ -593,6 +615,7 @@ fn diff_is_blind_to_the_notation_edit() {
             unit: mm(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("applies")
     .doc;
@@ -617,7 +640,12 @@ fn the_notation_edit_round_trips_the_bytes() {
         name: p("wall"),
         unit: mm(),
     }];
-    let text = save(&doc, &edits, Tol::witness()).expect("saves");
+    let text = save(
+        &doc,
+        &editor_core::LoggedEdit::bare_all(&edits),
+        Tol::witness(),
+    )
+    .expect("saves");
     assert!(
         text.contains("SetDocParamUnit") && text.contains("\"unit\": \"mm\""),
         "the wire form is the derive's, symbol and all"
@@ -646,6 +674,7 @@ fn annotating_through_create_or_replace_reverts_the_notation() {
             unit: mm(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the notation edit applies")
     .doc;
@@ -659,6 +688,7 @@ fn annotating_through_create_or_replace_reverts_the_notation() {
             value: DocParam::continuous_with(dim, value, Distribution::Normal { sigma: 2e-5 }),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("create-or-replace applies")
     .doc;
@@ -721,6 +751,7 @@ fn the_create_or_replace_door_refuses_a_mismatched_pairing() {
                 value: crooked,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a length written in degrees is refused at the edit door"),
         EditError::DocParamUnitMismatch {

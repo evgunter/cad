@@ -4,6 +4,8 @@ kind: issue
 title: the M11 addendum's corpus figures are 39% stale eight days on and nothing re-takes them; the zero-side ceiling moved 12x
 status: open
 opened: 2026-09-16
+priority: P4
+cost: E
 ---
 
 

@@ -2,8 +2,12 @@
 id: part-fault-partproduct-degrades-the-product-refusal
 kind: issue
 title: PartFault::PartProduct degrades a ProductError to message: String — trivially fixable now that ProductErrorKind exists
-status: open
+status: review
 opened: 2026-09-11
+priority: P1
+cost: E
+branch: door/part-fault-carries-the-kind
+pr: 2986
 ---
 
 

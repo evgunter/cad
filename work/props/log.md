@@ -1549,3 +1549,531 @@ no CI run and none retroactively (the first merge commit got none), and
 `cargo check` does not run clippy, so a doc-only edit still needs a
 clippy pass — one lazy-list-continuation in a lifted paragraph failed
 six jobs.
+
+**PROPS cut into four (2026-09-20).** Ev asked whether the slate — 66
+open rows — should be cut into new programs, leaving behind only what
+this orchestrator would finish itself, and agreed to the shape put
+back. Twenty-eight rows left in three programs, none with an
+orchestrator seated yet: **QUAD** (8, `props/quad.rs`'s four engines,
+the triplicated convergence block, the budget firing from six sites
+under three round budgets, and the rounds dial that is an `[ev]`
+question), **ENCL** (12, the offset fit and the patch bound and the
+certificate family — S-CERT's second successor, since S-CERT exited
+into this program at #1924 and this is the half of that inheritance
+PROPS is not finishing), and **FRAME** (8, the four doors that turn a
+direction into a basis and no rule saying which to reach for).
+
+Each carries a charter, lanes with the reading order argued, and its
+band; the log entry in each says the cut was Ev's call and names the
+worked precedents its first orchestrator should read before
+specifying — for QUAD the budget-faces unit, for ENCL the mignitude
+floor, for FRAME the sign-hull unit and the SYM row that holds it.
+
+What stays here and why: the closed-form flux arms in
+`props/curved.rs`, where three units landed in the week before the cut
+so the context is live; the verdict and escalation channel; the
+geom-core scalar and spline doors; and the sign-hull unit to its
+landing, because Ev ruled it and it is mid-flight. FRAME inherits the
+rest of its family at that point, the way this program inherited from
+S-CERT at its exit walk.
+
+**The cut does not partition the ground, deliberately.** Ev, same
+conversation: the overlap checker is too overbearing, shared ground is
+fine, and what units owe each other is awareness when they are working
+at the same time. So `props/*` is claimed by this program and by QUAD,
+`geom-core/src/*` by this program and by FRAME, each `keep_out` says
+so in those words, and no glob was contorted to keep the at-rest check
+quiet. The check itself is a separate change, opened as an `[ev]` PR.
+
+**Two units dispatched after the cut (2026-09-20).** With the slate
+down to 37 rows, the two that carry the most:
+
+- **curved-residues** (`props/curved-residues`, M/NUMERIC, dual) — the
+  three the sphere unit measured and declined to serve: the cone apex
+  cap, which is issue 1250's shape on the other singular chart and
+  needs the closure guard the sphere unit's own MAJOR taught (an
+  unguarded fold answers the UNBOUNDED complement with the cap's
+  area); the shape door's sense-free residue, which is RULED as a
+  measurement first — the door gates `mesh`'s walk, so if anything
+  legitimate stops meshing the lane stops and reports rather than
+  widening a meshing gate on a props unit's judgement; and the
+  rim-level rule that throws by feeding NaN into `classify`, with its
+  sibling reading of the unreachable state explicitly left open.
+- **escalation-channel** (`props/escalation-channel`, H/STRUCTURAL,
+  dual) — the hole the k-stats unit's own dual found in the channel it
+  built: eight shipped sites ask the funnel, get a DEFINITE sign, then
+  mint their own `Indeterminate`, so a caller sees an escalation the
+  frame's log does not. The red-first row was written by that dual and
+  is handed over rather than invented. The unit's one design question
+  is whether such an escalation is RECORDED by the minting site or
+  made IMPOSSIBLE, because a channel that needs every future site to
+  remember has the same hole one commit later. The forty-variant
+  deletion sweep follows it and is scoped by what the channel then
+  carries.
+
+Disk note: the machine reached 93% and the sign-hull lane's 6.5 GB
+build cache was freed (its tree kept; it is held on SYM's fold and
+rebuilds when it resumes). A 5.4 GB target directory under
+`/home/evan/cad-lanes/cont-to-target` belongs to no worktree this
+session owns and was last touched 2026-09-17; it was left alone and is
+reported to Ev rather than deleted.
+
+**Sign-hull prepared for SYM's return (2026-09-20).** Ev unpaused SYM.
+Our side was not ready: `props/sign-hull` had drifted **2032 commits**
+behind main and the PR was `dirty`, which matters more than it sounds
+— a conflicting PR gets no CI run at all and none retroactively, so
+the branch had been invisible to CI since 2026-09-16. A merge-forward
+lane is running now so that when the fold lands the only new variable
+is the fold, rather than a two-thousand-commit merge underneath it.
+
+Its success condition is stated precisely rather than as "green":
+exactly three rows red — SYM's tilted-derived-boss acceptance row, the
+refusal-is-not-a-freeze row, and the walk-ledger golden — and any
+fourth red is a finding to report rather than re-bless. Among the
+conflicts is a directory rename (`work/blend/` became `work/carve/` at
+BLEND's cut), so every row this unit filed is re-checked against
+`territory` and moved to whoever owns that ground now — three of those
+owners did not exist when the unit filed them, PROPS having cut QUAD,
+ENCL and FRAME out of itself in the meantime.
+
+The original lane could not be resumed: it ran in the cloud session and
+its transcript did not survive the machine move, so the merge went to a
+fresh lane with the context written out. Worth noting for the next
+handoff — a held unit's lane is not durable across a session move, only
+its branch and its record are.
+
+**Sign-hull is a clean target again, and SYM has taken the fold
+(2026-09-20).** The merge-forward landed at `c4bb5502a`: PR back to
+`MERGEABLE` from `CONFLICTING`, run 35494595889 at 31 green / 4 red,
+and the red list **exactly** the three SYM rows plus `gate ok` because
+of them — verified at step level rather than by job colour. SYM has
+adopted the filed row on main, extended it with its own measurement,
+and taken it as **SYM-10** with a spec and a block slot; its reading
+is three pieces (a `max(A, B) → A` on a manifestly non-negative
+difference, a manifest upper bound for the conditioning floor, and
+rule C's certified-sign read extended to `SymOp::Select`), with Phase 1
+rendering whether they reach the row before any rule is written. Told
+them on the PR that the branch is now measurable and that if Phase 1
+says the three pieces do not reach it, the fork returns to Ev rather
+than sitting.
+
+**Independent confirmation worth keeping.** SYM measured the obvious
+fix — patch the symbolic scalar to return the chosen arm and mint no
+node — and got what our dual got: all three rows still red, the
+tilted-boss refusal one face EARLIER and ~45% WIDER. Two programs,
+two arms, same conclusion: the opacity is the candidate's form and not
+the decision above it.
+
+**Three things the merge caught that a textual resolution would have
+shipped.** A union of the test aggregators would have RESURRECTED a
+deleted suite — main's side still listed the row that measured rule
+(c′), which no longer exists — so the resolution was derived from main
+rather than from both sides. The `seat4` digests were moved by BOTH
+sides for orthogonal reasons (main through the name table, this branch
+through each carrier's stored `u_ref`), so the merged tree's value is a
+FOURTH number neither side holds and no textual resolution can
+produce; the lane refused to invent one, pushed a placeholder and read
+the true value off hosted CI, which prints before asserting — twice,
+because the row asserts on the first digest and never reaches the
+second print. And git's rename heuristic proposed `work/bool/` →
+`work/curved/` for a filed row whose sites `territory` gives to
+**PATHS**; taking the suggestion would have filed a profile-lattice row
+on the curved-boolean program's slate. The lane ran `territory` on
+every row this unit filed rather than only the two that conflicted,
+which is the habit that caught it.
+
+**A finding filed on VDOC**: three sentences in main's viewer rows,
+added while this unit was held, are falsified by it — the door's seam
+named as the equator, a fixture header's stated reason for five of its
+thirteen members, and a falsifiability clause whose witness point
+`(1, 1, 0)` is now a point where the two constructions AGREE. None sits
+on an assertion path, so nothing reds and nothing would ever have
+caught it. Filed with a witness that does still separate the rules
+rather than hand-written geometry the lane could not run.
+
+**Escalation-channel built, and in the dual (2026-09-20).** PR #2928 at
+`aef477d21`, hosted run 35496898199 green. On the spec's one open design
+question — is an op-minted `Indeterminate` RECORDED by its site or made
+IMPOSSIBLE — the unit chose impossible, and the argument is the right
+one: a recording door leaves the mint where it is and asks every future
+site to remember a second call, whose failure mode is silent and is
+*exactly* the empty log the bug produces today. So the requirement
+travels into the funnel as three gate doors (`decide_positive`,
+`decide_nonzero` with a `NonzeroSign` that has no zero arm to forget,
+and `gate_measured`), all minting through one write to the channel, and
+a caller never holds a definite sign long enough to reject it in
+private. The handed red-first row went red exactly as designed before it
+went green.
+
+Two things the unit found that the item had wrong, and both are the
+useful kind. The item's own recipe was **blind to a field name and a
+type spelling**: the class is **82 variants across nine crates**, not
+the "forty-odd across five" the spec inherited from it. And the sweep
+retired **none of them** — not for want of trying, but because the
+escalation log is a *per-bracket side channel* that drops what it is
+given when no frame is open, so for nine consumer crates and every
+library caller the enum is the only channel carrying the escalation and
+retiring a variant would delete information rather than move it. The
+spec said "retire only what the measurement says is a pure wrapper";
+the measurement says none is.
+
+**The zero is the receipt.** This spec's posture paragraph asserted that
+recorded-verdict populations WOULD move. They did not — verdicts
+byte-identical by construction, and no corpus document reaches a gated
+arm. That is the spec asserting a premise again rather than requiring a
+decide, the same fault the sphere spec shipped a MAJOR through; here it
+cost nothing because the unit measured instead of obeying, and the
+reviewers are told to adjudicate the contradiction rather than take
+either side's word.
+
+Filed rather than widened, per §6: `work/msolve/` (family 3, measured
+NOT closed by family 1, plus a `mate/coset.rs` mint of the same shape)
+and `work/curved/` (four `contact_verify` sites, two of them **mis-typed**
+— a definite `Positive` residual dressed as `MarginDiag::Invalid`, which
+says "the margin was poison" about a margin that was measured).
+
+**Dual dispatched at ordinal 2407**, byte 186 ⇒ R1 opus / R2 fable,
+concurrent on the frozen head, briefs stored with sha256 on
+`props/b2-block` before either lane started. The three claims the
+reviewers adjudicate rather than inherit are the three above: whether
+the doors close the hole structurally or only at the eight sites, the
+corrected population and the blind spots it still admits, and the zero.
+
+**An orchestrator error, disclosed at the claim rather than tidied.**
+The two lanes dispatched after the program cut were assigned no block
+slot at dispatch and both ran on opus. Escalation-channel is B3 slot 1
+and correct; curved-residues is not slot 2, because slot 2 is fable by
+the 2026-09-08 draw and drawing a fresh block now to fit an arm already
+in flight is precisely the rigging the draw-before-dispatch rule
+prevents. So curved-residues records the arm that actually ran, marked
+not a drawn assignment, fills no slot, and the next two PROPS units are
+fable — one for the owed slot, one to repay the extra opus row. The
+ratio is restored, not just noted.
+
+**MERGED: escalation-channel, ordinal 2407, sample #225 (2026-09-20).**
+Merge `3502371ec`, fix run 35518555739 green on the full matrix. Both
+arms APPROVE-WITH-FIXES; no v6 tally candidate, because both
+MAJOR-class findings were bilateral and the one severity divergence
+(R1 MAJOR / R2 MINOR on the same proven fact) is a divergence, not a
+unilateral finding.
+
+**What the dual actually bought, which is the entry worth keeping.** The
+unit's code was right and both arms said so independently. What they
+found was that three of its *claims* were stronger than what shipped,
+and one of them had become a false sentence in shipped code — the
+rewritten `drive.rs` comment, which justified keeping
+`classify_replay`'s two arms by naming two paths that escalate with no
+bracket open, when the two items the comment itself cites each say the
+opposite. Both arms checked it against those files. I verified it
+myself before either reported, and found the part neither named: the
+citation was **circular** — the comment cited the item, the item cited
+the comment, and the item contradicted itself inside one file.
+
+**Ruling: the arms stay.** Neither reviewer found a live path to them,
+which is tempting grounds to delete, but deleting is a behaviour change
+that wants its own red-first row. So the arms stay and the record stops
+claiming a reason it lacks. The fix pass then produced the reason the
+deletion question actually turns on, which no review had: **read (2)
+speaks for the log's FIRST escalation where an arm speaks for the one
+the error carried**, and those differ on a node that recovered from an
+earlier escalation. Filed as
+`should-classify-replays-error-enum-arms-be-deleted`.
+
+**Two spec faults of mine, recorded because they are the same fault
+twice.** This spec asserted that recorded-verdict populations WOULD
+move; they did not, and only the unit's decision to measure rather than
+obey kept it from re-baselining goldens nothing had touched. And it
+inherited its item's "roughly forty variants across five crates" as
+fact when the population is 88 across nine. That is the sphere spec's
+fault again — asserting a premise instead of requiring a decide. It
+cost nothing here; it shipped a MAJOR there. Both are written into the
+ledger at the spec's deletion so the pattern is visible across units
+rather than once per unit.
+
+**The convergence is the experiment's own result.** Blind, in separate
+worktrees, the two arms each compiled and ran the old shape to an empty
+log; each found the same undisclosed evasion (`sign_within` then
+`.with_predicate`, no guarded spelling); each wrote its own enum-body
+parser and both returned **88**; each found the same latent bug in the
+census guard by a different route; and each hunted the counterexample
+to the 0-retired conclusion and failed to find one — which is better
+evidence for that conclusion than the argument that predicted it.
+
+**The fix pass exceeded the ask twice and declined once, all three
+correctly.** It reconciled the population arithmetic (recipe 83, parser
+88, and the written-down 82 from a third ad-hoc script that silently
+dropped `PropsError::Escalated`; 83 − 1 = 82 exactly). It swept for the
+SHAPE rather than the spelling and found a second family the census
+structurally cannot see — four local `fn invalid(band, predicate)`
+helpers minting after a definite sign at eight more `topo` sites. And
+it declined the one ruling I left an escape hatch on, with a
+measurement rather than a shrug: no gating-corpus document reaches a
+gate because at every shipped caller the caller has already gated the
+same quantity, and for `material_wedge_side` such a document is
+self-contradictory for well-formed input per that function's own
+shipped doc. Filed with the per-gate table.
+
+Residues: five items filed, one renamed and broadened to eleven sites.
+PROPS-B3 slot 1 concluded.
+
+## Two rows arriving from DOOR, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that **FIX carries no design decisions**
+(*"can you kick all the design decisions back to the track they actually
+belong to, leaving fix design-free?"*), and DOOR was swept in the same
+sitting. DOOR claims no paths, so it can never be the owning track for
+any decision — every row of its that needs one leaves. Routing came from
+`python3 scripts/work.py territory --files -` over the paths each row
+cites. Both of these are the same shape, which is why they arrive
+together: **where a shared thing lives, in a `geom-core` file PROPS
+owns.**
+
+- **`S114`** — the interval-containment predicate
+  `x.lo() <= v && v <= x.hi()`, written out at **eighteen definitions
+  across four crates**, three of them in `src/` and all three yours
+  (`geom/src/curves.rs`, `geom/src/surfaces.rs`,
+  `geom-core/src/spline/net.rs`). The decision: `geom-core` beside
+  `Interval`, or `test-utils` — which is not a dev-dependency of `geom`
+  today. If you rule `test-utils`, the fifteen test-side copies land in
+  S-TCOST's and S-TINT's territory and **SUITE** is the slate for them.
+  The count is a floor and the row says why; `assert_brackets` may be a
+  neighbouring shape rather than this class.
+- **`patherror-display-renders-float-noise`** — `Real` carries `Debug`
+  and no `Display`, so error `Display` arms reach their scalar payloads
+  through `{:?}`. The `profile` half is DONE (all 38 arms in
+  `crates/profile/src/path.rs` go through the `num` helper); what is left
+  is `ProfileError` and the other crates' error types, and **where the
+  helper lives once a second crate consumes it** — `crates/geom-core/src`
+  beside `Real` is the row's own obvious answer, and that file is yours.
+
+**One correction travels with the second row and is worth reading before
+anything else.** `work/door/plan.md` carried a long section prescribing
+the rounding point a lane should adopt, with a constant left for the lane
+to pick. That is not an open choice — it is the code in the tree:
+`num` reads `let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);` today,
+landed by FIX's PR 2399 on 2026-09-12, with the reasoning now in the
+helper's own doc comment. The plan was written the day before and never
+re-read against the tree. The section is preserved on the item as a
+record of what was decided and where it landed, not as an instruction.
+
+Also note the vocabulary trap recorded there: the plan calls
+`DEFAULT_EPS / 10` an *"absolute floor"* while the row says *"do not
+reintroduce an absolute floor"*, and they mean opposite things — `min`
+CAPS the tolerance (finer grid at large magnitudes), where the removed
+defect `1e-9 * x.abs().max(1.0)` FLOORED it and rendered every
+sub-nanometre margin as `0`.
+
+Signed (DOOR orchestrator).
+
+<<<<<<< HEAD
+**Curved-residues built, and its dual half-ran (2026-09-20).** PR #2924
+at `3f918e808`, run 35550288011 green on the full matrix. All three
+residues served. Its ruling on the red row I handed it was right and
+well-argued: the door's escalation is CORRECT and the row's `Ok(())`
+was what became wrong — margin `−1.3163737899724026e-9` is the
+axial-sine reading of `R·Δv = 1.5e-9` shrunk by `cos v̄`, the two
+extremes are 1.3 nm apart at a 1 nm zero band, and escalate-never-guess
+is ratified. It re-baselined with the reason rather than widening a
+meshing gate, which is what the spec asked for.
+
+**The fable arm is out of credits.** Ordinal 2408 drew R1 = FABLE, and
+R1 died on its first request — not the session limit but account-level
+`You've reached your Fable limit`. R2 (opus) ran to completion. I have
+NOT substituted opus for the fable arm: that would quietly convert a
+cross-model dual into two same-model reviews, which is the one thing the
+row exists to measure. Recorded as an amendment under the claim rather
+than an edit to it, and put to Ev, whose call the credits are.
+
+**R2's MAJOR is a live defect on main, and it is my premise failing a
+third time.** `require_rim_only_closed` — the guard the sphere unit
+added to close its OWN major — decides a span **SUM**, not a **cover**.
+`du_of_rims` sums a group's arc spans, so any multiset of same-level,
+same-direction arcs summing to a turn passes: the same HALF rim stated
+twice answers the whole cap's area on half a circle. The four shapes the
+unit red-firsts are instances of the non-covering class, not the class.
+
+The guard has two callers, and the sphere's is **on main today**, so a
+rim-only sphere cap built that way is measured as a full cap right now.
+I verified the guard body and both call sites against `origin/main`
+before dispatching anything.
+
+The lineage is worth stating because it is three failures of one
+premise, and the first was mine: the sphere SPEC asserted that
+`du_of_rims` already sums a full rim to `2π` instead of requiring a
+decide; the unit inherited the assertion and shipped a MAJOR; the fix
+added a guard that checks the SUM, which is the same premise one level
+down. Filed as `closure-guard-decides-a-sum-not-a-cover` and handed to
+the fix pass with the instruction not to patch it a fourth time at the
+same depth — the guard must decide that the arcs TILE the circle, every
+comparison through the funnel under its own name, with a red-first row
+at BOTH call sites and the property generated rather than enumerated.
+If the cover check needs interval machinery past a fix pass, the lane
+stops and it becomes its own unit.
+
+Also adopted from R2: a falsified sentence the unit's four-sentence
+sweep missed, in `topo/src/coherence.rs` — the file that cites the very
+row the unit moved; the door's new refusal is not band-continuous with
+its own charter (a cylinder wall passes at `Δv = 0`, refuses at 1.5e-9
+and 5e-9, passes again at 1e-7) and the 40-pair corpus was structurally
+incapable of seeing it; a gate that reads a side off an extent it never
+checks closes; and the deleted sphere row's prose landing on an
+unrelated test's doc comment.
+
+Confirmed clean and not to be re-litigated: the transposed premise
+holds (`rim_interior_side` is a fixed involution of `d_u_sign`), the
+MESH-12 arithmetic and its audit citation, the manufactured-escalation
+removal under an independent widened sweep, and the `work/tess/`
+coverage-loss filing. R2 also re-derived the cone's closed form on
+general cones — α ∈ {0.05, π/6, 1.4}, both nappes, both traversals,
+off-origin apex — and found the code right where the committed fixtures
+could not have caught a sin/cos swap.
+
+**Ordinal 2408 retired without a row (Ev, in chat, 2026-09-20).** With
+the fable arm out of credits, the choice was to run R1 late and accept
+the 2404 asymmetry, or record the unit with a single review and no A/B
+row. Ev ruled the second: no dual needed for this unit. The number stays
+claimed so nothing reuses it, and the A/B log says why the band has a
+gap rather than a blank.
+
+What that does and does not change. The opus arm's review is the unit's
+**review of record** — its findings bind the fix pass exactly as a
+dual's would, and one of them is a live defect on main. What is not
+claimed is any A/B signal: one arm is no comparison, so there is no
+rubric pair and no tally candidate, and the reviewer's ratings sit here
+as a review rather than in the log as data. PROPS-B3 slot 2 is still
+owed to fable.
+
+For the record, since it bears on how much weight one arm can carry:
+this reviewer executed C1 through C12, re-derived the cone's closed form
+independently on general cones rather than checking the unit's
+arithmetic, found the guard defect by constructing the fifth shape after
+reproducing the unit's four, and rated the unit 4 / 3 / 3. Its
+confidence vocabulary was used honestly — the guard defect `sure` and
+executed, the gate's reachability `unsure` and said so, and its own
+unread coverage declared rather than glossed (the topo battery went
+unrun because the build mutex was held and disk fell to 15 GB).
+
+## HOLD IN FORCE — no A/B dispatches until Ev lifts it (2026-09-20)
+
+**Ev, in chat:** do not dispatch anything that needs the A/B protocol,
+and do not record *any* implementation under the A/B protocol, until Ev
+says the fable limit has reset. This is a standing constraint, not a
+note — it is written here because this log is what an orchestrator
+re-reads after a context compaction, and a temporary hold is exactly the
+kind of thing that gets lost.
+
+**What it stops.** Every PROPS kernel implementer unit: they all take a
+block slot and record a row, so all of them are blocked. No ordinal
+claims, no parity draws, no block-slot assignments, no rows. And no
+off-protocol implementer dispatch as a way around it — dispatching an
+implementer without a slot is the exact error disclosed at ordinal 2407,
+and doing it deliberately would be worse than doing it by accident.
+
+**What continues.** The curved-residues fix pass, already in flight:
+Ev retired ordinal 2408 without a row, so that unit is no longer an A/B
+item and finishing it records nothing under the protocol. It merges with
+a single review of record and no row. Orchestrator work that is not a
+dispatch — adjudication, filing, verification, tracker hygiene — is
+unaffected.
+
+**Lift condition:** Ev says the fable limit has reset. Until then, if a
+unit looks ready to dispatch, it waits.
+=======
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your ground:** `crates/geom-core/src/spline/knots.rs` (NURBS and
+PROPS) and `crates/geom/src/curves/fit.rs` (PROPS).
+
+**A sixth carrier the row never named.** `KnotVectorIssue` — reached
+through `SplineError::KnotVectorInvalid` — had **7 of 7** renderings
+stopping at the condition. Without it `SplineError`'"'"'s one delegating
+arm could not be asserted transitively and the chain was false at one
+remove. Both now carry enforcement rows.
+
+`FitError`'"'"'s `Lsq` and `KnotAlgebra` arms are asserted as
+**delegations only**, and **a row is filed on PROPS'"'"'s slate** saying
+why: `fit-error-delegates-to-two-carriers-that-name-no-recourse`.
+`LsqError` (`linalg/lsq.rs`) and `KnotAlgebraError`
+(`spline/algebra.rs`) state their conditions and name no repair, and
+`FitError` contributes five characters over them, so whatever they omit
+is simply absent from what a caller of `NurbsCurve3::interpolate` reads.
+Asserting a recourse over them would have been a claim about the one
+payload the test built — the conditional-transitivity rule this class
+established.
+
+Signed (FIX orchestrator).
+>>>>>>> origin/main
+
+**MERGED: curved-residues (2026-09-21).** Merge `0cd022b32`, fix run
+35565268986 green on the full matrix. **No A/B row** — ordinal 2408 was
+retired on Ev's ruling and the single opus review is the unit's review
+of record.
+
+**The live defect on main is closed, and closed at the right depth.**
+`require_rim_only_closed` now decides a COVER: the span sum as before,
+AND `props_rim_only_join`, which requires each edge's traversal END to
+be the next one's traversal START, cyclically — a point deviation in
+metres through the funnel at `require_rim_incidence`'s own dimension, no
+raw `f64` comparison. Both call sites, so the sphere arm on main is
+fixed by the same change.
+
+I checked the argument rather than taking it. Same-direction arcs have
+non-negative spans, so a chained arc `k` covers `[S_{k−1}, S_k]`; the
+joins fix each start azimuth modulo `τ` and the cumulative sum lifts it
+to `ℝ`; consecutive non-overlapping intervals totalling `τ` cover the
+circle exactly once. **Neither half suffices and each catches what the
+other cannot**: three arcs of `2τ/3` chain into a closed cycle and
+double-cover, which only the sum refuses; a half rim stated twice totals
+a turn and covers half, which only the joins refuse.
+
+**The lane declined my stop condition with a measurement, correctly.**
+I said to stop if the cover check needed interval machinery. The obvious
+"sorted, contiguous, no gap, no overlap" reading does need it — `atan2`,
+modular normalisation, a tolerance on wrapped joins. The head-to-tail
+formulation decides the same property with one length margin per join
+and no normalisation at all, so it fitted a fix pass. It said so rather
+than smuggling it, which is the behaviour the escape hatch exists for.
+
+Three further things worth keeping:
+
+- **Tested as a property, not a list.** Tilings for `n ∈ 1..=6` measured
+  at every anchor, and four generated refusing families — including `n`
+  copies of one arc and a tiling with two adjacent arcs exchanged, both
+  summing to exactly `τ`. Those last two are precisely what a sum cannot
+  see, and an enumeration of shapes would not have contained them.
+- **The `_folded_apex` finding closed by construction, not by patch.**
+  Moving the guard into the fold means `cone_boundary` returns a
+  `LinearBoundary` again and no caller can forget the flag, because
+  there is no flag.
+- **The lane checked a claim I passed on rather than trusting me.** I
+  relayed the reviewer's finding that a zero-width slit claim was
+  falsified; the lane executed the row, found the claim still TRUE, and
+  reworded it to say why instead of deleting it. Relayed findings are
+  not established findings, and it treated mine accordingly.
+
+**Argued and accepted: the two folds stay two.** What they genuinely
+share is now shared — `unanimous_rim_dir` with the σ-involution argument
+at it, `span_sum`, and the fixed `require_rim_only_closed`. What is left
+per kind is the extent MARGIN and which extreme is pushed, the two
+things this file insists each kind states for itself, and each fold is
+about ten lines. An indirection that hides the metering would not earn
+its place. Accepted as argued.
+
+**Two adoption costs found on the matrix rather than reasoned about**,
+both fixtures rather than kernel: a probe cap at a literal `v = 1e-4`
+was a 5 µm rim levered at exactly that radius, decidable at default ε
+and escalating at 1e-6 (now `1e3 × escalate / sin α`); and a flat
+`1e-12` area tolerance on a row placing the apex 62 mm out with a 10 µm
+cap, where recovering `v` from `(center − apex)·axis` cancels digits the
+area then squares — measured `rel = 3.4e-12`. Now `1e-12 × conditioning`,
+which IS the flat `1e-12` wherever the apex is the origin: a statement
+about `f64` and the fixture, not a loosening of the closed form.

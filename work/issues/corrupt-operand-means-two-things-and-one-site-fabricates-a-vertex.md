@@ -5,6 +5,8 @@ title: two call sites map ContainError::Corrupt to different BooleanError varian
 status: open
 opened: 2026-09-12
 refs: [2420, contain-error-drops-the-loop-its-carrier-named]
+priority: P0
+cost: H
 ---
 
 

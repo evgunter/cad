@@ -1725,11 +1725,7 @@ pub(crate) fn split_cache<T: Decide>(
         let stale = || SplitRowError::Stale { half_edge };
         let (carrier, t0, t1) = half_edge_carrier(body, half_edge).map_err(|_| stale())?;
         let surface = half_edge_surface(body, half_edge).map_err(|_| stale())?;
-        let face_key = body
-            .get_half_edge(half_edge)
-            .and_then(|he| body.get_loop(he.parent_loop))
-            .map(|lp| lp.face)
-            .ok_or_else(stale)?;
+        let face_key = body.face_of_half_edge(half_edge).ok_or_else(stale)?;
         let window = match windows.iter().find(|(f, _)| *f == face_key) {
             Some(&(_, w)) => w,
             None => {
@@ -2860,6 +2856,25 @@ pub(crate) mod staleness_posture {
             ),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
+            // ---- Neither: the test-support fixture builders. Why
+            // they are in this walk's population is stated once, on
+            // [`crate::source_walk::mutation_doors`]. ----
+            (
+                "prism_ops",
+                Neither,
+                "grows a prism with `mvfs`/`mev`/`mef` and `set_face_surface`, every one of \
+                 them already sorted above; it attaches no pcurve of its own",
+            ),
+            (
+                "describe_as_intersections",
+                Neither,
+                "`set_edge_curve` per transverse edge, on that entry's terms",
+            ),
+            (
+                "cube_into",
+                Neither,
+                "`prism_ops` at the unit square then `describe_as_intersections`",
+            ),
         ]
     };
 

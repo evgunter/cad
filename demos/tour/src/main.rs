@@ -1,4 +1,4 @@
-//! Pre-GUI visual demo tour: builds the highlight bodies through the
+//! The visual demo tour: builds the highlight bodies through the
 //! kernel's public profile/sweep/boolean/split APIs plus the M4 recipe
 //! layer, narrates each stop (operations, topology census, genus,
 //! validation tiers, exact vs meshed mass properties), and exports

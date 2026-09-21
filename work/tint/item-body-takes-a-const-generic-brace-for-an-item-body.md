@@ -4,6 +4,8 @@ kind: issue
 title: item_body reads a const-generic argument's brace as the item's body, so an impl with one silently stops being a scope in two censuses
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

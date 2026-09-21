@@ -276,6 +276,8 @@ mod r1_probes_issue1362_donut;
 mod r2_sense_fold_probes;
 #[path = "readback_doors.rs"]
 mod readback_doors;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
@@ -348,6 +350,8 @@ mod review_must_carry_rule_r1_probes;
 mod review_must_carry_rule_r2_probes;
 #[path = "review_pr12_probes.rs"]
 mod review_pr12_probes;
+#[path = "review_recourse_roster_r2_probes.rs"]
+mod review_recourse_roster_r2_probes;
 #[path = "review_s11_adv.rs"]
 mod review_s11_adv;
 #[path = "review_s12_adv.rs"]
@@ -662,6 +666,8 @@ mod shell8_r2_probes;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
+#[path = "spiric_rim.rs"]
+mod spiric_rim;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;
@@ -710,3 +716,6 @@ mod census_containment_cause;
 
 #[path = "wire_loft_end_profile_lift.rs"]
 mod wire_loft_end_profile_lift;
+
+#[path = "review_recourse_roster_r1_probes.rs"]
+mod review_recourse_roster_r1_probes;

@@ -5,6 +5,8 @@ title: mesh::tessellate refuses an Approx-faced body whose half-edges carry no s
 status: open
 opened: 2026-09-04
 refs: [1758]
+priority: P0
+cost: D
 ---
 
 

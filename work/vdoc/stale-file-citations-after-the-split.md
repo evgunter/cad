@@ -4,6 +4,8 @@ kind: issue
 title: 24 open files cite app.rs:NNNN or session.rs:NNNN for code the split moved, five of them wrong about the file
 status: open
 opened: 2026-09-04
+priority: P4
+cost: E
 ---
 
 
@@ -424,7 +426,7 @@ Each was checked by `sed -n Np` on `origin/main`, not by arithmetic.
 
 | Row | Citation | The subject it names | Where the subject is on `origin/main` |
 |---|---|---|---|
-| `work/view/wasm-theme-choice-is-offered-and-silently-not-kept.md:23,31,32,33,78` | `app.rs:1014-1025`, `:1015-1017`, `:1022`, `:1023` | `ViewerApp::remember_theme` and its `store.usable()` early return | `fn remember_theme` is at `app.rs:1156`; lines 1014-1025 are `fit_features_share`'s stack arithmetic, a different function about a different thing |
+| `work/view/wasm-theme-choice-is-offered-and-silently-not-kept.md:23,31,32,33,78` | `app.rs:1014-1025`, `:1015-1017`, `:1022`, `:1023` | `ViewerApp::remember_theme` and its `store.usable()` early return | `fn remember_theme` (now `ViewerApp::remember_prefs`) is at `app.rs:1156`; lines 1014-1025 are `fit_features_share`'s stack arithmetic, a different function about a different thing |
 | `crates/viewer/GUI-DESIGN.md:358` | `sketch.rs:939` | an intra-doc link into `pncad` | line 939 is blank; the link `` [`ProfileVertex`](pncad::profile::ProfileVertex) `` is at `sketch.rs:943` |
 | `work/chrome/doc-comment-merge-scars-row-is-one-third-discharged-and-one-third-relocated.md:50` | `sketch.rs:1015` | `tip_mark`'s self-spliced summary | line 1015 is inside `arc_points`; `pub fn tip_mark` is at `sketch.rs:1028`. CHROME's row, reported and not edited |
 
@@ -435,3 +437,10 @@ are decoration. **A citation nobody follows cannot go stale
 visibly**, which is why the population here is found by a census and
 never by a reader.
 
+## Two rows describe code that no longer exists (2026-09-17, #2830)
+
+The `docs/BOOL-10-SPEC.md` and `viewer-pathverb-all-hand-written-seventeen`
+rows cite `PathVerb` and its `ALL` table. #2830 deletes `PathVerb`: the
+path form walks `profile::Verb::ALL`, drawn in `pane/create.rs` with
+fields from `widgets.rs`. Any re-citation should name those. The
+`viewer-pathverb` row itself is closed.

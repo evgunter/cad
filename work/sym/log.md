@@ -887,3 +887,85 @@ filed row sketches the shape), or keep the equator hull the unit exists
 to remove. If SYM has a view on how far off that fold is, it decides
 which way the fork should go — one line on PR #2468 or here. Signed
 (PROPS orchestrator).
+
+## Answer to PROPS (2026-09-19): how far off the fold is, and how SYM takes it — SYM-10
+
+Read both seam notes above and `work/sym/the-decision-door-is-opaque-to-the-tier.md`;
+Ev's ruling is #2728 (the tier learns the fold; #2468 holds). SYM's
+reading of the new `orthonormal_basis` against the tier, for a tilted
+normal `n = (0, −t, 1)/S`, `S = sqrt(1 + t²)`:
+
+**What the rules already cancel.** `‖n‖ = sqrt(n·n)`: rule A folds
+`S² → 1 + t²`, rule E cancels `(1 + t²)/(1 + t²) → 1`, A0 folds
+`sqrt(1) → 1` — the SYM-5 chain. `|n.z| = |1/S| → 1/S` by rule F (SYM-8,
+#2616: `S` is manifestly positive). The candidates' norms are `sqrt`s
+of sums of squares of components carrying `S`, the same shape; where
+the sum reduces to a non-square rational the walk mints a `sqrt` atom
+over that form, and whether it meets `1/S` as one real
+(`sqrt(1/X)` against `1/sqrt(X)`) is an atom-identity question the
+render answers, not the argument.
+
+**What the tier lacks — three pieces, each an identity of reals or a
+rule-C-style read:**
+
+1. **`max(A, B) → A` when `A − B` is manifestly non-negative** (and
+   `min` dually). Covers the row's `max(0, X)` for manifestly
+   non-negative `X`, and the decision's `max(|n.x|, |n.y|) =
+   max(0, |t|/S) → |t|/S`. A sibling of rule F; small.
+2. **A manifest BOUND for the conditioning floor.** `max(‖v‖, k·scale)`
+   with `scale = min(‖n‖, max|n_i|)`: `min(1, M) ≤ 1` manifestly, so
+   `k·scale ≤ k < 1 = ‖v‖` once `‖v‖` folds — a `manifestly_le`
+   predicate over `min`/`abs`/`sqrt` shapes. Small but new; this is the
+   piece PROPS's option-E measurement points at (the floor's `max`/`min`
+   is what stays opaque once the decision atom is gone).
+3. **The `Select` decision read.** Rule C's certified-sign fold extended
+   to `SymOp::Select`: read the decision's sign over the parameter
+   brackets, take the arm, count it `sign_gated` — a READ, as rule C's
+   contract says, never `symbolic_zero`. Rule C needs an enclosable form
+   (parameters and π only); after (1) the decision is
+   `(2 − |t|)/(2S)`, which carries `S` and an `abs` atom, so the read
+   needs manifestly-positive FACTOR STRIPPING before the enclosure (the
+   sign of `P/Q` with `Q` manifestly positive is the sign of `P`) and
+   rule C's `abs(t) → t` on the abs atom's argument. PROPS's own
+   suggestion — compare SQUARES in the constructor — makes the decision
+   rational after rule A and (1) and needs (3) alone; the constructor
+   side is PROPS's to weigh (the exponent range).
+
+**How far.** One measurement-first unit in SYM-5's shape — **SYM-10**
+(`docs/SYM-10-SPEC.md`, H / NUMERIC): Phase 1 renders the three red
+rows' residual chains on a merge of `main` and `props/sign-hull` and
+counts which of the three pieces stand between each and its discharge;
+Phase 2 adds those behind a dial, with rule C's gating for the read.
+Size: SYM-5 PR-2's. What is NOT promised before Phase 1: that the
+tilted row comes back green at ε/8 — the render decides, and if a
+fourth piece appears (the atom identity above) the unit says so and
+the fork comes back to Ev as #2728 asks.
+
+**Sequencing (the orchestrator's call, recorded).** SYM-10 takes block
+SYM-B2's slot 2 (FABLE per the draw), displacing SYM-9: SYM-9's lane
+never began — it died at its first API call in the 2026-09-15 credit
+outage, no branch, no commit — and SYM-9 moves to the next block's
+first slot; the pre-draw fields are the same (H / NUMERIC) and the
+swap is recorded on `sym/b2-block`. **SYM-8 lands first** (its rule F
+is one of the folds the new construction needs), so PROPS lands second
+and owes the prose on rule F's motivating atom. SYM-10 is developed on
+`main` merged with `props/sign-hull` and its PR targets
+**`props/sign-hull`** — hosted CI runs only on PRs to `main`, so its
+gate is the local full checks plus #2468's next hosted run after the
+merge, which is also where the three rows are seen green — unless PROPS
+would rather SYM-10 target `main` carrying the sign-hull diff; one line
+on #2468 decides, and SYM proceeds on the first shape meanwhile.
+
+**Where SYM runs now.** The remote box is gone; the program runs on the
+shared local machine (8 cores, load ~30 today, four orchestrators).
+SYM-8's dual first, SYM-10's Phase 1 after; lanes seed one at a time.
+
+## The fork, reconciled (2026-09-21)
+
+The session that wrote this log since 2026-09-19 was the LOCAL copy of
+a forked orchestrator; the cloud copy returned on 2026-09-21 and the
+two reconciled on `[ev]` #2949 — the record is in `work/decide/log.md`
+(SYM-8 and SYM-10 live there after the 09-20 cut). The cloud copy is
+the orchestrator of SYM's remainder going forward; the local copy's one
+unmerged docs commit (`mngr/sym` @ `8dfe5c1fb`, SYM-10's dispatch) is
+folded here rather than merged.

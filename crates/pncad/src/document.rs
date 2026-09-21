@@ -72,8 +72,8 @@
 // consumer that can hold an `Applied` in a typed field must be able to
 // hold what it carries.
 pub use editor_core::{
-    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
-    MetaVersionError, ProgramRefusal, apply,
+    Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
+    Maintenance, MetaVersionError, ProgramRefusal, apply, apply_logged, replay_entry,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -248,7 +248,7 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    save,
+    load_with, save,
 };
 
 // Document identity and content pins.
@@ -294,7 +294,8 @@ pub use editor_core::gathers_on_this_thread;
 // carries the product's stable names — what an instance's own names
 // are minted from.
 pub use editor_core::{
-    AxisRefusal, Frame, PartFault, PartResolver, ResolveFailure, ResolveFault, product_named,
+    AxisRefusal, Frame, FrameFault, PartFault, PartResolver, ResolveFailure, ResolveFault,
+    product_named,
 };
 
 // Mates: the declaration node's
@@ -309,27 +310,28 @@ pub use editor_core::{
 // solve places (`Member` is its answer). `UNDER_RECOURSE` and
 // `CONTRADICTORY_RECOURSE` are the two recourse sentences the solve's
 // own refusals end on.
-/// Why a mate's datum could not form a lever arm, which
+/// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `VerbKind`.
 ///
-/// A parallelism verdict is levered over the largest length the mate's
-/// own datum names, and a datum that names one too small decides
-/// nothing: at an arm of `L` the smallest tilt the predicate could call
-/// non-parallel is about ε/L, so a nanometre datum reads every pair as
-/// parallel. WHICH scale was named and WHAT floor it is under —
-/// `extent` and `floor` — is the whole of what the arm says beyond the
-/// name, and a consumer that could match `Unleverable` and not name
-/// this type read those two numbers out of the message prose.
+/// A parallelism verdict is levered over the mated parts' own extent
+/// (`MateReach`), and every arm names the instance whose part's reach
+/// was not in hand and why: the part does not resolve (the resolver's
+/// own fault, unaltered), a face of its body cannot be bounded (which
+/// face, and its `prelude::SurfaceKind`), the body is malformed, has no faces,
+/// or reads back non-finite, or the member stands on no instance. A
+/// consumer that could match `Unleverable` and not name this type
+/// would read all of that out of the message prose.
 ///
 /// Its only home is the refusal holding it: nothing else on the
 /// curated lists answers in a `LeverRefusal`, so it rides its carrier
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Alignment, AxisSense, CONTRADICTORY_RECOURSE, ClusterMaintenance, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters,
-    gauge_of, member_of, reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, ClusterMaintenance, Lever, MateFault,
+    MateFrame, MatePrimitive, MateReach, MateRole, MateSide, Member, PartReach, ReachRefusal,
+    RefusingReach, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, mate_reach,
+    member_of, reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -340,7 +342,7 @@ pub use editor_core::{
 // the solve or mint door, so exposing it here is what lets a tool
 // offer only what the vocabulary can execute instead of discovering
 // the refusal after the edit lands.
-pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
+pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap};
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
 // product, mints every solved mate's declaration into its contact

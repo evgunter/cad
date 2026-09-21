@@ -71,10 +71,10 @@ fn two_solids(body: &Body<f64>) -> (SolidKey, SolidKey) {
 /// outside the bracket's material. `dx` shifts the part along `+x`;
 /// `declared` adds the four v-on-f records on the wall.
 fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     // The side face over profile segment 3, (1, 1) → (1, 3): the wall.
     let wall: FaceKey = l.side_faces[3];
-    let part = common::brick::<f64>((1.0 + dx, 2.0 + dx), (1.2, 2.0), (0.2, 0.8));
+    let part = common::brick::<f64>((1.0 + dx, 2.0 + dx), (1.2, 2.0), (0.2, 0.8), Tol::witness());
     let body = assembly(&l.body, &part);
     let mut records = ContactRecords::default();
     if declared {
@@ -97,7 +97,10 @@ fn lbracket(declared: bool, dx: f64) -> (Body<f64>, ContactRecords) {
 
 /// A cube of side `side` with its minimum corner at `(dx, dy, dz)`.
 fn cube(side: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(side * x + dx, side * y + dy, side * z + dz))
+    common::mapped_cube(
+        |x, y, z| Point3::new(side * x + dx, side * y + dy, side * z + dz),
+        Tol::witness(),
+    )
 }
 
 /// **The embedded cube** (`h14_census_deferrals`' fixture): 1 m in
@@ -139,8 +142,8 @@ fn embedded() -> (Body<f64>, ContactRecords) {
 /// solid), with a 0.6 m part floating in the void — inside the
 /// container's box, inside its VOID, outside its material.
 fn cavity() -> Body<f64> {
-    let mut dst = common::brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
-    let hole = common::brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let mut dst = common::brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
+    let hole = common::brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let (solid, _) = dst.solids().next().unwrap();
     let evidence = VoidEvidence {
         shells: hole
@@ -154,7 +157,7 @@ fn cavity() -> Body<f64> {
         2,
         "the container carries its void shell"
     );
-    let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8));
+    let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8), Tol::witness());
     assembly(&dst, &part)
 }
 
@@ -174,8 +177,9 @@ fn pocket() -> Body<f64> {
         ],
         0.0,
         1.0,
+        Tol::witness(),
     );
-    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8));
+    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     assembly(&u.body, &part)
 }
 
@@ -184,8 +188,8 @@ fn pocket() -> Body<f64> {
 /// side faces, its interior lies in the cube's material, and no vertex
 /// is strictly anywhere.
 fn all_on_boundary() -> Body<f64> {
-    let container = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let part = common::brick::<f64>((0.0, 2.0), (0.5, 1.5), (0.5, 1.5));
+    let container = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let part = common::brick::<f64>((0.0, 2.0), (0.5, 1.5), (0.5, 1.5), Tol::witness());
     assembly(&container, &part)
 }
 
@@ -450,7 +454,7 @@ fn the_per_solid_door_answers_for_one_solid_of_the_arena() {
 /// other, and nothing pierces: the wall is crossed AT the part's
 /// vertices and edges. The materials overlap over `x ∈ [0, 1]`.
 fn split_straddle() -> (Body<f64>, ContactRecords) {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let part = common::prism_z::<f64>(
         &[
             (0.0, 1.5),
@@ -462,6 +466,7 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
         ],
         0.25,
         0.75,
+        Tol::witness(),
     );
     let body = assembly(&l.body, &part.body);
     // Every touch the sweeps report, declared as the v-on-f records it
@@ -544,7 +549,7 @@ fn nurbs_wall(y: (f64, f64), z: (f64, f64)) -> geom::Surface<f64> {
 /// `m4_pr2_transform.rs` builds): the one way a described spline face
 /// reaches the public door at all.
 fn nurbs_walled_bracket() -> Body<f64> {
-    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0);
+    let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let far_wall: FaceKey = l.side_faces[5];
     let mut body = l.body;
     let wall = body
@@ -553,16 +558,11 @@ fn nurbs_walled_bracket() -> Body<f64> {
             topo::FaceSurface::New(nurbs_wall((0.0, 3.0), (0.0, 1.0))),
         )
         .unwrap();
-    let face_surface_of_he = |body: &Body<f64>, he: topo::HalfEdgeKey| {
-        let he_data = body.get_half_edge(he).unwrap();
-        let loop_data = body.get_loop(he_data.parent_loop).unwrap();
-        body.get_face(loop_data.face).unwrap().surface
-    };
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = 0;
     for (edge_key, edge) in edges {
-        let s1 = face_surface_of_he(&body, edge.he_plus);
-        let s2 = face_surface_of_he(&body, edge.he_minus);
+        let s1 = common::face_surface_of_he(&body, edge.he_plus);
+        let s2 = common::face_surface_of_he(&body, edge.he_minus);
         if s1 != wall && s2 != wall {
             continue;
         }
@@ -598,27 +598,64 @@ fn nurbs_walled_bracket() -> Body<f64> {
 
 /// **A container carrying a face kind the material test does not
 /// serve — measured at the public door.** The spline-walled bracket
-/// is refused at tier 3 (check 7 cannot integrate the spline face:
-/// `VolumeUncomputable`), so no body carrying a described spline face
-/// reaches the census through `validate_pseudomanifold` today, and the
-/// arm's own typed cause for the kind is pinned one door down, through
-/// `census_and_certify`, in `census.rs`'s
-/// `an_unserved_face_kind_on_the_container_refuses_naming_the_cause`.
-/// This row pins the public-door fact so that the day check 7 admits
-/// such a face, the census row is what a reader is sent to.
+/// reaches the CENSUS and is refused there, naming the kind.
+///
+/// **That day arrived** (TRIM-2 PR-1, the trimmed-region quadrature).
+/// This row used to read "refused at tier 3 BEFORE the census": check 7
+/// could not integrate the spline face and answered
+/// `VolumeUncomputable`, so nothing carrying a described spline face
+/// reached the census through `validate_pseudomanifold`, and the
+/// version of this row that stood then said in its own doc *"so that
+/// the day check 7 admits such a face, the census row is what a reader
+/// is sent to"*. The bracket's wall edges are described `Intersection`
+/// with a `Nurbs` carrier, which is exactly what mints a
+/// `Pcurve::General`, and the trimmed lane now ANSWERS that face — so
+/// check 7 passes and the census runs. What refuses is the census's own
+/// typed cause for a kind with no cheap sound box, which is the
+/// statement this row was always pointing at
+/// (`census.rs`'s `an_unserved_face_kind_on_the_container_refuses_naming_the_cause`).
+///
+/// The row is kept at the PUBLIC door because that is where the change
+/// is visible: the refusal a caller earns moved one gate later and
+/// changed its cause, and nothing else about the body did.
 #[test]
-fn a_spline_walled_container_is_refused_at_tier_3_before_the_census() {
+fn a_spline_walled_container_is_refused_at_the_census_for_its_face_kind() {
     let container = nurbs_walled_bracket();
     assert_eq!(topo::validate_closed(&container), Ok(()));
-    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8));
+    let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     let body = assembly(&container, &part);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
-        .expect_err("tier 3 refuses the spline face's quadrature");
+        .expect_err("the census refuses the spline face's kind");
     assert!(
         errors
             .iter()
-            .all(|e| matches!(e, ValidationError::VolumeUncomputable { .. })),
-        "nothing from the census, only check 7: {errors:?}"
+            .all(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+        "check 7 admits the face now, so every finding is the census's: {errors:?}"
     );
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::CensusUndecidable { what, .. } if what.contains("sound box")
+        )),
+        "and the census names the kind it cannot reach: {errors:?}"
+    );
+    // **The placement question this file is about is now ANSWERED
+    // rather than skipped**, and that is the other half of what moved:
+    // the row used to assert NO placement finding, because the body
+    // never got past check 7 to raise one. It raises exactly one, and
+    // it says why — the unserved kind leaves the containing instance's
+    // extent unclaimable.
+    let placement = placement_findings(&errors);
+    assert_eq!(
+        placement.len(),
+        1,
+        "one placement finding, the containing instance's: {errors:?}"
+    );
+    assert!(
+        matches!(
+            placement[0],
+            ValidationError::CensusUndecidable { what, .. } if what.contains("unclaimable")
+        ),
+        "and it names why the extent is unclaimable: {placement:?}"
+    );
 }

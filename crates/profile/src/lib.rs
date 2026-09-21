@@ -136,8 +136,8 @@ use geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
 
 pub use lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 pub use path::program::{
-    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TargetKind, TipState,
-    Verb, replay, replay_guided, replay_recording,
+    ArcData, ArcMode, ClosedLoop, ReplayError, ReplayErrorKind, SpecForms, Step, Target,
+    TargetKind, TipState, Verb, arc_specs_at, replay, replay_guided, replay_recording,
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, CornerReason,
@@ -147,8 +147,8 @@ pub use path::{
 };
 pub use structure::{
     CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
-    ProfileStructure, ReplayStructure, SegmentShape, StepSpan, StructureRefusal,
-    StructureRefusalKind,
+    ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape, StepSpan,
+    StructureRefusal, StructureRefusalKind,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
@@ -169,13 +169,17 @@ pub use validate::{
 /// [`validate::fillet_recourse_for`] rides the same export for the same
 /// reason: the census row asserts that every `fillet_*` predicate name
 /// the construction sugar decides has a sentence, and a census that
-/// restated the mapping would be checking its own copy.
+/// restated the mapping would be checking its own copy. So do
+/// [`validate::SHARED_CLAUSE_ONLY`] and [`validate::shared_clause_only`]:
+/// the roster row holds that list against the names the crate's `src`
+/// decides, in both directions, and a restated copy would hold against
+/// itself.
 #[cfg(any(test, feature = "test-support"))]
 pub use validate::{
     FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_FLATTENED_RECOURSE,
     FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
     FILLET_SCENE_RESOLUTION_RECOURSE, FILLET_STORED_FORM_INBAND_RECOURSE,
-    FILLET_TURN_INBAND_RECOURSE, fillet_recourse_for,
+    FILLET_TURN_INBAND_RECOURSE, SHARED_CLAUSE_ONLY, fillet_recourse_for, shared_clause_only,
 };
 
 /// One vertex of a profile loop: a position plus the bulge of the

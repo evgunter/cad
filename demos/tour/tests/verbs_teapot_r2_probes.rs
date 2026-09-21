@@ -377,6 +377,7 @@ fn r2_ring_anatomy_on_a_drum() {
                             format!("circle(c.y={:.4}, r={:.4})", center.y, radius)
                         }
                         Curve3::Ellipse { .. } => "ellipse".to_string(),
+                        Curve3::Spiric { .. } => "spiric".to_string(),
                         Curve3::Nurbs(_) => "nurbs".to_string(),
                     })
                     .unwrap_or_else(|| "?".to_string());

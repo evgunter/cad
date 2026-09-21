@@ -2,8 +2,12 @@
 id: the-third-datum-axis-phrase-lives-in-mate-member
 kind: issue
 title: mate/member.rs hand-writes the third copy of "datum axis", which eval::phrase::DATUM_AXIS is now the home for
-status: open
+status: review
 opened: 2026-09-12
+priority: P1
+cost: E
+branch: door/datum-axis-phrase-home
+pr: 2984
 ---
 
 

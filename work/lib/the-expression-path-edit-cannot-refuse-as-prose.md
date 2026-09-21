@@ -4,6 +4,8 @@ kind: issue
 title: SetExpression cannot be bound: path_off_tree Debug-renders its address and the prose gate panics
 status: open
 opened: 2026-09-09
+priority: P3
+cost: D
 ---
 
 

@@ -1088,184 +1088,6 @@ Generalises: a ratio between two measurements is only a ratio if both
 were taken at the same setting, and a number quoted without its
 setting is not yet a measurement.
 
-**When a sweep's blind spot is "a use under another name", changing a
-TYPE is a census a grep cannot be.** The co-guard unit lost five of
-eight index uses to a local binding with a different name, and named
-that as its residual blind spot honestly. The id-query unit had the
-same blind spot and closed it by a different means: `IdQueryLog::step`'s
-second parameter changed type, so every caller anywhere in the
-workspace must be edited or the build fails, and a clean
-`clippy --all-targets` plus a clean workspace doc-gate is then a
-complete census rather than a sample. Generalises to the choice of fix
-shape: where a change can be made to alter a signature rather than a
-body, the compiler becomes the sweep, and the blind spot a lane would
-otherwise have to disclose stops existing.
-
-**A justification that cites another path's mechanism is not yet a
-justification.** `marks::edge_overlay` filtered a hover that was already
-the selection, and its doc called that *"the precedence the shader's
-face path already states"* — which reads as an echo of a ruling made
-downstream, i.e. as a redundant convenience. It is the opposite: the
-edge path has no downstream arbitration at all (one mark word per
-vertex, selected lane then hovered lane into one buffer, `blend: None`
-with `depth_compare: LessEqual`, so the second write wins), and without
-the filter edges would resolve hover over selection while faces resolve
-selection over hover. The guard is essential and its doc made it look
-removable. **The borrowed sentence is TRUE about the path it is
-borrowed from**, which is exactly why it survives review. So: when a
-doc justifies a local choice by naming another path's mechanism, check
-that the local path HAS the mechanism it is deferring to. Generalises
-to the dispatcher's own briefs — mine offered the symmetric fix first,
-and it would have removed the face path's only arbitration without
-moving a pixel or redding a row.
-
-**A UNIFORM delta is what makes a shift map feel trustworthy, and is
-not evidence that any number names the right thing.** This program
-measured 2 wrong subjects out of 4 handed-over citation shifts and
-concluded that a shift map is arithmetic which returns an answer for
-every input without asking what that answer names. CHROME measured the
-same thing independently and sharper (their orchestrator, in-chat,
-2026-09-15): their repoint unit found all six of one table's numbers
-wrong by **exactly +76** — a perfectly consistent shift — and the style
-review of that unit then found it had minted **four fresh wrong claims
-while using the map**, two of them in the precise shape the unit existed
-to close. So consistency is not corroboration: a uniform delta is what a
-whole-file insertion above the citations produces, and it is equally
-what a map that names the wrong subjects produces when they all moved
-together. The only method that has worked is opening the line and
-confirming the subject, one at a time — and a unit whose whole subject
-is stale claims is the MOST likely to mint them, not the least.
-
-**When a row says a toolkit field is unread, check what the PRODUCER
-does with it before deciding the fix is to read it.**
-`viewport-adapter-drops-part-of-two-toolkit-values` said an unread
-`egui::Modifiers::ctrl` made a ctrl+scroll and a plain scroll the same
-event, and the dispatcher agreed in writing. Both were wrong:
-`InputState::begin_pass` routes a wheel whose modifiers match
-`zoom_modifier` into `zoom_factor_delta` and leaves `smooth_scroll_delta`
-at `Vec2::ZERO` (egui 0.36.1, `input_state/mod.rs:455-468`), so a
-ctrl+wheel produces no event at all and reading `ctrl` would have
-recovered nothing. Two further gestures the row never reached have the
-same cause — SHIFT folds a wheel onto `x`, ALT onto `y`
-(`wheel_state.rs:120-133`). The question *"which parts of this value do
-we bind"* presumes the value still carries what it is named for; a
-toolkit that consumes an input upstream of the field we read makes that
-presumption false, and the answer is in the producer rather than at our
-call site. This is the borrowed-mechanism rule one step out of the
-crate: there, a doc deferred to a mechanism its own path did not have;
-here, a row reasoned about a field the toolkit had already spent.
-
-**Read a CI job by its STEPS when the job IS the receipt.** A green job
-over a skipped step is indistinguishable from a green job that did the
-work, and the job name says nothing about which. When a change's only
-evidence is a hosted job — as for a draw-call change on a machine with
-no GPU adapter — open the job and confirm the steps that constitute the
-receipt actually ran: for `render lanes / viewer gui montage` that is
-the release build with `--features app`, the software-Vulkan headless
-stack, `demos/render-gui.sh`, and the pixel-drift and re-baseline steps.
-Related: this PR had **no separate `render drift (…)` check run** —
-drift is a STEP inside the render-lane jobs — so a checklist asking for
-a drift ROW is asking for something that does not exist on every tier,
-and a lane that cannot find it will either invent a pass or stall.
-
-**The split-span trap has a second layer in doc comments: collapsing
-newlines is not enough, because the continuation carries its own comment
-marker.** Verifying a quoted module-doc sentence, `tr '\n' ' '` over
-`pickcache.rs` still returned nothing — the joined text reads
-`typed refusal a pick //! stream earns while no index describes…`, with
-the `//!` sitting inside the sentence. The same holds for `///` and for
-`*` in a block comment. So the newline-collapse that this register
-already prescribes produces a FALSE NEGATIVE on exactly the text lanes
-most often need to verify: a rustdoc claim. What works is collapsing
-newlines, squeezing whitespace, and grepping a SHORT fragment rather
-than the whole quoted phrase — or stripping the marker first. Caught by
-the orchestrator checking a lane's citation, which was verbatim and real;
-a weaker check would have called a true quote fabricated.
-
-**A citation can be true when written and dead within hours — which is
-not the stale-citation shape and should not be recorded as one.**
-`joined-notices-nest-their-own-separator` cited `render_causes`; that
-function was created by `6877a40ff1` on 2026-09-04 and deleted by
-`4db112ada0` on 2026-09-05, **the day the item was opened**.
-`stale-file-citations-after-the-split` had left the row as written on
-the ground that naming a successor "is a guess" — but when the deleting
-commit is findable, the successor is not a guess, it is in that commit's
-diff. So: when a cited symbol does not exist, run `git log -S` for it
-before classifying the citation. Three outcomes, and they want different
-handling — never existed (the item is wrong), moved (repoint by subject),
-or **existed and was deleted** (name the commit and what replaced it).
-The third reads exactly like the first from a grep of the current tree.
-
-**Read what a census is a census OF before counting it.** Verifying
-that #2666 kept `GUI-DESIGN.md`'s dated wasm-doc-link enumeration true,
-the orchestrator's first instrument — `grep -c '\[\`ThreadEvaluator\`\]'`
-over `evalseam.rs` — returned **4** against a census that says **2**,
-and that looked like a design page made false by a code change. It was
-the instrument that was wrong: the census counts only the links the
-WASM rustdoc pass renders, i.e. those OUTSIDE the
-`cfg(not(target_family = "wasm"))` module, and the page says so
-explicitly. Counting above the module boundary gives 2 / 1 / 0, the
-census verbatim. Generalises past this page: a census in this repo
-usually names its instrument and its population, and a grep that
-matches the same IDENTIFIER is not the same measurement — it is the
-proxy-classifier defect with the orchestrator holding the proxy. Read
-the enumeration's own stated scope first, then count that.
-
-**A 5xx from a GitHub API call is a statement about the RESPONSE, not
-about the action.** Merging #2672 returned a Cloudflare 502; the merge
-had in fact completed (`merged: true`, with a timestamp two seconds
-before the error). Retrying would have been harmless there, but the
-habit that matters is the general one: after any write call that fails
-at the transport layer — merge, comment, review — **read the resource
-back before deciding what happened**, and never record an outcome from
-an error message alone. The same applies in reverse: a 200 on a merge
-call is not a merge until the PR says `merged`.
-
-**An item's suggested assertion is a claim, and the cheapest way it
-fails is by being GREEN on the broken tree.**
-`nothing-holds-startups-two-context-wide-style-installs` proposed
-*"read the polarity back off the applied visuals"*. Taken literally
-that row passes with the install deleted: egui's `fallback_theme` is
-`Theme::Dark`, `ThemePreference::System` resolves through it, and
-`System` is the default — so an untouched context already reads dark.
-The landed row reads the PREFERENCE the context states as well, which
-is what actually differs. Generalises to every unit whose deliverable
-is a guard: **run the mutation against the assertion the item
-suggested, not only against the one you wrote**, because an item that
-names a read has already done the tempting half of the work and a
-reviewer inherits its framing. This is the program's own
-row-covers-the-rule-not-the-install finding, turned on the row being
-written to close it.
-
-**...and the OTHER way a suggested assertion fails is by being red on
-both trees.** The rule above says an item's proposed read most cheaply
-fails by passing on the broken tree. `startup-notices-join-on-a-mark-…`
-found the mirror image: counting `LIST_SEPARATOR` pieces gives **4 on
-the base tree and 3 on the fixed one** for two notices — red either way,
-because the right fix moved the boundary to a different mark rather than
-removing the semicolons from the sentences. An assertion that fails on
-both trees is worse than one that passes on both: it looks like a
-working receipt, and it certifies the WRONG repair. So the test of a
-suggested read is not "does it red today" but **"does it distinguish the
-fixed tree from the broken one"** — which means running it against both,
-and means the fix shape and the assertion have to be chosen together.
-
-**A test can pin the wrong SHAPE of a defect and still pass.**
-`readout.rs`'s `the_top_of_the_type_is_the_one_value_that_does_not_read_back`
-asserted the right text for the right value and was green — and its name
-and comment (*"an exception rather than a region"*) were false of the
-tree when written: the band where `{:.3e}` fails to read back is
-`[1.7975000000000001e308, f64::MAX]`, about **9.68·10¹¹ values per
-sign**. A row that pins one point of a region documents the region as a
-point, and every later reader inherits that. So when a row exists to
-record a deliberate exception, the thing to check is not that it passes
-but **that the exception is the size the row says it is** — bisect the
-predicate rather than trusting the name. Related and worth pairing: the
-carve-out this row defended rested on three claims about three
-producers, and all three failed because each guard was `is_finite()`
-followed by a multiplication UP. A guard that admits everything finite
-is not a bound.
-
 **An item that asks for a test may be asking for traceability, not
 coverage — and mutation is how you tell.** The register already says a
 suggested assertion's cheapest failure is being GREEN on the broken
@@ -1402,6 +1224,18 @@ conspired: the shallow history, and the register's own split-span trap
 — the sentence spans a `///` continuation, so the whole-phrase pickaxe
 returned nothing even where the history reached.
 
+**But `is-shallow-repository` is not the test, and on THIS repository it
+gives the wrong answer.** `.git/shallow` exists here, so that command
+says `true` — and `git log origin/main` still reaches
+`c857d68a42 initial commit`. The grafts are for refs fetched shallowly
+at some point; main's own history was deepened and is complete. A
+reviewer caught the orchestrator asserting the opposite in a dispatch,
+after the orchestrator had already reached for "the clone is shallow"
+to explain a nil `--grep` whose real cause was a wrong pattern. **The
+test is whether the history you are searching reaches the initial
+commit** (`git log <ref> | tail -1`), not whether a shallow file exists.
+Discounting a nil result on a complete history throws away evidence.
+
 So a provenance receipt owes three things, not one: **the SHA must
 resolve** (`git cat-file -t` it, or look it up on GitHub when the clone
 is shallow), the search must be a **fragment short enough to survive a
@@ -1474,6 +1308,47 @@ it fails in the direction nobody checks — silently, while reporting
 success. Related and already here: *a row can pin the wrong SHAPE of a
 defect and still pass*; this is its parity-flavoured sibling, and it is
 worse, because the name asserts the coverage the body does not have.
+
+**An UN-MERGEABLE PR fails CI in a shape that looks like broken
+infrastructure.** #2808 went red three times with: every job dead in
+**2–3 seconds**, a 22-job **docs-tier** shape on a PR that changes
+`theme.rs` and `gpu.rs`, matrix rows named with **unsubstituted
+placeholders** (`test (eps = ${{ matrix.eps }}, …)`), and `gate ok`
+red. Nothing ran, and nothing in the logs said why — they 404.
+
+**Three of those four are also true of a HEALTHY docs tier**, and that
+is what makes the signature treacherous. A `work/`-only PR legitimately
+gets ~22 jobs, the code rows skipped, and those same placeholder names,
+because an unexpanded matrix is how a skipped matrix job is named. This
+was checked rather than assumed: #2952, a `plan.md`-only change, shows
+exactly that shape with `gate ok` **success**. So the discriminator is
+the pair — **`gate ok` RED on a diff that touches `crates/`** — never
+the placeholders or the job count alone.
+
+That signature reads as a runner fault, and the orchestrator called it
+one out loud after checking three things that all pointed away from the
+diff: `main` green on its last six runs, `ci-filter.py --base
+origin/main` giving `TIER=closure` exit 0 on the exact tree, and
+`check-ci-mirror-parity.py` exit 0. **All three were true and the
+conclusion was still wrong.** The cause is that GitHub builds
+`refs/pull/N/merge` only while the PR is mergeable; when it is not, the
+checkout has nothing to check out, so every job dies before its first
+real step and the tier collapses to the skip-everything default.
+
+**So the diagnostic for a fast, contentless CI red is
+`git merge-tree --write-tree origin/main origin/<branch>`, not the
+logs.** It is one command, it needs no permissions, and it answers in
+one line what an unreadable log cannot. Two things make this trap
+likely here: `work/<program>/log.md` and a row's frontmatter are edited
+by every parallel lane, so a branch left open for even a few hours goes
+un-mergeable on files that have nothing to do with its change; and the
+harness's merge-conflict notice is best-effort and did not arrive.
+
+Two corollaries. **A second identical failure is not a flake** — the
+register already says so, and this one was mis-read as infrastructure
+right up until the second run reproduced it exactly. And **a 403 on
+`rerun-failed-jobs` is not a dead end**: re-running would have proved
+nothing here, because the conflict survives a re-run.
 
 ## Exit shape
 

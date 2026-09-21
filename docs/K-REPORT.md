@@ -835,6 +835,43 @@ than the other five and should not be read against them. They pool with nothing:
 population, which is exactly why the shared parity walk takes its row
 names from the caller.
 
+**Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
+name, carried by a bare literal at its `decide` site (blind spot #1 of
+the crate scan — the same carrier shape `chart_bound_gap` has):
+
+| name | carrier |
+|---|---|
+| `props_trim_piece_monotone` | a bare literal at `geom_brep::props::quad::piece_monotone`'s `classify_len` call |
+
+Its dimension and disposition are `docs/predicate-dimension-audit.md`'s
+`props/quad.rs (piece_monotone)` row: a chart-parameter span levered by
+the chart's own metric rate along the chord, hence metres like the rest
+of the `props_quad_*` family. It is asked **once per trim piece per
+round**, so on a face that takes several rounds its population is the
+largest in the family by an order.
+
+**Its margin carries the ROUND's lever, and reading the population
+without that is reading the wrong quantity.** An earlier draft of this
+entry said the margin was "set by the image's control polygon, not by
+the chart's extent"; the v6 dual measured that false from both sides.
+The span is the REFINED block's least advance, so it halves with every
+uniform cut and every bisection and it scales with the face: the same
+smooth arc certifies at every round on a 10 µm face, refuses at round 4
+on a 1 µm face, and refuses at every round on a 0.1 µm face. So the row
+pools with nothing — not with `props_quad_converged`'s ladder, whose
+lever is the enclosure width, and not across faces of different size or
+runs that reached different rounds. A `k-lint` reading of it has to key
+on the round as well as the ε.
+
+**It emits nothing on today's corpus.** The trimmed lane is reached only
+by a face whose loop carries a `Pcurve::General` image, and on this head
+that is minted at exactly one site (`nurbs_iso_derive`'s `Intersection`
+arm on an interior column) which no corpus body exercises — TRIM-2's own
+fixture is a test-built body. So a `k_probe_sweep.sh` CSV taken at this
+merge carries no `props_trim_piece_monotone` row, exactly as the
+`chart_bound_*` names do below: the roster's code half reaches it and
+its behavioural half does not.
+
 **They emit nothing on today's corpus, and that is a fact to read, not
 a hole.** `chart_boundary` has no shipped caller until the clearance
 seam lands, so a `k_probe_sweep.sh` CSV taken at this merge carries no
@@ -867,6 +904,33 @@ the value). The names that reach the funnel through them today:
 | `tour_frame_axis` | `demos/tour/src/scalar.rs`, a const the TOUR owns | **yes** — the demo-scenes leg of `scripts/k_probe_sweep.sh` runs the scenes that mint it |
 | `fixture_frame_axis` | `crates/sweep/src/test_support.rs`, a const the fixtures own | only if a rostered probe module builds a fixture plane off the world axes; none does today |
 | `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
+| `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
+| `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
+| `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
+| `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
+
+**Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
+one added, two test-owned.** `mate_axes_parallel` was a bare `decide`
+on `Margin::levered(‖u × v‖, arm)`; it is now the `UnitVec3::new` mint
+of the levered vector `(u × v) · arm`, so the margin it records is that
+vector's norm — the same quantity to within two ulps, and the one
+decision the non-parallel verdict's line is minted by (a second
+decision of the same number at a mint was spelled a rounding apart and
+could land in the band where the first did not). A re-baseline of a
+decided margin by at most two ulps at every site that decides it, with
+no threshold moved; the mate suites at three ε rows are the evidence no
+verdict moved on a shipped document. `mate_coset_inverse` is new: the
+solve re-mints a direction it transports by a rotation, a length one
+within rounding, so its samples sit at `1` and never in the band on a
+document the doors build. Neither name reaches `scripts/k_probe_sweep.sh`'s
+corpus, because the mate solve is not in it; that gap is the one
+`work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`
+records for the binding, and the two mate names are added to it there.
+The two test-owned names follow `fixture_frame_axis`: a const the
+suite owns, reaching no corpus by construction. The aim decision
+`frame_point_at_aim` is recorded twice per mate by a solve — once per
+side — as before; the mate frame's axis is read off the ladder's
+witness rather than decided again.
 
 `tour_frame_axis` is a demo minting a roster name because the type's
 decision-free mints are the three cyclic world frames and the tour's

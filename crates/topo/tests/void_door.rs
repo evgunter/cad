@@ -27,8 +27,8 @@ use topo::{
 
 fn outer_and_cavity() -> (Body<f64>, Body<f64>) {
     (
-        brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0)),
-        brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0)),
+        brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness()),
+        brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness()),
     )
 }
 
@@ -276,14 +276,14 @@ fn one_destination_through_either_door_reads_identically() {
 /// own interior shell, and the volume is both cavities removed.
 #[test]
 fn two_destinations_each_take_their_own_cavity() {
-    let mut dst = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
-    let far = brick((10.0, 13.0), (0.0, 3.0), (0.0, 3.0));
+    let mut dst = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
+    let far = brick((10.0, 13.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
     topo::graft_disjoint(&mut dst, &far, Tol::witness()).unwrap();
     let dst_solids: Vec<_> = dst.solids().map(|(k, _)| k).collect();
     assert_eq!(dst_solids.len(), 2);
 
-    let mut cavity = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let far_cavity = brick((11.0, 12.5), (1.0, 2.0), (1.0, 2.0));
+    let mut cavity = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
+    let far_cavity = brick((11.0, 12.5), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     topo::graft_disjoint(&mut cavity, &far_cavity, Tol::witness()).unwrap();
     let cavity_shells: Vec<_> = cavity.shells().map(|(k, _)| k).collect();
     assert_eq!(cavity.solids().count(), 2);

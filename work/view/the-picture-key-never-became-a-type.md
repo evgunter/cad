@@ -4,9 +4,11 @@ kind: issue
 title: The (generation, delta) picture key is spelled five ways and its two cache fields have no stated invariant
 status: closed
 opened: 2026-09-05
+closed: 2026-09-15
 branch: view/picture-key
 pr: 2670
-closed: 2026-09-15
+priority: P1
+cost: D
 ---
 
 
