@@ -415,9 +415,13 @@ fn sym5_tilted_derived_guided_budget_ladder() {
 /// What carries it is rule E ([`SymRules::common_factor`], the
 /// quotient's common factor): with the rule off — `without_rule_e`,
 /// M10-10's tier bit for bit — the derived boss refuses under `Guided`
-/// on `newell_plane_residual` while the twin certifies, and that
-/// asymmetry is asserted here too, so the pin says what the rule is
-/// for and not only that it works.
+/// while the twin certifies, and that asymmetry is asserted here too,
+/// so the pin says what the rule is for and not only that it works.
+/// The predicate it stops on is the CARRIER ENDPOINT, ahead of the
+/// side plane's Newell sum: on the sign-hull frame the un-cancelled
+/// quotient freezes in the extrude's attachment gate before the cap is
+/// reached, so with the rule off the document never gets as far as the
+/// plane it used to fail on.
 ///
 /// At a half-width of `5e-2` the derived boss still refuses, and the
 /// refusal is NOT the tier's: it is the clause-1 `Invalid` margin
@@ -482,8 +486,8 @@ fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
         "without rule E the derived boss refuses: {derived_off:?}"
     );
     assert!(
-        derived_off[0].contains("newell_plane_residual"),
-        "and it refuses on the side plane's newell residual: {derived_off:?}"
+        derived_off[0].contains("carrier_endpoint_end"),
+        "and it refuses on the carrier's end endpoint, in the attachment gate: {derived_off:?}"
     );
 
     // The one width still refused, and the reason, read off the kernel.
@@ -495,12 +499,14 @@ fn m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does() {
     );
     assert_eq!(wide.len(), 1, "one refusal at 5e-2: {wide:?}");
     assert!(
-        wide[0].contains("newell_plane_residual") && wide[0].contains("margin is invalid"),
+        wide[0].contains("interval_span_forward"),
         "THIS PINS A DEFECT AS THE CURRENT BEHAVIOUR, NOT A DESIRED ONE: at 5e-2 the tier has \
-         done its work and clause 1 refuses first — newell normalises a cross-sum whose \
-         enclosure contains zero \
-         (work/props/a-widened-derived-placement-normalises-a-straddling-newell-sum). When that \
-         row is answered this assertion FAILS and 5e-2 joins the parity list above: {wide:?}"
+         done its work and the VALUE channel refuses first. The wall moved with DECIDE-3: \
+         the decision read settles the frame, the boss's cap plane is no longer what stops \
+         the document, and what does is the stored interval's own span over a box this wide \
+         (work/frame/a-widened-derived-placement-normalises-a-straddling-newell-sum carries \
+         the class). When that is answered this assertion FAILS and 5e-2 joins the parity \
+         list above: {wide:?}"
     );
 }
 
@@ -982,23 +988,23 @@ fn sym8_phase1_the_tilt_u_ladder() {
 ///   split is 24/0/0/1 — the residual is a `sqrt` over a FROZEN
 ///   `Powi ^2` whose kid is 440 terms at degree 27 and `440² >
 ///   MAX_TERMS`;
-/// - with rule F ON that square is built, `carrier_endpoint_end` is
-///   33/0/0/0 — every decision a THEOREM — and the document's refusal
-///   MOVES, to a `newell_plane_residual` straddle the tier does not
-///   prove.
+/// - with rule F ON that square is built and, with the decision read
+///   settling the frame's conditioning comparisons,
+///   `carrier_endpoint_end` is 32/16/0/0 — nothing numeric — and the
+///   document CERTIFIES: the `newell_plane_residual` straddle that
+///   used to be the next wall
+///   (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`) is
+///   proved once the frame is no longer opaque.
 ///
-/// Both refusals are asserted by name, so the day either moves this
-/// reds and says which. The remaining wall is
-/// `work/sym/the-tilt-u-newell-residual-is-the-next-wall`; when it is
-/// answered, the second half of this row fails and the width joins the
-/// parity list.
+/// The F-off refusal is asserted by name, so the day it moves this
+/// reds and says which.
 ///
 /// Cost: two evaluations of a small document, well under a second each
 /// in release and about four seconds in the test profile — the split
 /// is read from the shape report, which is what the second of those
 /// pays for.
 #[test]
-fn m10_the_tilt_u_derived_boss_stops_on_the_newell_residual_and_names_it() {
+fn m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame() {
     use geom_core::sym::report::{start_shape_report, take_shape_report};
     let doc = r2_document(1.0e-3, Base::TiltU, Place::Derived(1));
     let mut seen = Vec::new();
@@ -1039,18 +1045,16 @@ fn m10_the_tilt_u_derived_boss_stops_on_the_newell_residual_and_names_it() {
     );
     assert_eq!(
         *on_split,
-        [33, 0, 0, 0],
-        "rule F takes the whole predicate: every decision a theorem"
-    );
-    assert_eq!(
-        on_fails.len(),
-        1,
-        "the document still refuses: {on_fails:?}"
+        [32, 16, 0, 0],
+        "rule F and the decision read take the whole predicate between them: nothing here \
+         is numeric, and the sixteen the read answers are the frame's conditioning \
+         comparisons, which no form settles"
     );
     assert!(
-        on_fails[0].contains("newell_plane_residual"),
-        "and the wall it stops at now is the newell residual, by name \
-         (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`): {on_fails:?}"
+        on_fails.is_empty(),
+        "and the document certifies: the newell straddle that was the next wall \
+         (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`) is proved once the \
+         frame's own comparisons are settled: {on_fails:?}"
     );
 }
 

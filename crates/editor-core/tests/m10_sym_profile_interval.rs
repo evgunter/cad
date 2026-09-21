@@ -259,24 +259,18 @@ const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest 4c206fa8091829f2e72e255bfcf8cb34\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 144775155146a913025d282ba655d459\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 5fc4eb3fb88a7f13ba06caa5d402e6fa\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest f39d38ec4917cacbd623dba5a72b2c5e",
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest 68a31dec794118be1e5494c295c01a77\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 25e1a56d72b822e9b22340ed78923147\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 5fc4eb3fb88a7f13ba06caa5d402e6fa\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest a7806cd694452e292984bc390c6690bc",
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest b2316116afff13c352e218269a06ec67\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 6c3dbae8d12c81cbc6c544897d4d3ae1\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 5fc4eb3fb88a7f13ba06caa5d402e6fa\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 6bb9d4ed1a687823d6d4f2210e1aff37",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -294,20 +288,27 @@ const SLAB_LEDGER: [&str; 3] = [
 /// `Early/Decision` frozen falls 48 → 8 in the ledger below). The rule
 /// never grows a form; the WALK's largest form grows because fewer
 /// forms are cut short.
+///
+/// **The plate's moved again with DECIDE-3**, 288 → 252, in the
+/// shrinking direction and for the opposite reason: the canonical root
+/// puts a primitive integer polynomial under every root and takes the
+/// content out as a constant factor, so a form the walk used to build
+/// over two spellings of one real is built over one. The plate's
+/// `Early/Assertion` and `Door/Decision` freezes go 104 → 0 with it.
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 288;
+const PLATE_MAX_TERMS: usize = 252;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15030 frozen 672 digest 28009db4cb59a2d8449d77d029a0c6e1\n\
-     Plain/Assertion calls 462 forms 2594 frozen 372 digest 85728cdbe8c1b239b969bff8b2d83dbe\n\
+     Plain/Decision calls 951 forms 15030 frozen 672 digest aa581ad9960b7ef704f978c1bb2d7ce3\n\
+     Plain/Assertion calls 462 forms 2594 frozen 372 digest 702ce928fd05aeeb766afa8c0ae157bb\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7979 frozen 8 digest 7b9779738faac62b022ea91d8e03be38\n\
-     Early/Assertion calls 462 forms 3406 frozen 104 digest c0bd974b4501fd372c3882438eb9676f\n\
+     Early/Decision calls 320 forms 7979 frozen 8 digest 577d41f1148bf0465181f65a3c4dc5b0\n\
+     Early/Assertion calls 462 forms 3406 frozen 0 digest 3d65028fb66b9f9e9949610892e3400a\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 330 forms 11884 frozen 104 digest 4472e9a44e2d62da994e09f453faba6c\n\
+     Door/Decision calls 330 forms 11884 frozen 0 digest 0c5415ffdd10213675fa8c3baa939112\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

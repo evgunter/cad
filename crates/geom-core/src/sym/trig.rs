@@ -115,7 +115,7 @@ use std::sync::Arc;
 
 use super::form::{Form, Poly, within};
 use super::rational::{Int, Rat};
-use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom};
+use super::{INDET_PI, Session, SymOp};
 
 /// The largest `|k|` in `q = k / 2ᵐ` this rule folds.
 pub(super) const MAX_MULTIPLE: i128 = 32;
@@ -302,19 +302,17 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
 /// walk and "rule E is early-only" survives; this site has no walk
 /// flag of its own to check. A plain-walk caller of `fold` would break
 /// that, and there is none.
-fn sqrt_atom(arg: Form, sess: &mut Session) -> u128 {
+fn sqrt_atom(arg: Form, sess: &mut Session) -> Form {
     let arg = if sess.rules.common_factor {
         super::quotient::cancel(&arg)
     } else {
         arg
     };
-    let id = indet_atom(SymOp::Sqrt.tag(), 0, &[arg.digest()]);
-    sess.atoms.entry(id).or_insert_with(|| AtomInfo {
-        op: SymOp::Sqrt,
-        payload: 0,
-        args: [Some(Arc::new(arg)), None, None],
-    });
-    id
+    // Through rule G's door, like every other `sqrt` in the tier: a
+    // root this rule builds by hand and one the walk mints over the
+    // same argument have to be one atom, and the door is what makes
+    // that structural. `early = true` is this rule's own contract.
+    super::root::mint(arg, sess, true)
 }
 
 /// `c · p` for a small integer `c` — [`Poly::scaled`](super::form::Poly::scaled)
@@ -394,17 +392,23 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
     // φ = atan X, X = N / Dx: cos φ = Dx / (Dx·S), sin φ = N / (Dx·S)
     // with S = sqrt(1 + X²).
     let s = sqrt_atom(one.add(&x.mul(&x, budget)?, budget)?, sess);
-    let mut den = x.den.mul(&Poly::indet(s), budget)?;
-    let mut cn = x.den.clone();
-    let sn = x.num.clone();
+    // The shared denominator stays ONE polynomial even when the root
+    // is a quotient: `C/(D·S)` with `S = Sn/Sd` is `C·Sd/(D·Sn)`, so a
+    // root with a denominator multiplies the numerators instead of
+    // splitting the representation (this function's header argues why
+    // one shared denominator is the whole of rule D's cost).
+    let mut den = x.den.mul(&s.num, budget)?;
+    let mut cn = x.den.mul(&s.den, budget)?;
+    let mut sn = x.num.mul(&s.den, budget)?;
     // ψ = φ / 2ᵐ, each halving on the positive branch (module docs):
     // c₂ = sqrt((1 + cos θ) / 2) = sqrt((D + C) / (2·D)), then
     // cos(θ/2) = (D + C) / (2·c₂·D), sin(θ/2) = S / (2·c₂·D).
     for _ in 0..m {
         let lifted = den.add(&cn)?;
         let c2 = sqrt_atom(Form::quotient(lifted.clone(), scaled(&den, 2)?), sess);
-        cn = lifted;
-        den = scaled(&den.mul(&Poly::indet(c2), budget)?, 2)?;
+        cn = lifted.mul(&c2.den, budget)?;
+        sn = sn.mul(&c2.den, budget)?;
+        den = scaled(&den.mul(&c2.num, budget)?, 2)?;
     }
     // k·ψ by angle addition from (cos 0, sin 0) = (1, 0), every
     // multiple over Dᵏ.
@@ -431,7 +435,7 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::sym::{SymBudget, SymRules};
+    use crate::sym::{AtomInfo, SymBudget, SymRules, indet_atom};
 
     fn budget() -> SymBudget {
         SymBudget {

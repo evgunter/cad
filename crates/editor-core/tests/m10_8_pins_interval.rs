@@ -57,6 +57,8 @@ fn m10_8_the_a0_set_is_a0_alone() {
             && !s.pythagoras
             && !s.common_factor
             && !s.manifest_sign
+            && !s.canonical_root
+            && !s.decision_read
             && !s.registered,
         "nothing else: {s:?}"
     );
@@ -94,9 +96,22 @@ fn a0_alone() -> SymRules {
     }
 }
 
-/// **The shipped set is inert on straight geometry**: the M10-3 slab
-/// has no `sqrt` of a constant and no `sqrt` of a square to fold, so a
-/// shipped drive serializes byte for byte what M10-7's tier did.
+/// **The shipped set reaches straight geometry only through the
+/// DECISION READ, and takes no theorem there.** The M10-3 slab has no
+/// `sqrt` of a constant and no `sqrt` of a square to fold, so every
+/// FORM-level rule is inert on it and was the whole story until the
+/// read shipped (DECIDE-3): the slab's conditioning floors are
+/// `max`/`min` of constants the form does not settle
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`), and the
+/// read settles eight of them over the leaf's box.
+///
+/// So the claim this row makes is the one that was ever load-bearing:
+/// **`symbolic_zero` is unmoved and the eight come out of `numeric`**,
+/// not out of the theorems. A read that re-labelled a theorem would
+/// show here as `symbolic_zero` falling, which is the direction the
+/// receipt may never move in; the byte-identity with `none` that used
+/// to stand in for it cannot tell the two apart, and says "no gain"
+/// where a gain is what happened.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -117,10 +132,28 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
         .expect("the slab builds")
         .serialize()
     };
+    let (shipped, plain) = (run(SymRules::shipped()), run(SymRules::none()));
+    let line = |s: &str| {
+        s.lines()
+            .find(|l| l.starts_with("decisions "))
+            .unwrap_or_default()
+            .to_owned()
+    };
     assert_eq!(
-        run(SymRules::shipped()),
-        run(SymRules::none()),
-        "straight geometry: the shipped tier is M10-7's, bit for bit"
+        line(&plain),
+        "decisions symbolic_zero=482 numeric=263 frozen=0",
+        "the plain tier on straight geometry"
+    );
+    assert_eq!(
+        line(&shipped),
+        "decisions symbolic_zero=482 numeric=255 frozen=0 sign_gated=8",
+        "the same 482 THEOREMS, and eight of the 263 numeric refusals answered by the \
+         decision read as gated reads — no theorem re-labelled"
+    );
+    assert_eq!(
+        run(SymRules::without_the_reads()),
+        plain,
+        "and with the read shut the shipped tier is M10-7's on straight geometry, bit for bit"
     );
 }
 

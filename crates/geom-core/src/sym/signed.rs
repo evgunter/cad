@@ -42,7 +42,7 @@ use core::f64::consts::PI;
 
 use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
-use super::{INDET_PI, IndetMap, SymBudget, SymOp};
+use super::{AtomInfo, INDET_PI, IndetMap, Session, SymBudget, SymOp, manifest};
 use crate::ring_interval::RingInterval;
 
 /// The most terms a candidate root may grow to before `poly_sqrt` gives
@@ -321,6 +321,227 @@ pub(super) fn fold(
     if !positive {
         out = out.neg()?;
     }
+    out.gated = true;
+    Some(out)
+}
+
+// ------------------------------------------------------------------
+// The DECISION READ (DECIDE-3): rule C's certified read, extended from
+// `sqrt`/`abs` to the decision door and to `min`/`max`.
+// ------------------------------------------------------------------
+
+/// How many atom levels the deep enclosure descends before it declines.
+/// A frame's conditioning floor nests a `min` over a `max` over an
+/// `abs` over a `sqrt` over the normal's own root — four — and the
+/// candidate norms of a tilted frame add two more; past that the cost
+/// of one node's read is the cost of a sub-tree, and declining is the
+/// conservative direction.
+const ENCLOSE_DEPTH: usize = 8;
+
+fn ring_sqrt(x: RingInterval) -> RingInterval {
+    if x.is_poison() || x.hi() < 0.0 {
+        return RingInterval::poison();
+    }
+    let lo = if x.lo() <= 0.0 {
+        0.0
+    } else {
+        x.lo().sqrt().next_down()
+    };
+    RingInterval::from_bounds(lo, x.hi().sqrt().next_up())
+}
+
+fn ring_abs(x: RingInterval) -> RingInterval {
+    if x.is_poison() || x.lo() >= 0.0 {
+        x
+    } else if x.hi() <= 0.0 {
+        -x
+    } else {
+        RingInterval::from_bounds(0.0, x.hi().max(-x.lo()))
+    }
+}
+
+fn ring_min(a: RingInterval, b: RingInterval) -> RingInterval {
+    if a.is_poison() || b.is_poison() {
+        return RingInterval::poison();
+    }
+    RingInterval::from_bounds(a.lo().min(b.lo()), a.hi().min(b.hi()))
+}
+
+fn ring_max(a: RingInterval, b: RingInterval) -> RingInterval {
+    if a.is_poison() || b.is_poison() {
+        return RingInterval::poison();
+    }
+    RingInterval::from_bounds(a.lo().max(b.lo()), a.hi().max(b.hi()))
+}
+
+/// The enclosure of one indeterminate: a parameter's bracket, `π`, or
+/// a `sqrt`/`abs`/`min`/`max` ATOM over arguments this function can
+/// enclose in turn. `None` for anything else — an opaque real, a
+/// frozen node, a `select` or a trig atom — because an indeterminate
+/// with no bracket has no enclosure, and a guess would be a value the
+/// tier is not entitled to.
+fn enclose_indet(
+    id: u128,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<RingInterval> {
+    if id == INDET_PI {
+        return Some(RingInterval::from_bounds(PI.next_down(), PI.next_up()));
+    }
+    if let Some(&(lo, hi)) = params.get(&id) {
+        return Some(RingInterval::from_bounds(lo, hi));
+    }
+    if depth >= ENCLOSE_DEPTH {
+        return None;
+    }
+    let atom = atoms.get(&id)?;
+    let arg = |k: usize| enclose_form_deep(atom.args[k].as_deref()?, params, atoms, depth + 1);
+    let out = match atom.op {
+        SymOp::Sqrt => ring_sqrt(arg(0)?),
+        SymOp::Abs => ring_abs(arg(0)?),
+        SymOp::Min => ring_min(arg(0)?, arg(1)?),
+        SymOp::Max => ring_max(arg(0)?, arg(1)?),
+        _ => return None,
+    };
+    (!out.is_poison()).then_some(out)
+}
+
+fn enclose_deep(
+    p: &Poly,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<RingInterval> {
+    let mut acc = RingInterval::zero();
+    for (m, c) in p.terms() {
+        let mut term = rat_enclosure(c);
+        for &(id, e) in m {
+            let x = enclose_indet(id, params, atoms, depth)?;
+            term = term * x.powi(i32::try_from(e).ok()?);
+        }
+        acc = acc + term;
+    }
+    (!acc.is_poison()).then_some(acc)
+}
+
+fn enclose_form_deep(
+    f: &Form,
+    params: &IndetMap<(f64, f64)>,
+    atoms: &IndetMap<AtomInfo>,
+    depth: usize,
+) -> Option<RingInterval> {
+    if f.poisoned {
+        return None;
+    }
+    let q = enclose_deep(&f.num, params, atoms, depth)?
+        / enclose_deep(&f.den, params, atoms, depth)?;
+    (!q.is_poison()).then_some(q)
+}
+
+/// The deep enclosure of one polynomial over the session's brackets —
+/// the door rule G's side-condition source 4 reads (`super::root`).
+pub(super) fn enclose_poly(p: &Poly, sess: &Session) -> Option<RingInterval> {
+    if sess.params.is_empty() {
+        return None;
+    }
+    enclose_deep(p, &sess.params, &sess.atoms, 0)
+}
+
+/// `p` with every manifestly POSITIVE indeterminate of its content
+/// divided out. A factor that is `> 0` wherever it has a value moves
+/// neither the sign of the product nor its zero set, and dividing it
+/// out is what lets a decision whose halves are dressed in norms be
+/// read from the polynomial underneath.
+fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
+    let Some(first) = p.monos().next() else {
+        return p.clone();
+    };
+    let mut common: Mono = first.clone();
+    for m in p.monos() {
+        common.retain(|&(id, _)| m.iter().any(|&(j, _)| j == id));
+        for (id, e) in &mut common {
+            *e = (*e).min(exp_of(m, *id));
+        }
+        if common.is_empty() {
+            return p.clone();
+        }
+    }
+    common.retain(|&(id, _)| manifest::indet_positive(id, sess));
+    if common.is_empty() {
+        return p.clone();
+    }
+    let mut terms: Vec<(Mono, Rat)> = Vec::with_capacity(p.terms().len());
+    for (m, c) in p.terms() {
+        let mut rest = Mono::with_capacity(m.len());
+        for &(id, e) in m {
+            let d = exp_of(&common, id);
+            if e > d {
+                rest.push((id, e - d));
+            }
+        }
+        terms.push((rest, c.clone()));
+    }
+    terms.sort_by(|(a, _), (b, _)| a.cmp(b));
+    Poly::from_sorted_terms(terms).unwrap_or_else(|| p.clone())
+}
+
+/// **The decision read** for `Select(d, when_le, when_gt)`:
+/// `Some(true)` where `d ≤ 0` is CERTIFIED at every point of the box,
+/// `Some(false)` where `d > 0` is, `None` otherwise (straddling,
+/// poisoned, or not enclosable). Manifestly positive factors are
+/// stripped from both halves first: the sign of `P/Q` with `Q > 0` is
+/// the sign of `P`, and so is its zero set.
+///
+/// A fold through this is equal to the atom AT EVERY POINT OF THE BOX
+/// and not identically in the parameters, exactly as rule C's is, so
+/// the caller marks the form `gated` and the discharge is counted
+/// `sign_gated`.
+pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
+    if d.poisoned || sess.params.is_empty() {
+        return None;
+    }
+    let enclose = |p: &Poly| enclose_deep(&strip_positive_content(p, sess), &sess.params, &sess.atoms, 0);
+    let den = enclose(&d.den)?;
+    let den_positive = if manifest::positive(&Form::poly(d.den.clone()), sess) {
+        true
+    } else if den.lo() > 0.0 {
+        true
+    } else if den.hi() < 0.0 {
+        false
+    } else {
+        return None;
+    };
+    let num = enclose(&d.num)?;
+    if (num.hi() <= 0.0 && den_positive) || (num.lo() >= 0.0 && !den_positive) {
+        return Some(true);
+    }
+    if (num.lo() > 0.0 && den_positive) || (num.hi() < 0.0 && !den_positive) {
+        return Some(false);
+    }
+    None
+}
+
+/// **The certified ORDER read** at `min`/`max` — `max(A, B)` IS
+/// `select(B − A, A, B)`, so the arm is the same read: the one the
+/// comparison `A ≤ B` picks wherever that comparison is certified over
+/// the box. `None` where it is not.
+pub(super) fn order(
+    op: SymOp,
+    a: &Form,
+    b: &Form,
+    sess: &Session,
+    budget: SymBudget,
+) -> Option<Form> {
+    let diff = a.add(&b.neg()?, budget)?;
+    if diff.poisoned {
+        return None;
+    }
+    let mut out = match (op, decision(&diff, sess)?) {
+        (SymOp::Max, true) | (SymOp::Min, false) => b.clone(),
+        (SymOp::Max, false) | (SymOp::Min, true) => a.clone(),
+        _ => return None,
+    };
     out.gated = true;
     Some(out)
 }

@@ -855,8 +855,14 @@ mod rational;
 /// stayed numeric, what blocked it.
 #[path = "sym/report.rs"]
 pub mod report;
-/// Rule C: the polynomial square root and the clause-3 fold, with the
-/// one value read the tier makes (a parameter bracket in the ring).
+/// Rule G: the canonical square root — the one door every `Sqrt` atom
+/// is minted through, and the `D ≥ 0` side condition its quotient
+/// split rests on.
+#[path = "sym/root.rs"]
+mod root;
+/// Rule C: the polynomial square root and the clause-3 fold, and the
+/// two certified reads that take its shape at the decision door and at
+/// `min`/`max`.
 #[path = "sym/signed.rs"]
 mod signed;
 /// Rule D: trig of `atan`, exact — the closed forms of `sin`/`cos` at
@@ -1427,6 +1433,41 @@ pub struct SymRules {
     /// predicate excludes that point. [`manifest`]'s header carries
     /// the argument and the shapes it must not fold. Needs `early`.
     pub manifest_sign: bool,
+    /// **G — the CANONICAL SQUARE ROOT** ([`root`]): in the early walk
+    /// every `sqrt` atom is minted through one door that keys it on its
+    /// argument's VALUE CLASS — the quotient split `sqrt(N/D) =
+    /// sqrt(N)/sqrt(D)` under the `D ≥ 0` side condition [`root`]
+    /// argues, each half's rational content taken out (`s` exactly,
+    /// `sqrt(f)` a constant atom) over the primitive integer
+    /// polynomial, and `sqrt(R²) = |R|`.
+    ///
+    /// It reads no value on its own: the content split is arithmetic
+    /// on the coefficients, and the side condition's first three
+    /// sources are facts about the form and about what the session has
+    /// already minted. Its fourth source is a certified read and rides
+    /// rule C's dial, not this one.
+    ///
+    /// **A canonical FORM, not a rewrite that fires somewhere**: what
+    /// it changes is the identity of the indeterminate, so two
+    /// spellings of one real — the walk's `sqrt(1/S²)` and the
+    /// normal's own `S` — are one atom and can cancel. Needs `early`.
+    pub canonical_root: bool,
+    /// **The DECISION READ** ([`signed::decision`], [`signed::order`]):
+    /// in the early walk a `Select` whose decision is certified
+    /// one-signed over the leaf's box takes that arm, and a `min`/`max`
+    /// whose comparison is certified takes the arm it picks — `max(A,
+    /// B)` IS `select(B − A, A, B)`, so the two are one read.
+    ///
+    /// Rule C's shape, at the ops rule C does not reach, and counted
+    /// the same way: the fold is equal to the atom at every point of
+    /// the BOX and not identically in the parameters, so a zero through
+    /// it is `sign_gated` and never `symbolic_zero`.
+    ///
+    /// **Ordered behind every value-free fold** — after A0, after rule
+    /// F, and over kids whose roots rule G has already minted — because
+    /// a read that runs before an atom is minted re-labels as a read
+    /// anything the atom would have cancelled against. Needs `early`.
+    pub decision_read: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
     /// registry ([`Sym::register_equal`]), so a node a constructor
@@ -1457,6 +1498,8 @@ impl SymRules {
             signed_root: true,
             common_factor: true,
             manifest_sign: true,
+            canonical_root: true,
+            decision_read: true,
             registered: true,
         }
     }
@@ -1497,6 +1540,8 @@ impl SymRules {
             signed_root: false,
             common_factor: true,
             manifest_sign: true,
+            canonical_root: true,
+            decision_read: true,
             registered: true,
         }
     }
@@ -1515,6 +1560,8 @@ impl SymRules {
             signed_root: false,
             common_factor: false,
             manifest_sign: false,
+            canonical_root: false,
+            decision_read: false,
             registered: false,
         }
     }
@@ -1526,12 +1573,14 @@ impl SymRules {
     /// differential every claim about what the algebra costs and what
     /// it buys is measured against.
     ///
-    /// **SIX dials, and each was added the day its rule shipped.** A
+    /// **EIGHT dials, and each was added the day its rule shipped.** A
     /// rule that rewrites a form in the EARLY walk is form-level
-    /// algebra whatever its argument reads, so rule E (SYM-5) and rule
-    /// F (SYM-8) belong here beside A/B and D; leaving one out makes
-    /// this constructor a differential against a tier that never
-    /// existed, silently, while its own doc still claims M10-9's.
+    /// algebra whatever its argument reads, so rule E (SYM-5), rule F
+    /// (SYM-8), rule G ([`Self::canonical_root`]) and the decision read
+    /// ([`Self::decision_read`]) belong here beside A/B and D; leaving
+    /// one out makes this constructor a differential against a tier
+    /// that never existed, silently, while its own doc still claims
+    /// M10-9's.
     #[must_use]
     pub const fn without_the_algebra() -> Self {
         Self {
@@ -1541,6 +1590,8 @@ impl SymRules {
             trig_of_atan: false,
             common_factor: false,
             manifest_sign: false,
+            canonical_root: false,
+            decision_read: false,
             ..Self::shipped()
         }
     }
@@ -1572,27 +1623,63 @@ impl SymRules {
     /// **The shipped set with rule E SHUT** — the quotient's common
     /// factor left uncancelled: M10-10's tier exactly, bit for bit, and
     /// the differential every claim about what rule E costs and what it
-    /// buys is measured against ([`Self::common_factor`]). Rule F is
-    /// shut with it, because M10-10's tier had none; [`Self::without_rule_f`]
-    /// is the other half of the pair and keeps rule E on.
+    /// buys is measured against ([`Self::common_factor`]). Rule F, rule
+    /// G and the decision read are shut with it, because M10-10's tier
+    /// had none of the three; [`Self::without_rule_f`] is the other
+    /// half of the pair and keeps rule E on.
     #[must_use]
     pub const fn without_rule_e() -> Self {
         Self {
             common_factor: false,
             manifest_sign: false,
+            canonical_root: false,
+            decision_read: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with rule G SHUT** — every `sqrt` atom keyed
+    /// on the argument form the walk arrived with, as it was before the
+    /// canonical root: the differential every claim about what rule G
+    /// costs and what it buys is measured against
+    /// ([`Self::canonical_root`]). The decision read stays ON, because
+    /// a differential that also shut a read would measure two things at
+    /// once; [`Self::without_the_reads`] is the other half of the pair.
+    #[must_use]
+    pub const fn without_canonical_root() -> Self {
+        Self {
+            canonical_root: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with the DECISION READ shut** — the decision
+    /// door and `min`/`max` left opaque wherever no value-free fold
+    /// reaches them: the differential every claim about what the read
+    /// buys, and about which discharges are `sign_gated` rather than
+    /// numeric, is measured against ([`Self::decision_read`]). Rule G
+    /// stays on, for the reason [`Self::without_canonical_root`] gives.
+    #[must_use]
+    pub const fn without_the_reads() -> Self {
+        Self {
+            decision_read: false,
             ..Self::shipped()
         }
     }
 
     /// **The shipped set with rule F SHUT** — the `copysign` and `abs`
-    /// atoms of a manifestly positive argument left opaque, every other
-    /// rule as it is: SYM-5's tier exactly, bit for bit, and the
-    /// differential every claim about what rule F costs and what it
-    /// buys is measured against ([`Self::manifest_sign`]).
+    /// atoms of a manifestly positive argument left opaque: SYM-5's
+    /// tier exactly, bit for bit, and the differential every claim
+    /// about what rule F costs and what it buys is measured against
+    /// ([`Self::manifest_sign`]). Rule G and the decision read are shut
+    /// with it, for the same reason rule E's constructor shuts rule F:
+    /// SYM-5's tier had neither.
     #[must_use]
     pub const fn without_rule_f() -> Self {
         Self {
             manifest_sign: false,
+            canonical_root: false,
+            decision_read: false,
             ..Self::shipped()
         }
     }
@@ -2094,6 +2181,10 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
     let c = early && sess.rules.signed_root;
     // Rule F, the manifest sign, likewise (`SymRules::manifest_sign`).
     let f_sign = early && sess.rules.manifest_sign;
+    // Rule G, the canonical root, likewise (`SymRules::canonical_root`).
+    let g_root = early && sess.rules.canonical_root;
+    // The decision read, likewise (`SymRules::decision_read`).
+    let read = early && sess.rules.decision_read;
     // An atom over a gated argument is gated: it stands for the value
     // of a form that is only box-wise equal to the expression.
     let gate = |mut f: Form| {
@@ -2179,7 +2270,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         // folds to the signed root. The value-free rule is asked
         // before the one that reads a value, so a discharge that can
         // be a theorem is never counted `sign_gated`.
-        SymOp::Sqrt | SymOp::Abs if (a0 || c || f_sign) && !a.poisoned => {
+        SymOp::Sqrt | SymOp::Abs if (a0 || c || f_sign || g_root) && !a.poisoned => {
             let folded = (|| {
                 if !a0 {
                     return None;
@@ -2202,6 +2293,18 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 return Some(gate(f));
             }
             if c && let Some(f) = signed::fold(node.op, a, &sess.params, budget) {
+                return Some(gate(f));
+            }
+            // **Rule G**, last of the `sqrt` folds: the ones above
+            // answer the node outright where they fire, and this one
+            // decides how the atom that is left is KEYED. `trig`'s
+            // hand-built roots and the registrant's forms reach the
+            // same door ([`root::mint`]), which is what makes the
+            // keying uniform rather than per-site.
+            if g_root
+                && node.op == SymOp::Sqrt
+                && let Some(f) = root::canonical(a, sess, early)
+            {
                 return Some(gate(f));
             }
             atom1(node.op, sess)
@@ -2270,6 +2373,19 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 z.gated = a.gated || b.gated;
                 return Some(z);
             }
+            // **The decision read at `min`/`max`**, behind every fold
+            // above that reads no value (`SymRules::decision_read`):
+            // `max(A, B)` IS `select(B − A, A, B)`, so the arm is the
+            // same certified read the decision door takes, and it is
+            // asked last so a comparison a FORM settles is never
+            // counted as one a box did.
+            if read
+                && matches!(node.op, SymOp::Min | SymOp::Max)
+                && let Some(mut f) = signed::order(node.op, a, b, sess, budget)
+            {
+                f.gated |= a.gated || b.gated;
+                return Some(f);
+            }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
             mint_atom(sess, id, early, || AtomInfo {
                 op: node.op,
@@ -2310,6 +2426,18 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 };
                 let mut f = arm.clone();
                 f.gated = a.gated || arm.gated;
+                return Some(f);
+            }
+            // **The decision read**, behind A0 — the only fold at this
+            // door that reads no value (`SymRules::decision_read`).
+            // Where the decision's sign is certified over the whole
+            // box the arm is determined there, and the form the door
+            // takes is the arm's, GATED: equal to the atom at every
+            // point of the box, not identically in the parameters.
+            if read && let Some(le) = signed::decision(a, sess) {
+                let arm = if le { b } else { third };
+                let mut f = arm.clone();
+                f.gated = true;
                 return Some(f);
             }
             let id = indet_atom(

@@ -262,6 +262,14 @@ fn positive_at(f: &Form, sess: &Session, depth: usize) -> bool {
     positive_poly(&f.num, sess, depth) && nonneg_poly(&f.den, sess)
 }
 
+/// **One INDETERMINATE that is positive wherever it has a value** —
+/// the predicate the decision read strips a product's content by
+/// ([`super::signed`]), which needs the per-indeterminate test rather
+/// than the per-form one.
+pub(super) fn indet_positive(id: u128, sess: &Session) -> bool {
+    positive_indet(id, sess, 0)
+}
+
 /// **A manifestly POSITIVE form**: `> 0` at every point of the box
 /// where it has a value. The module header carries the predicate and
 /// the argument.

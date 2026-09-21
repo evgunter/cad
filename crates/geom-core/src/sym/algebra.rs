@@ -8,8 +8,9 @@
 //! # The two buildable rules are one rewrite
 //!
 //! Both replace an EVEN power of an atom by a power of a form the atom
-//! squared is equal to: **A** `sqrt(X)² → X` and **B** `sin(θ)² → 1 −
-//! cos(θ)²`. `reduce` applies that rewrite to the residual until no
+//! squared is equal to: **A** `sqrt(X)² → X` and `abs(X)² → X²` — one
+//! rule, because the canonical root spells one root as the other
+//! (`super::root`) — and **B** `sin(θ)² → 1 − cos(θ)²`. `reduce` applies that rewrite to the residual until no
 //! such power remains. It terminates because every substituted form was
 //! built strictly before the atom it replaces — the argument of a
 //! `sqrt` is a descendant of the `sqrt` node — so each step trades a
@@ -67,7 +68,12 @@ fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<Form> {
 /// The first reduction any enabled rule can apply to `f` — a `sqrt`
 /// atom (rule A) or a `sin` atom (rule B) appearing to an EVEN power.
 /// `None` when no rule reaches an even-power atom of `f`.
-fn find_square(f: &Form, rules: SymRules, atoms: &IndetMap<AtomInfo>) -> Option<Square> {
+fn find_square(
+    f: &Form,
+    rules: SymRules,
+    atoms: &IndetMap<AtomInfo>,
+    budget: SymBudget,
+) -> Option<Square> {
     for poly in [&f.num, &f.den] {
         for mono in poly.monos() {
             for &(id, e) in mono {
@@ -83,6 +89,18 @@ fn find_square(f: &Form, rules: SymRules, atoms: &IndetMap<AtomInfo>) -> Option<
                         return Some(Square {
                             id,
                             x: (**arg).clone(),
+                        });
+                    }
+                    // `|X|² = X²` — the same rewrite as rule A's, at
+                    // the atom rule G leaves where the argument of a
+                    // root was a perfect square. Without it a root
+                    // that USED to reduce through `sqrt(R²)² → R²`
+                    // stops reducing the moment it is spelled `|R|`,
+                    // and the residual keeps a square it can cancel.
+                    SymOp::Abs if rules.sqrt_square => {
+                        return Some(Square {
+                            id,
+                            x: arg.mul(arg, budget)?,
                         });
                     }
                     SymOp::Sin if rules.pythagoras => {
@@ -194,7 +212,7 @@ pub(super) fn reduce_steps(
     }
     let mut cur = f.clone();
     for _ in 0..steps {
-        let Some(sq) = find_square(&cur, rules, atoms) else {
+        let Some(sq) = find_square(&cur, rules, atoms, budget) else {
             return Some(cur);
         };
         cur = apply(&cur, &sq, budget)?;

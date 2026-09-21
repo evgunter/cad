@@ -83,7 +83,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("extrusion_normal_component", [0, 0, 0, 2]),
     ("interval_span_forward", [0, 0, 0, 36]),
     ("interval_span_winding", [0, 0, 0, 12]),
-    ("line_span", [0, 0, 0, 8]),
+    ("line_span", [0, 4, 0, 4]),
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),
@@ -118,6 +118,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// ring again (folding it takes 20 and uncovers 20 freezes). The rim
 /// identity is the door's here (`carrier_endpoint_start` 12/0/12/0),
 /// as is the chart phase, as on the plate.
+///
+/// **DECIDE-3 takes one more of `arc_span`**, 4/0/0/2 -> 5/0/0/1: the
+/// canonical root spells `sqrt(L²)` as `|L|`, which is the atom the
+/// carrier's own `abs` mints, so the span's two spellings meet on one
+/// indeterminate where they used to stand as two.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -128,7 +133,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
         &[
             ("arc_apex_identity", [0, 0, 0, 1]),
             ("arc_diameter_clearance", [0, 0, 0, 6]),
-            ("arc_span", [4, 0, 0, 2]),
+            ("arc_span", [5, 0, 0, 1]),
             ("assert_bound", [0, 0, 0, 1]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
