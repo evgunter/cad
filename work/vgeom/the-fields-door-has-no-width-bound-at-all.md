@@ -2,10 +2,11 @@
 id: the-fields-door-has-no-width-bound-at-all
 kind: issue
 title: number_text has no width bound at all: a large field value is spelled in hundreds of characters
-status: open
+status: dispatched
 opened: 2026-09-16
 priority: P0
 cost: E
+branch: vgeom/render-spelling
 ---
 
 
