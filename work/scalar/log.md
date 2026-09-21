@@ -1105,3 +1105,22 @@ at the head — a public-door verdict change the PR presents as a state;
 spec-mandated under ruling 3, so the fix owed is disclosure, the door's
 doc and the ATREST row's priority. R1's report is awaited before the
 dual is adjudicated.
+
+## RING-2 in review (2026-09-21)
+
+The resumed implementer handed back: run 35654662476 green on
+`e228297d68` (full matrix, `change filter` un-narrowed), the sidecar
+re-pin verified number by number (four fixtures' certified volume
+pairs, each new enclosure a subset of the old; `loft_prism`'s volume
+now exactly `9e9`), the cause named once in the consumer's module doc,
+the PR body's red-row table extended (tighter 16 → 17 at default,
+deviation 6). Its footer finding, carried forward: a raw REST `PATCH`
+on the pulls API force-appends a vendor footer and re-appends it on
+every retry; only the MCP update path is clean. Impl phase in total:
+three lanes on the OPUS arm across two restarts, ~12:28Z to 21:01Z,
+~155k tokens for the last lane (the earlier lanes' counts are in the
+first hand-back). R1 (OPUS) and R2 (FABLE) dispatched 21:36Z on the
+frozen head with the brief stored (sha256 `5e733a1ae1e4…`); allowed to
+fetch the dry-run branch the brief names. Three lanes live: LANE-2's
+R1 and RING-2's pair. Disk 27 G free with the implementer's target
+reclaimed.
