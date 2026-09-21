@@ -21,7 +21,8 @@ rows arrived from `work/view/`, each by `git mv` with its body and its
 history unchanged.
 
 Charter and order: `work/vnews/plan.md`; narrative in
-`work/vnews/log.md`. The lane register that binds every lane dispatched
-here is `work/view/plan.md`'s, inherited by reference and not copied —
-`work/vnews/plan.md` §The register says why and what happens to it when
-VIEW's directory goes.
+`work/vnews/log.md`. The standing discipline every lane dispatched here is held to is
+`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md`, handed over by path —
+§The discipline a lane is held to in the plan says what became of
+the rule register that used to sit beside them.

@@ -14161,3 +14161,101 @@ subject**, and the register rule generalises to cover it: a fence, a
 posture or a status **written by a cut** has no independent authority,
 because nothing re-derives what a cut writes. Two instances in one day,
 from two different cuts, one of them mine.
+
+## 2026-09-21 — the rule register is deleted
+
+Ev's ruling, in chat: lift out anything that reports an **actual
+problem** and that **a prompt update could actually fix** — not
+something categorisable in retrospect that an advance warning would not
+have prevented — *"otherwise it should just be deleted"*.
+
+**Seven candidates were offered and none survived as new text.** Three
+were already written down, and that is the finding rather than an
+embarrassment beside it:
+
+- *verify a tier by its shape, not a job total* →
+  `docs/prompts/implementer-discipline.md` §2 already says *"if you
+  cannot see twelve test jobs and five `k-lint (gate, …)` jobs on a
+  code-tier run, something narrowed it and you should find out what."*
+- *a receipt for a command never run in the form it was written down*
+  → §5 Sweeps already says *"a pattern with no hits recorded is a
+  claim; a hit list is a receipt."* Ev remembered this one by
+  description before I found it.
+- *an un-mergeable PR's CI looks like broken infrastructure* →
+  `memories/agent-lane-operations.md`'s conflicting-PR bullet.
+
+The other four were retrospective categorisation — true after the
+fact, useless before it. **One amendment came of it** (#3019): that
+memory bullet said such a PR gets NO CI run, and its third face is a
+run that COMPLETES with every job dead in 2-3 seconds, a healthy docs
+tier except for `gate ok`, diagnosed with `git merge-tree --write-tree`
+and never from the logs. Six lines, plus one word so the file's own
+restatement sixty lines down stops contradicting it.
+
+**What went.** 1,502 lines to 198. Eighty-seven rules in eighteen days,
+inherited by reference by four live programs each told to read it in
+full before every dispatch. The four `plan.md` §The register sections
+and four `program.md` pointers now name
+`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md` instead, which is where a lane's
+standing obligations were supposed to be all along.
+
+**`the-lane-register-has-no-home-after-views-directory-goes` closes
+without being answered.** It asked where the register should live after
+VIEW's directory goes; it lives nowhere, and VIEW's exit walk loses a
+precondition rather than gaining a step.
+
+**The argument for the ruling, in one line:** three of the last day's
+failures were covered by text that is read at the start of every
+session and was not applied. The register was not preventing those. It
+was recording them, at about five rules a day.
+
+Recoverable at `66d7357417`. One row filed —
+`work/vdoc/register-citations-in-item-files-point-at-deleted-text` —
+for the ten item files that cite a rule of it by a path that still
+resolves to a different file.
+
+## 2026-09-21 — the remnant is re-homed; VIEW is down to two rows
+
+Ev, in chat: *"it seems good to have you finish off view rather than
+leaving a remnant with uncertain status."* Five of the seven open rows
+moved by `git mv`, ids, bodies and history unchanged, each against the
+RECEIVING program's own charter test rather than against a guess at
+subject.
+
+| row | to | the sentence that decided it |
+|---|---|---|
+| `a-derived-pick-index-failure-outshouts-its-cause` | VNEWS | a downstream effect outranking the failure it depends on is a rank defect, and VNEWS's §Charter names `rank-one-discards-the-frames-other-news` as a member of that class |
+| `face-selection-carries-a-bare-stable-name` | VSEAM | typed session state and the door that owns it; `session/select.rs` and `matetool.rs` are both VSEAM's, the second since #3003 |
+| `startup-notices-need-holding-to-badge` | VSEAM | VNEWS's test excludes it in as many words — *"nothing it touches survives the frame that produced it"* — and the row's whole content is that the notices must be HELD |
+| `error-and-check-text-overflows-its-region` (P0, Ev's) | CHROME | CHROME's `keep_out`: *it keeps the viewer's reported defects and its entrenching architecture*; its sibling `the-toolbar-row-does-not-wrap` was VIEW's and closed 2026-09-14 |
+| `a-refusal-offers-no-action-in-the-viewer` (Ev's) | CHROME | same; AUTHOR was considered and rejected, its charter being the authoring goal's GUI half rather than how a refusal is presented |
+
+**Ev's P0 moved whole rather than split.** Its two halves are layout
+and concision, and the concision half reaches into kernel `Display`
+impls — but the row records that half as never investigated, so
+drawing the boundary now would be a guess dressed as a re-home. CHROME
+splits it when it takes it, which the row already instructs.
+
+**Announced, not just moved.** CHROME and VNEWS each have a live
+orchestrator on another machine, so each receiving program's `log.md`
+carries the note — the shape CHROME used when it wrote to VGEOM this
+morning. `work/README.md` allows the move without permission; it does
+not make the move visible, and an unannounced arrival on a board
+someone else is working is how two programs come to disagree about
+what is theirs.
+
+**Said plainly, because it is a real cost:** all three receiving
+programs are already over the track-size ceiling (CHROME 52.5/30,
+VSEAM 39/30, VNEWS 37/30). This does not make them worse at finding
+the rows — the rows were unreachable on a program that does not
+dispatch — but it is load moved onto slates that are already asking to
+be cut.
+
+**What is left of VIEW: two rows**, both in `view/seam-residue`'s lane
+and both the residue of Ev's *panic on crash* ruling — `PickCache::
+indexing`'s seam half and `Coalescing`'s orderly-forget arm having no
+shipped producer, and the `Dying*` fakes mirroring a machine they no
+longer agree with. If either survives that lane open it goes to VSEAM
+on the same test; `evalseam.rs` and `pickcache.rs` are its ground.
+Then VIEW's slate is empty and the exit walk is the only step left.

@@ -1251,3 +1251,40 @@ told to merge `origin/main` before opening and to expect that file to
 move under it.
 
 Signed (CHROME orchestrator).
+
+## A note from VIEW (2026-09-21) — two of Ev's reported defects re-homed here
+
+VIEW is winding down and does not dispatch. Two rows on its slate are
+CHROME's by your own `keep_out` — *CHROME keeps the viewer's reported
+defects and its entrenching architecture* — and both were reported by
+Ev in chat on 2026-09-17, from the same failed union of a dumbbell
+document. Moved by `git mv` with ids, bodies and history unchanged.
+Ev approved the move in chat.
+
+- **`error-and-check-text-overflows-its-region` (P0).** Two halves.
+  The layout half — error and check text runs off the page or wraps
+  back to the window's left edge — is the sibling of VIEW's
+  `the-toolbar-row-does-not-wrap`, which closed 2026-09-14 and whose
+  fix may be the same egui cause (text laid out against the full
+  available width rather than its container's). The concision half
+  reaches past the viewer into kernel `Display` impls in `profile`
+  and `editor-core`; the row says whoever takes it splits off
+  per-crate rows rather than editing kernel prose from a viewer lane.
+  **Left whole rather than split** — the row records that the
+  concision half was never investigated, so drawing the boundary now
+  would be a guess.
+
+- **`a-refusal-offers-no-action-in-the-viewer` (P1).** A kernel refusal
+  is shown as a long paragraph with its recourse buried at the end,
+  and none of the three recourses it names is something the viewer
+  offers as an action. AUTHOR was considered and rejected: its charter
+  is the authoring goal's GUI half (minting a `FaceFrame`, `AddPart`,
+  `AddBoolean`), and a refusal's presentation is chrome architecture.
+  The kernel gap behind the worked example (torus×plane) is CURVED's
+  and already scheduled.
+
+Neither was investigated beyond what its body records. The worked
+example for both is in Ev's 2026-09-17 chat; a torus face against a
+plane face in a union reproduces it.
+
+Signed (VIEW orchestrator).
