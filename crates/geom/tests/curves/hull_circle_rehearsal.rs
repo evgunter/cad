@@ -187,8 +187,8 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
         // per operation the bound absorbed that rounding by accident;
         // it does not now, and the residual here is exactly zero in
         // ℝ, so the bound collapses to fp representation error alone.
-        // `SAMPLER_SLACK` is a bound on the SAMPLER, at the same
-        // 64-ulp scale this file's ceilings use, and it never widens
+        // The two slacks below bound the SAMPLER, at the same
+        // 64-ulp scale this file's ceilings use, and neither widens
         // the certificate: the tightness assertions below read
         // `b.sphere`/`b.plane` unwidened.
         let (t0, t1) = (f64::from(arc as u32) / 4.0, f64::from(arc as u32 + 1) / 4.0);
@@ -199,12 +199,14 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
             let (s, pl) = residuals_at(curve.eval(t));
             assert!(
                 s.abs() <= b.sphere + slack_sphere,
-                "arc {arc}: sampled sphere residual {s:e} exceeds bound {:e} widened by                  the sampler's own error {slack_sphere:e}",
+                "arc {arc}: sampled sphere residual {s:e} exceeds bound {:e} widened \
+                 by the sampler's own error {slack_sphere:e}",
                 b.sphere
             );
             assert!(
                 pl.abs() <= b.plane + slack_plane,
-                "arc {arc}: sampled plane residual {pl:e} exceeds bound {:e} widened by                  the sampler's own error {slack_plane:e}",
+                "arc {arc}: sampled plane residual {pl:e} exceeds bound {:e} widened \
+                 by the sampler's own error {slack_plane:e}",
                 b.plane
             );
             max_sampled_sphere = max_sampled_sphere.max(s.abs());
