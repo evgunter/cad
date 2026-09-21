@@ -191,9 +191,10 @@ fn ring_corpus() -> Vec<(String, RingInterval)> {
     out
 }
 
-/// **The row S86 is about.** The ring has two states and no decorations,
-/// so `is_poison` is its whole domain-violation channel and the door has
-/// to consult it. Before the fix this sweep went red on the first
+/// **The row S86 is about.** The ring's poison is the decoration it
+/// carries (`dec < Def`, NaI and empty below that), so `is_poison` is its
+/// whole domain-violation channel and the door has to consult it — a
+/// refused ring's endpoints are ordinary numbers and certify nothing. Before the fix this sweep went red on the first
 /// poisoned member, which certified `Some((NaN, NaN))`.
 #[test]
 fn the_ring_door_refuses_exactly_its_poison() {

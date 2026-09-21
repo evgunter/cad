@@ -991,9 +991,11 @@ mod tests {
     /// **The M6-2 seam requires the certified door.**
     ///
     /// [`RingInterval::from_certified`] is the only way an evaluation
-    /// scalar enters the C9 ring here, and the ring has two states and no
-    /// decorations — so an operand whose bracket is sound but whose
-    /// computation left a domain has no way to say so once it is across.
+    /// scalar enters the C9 ring here, and it is the one place the
+    /// operand's own verdict is read — an operand whose bracket is sound
+    /// but whose computation left a domain arrives capped at the ring's
+    /// poison, and nothing across the seam consults the evaluation
+    /// scalar again.
     /// The rows sweep the operand across the domain boundary: the
     /// enclosure must refuse on exactly the side where the decoration
     /// degrades, which neither a laundering nor a uniformly-poisoning

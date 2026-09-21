@@ -67,6 +67,13 @@
 //!    hand command read raw lines and skipped a line beginning `//`;
 //!    the two agree file for file on this tree, which is the
 //!    cross-check that made the conversion safe.
+//! 6. **The population is keyed on the TEXT `RingInterval`.** A file
+//!    that reads a ring bracket without naming the type is outside it,
+//!    and a file LEAVES it when a prose mention is deleted — which is
+//!    an edit no reviewer reads as a census change. The two files in
+//!    the tree that are outside the key and still belong are named in
+//!    [`ALSO_WALKED`] and walked anyway; a third that arrives is
+//!    detected by nothing here.
 //!
 //! # Where it lives, and why here
 //!
@@ -80,6 +87,7 @@
 use test_utils::source;
 
 test_utils::gated_to![
+    "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/ring_interval.rs",
     "crates/geom-brep/src/",
     "crates/geom/src/",
@@ -87,7 +95,31 @@ test_utils::gated_to![
     "crates/topo/src/",
 ];
 
-/// One entry per file that names `RingInterval` under `crates/*/src`:
+/// Files walked **in addition** to the text-keyed population, each
+/// because it reads a ring bracket without naming the type in its own
+/// text (blind spot 6).
+///
+/// **A fixed list, not a type-keyed rule**, and the choice is forced:
+/// this walk reads source as text through the shared lexer, and
+/// deciding whether an `x.lo()` is a ring read needs name resolution —
+/// a compiler, not a lexer. That is blind spot 1 seen from outside a
+/// file instead of inside one. The cost is that the list is kept by
+/// hand; what keeps it honest is that each entry's counts are pinned in
+/// [`ROSTER`] like every other file's, so a read arriving in one of
+/// them still reds.
+const ALSO_WALKED: &[&str] = &[
+    // The SSI driver's transversality read: `wu.hull()` is a
+    // `RingInterval` and the file names only the window it came from.
+    "crates/geom-brep/src/ssi.rs",
+    // The crossing's other end. `Interval`'s endpoints are what
+    // `RingInterval::from_certified` carries into the ring, and the
+    // file left the text-keyed population the moment its prose mention
+    // of the ring went away.
+    "crates/geom-core/src/interval.rs",
+];
+
+/// One entry per file walked — every file that names `RingInterval`
+/// under `crates/*/src`, plus [`ALSO_WALKED`]:
 /// the path, the production endpoint-read LINES, and how many of
 /// those sit in a function that asks `is_poison()`.
 ///
@@ -119,15 +151,29 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          through `lo_or_refuse`/`hi_or_refuse`/`mid`, which are the guarded ones",
     ),
     (
+        "crates/geom-brep/src/ssi.rs",
+        8,
+        2,
+        "the 2 that ask are the pcurve window (`pcurve_windows` refuses both hulls by \
+         name before padding them). The other 6 are the two march contexts' slab \
+         corners, safe by construction: `SsiDomain::slab` is `Box3::around` of a \
+         `Point3<f64>` and an `f64` half-extent, and an `f64`'s refusal IS its NaN — \
+         the crossing has no decoration channel to carry a refusal in, so a refused \
+         slab reads NaN at both ends exactly as it did before the newtype",
+    ),
+    (
         "crates/geom-brep/src/ssi/certify.rs",
         16,
         4,
         "the 4 that ask are the mignitude (`zero_free_lower_bound`). Of the other 12, \
          ten are `T: Bounds` reads on the evaluation scalar and not ring endpoints at \
-         all — blind spot 1 — and two are the transversality span-hull window, safe by \
-         construction: `CoeffWindow::hull` folds its coefficients through \
-         `RingInterval::hull`, whose refusing guard mints NaI, so a window carrying a \
-         refused coefficient reads NaN at both ends",
+         all — blind spot 1 — and two are the transversality span-hull window, safe \
+         because `KnotVector::clamped` refuses degree 0: a window therefore holds at \
+         least two coefficients, and `CoeffWindow::hull` folds every one after the \
+         first through `RingInterval::hull`, whose refusing guard mints NaI. (The \
+         hull guard alone would not do it — the fold seeds `acc` with the first \
+         coefficient and would hand a one-coefficient window's refusal straight out \
+         with its endpoints intact.)",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -136,6 +182,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "`Box3`'s disjointness, containment, centre and split all refuse by name",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
+    (
+        "crates/geom-core/src/interval.rs",
+        17,
+        0,
+        "not ring reads at all — blind spot 1. Every one is the certification \
+         scalar's own `self.0.lo()`/`hi()` on the `DInterval` it wraps, where the \
+         refusal is the decoration and `is_certified()` is what reads it. The file \
+         is walked because it is the crossing's other end (`ALSO_WALKED`)",
+    ),
     (
         "crates/geom-core/src/ring_interval.rs",
         9,
@@ -174,7 +229,12 @@ fn consumer_files(root: &std::path::Path) -> Vec<(String, String)> {
     for d in dirs {
         for path in source::rust_sources(&d.join("src")) {
             let raw = std::fs::read_to_string(&path).expect("a readable source file");
-            if !raw.contains("RingInterval") {
+            let rel = path
+                .strip_prefix(root)
+                .expect("a walked file lies under the repo root")
+                .to_string_lossy()
+                .replace('\\', "/");
+            if !raw.contains("RingInterval") && !ALSO_WALKED.contains(&rel.as_str()) {
                 continue;
             }
             // **The shared lexer's CODE view**, not the raw text: a
@@ -184,12 +244,7 @@ fn consumer_files(root: &std::path::Path) -> Vec<(String, String)> {
             // (`crates/test-utils/tests/reader_census.rs` is the
             // ledger this entry sits in).
             let text = source::code_only(&raw);
-            let name = path
-                .strip_prefix(root)
-                .expect("a walked file lies under the repo root")
-                .to_string_lossy()
-                .replace('\\', "/");
-            out.push((name, text));
+            out.push((rel, text));
         }
     }
     out.sort();

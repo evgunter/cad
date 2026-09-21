@@ -5,6 +5,12 @@
 //! shows which numbers moved and which did not.
 //!
 //! Run: `cargo run -p pncad --example ring2_r2_e2e --features budget,sweep/test-support`
+//!
+//! **The comparison it is kept for is RING-3's**, where the newtype
+//! dissolves into `Interval` and every number below is taken again. It
+//! prints and asserts nothing, so it is not a gate and is not built by
+//! the default-feature gate either — the manifest's `required-features`
+//! is what keeps it out, and the line above is what runs it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
