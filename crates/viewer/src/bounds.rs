@@ -274,6 +274,12 @@ impl Bounds {
     /// says what the value is to within its own stated accuracy and no
     /// more, in as many characters as that takes.
     ///
+    /// **The written number is the panel's own divide**
+    /// ([`crate::props::shown_in`]), not a second one: a range reading
+    /// and a panel field showing the same canonical value in the same
+    /// unit are the same number by construction, and a change to how a
+    /// written value is derived from a canonical one reaches both.
+    ///
     /// **A bound may be zero or negative, and the render is right about
     /// both.** The rule is that a text reads back as the value, not that
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not

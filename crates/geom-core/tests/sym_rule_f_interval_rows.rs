@@ -134,7 +134,11 @@ fn the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints() {
 /// The same adversary at the INTERVAL lift, which is the certified
 /// lane: `E`'s enclosure over a box around `x = 1e8` straddles zero,
 /// the value channel cannot decide, and the tier answers `theorem` —
-/// the identity, correctly. Gating, because nothing here panics.
+/// the identity, correctly. Gating, because nothing here panics. The
+/// form is R2's adversary `E`, spelled once as
+/// `sym11_witness_kind_rows::adversary_of`; this row keeps its own
+/// spelling only because it predates that home and lives in the
+/// interval-gated file.
 #[test]
 fn the_adversary_at_the_interval_lift_is_a_plain_theorem() {
     let tiny = 1.0e-30;
