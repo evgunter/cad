@@ -149,6 +149,8 @@ mod sym_rule_e_rows;
 mod sym_rule_f_interval_rows;
 #[path = "sym_rule_f_rows.rs"]
 mod sym_rule_f_rows;
+#[path = "sym12_r2_probes.rs"]
+mod sym12_r2_probes;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 
