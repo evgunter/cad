@@ -4619,6 +4619,53 @@ mod tests {
         );
     }
 
+    /// R2 LANE-2 probe (deviation 1): what `Some` answers at the consult
+    /// on the mate9 Door-2 isolator pair (kitty-corner, zero-area
+    /// overlap) — `false` with the door in hand too, so that body could
+    /// not carry the `true`/`false` pin — beside the straddle seat's
+    /// declared pair, where `Some` answers `true`.
+    #[test]
+    fn r2_lane2_the_isolator_pair_answers_false_with_the_door_in_hand_too() {
+        let tol = Tol::witness();
+        let seat = crate::test_support_fixtures::straddle_seat(tol);
+        assert!(pair_region_verified(
+            &seat.body,
+            seat.post_top,
+            seat.shelf_bottom,
+            band(),
+            Some(RegionLane::certified()),
+        ));
+        let post: crate::test_support_fixtures::Prism<f64> = crate::test_support_fixtures::prism_z(
+            &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
+            0.0,
+            0.5,
+            tol,
+        );
+        let shelf: crate::test_support_fixtures::Prism<f64> = crate::test_support_fixtures::prism_z(
+            &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
+            0.5,
+            0.54,
+            tol,
+        );
+        let block: crate::test_support_fixtures::Prism<f64> = crate::test_support_fixtures::prism_z(
+            &[(0.10, 0.30), (0.30, 0.30), (0.30, 0.50), (0.10, 0.50)],
+            0.5,
+            0.54,
+            tol,
+        );
+        let post_top = post.top_face;
+        let mut body = post.body;
+        let _ = crate::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).unwrap();
+        let bkeys = crate::graft_disjoint_all_keyed(&mut body, &block.body, tol).unwrap();
+        let block_bottom = bkeys.face(block.bottom_face).unwrap();
+        for region in [Some(RegionLane::certified()), None] {
+            assert!(
+                !pair_region_verified(&body, post_top, block_bottom, band(), region),
+                "the isolator pair answers false whether or not the door is in hand"
+            );
+        }
+    }
+
     // ================= R1 review probes (m9-2b-r1) =================
 
     /// R1 probe (claim 2): an IN-BAND sliver overlap must escalate at
