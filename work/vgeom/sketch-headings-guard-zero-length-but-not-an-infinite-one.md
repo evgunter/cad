@@ -2,10 +2,12 @@
 id: sketch-headings-guard-zero-length-but-not-an-infinite-one
 kind: issue
 title: sketch.rs's two 2-D direction sites guard a zero length and not a non-finite one
-status: open
+status: closed
 opened: 2026-09-16
 priority: P1
 cost: E
+closed: 2026-09-21
+branch: vgeom/sketch-infinity
 ---
 
 
@@ -71,3 +73,34 @@ than withdrawn. It is recorded here because this program's own rule is
 that **a filed row that is wrong is worse than no row**: the next
 reader would have gone looking for a misplaced centre and found
 nothing of the kind.
+
+## Closed — `heading`'s half fixed, `arc_points`' half was already gone
+
+**`heading`** now refuses: the guard is `length.is_finite() && length
+> 0.0`, and the `None` the type always offered is what an
+unmeasurable separation gets. A finite length is also what makes the
+division a unit vector — neither component exceeds it — so the one
+conjunct is the whole bound, and no value is substituted for one the
+arithmetic could not compute.
+
+**Reachability: LIVE, and the producer mints the infinity itself.**
+Not an infinite input: a three-leg path whose corners are at
+`±7e307`, every literal an ordinary finite number and every replayed
+vertex finite. `dx` and `dy` at vertex 0 are each `1.4e308` — still
+finite — and `dx.hypot(dy)` is `1.98e308`, which is not. The door
+then answered `Some([0.0, 0.0])`, executed through the public
+`preview` and read off its flattened points
+(`crates/viewer/tests/path_authoring.rs`,
+`a_leg_whose_separation_overflows_gets_no_heading`, `left:
+Some([0.0, 0.0])` on the base tree). The loop is DRAWN — it replays
+and only fails validation, which `preview` reports beside the picture
+rather than instead of it — so `pane::viewport`'s tip-mark loop, the
+door's one production consumer, reaches it.
+
+**The second bullet's site had already closed.** `arc_points`'
+centre was corrected by #2798's family, whose guard refuses an
+infinite `half` (and the `NaN` centre it mints) at the `arc_points`
+finiteness door. What that guard did NOT cover was the points
+themselves, which is the sibling row and is fixed with it.
+
+PR: `vgeom/sketch-infinity`.

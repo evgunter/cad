@@ -250,3 +250,48 @@ rewriting `sketch.rs`.
 
 The review ran on reading alone: the machine-wide build slot was held
 for an hour. CI is the test record.
+
+## 2026-09-21 — `vgeom/sketch-infinity`: two guards in `sketch.rs`
+
+Both rows were *a guard that stops a zero and admits an infinity*, and
+both doors already had their recourse in the signature, so nothing was
+substituted for a value the arithmetic could not compute.
+
+`heading` guarded `length > 0.0` over `dx.hypot(dy)` and an infinity
+is greater than zero, so it answered `Some([0.0, 0.0])` — a zero
+vector through a door whose `None` exists to say there is no heading.
+The guard is now `length.is_finite() && length > 0.0`, which is also
+exactly what makes the division a unit vector.
+
+`flatten` emitted `[from.x, from.y]` above every guard, and the arc
+guards it sits above are all under a `bulge == 0.0` `continue` — so a
+polygon reached none of them. It now asks one predicate, `drawable`,
+of every coordinate it emits.
+
+**The second row's title says vertices and its body says *"the
+population is every coordinate `flatten` emits"*, and the body is
+right.** #2798's guard asks about the arc's FRAME — radius, sweep,
+centre, start — and a finite frame does not make a finite point: a
+major arc of radius `5.05e307` about a centre at `1.29e308` carries
+its own far side past the top of the range, and nine of its 256
+points come out `inf` with every guarded value a number. That is a
+third arm, found by executing the arithmetic over a scan rather than
+by reading the guard, and it is guarded here too.
+
+**Every producer is authored finite literals.** The heading case is a
+path with corners at `±7e307`: each vertex finite, each `d` finite at
+`1.4e308`, and `hypot` the only thing in the chain that overflows.
+The vertex case is `At(1e308,0)`, `Toward(1,0)`, `Line(1e308)`, whose
+sum replay hands back as `inf`. This is the register's *hunt the
+producer, not the input*, twice.
+
+**A measured negative.** All three producers fail validation, so none
+reaches `committed`, whose `undrawn` count feeds `frame.rs`'s badge —
+that sentence stays true of every profile it counts today, and it is
+narrower than the mechanism behind it, filed as
+`work/vnews/the-profiles-badge-names-the-arc-case-only.md`.
+
+Certification: the three rows are red on `origin/main`'s `sketch.rs`
+from a committed tree with every pre-existing row green, and on the
+fixed tree each of the three guards deleted alone reds exactly one
+named row and nothing else.
