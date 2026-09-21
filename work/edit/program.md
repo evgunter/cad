@@ -2,7 +2,7 @@
 id: edit
 kind: program
 title: EDIT — the document model's residue: the persisted recipe, the edit vocabulary and the resolver doors
-status: open
+status: active
 opened: 2026-09-13
 area: api
 prefix: edit/

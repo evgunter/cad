@@ -219,12 +219,28 @@ pub enum SplitError {
         node: RecipeNodeId,
         /// The name that reaches outside the cut.
         name: Box<StableName>,
+        /// A node the name derives from that the part document has
+        /// no copy of — the id the part-side rewrite could not map,
+        /// or, from the precondition below, the lowest-numbered
+        /// derivation node outside the cut. For a nested name it is a
+        /// node inside one of `name`'s path segments, not `name`'s
+        /// own minting node, so `name` alone does not say which node
+        /// reaches out.
+        missing: RecipeNodeId,
     },
     /// A remainder-side name derives from BOTH sides of the cut, so it
     /// can re-anchor to neither document alone.
     NameStraddlesCut {
         /// The straddling name.
         name: Box<StableName>,
+        /// The node the part-side rewrite could not map, when the
+        /// refusal came from a rewrite. For a nested name that is a
+        /// node inside one of `name`'s path segments, not `name`'s
+        /// own minting node, so the name alone does not say which
+        /// node failed. `None` when the refusal came instead from the
+        /// straddle classification, which weighs the whole derivation
+        /// set at once and singles out no one node.
+        missing: Option<RecipeNodeId>,
     },
     /// A remainder-side BODY name crosses the cut. A document's
     /// product name table deliberately carries no root body rows (the
@@ -338,17 +354,29 @@ impl core::fmt::Display for SplitError {
                  parameter cannot silently become two documents' parameters",
                 cut_node.0, kept_node.0
             ),
-            Self::PartNameReachesRemainder { node, name } => write!(
+            Self::PartNameReachesRemainder {
+                node,
+                name,
+                missing,
+            } => write!(
                 f,
-                "split: cut node {}'s reference (the {name}) derives from a node outside the \
-                 cut — the new document could not express it",
-                node.0
+                "split: cut node {}'s reference (the {name}) derives from node {}, which is \
+                 outside the cut — the new document could not express it",
+                node.0, missing.0
             ),
-            Self::NameStraddlesCut { name } => write!(
-                f,
-                "split: the {name} derives from both sides of the cut and can re-anchor to \
-                 neither document"
-            ),
+            Self::NameStraddlesCut { name, missing } => {
+                write!(
+                    f,
+                    "split: the {name} derives from both sides of the cut and can re-anchor to \
+                     neither document"
+                )?;
+                match missing {
+                    // The rewrite stopped at ONE node, which for a
+                    // nested name is not the name's own mint.
+                    Some(id) => write!(f, " — the rewrite stopped at node {}", id.0),
+                    None => Ok(()),
+                }
+            }
             Self::BodyNameCrossesCut { name } => write!(
                 f,
                 "split: the {name} crosses the cut — a product's name table carries no \
@@ -457,6 +485,10 @@ pub enum InlineError {
     StrandedPartName {
         /// The stranded name.
         name: Box<StableName>,
+        /// The node the referenced document no longer has. For a
+        /// nested name it is a node inside one of `name`'s path
+        /// segments, not `name`'s own minting node.
+        missing: RecipeNodeId,
     },
     /// Replaying the constructed edits refused — a construction bug in
     /// this module or a host/part state the edit vocabulary cannot
@@ -514,10 +546,11 @@ impl core::fmt::Display for InlineError {
                 "inline: the {name} derives from the instance but is not an instance-qualified \
                  (`InPart`) name — it cannot re-anchor"
             ),
-            Self::StrandedPartName { name } => write!(
+            Self::StrandedPartName { name, missing } => write!(
                 f,
-                "inline: the {name} derives from a node the referenced document no longer has — \
-                 repair the stranded reference before inlining"
+                "inline: the {name} derives from node {}, which the referenced document no \
+                 longer has — repair the stranded reference before inlining",
+                missing.0
             ),
             Self::Edit { error } => write!(f, "inline: an edit refused: {error}"),
         }
@@ -696,16 +729,17 @@ fn remap_derivation(
 /// The kind is not rewritten and cannot be: `FaceName::map_derivation`
 /// is handed the derivation alone and keeps the kind itself, so the
 /// only thing that can go wrong is the thing [`remap_name`]'s own
-/// errors are about — a local id the map lacks. That is reported as
-/// [`RemapMiss::Name`], naming the face that could not cross, which is
-/// the vocabulary every caller of this walk already answers in.
+/// errors are about — a local id the map lacks. It reports that id,
+/// exactly as [`remap_name`] does, so the two rewrites answer in one
+/// vocabulary and neither drops WHICH node was missing on the way to a
+/// caller's name-shaped refusal. [`remap_node`] is the one place the
+/// id is paired with the face it came from, as [`RemapMiss::Name`].
 ///
 /// # Errors
 ///
-/// [`RemapMiss::Name`] for a face whose local ids the map lacks.
-fn remap_face(name: &FaceName, map: &NodeMap) -> Result<FaceName, RemapMiss> {
+/// The first local id the map lacks.
+fn remap_face(name: &FaceName, map: &NodeMap) -> Result<FaceName, RecipeNodeId> {
     name.map_derivation(|node, path| remap_derivation(node, path, map))
-        .map_err(|_| RemapMiss::Name(Box::new((**name).clone())))
 }
 
 /// One segment of [`remap_name`]'s rewrite: the [`RoleSeg`] partition
@@ -828,8 +862,16 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
 enum RemapMiss {
     /// An unmapped DAG input.
     Input(RecipeNodeId),
-    /// A name whose local ids the map lacks.
-    Name(Box<StableName>),
+    /// A name whose local ids the map lacks, and the FIRST such id.
+    /// The two are not redundant: a [`StableName`] embeds other names
+    /// in its path, so the id the rewrite stopped at may belong to a
+    /// name several segments down rather than to `name` itself.
+    Name {
+        /// The name that could not be rewritten.
+        name: Box<StableName>,
+        /// The local node the map lacks.
+        missing: RecipeNodeId,
+    },
 }
 
 /// Rewrites a placement rule's id references: the circular rule's datum
@@ -878,12 +920,22 @@ fn remap_node(
     let id = |n: RecipeNodeId| -> Result<RecipeNodeId, RemapMiss> {
         map.get(&n).copied().ok_or(RemapMiss::Input(n))
     };
-    let nm = |n: &StableName| remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())));
+    let nm = |n: &StableName| {
+        remap_name(n, map).map_err(|missing| RemapMiss::Name {
+            name: Box::new(n.clone()),
+            missing,
+        })
+    };
     // A mate head across the cut, through the one face remap
     // (`remap_face`): its derivation is rewritten and its kind is the
     // type's, so the only miss is the miss `nm` reports for a bare
     // name.
-    let face = |n: &FaceName| remap_face(n, map);
+    let face = |n: &FaceName| {
+        remap_face(n, map).map_err(|missing| RemapMiss::Name {
+            name: Box::new((**n).clone()),
+            missing,
+        })
+    };
     Ok(match node {
         // **An in-plane axis is not a leaf**: its frame is an input,
         // and a clone would carry the OTHER document's node number
@@ -1347,10 +1399,14 @@ pub fn split(
                 if !cut.contains(&node) {
                     continue;
                 }
-                if !derivation_nodes(name).is_subset(cut) {
+                let outside = derivation_nodes(name)
+                    .into_iter()
+                    .find(|id| !cut.contains(id));
+                if let Some(missing) = outside {
                     return Err(SplitError::PartNameReachesRemainder {
                         node,
                         name: Box::new(name.clone()),
+                        missing,
                     });
                 }
             }
@@ -1373,6 +1429,10 @@ pub fn split(
         if !ids.is_subset(cut) {
             return Err(SplitError::NameStraddlesCut {
                 name: Box::new(name.clone()),
+                // The classification weighs the whole derivation set:
+                // it is the SPLIT of that set across the cut that
+                // refuses, so no one node is the culprit.
+                missing: None,
             });
         }
         if name.kind == crate::names::EntityKind::Body {
@@ -1447,7 +1507,11 @@ pub fn split(
             RemapMiss::Input(input) => SplitError::PartEdit {
                 error: Box::new(EditError::UnresolvedInput { input }),
             },
-            RemapMiss::Name(name) => SplitError::PartNameReachesRemainder { node: old, name },
+            RemapMiss::Name { name, missing } => SplitError::PartNameReachesRemainder {
+                node: old,
+                name,
+                missing,
+            },
         })?;
         part_apply(&mut part, DocEdit::InsertNode { node })?;
     }
@@ -1586,9 +1650,11 @@ pub fn split(
         // re-verification resolves against. `classify` above already
         // refused a name that straddles, so the remap is total here —
         // and it refuses typed rather than assuming so.
-        let inner = remap_face(inner, &node_map).map_err(|_| SplitError::NameStraddlesCut {
-            name: Box::new((**inner).clone()),
-        })?;
+        let inner =
+            remap_face(inner, &node_map).map_err(|missing| SplitError::NameStraddlesCut {
+                name: Box::new((**inner).clone()),
+                missing: Some(missing),
+            })?;
         // The heads' own face names go through: the record carries
         // what the mate carries, so the split neither unwraps a head
         // nor re-asks the question its type already answered.
@@ -1643,8 +1709,9 @@ pub fn split(
         });
     };
     for from in &rebinds {
-        let of = remap_name(from, &node_map).map_err(|_| SplitError::NameStraddlesCut {
+        let of = remap_name(from, &node_map).map_err(|missing| SplitError::NameStraddlesCut {
             name: Box::new(from.clone()),
+            missing: Some(missing),
         })?;
         let to = StableName {
             kind: from.kind,
@@ -1861,7 +1928,7 @@ pub fn inline(
             RemapMiss::Input(input) => InlineError::Edit {
                 error: Box::new(EditError::UnresolvedInput { input }),
             },
-            RemapMiss::Name(name) => InlineError::StrandedPartName { name },
+            RemapMiss::Name { name, missing } => InlineError::StrandedPartName { name, missing },
         })?;
         step(&mut current, DocEdit::InsertNode { node })?;
     }
@@ -1905,8 +1972,9 @@ pub fn inline(
     // A collision with a host record is the Rebind door's own typed
     // refusal below — never an auto-pick.
     for (name, record) in part.appearance().iter() {
-        let key = remap_name(name, &node_map).map_err(|_| InlineError::StrandedPartName {
+        let key = remap_name(name, &node_map).map_err(|missing| InlineError::StrandedPartName {
             name: Box::new(name.clone()),
+            missing,
         })?;
         for attr in record.attrs.values() {
             step(
@@ -1938,8 +2006,9 @@ pub fn inline(
                 name: Box::new(from.clone()),
             });
         };
-        let to = remap_name(of, &node_map).map_err(|_| InlineError::StrandedPartName {
+        let to = remap_name(of, &node_map).map_err(|missing| InlineError::StrandedPartName {
             name: Box::new((**of).clone()),
+            missing,
         })?;
         step(
             &mut current,
@@ -1956,8 +2025,9 @@ pub fn inline(
     // re-anchored — so the record's job ends here, CHECKED.
     for crossing in &interface.crossings {
         let InterfaceCrossing::Mate { inner, .. } = crossing;
-        remap_face(inner, &node_map).map_err(|_| InlineError::StrandedPartName {
+        remap_face(inner, &node_map).map_err(|missing| InlineError::StrandedPartName {
             name: Box::new((**inner).clone()),
+            missing,
         })?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
@@ -2028,7 +2098,7 @@ impl PartResolver for WithPart {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod remap_keeps_the_kind {
-    use super::{NodeMap, RemapMiss, remap_face, remap_name};
+    use super::{NodeMap, remap_face, remap_name};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
@@ -2093,16 +2163,113 @@ mod remap_keeps_the_kind {
         );
     }
 
-    /// Its ONE miss is the id miss, reported as the face that could
-    /// not cross — never a panic and never a kind refusal.
+    /// Its ONE miss is the id miss — never a panic and never a kind
+    /// refusal.
     #[test]
-    fn its_one_miss_names_the_face_whose_id_the_map_lacks() {
+    fn its_one_miss_is_the_id_the_map_lacks() {
         let face = FaceName::new(name(EntityKind::Face)).expect("a face");
         let empty = NodeMap::new();
         match remap_face(&face, &empty) {
-            Err(RemapMiss::Name(missed)) => assert_eq!(*missed, *face),
-            Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
+            Err(missing) => assert_eq!(
+                missing,
+                RecipeNodeId(0),
+                "an empty map lacks the mint first, so that is the id reported"
+            ),
             Ok(out) => panic!("an empty map covers no id, got {out}"),
+        }
+    }
+}
+
+/// **A name-shaped refusal carries the node the rewrite stopped at.**
+///
+/// A [`StableName`] embeds other names in its `path`, so the node a
+/// remap could not map may sit inside a path segment rather than be
+/// the name's own mint. A refusal raised out of such a miss names the
+/// OUTER name, and for a nested name that is a DIFFERENT node from the
+/// one that failed — so the id is what a reader has to act on, and
+/// every refusal raised out of a remap miss carries it.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod a_miss_two_segments_down_is_not_the_outer_name {
+    use super::{NodeMap, RemapMiss, remap_face, remap_name, remap_node};
+    use crate::names::{FaceName, NameRef, RoleSeg, StableName};
+    use crate::node::{Node, RecipeNodeId, SitedRef};
+    use crate::{CapEnd, EntityKind};
+
+    const OUTER: RecipeNodeId = RecipeNodeId(0);
+    const INNER: RecipeNodeId = RecipeNodeId(1);
+
+    /// A map that carries the OUTER mint and NOT the nested one: the
+    /// case where the name a refusal names and the node that failed
+    /// come apart.
+    fn map() -> NodeMap {
+        [(OUTER, RecipeNodeId(10))].into_iter().collect()
+    }
+
+    /// A name whose own mint is [`OUTER`] and whose path embeds a name
+    /// minted at [`INNER`].
+    fn nested(kind: EntityKind) -> StableName {
+        StableName {
+            kind,
+            node: OUTER,
+            path: vec![
+                RoleSeg::Cap(CapEnd::End),
+                RoleSeg::FromA(NameRef::new(StableName {
+                    kind: EntityKind::Edge,
+                    node: INNER,
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                })),
+            ],
+        }
+    }
+
+    /// The premise: the rewrite itself reports the nested node, which
+    /// is not the name's mint.
+    #[test]
+    fn the_rewrite_reports_the_nested_node() {
+        let name = nested(EntityKind::Edge);
+        let missing = remap_name(&name, &map()).expect_err("INNER is unmapped");
+        assert_eq!(missing, INNER);
+        assert_ne!(
+            missing, name.node,
+            "the node that failed is not the name's own mint"
+        );
+    }
+
+    /// And the face rewrite agrees, rather than collapsing the id into
+    /// the face it was asked about.
+    #[test]
+    fn the_face_rewrite_reports_it_too() {
+        let face = FaceName::new(nested(EntityKind::Face)).expect("a face");
+        let missing = remap_face(&face, &map()).expect_err("INNER is unmapped");
+        assert_eq!(missing, INNER);
+        assert_ne!(missing, face.node);
+    }
+
+    /// The payload rewrite pairs them: the name it could not rewrite
+    /// AND the node it stopped at, which a caller raising a
+    /// name-shaped refusal passes on.
+    #[test]
+    fn a_payload_miss_carries_both_the_name_and_the_node() {
+        let name = nested(EntityKind::Edge);
+        let node = Node::declare_rest(vec![(
+            SitedRef::new(OUTER, name.clone()),
+            SitedRef::at_mint(name.clone()),
+        )]);
+        match remap_node(&node, &map()) {
+            Err(RemapMiss::Name {
+                name: reported,
+                missing,
+            }) => {
+                assert_eq!(*reported, name, "the refusal names the outer name");
+                assert_eq!(missing, INNER, "and carries the node that actually failed");
+                assert_ne!(
+                    missing, reported.node,
+                    "which the outer name does not say: they are different nodes"
+                );
+            }
+            Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
+            Ok(out) => panic!("INNER is unmapped, got {out:?}"),
         }
     }
 }

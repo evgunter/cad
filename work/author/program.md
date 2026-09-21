@@ -2,7 +2,7 @@
 id: author
 kind: program
 title: AUTHOR — what the GUI cannot author: the doors a person needs to build geometry without leaving the viewer
-status: open
+status: active
 opened: 2026-09-20
 area: gui
 prefix: author/

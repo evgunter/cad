@@ -2,7 +2,7 @@
 id: linalg
 kind: program
 title: LINALG — geom-core's vectors, frames and interval conventions: the answers that are wrong at Interval
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: linalg/
