@@ -963,8 +963,20 @@ fn the_readme_counts_its_two_populations_correctly() {
     let frame = test_utils::source::code_only(
         &std::fs::read_to_string(dir.join("src/frame.rs")).expect("frame.rs"),
     );
+    // `Badge` must END there: `-> BadgeSite` is a door that returns a
+    // POLICY about a badge, and a prefix match counts it as one more
+    // badge. The three bracketed spellings already close themselves.
+    let bare_badge = frame
+        .match_indices("-> Badge")
+        .filter(|(at, needle)| {
+            frame[at + needle.len()..]
+                .chars()
+                .next()
+                .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+        })
+        .count();
     let badge_doors = frame.matches("-> Option<Badge>").count()
-        + frame.matches("-> Badge").count()
+        + bare_badge
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
     assert_eq!(badge_doors, 10, "the badge family");
