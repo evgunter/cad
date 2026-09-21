@@ -1081,20 +1081,37 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
 
 /// A gently bowed polynomial patch over `[0,1]²` — a base whose offset
 /// is genuinely not a NURBS, so the fit has real work to do.
+///
+/// **The bow is small on purpose, and how small is a property of the
+/// eps matrix.** This patch goes through the `Tol` door, so its fit
+/// target is the RUN's ε and the tightest ε the gate commits is
+/// `1e-12` (`.github/workflows/ci.yml`, the `eps_rows` battery). The
+/// residual the refinement loop reaches scales with the bow, and at
+/// `BOW = 0.15` the loop exhausts its six rounds at `3.3e-10` — fine
+/// at the default `1e-9`, red at `1e-12`. Scaled by `1e-4` the same
+/// loop lands near `3e-14`, inside every row of the battery with room,
+/// and the certificate's limbs stay nonzero, which is what the
+/// bit-identity rows measure.
 pub(crate) fn bowed_patch() -> geom::NurbsSurface<f64> {
+    /// The bow's amplitude in `u`; the `v` bow is two thirds of it.
+    const BOW: f64 = 1.5e-5;
     let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let mut control = Vec::new();
     for i in 0..3 {
         for j in 0..3 {
             let (u, v) = (f64::from(i) * 0.5, f64::from(j) * 0.5);
-            control.push(Point3::new(u, v, 0.15 * u * (1.0 - u) + 0.1 * v * v));
+            control.push(Point3::new(
+                u,
+                v,
+                BOW * u * (1.0 - u) + (BOW * 2.0 / 3.0) * v * v,
+            ));
         }
     }
     geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap()
 }
 
 /// The certified `Approx` surface of [`bowed_patch`]'s `+0.05` offset,
-/// at the witness tolerance — the smallest subject that reaches the
+/// at the RUN's tolerance — the smallest subject that reaches the
 /// offset-fit door, lifted to `T` verbatim
 /// (`geom::ApproxSurface::map_scalar`, which carries the stored
 /// certificate rather than re-deriving it, so the lift is available at
@@ -1104,7 +1121,7 @@ pub(crate) fn bowed_offset_approx<T: geom_core::Real>() -> geom::ApproxSurface<T
     let band = geom_core::Band::linear(tol).unwrap();
     let minted =
         geom_brep::approx_offset_surface(std::sync::Arc::new(bowed_patch()), 0.05, tol, band)
-            .expect("the bowed patch's offset fits at the witness tolerance");
+            .expect("the bowed patch's offset fits at every eps row the gate commits");
     let geom::Surface::Approx(approx) = minted else {
         panic!("the mint door produces `Surface::Approx`");
     };

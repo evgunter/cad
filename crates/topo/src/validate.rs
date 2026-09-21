@@ -9346,27 +9346,46 @@ mod offset_fit_door_rows {
         );
     }
 
-    /// **The seam's roster**: `f64` answers the door and no other scalar
-    /// does. A scalar that gained one silently would pass every green
-    /// corpus and only this row.
+    /// A scalar with no offset fit: its seam answers `None`. One row
+    /// per scalar rather than one row with `cfg`'d statements inside
+    /// it, because a `cfg` on a STATEMENT is a non-additive feature
+    /// gate (`scripts/check-interval-cfg-additive.py`) while a `cfg`
+    /// on a whole `#[test]` fn is test-only code.
+    fn no_door<T: OffsetFitScalar + Decide>(named: &str) {
+        assert!(
+            T::offset_fit_lane().is_none(),
+            "{named} has no offset fit, so its seam must answer `None`"
+        );
+    }
+
+    /// **The seam's roster**: `f64` answers the door, and the tiers
+    /// over it do not. A scalar that gained one silently would pass
+    /// every green corpus and only these rows.
     #[test]
     fn only_f64_answers_the_seam() {
         assert!(
             <f64 as OffsetFitScalar>::offset_fit_lane().is_some(),
             "the `f64` fit is the door's one constructor"
         );
-        fn no_door<T: OffsetFitScalar + Decide>(named: &str) {
-            assert!(
-                T::offset_fit_lane().is_none(),
-                "{named} has no offset fit, so its seam must answer `None`"
-            );
-        }
-        #[cfg(feature = "probe")]
-        no_door::<geom_core::Probe>("the telemetry probe");
-        #[cfg(feature = "interval")]
-        no_door::<geom_core::interval::Interval>("the interval scalar");
         no_door::<geom_core::Sym<f64>>("the symbolic tier over `f64`");
         no_door::<geom_core::Dual<f64>>("the dual tier over `f64`");
+    }
+
+    /// The recording scalar is `f64` with a sink attached everywhere
+    /// else, and it still has no fit: the fit is written at `f64` the
+    /// TYPE, not at "whatever behaves like `f64`".
+    #[cfg(feature = "probe")]
+    #[test]
+    fn the_probe_has_no_door() {
+        no_door::<geom_core::Probe>("the telemetry probe");
+    }
+
+    /// The certifying interval scalar certifies plenty and still has no
+    /// fit — the arm that makes the two absences distinguishable.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn the_interval_scalar_has_no_door() {
+        no_door::<geom_core::interval::Interval>("the interval scalar");
     }
 
     /// **The door IS the free function**, limb for limb, bit for bit —

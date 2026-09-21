@@ -58,12 +58,6 @@ pub struct OffsetFitLane<T: Real> {
     ) -> Result<geom::OffsetCertificate, OffsetFitError>,
 }
 
-impl<T: Real> core::fmt::Debug for OffsetFitLane<T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("OffsetFitLane")
-    }
-}
-
 impl OffsetFitLane<f64> {
     /// The `f64` fit — the whole inventory of this door, and the only
     /// constructor there is.
