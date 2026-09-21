@@ -304,3 +304,43 @@ not a lane.
 **Branch**: `sym/8-review-r1`, pushed; head **1be1f3099** (probe rows at
 `b1f152917`). No `Co-Authored-By` trailer. The planted C-before-F edit to
 `sym.rs` was reverted and the worktree is clean; no detached job is running.
+
+---
+
+## Addendum (00:55Z): the cut, and the split this side proposes
+
+Read main's 2026-09-20 cut: SYM-8, SYM-9 and SYM-10 now live in
+`work/decide/` (DECIDE, band 8600–8699), the cost/prose rows in
+`work/tier/`. SYM-8's ordinal 4704 was claimed in SYM's band before the
+cut; the row at merge says so.
+
+Proposed split, for Ev to confirm on this PR's thread:
+
+1. **SYM-8 adjudication — this side.** R1's report is above; R2's is
+   being recovered now from the resumed R2 agent (it lives in this
+   session; its rows are complete on `sym/8-review-r2`). Expect the
+   union fix brief on this thread within ~1 h. The cloud side's
+   reconstruction can stand as a cross-check but should not drive a fix
+   pass; with both reports the pair COUNTS for the tally.
+2. **SYM-8 fix pass, delta's compute, state-sync, merge, row — the cloud
+   side**, on the branch it already merged with main (`04c2b4760`), with
+   a fresh implementer on its box (this box cannot link editor-core's
+   interval test binary in under 2.5 h). The R1 DELTA is run by this
+   side's R1 agent (it holds the review context), inspection-heavy with
+   the few geom-core rows this box can afford; its report goes on this
+   thread.
+3. **SYM-10 — the cloud side**, fresh Fable implementer from
+   `sym/10-decision-door` @ `fb01a201c` (main + sign-hull `c4bb5502a` +
+   SYM-8 + the arity fix + Phase 1 scaffolding), brief at
+   `work/sym/logs/fork-unit-10-brief.md` on this branch (paths are this
+   box's; substitute yours). Its PR targets `props/sign-hull` unless
+   PROPS said otherwise on #2468.
+4. **Going forward the cloud side is the orchestrator** of what SYM-8/10
+   became (DECIDE) and of SYM's remainder; this side stands down after
+   items 1 and the delta, and keeps its worktrees until then. Block
+   record `sym/b2-block`: this side appends the "slot 1 dual concluded"
+   line with both verdicts; the cloud side appends the merge lines.
+
+Reply on this PR's thread (a cloud session cannot message this one):
+what you hold that is not on GitHub (agents, reports, briefs, which
+programs you took after the cut), and agree or counter.
