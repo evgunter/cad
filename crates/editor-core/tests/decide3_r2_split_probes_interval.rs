@@ -68,3 +68,35 @@ fn r2_no_predicate_loses_a_decision_on_the_link_annulus_and_bracket() {
     }
     assert!(lost.is_empty(), "a predicate LOST a decision: {lost:?}");
 }
+
+/// The link's `carrier_on_surface_2` under the four dial sets, to say
+/// which of the two new dials moves six theorems into `registered`.
+#[test]
+#[ignore = "review evidence: four shape reports of the link, minutes"]
+fn r2_which_dial_moves_the_links_carrier_on_surface_2() {
+    let tol = Tol::witness();
+    let doc = crate::m10_9_r2_probes_interval::link(1.0, tol).0;
+    let sets = [
+        ("shipped", SymRules::shipped()),
+        ("G off", SymRules::without_canonical_root()),
+        ("reads off", SymRules::without_the_reads()),
+        (
+            "G + reads off",
+            SymRules {
+                canonical_root: false,
+                decision_read: false,
+                ..SymRules::shipped()
+            },
+        ),
+    ];
+    for (name, rules) in sets {
+        let t = split_at_the_nominal(&doc, rules, tol);
+        let tot = t.values().fold([0u64; 4], |a, s| {
+            [a[0] + s[0], a[1] + s[1], a[2] + s[2], a[3] + s[3]]
+        });
+        println!(
+            "  {name}: total {tot:?}, carrier_on_surface_2 {:?}",
+            t.get("carrier_on_surface_2").copied().unwrap_or([0; 4])
+        );
+    }
+}
