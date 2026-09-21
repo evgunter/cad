@@ -3,7 +3,11 @@
 the viewer's geometry, camera and numeric renders
 
 Re-scoped 2026-09-20 by VGEOM's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
+(`work/README.md`, Track size). **The cut's "Nothing dispatched"
+was true when it was written and is not now** — #2967 closed both
+sketch-guard rows on 2026-09-21 and #3000 closed four more, so the
+live state is `work/vgeom/log.md`'s tail and the item files, never
+this line.
 
 ## The slate
 
@@ -45,10 +49,86 @@ them. `the-shader-encodes-a-mark-strength-nothing-bounds` is last and
 is a design question: the paint path a NaN actually reaches is the
 shader, and the Rust/WGSL parity row compares constants only.
 
+## Charter
+
+**Every row here sits on the path from a document's geometry to the
+picture and to the figures printed beside it, and its defect is a
+VALUE.** A number reaches a person, or the picture, as something it is
+not — a NaN, an infinity, or a magnitude too large for its slot,
+crossing a door whose own prose says it refuses such a thing and being
+floored, capped or cast into a plausible figure instead; or a finite
+number is rendered, fitted or cast at a precision that makes it a
+different value; or a control never reaches the transform it names.
+
+**The test that separates this program from its siblings.** A VGEOM fix
+lands at the door that should have refused or converted, and what it
+changes is what the viewer SHOWS. That is false of VNEWS, whose rows
+are about the word a fact is spelled in and never about the value;
+false of VSEAM, whose rows are about state that outlives the frame that
+made it rather than a value wrong at one call; and false of VDOC, whose
+fixes change no viewer behaviour at all. Applying it the other way: a
+row belongs here only if a wrong number, or no number, reaches the
+screen.
+
+**Restored 2026-09-21.** This section was written at the 2026-09-17
+re-scope and deleted by the 2026-09-20 priority-seam cut, which applied
+the newly-opened-program template to a program that was not new. VGEOM
+was the only one of VIEW's four successors left with no charter test,
+which is what `work/vgeom/vgeom-plan-has-no-register-section-and-no-charter`
+found. The text is this program's own statement of its subject and
+asserts no external authority.
+
+## The register
+
+**`work/view/plan.md`'s rule register binds every lane dispatched from
+this program, inherited BY REFERENCE and not copied.** Read it in full
+before writing a dispatch. Three of its rules were earned on this
+program's ground and a lane here will meet them: the δ round-trip rule,
+the `desired_width` rule, and the fixed-precision-length census the
+orchestrator got wrong by quoting rather than re-deriving.
+
+It is not copied because a claim fixed in one place and stale in
+another contradicts itself, and four copies of a register re-derived
+every wave give four divergent copies inside a week. The register is
+also evidence — every rule is a named failure at a named PR — and a
+copy detached from the program that paid for it reads as a rule without
+its receipt.
+
+**What that costs, said plainly:** `work/view/plan.md` goes when VIEW's
+directory goes at its exit walk, and this reference dangles that day.
+The register's permanent home is
+`work/view/the-lane-register-has-no-home-after-views-directory-goes`,
+open on VIEW's slate and a precondition of VIEW's exit walk rather than
+a follow-up to it. This section re-points when it lands.
+
+**Restored 2026-09-21**, with §Charter above and for the same reason.
+`work/vgeom/program.md` had gone on pointing every lane at this section
+for a day after the cut deleted it.
+
 ## Review posture
 
-OPEN, for this program's first dispatch. VGEOM inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+**No A/B duals and no row in `docs/MODEL-AB-LOG.md`**, inherited from
+VIEW unchanged: style reviews, with a second correctness reviewer where
+a unit's failure mode is a confident wrong answer rather than a
+refusal. The band 5300-5399 stays claimed for bookkeeping and is
+expected to stay empty.
+
+**This is a recorded answer, not an open question**, and the roster
+says so in as many words. `docs/MODEL-AB-LOG.md`'s 2026-09-17 clause,
+on the four programs of VIEW's re-scope: *"All four inherit VIEW's
+posture verbatim (Ev, in-chat, 2026-09-04, reaffirmed that evening; the
+VIEW parenthesis above is the roster line they inherit): no duals and
+no row recorded … Each program's `plan.md` §Review posture states it."*
+Ev reaffirmed it to this orchestrator in chat at the hand-over that
+opened this session (*"still no AB protocol"*).
+
+**The 2026-09-20 priority-seam cut overwrote this section with the
+template for a NEWLY OPENED program** — *"OPEN, for this program's
+first dispatch … the first orchestrator answers it here rather than
+inheriting an answer"* — and VGEOM is not one. The same roster entry
+that records that cut is explicit about which programs the v7 triage
+question is open for: EMIT, GATHER and **FIT**, the three it opened,
+while *"WIRE and VGEOM are NOT closed and keep their bands 3700-3799
+and 5300-5399"*. So the template reached the parent as well as the
+children. Corrected here on the roster's own words; no new decision is
+being taken and none is owed.
