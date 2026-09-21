@@ -626,3 +626,27 @@ changes), GUARD (`scripts/gates/*`), `docs/DESIGN.md` Q1's phrase
 (naming-only) and `docs/GENERICS-BUILD-COST.md`. Dispatch waits for
 lane slots: the CURVE3-JET dual and its fix pass come first.
 
+## CURVE3-JET dual concluded (2026-09-21)
+
+PR 2708 (ordinal 4109): both arms APPROVE WITH FIXES, no MAJOR — no
+tally candidate. Both executed the mutant table exactly (M1 reds the
+differential row only; M5 141 rows in `sweep::all`; M3 nothing, and both
+showed why: a NURBS-carried `Curve3` cannot reach the enum-door sites
+through any user program today — the boolean refuses NURBS input
+carriers before tier 3), both attacked the `Interval` hull fold with
+their own corpora and found no bit. Bilateral: `circle_at`'s "one
+expression" doc falsified by the `Circle` arm's re-spelling; the
+located-span walk now written four times; `normal_start_place`'s stated
+reason backwards. Unique R1: `param_near`'s `Circle` pair left standing
+on a cost argument the door retires; the one-frame claim unguardable by
+any bit row (a two-frame mutant stays green); the meter fixture a
+638-byte copy; `ders1` missing from three totality rows; no curve value
+door in `pncad-py`. Unique R2: the filed rim-wedge row misdescribes its
+site and understates a bit move; the naming split with `Surface::jet`.
+Thirteen fix-pass items adjudicated; the fix pass runs on FABLE. Two
+exposures to record: R1 saw the spec commit's harness trailer name a
+model in the PR's commit list (the orchestrator's commit — from here
+unit-branch commits by the orchestrator carry no trailer); the review
+brief named the pre-rustfmt head and the red first run as claim 9 (both
+arms corrected it; both reviewed `88c47557b` and read run 35039865934).
+
