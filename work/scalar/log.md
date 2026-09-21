@@ -901,3 +901,19 @@ the unowned `topo/src/props.rs`, TCOST/TINT (36 test files),
 `crates/geom-brep/README.md` C9 (naming-only). Two lanes live (LANE-1,
 RING-2); the ring and the lane chains run in parallel until RING-3 and
 LANE-4, which both wait.
+
+## LANE-1 in review (2026-09-21)
+
+PR 3010 froze at `e6e66d99f3` (run 35605853860 green; the first head
+red on two reader-census rows that still ledgered the deleted identity
+test). Ordinal 4113 claimed on main; byte 0 parity 0 ⇒ R1 OPUS, R2
+FABLE, concurrent, briefs stored before dispatch. The brief's claims
+lead with the fold's content (PR deviation 6): plain-name `f64`
+callers of `validate_pseudomanifold`/`contact_marks` now run check 2's
+plane × NURBS lane, which the lane-keeping door skipped — the spec's
+table chose it without saying so, and both arms are asked to build the
+body on which a verdict changes. The other deviations: `AtRestPolicy`
+without `Bounds` as a supertrait (the allowlist gate), `connectedness`
+certified (not callable at `Dual`), the fold's rename reaching six
+unlisted files, three allowlist counts moved, the tour's `Scalar`
+trait gaining `CertifiedBounds`.
