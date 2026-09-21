@@ -34,6 +34,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
                 node: fixture::xy_frame(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -45,6 +46,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
             }),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc
@@ -104,6 +106,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
                 expr: Expr::literal(0.75, Dimension::Length).unwrap(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("a legal radius edit applies");
     assert!(
@@ -151,6 +154,7 @@ fn set_expression_and_expr_at_route_into_programs() {
                 expr: sum,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -171,6 +175,7 @@ fn set_expression_and_expr_at_route_into_programs() {
                 expr: Expr::literal(0.375, Dimension::Length).unwrap(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("sub-path edit applies")
         .doc;
@@ -192,6 +197,7 @@ fn program_slots_refuse_wrong_dimensions() {
             expr: Expr::literal(0.5, Dimension::Angle).unwrap(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             expected: Dimension::Length,
@@ -216,6 +222,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
             expr: Expr::literal(0.0, Dimension::Length).unwrap(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
             assert_eq!(node, PROFILE);
@@ -246,6 +253,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 value: DocParam::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -255,6 +263,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 node: fixture::xy_frame(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -273,6 +282,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -284,6 +294,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 value: DocParam::continuous(Dimension::Length, 0.0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("SetDocParam never refuses for downstream profile breakage (VQ9)")
         .doc;
@@ -321,6 +332,7 @@ fn insert_node_checks_program_dimensions() {
                 node: fixture::xy_frame(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -340,6 +352,7 @@ fn insert_node_checks_program_dimensions() {
             node: Node::Profile(bad),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
             expected: Dimension::Length,
@@ -424,6 +437,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 node: fixture::xy_frame(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -505,6 +519,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 node: Node::Profile(program),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         ) {
             Err(EditError::ProfileProgramRefused { refusal, .. }) => match *refusal {
                 ProgramRefusal::Transition {

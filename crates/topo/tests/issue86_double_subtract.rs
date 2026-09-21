@@ -30,21 +30,25 @@ use topo::{
     validate_pseudomanifold,
 };
 
-fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>()
--> BooleanBody<T> {
-    let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
-    let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5));
-    let BooleanResult::Body(s1) =
-        subtract_with(&a, &b1, &flush_declarations(&a, &b1), Tol::witness())
-            .expect("first subtract succeeds")
-    else {
+fn double_subtract_crossing_slots<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy,
+>() -> BooleanBody<T> {
+    let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
+    let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness());
+    let BooleanResult::Body(s1) = subtract_with(
+        &a,
+        &b1,
+        &flush_declarations(&a, &b1, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("first subtract succeeds") else {
         panic!("first subtract yields a body");
     };
-    let b2 = brick::<T>((-1.0, 4.0), (1.0, 2.0), (0.5, 1.5));
+    let b2 = brick::<T>((-1.0, 4.0), (1.0, 2.0), (0.5, 1.5), Tol::witness());
     let BooleanResult::Body(s2) = subtract_with(
         &s1.body,
         &b2,
-        &flush_declarations(&s1.body, &b2),
+        &flush_declarations(&s1.body, &b2, Tol::witness()),
         Tol::witness(),
     )
     .expect("second subtract succeeds (issue #86)") else {
@@ -56,7 +60,9 @@ fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + geom_brep::Pcu
 /// The full soundness check, generic over the scalar lane: tiers 1/2,
 /// tier 3′ with the op's own contact records, and a rigid-transform
 /// shake-out (downstream consumers re-certify the result cleanly).
-fn assert_result_sound<T: Decide + topo::PropsQuadLane + geom_core::Bounds>(out: &BooleanBody<T>) {
+fn assert_result_sound<T: Decide + topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
+    out: &BooleanBody<T>,
+) {
     assert_eq!(validate(&out.body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
     assert_eq!(
@@ -99,7 +105,7 @@ mod interval {
 /// description is the surface's only non-face reference.
 #[test]
 fn kef_cascade_reports_killed_surface() {
-    let cube = geometric_cube::<f64>();
+    let cube = geometric_cube::<f64>(Tol::witness());
     let mut body: Body<f64> = cube.body;
 
     // Pick any edge; derive its two faces and their surfaces.

@@ -13,6 +13,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -381,7 +382,9 @@ fn a_full_turn_wall_never_gets_a_wrong_interior_verdict() {
 fn the_r6_bracket_pocket_edge_no_longer_reaches_the_corner_wall() {
     let tol = Tol::witness();
     let plate = rounded_plate(80.0, 40.0, 6.0, 8.0);
-    let pocket = slab((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0));
+    // `bracket.py`'s pocket, in millimetres — the other half of
+    // the corpus `rounded_plate` above carries.
+    let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
 
     // The cut runs at all — the door this row used to name is shut.
     topo::subtract(&plate, &pocket, tol).expect("r = 6 cuts since the boxes were trim-scoped");
@@ -473,22 +476,6 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
         .validate(tol)
         .unwrap();
     extrude(&prof, Extrusion::Distance(thick), tol)
-        .unwrap()
-        .body
-}
-
-/// `bracket.py`'s `slab`, in millimetres.
-fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp = profile::ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let prof = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&prof, Extrusion::Distance(z.1 - z.0), tol)
         .unwrap()
         .body
 }

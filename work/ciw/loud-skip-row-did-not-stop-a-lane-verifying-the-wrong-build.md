@@ -5,6 +5,8 @@ title: The loud-skip row makes the app-feature gap visible to a CI log and not t
 status: open
 opened: 2026-09-06
 refs: [loud-skip-marker-says-two-modules-and-there-are-six, 1848, 2026]
+priority: P4
+cost: E
 ---
 
 Found by #2026's style review, against #2026's own lane.

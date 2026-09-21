@@ -4,6 +4,8 @@ kind: issue
 title: no browser rustdoc pass runs, so a doc comment on a wasm-only item gets neither a doc build nor a lint
 status: open
 opened: 2026-09-10
+priority: P4
+cost: E
 ---
 
 

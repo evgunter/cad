@@ -5,6 +5,8 @@ title: crates/viewer/README.md now describes src/camera.rs in two Where-in-the-c
 status: open
 opened: 2026-09-06
 refs: [2089]
+priority: P4
+cost: E
 ---
 
 

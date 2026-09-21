@@ -69,6 +69,14 @@ elimination and this sentence is the record of that** — a better home
 may exist and the row should move to it rather than be built here out
 of inertia.
 
+## Ev's requests — high priority
+
+Filed 2026-09-17 from Ev's own list of UI nits, and **ahead of the
+order below**: Ev asked for these directly, so they are taken before
+anything else on this slate. Each row carries Ev's note verbatim.
+
+None open: both rows filed here landed on 2026-09-19 (PR 2858, PR 2862).
+
 ## Order
 
 E-first, and the three sibling successors are file-disjoint from this
@@ -108,9 +116,13 @@ opening day.
    EDIT's. This is a hand-off to be filed and negotiated, not a diff
    from here; what this program owns is `DocSession::landed_body`'s
    side of it.
-7. **`the-two-drags-name-their-gestures-in-two-shapes`** — waits on
-   `two-hand-written-copies-of-the-g1-gesture-machine` (inbound, below),
-   which rewrites the machine both drags copy.
+7. **`the-two-drags-name-their-gestures-in-two-shapes`** — **the wait
+   is over and the row is closed** (PR #2965). It was written as
+   waiting on `two-hand-written-copies-of-the-g1-gesture-machine`,
+   which rewrites the machine both drags copy; that row's PR (#2672)
+   merged on 2026-09-15 and `crates/viewer/src/g1.rs` has been on
+   `main` since. The wait outlived its trigger by six days because the
+   row carried `status: review` after its PR merged — see §Inbound.
 8. **Held.** `pick-priority-filter-vocabulary` is **deferred**, ratified
    by `crates/viewer/GUI-DESIGN.md` GQ7; it is not work and stays
    deferred until that ruling moves.
@@ -120,23 +132,33 @@ opening day.
 
 ## Inbound
 
-Four rows in `review` are this program's and are still on VIEW's slate,
-because their lanes are in flight and a rename mid-review is a merge
-conflict for nothing. Each arrives here when its PR merges, or with
-VIEW's exit walk, whichever is first:
+**This section was wrong when it was written and is corrected here.**
+It said *"Four rows in `review` are this program's and are still on
+VIEW's slate, because their lanes are in flight and a rename mid-review
+is a merge conflict for nothing"* — and then listed **five**. None of
+the five lanes was in flight: every one of these PRs had already merged
+when the cut (#2806) wrote that sentence, so the rows kept a `review`
+status their PRs had retired, and this program recorded a wait on one
+of them (Order item 7). All five are **closed** on `main` since
+PR #2976, which closed them with their merge dates. They arrive here
+with VIEW's exit walk as ordinary closed rows, not as in-flight work:
 `the-two-seams-are-hand-maintained-twins` (#2666),
 `the-picture-key-never-became-a-type` (#2670),
 `two-hand-written-copies-of-the-g1-gesture-machine` (#2672),
 `a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see`
 (#2662), `id-query-is-keyed-on-the-generation-not-on-the-picture`
 (#2622). All five are this charter's subject exactly — a cached answer,
-a key, a twin machine, a stale picture — and item 7 of the Order waits
-on one of them.
+a key, a twin machine, a stale picture — and item 7 of the Order waited
+on one of them until PR #2965 closed it.
 
 `a-dead-seam-worker-reads-as-an-ordinary-idle-state` is also this
-charter's subject and is **not** inbound: its PR #2762 is parked on a
-ruling from Ev and the row stays on VIEW's slate until that ruling
-lands. Nothing here touches it.
+charter's subject and is **not** inbound: its PR #2762 was parked on a
+ruling from Ev. **That ruling landed** — a crashed seam worker panics
+(Ev, in-chat, 2026-09-17) — and #2762 merged carrying it, with almost
+all of the badge vocabulary deleted rather than shipped, because a
+crashed worker takes the process down and so cannot be a state the
+chrome describes. The row is closed on VIEW's slate. Nothing here
+touches it.
 
 ## The register
 

@@ -30,8 +30,8 @@ fn rot_trans() -> Affine3<f64> {
 fn witnesses_are_construction_fresh_bits() {
     // An L-shaped prism union: guarantees boolean-minted Intersection
     // edges with real seam geometry.
-    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75));
+    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75), Tol::witness());
     let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
@@ -66,8 +66,8 @@ fn witnesses_are_construction_fresh_bits() {
 /// the final body's witnesses are still construction-fresh bits.
 #[test]
 fn transform_chain_stays_fresh() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75));
+    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75), Tol::witness());
     let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };
@@ -94,8 +94,8 @@ fn transform_chain_stays_fresh() {
 /// bodies (re-mint is a pure function of the mapped carrier).
 #[test]
 fn remint_is_deterministic() {
-    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75));
+    let a = brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((1.0, 3.0), (0.5, 1.5), (0.25, 0.75), Tol::witness());
     let topo::BooleanResult::Body(bb) = topo::union(&a, &b, Tol::witness()).unwrap() else {
         panic!("overlapping union is a body")
     };

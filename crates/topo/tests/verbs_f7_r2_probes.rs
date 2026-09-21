@@ -30,8 +30,13 @@ fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
 /// refuses `NonMaximalFaces`.
 #[test]
 fn r2_control_single_chord_split_still_refuses() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)], 0.0, 1.0);
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let outer = b.get_face(p.top_face).unwrap().outer;
     let LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
@@ -68,8 +73,13 @@ fn r2_control_single_chord_split_still_refuses() {
 /// `NonMaximalFaces`, which is what the row now pins.
 #[test]
 fn r2_attack_midvertex_chord_split() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)], 0.0, 1.0);
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let outer = b.get_face(p.top_face).unwrap().outer;
     let LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
@@ -118,8 +128,13 @@ fn r2_attack_midvertex_chord_split() {
 /// edge has valence-2 same-pair endpoints at BOTH ends.
 #[test]
 fn r2_attack_two_midvertex_chain_split() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)], 0.0, 1.0);
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let outer = b.get_face(p.top_face).unwrap().outer;
     let LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {

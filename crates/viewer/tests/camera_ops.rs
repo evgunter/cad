@@ -349,26 +349,75 @@ fn dolly_clamps_to_the_scene_derived_band() {
     assert_eq!(far.target().x, camera.target().x);
 }
 
-/// The depth range stays ordered and positive everywhere in the band,
-/// which is what keeps the projection matrix finite.
+/// **Depth is reversed and nothing is clipped for being far.**
+///
+/// A datum plane recedes to its horizon, so the projection is asked
+/// to hold points from just past the near plane out to a million orbit
+/// distances: every one lands inside `(0, 1]`, and a nearer point
+/// lands at a GREATER depth — the order every depth pipeline in
+/// `gpu` compares by. The old projection's far plane sat one scene
+/// diameter behind the target; the hundredfold point was outside it.
+///
+/// **The value that makes this false** is a finite far plane (a depth
+/// above 1 for the distant points) or an unreversed mapping (depth
+/// growing with distance).
 #[test]
-fn the_depth_range_is_ordered_across_the_whole_zoom_band() {
+fn depth_is_reversed_and_has_no_far_plane() {
+    let aspect = 16.0 / 9.0;
+    let camera = framed();
+    let (eye, forward) = (camera.eye(), camera.forward());
+    let mut nearer: Option<f64> = None;
+    for depth in [
+        2.0 * camera.near(),
+        camera.distance(),
+        100.0 * camera.distance(),
+        1.0e6 * camera.distance(),
+    ] {
+        let point = pncad::geom_core::Point3::new(
+            eye.x + forward.x * depth,
+            eye.y + forward.y * depth,
+            eye.z + forward.z * depth,
+        );
+        let ndc = camera
+            .project(point, aspect)
+            .expect("a finite aspect projects")
+            .expect("a point ahead of the eye has a pixel");
+        assert!(
+            ndc[2] > 0.0 && ndc[2] <= 1.0,
+            "a point {depth:e} m ahead has depth {}",
+            ndc[2],
+        );
+        if let Some(nearer) = nearer {
+            assert!(
+                ndc[2] < nearer,
+                "a point {depth:e} m ahead is no further than the one before it: {} against {nearer}",
+                ndc[2],
+            );
+        }
+        nearer = Some(ndc[2]);
+    }
+}
+
+/// The near plane stays positive and in front of the target
+/// everywhere in the band: positive is what keeps the projection
+/// matrix finite, and in front is what keeps the looked-at point drawn.
+#[test]
+fn the_near_plane_sits_between_eye_and_target_across_the_whole_zoom_band() {
     let camera = framed();
     let mut current = camera;
     for _ in 0..40 {
         assert!(
-            current.near() > 0.0 && current.near() < current.far(),
-            "depth range at distance {}: near {} far {}",
+            current.near() > 0.0 && current.near() < current.distance(),
+            "near plane at distance {}: {}",
             current.distance(),
             current.near(),
-            current.far()
         );
         current =
             camera::apply(&current, &CameraOp::Dolly { factor: 0.5 }).expect("a positive dolly");
     }
     let mut current = camera;
     for _ in 0..40 {
-        assert!(current.near() > 0.0 && current.near() < current.far());
+        assert!(current.near() > 0.0 && current.near() < current.distance());
         current =
             camera::apply(&current, &CameraOp::Dolly { factor: 2.0 }).expect("a positive dolly");
     }
@@ -503,4 +552,65 @@ fn a_viewport_with_no_area_has_no_projection() {
     assert!(camera.projection_matrix(0.0).is_err());
     assert!(camera.projection_matrix(f64::NAN).is_err());
     assert!(camera.projection_matrix(-1.0).is_err());
+}
+
+/// **Finite bounds do not make a finite radius, and a radius that is
+/// not a length is refused rather than framed against.**
+///
+/// Squaring spends the exponent twice: a box `±1e200` on every axis
+/// has every endpoint an ordinary finite number, and
+/// `half[i] * half[i]` is already infinite. `radius < MIN_SCENE_RADIUS`
+/// is FALSE for an infinity, so the unfixed door hands the infinity
+/// back as the scene radius — from which `Camera::framing` derives a
+/// stand-off, and `clamp_distance` a band of `inf`..`inf`.
+///
+/// **The pair, because neither half says anything alone.** Refusing
+/// everything would satisfy the first assertion; the second is a box
+/// below the overflow — `±1e153`, whose three squares sum to `3e306`
+/// and are still a number — which has to come back as a camera. A
+/// door that refused on magnitude rather than on the product would
+/// pass the first and fail the second.
+#[test]
+fn bounds_whose_half_extents_square_to_infinity_are_not_a_scene() {
+    let aspect = 16.0 / 9.0;
+    let huge = Aabb {
+        min_x: -1.0e200,
+        min_y: -1.0e200,
+        min_z: -1.0e200,
+        max_x: 1.0e200,
+        max_y: 1.0e200,
+        max_z: 1.0e200,
+    };
+    match Camera::framing(&huge, aspect) {
+        Err(CameraError::NotFinite { what, value }) => {
+            assert_eq!(what, "scene radius", "refused, but not about the radius");
+            assert!(
+                !value.is_finite(),
+                "the refusal reported {value}, which is a number"
+            );
+        }
+        other => panic!(
+            "bounds of +/-1e200 gave {other:?}; the radius they imply is \
+             {} and a camera cannot be framed against it",
+            (1.0e200_f64 * 1.0e200 * 3.0).sqrt()
+        ),
+    }
+    // Below the overflow: three squares of `1e153` sum to `3e306`,
+    // which is a number, and this is a scene like any other.
+    let large = Aabb {
+        min_x: -1.0e153,
+        min_y: -1.0e153,
+        min_z: -1.0e153,
+        max_x: 1.0e153,
+        max_y: 1.0e153,
+        max_z: 1.0e153,
+    };
+    let camera = Camera::framing(&large, aspect).expect("bounds that square finite still frame");
+    assert!(
+        camera.scene_radius().is_finite() && camera.scene_radius() > 0.0,
+        "the framed camera's scene radius is {}",
+        camera.scene_radius()
+    );
+    // And the ordinary case is untouched.
+    Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
 }

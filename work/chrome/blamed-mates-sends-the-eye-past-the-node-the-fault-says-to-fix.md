@@ -4,6 +4,8 @@ kind: issue
 title: blamed_mates sends the eye to the mate where three fault arms name the node an author actually fixes
 status: open
 opened: 2026-09-15
+priority: P1
+cost: D
 ---
 
 

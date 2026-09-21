@@ -16,15 +16,16 @@
 //! Everything here is `f64` in canonical units (metres, radians), for
 //! the reason every creation spec in this crate is: the SESSION mints
 //! the expression slots, so a form hands it numbers and never an
-//! `Expr` it would have had to build a second way. The step lowering
-//! ([`program_step`]) is exhaustive on the verb vocabulary, so a verb
-//! the document layer gains cannot be silently unauthorable from the
-//! chrome.
+//! `Expr` it would have had to build a second way. A path's steps are
+//! the kernel's own [`Step`], lowered by the document layer's own lift
+//! ([`loop_program`]), so there is no viewer spelling of the verb
+//! vocabulary to fall behind it.
 //!
 //! # What is judged here, and what is not
 //!
-//! Only the literals: a non-finite field refuses typed
-//! ([`DimensionError`], the literal constructors' one refusal).
+//! Only the literals and the program's shape: a non-finite field and a
+//! complete-loop verb inside a chain refuse typed
+//! ([`RecordedProgramError`], the lift's refusal).
 //! Whether the verbs form a legal walk of the lattice, whether the
 //! geometry closes, and whether the loops nest are all the profile
 //! layer's questions, asked at replay — by the edit door on commit,
@@ -34,210 +35,48 @@
 //! **A fourth question is judged here and belongs to neither list:
 //! whether a replayed loop can be DRAWN.** It is not the profile
 //! layer's, because a loop can be a perfectly good profile and still
-//! have an arc whose radius or centre is not a number — a finite
-//! bulge near the bottom of the exponent range, or two vertices whose
-//! midpoint overflows. And it is not a literal's, because every
-//! literal involved passed [`DimensionError`] already. It is the
-//! flattener's, it is answered by
-//! [`PreviewError::Unflattenable`], and it exists because this module
-//! is the one place that turns a loop into coordinates.
+//! be a shape no point of which is a place — an arc whose radius or
+//! centre is not a number, from a finite bulge near the bottom of the
+//! exponent range or two vertices whose midpoint overflows; a vertex
+//! the replay's own arithmetic put past the top of that range; a
+//! point along an arc whose frame is finite and whose far side is
+//! not. And it is not a literal's, because every literal involved
+//! passed the literal door already. It is the flattener's, it is
+//! answered by [`PreviewError::Unflattenable`], and it exists because
+//! this module is the one place that turns a loop into coordinates.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Datum, DatumValue, Dimension, DimensionError, Doc, Evaluation, Expr, LoopProgram, Node,
-    ParamEnv, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
-    ValuePayload, resolve_loops,
+    Datum, DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram,
+    Node, ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    ValuePayload, resolve_loops, unparse,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{
-    ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayError, ReplayErrorKind,
-    SketchPlane, Step, Target, TipState, Verb, replay,
+    ArcData, ArcMode, ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ProfileVertex,
+    ReplayError, ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
+    arc_specs_at, replay,
 };
-use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
-
-/// **Where a path targets** — the document vocabulary's
-/// [`ProgramTarget`] as plain numbers.
-///
-/// [`PathTarget::Start`] is not "the first point again": it is the
-/// bound ENTRY, and a verb aimed at it CLOSES the loop, structurally
-/// (the PATHS algebra has no `close()` alias — see
-/// `pncad::profile::path`).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum PathTarget {
-    /// An absolute point in the sketch frame, metres.
-    Point([f64; 2]),
-    /// The entry vertex: this verb closes the loop.
-    Start,
-}
-
-/// **How an arc leg is specified** — the document vocabulary's
-/// [`ProgramArcData`] as plain numbers, one arm per authoring mode.
-///
-/// The modes are not interchangeable and no two of them say the same
-/// arc twice: each names the quantities its author actually knows,
-/// and everything else is derived at replay. That is the whole reason
-/// the mode is part of the recorded program rather than a bulge
-/// computed once at authoring time (PROFILES-V2 §V1/§V2 — a derived
-/// number recorded as authored is a number that stops moving when its
-/// inputs do).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ArcSpec {
-    /// `radius(r, side)` — the carrier's radius and which side of the
-    /// tangent its centre sits on; the endpoint is derived.
-    Radius {
-        /// The carrier radius, metres.
-        r: f64,
-        /// Which side of travel the centre sits on.
-        side: ArcSide,
-    },
-    /// `bulge(target, b)` — the endpoint and the AUTHORED bulge
-    /// `tan(θ/4)`.
-    Bulge {
-        /// Where the arc ends.
-        target: PathTarget,
-        /// The bulge, dimensionless.
-        b: f64,
-    },
-    /// `via(q, target)` — a point the arc passes through, and where
-    /// it ends; the bulge is derived.
-    Via {
-        /// A point on the arc, metres.
-        q: [f64; 2],
-        /// Where the arc ends.
-        target: PathTarget,
-    },
-    /// `center(c, winding, target)` — the carrier centre, the travel
-    /// sense, and the endpoint.
-    Center {
-        /// The carrier centre, metres.
-        c: [f64; 2],
-        /// Which way round the arc travels.
-        winding: ArcSweep,
-        /// Where the arc ends.
-        target: PathTarget,
-    },
-    /// `sweep(r, side, angle)` — the carrier and how far round it to
-    /// go; the endpoint is derived.
-    Sweep {
-        /// The carrier radius, metres.
-        r: f64,
-        /// Which side of travel the centre sits on.
-        side: ArcSide,
-        /// The swept central angle, radians.
-        angle: f64,
-    },
-    /// `arc_len(r, side, len)` — the carrier and the distance
-    /// travelled along it.
-    ArcLen {
-        /// The carrier radius, metres.
-        r: f64,
-        /// Which side of travel the centre sits on.
-        side: ArcSide,
-        /// The arc length, metres.
-        len: f64,
-    },
-}
-
-/// **One authoring verb of a path loop** — the document vocabulary's
-/// [`ProgramStep`] as plain numbers, which is what makes it a form's
-/// currency: the chrome hands the session numbers in canonical units
-/// and the session mints the `Expr` slots, exactly as it does for
-/// every other creation door.
-///
-/// The whole verb set is here, and it is here BECAUSE it is the whole
-/// set: a form offering half a vocabulary is a form whose user has to
-/// leave it to say the other half. Which verbs are well-typed at a
-/// given tip is not this value's business and is not checked here —
-/// the lattice decides that at replay, and an ill-typed walk refuses
-/// typed at the edit door naming the state and the verb
-/// (`ProgramRefusal::Transition`). [`preview`] is how a form asks that
-/// question before committing.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum PathStep {
-    /// `.at(p)` — bind the tip's position.
-    At([f64; 2]),
-    /// `.angle(θ)` — bind the tip's outgoing direction, radians from
-    /// +x.
-    Angle(f64),
-    /// `.toward(dx, dy)` — bind the outgoing direction by exact
-    /// components (a ratio; the magnitude is not used).
-    Toward {
-        /// x component, dimensionless.
-        dx: f64,
-        /// y component, dimensionless.
-        dy: f64,
-    },
-    /// `.tangent()` — leave along the incoming tangent, exactly.
-    Tangent,
-    /// `.cusp()` — leave along the REVERSE of the incoming tangent,
-    /// the declared reverse-tangent junction.
-    Cusp,
-    /// `.turn(δ)` — leave at δ from the incoming tangent, radians.
-    Turn(f64),
-    /// `line(len)` — a straight leg of `len` metres along the bound
-    /// direction.
-    Line(f64),
-    /// `line_to(target)` — a straight leg to an authored point, or to
-    /// `Start`, which closes.
-    LineTo(PathTarget),
-    /// `arc_to(spec)` — a sharp (non-tangent) arc leg.
-    ArcTo(ArcSpec),
-    /// `tangent_arc_to(target)` — an arc leaving along the bound
-    /// direction and ending at `target`.
-    TangentArcTo(PathTarget),
-    /// `.fillet(r)` — round the corner with radius `r`, line in, line
-    /// out.
-    Fillet(f64),
-    /// `fillet_arc(r, spec)` — a fillet whose ARRIVAL side is an arc.
-    FilletArc {
-        /// The fillet radius, metres.
-        radius: f64,
-        /// The arrival arc.
-        spec: ArcSpec,
-    },
-    /// `arc_fillet(spec, r)` — a fillet whose INCOMING side is an
-    /// arc.
-    ArcFillet {
-        /// The incoming arc.
-        spec: ArcSpec,
-        /// The fillet radius, metres.
-        radius: f64,
-    },
-    /// `arc_fillet_arc(spec, r, spec2)` — a fillet with an arc on
-    /// both sides.
-    ArcFilletArc {
-        /// The incoming arc.
-        spec: ArcSpec,
-        /// The fillet radius, metres.
-        radius: f64,
-        /// The arrival arc.
-        spec2: ArcSpec,
-    },
-    /// `.to(anchor)` — the far-end anchor a fillet's arrival side is
-    /// aimed at.
-    FarEndTo([f64; 2]),
-    /// `.to(Start)` — the seam fillet's close.
-    CloseTo,
-}
+use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
 /// One loop of the add-profile door: a template shape, or a PATH
 /// authored verb by verb.
 ///
 /// **The templates are not the vocabulary; they are shortcuts into
-/// it.** A circle is its own thing — a seamless closed carrier no
-/// chain of legs can spell — and a rectangle is four `line_to`s
-/// somebody would otherwise type. Everything else a profile can be is
-/// [`ProfileShape::Path`], which carries the algebra's whole verb set
-/// ([`PathStep`]).
+/// it.** A circle is the one-step path `circle(centre, r)`, and it
+/// lowers as exactly that; a rectangle is four `line_to`s somebody
+/// would otherwise type. Everything else a profile can be is
+/// [`ProfileShape::Path`], which carries the algebra's whole verb set.
 ///
-/// The session lowers each arm to its [`LoopProgram`] form and
-/// refuses a non-finite field typed; a degenerate loop (zero radius,
+/// [`loop_program`] lowers each arm to its [`LoopProgram`] form and
+/// refuses typed what does not lower (a non-finite field, a
+/// complete-loop verb inside a chain); a degenerate loop (zero radius,
 /// zero width) and an ill-typed lattice walk both refuse through the
 /// edit door's own authoring-time check, exactly as a hand-written
 /// program would.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum ProfileShape {
     /// A circle (`LoopProgram::Circle`).
     Circle {
@@ -254,24 +93,144 @@ pub enum ProfileShape {
         /// The height (y extent), metres.
         height: f64,
     },
-    /// A chain of authoring verbs ([`LoopProgram::Chain`]) — the
-    /// PATHS algebra recorded as data.
+    /// A recorded PATHS program, verb by verb — the algebra's own
+    /// [`Step`] at plain numbers, which is what makes it a form's
+    /// currency: the chrome hands the session numbers in canonical
+    /// units and the session mints the `Expr` slots, exactly as it
+    /// does for every other creation door.
+    ///
+    /// **The kernel's type, not a mirror of it.** The whole verb set
+    /// is here because it is the whole set: a form offering half a
+    /// vocabulary is a form whose user has to leave it to say the
+    /// other half. Which verbs are well-typed at a given tip is not
+    /// this value's business — the lattice decides that at replay, and
+    /// an ill-typed walk refuses typed at the edit door naming the
+    /// state and the verb (`ProgramRefusal::Transition`). [`preview`],
+    /// [`tip_state_at`] and [`admits_at`] are how a form asks that
+    /// before committing.
     Path {
         /// The verbs, in authoring order. A chain must END in a
-        /// `Start`-targeting verb; that is checked by replay, not by
-        /// this representation.
-        steps: Vec<PathStep>,
+        /// `Start`-targeting verb, or be one complete-loop verb
+        /// (`circle`, `circle_split`) alone; both are checked by the
+        /// lowering and the replay, not by this representation.
+        steps: Vec<Step<f64>>,
     },
+}
+
+/// **A step of `verb` with the path form's starting numbers** — what
+/// a row becomes when its verb is picked.
+///
+/// Exhaustive on the kernel's [`Verb`], and that is what holds the
+/// form to the algebra: the form offers [`Verb::ALL`], so a verb the
+/// transition table gains reaches the menu by itself, and it has no
+/// starting step until this match gives it one — a compile error, not
+/// a verb that is silently missing.
+///
+/// **Millimetre-scale, never zero.** A leg of length zero and a
+/// fillet of radius zero are both geometry refusals, so a fresh step
+/// that carried them would put the form in a refusing state the
+/// moment a verb was picked — which reads as the form rejecting the
+/// verb rather than waiting for its number.
+pub fn fresh_step(verb: Verb) -> Step<f64> {
+    let target = fresh_target(TargetKind::Point);
+    let arc = fresh_arc(ArcMode::Radius);
+    match verb {
+        Verb::At => Step::At(Point2::origin()),
+        Verb::Angle => Step::Angle(0.0),
+        Verb::Toward => Step::Toward { dx: 1.0, dy: 0.0 },
+        Verb::Tangent => Step::Tangent,
+        Verb::Cusp => Step::Cusp,
+        Verb::Turn => Step::Turn(0.0),
+        Verb::Line => Step::Line(0.01),
+        Verb::LineTo => Step::LineTo(target),
+        Verb::ContinueTo => Step::ContinueTo(target),
+        Verb::ArcTo => Step::ArcTo(arc),
+        Verb::TangentArcTo => Step::TangentArcTo(target),
+        Verb::Fillet => Step::Fillet { radius: 0.001 },
+        Verb::FilletArc => Step::FilletArc {
+            radius: 0.001,
+            spec: arc,
+        },
+        Verb::ArcFillet => Step::ArcFillet {
+            spec: arc,
+            radius: 0.001,
+        },
+        Verb::ArcFilletArc => Step::ArcFilletArc {
+            spec: arc,
+            radius: 0.001,
+            spec2: arc,
+        },
+        Verb::FarEndTo => Step::FarEndTo(Point2::new(0.01, 0.0)),
+        Verb::CloseTo => Step::CloseTo,
+        Verb::Circle => Step::Circle {
+            centre: Point2::origin(),
+            radius: 0.01,
+        },
+        Verb::CircleSplit => Step::CircleSplit {
+            centre: Point2::origin(),
+            radius: 0.01,
+            n: 4,
+            phase: 0.0,
+        },
+    }
+}
+
+/// **An arc spec of `mode` with the form's starting numbers** —
+/// millimetre-scale and never degenerate, for the reason
+/// [`fresh_step`]'s are; exhaustive on the kernel's [`ArcMode`] for
+/// the reason that one is on [`Verb`].
+pub fn fresh_arc(mode: ArcMode) -> ArcData<f64> {
+    let target = fresh_target(TargetKind::Point);
+    match mode {
+        ArcMode::Radius => ArcData::Radius {
+            r: 0.01,
+            side: ArcSide::Left,
+        },
+        ArcMode::Bulge => ArcData::Bulge { target, b: 0.5 },
+        ArcMode::Via => ArcData::Via {
+            q: Point2::new(0.005, 0.005),
+            target,
+        },
+        ArcMode::Center => ArcData::Center {
+            c: Point2::origin(),
+            winding: ArcSweep::Ccw,
+            target,
+        },
+        ArcMode::Sweep => ArcData::Sweep {
+            r: 0.01,
+            side: ArcSide::Left,
+            angle: core::f64::consts::FRAC_PI_2,
+        },
+        ArcMode::ArcLen => ArcData::ArcLen {
+            r: 0.01,
+            side: ArcSide::Left,
+            len: 0.01,
+        },
+    }
+}
+
+/// **A target of form `kind`**, for a target control switching form.
+///
+/// Every form is offered wherever a target is; inside an arc spec the
+/// picker greys the forms that spec's dispatcher refuses at the tip
+/// ([`SpecForms`]), and a tip the form cannot read leaves the replay
+/// to refuse them typed.
+pub fn fresh_target(kind: TargetKind) -> Target<f64> {
+    match kind {
+        TargetKind::Point => Target::Point(Point2::new(0.01, 0.0)),
+        TargetKind::Start => Target::Start,
+        TargetKind::StartArriving => Target::StartArriving,
+    }
 }
 
 /// **The notation a form is authoring in** — one length unit and one
 /// angle unit, carried into every literal a lowering mints.
 ///
 /// It exists because the units are a fact about the PERSON at the
-/// keyboard rather than about any one field (`app`'s drafts say so),
-/// and threading two units through a dozen recursive lowering
-/// functions as loose arguments is how one of them ends up
-/// canonical by accident.
+/// keyboard rather than about any one field (`app`'s drafts say so):
+/// a form writes every literal it mints in one notation, so the
+/// notation is one value handed to the lowering rather than a unit per
+/// field.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Notation {
     /// Every `Length` literal is written in this.
@@ -295,55 +254,71 @@ impl Notation {
         Expr::written_length(WrittenLength::canonical_in(metres, self.length))
     }
 
-    /// An `Angle` literal from already-canonical radians.
-    fn angle(self, radians: f64) -> Result<Expr, DimensionError> {
-        Expr::written_angle(WrittenAngle::canonical_in(radians, self.angle))
-    }
-
-    /// A dimensionless literal — a bulge, a director component. No
-    /// notation to CHOOSE, rather than none to remember: there is one
-    /// way to write a dimensionless number, and `Expr::literal` stores
-    /// that row itself.
-    fn scalar(self, v: f64) -> Result<Expr, DimensionError> {
-        Expr::literal(v, Dimension::Scalar)
-    }
-
     /// A literal point.
     fn point(self, p: [f64; 2]) -> Result<[Expr; 2], DimensionError> {
         Ok([self.length(p[0])?, self.length(p[1])?])
+    }
+
+    /// **This notation over every argument `program` holds** — each
+    /// `Length` argument written in [`Notation::length`], each `Angle`
+    /// one in [`Notation::angle`], and every other argument (a bulge, a
+    /// director component) left with the one spelling a dimensionless
+    /// number has.
+    ///
+    /// Asked of the PROGRAM, through its own argument enumeration,
+    /// rather than of the steps: which roles a step holds is the
+    /// document layer's table, and a second copy of it here is how a
+    /// verb's radius would come to be minted without its unit.
+    fn over(self, program: &LoopProgram) -> Result<RecordedNotation, DimensionError> {
+        let mut notation = RecordedNotation::new();
+        for (step, arg) in program.step_args() {
+            match arg.dimension() {
+                Dimension::Length => notation.set(step, arg, self.length.def())?,
+                Dimension::Angle => notation.set(step, arg, self.angle.def())?,
+                Dimension::Scalar | Dimension::Count => {}
+            }
+        }
+        Ok(notation)
     }
 }
 
 /// Lower one template shape to its loop program, minting every literal
 /// in `notation`.
 ///
-/// **The circle is built here rather than through
-/// `LoopProgram::circle`**, which is the one thing in this function a
-/// reader will want to fold back: that constructor takes `f64` and
-/// mints CANONICAL literals, so routing through it would drop the
-/// notation this function exists to carry. It stays the right door for
-/// a caller with nothing to remember.
+/// A path lowers through the document layer's own lift,
+/// [`LoopProgram::from_recorded_with_notation`] — the door that takes
+/// a PATHS recording to its document form for every other authoring
+/// surface — so there is no second verb-by-verb lowering here to fall
+/// behind the vocabulary. The circle template IS a path (one `circle`
+/// step) and lowers as one.
 ///
-/// The rectangle DOES route through [`LoopProgram::polygon_expr`],
+/// The rectangle routes through [`LoopProgram::polygon_expr`] instead,
 /// which takes corners that are already `Expr` and mints nothing, so
 /// the notation rides through it untouched and the polygon expansion
 /// is written once for the workspace.
 ///
 /// # Errors
 ///
-/// A non-finite field (the literal door's refusal). Degeneracy — a
-/// zero radius, a zero width — is NOT judged here: the edit door's
-/// authoring-time check replays the program and refuses it typed,
-/// which is one rule for authored and hand-written programs alike.
+/// A non-finite field (the literal door's refusal), or a path that is
+/// not a program's shape — a complete-loop verb (`circle`,
+/// `circle_split`) inside a chain. Degeneracy — a zero radius, a zero
+/// width — is NOT judged here: the edit door's authoring-time check
+/// replays the program and refuses it typed, which is one rule for
+/// authored and hand-written programs alike.
 pub fn loop_program(
     shape: &ProfileShape,
     notation: Notation,
-) -> Result<LoopProgram, DimensionError> {
+) -> Result<LoopProgram, RecordedProgramError> {
     match shape {
-        ProfileShape::Circle { centre, radius } => Ok(LoopProgram::Circle {
-            centre: notation.point(*centre)?,
-            radius: notation.length(*radius)?,
-        }),
+        ProfileShape::Circle { centre, radius } => loop_program(
+            &ProfileShape::Path {
+                steps: vec![Step::Circle {
+                    centre: Point2::new(centre[0], centre[1]),
+                    radius: *radius,
+                }],
+            },
+            notation,
+        ),
         ProfileShape::Rectangle { width, height } => {
             let (hw, hh) = (width / 2.0, height / 2.0);
             // Counter-clockwise from the lower-left corner — the same
@@ -363,107 +338,305 @@ pub fn loop_program(
                 .collect::<Result<Vec<_>, DimensionError>>()?;
             Ok(LoopProgram::polygon_expr(corners))
         }
-        ProfileShape::Path { steps } => Ok(LoopProgram::Chain(
-            steps
-                .iter()
-                .map(|step| program_step(step, notation))
-                .collect::<Result<Vec<_>, _>>()?,
-        )),
+        ProfileShape::Path { steps } => {
+            // Lifted once to learn which arguments the program holds,
+            // then again with the notation written over them: the lift
+            // is the only thing that knows the roles.
+            let written = notation.over(&LoopProgram::from_recorded(steps)?)?;
+            LoopProgram::from_recorded_with_notation(steps, &written)
+        }
     }
 }
 
-/// Lower one authored target.
-fn program_target(target: PathTarget, n: Notation) -> Result<ProgramTarget, DimensionError> {
-    Ok(match target {
-        PathTarget::Point(p) => ProgramTarget::Point(n.point(p)?),
-        PathTarget::Start => ProgramTarget::Start,
-    })
-}
-
-/// Lower one authored arc spec — the dimension of every field is the
-/// vocabulary's ([`SlotId::dimension`]'s table: radii and coordinates
-/// Length, the swept angle Angle, the bulge Scalar), so a form cannot
-/// author a radius that is secretly an angle.
-fn program_arc(spec: ArcSpec, n: Notation) -> Result<ProgramArcData, DimensionError> {
-    Ok(match spec {
-        ArcSpec::Radius { r, side } => ProgramArcData::Radius {
-            r: n.length(r)?,
-            side,
-        },
-        ArcSpec::Bulge { target, b } => ProgramArcData::Bulge {
-            target: program_target(target, n)?,
-            b: n.scalar(b)?,
-        },
-        ArcSpec::Via { q, target } => ProgramArcData::Via {
-            q: n.point(q)?,
-            target: program_target(target, n)?,
-        },
-        ArcSpec::Center { c, winding, target } => ProgramArcData::Center {
-            c: n.point(c)?,
-            winding,
-            target: program_target(target, n)?,
-        },
-        ArcSpec::Sweep { r, side, angle: a } => ProgramArcData::Sweep {
-            r: n.length(r)?,
-            side,
-            angle: n.angle(a)?,
-        },
-        ArcSpec::ArcLen { r, side, len } => ProgramArcData::ArcLen {
-            r: n.length(r)?,
-            side,
-            len: n.length(len)?,
-        },
-    })
-}
-
-/// Lower one authored verb to its recorded step.
+/// **Whether two shape lists author the same loops** — what a frame
+/// asks to learn whether an edit drawn during it moved the preview.
 ///
-/// **Exhaustive on [`PathStep`], and that is the point**: the step
-/// vocabulary is a mirror of `ProgramStep`, so a verb the document
-/// layer gains breaks this function rather than being silently
-/// unauthorable from the chrome.
+/// Asked of the canonical LOWERINGS rather than of the shapes, because
+/// the kernel's step types carry no `PartialEq` (comparing points is
+/// the predicate layer's job, `geom_core::Point2` says), and the
+/// lowering is what [`preview`] draws from anyway: two lists that
+/// lower alike preview alike. A list that does not lower compares by
+/// its refusal, which is also what the preview shows for it.
+pub fn authors_same_loops(a: &[ProfileShape], b: &[ProfileShape]) -> bool {
+    loop_programs(a, Notation::CANONICAL) == loop_programs(b, Notation::CANONICAL)
+}
+
+/// **A list of shapes lowered loop by loop** — [`loop_program`] over
+/// each, in description order, the whole list refusing with the first
+/// loop that does. The one lowering every door of the profile editor
+/// hands the session, and the one the preview's change test compares.
 ///
 /// # Errors
 ///
-/// A non-finite field — the literal constructors' one refusal.
-/// Nothing about the WALK is judged here (see [`PathStep`]).
-fn program_step(step: &PathStep, n: Notation) -> Result<ProgramStep, DimensionError> {
-    Ok(match *step {
-        PathStep::At(p) => ProgramStep::At(n.point(p)?),
-        PathStep::Angle(a) => ProgramStep::Angle(n.angle(a)?),
-        PathStep::Toward { dx, dy } => ProgramStep::Toward {
-            dx: n.scalar(dx)?,
-            dy: n.scalar(dy)?,
-        },
-        PathStep::Tangent => ProgramStep::Tangent,
-        PathStep::Cusp => ProgramStep::Cusp,
-        PathStep::Turn(d) => ProgramStep::Turn(n.angle(d)?),
-        PathStep::Line(len) => ProgramStep::Line(n.length(len)?),
-        PathStep::LineTo(target) => ProgramStep::LineTo(program_target(target, n)?),
-        PathStep::ArcTo(spec) => ProgramStep::ArcTo(program_arc(spec, n)?),
-        PathStep::TangentArcTo(target) => ProgramStep::TangentArcTo(program_target(target, n)?),
-        PathStep::Fillet(r) => ProgramStep::Fillet(n.length(r)?),
-        PathStep::FilletArc { radius, spec } => ProgramStep::FilletArc {
-            radius: n.length(radius)?,
-            spec: program_arc(spec, n)?,
-        },
-        PathStep::ArcFillet { spec, radius } => ProgramStep::ArcFillet {
-            spec: program_arc(spec, n)?,
-            radius: n.length(radius)?,
-        },
-        PathStep::ArcFilletArc {
-            spec,
-            radius,
-            spec2,
-        } => ProgramStep::ArcFilletArc {
-            spec: program_arc(spec, n)?,
-            radius: n.length(radius)?,
-            spec2: program_arc(spec2, n)?,
-        },
-        PathStep::FarEndTo(p) => ProgramStep::FarEndTo(n.point(p)?),
-        PathStep::CloseTo => ProgramStep::CloseTo,
-    })
+/// [`loop_program`]'s.
+pub fn loop_programs(
+    shapes: &[ProfileShape],
+    notation: Notation,
+) -> Result<Vec<LoopProgram>, RecordedProgramError> {
+    shapes
+        .iter()
+        .map(|shape| loop_program(shape, notation))
+        .collect()
 }
+
+/// **Held loops as the shapes the preview and the lowering take** —
+/// one [`ProfileShape::Path`] per loop, in authoring order. The path
+/// editor holds the kernel's steps loop by loop; this is the one place
+/// that list becomes the form's currency.
+pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
+    loops
+        .iter()
+        .map(|steps| ProfileShape::Path {
+            steps: steps.clone(),
+        })
+        .collect()
+}
+
+// ------------------------------------------------------------------
+// The edit door: a committed program into the editor, and back
+// ------------------------------------------------------------------
+
+/// **The loops of a committed profile as the editor holds them** —
+/// the kernel's own [`Step`] at plain numbers, per loop, which is the
+/// currency the create form authors in. What makes the two doors one
+/// editor is that both hold this and nothing else.
+///
+/// The inverse of [`loop_program`], read through the document layer's
+/// own resolver ([`resolve_loops`]) rather than a second verb-by-verb
+/// walk: a resolved literal IS its recorded number, so a program the
+/// form authored comes back as the steps it was authored from, bit
+/// for bit, and a verb the vocabulary gains reaches here through the
+/// resolver's own arm for it.
+///
+/// # Errors
+///
+/// [`HeldRefusal`]: the node is not a profile; an argument is driven
+/// by an expression, which a `Step<f64>` has no way to hold — the
+/// whole node is refused rather than shown as numbers that would be
+/// written back over a computation, and every driven argument is
+/// named so the reader knows which rows to edit instead; or the
+/// resolver refused a stored expression.
+pub fn held_loops(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
+    let Some(Node::Profile(program)) = doc.node(node) else {
+        return Err(HeldRefusal::NotAProfile { node });
+    };
+    held_program(node, program, &doc.param_env::<f64>())
+}
+
+/// [`held_loops`] of a program in hand — `node` only names it in a
+/// refusal, and `env` is the parameter environment it resolves under.
+///
+/// # Errors
+///
+/// [`HeldRefusal::Driven`] or [`HeldRefusal::Resolve`], as
+/// [`held_loops`].
+pub fn held_program(
+    node: RecipeNodeId,
+    program: &ProfileProgram,
+    env: &ParamEnv<f64>,
+) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
+    let held = Node::Profile(program.clone());
+    // Every argument, asked of the node's own slot walk. An address
+    // the walk lists and `expr` denies is the node layer's broken
+    // postcondition, which `props::slot_row` reports as a row; here
+    // it reads as driven, the refusing direction.
+    let driven: Vec<(SlotId, String)> = held
+        .slots()
+        .into_iter()
+        .filter_map(|slot| match held.expr(slot) {
+            Some(expr) if expr.literal_value().is_some() => None,
+            Some(expr) => Some((slot, unparse(expr))),
+            None => Some((slot, String::new())),
+        })
+        .collect();
+    if !driven.is_empty() {
+        return Err(HeldRefusal::Driven {
+            node,
+            slots: driven,
+        });
+    }
+    resolve_loops(&program.loops, env)
+        .map_err(|(slot, source)| HeldRefusal::Resolve { slot, source })
+}
+
+/// Why a committed node cannot be held by the path editor.
+#[derive(Clone, Debug, PartialEq)]
+pub enum HeldRefusal {
+    /// The node is not a profile.
+    NotAProfile {
+        /// The node named.
+        node: RecipeNodeId,
+    },
+    /// One or more arguments are expressions, which the editor's
+    /// plain-number steps cannot hold. Each is named with its source
+    /// text; an empty source is an address the node lists and carries
+    /// no expression for.
+    Driven {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// Every driven argument, in slot order.
+        slots: Vec<(SlotId, String)>,
+    },
+    /// A stored expression did not resolve under the document's
+    /// parameters.
+    Resolve {
+        /// The argument that refused.
+        slot: SlotId,
+        /// The evaluator's own reason.
+        source: EvalError,
+    },
+}
+
+impl core::fmt::Display for HeldRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotAProfile { node } => write!(f, "feature {} is not a profile", node.0),
+            Self::Driven { node, slots } => {
+                write!(
+                    f,
+                    "feature {}'s program is driven by expressions, which the editor's \
+                     number fields cannot hold — edit those in the slot rows: ",
+                    node.0
+                )?;
+                for (index, (slot, source)) in slots.iter().enumerate() {
+                    if index > 0 {
+                        f.write_str(", ")?;
+                    }
+                    if source.is_empty() {
+                        write!(f, "{} (no expression)", slot.label())?;
+                    } else {
+                        write!(f, "{} = {source}", slot.label())?;
+                    }
+                }
+                Ok(())
+            }
+            Self::Resolve { slot, source } => {
+                write!(f, "{} did not resolve: {source}", slot.label())
+            }
+        }
+    }
+}
+
+impl core::error::Error for HeldRefusal {}
+
+/// **The slot writes that take a committed program to the editor's**
+/// — one `(slot, expression)` per argument whose number moved, and
+/// nothing for the rest.
+///
+/// Compared by VALUE, at the bits ([`Expr::bit_eq`]): an argument the
+/// editor re-minted in the form's notation but still holding the
+/// number it was loaded with is not a change, so an editor opened on
+/// a node and applied untouched writes nothing — the no-op the edit
+/// door owes (no edit, no history entry). An argument that moved is
+/// written as the editor minted it, in the notation the picker beside
+/// the fields says it writes in.
+///
+/// # Errors
+///
+/// [`Restructure`] when `loops` does not have `current`'s STRUCTURE —
+/// a different loop count, or a loop whose verbs, arc modes, target
+/// forms, structural tags or step count differ. The document's edit
+/// vocabulary writes slots and has no door that rewrites a program's
+/// shape, which is why the editor locks its structural controls on a
+/// committed node; this is the door's own check behind those
+/// controls, held by writing every argument of `loops` into a copy of
+/// `current` and asking whether the copy then IS `loops`.
+pub fn program_edits(
+    current: &ProfileProgram,
+    loops: &[LoopProgram],
+) -> Result<Vec<(SlotId, Expr)>, Restructure> {
+    if current.loops.len() != loops.len() {
+        return Err(Restructure::LoopCount {
+            was: current.loops.len(),
+            now: loops.len(),
+        });
+    }
+    let held = Node::Profile(ProfileProgram {
+        plane: current.plane,
+        loops: loops.to_vec(),
+    });
+    let mut probe = Node::Profile(current.clone());
+    let mut edits = Vec::new();
+    for slot in held.slots() {
+        let Some(new) = held.expr(slot) else {
+            unreachable!(
+                "`Node::slots` is the domain of `Node::expr`, and {} was listed by it",
+                slot.label()
+            )
+        };
+        let SlotId::Profile { loop_, .. } = slot else {
+            unreachable!(
+                "a profile node lists only profile slots, and {} is not one",
+                slot.label()
+            )
+        };
+        let Some(old) = probe.expr_mut(slot) else {
+            return Err(Restructure::Loop {
+                loop_: loop_ as usize,
+            });
+        };
+        if !old.bit_eq(new) {
+            edits.push((slot, new.clone()));
+        }
+        *old = new.clone();
+    }
+    // Every argument of `loops` is now written into the copy, so the
+    // copy and `loops` differ exactly where the STRUCTURE does: a step
+    // the copy has and `loops` lacks, a tag, a target form, a mode.
+    // The comparison is the program vocabulary's own equality, which
+    // reads expressions by value and is blind to notation.
+    let Node::Profile(probe) = probe else {
+        unreachable!("the probe was built as a profile node")
+    };
+    for (loop_, (was, now)) in probe.loops.iter().zip(loops).enumerate() {
+        if was != now {
+            return Err(Restructure::Loop { loop_ });
+        }
+    }
+    Ok(edits)
+}
+
+/// Why the editor's program cannot be written over a committed one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Restructure {
+    /// The two programs have different loop counts.
+    LoopCount {
+        /// The committed loop count.
+        was: usize,
+        /// The editor's.
+        now: usize,
+    },
+    /// One loop's shape — its verbs, arc modes, target forms,
+    /// structural tags or step count — differs.
+    Loop {
+        /// The loop, in authoring order.
+        loop_: usize,
+    },
+}
+
+impl core::fmt::Display for Restructure {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::LoopCount { was, now } => write!(
+                f,
+                "the committed profile has {was} loop(s) and the editor holds {now}; the \
+                 document's edit vocabulary writes a program's numbers and has no door that \
+                 changes its shape"
+            ),
+            Self::Loop { loop_ } => write!(
+                f,
+                "loop {loop_}'s verbs, arc forms, targets or step count differ from the \
+                 committed program's; the document's edit vocabulary writes a program's \
+                 numbers and has no door that changes its shape"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for Restructure {}
 
 // ------------------------------------------------------------------
 // The preview: what the loops being authored would actually draw
@@ -508,7 +681,7 @@ pub fn frame_placement(
 }
 
 /// **Every frame datum in the document, in document order** — what the
-/// add-profile form's plane picker offers.
+/// creation forms' frame picker offers.
 ///
 /// Document order rather than sorted by id or by name: the feature
 /// tree lists nodes that way, so the picker and the tree name the
@@ -617,13 +790,16 @@ impl ProfilePreview {
 ///
 /// Distinct from [`ProfilePreview::invalid`], which is a preview that
 /// WAS drawn and did not validate: these are the failures with no
-/// geometry behind them — a field that is not a number, an expression
-/// that will not resolve, a walk the lattice does not admit, a leg
-/// whose geometry has no answer.
+/// geometry behind them — a field that is not a number or a path that
+/// is not a program's shape, an expression that will not resolve, a
+/// walk the lattice does not admit, a leg whose geometry has no
+/// answer.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PreviewError {
-    /// A field is not a finite number.
-    Dimension(DimensionError),
+    /// The shape did not lower ([`loop_program`]'s refusals): a field
+    /// is not a finite number, or a complete-loop verb sits inside a
+    /// chain.
+    Lowering(RecordedProgramError),
     /// A program expression did not resolve.
     Resolve {
         /// The failing slot.
@@ -644,10 +820,11 @@ pub enum PreviewError {
         /// The ill-typed verb, `None` for end-of-program.
         verb: Option<Verb>,
     },
-    /// A bulged segment replayed, and the arc it stands for cannot be
-    /// drawn: its radius, its swept angle, its centre or its start
-    /// angle is not a finite number, so no point along it is one
-    /// either.
+    /// A loop replayed and one of the points it would be drawn
+    /// through is not a place: a vertex whose own position is not a
+    /// pair of finite numbers, or a bulged segment whose arc is not
+    /// one — its radius, its swept angle, its centre, its start
+    /// angle, or a point along it.
     ///
     /// **Separate from [`PreviewError::Geometry`]**, which carries the
     /// DRIVER's refusal about a leg somebody authored. This one is the
@@ -657,10 +834,11 @@ pub enum PreviewError {
     Unflattenable {
         /// Which loop could not be drawn.
         loop_: usize,
-        /// The ordinal of its vertex whose outgoing segment refused
-        /// — the loop's OWN vertex, not the authored step, because
-        /// one step can contribute several and the flattener walks
-        /// what replay produced.
+        /// The ordinal of the vertex that refused — its own
+        /// position, or the segment leaving it. The loop's OWN
+        /// vertex, not the authored step, because one step can
+        /// contribute several and the flattener walks what replay
+        /// produced.
         vertex: usize,
     },
     /// A leg's geometry refused — the driver's own rendered refusal.
@@ -684,7 +862,7 @@ pub enum PreviewError {
 impl core::fmt::Display for PreviewError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Dimension(error) => write!(f, "{error}"),
+            Self::Lowering(error) => write!(f, "{error}"),
             Self::Resolve { slot, source } => write!(f, "{}: {source}", slot.label()),
             Self::Transition {
                 loop_,
@@ -706,8 +884,9 @@ impl core::fmt::Display for PreviewError {
             },
             Self::Unflattenable { loop_, vertex } => write!(
                 f,
-                "loop {loop_} vertex {vertex}: the arc leaving it has no drawable \
-                 shape — its radius, sweep or centre is not a number"
+                "loop {loop_} vertex {vertex}: nothing there can be drawn — its \
+                 position, or the radius, sweep, centre or points of the arc \
+                 leaving it, is not a number"
             ),
             Self::Geometry {
                 loop_,
@@ -754,12 +933,12 @@ impl core::error::Error for PreviewError {}
 /// unclosed chain whose provisional close is itself ill-typed — a tip
 /// with a direction and no position, an arc arrival still waiting for
 /// a binder — reports the ORIGINAL end-of-program refusal, never one
-/// belonging to the appended step. A loop that replays and whose arcs
-/// have no drawable shape is [`PreviewError::Unflattenable`] — the
-/// one refusal here that is about the PICTURE rather than the
-/// profile, and the reason it is a refusal rather than a loop drawn
-/// short is that a preview is what a form shows instead of the
-/// geometry.
+/// belonging to the appended step. A loop that replays and has a
+/// point no picture can put anywhere is
+/// [`PreviewError::Unflattenable`] — the one refusal here that is
+/// about the PICTURE rather than the profile, and the reason it is a
+/// refusal rather than a loop drawn short is that a preview is what a
+/// form shows instead of the geometry.
 pub fn preview(
     plane: SketchPlane<f64>,
     shapes: &[ProfileShape],
@@ -771,7 +950,7 @@ pub fn preview(
         // CANONICAL, and it makes no difference which: a display unit
         // is presentation metadata that no evaluation reads, and this
         // program is built to be replayed and drawn, never committed.
-        programs.push(loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Dimension)?);
+        programs.push(loop_program(shape, Notation::CANONICAL).map_err(PreviewError::Lowering)?);
     }
     // Literals only reach this door, so an empty environment binds
     // everything it can be asked about. It is passed rather than
@@ -836,7 +1015,7 @@ pub fn preview(
         .zip(&closed_flags)
         .enumerate()
         .map(|(loop_, (lp, closed))| {
-            let (points, vertices) = flatten(lp, chord)
+            let (points, vertices) = flatten(lp.vertices(), chord)
                 .map_err(|vertex| PreviewError::Unflattenable { loop_, vertex })?;
             Ok(PreviewLoop {
                 points,
@@ -858,6 +1037,99 @@ pub fn preview(
         loops: polylines,
         invalid,
     })
+}
+
+/// **One committed profile, flattened for drawing**: the node it is,
+/// the plane its evaluation placed it on, and its loops.
+#[derive(Clone, Debug)]
+pub struct CommittedProfile {
+    /// The profile node this draws.
+    pub node: RecipeNodeId,
+    /// The plane the landed value is on — the VALUE's, not a second
+    /// lookup of the frame the node names, for
+    /// [`ProfilePreview::plane`]'s reason.
+    pub plane: SketchPlane<f64>,
+    /// One closed polyline per loop, in the value's canonical order
+    /// (outer first). Every one is `closed: true`: a validated profile
+    /// has no open chain.
+    pub loops: Vec<PreviewLoop>,
+}
+
+/// **What the landed evaluation's profiles came to as drawings**: the
+/// ones that flattened, and the ones that did not.
+///
+/// A value rather than a bare list for `crate::datums::DatumDraws`'
+/// reason: a profile left out of the picture looks exactly like a
+/// document without it, so a caller holding the drawings is handed
+/// the refusals too.
+#[derive(Clone, Debug, Default)]
+pub struct CommittedProfiles {
+    /// One per profile node drawn, in document order.
+    pub drawn: Vec<CommittedProfile>,
+    /// The profile nodes whose validated value has a point the
+    /// flattener cannot draw ([`PreviewError::Unflattenable`]'s case),
+    /// in document order. Drawn not at all rather than with that leg
+    /// missing: a loop drawn without one of its legs is a shape the
+    /// document does not have.
+    pub undrawn: Vec<RecipeNodeId>,
+}
+
+/// **Every profile the landed evaluation validated**, flattened at
+/// `chord` — the picture of a committed profile, drawn from the same
+/// value the features built on it consume.
+///
+/// Walks the document's live nodes in order. The NODE says it is a
+/// profile and the EVALUATION says what it came to, as in
+/// `crate::datums::draws`: a profile node whose evaluation refused, or
+/// one this evaluation never reached, has no value and draws nothing —
+/// the tree's badge is what says why, and drawing the program's replay
+/// in its place would put a shape on screen the document does not
+/// have.
+///
+/// `except` is the profile a form is EDITING, if any: that form draws
+/// its own replay of the node in the preview lane, and a loop drawn
+/// both as it was committed and as it is being changed would show two
+/// shapes where there is one. The create form edits no committed node,
+/// so it passes `None`.
+pub fn committed(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    except: Option<RecipeNodeId>,
+) -> CommittedProfiles {
+    let mut out = CommittedProfiles::default();
+    for &node in doc.order() {
+        if Some(node) == except || !matches!(doc.node(node), Some(Node::Profile(_))) {
+            continue;
+        }
+        let Some(value) = evaluation.value(node) else {
+            continue;
+        };
+        let ValuePayload::Profile(profile) = &value.payload else {
+            continue;
+        };
+        let loops = profile
+            .validated
+            .loops()
+            .iter()
+            .map(|lp| {
+                flatten(lp.vertices(), chord).map(|(points, vertices)| PreviewLoop {
+                    points,
+                    vertices,
+                    closed: true,
+                })
+            })
+            .collect::<Result<Vec<_>, usize>>();
+        match loops {
+            Ok(loops) => out.drawn.push(CommittedProfile {
+                node,
+                plane: *profile.validated.plane(),
+                loops,
+            }),
+            Err(_) => out.undrawn.push(node),
+        }
+    }
+    out
 }
 
 /// **A lattice tip state in words.**
@@ -887,64 +1159,106 @@ pub fn tip_state_words(state: TipState) -> &'static str {
     }
 }
 
-/// **Is the step at `steps[at]` well-typed where the chain leaves
-/// it?** — asked OF THE LATTICE, by replaying the prefix through it.
+/// **The lattice state the chain is in just before `steps[at]`** —
+/// asked of the replay the commit door runs, over the prefix alone.
 ///
-/// `Err` carries the tip's state and the verb the lattice refused
-/// there, which is the sentence a form greys a choice out with.
-/// Everything else is `Ok`: a chain that closes, one that simply has
-/// not closed yet, a leg whose NUMBERS have no answer (the fields of a
-/// freshly offered step are placeholders, and refusing a verb because
-/// its default radius is wrong would be judging the wrong thing), and
-/// a prefix that is already ill-typed before `at` — that refusal is
-/// the prefix's own and the form is already showing it.
-///
-/// **This is not a table.** The transition lattice is `profile`'s and
-/// stays there; what this does is put a candidate step in front of the
-/// same `replay` the commit door runs and report what it said. A
-/// second copy of the lattice kept in step by hand is exactly what the
-/// step list's docs refuse, and this is how the form offers only legal
-/// verbs without becoming one.
+/// `None` when the prefix does not say: a field that is not a number
+/// (the preview beside the form reports it), or a prefix already
+/// refused before `at` — that refusal is the prefix's own and the form
+/// is already showing it. A prefix that closes answers
+/// [`TipState::Closed`].
+pub fn tip_state_at(steps: &[Step<f64>], at: usize, tol: Tol) -> Option<TipState> {
+    let prefix = &steps[..at];
+    // Each step is lifted ALONE, so what is asked is only whether its
+    // literals are numbers — a complete-loop verb inside a chain is
+    // the lattice's to refuse, and a whole-chain lift would refuse it
+    // first.
+    if prefix
+        .iter()
+        .any(|step| LoopProgram::from_recorded(core::slice::from_ref(step)).is_err())
+    {
+        return None;
+    }
+    match replay(prefix, tol) {
+        Ok(_) => Some(TipState::Closed),
+        Err(ReplayError {
+            step,
+            kind: ReplayErrorKind::Transition { state, verb: None },
+        }) if step == at => Some(state),
+        Err(_) => None,
+    }
+}
+
+/// **Does the lattice have a row for `verb` at `state`?** — read off
+/// the transition table ([`Verb::states`]), not probed. `None` (the
+/// state is not known, [`tip_state_at`]) admits every verb: the form
+/// cannot say more than the chain does, and the preview reports
+/// whatever the replay refuses.
 ///
 /// # Errors
 ///
-/// The tip's state and the refused verb, when the lattice refuses the
-/// step at `at` for being ill-typed there.
-pub fn admits_at(
-    steps: &[PathStep],
-    at: usize,
-    notation: Notation,
-    tol: Tol,
-) -> Result<(), (TipState, Verb)> {
-    let mut programs = Vec::with_capacity(steps.len());
-    for step in steps {
-        // A field that is not a number is not a lattice question, and
-        // the form reports it through the preview beside this.
-        let Ok(lowered) = program_step(step, notation) else {
-            return Ok(());
-        };
-        programs.push(lowered);
-    }
-    let loops = [LoopProgram::Chain(programs)];
-    let resolved: Vec<Vec<Step<f64>>> = match resolve_loops(&loops, &ParamEnv::default()) {
-        Ok(resolved) => resolved,
-        // An expression that will not resolve is likewise not a
-        // lattice question.
-        Err(_) => return Ok(()),
-    };
-    let Some(chain) = resolved.first() else {
-        return Ok(());
-    };
-    match replay(chain, tol) {
-        Err(ReplayError {
-            step,
-            kind:
-                ReplayErrorKind::Transition {
-                    state,
-                    verb: Some(verb),
-                },
-        }) if step == at => Err((state, verb)),
+/// The tip's state, when the table has no row for `verb` there — the
+/// sentence a form greys a choice out with.
+pub fn admits_at(state: Option<TipState>, verb: Verb) -> Result<(), TipState> {
+    match state {
+        Some(state) if !verb.states().contains(&state) => Err(state),
         _ => Ok(()),
+    }
+}
+
+/// **A step of `verb` whose arc specs are ones the lattice takes at
+/// `state`**: [`fresh_step`], with each arc spec replaced by the first
+/// form its dispatcher admits there ([`arc_specs_at`]). A verb picked
+/// from the combo is well-typed the moment it lands, rather than
+/// starting in a mode its row refuses and waiting to be switched.
+pub fn fresh_step_at(verb: Verb, state: Option<TipState>) -> Step<f64> {
+    let mut step = fresh_step(verb);
+    let Some(state) = state else {
+        return step;
+    };
+    let forms = arc_specs_at(verb, state);
+    let fresh = |at: usize, spec: &mut ArcData<f64>| {
+        if let Some(fresh) = forms.get(at).and_then(|forms| fresh_spec(forms)) {
+            *spec = fresh;
+        }
+    };
+    match &mut step {
+        Step::ArcTo(spec) | Step::FilletArc { spec, .. } | Step::ArcFillet { spec, .. } => {
+            fresh(0, spec);
+        }
+        Step::ArcFilletArc { spec, spec2, .. } => {
+            fresh(0, spec);
+            fresh(1, spec2);
+        }
+        _ => {}
+    }
+    step
+}
+
+/// The first form `forms` admits, as a spec: its mode's starting
+/// numbers ([`fresh_arc`]) at its first admitted target form.
+pub fn fresh_spec(forms: &SpecForms) -> Option<ArcData<f64>> {
+    let &(mode, _) = forms.forms().first()?;
+    Some(fresh_arc_in(mode, forms))
+}
+
+/// [`fresh_arc`] of `mode`, its target set to the first form `forms`
+/// admits for that mode — so switching a spec's mode lands on a
+/// well-typed (mode, target) pair when one exists.
+pub fn fresh_arc_in(mode: ArcMode, forms: &SpecForms) -> ArcData<f64> {
+    let mut spec = fresh_arc(mode);
+    if let (Some(kind), Some(target)) = (forms.targets(mode).next(), spec_target_mut(&mut spec)) {
+        *target = fresh_target(kind);
+    }
+    spec
+}
+
+fn spec_target_mut(spec: &mut ArcData<f64>) -> Option<&mut Target<f64>> {
+    match spec {
+        ArcData::Bulge { target, .. }
+        | ArcData::Via { target, .. }
+        | ArcData::Center { target, .. } => Some(target),
+        ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => None,
     }
 }
 
@@ -979,10 +1293,26 @@ fn refusal(loop_: usize, error: &ReplayError<f64>) -> PreviewError {
 /// any preview pane resolves.
 const MAX_ARC_POINTS: usize = 256;
 
+/// **Whether a flattened point is a place**: both coordinates finite.
+///
+/// Asked of every coordinate [`flatten`] emits — the loop's own
+/// vertices and an arc's interior points alike — because the drawn
+/// output is what this module answers for, and a polyline carrying a
+/// point that is not a pair of numbers is a picture of nowhere.
+///
+/// **Every is checkable**: the two `out.push` calls in [`flatten`] are
+/// the only places a coordinate joins the output, so a reader holds
+/// the whole population by grepping that function for `out.push`. The
+/// arc frame goes through here too, one call further down, which is
+/// the same question about a `[f64; 2]` and not a second one.
+fn drawable(point: [f64; 2]) -> bool {
+    point[0].is_finite() && point[1].is_finite()
+}
+
 /// One loop as a closed polyline: every vertex, with each bulged
 /// segment subdivided finely enough that it sags less than `chord`.
 ///
-/// The bulge convention is [`ProfileVertex`](pncad::profile::ProfileVertex)'s
+/// The bulge convention is [`ProfileVertex`]'s
 /// — `b = tan(θ/4)` for the segment LEAVING each vertex, positive
 /// counterclockwise, the last vertex's belonging to the closing
 /// segment — so this reads the loop exactly as the kernel writes it
@@ -990,12 +1320,17 @@ const MAX_ARC_POINTS: usize = 256;
 ///
 /// # Errors
 ///
-/// The vertex ordinal of the first bulged segment whose arc frame is
-/// not numbers a point can be computed from. **Refused rather than
-/// skipped**: a segment dropped here would leave the loop drawn with a
-/// leg it does not have, which is the same defect one door along.
-fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
-    let vertices = loop_.vertices();
+/// The vertex ordinal at which a point stopped being one: the
+/// vertex's own position, the arc frame of the segment leaving it, or
+/// a point along that arc. **Refused rather than skipped**: a segment
+/// dropped here would leave the loop drawn with a leg it does not
+/// have, and a vertex dropped would put the legs either side of it
+/// through a corner nobody authored — the same defect one door
+/// along.
+fn flatten(
+    vertices: &[ProfileVertex<f64>],
+    chord: f64,
+) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
     let mut out: Vec<[f64; 2]> = Vec::with_capacity(vertices.len());
     // Where each real vertex landed among the subdivisions. A caller
     // that wants to mark the loop's own points cannot recover this
@@ -1006,8 +1341,19 @@ fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Result<(Vec<[f64; 2]>, Vec<u
     for (index, vertex) in vertices.iter().enumerate() {
         let from = vertex.pos();
         let to = vertices[(index + 1) % vertices.len()].pos();
+        // The loop's own vertex, asked the same question its arcs are
+        // asked below and asked BEFORE it is emitted. A replay whose
+        // literals are all finite can still land one past the top of
+        // the exponent range, and every guard under this loop is about
+        // an arc — so a loop with no bulges at all reaches none of
+        // them and a polygon drawn through a point that is nowhere is
+        // exactly what this module says it refuses.
+        let place = [from.x, from.y];
+        if !drawable(place) {
+            return Err(index);
+        }
         at.push(out.len());
-        out.push([from.x, from.y]);
+        out.push(place);
         let bulge = vertex.bulge();
         if bulge == 0.0 {
             continue;
@@ -1035,13 +1381,18 @@ fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Result<(Vec<[f64; 2]>, Vec<u
         let start = (from.y - centre[1]).atan2(from.x - centre[0]);
         // **Every point below is `centre + radius·(cos, sin)` of an
         // angle built from `start` and `theta`**, so those four are
-        // what have to BE numbers, and they are asked before any of
-        // them is used. The two guards above this block — `bulge ==
-        // 0.0` and `half == 0.0 || sin_half == 0.0` — are the
-        // degenerate segments a loop legitimately holds, and a value
-        // that is not a number takes neither side of either: a `NaN`
-        // is not equal to zero, so it reads as an ordinary arc all the
-        // way to the coordinates.
+        // asked to be numbers before any of them is used. The two
+        // guards above this block — `bulge == 0.0` and `half == 0.0
+        // || sin_half == 0.0` — are the degenerate segments a loop
+        // legitimately holds, and a value that is not a number takes
+        // neither side of either: a `NaN` is not equal to zero, so it
+        // reads as an ordinary arc all the way to the coordinates.
+        //
+        // **A frame of four numbers does not make a point one**, so
+        // each point is asked again as it is minted: a centre a few
+        // hundred orders of magnitude from the origin and a radius to
+        // match sum past the top of the range on the far side of the
+        // arc, with every value here finite.
         //
         // `radius` carries `centre` with it. `apothem` is
         // `±radius·cos(θ/2)` written as `half / tan(θ/2)`, so it is
@@ -1050,17 +1401,21 @@ fn flatten(loop_: &ProfileLoop<f64>, chord: f64) -> Result<(Vec<[f64; 2]>, Vec<u
         // chord's own midpoint, which overflows on its own for two
         // vertices near the top of the exponent range — hence
         // `centre`, and `start` after it.
-        let Some(count) = arc_points(radius, theta, chord)
-            .filter(|_| centre[0].is_finite() && centre[1].is_finite() && start.is_finite())
+        let Some(count) =
+            arc_points(radius, theta, chord).filter(|_| drawable(centre) && start.is_finite())
         else {
             return Err(index);
         };
-        for point in 1..count {
-            let angle = start + theta * (point as f64) / (count as f64);
-            out.push([
+        for ordinal in 1..count {
+            let angle = start + theta * (ordinal as f64) / (count as f64);
+            let place = [
                 centre[0] + radius * angle.cos(),
                 centre[1] + radius * angle.sin(),
-            ]);
+            ];
+            if !drawable(place) {
+                return Err(index);
+            }
+            out.push(place);
         }
     }
     Ok((out, at))
@@ -1107,51 +1462,35 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> Option<usize> {
     Some(((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS))
 }
 
-/// **How big the tip marks in a profile preview are**, in sketch-plane
-/// metres: a fraction of the whole preview's extent.
+/// **How big a tip mark in a profile preview is, in PIXELS** — the
+/// cross-tick through a vertex; the heading arrow's tip sits this far
+/// ahead of it.
 ///
-/// Relative rather than absolute because a preview has no fixed scale
-/// — a 2 mm boss and a 2 m plate go through this same form — and
-/// relative to the WHOLE preview rather than to each loop, so a bore's
-/// marks match its outer's. A preview with no extent at all (a single
-/// authored point, nothing yet) has nothing to take a fraction of and
-/// gets no marks; a cross of size zero would be no mark anyway.
-pub fn tip_mark(loops: &[PreviewLoop]) -> f64 {
-    let points = loops.iter().flat_map(|drawn| drawn.points.iter());
-    let mut lo = [f64::INFINITY; 2];
-    let mut hi = [f64::NEG_INFINITY; 2];
-    for point in points {
-        for axis in 0..2 {
-            lo[axis] = lo[axis].min(point[axis]);
-            hi[axis] = hi[axis].max(point[axis]);
-        }
-    }
-    let diagonal = (hi[0] - lo[0]).hypot(hi[1] - lo[1]);
-    if diagonal.is_finite() && diagonal > 0.0 {
-        diagonal * TIP_MARK_FRACTION
-    } else {
-        0.0
-    }
-}
-
-/// The share of a preview's diagonal one tip mark spans — small enough
-/// that a dense chain does not become a field of crosses, large enough
-/// to read against the geometry it sits on. The heading tick is twice
-/// this again, because a direction has to be long enough to have one.
-///
-/// Set by looking: at 0.025 it was under a pixel on a profile filling
-/// a third of the viewport, which is a mark nobody can see — and a
-/// sketch plane seen at a grazing angle foreshortens whatever is left.
-const TIP_MARK_FRACTION: f64 = 0.07;
+/// Screen-sized, like every datum glyph (`datums`), because a tip mark
+/// is an annotation on the chain and not a part of it: it has to read
+/// at whatever zoom the chain is being looked at. A mark sized against
+/// the model's extent is a fixed length in metres, so zooming in on a
+/// small feature of a large profile blows the marks up across it, and
+/// zooming out shrinks them below a pixel.
+pub const TIP_MARK_PX: f64 = 20.0;
 
 /// **Which way the chain leaves the vertex at `at`** — a unit vector,
-/// or `None` where there is no next point to take one from.
+/// or `None` where there is none to be had.
 ///
 /// The next flattened point, which is the tangent to within the chord
 /// tolerance the preview was flattened at. At the LAST vertex of an
 /// open chain there is no leaving direction, so the INCOMING one is
 /// answered instead: that tip is where the chain currently ends, and
 /// the heading a reader wants there is the one it arrived on.
+///
+/// **A separation that is not a finite length has no direction
+/// either**, which is the second thing the `None` arm says. Two
+/// flattened points a few hundred orders of magnitude apart differ by
+/// ordinary numbers whose `hypot` overflows: the length is then `inf`,
+/// which is greater than zero, and each component divided by it is
+/// `0.0`. A zero vector handed out under the name of a unit one is
+/// this arm not being taken — the caller draws its tip mark along
+/// nothing and cannot tell that from a mark it drew.
 pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]> {
     let (from, to) = if at + 1 < points.len() {
         (points[at], points[at + 1])
@@ -1164,7 +1503,9 @@ pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]>
     };
     let (dx, dy) = (to[0] - from[0], to[1] - from[1]);
     let length = dx.hypot(dy);
-    (length > 0.0).then(|| [dx / length, dy / length])
+    // A finite length is what makes the division below a unit vector:
+    // neither component exceeds it, so each quotient lands in [-1, 1].
+    (length.is_finite() && length > 0.0).then(|| [dx / length, dy / length])
 }
 
 #[cfg(test)]

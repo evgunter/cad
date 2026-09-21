@@ -364,3 +364,58 @@ fn the_shipped_fold_and_the_result_view_are_the_same_fold() {
         "and it is NOT the start camera — the progress before the refusal is kept"
     );
 }
+
+/// **A viewport height that is not a number binds no pan, and neither
+/// does one that divides to infinity.**
+///
+/// `None` is the pan mapping's refusal — *there is no viewport to
+/// scale against* — and the height guard used to be an ORDERING,
+/// `height_px <= 0.0`, which is false for a `NaN`. So a height that is
+/// not a number took neither side of it and the door answered a scale:
+/// `Pan { right: NaN, up: NaN }`, a camera operation built from a
+/// measurement nobody could take.
+///
+/// **`assert_eq!` against `None` is the assertion this needs and
+/// `assert_ne!` against a number is not**: a `NaN` differs from
+/// everything including itself, so a row asking only that the answer
+/// is not the ordinary pan would have passed the unfixed door.
+///
+/// The second case is the same door's other end. The scale is
+/// `2 · distance · tan(fov/2) / height`, so the smallest subnormal
+/// height divides an ordinary visible height to infinity — a number,
+/// ordered, and not a rate. (A height merely NEAR the bottom of the
+/// range does not: at `f64::MIN_POSITIVE` the quotient is about
+/// `1.8e307`, finite, and this door answers it.) The third is the pair's other half: an ordinary
+/// viewport still pans, with both components finite and non-zero, so
+/// a door that refused everything would fail here.
+#[test]
+fn a_viewport_height_that_is_not_a_measurement_binds_no_pan() {
+    let map = round_map();
+    let camera = framed();
+    let pan = drag(PointerButton::Secondary, false, 5.0, 5.0);
+    for (what, height_px) in [
+        ("not a number", f64::NAN),
+        ("infinite", f64::INFINITY),
+        ("the smallest subnormal", f64::from_bits(1)),
+    ] {
+        let viewport = ViewportSize {
+            width_px: 1600.0,
+            height_px,
+        };
+        assert_eq!(
+            map.map(&pan, viewport, &camera),
+            None,
+            "a height that is {what} bound a pan; `world_per_px` answered a \
+             scale for a viewport it could not measure"
+        );
+    }
+    // The other half: a viewport that IS a measurement still pans.
+    let Some(viewer::camera::CameraOp::Pan { right, up }) = map.map(&pan, viewport(), &camera)
+    else {
+        panic!("an ordinary viewport bound no pan");
+    };
+    assert!(
+        right.is_finite() && up.is_finite() && right != 0.0 && up != 0.0,
+        "an ordinary viewport panned by right {right}, up {up}"
+    );
+}

@@ -35,12 +35,17 @@ use topo::{
     subtract_with, union, union_with, validate_geometric, validate_pseudomanifold,
 };
 
-fn glue<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
+fn glue<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
 ) -> BooleanBody<T> {
-    match union_with(a, b, &flush_declarations(a, b), Tol::witness())
-        .expect("declared REST union builds")
+    match union_with(
+        a,
+        b,
+        &flush_declarations(a, b, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("declared REST union builds")
     {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("REST union cannot be empty"),
@@ -51,7 +56,11 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
 /// surviving records, rest records consumed (3′ ≡ tier 3). Exact
 /// volume equality is asserted by the f64 rows (the Interval lane has
 /// no scalar equality by design — NaI ≠ NaI).
-fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(g: &BooleanBody<T>) {
+fn assert_glued<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>(
+    g: &BooleanBody<T>,
+) {
     assert_eq!(g.kind, BooleanResultKind::Seamed);
     assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
     assert_eq!(
@@ -69,10 +78,11 @@ fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(g:
 /// body with the contact faces gone; the declared same-oriented side
 /// planes merge in the output stage, leaving the plain brick's six
 /// faces. Undeclared, the coincidence door refuses unchanged.
-fn stacked_plates_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>()
--> BooleanBody<T> {
-    let bot = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
-    let top = brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
+fn stacked_plates_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() -> BooleanBody<T> {
+    let bot = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
+    let top = brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
     let err = union(&bot, &top, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
@@ -104,9 +114,9 @@ fn stacked_plates_full_face_rest() {
 /// result's faces — reuse of a REST result as an operand).
 #[test]
 fn three_plate_chain() {
-    let p1 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
-    let p2 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
-    let p3 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0));
+    let p1 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
+    let p2 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
+    let p3 = brick::<f64>((0.0, 2.0), (0.0, 2.0), (2.0, 3.0), Tol::witness());
     let g12 = glue(&p1, &p2);
     assert_glued(&g12);
     assert_eq!(
@@ -127,10 +137,11 @@ fn three_plate_chain() {
 /// one interior corner (a pierce-ring vertex the seam chords consume).
 /// Declared, the union BUILDS; undeclared, the coincidence door
 /// refuses; ∖ stays operand A (no join door was ever reached).
-fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>()
--> (BooleanBody<T>, BooleanBody<T>) {
-    let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-    let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
+fn corner_flush_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() -> (BooleanBody<T>, BooleanBody<T>) {
+    let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0), Tol::witness());
     let err = union(&slab, &corner, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::UndeclaredCoincidence { .. }),
@@ -140,7 +151,7 @@ fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQua
     assert_glued(&g);
     // ∖ disposition: pure REST subtract classifies structurally — the
     // whole of A survives (never a join refusal; SPEC §1 note).
-    let decls = flush_declarations(&slab, &corner);
+    let decls = flush_declarations(&slab, &corner, Tol::witness());
     match subtract_with(&slab, &corner, &decls, Tol::witness()).unwrap() {
         BooleanResult::Body(sub) => {
             assert_eq!(sub.kind, BooleanResultKind::OperandA);
@@ -171,9 +182,19 @@ fn corner_flush_rest_union_builds() {
 /// far apart), isolating the lane door.
 #[test]
 fn false_rest_declaration_contradicts_at_the_lane() {
-    let bot = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
-    let top = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 1.0, 2.0);
-    let mut decls = flush_declarations(&bot.body, &top.body);
+    let bot = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
+    let top = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        1.0,
+        2.0,
+        Tol::witness(),
+    );
+    let mut decls = flush_declarations(&bot.body, &top.body, Tol::witness());
     // The lie: bot's bottom cap (z = 0, outward −z) declared
     // coincident with top's top cap (z = 2, outward +z) — opposite
     // orientation, definitely-distinct planes.
@@ -197,8 +218,8 @@ fn false_rest_declaration_contradicts_at_the_lane() {
 #[test]
 fn annular_rest_contact_unions_exactly_additively() {
     let tube = |z0: f64, z1: f64| -> Body<f64> {
-        let outer = brick::<f64>((0.0, 3.0), (0.0, 3.0), (z0, z1));
-        let hole = brick::<f64>((1.0, 2.0), (1.0, 2.0), (z0 - 1.0, z1 + 1.0));
+        let outer = brick::<f64>((0.0, 3.0), (0.0, 3.0), (z0, z1), Tol::witness());
+        let hole = brick::<f64>((1.0, 2.0), (1.0, 2.0), (z0 - 1.0, z1 + 1.0), Tol::witness());
         match subtract(&outer, &hole, Tol::witness()).expect("tube subtract") {
             BooleanResult::Body(b) => b.body,
             BooleanResult::Empty => panic!("tube is not empty"),
@@ -206,8 +227,13 @@ fn annular_rest_contact_unions_exactly_additively() {
     };
     let bot = tube(0.0, 1.0);
     let top = tube(1.0, 2.0);
-    let out = union_with(&bot, &top, &flush_declarations(&bot, &top), Tol::witness())
-        .expect("the annular REST union runs");
+    let out = union_with(
+        &bot,
+        &top,
+        &flush_declarations(&bot, &top, Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the annular REST union runs");
     let BooleanResult::Body(b) = out else {
         panic!("a stacked-tube union cannot be empty");
     };
@@ -229,17 +255,17 @@ fn annular_rest_contact_unions_exactly_additively() {
 /// that counterexample.
 #[test]
 fn rest_subtract_and_intersect_resolve_structurally() {
-    let beam_a = brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
-    let cut_a = brick::<f64>((1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
+    let beam_a = brick::<f64>((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), Tol::witness());
+    let cut_a = brick::<f64>((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), Tol::witness());
     let BooleanResult::Body(a) = subtract(&beam_a, &cut_a, Tol::witness()).unwrap() else {
         panic!("notch A yields a body");
     };
-    let beam_b = brick::<f64>((1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
-    let cut_b = brick::<f64>((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
+    let beam_b = brick::<f64>((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), Tol::witness());
+    let cut_b = brick::<f64>((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), Tol::witness());
     let BooleanResult::Body(b) = subtract(&beam_b, &cut_b, Tol::witness()).unwrap() else {
         panic!("notch B yields a body");
     };
-    let decls = flush_declarations(&a.body, &b.body);
+    let decls = flush_declarations(&a.body, &b.body, Tol::witness());
     match subtract_with(&a.body, &b.body, &decls, Tol::witness()).unwrap() {
         BooleanResult::Body(sub) => {
             assert_eq!(sub.kind, BooleanResultKind::OperandA);
@@ -265,8 +291,8 @@ fn rest_subtract_and_intersect_resolve_structurally() {
 #[test]
 fn stacked_rerun_is_bit_identical() {
     let run = || {
-        let bot = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
-        let top = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0));
+        let bot = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
+        let top = brick::<f64>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
         glue(&bot, &top)
     };
     let (g1, g2) = (run(), run());

@@ -4,6 +4,8 @@ kind: issue
 title: FaceSelection::name is a bare StableName, so the mate tool re-checks what its door decided
 status: open
 opened: 2026-09-17
+priority: P1
+cost: D
 ---
 
 

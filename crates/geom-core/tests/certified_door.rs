@@ -64,6 +64,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{CertifiedEnclosure, RingInterval};
+use interval_transcendentals::{DInterval, Decoration};
 
 /// The trait's postcondition, in one body: a `Some` is a real bracket.
 /// Returns whether the door certified, so callers can count.
@@ -239,6 +240,59 @@ fn ring_poison_is_reached_by_arithmetic_not_only_by_construction() {
             "{tag}: arithmetic poison certified"
         );
     }
+}
+
+/// **The shape that launders: a refusal whose endpoints are REAL.**
+///
+/// The two rows above are the ring's poison, which is a NaN pair, and
+/// the backend answers the first of them with the empty set — also NaN
+/// ends. Neither witnesses the case this file exists for, because a
+/// NaN end is caught by property 1 whatever carries it.
+///
+/// The case that needs writing down is a backend refusal that carries
+/// ordinary finite or infinite endpoints: `dec < Def` with nothing in
+/// `lo`/`hi` to give it away. There every unguarded `.lo()`/`.hi()`
+/// read downstream takes the certifying branch, and only the door's
+/// own refusal stops it. Both derivations below are pure ring
+/// arithmetic, so a consumer reaches them without constructing
+/// anything by hand.
+#[test]
+fn a_backend_refusal_can_carry_real_endpoints() {
+    let half_line = DInterval::from_bounds(-2.0, -1.0) / DInterval::from_bounds(0.0, 5e-324);
+    let finite = (DInterval::from_bounds(-2.0, -1.0) / DInterval::from_bounds(-1.0, 1.0))
+        * DInterval::from_bounds(0.0, 0.0);
+    for (tag, d, ends) in [
+        (
+            "[-2,-1] / [0,5e-324]",
+            half_line,
+            (f64::NEG_INFINITY, -f64::MAX),
+        ),
+        ("([-2,-1] / [-1,1]) * [0,0]", finite, (0.0, 0.0)),
+    ] {
+        assert!(!d.is_nai() && !d.is_empty(), "{tag}: {d:?}");
+        assert!(
+            d.decoration() < Decoration::Def,
+            "{tag} is a refusal in the decoration channel: {d:?}"
+        );
+        assert_eq!((d.lo(), d.hi()), ends, "{tag}: {d:?}");
+        assert!(
+            !d.lo().is_nan() && !d.hi().is_nan(),
+            "{tag}: the endpoints are real, which is the whole point"
+        );
+    }
+    // The ring refuses both by poisoning, so nothing reads past them
+    // today; the pair is here because the RING-2 newtype answers with
+    // the brackets above and `is_poison` becomes the only thing that
+    // says no.
+    assert!(
+        (RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(0.0, 5e-324))
+            .is_poison()
+    );
+    assert!(
+        ((RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(-1.0, 1.0))
+            * RingInterval::from_bounds(0.0, 0.0))
+        .is_poison()
+    );
 }
 
 // ------------------------------------- what a refusal does downstream

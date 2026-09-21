@@ -2,9 +2,11 @@
 id: revolve-tool-unreachable-no-axisinplane-form
 kind: issue
 title: The revolve tool cannot be reached from the panels: no form authors a Datum::AxisInPlane
-status: open
+status: closed
 opened: 2026-09-04
 refs: [viewer-session-god-module-split]
+closed: 2026-09-17
+branch: viewer/axis-in-plane-form
 ---
 
 
@@ -93,3 +95,33 @@ types on purpose, and this row is the reason: giving the form an
 `AxisInPlane` choice grows `DatumKindChoice` to five while the draw tag
 stays at four, because an `AxisInPlane` is drawn as the axis it is. A
 fix here adds a member on one side only, and that is correct.
+
+## Closed
+
+The add-datum form offers a fifth kind, `DatumKindChoice::AxisInPlane`
+("axis in sketch"): a frame picked from the document's frames, a 2-D
+origin and a 2-D direction in that frame's coordinates, and a line
+saying a revolve needs its profile on the same frame. The button waits
+on the pick. The lowering moved out of the button's closure into
+`Drafts::datum_spec`, so it is testable without egui, and the
+`partial_mirror!` roster over `DatumSpec` now offers every arm, with an
+empty absent section that is still the growth alarm.
+
+The class guard this row asked for is
+`drafts::tests::every_datum_seat_is_fillable_from_the_add_datum_form`:
+for every `Seat` whose wanted kind is a datum, some add-datum choice,
+lowered from its default drafts, authors a node the seat's own `admits`
+takes. It fails on the tree this row was filed against (no choice
+authored a `SketchAxis`). **What it does not cover**: the `Profile` and
+`Body` seats, which other forms and ops fill; it skips them by an
+exhaustive match on `NodeKindWanted`, so a new wanted kind has to be
+classified before it builds. It reads the lowering, not the widgets, so
+a form that stopped DRAWING a choice would pass. Nothing drives the
+egui forms headlessly today.
+
+The add-datum door now gates an axis-in-sketch's `plane` by kind
+(`NodeKindWanted::Frame`), as the add-profile door gates its plane.
+
+The frame picker is shared with the add-profile form (`frame_picker`
+in `pane/create.rs`), so `work/chrome/add-profile-mints-no-frame`'s
+naming-by-node-number half now lands at one site for both forms.

@@ -13,9 +13,9 @@ Ev's standing instructions for implementation work:
 
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
-  delegated to subagents, which may spawn their own. Implementation
-  model choice follows [[model-ab-experiment]]; design, specs, reviews
-  and rulings stay Fable.
+  delegated to subagents, which may spawn their own. Implementer and
+  reviewer model follow [[model-ab-experiment]]; design, specs and
+  rulings stay Fable.
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;
@@ -42,6 +42,8 @@ Ev's standing instructions for implementation work:
 
 **Standing operational rules:**
 
+- **Read `local-scripts/monitors/README.md` before arming anything** —
+  while its temporary note stands, do not arm.
 - **Monitors are tools, not mandates (Ev)**: arm, tune, re-cadence or
   disarm any of them at will. The default at session start is
   `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/`
@@ -84,16 +86,23 @@ Ev's standing instructions for implementation work:
   you explicitly requested sign-off on. Arrange to be woken by comments
   on every `[ev]` PR you open (the away-channel monitor locally, a PR
   subscription on a remote box) — the answer arrives as a comment.
+  **No status scaffolding in the diff** (Ev, 2026-09-21): phrasing like
+  "proposed", "pending sign-off" or "awaits ratification" only has to be
+  taken out again before merging. The `[ev]` title, the PR body and
+  `needs_ev:` carry that status; the text carries its content.
   A file move or other reshuffle with NO design implication is not an
   `[ev]` question — Ev (PR 1916, 2026-09-05): "you don't need to ask me
   about moving things around, unless it has design implications"; just
   do it and log it.
+- **A commit that touches only docs or comments on an already-green
+  head merges immediately, without a fresh CI run** (Ev, 2026-08-27;
+  scope corrected 2026-09-21) — including a merge commit whose conflict
+  resolution touched only those. A commit that reaches code re-earns
+  the gate.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
-  unit's branch. Two conditions: **LAST, after both reviews are
-  delivered** (the A/B row names the implementer's arm, and reviewers
-  read `git log`), and **merge immediately without a fresh CI run** when
-  the commit touches only docs/comments on an already-green head. This
+  unit's branch, **LAST, after both reviews are delivered** (the A/B row
+  names the implementer's arm, and reviewers read `git log`). This
   is for STATE-SYNC only: design conversations, protocol and memory
   amendments, spec ratifications and anything asking Ev a question get
   their OWN PR — burying those in a unit's merge hides exactly what

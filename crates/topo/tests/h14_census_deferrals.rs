@@ -35,7 +35,10 @@ use topo::{
 
 /// A cube of side `side` with its minimum corner at `(dx, dy, dz)`.
 fn cube(side: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(side * x + dx, side * y + dy, side * z + dz))
+    common::mapped_cube(
+        |x, y, z| Point3::new(side * x + dx, side * y + dy, side * z + dz),
+        Tol::witness(),
+    )
 }
 
 /// The pair as one two-instance arena.

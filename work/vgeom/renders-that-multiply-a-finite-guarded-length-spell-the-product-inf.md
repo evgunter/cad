@@ -5,6 +5,8 @@ title: three chrome renders multiply a finite-guarded length and spell the produ
 status: open
 opened: 2026-09-16
 refs: [render-mm-overflows-to-inf-for-a-delta-the-door-accepts, the-scientific-arm-rounds-out-of-the-type, viewer-substituted-value-class-is-crate-wide]
+priority: P1
+cost: E
 ---
 
 
@@ -80,3 +82,20 @@ validation.
 division that yields `inf`, a norm that overflows"* as a blind spot of
 its own greps rather than as members, so these three are not filed
 there.
+
+## The camera readout's factor is also a second spelling (2026-09-21, AUTH-2)
+
+Evidence on the member already listed, not a second member. The camera
+readout's `mm = |metres| readout::number(metres * 1000.0)`
+(`crates/viewer/src/pane/view.rs`) writes the metre-to-millimetre
+factor as a bare literal, where the same conversion has two named homes
+in the crate: `scene::DisplayTolerance::render_mm`, which multiplies by
+`MM_PER_METRE`, and `props::in_written` over the `mm` row of the closed
+unit table. So whatever bound this row settles on for the multiply, the
+fix has a third thing to do at this site — read the factor from one of
+those rather than restate it — and a reader narrowing the guard at
+`render_mm` would not reach this one.
+
+Found by AUTH-2's Q1 sweep for a second unit vocabulary in the viewer
+(`docs/AUTH-2-SPEC.md` C7): the pattern was a bare decimal scaling
+beside a length, and this was its only hit outside `props`.

@@ -32,13 +32,11 @@
 //!
 //! So both halves follow the view, and they are two decisions:
 //!
-//! - **The patch** is centred on what the camera is POINTED AT,
-//!   projected onto the plane, and sized to overflow the window
-//!   ([`PATCH_COVER`]) — so panning cannot leave it and zooming out
-//!   cannot shrink it away. The looked-at point rather than the eye's
-//!   own perpendicular foot: that foot is well defined and the wrong
-//!   point, because on a plane seen at a grazing angle it sits far
-//!   from where the camera is aimed ([`View::look_at`]).
+//! - **The patch** is the part of the plane the window sees, out to
+//!   where a cell shrinks to [`MIN_CELL_PX`] (`seen_region`) — so it
+//!   reaches the window's edges at every zoom and every tilt, and a
+//!   plane seen at a slant is ruled toward its horizon rather than in
+//!   a square that ends partway up the window.
 //! - **The pitch** snaps to a 1-2-5 ladder chosen so one cell spans
 //!   about [`TARGET_PITCH_PX`] pixels. Snapping is the half that is
 //!   easy to miss: a pitch varying CONTINUOUSLY with distance would
@@ -50,7 +48,7 @@
 //!   price of lines that stay put.
 //!
 //! Lines are laid at multiples of the pitch FROM THE DATUM'S ORIGIN,
-//! not from the patch's centre: the origin is a real point on the
+//! not from the ruled region's edge: the origin is a real point on the
 //! plane and a grid line through it is a fact, where a grid indexed
 //! off a moving window would slide as the eye moved.
 //!
@@ -111,13 +109,11 @@ pub struct View {
     ///
     /// Both points are needed and they do different jobs. The eye
     /// gives the SCALE (how much world a pixel spans is a function of
-    /// distance from it); the target gives the CENTRE (where on an
-    /// infinite plane to put the drawn patch). An earlier version
-    /// centred on the eye's own perpendicular foot, which is a
-    /// well-defined point and the wrong one: on a plane seen at a
-    /// grazing angle that foot sits far from what the camera is
-    /// pointed at, so the grid drifted into a corner of the window
-    /// exactly when the view was most oblique.
+    /// distance from it); the target gives the DIRECTION the window
+    /// looks in, and the point a plane's pitch and an axis's reach are
+    /// read at — the point a reader is looking at, where the eye's own
+    /// perpendicular foot on a plane seen at a grazing angle sits far
+    /// from it.
     pub look_at: Point3<f64>,
     /// **World metres one pixel spans at one metre from the eye.** The
     /// scale at any other depth is this times that depth, which is the
@@ -134,13 +130,22 @@ pub struct View {
     /// mark — the field's promise and the door's check are separate
     /// claims and the door owes its own.
     pub metres_per_pixel_at_one_metre: f64,
-    /// The window's larger side, in pixels — what a patch has to
-    /// overflow to be un-pannable-off.
+    /// **Which way is up on screen** — a world direction that, with
+    /// the line from the eye to [`View::look_at`], turns the window.
+    /// Need not be unit or square to the view: only the plane it
+    /// spans with the view direction is read.
     ///
-    /// **Not promised to be a pixel count**, for the reason above and
+    /// Read only by the plane's ruling, which rules the part of the
+    /// plane the window sees ([`View::frustum_corners`]).
+    pub up: Vec3<f64>,
+    /// The window's width and height, in pixels.
+    ///
+    /// **Not promised to be pixel counts**, for the reason above and
     /// with the same disposal: a number that is not a count of pixels
-    /// reaches [`View::half_patch_at`], which draws no patch for it.
-    pub viewport_px: f64,
+    /// reaches the marks sized in windows — an axis's reach
+    /// ([`View::half_patch_at`]) and a plane's ruling
+    /// ([`View::frustum_corners`]) — and neither draws for it.
+    pub window_px: [f64; 2],
 }
 
 impl View {
@@ -178,7 +183,7 @@ impl View {
     /// here**, so this is the module's one door for the refusal
     /// [`grid_pitch`] makes at the other end of the same arithmetic —
     /// and each mark asks for its own point. A plane's ruling is
-    /// scaled at the patch's centre and its normal tick at the
+    /// scaled at the looked-at point and its normal tick at the
     /// origin; a frame's arms at the origin; an axis's tick at each of
     /// its two ends. Those are DIFFERENT depths, so they refuse
     /// separately: a datum whose patch has no scale still says which
@@ -190,7 +195,12 @@ impl View {
     /// constant at every mark, but [`View::half_patch_at`] passes a
     /// span read off [`View::viewport_px`], which is the caller's
     /// number and need not be one.
-    fn screen_metres_at(&self, point: Point3<f64>, px: f64) -> Option<f64> {
+    ///
+    /// Public because it is the one door from a pixel count to a
+    /// world length, and a mark drawn outside this module — a profile
+    /// preview's tip marks (`pane::viewport`) — is sized the same way
+    /// or it is sized against the model.
+    pub fn screen_metres_at(&self, point: Point3<f64>, px: f64) -> Option<f64> {
         let span = self.metres_per_pixel_at(point)? * px;
         (span.is_finite() && span > 0.0).then_some(span)
     }
@@ -204,7 +214,52 @@ impl View {
     /// window has — a length this view did not lend, through a door
     /// whose whole job is to refuse exactly those.
     fn half_patch_at(&self, point: Point3<f64>, cover: f64) -> Option<f64> {
-        self.screen_metres_at(point, self.viewport_px * cover * 0.5)
+        self.screen_metres_at(point, self.viewport_px() * cover * 0.5)
+    }
+
+    /// The window's larger side, in pixels, or `NaN` when either side
+    /// is not a number (`f64::max` would quietly answer the other).
+    fn viewport_px(&self) -> f64 {
+        let [width, height] = self.window_px;
+        if width.is_nan() || height.is_nan() {
+            f64::NAN
+        } else {
+            width.max(height)
+        }
+    }
+
+    /// **The four far corners of the window's view, `depth` in front
+    /// of the eye**, in world metres, in order around the window.
+    ///
+    /// With the eye they are the apex and base of the pyramid the
+    /// window sees out to `depth`. A corner direction is the view
+    /// direction plus the corner's pixel offset from the window's
+    /// centre times [`View::metres_per_pixel_at_one_metre`] along
+    /// screen right and up — one metre of view depth, so scaling by
+    /// `depth` puts every corner at that view depth. Nothing here is
+    /// checked: an input that is not a number comes out as corners
+    /// that are not, which is the refusal [`grid`] reads.
+    fn frustum_corners(&self, depth: f64) -> [Point3<f64>; 4] {
+        let forward = Vec3::new(
+            self.look_at.x - self.eye.x,
+            self.look_at.y - self.eye.y,
+            self.look_at.z - self.eye.z,
+        );
+        let forward = forward / forward.norm();
+        let right = forward.cross(self.up);
+        let right = right / right.norm();
+        let up = right.cross(forward);
+        let [width, height] = self.window_px;
+        let half_x = width * 0.5 * self.metres_per_pixel_at_one_metre;
+        let half_y = height * 0.5 * self.metres_per_pixel_at_one_metre;
+        [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].map(|(sx, sy): (f64, f64)| {
+            let dir = forward + right * (sx * half_x) + up * (sy * half_y);
+            Point3::new(
+                self.eye.x + dir.x * depth,
+                self.eye.y + dir.y * depth,
+                self.eye.z + dir.z * depth,
+            )
+        })
     }
 }
 
@@ -263,41 +318,26 @@ pub fn grid_pitch(metres_per_pixel: f64) -> Option<f64> {
     Some(best)
 }
 
-/// **How many windows across a drawn plane's patch spans.**
+/// **How small a cell may get on screen before the ruling stops**, in
+/// pixels.
 ///
-/// Above one, so the patch always overflows the window and a pan
-/// cannot run off its edge; not far above one, because every extra
-/// window of patch is grid lines drawn outside the frame.
-///
-/// **It cannot be made large enough for every view, and this is the
-/// one limit worth stating.** A plane seen at a grazing angle recedes
-/// to a horizon, so no finite patch covers what is on screen and the
-/// far edge is visible as a straight line across the picture. Two and
-/// a bit windows puts that edge well out of the way at any ordinary
-/// angle and costs about 35 lines a direction; chasing the grazing
-/// case properly means scaling by the view's inclination, which buys
-/// a rarely-seen edge with arithmetic that blows up as the angle goes
-/// to zero.
-const PATCH_COVER: f64 = 2.2;
-
-/// **How many windows across a drawn plane's patch spans** — the
-/// value of [`PATCH_COVER`], read rather than restated.
-///
-/// Public for `Camera::pitch_limit`'s reason: it is a *contract* a
-/// test has to reason against — a patch narrower than one cell rules
-/// at most one line — and a test that restates it as a literal is a
-/// hand-synced copy of a private constant, which is the defect this
-/// accessor exists to remove. One home; read it.
-pub fn patch_cover() -> f64 {
-    PATCH_COVER
-}
+/// A plane is ruled over the part of it the window sees, and a plane
+/// seen at a slant runs out to the horizon, where cells shrink to
+/// nothing — so the ruling stops at the view depth where one cell of
+/// the pitch spans this many pixels across the view. Past that the
+/// lines would crowd into a smear that says nothing a reader can use,
+/// and every one of them is a line drawn. A cell's on-screen span
+/// falls as one over depth, so with the looked-at point's cell inside
+/// the band [`LADDER_STEP`] sets (about 51..126 px on 1-2-5), the
+/// ruling reaches between about four and eleven times that point's
+/// depth.
+const MIN_CELL_PX: f64 = 12.0;
 
 /// **What one grid cell aims to span on screen**, in pixels.
 ///
-/// The pitch ladder picks the rung nearest this. A judgement, and the
-/// range around it is what the ladder's steps are worth: at a 1-2-5
-/// ladder a rung is at most 2.5x the one below, so the realized pitch
-/// stays inside roughly 40..160 px of this whatever the zoom.
+/// The pitch ladder picks the rung nearest this. A judgement; how far
+/// the realized cell strays from it is what the ladder's steps are
+/// worth, and [`LADDER_STEP`] is where that band is stated.
 const TARGET_PITCH_PX: f64 = 80.0;
 
 /// The mantissas of the pitch ladder — a decade, halved and fifthed.
@@ -307,16 +347,44 @@ const TARGET_PITCH_PX: f64 = 80.0;
 /// are lengths a person has a feel for where 1.6 mm is not.
 const PITCH_STEPS: [f64; 3] = [1.0, 2.0, 5.0];
 
+/// **The ladder's widest step**: the largest ratio between adjacent
+/// rungs of [`PITCH_STEPS`], counting the wrap from the last mantissa
+/// to the first one a decade up. 2.5 on 1-2-5 (2 to 5).
+///
+/// **This is the home of the realized-cell band.** [`grid_pitch`]
+/// snaps to the rung nearest in RATIO, so across a step of ratio `r`
+/// the switch comes at its geometric midpoint and the cell at the
+/// looked-at point is never further than √`r` from
+/// [`TARGET_PITCH_PX`] either way: it spans
+/// `TARGET_PITCH_PX / √r ..= TARGET_PITCH_PX * √r` pixels, about
+/// 51..126 px on 1-2-5.
+const LADDER_STEP: f64 = ladder_step();
+
+const fn ladder_step() -> f64 {
+    let last = PITCH_STEPS.len() - 1;
+    let mut widest = PITCH_STEPS[0] * 10.0 / PITCH_STEPS[last];
+    let mut i = 1;
+    while i <= last {
+        let step = PITCH_STEPS[i] / PITCH_STEPS[i - 1];
+        if step > widest {
+            widest = step;
+        }
+        i += 1;
+    }
+    widest
+}
+
 /// **The most grid lines one plane draws per direction.**
 ///
-/// Not a budget the design expects to spend: a patch of
-/// [`PATCH_COVER`] windows at [`TARGET_PITCH_PX`] per cell needs about
-/// `PATCH_COVER * viewport_px / TARGET_PITCH_PX` lines, which is
-/// around 26 on a 1280-pixel window. It is a backstop for the
+/// Not a budget the design expects to spend: the ruled region is the
+/// window's view cut off where a cell spans [`MIN_CELL_PX`], so across
+/// the view it holds at most about `viewport_px / MIN_CELL_PX` cells,
+/// and up to √2 of that along a plane axis at 45° to the window —
+/// around 150 on a 1280-pixel window. It is a backstop for the
 /// arithmetic going wrong at an extreme — an eye inside the plane, a
 /// pathological viewport — where an uncapped loop would spend the
 /// frame drawing lines nobody asked for.
-const MAX_GRID_LINES: usize = 96;
+const MAX_GRID_LINES: usize = 512;
 
 /// How long a plane's normal tick is, in PIXELS — the one mark that
 /// says which way the plane faces, screen-sized because it is an
@@ -333,29 +401,49 @@ const AXIS_COVER: f64 = 1.4;
 /// How long the tick across each end of a drawn axis is, in pixels.
 const AXIS_TICK_PX: f64 = 18.0;
 
-/// How long a frame's sketch-+x arrow is, in PIXELS — the mark that
-/// says which way the frame is turned, screen-sized for the reason the
-/// plane's normal tick is.
+/// How long each of a frame's two arrows is, in PIXELS — the marks
+/// that say which way the frame is turned, screen-sized for the reason
+/// the plane's normal tick is. The +x and +y arrows are this one
+/// length from the origin; which is x is said by the head
+/// ([`FRAME_HEADS`]), not by the arm.
 ///
-/// **Longer than [`TARGET_PITCH_PX`] on purpose.** The arrow's shaft
+/// **Shorter than the narrowest cell on purpose.** The arrow's shaft
 /// lies on a grid line (both run along the axis, and both start at the
-/// origin), so the head is the whole of what a reader sees. At less
-/// than one cell the head lands inside the first square, crowded by
-/// the crossing at the origin and by the next one; past a cell it sits
-/// in clear ground with the ruling behind it.
-const FRAME_ARM_PX: f64 = 108.0;
+/// origin), so the head is the whole of what a reader sees, and the
+/// barbs are what keep it off the ruling: each points away from both
+/// axes. What would crowd a head is a CROSSING — the next line across
+/// the axis landing on the tip or between the barbs. At the looked-at
+/// point no cell is narrower than the floor of the band
+/// [`LADDER_STEP`] states (about 51 px), so an arm under that puts
+/// every head inside the first cell, in open ground between the
+/// origin's crossing and the next.
+/// The claim is bounded the way the pitch is: an origin much further
+/// from the eye than the looked-at point sees cells finer than that.
+const FRAME_ARM_PX: f64 = 44.0;
+
+// The arm has to fit inside the narrowest cell the ladder realizes,
+// `FRAME_ARM_PX < TARGET_PITCH_PX / √LADDER_STEP`, squared to stay in
+// const.
+const _: () =
+    assert!(FRAME_ARM_PX * FRAME_ARM_PX * LADDER_STEP < TARGET_PITCH_PX * TARGET_PITCH_PX);
 
 /// How far each barb runs back from an arrow's tip, as a fraction of
 /// that arrow's length. Its half-width across the axis is half again
 /// of this, which is the ordinary look of an arrowhead.
-const FRAME_BARB_FRACTION: f64 = 0.34;
+const FRAME_BARB_FRACTION: f64 = 0.3;
 
-/// How long the sketch-+y arm is as a fraction of the +x one.
+/// **How many heads each arrow wears**, sketch +x then +y.
 ///
-/// The two arms are drawn UNEQUAL on purpose: a grid is symmetric
-/// under a quarter turn, so two arms of one length would say which
-/// pair of directions the axes are without saying which of them is x.
-const FRAME_Y_ARM_FRACTION: f64 = 0.62;
+/// A grid is symmetric under a quarter turn, so two identical arrows
+/// would say which pair of directions the axes are without saying
+/// which of them is x. The arrows are told apart at the HEAD, and by
+/// count rather than by size: two arms of one length keep the mark
+/// balanced about the origin, and a doubled head (the `>>` of a
+/// fast-forward) reads as a different kind of arrow where a slightly
+/// larger one reads as a drawing error. The heads sit nose to tail,
+/// each tip at the root of the head in front of it, which keeps them
+/// two at a slant where a nested pair runs together into one.
+const FRAME_HEADS: [usize; 2] = [2, 1];
 
 /// How long each arm of a drawn point's cross is, in pixels.
 ///
@@ -376,12 +464,12 @@ const POINT_ARM_PX: f64 = 14.0;
 ///
 /// **Not the add-datum form's `forms::DatumKindChoice`**, which names
 /// what that form OFFERS rather than what a drawing IS, and which owns
-/// the radio row's words and its `ALL`. The two carry the same four
-/// members today because `AxisInPlane` is both the value this tag
-/// collapses and the spec that form does not author — two unrelated
-/// reasons — and neither side is required to move when the other
-/// does: a datum that drew distinctly but needed a PICK to author
-/// would be a fifth member here and none there.
+/// the radio row's words and its `ALL`. The two differ by
+/// `AxisInPlane` and by `FaceFrame`, and for one reason twice over:
+/// each is its own choice in the form because authoring it takes a
+/// PICK, and each is drawn here as the thing it evaluates to — the
+/// axis, and the frame. Neither side is required to move when the
+/// other does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatumKind {
     /// A plane: an outlined, gridded rectangle plus a normal tick.
@@ -577,10 +665,11 @@ fn plane_segments(origin: Point3<f64>, normal: UnitVec3<f64>, view: View) -> Vec
 /// **The barbs are the half that is visible, and the reason is the
 /// grid.** The ruling passes through the origin along both axes (that
 /// is what anchoring it there means), so a bare arm drawn along an
-/// axis lies exactly on top of a grid line and shows nothing — which
-/// is what the first cut of this did, and what driving it in the app
-/// found. A barb points AWAY from both axes, so it is the one part of
-/// the mark that cannot coincide with the ruling. The arms stay
+/// axis lies exactly on top of a grid line: in the grid's colour and
+/// at the grid's width, it reads as nothing more than the two blended
+/// strokes' slightly fuller line. A barb points AWAY from both axes, so
+/// it is the one part of the mark that cannot coincide with the ruling.
+/// The arms stay
 /// because an arrowhead floating at a distance reads as debris.
 fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -> Vec<[f64; 3]> {
     let mut out = grid(origin, u, v, u.cross(v), view);
@@ -593,26 +682,30 @@ fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -
         return out;
     };
     let o = [origin.x, origin.y, origin.z];
-    // The two arrows differ in LENGTH as well as direction: a grid is
-    // symmetric under a quarter turn, so equal arrows would name the
-    // pair of directions without saying which of them sketch +x is.
-    for (along, across, len) in [(u, v, arm), (v, u, arm * FRAME_Y_ARM_FRACTION)] {
-        let tip = [
-            origin.x + along.x * len,
-            origin.y + along.y * len,
-            origin.z + along.z * len,
-        ];
-        out.extend([o, tip]);
-        let (back, wide) = (len * FRAME_BARB_FRACTION, len * FRAME_BARB_FRACTION * 0.5);
-        for side in [1.0_f64, -1.0] {
-            out.extend([
-                tip,
-                [
-                    tip[0] - along.x * back + across.x * wide * side,
-                    tip[1] - along.y * back + across.y * wide * side,
-                    tip[2] - along.z * back + across.z * wide * side,
-                ],
-            ]);
+    let (back, wide) = (arm * FRAME_BARB_FRACTION, arm * FRAME_BARB_FRACTION * 0.5);
+    for ((along, across), heads) in [(u, v), (v, u)].into_iter().zip(FRAME_HEADS) {
+        let at = |d: f64| {
+            [
+                origin.x + along.x * d,
+                origin.y + along.y * d,
+                origin.z + along.z * d,
+            ]
+        };
+        out.extend([o, at(arm)]);
+        for head in 0..heads {
+            let tip_at = arm - back * head as f64;
+            let tip = at(tip_at);
+            let root = at(tip_at - back);
+            for side in [1.0_f64, -1.0] {
+                out.extend([
+                    tip,
+                    [
+                        root[0] + across.x * wide * side,
+                        root[1] + across.y * wide * side,
+                        root[2] + across.z * wide * side,
+                    ],
+                ]);
+            }
         }
     }
     out
@@ -622,8 +715,8 @@ fn frame_segments(origin: Point3<f64>, u: Vec3<f64>, v: Vec3<f64>, view: View) -
 /// `u`/`v` and ticked along `normal`.
 ///
 /// **The two marks refuse separately**, because they are scaled at
-/// two different points: the ruling at the patch's centre, where both
-/// the extent and the pitch are read, and the tick at the origin.
+/// two different points: the ruling at the looked-at point, where the
+/// pitch is read, and the tick at the origin.
 /// A view that scales neither draws nothing at all
 /// ([`View::screen_metres_at`], [`grid_pitch`]).
 fn grid(
@@ -647,22 +740,16 @@ fn grid(
         origin.z + u.z * cu + v.z * cv,
     );
     let mut out = Vec::new();
-    // **The scale is taken at the CENTRE of the patch** — the point
-    // of the plane the camera is pointed at, so the realized pitch is
-    // the target pitch exactly where a reader is looking. Parts of the
-    // plane nearer the eye than that are drawn coarser and parts
+    // **The pitch is taken where the camera is pointed** — the
+    // looked-at point dropped onto the plane — so the realized pitch
+    // is the target pitch exactly where a reader is looking. Parts of
+    // the plane nearer the eye than that are drawn coarser and parts
     // further are drawn finer, which is the compromise one pitch over
     // a perspective view cannot avoid.
-    //
-    // Both halves of the ruling are that one scale, and BOTH are
-    // asked for: an extent that is a length does not make the pitch
-    // one, and neither implies the other at the exponent range where
-    // either fails.
-    if let (Some(half), Some(pitch)) = (
-        view.half_patch_at(centre, PATCH_COVER),
-        view.metres_per_pixel_at(centre).and_then(grid_pitch),
-    ) {
-        rule_patch(&mut out, origin, u, v, (cu, cv), (half, pitch));
+    if let Some(pitch) = view.metres_per_pixel_at(centre).and_then(grid_pitch)
+        && let Some(bounds) = seen_region(origin, u, v, view, pitch)
+    {
+        rule_patch(&mut out, origin, u, v, bounds, pitch);
     }
     // Which way it faces, said once and quietly, AT THE ORIGIN — the
     // one part of the drawing that is about the datum rather than
@@ -689,6 +776,85 @@ fn grid(
     out
 }
 
+/// **The part of the plane the window sees**, as bounds on the plane's
+/// own coordinates from `origin` — `[u_lo, u_hi, v_lo, v_hi]` — or
+/// `None` when the window sees none of it.
+///
+/// The window sees a pyramid from the eye; it is cut off at the view
+/// depth where one cell of `pitch` spans [`MIN_CELL_PX`], since past
+/// that a ruling is a smear. The plane meets that solid in a convex
+/// polygon whose corners are where the solid's eight edges — four
+/// from the eye, four around the far rectangle — cross the plane, and
+/// the bounds are that polygon's box. So the ruling covers the window
+/// at every tilt: to the edges of the window looking straight down,
+/// and up to the cut-off looking along the plane toward its horizon.
+///
+/// A crossing that is not a number — a view built from values that
+/// are not ([`View`]'s fields are the caller's) — refuses the whole
+/// region rather than being skipped: a box drawn round the corners
+/// that happened to be numbers is a region this view did not lend.
+fn seen_region(
+    origin: Point3<f64>,
+    u: Vec3<f64>,
+    v: Vec3<f64>,
+    view: View,
+    pitch: f64,
+) -> Option<[f64; 4]> {
+    let reach = pitch / (MIN_CELL_PX * view.metres_per_pixel_at_one_metre);
+    let far = view.frustum_corners(reach);
+    let normal = u.cross(v);
+    let offset = |p: Point3<f64>| Vec3::new(p.x - origin.x, p.y - origin.y, p.z - origin.z);
+    let height = |p: Point3<f64>| offset(p).dot(normal);
+    let mut edges: Vec<(Point3<f64>, Point3<f64>)> = Vec::with_capacity(8);
+    for (index, &corner) in far.iter().enumerate() {
+        edges.push((view.eye, corner));
+        edges.push((corner, far[(index + 1) % far.len()]));
+    }
+    let mut crossings: Vec<Vec3<f64>> = Vec::new();
+    for (a, b) in edges {
+        let (ha, hb) = (height(a), height(b));
+        if !(ha.is_finite() && hb.is_finite()) {
+            return None;
+        }
+        // An endpoint ON the plane is a crossing of its own, counted
+        // from every edge that has it; a repeat moves no bound.
+        if ha == 0.0 {
+            crossings.push(offset(a));
+        }
+        if hb == 0.0 {
+            crossings.push(offset(b));
+        }
+        if (ha < 0.0) != (hb < 0.0) && ha != 0.0 && hb != 0.0 {
+            let t = ha / (ha - hb);
+            crossings.push(offset(a) + (offset(b) - offset(a)) * t);
+        }
+    }
+    let mut bounds = [
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    for at in crossings {
+        let (a, b) = (at.dot(u), at.dot(v));
+        if !(a.is_finite() && b.is_finite()) {
+            return None;
+        }
+        bounds = [
+            bounds[0].min(a),
+            bounds[1].max(a),
+            bounds[2].min(b),
+            bounds[3].max(b),
+        ];
+    }
+    // No crossing leaves the infinities standing: the plane misses
+    // what the window sees.
+    bounds
+        .iter()
+        .all(|bound| bound.is_finite())
+        .then_some(bounds)
+}
+
 /// The ruled lines of one patch, appended to `out`.
 ///
 /// Split out of [`grid`] so the refusal above it reads as one
@@ -698,8 +864,8 @@ fn rule_patch(
     origin: Point3<f64>,
     u: Vec3<f64>,
     v: Vec3<f64>,
-    (cu, cv): (f64, f64),
-    (half, pitch): (f64, f64),
+    [u_lo, u_hi, v_lo, v_hi]: [f64; 4],
+    pitch: f64,
 ) {
     let at = |a: f64, b: f64| {
         [
@@ -709,29 +875,36 @@ fn rule_patch(
         ]
     };
     // The ruled range in each direction, as index bounds on multiples
-    // of the pitch from the origin. `ceil`/`floor` outward, so the
-    // patch is covered rather than nearly covered.
+    // of the pitch from the origin, rounded OUTWARD — and each line
+    // runs between the other direction's outward-rounded bounds — so
+    // the region is covered by whole cells. Rounded inward, the last
+    // line of each family could fall a cell short of the window's
+    // edge, with the other family's lines running on past it as
+    // stubs.
     let mut rule = |along_u: bool, from: f64, to: f64, lo: f64, hi: f64| {
-        let first = (from / pitch).ceil();
-        let last = (to / pitch).floor();
+        let first = (from / pitch).floor();
+        let last = (to / pitch).ceil();
+        let (lo, hi) = ((lo / pitch).floor() * pitch, (hi / pitch).ceil() * pitch);
         // **The bounds are asked whether they are bounds**, because
         // the cast below cannot ask: a float→int cast saturates, so
         // `NaN`, a negative difference and a span holding one line
         // all arrive as the integer zero and only the third of them
-        // means a line. `from` and `to` carry the patch's centre in
-        // the plane's own coordinates, which is where a `NaN`
-        // `look_at` or an overflowed one lands; `lo` and `hi` carry
-        // the OTHER direction's, so a coordinate that is not a number
-        // stops both rulings rather than drawing one of them between
-        // `NaN` endpoints.
+        // means a line. `from` and `to` are the region's bounds in
+        // the plane's own coordinates, finite by `seen_region`'s
+        // refusal but not so once divided by a pitch near the bottom
+        // of the exponent range; `lo` and `hi` carry the OTHER
+        // direction's, so a bound that is not a number stops both
+        // rulings rather than drawing one of them between `NaN`
+        // endpoints.
         if ![first, last, lo, hi].iter().all(|b| b.is_finite()) {
             return;
         }
-        // The three answers, spelled apart. `last < first` is a span
-        // too narrow to hold a lattice line and rules NONE;
-        // `last == first` holds exactly one and rules it; wider rules
-        // the lines between, capped. The cast is a cast only here,
-        // where the difference is known finite and non-negative.
+        // Rounded outward, `last < first` is a region whose bounds
+        // are the wrong way round, which rules NONE; `last == first`
+        // is a region that is one lattice line exactly and rules it;
+        // wider rules the lines between, capped. The cast is a cast
+        // only here, where the difference is known finite and
+        // non-negative.
         if last < first {
             return;
         }
@@ -739,12 +912,12 @@ fn rule_patch(
             .saturating_add(1)
             .min(MAX_GRID_LINES);
         // **A ruled line has to come out a line**, and being finite
-        // is not enough to make one. The patch's ends are `cv ± half`
-        // in the plane's own coordinates; at a datum origin near the
-        // end of the number line, `half` is below the spacing of the
-        // representable numbers around `cv`, so both ends round to
-        // `cv` and every segment's two endpoints land on the same
-        // point. Nothing is non-finite and nothing is out of place —
+        // is not enough to make one. The region's bounds are offsets
+        // from the datum's origin; at an origin near the end of the
+        // number line, the region's width is below the spacing of the
+        // representable numbers around those offsets, so both bounds
+        // round to one value and every segment's two endpoints land
+        // on the same point. Nothing is non-finite and nothing is out of place —
         // the patch's EXTENT is simply gone, and a list of
         // zero-length segments is a ruling this function did not
         // compute wearing the shape of one it did.
@@ -774,8 +947,6 @@ fn rule_patch(
         }
         out.append(&mut lines);
     };
-    let (u_lo, u_hi) = (cu - half, cu + half);
-    let (v_lo, v_hi) = (cv - half, cv + half);
     rule(true, u_lo, u_hi, v_lo, v_hi);
     rule(false, v_lo, v_hi, u_lo, u_hi);
 }
@@ -930,10 +1101,60 @@ pub fn datum_view(camera: &Camera, viewport: ViewportSize) -> Result<View, Camer
         eye: camera.eye(),
         look_at: camera.target(),
         metres_per_pixel_at_one_metre: 2.0 * (camera.fov_y() * 0.5).tan() / height,
-        // The LARGER side: a patch that covered the height of a wide
-        // window would still be pannable off sideways. Both sides are
-        // finite and above zero by the refusals above, so `max` has no
-        // `NaN` to prefer the other operand over.
-        viewport_px: width.max(height),
+        up: camera.up(),
+        window_px: [width, height],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+
+    /// **The realized cell at the looked-at point stays inside the band
+    /// [`LADDER_STEP`] states, and above the frame arm, at every
+    /// scale.** Swept over twelve decades of metres-per-pixel — which
+    /// is zoom and depth both, since the scale at the looked-at point
+    /// is their product — finely enough to land on both sides of every
+    /// rung switch.
+    ///
+    /// **The value that makes this false** is a snapping rule that is
+    /// not nearest-in-ratio (the linear midpoint would let the cell
+    /// fall below the floor just past each switch), or a ladder whose
+    /// widest step is not the one [`ladder_step`] reads.
+    #[test]
+    fn the_realized_cell_stays_in_the_band_the_arm_relies_on() {
+        let floor_sq = TARGET_PITCH_PX * TARGET_PITCH_PX / LADDER_STEP;
+        let ceiling_sq = TARGET_PITCH_PX * TARGET_PITCH_PX * LADDER_STEP;
+        let (mut lowest, mut highest) = (f64::INFINITY, 0.0_f64);
+        let mut per_pixel = 1.0e-9_f64;
+        while per_pixel < 1.0e3 {
+            let pitch = grid_pitch(per_pixel).expect("a positive finite scale has a rung");
+            let cell = pitch / per_pixel;
+            assert!(
+                cell * cell >= floor_sq * (1.0 - 1.0e-9),
+                "at {per_pixel:e} m/px the cell is {cell} px, under the band's floor",
+            );
+            assert!(
+                cell * cell <= ceiling_sq * (1.0 + 1.0e-9),
+                "at {per_pixel:e} m/px the cell is {cell} px, over the band's ceiling",
+            );
+            assert!(
+                cell > FRAME_ARM_PX,
+                "at {per_pixel:e} m/px the cell is {cell} px, no wider than a frame arm",
+            );
+            lowest = lowest.min(cell);
+            highest = highest.max(cell);
+            per_pixel *= 1.001;
+        }
+        // The sweep reached the band's edges rather than sitting inside
+        // it, so the bounds above are the band and not a looser one.
+        assert!(lowest * lowest < floor_sq * 1.01, "lowest cell {lowest} px");
+        assert!(
+            highest * highest > ceiling_sq * 0.99,
+            "highest cell {highest} px"
+        );
+    }
 }

@@ -71,8 +71,8 @@ pub use ::profile::{
     ArcCarrierScalar, ArcData, ArcLen, ArcMode, ArcSide, ArrivesTangent, Bulge, Center, ClosedLoop,
     ContinueTarget, CornerReason, CornerRefusal, CornerWindow, LineTarget, Open, PartialPath,
     PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, ReplayError, ReplayErrorKind,
-    Start, Step, Sweep, TangentArcTarget, Target, TargetKind, TipState, Verb, Via, circle,
-    circle_split, replay,
+    SpecForms, Start, Step, Sweep, TangentArcTarget, Target, TargetKind, TipState, Verb, Via,
+    arc_specs_at, circle, circle_split, replay,
 };
 // The §2c family's traits and arrival builders: the admissibility
 // matrix (one impl per admissible (state, mode) pair) and the states a
@@ -110,8 +110,8 @@ pub use ::profile::{
 // through exactly these two functions.
 pub use ::profile::{
     CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
-    ProfileStructure, ReplayStructure, SegmentShape, StepSpan, StructureRefusal,
-    StructureRefusalKind, replay_guided, replay_recording, structure,
+    ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape, StepSpan,
+    StructureRefusal, StructureRefusalKind, replay_guided, replay_recording, structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.

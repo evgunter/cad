@@ -611,6 +611,90 @@ impl core::fmt::Display for ProgramRefusal {
 
 impl core::error::Error for ProgramRefusal {}
 
+/// One loop's two records, checked against each other — what
+/// [`ProfileProgram::checked_records`] hands its two doors so they
+/// answer through ONE permutation.
+struct CheckedRecords<'p, 'r> {
+    /// The loop's program.
+    program: &'p LoopProgram,
+    /// The loop's replay record: the per-step spans and the per-radius
+    /// emissions.
+    replay: &'r profile::ReplayStructure,
+    /// How many segments the loop has.
+    segments: usize,
+}
+
+impl CheckedRecords<'_, '_> {
+    /// The published ref naming segment `segment` of this loop.
+    ///
+    /// The segment index passes through: the permutation the
+    /// evaluation applied is the one the anchor rewrite undoes, and
+    /// [`ProfileProgram::checked_records`] has already asserted the
+    /// two records describe that one permutation.
+    ///
+    /// The BOUND is the caller's, because the two callers hold
+    /// different facts and owe the reader different sentences: a span
+    /// is checked by [`CheckedRecords::span_of`] and an emission by
+    /// the arm that reads it. Both check before they get here, so a
+    /// segment past the end is a caller that forgot — the assertion
+    /// below, not a refusal this function invents a payload for.
+    fn edge_of(&self, loop_: u32, segment: usize) -> ProfileEdgeRef {
+        debug_assert!(
+            segment < self.segments,
+            "an unchecked segment reached `edge_of`: {segment} of {}",
+            self.segments
+        );
+        ProfileEdgeRef {
+            loop_index: loop_,
+            segment: program_index(segment),
+        }
+    }
+
+    /// One step's recorded span, checked against the loop's length.
+    ///
+    /// # Errors
+    ///
+    /// [`StepSegmentsError::NoSuchStep`] where the record has no such
+    /// step, [`StepSegmentsError::SpanOffTheLoop`] where the span it
+    /// does have reaches past the loop's last segment.
+    fn span_of(&self, step: u32) -> Result<profile::StepSpan, StepSegmentsError> {
+        let span = *self
+            .replay
+            .steps
+            .get(step as usize)
+            .ok_or(StepSegmentsError::NoSuchStep {
+                steps: self.replay.steps.len(),
+            })?;
+        if span.end() > self.segments {
+            return Err(StepSegmentsError::SpanOffTheLoop {
+                step,
+                end: span.end(),
+                segments: self.segments,
+            });
+        }
+        Ok(span)
+    }
+
+    /// Every published ref of `step`'s recorded span — ONE walk over
+    /// one checked span, which is what both of the doors below answer
+    /// a step-addressed question through.
+    ///
+    /// # Errors
+    ///
+    /// [`CheckedRecords::span_of`]'s.
+    fn edges_of_step(
+        &self,
+        loop_: u32,
+        step: u32,
+    ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
+        Ok(self
+            .span_of(step)?
+            .iter()
+            .map(|s| self.edge_of(loop_, s))
+            .collect())
+    }
+}
+
 /// Why [`ProfileProgram::profile_edges_of`] could not name a
 /// step's profile edges.
 ///
@@ -661,6 +745,47 @@ pub enum StepSegmentsError {
         /// The program loop asked about.
         loop_: u32,
     },
+    /// The record credits a segment to a radius argument the step it
+    /// names does not hold — a `CarrierRadius` on a step whose spec
+    /// carries a centre, say, or a step past the end of the program.
+    /// Like [`StepSegmentsError::RecordShape`], it says the record and
+    /// the program are not about the same thing; unlike it, the
+    /// cardinalities agree and the disagreement is one emission's.
+    RadiusNotAnArgument {
+        /// The step the emission names.
+        step: u32,
+        /// The argument role it claims that step's radius drew with.
+        arg: StepArg,
+    },
+    /// The record credits a radius argument with a segment the loop
+    /// does not have. Its span twin is
+    /// [`StepSegmentsError::SpanOffTheLoop`]; they are two arms
+    /// because an emission names ONE segment and a span a RANGE, and a
+    /// reader chasing either wants the number the record actually
+    /// carried rather than a range synthesised around it.
+    EmissionOffTheLoop {
+        /// The step the emission names.
+        step: u32,
+        /// The argument role it credits.
+        arg: StepArg,
+        /// The segment it claims that argument drew.
+        segment: usize,
+        /// How many segments the loop has.
+        segments: usize,
+    },
+    /// The loop is a CARRIER form — one step, one radius, the whole
+    /// boundary — and the record handed in carries per-radius
+    /// emissions. A carrier form emits none: `circle` and
+    /// `circle_split` mint their structure directly and their radius
+    /// is a per-LOOP fact. So the record is a chain's, and like
+    /// [`StepSegmentsError::RecordShape`] it says the record and the
+    /// program are not about the same thing.
+    CarrierRecordsEmissions {
+        /// The program loop asked about.
+        loop_: u32,
+        /// How many emissions the record carries for it.
+        emissions: usize,
+    },
     /// The step's recorded span reaches past the end of the loop —
     /// the replay record and the canonical record disagree about how
     /// long the chain is.
@@ -706,6 +831,44 @@ impl core::fmt::Display for StepSegmentsError {
                 ),
                 loop_
             ),
+            // `StepArg::label()` already says the word "radius" where
+            // the role has one ("radius", "carrier radius", "arrival
+            // carrier radius"), so the sentence names the argument and
+            // does not say it twice.
+            Self::RadiusNotAnArgument { step, arg } => write!(
+                f,
+                concat!(
+                    "the record says step {}'s {} drew a segment, and that step ",
+                    "holds no such argument"
+                ),
+                step,
+                arg.label()
+            ),
+            Self::EmissionOffTheLoop {
+                step,
+                arg,
+                segment,
+                segments,
+            } => write!(
+                f,
+                concat!(
+                    "the record says step {}'s {} drew segment {} on a loop with ",
+                    "{} of them"
+                ),
+                step,
+                arg.label(),
+                segment,
+                segments
+            ),
+            Self::CarrierRecordsEmissions { loop_, emissions } => write!(
+                f,
+                concat!(
+                    "loop {} is a carrier form, whose one radius is the whole ",
+                    "boundary's and draws no segment of its own, and its record ",
+                    "carries {} radius emissions"
+                ),
+                loop_, emissions
+            ),
             Self::SpanOffTheLoop {
                 step,
                 end,
@@ -723,6 +886,29 @@ impl core::error::Error for StepSegmentsError {}
 // ------------------------------------------------------------------
 // Slot access
 // ------------------------------------------------------------------
+
+/// **The one home for narrowing a program address from a `usize`** —
+/// a step's index in a recording, the index of the loop it sits in, or
+/// a segment it produced — to the `u32` [`crate::SlotId::Profile`],
+/// [`ProgramRefusal`] and [`crate::ProfileEdgeRef`] carry it as.
+///
+/// D2 addendum row 4. Every caller of this holds the collection the
+/// index came from, so an index past `u32` would be 2^32 elements in
+/// memory at once: a typed refusal here would guard a state the
+/// machine excludes, unlike [`RecordedProgramError::SubdivisionCount`],
+/// whose count is one number a caller writes and whose refusal is
+/// therefore real. Stated once, here, so no site has to restate it.
+///
+/// # Panics
+///
+/// Never, for the reason above; the `unreachable!` is the fail-loud
+/// spelling of "the machine got there anyway".
+fn program_index(i: usize) -> u32 {
+    let Ok(narrowed) = u32::try_from(i) else {
+        unreachable!("a collection of {i} elements does not fit in memory")
+    };
+    narrowed
+}
 
 /// The argument roles a target contributes ([] for `Start`).
 ///
@@ -824,27 +1010,20 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
     }
 }
 
-/// **The one radius-bearing role a step holds**, `None` where it holds
-/// none or more than one.
+/// **The document-layer argument role a profile-side radius role
+/// names.**
 ///
-/// Which roles are radii is [`StepArg::is_radius`]'s answer, and the
-/// step's own slot enumeration is where they are looked for, so a verb
-/// that gains a radius argument and a role that is a radius are each
-/// covered by the door that already has to be extended for them.
-///
-/// **More than one answers `None`, and that is the honest answer.** A
-/// fused step carries up to three (`arc_fillet_arc`: the incoming
-/// spec's, the fillet's, the arrival spec's) and emits several
-/// segments, and its recorded span says only WHICH segments it emitted
-/// — not which of its radii draws which. Picking one would be exactly
-/// the guess [`ProfileProgram::profile_edges_of`] exists to not make.
-fn radius_arg(step: &ProgramStep) -> Option<StepArg> {
-    let mut args = Vec::new();
-    step_slots(step, &mut args);
-    args.retain(|a| a.is_radius());
-    match args[..] {
-        [only] => Some(only),
-        _ => None,
+/// `profile` records WHICH of a step's radius arguments drew an arc in
+/// its own vocabulary — it has no name for a document slot — and this
+/// is the one place the two are paired. The pairing mirrors
+/// [`spec_slots`]'s: the incoming spec's radius is the step's
+/// `CarrierRadius`, the arrival spec's twin is `CarrierRadius2`, and a
+/// fillet's own is `Radius`.
+fn radius_arg_of(role: profile::RadiusRole) -> StepArg {
+    match role {
+        profile::RadiusRole::Fillet => StepArg::Radius,
+        profile::RadiusRole::Carrier => StepArg::CarrierRadius,
+        profile::RadiusRole::Carrier2 => StepArg::CarrierRadius2,
     }
 }
 
@@ -1010,37 +1189,49 @@ impl LoopProgram {
         }
     }
 
-    /// **Each step's own radius expression**, in program-step order —
+    /// **Every radius expression this loop authors**, in program-step
+    /// order and, within a step, in its own slot-enumeration order —
     /// the per-STEP question [`LoopProgram::carrier_radius`] is the
     /// per-LOOP one.
     ///
     /// A CARRIER form answers its one radius at step 0, the step that
     /// replays to the whole loop, so one entry here means one radius
-    /// on every edge. A CHAIN answers one entry per step that holds
-    /// exactly one radius-bearing argument (`radius_arg`), which is
-    /// an `arc_to` in a radius-carrying mode or a `fillet`; a straight
-    /// step holds none and answers nothing.
+    /// on every edge. A CHAIN answers one entry per radius-bearing
+    /// ARGUMENT ([`StepArg::is_radius`]) — an `arc_to` in a
+    /// radius-carrying mode, a `fillet`, and each of a fused step's
+    /// two or three; a straight step holds none and answers nothing.
+    /// A step appears as many times as it holds radii, because the
+    /// question is which spellings this program authors and a fused
+    /// step authors several.
     ///
     /// **This is the PROGRAM-side question and nothing else asks it.**
-    /// It reads no record, so it cannot say which segment a step's
-    /// radius draws — that is [`ProfileProgram::segment_radii`], whose
-    /// answer is a SUBSET of this one, dropped where the record says a
-    /// step emitted more than the one segment its radius is the radius
-    /// of. The direction of that inclusion is the invariant the memo's
+    /// It reads no record, so it cannot say which segment a radius
+    /// draws — that is [`ProfileProgram::segment_radii`], which reads
+    /// the replay's emission record and answers only where that record
+    /// says an arc was drawn. Its answer is a SUBSET of this one: a
+    /// radius that drew a segment is a radius the program authors, and
+    /// enumerating every argument here is what makes that true by
+    /// construction rather than by a rule the two doors share. The
+    /// direction of the inclusion is the invariant the memo's
     /// stale-token guard rests on: the content key feeds this answer,
     /// the attach stamps that one, and a spelling that reaches a wall
     /// has therefore always reached the key.
     #[must_use]
     pub fn step_radii(&self) -> Vec<(u32, &Expr)> {
         match self {
-            LoopProgram::Chain(steps) => steps
-                .iter()
-                .enumerate()
-                .filter_map(|(i, step)| {
-                    let arg = radius_arg(step)?;
-                    Some((i as u32, step_expr(step, arg)?))
-                })
-                .collect(),
+            LoopProgram::Chain(steps) => {
+                let mut out = Vec::new();
+                for (i, step) in steps.iter().enumerate() {
+                    let mut args = Vec::new();
+                    step_slots(step, &mut args);
+                    for arg in args.into_iter().filter(|a| a.is_radius()) {
+                        if let Some(expr) = step_expr(step, arg) {
+                            out.push((program_index(i), expr));
+                        }
+                    }
+                }
+                out
+            }
             LoopProgram::Circle { radius, .. } | LoopProgram::CircleSplit { radius, .. } => {
                 vec![(0, radius)]
             }
@@ -1062,7 +1253,7 @@ impl LoopProgram {
                 for (i, step) in steps.iter().enumerate() {
                     let mut args = Vec::new();
                     step_slots(step, &mut args);
-                    out.extend(args.into_iter().map(|a| (i as u32, a)));
+                    out.extend(args.into_iter().map(|a| (program_index(i), a)));
                 }
             }
             LoopProgram::Circle { .. } => {
@@ -1349,7 +1540,7 @@ impl LoopProgram {
             LoopProgram::Chain(steps) => steps
                 .iter()
                 .enumerate()
-                .map(|(i, s)| res_step(s, env, loop_, i as u32))
+                .map(|(i, s)| res_step(s, env, loop_, program_index(i)))
                 .collect(),
             LoopProgram::Circle { centre, radius } => Ok(vec![Step::Circle {
                 centre: Point2::new(
@@ -1403,7 +1594,7 @@ pub fn resolve_loops<T: Decide>(
     loops
         .iter()
         .enumerate()
-        .map(|(li, lp)| lp.resolve(env, li as u32))
+        .map(|(li, lp)| lp.resolve(env, program_index(li)))
         .collect()
 }
 
@@ -1537,6 +1728,35 @@ impl ProfileProgram {
         loop_: u32,
         step: u32,
     ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
+        self.checked_records(structure, naming, loop_)?
+            .edges_of_step(loop_, step)
+    }
+
+    /// **The records one loop's answers are read from, checked against
+    /// each other once.**
+    ///
+    /// Both doors below answer about segments of one loop through one
+    /// permutation, and factoring the check out is what makes that a
+    /// property of the code rather than of two copies staying in step:
+    /// a per-edge answer and a per-step answer that disagreed about
+    /// which permutation the evaluation applied would name two
+    /// different walls for one segment.
+    ///
+    /// # Errors
+    ///
+    /// [`StepSegmentsError`] — a loop this program does not have, or a
+    /// record that does not describe it.
+    ///
+    /// # Panics
+    ///
+    /// If the two records describe different permutations of the loop
+    /// (see [`ProfileProgram::profile_edges_of`]).
+    fn checked_records<'p, 'r>(
+        &'p self,
+        structure: &'r profile::ProfileStructure,
+        naming: &ProfileNaming,
+        loop_: u32,
+    ) -> Result<CheckedRecords<'p, 'r>, StepSegmentsError> {
         let li = loop_ as usize;
         let program = self.loops.get(li).ok_or(StepSegmentsError::NoSuchLoop {
             loops: self.loops.len(),
@@ -1564,10 +1784,6 @@ impl ProfileProgram {
                 recorded: replay.steps.len(),
             });
         }
-        let span = *replay
-            .steps
-            .get(step as usize)
-            .ok_or(StepSegmentsError::NoSuchStep { steps: authored })?;
         let anchor = naming
             .loops
             .iter()
@@ -1610,67 +1826,63 @@ impl ProfileProgram {
             anchor.offset,
             anchor.len
         );
-        if span.end() > n {
-            return Err(StepSegmentsError::SpanOffTheLoop {
-                step,
-                end: span.end(),
-                segments: n,
-            });
-        }
-        Ok(span
-            .iter()
-            .map(|s| ProfileEdgeRef {
-                loop_index: loop_,
-                segment: s as u32,
-            })
-            .collect())
+        Ok(CheckedRecords {
+            program,
+            replay,
+            segments: n,
+        })
     }
 
     /// **Which radius each of a loop's profile edges is drawn at.**
     ///
-    /// The per-EDGE reading of [`LoopProgram::step_radii`]: each step's
-    /// radius expression paired with the [`ProfileEdgeRef`]s that
-    /// step's segments were named with, through
-    /// [`ProfileProgram::profile_edges_of`]. One door for both loop
-    /// shapes, which is what lets a consumer attach a per-edge scalar
-    /// without asking first which shape it is holding.
+    /// The per-EDGE door, read off the replay's own record of which
+    /// segment each authored radius drew
+    /// (`profile::ReplayStructure::radii`) and addressed through the
+    /// same permutation [`ProfileProgram::profile_edges_of`] answers
+    /// in — one `checked_records` for both, so the
+    /// two cannot disagree about which permutation the evaluation
+    /// applied. One door for both loop shapes, which is what lets a
+    /// consumer attach a per-edge scalar without asking first which
+    /// shape it is holding.
     ///
-    /// **The two shapes, and why the carrier form is not a special
-    /// case here.** A carrier form's one step replays to the whole
-    /// loop and every segment of it is an arc of that one radius
-    /// ([`LoopProgram::carrier_radius`] says why), so the pairing is
-    /// the step's radius on every edge of its span. A chain's step
-    /// carries its own radius and the pairing is that step's span —
-    /// but only where the span is exactly ONE segment, which is then
-    /// the arc that radius drew and nothing else.
+    /// **Why the record and not the span.** The step a radius is
+    /// AUTHORED on is not the step its arc is credited to: a
+    /// `fillet(r)` binds a radius and emits nothing, and the arc it
+    /// opens is emitted by the arrival step, which holds no radius of
+    /// its own. A fused step holds two or three radii and draws two or
+    /// three segments with them. So a span cannot say which radius
+    /// drew which segment, and the evaluation records the answer as it
+    /// emits instead — DM8's rule that this map reads the records the
+    /// evaluation produced and never re-derives them.
     ///
-    /// **What that condition excludes, measured on the vocabulary.**
-    /// An `arc_to` in a radius-carrying mode emits exactly its arc and
-    /// is answered. A `fillet(r)` is a BINDER and emits nothing at all:
-    /// the arc it opens is emitted by the ARRIVAL step, which carries
-    /// no radius of its own, so the radius and the segments it drew sit
-    /// on two different steps and nothing here pairs them. A fused
-    /// arrival carries several radii and is already excluded a step
-    /// earlier ([`LoopProgram::step_radii`]).
+    /// **The two shapes.** A carrier form's one step replays to the
+    /// whole loop and every segment of it is an arc of that one radius
+    /// ([`LoopProgram::carrier_radius`] says why), so the answer is
+    /// the step's radius on every edge and the record carries no
+    /// emission for it — a per-segment address for a fact that is per
+    /// loop. A CHAIN answers one pair per recorded emission.
     ///
-    /// Everything a step does not answer for is absent from the
-    /// result, which is an answer and not a gap: nothing here claims
-    /// an edge is drawn at a radius, so nothing downstream attaches a
-    /// spelling to an edge that is not. A fillet arc's wall therefore
-    /// carries no identity today, and the row that schedules the
-    /// record change it needs is
-    /// `work/edit/fused-arc-fillet-steps-have-no-per-segment-radius-address.md`.
+    /// An arc no radius argument drew — a bulge, a through-point, a
+    /// centre — is absent from the result, which is an answer and not
+    /// a gap: nothing here claims an edge is drawn at a radius, so
+    /// nothing downstream attaches a spelling to an edge that is not.
     ///
     /// The answer is in the numbering the published names carry, in
-    /// program-step order, and is a SUBSET of
+    /// emission order, and is a SUBSET of
     /// [`LoopProgram::step_radii`]'s — the inclusion the content key's
     /// stale-token guard rests on, stated at that feed too.
     ///
     /// # Errors
     ///
-    /// [`StepSegmentsError`], the map's own refusals unaltered: a loop
-    /// this program does not have, or a record that does not describe
-    /// it.
+    /// [`StepSegmentsError`]: the map's own refusals unaltered — a
+    /// loop this program does not have, or a record that does not
+    /// describe it — plus the two an emission can be wrong in.
+    /// [`StepSegmentsError::SpanOffTheLoop`] names an emission
+    /// crediting a segment the loop does not have, and
+    /// [`StepSegmentsError::RadiusNotAnArgument`] one crediting a
+    /// radius argument the step it names does not hold (a step past
+    /// the end of the program included). Both say the record and the
+    /// program are not about each other; neither guesses.
     ///
     /// # Panics
     ///
@@ -1682,28 +1894,50 @@ impl ProfileProgram {
         naming: &ProfileNaming,
         loop_: u32,
     ) -> Result<Vec<(ProfileEdgeRef, &Expr)>, StepSegmentsError> {
-        let program = self
-            .loops
-            .get(loop_ as usize)
-            .ok_or(StepSegmentsError::NoSuchLoop {
-                loops: self.loops.len(),
-            })?;
-        // Carrier against chain, in the one spelling
-        // [`LoopProgram::step_radii`] uses: a carrier form's whole
-        // boundary is one arc carrier, so its step's radius is every
-        // edge's; a chain's step drew the segments it drew.
-        let whole_loop = match program {
-            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => true,
-            LoopProgram::Chain(_) => false,
-        };
-        let mut out = Vec::new();
-        for (step, expr) in program.step_radii() {
-            let edges = self.profile_edges_of(structure, naming, loop_, step)?;
-            match (whole_loop, &edges[..]) {
-                (true, _) => out.extend(edges.into_iter().map(|e| (e, expr))),
-                (false, &[one]) => out.push((one, expr)),
-                (false, _) => {}
+        let checked = self.checked_records(structure, naming, loop_)?;
+        // The carrier forms answer per LOOP: one step, one radius,
+        // every edge of it an arc of that radius. A per-segment
+        // address for a per-loop fact is what this arm exists to not
+        // invent — but the EDGES it answers are step 0's recorded
+        // span, walked through the same `edges_of_step` the per-step
+        // door walks, so a record whose step 0 does not cover the loop
+        // is refused here exactly as it is there rather than answered
+        // off the canonical segment count.
+        if let Some(radius) = checked.program.carrier_radius() {
+            // And the record must be a carrier's: `circle` and
+            // `circle_split` mint their structure directly and emit
+            // nothing, so an emission here is a chain's record under a
+            // carrier program. Read before the answer, not after the
+            // arm has returned.
+            if !checked.replay.radii.is_empty() {
+                return Err(StepSegmentsError::CarrierRecordsEmissions {
+                    loop_,
+                    emissions: checked.replay.radii.len(),
+                });
             }
+            return Ok(checked
+                .edges_of_step(loop_, 0)?
+                .into_iter()
+                .map(|e| (e, radius))
+                .collect());
+        }
+        let mut out = Vec::new();
+        for emission in &checked.replay.radii {
+            let step = program_index(emission.step);
+            let arg = radius_arg_of(emission.role);
+            let expr = checked
+                .program
+                .expr(step, arg)
+                .ok_or(StepSegmentsError::RadiusNotAnArgument { step, arg })?;
+            if emission.segment >= checked.segments {
+                return Err(StepSegmentsError::EmissionOffTheLoop {
+                    step,
+                    arg,
+                    segment: emission.segment,
+                    segments: checked.segments,
+                });
+            }
+            out.push((checked.edge_of(loop_, emission.segment), expr));
         }
         Ok(out)
     }
@@ -1722,15 +1956,15 @@ impl ProfileProgram {
             let lp = profile::replay(steps, tol).map_err(|e| match e.kind {
                 profile::ReplayErrorKind::Transition { state, verb } => {
                     ProgramRefusal::Transition {
-                        loop_: li as u32,
-                        step: e.step as u32,
+                        loop_: program_index(li),
+                        step: program_index(e.step),
                         state,
                         verb,
                     }
                 }
                 profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
-                    loop_: li as u32,
-                    step: e.step as u32,
+                    loop_: program_index(li),
+                    step: program_index(e.step),
                     kind: source.kind(),
                     rendered: source.to_string(),
                 },
@@ -1970,7 +2204,7 @@ impl ProfilePayload for ProfileProgram {
         for (li, lp) in self.loops.iter().enumerate() {
             for (step, arg) in lp.step_args() {
                 out.push(SlotId::Profile {
-                    loop_: li as u32,
+                    loop_: program_index(li),
                     step,
                     arg,
                 });
@@ -2038,18 +2272,26 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
 }
 
 /// Why a recorded PATHS program could not be lifted
-/// ([`LoopProgram::from_recorded`]).
+/// ([`LoopProgram::from_recorded`]) — and, in one arm, why a notation
+/// could not be WRITTEN against the recording it describes
+/// ([`RecordedNotation::set_after`], which refuses before any lift so
+/// that the notation door and the lift speak one vocabulary rather
+/// than two).
 ///
 /// Every verb the transition table declares now has a document
 /// spelling, so there is no vocabulary arm: `from_recorded` is
 /// exhaustive on [`profile::Step`], and a verb the table gains breaks
 /// this file at compile rather than reaching a typed refusal.
 ///
-/// Two of the four arms are unreachable through the authoring
-/// algebra — they exist because the door takes a `&[Step<f64>]`, which
-/// a caller can also hand-build. The fourth is reachable from any
+/// Two arms are unreachable through the authoring algebra — they
+/// exist because the door takes a `&[Step<f64>]`, which a caller can
+/// also hand-build. The two notation arms are reachable from any
 /// caller, because a notation is written against a recording the door
 /// does not make the caller hand over at the same time.
+///
+/// The arm the opening sentence names is
+/// [`RecordedProgramError::NotationBeforeAnyStep`]: a recording with
+/// no last step, refused where the notation is written.
 ///
 /// **A variant added here breaks `crates/pncad-py/src/tags.rs`**, whose
 /// tag map is an exhaustive match over this enum, and the tag inventory
@@ -2081,6 +2323,19 @@ pub enum RecordedProgramError {
         /// The argument role it named.
         arg: StepArg,
     },
+    /// [`RecordedNotation::set_after`] was asked to write the notation
+    /// of the last recorded step, and nothing has been recorded.
+    ///
+    /// The derived door names no index — that is the whole point of it
+    /// — so this is not
+    /// [`RecordedProgramError::NotationOffProgram`] at step 0: the
+    /// caller wrote no step number for that arm to report back, and
+    /// step 0 of a one-step recording whose verb lacks the role is a
+    /// different mistake with a different recourse.
+    NotationBeforeAnyStep {
+        /// The argument role the entry named.
+        arg: StepArg,
+    },
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -2102,6 +2357,12 @@ impl core::fmt::Display for RecordedProgramError {
             Self::NotationOffProgram { step, arg } => write!(
                 f,
                 "the notation names the {} of step {step}, which this recording has no argument at",
+                arg.label()
+            ),
+            Self::NotationBeforeAnyStep { arg } => write!(
+                f,
+                "the notation names the {} of the step just recorded, and nothing has been \
+                 recorded yet",
                 arg.label()
             ),
         }
@@ -2151,14 +2412,31 @@ impl core::error::Error for RecordedProgramError {}
 /// through the same addressing the slot doors read; there is no second
 /// table of which argument is which for the two to disagree about. A
 /// recorded step keeps its index through the lift (a carrier form
-/// authors one step, numbered 0), so the step a caller counted as it
-/// recorded is the step it addresses here.
+/// authors one step, numbered 0), so the step a recording holds is the
+/// step it addresses here.
+///
+/// **Which half of the address the author has to know.** The ROLE is
+/// the verb's own vocabulary and a caller writing `line_to` knows it
+/// wrote a target. The INDEX is a position in the recording, and a
+/// caller who counts it is describing the recording a second time —
+/// [`Self::set_after`] derives it from the recording instead, and
+/// [`Self::set`] is for the callers whose index is already derived
+/// from the program.
 ///
 /// # A unit measures what its role holds
 ///
-/// [`Self::set`] refuses a unit whose quantity is not the dimension
-/// [`StepArg::dimension`] requires, at the door where the caller writes
-/// it, so a lift can never meet a mismatched pairing. A Scalar role — a
+/// **Both doors refuse a unit whose quantity is not the dimension
+/// [`StepArg::dimension`] requires**, at the door where the caller
+/// writes it, so a lift can never meet a mismatched pairing. It is
+/// one predicate asked in one place: [`Self::set`] asks
+/// `UnitSym::checked_for` — the same predicate `Expr::literal_with_unit`
+/// asks, asked here because a notation is written before any literal
+/// exists to refuse it — and [`Self::set_after`] delegates to
+/// [`Self::set`] once it has derived the index, so the two doors
+/// cannot drift apart on what a role admits. They differ only in
+/// their refusal vocabulary: `set` returns the [`DimensionError`]
+/// itself and `set_after` the [`RecordedProgramError::Literal`]
+/// carrying it, which is the vocabulary the lift speaks. A Scalar role — a
 /// bulge, a director component — therefore admits only the
 /// dimensionless row `quantity::ONE`, which is the notation every
 /// Scalar literal carries already: a ratio names no unit, and this is
@@ -2197,6 +2475,20 @@ impl RecordedNotation {
     /// Records that the argument at (`step`, `arg`) was written in
     /// `unit`, replacing any notation already there.
     ///
+    /// **The ADDRESSED door.** A hand-written `step` is the caller's
+    /// SECOND description of the recording — the first being the
+    /// recording itself — and the two can disagree. The lift catches a
+    /// disagreement it can see
+    /// ([`RecordedProgramError::NotationOffProgram`]), but an index
+    /// that is off by one and lands on a step carrying the SAME role
+    /// puts the unit on a different argument and is accepted.
+    /// [`RecordedNotation::set_after`] is the door that cannot
+    /// miscount: it derives the index from the recording. Write this
+    /// one where the index is DERIVED from the program rather than
+    /// counted — the viewer's sketch notation walks
+    /// [`LoopProgram::step_args`] and addresses what that walk hands
+    /// it.
+    ///
     /// # Errors
     ///
     /// [`DimensionError::DisplayUnitMismatch`] when the unit's quantity
@@ -2207,11 +2499,67 @@ impl RecordedNotation {
         arg: StepArg,
         unit: quantity::UnitDef,
     ) -> Result<(), DimensionError> {
-        // The same predicate `Expr::literal_with_unit` asks, asked here
-        // because this door writes a notation down BEFORE any literal
-        // exists to refuse it.
+        // The one predicate, asked once for both doors (see the type's
+        // "A unit measures what its role holds").
         let sym = UnitSym::checked_for(arg.dimension(), unit)?;
         self.units.insert((step, arg), sym);
+        Ok(())
+    }
+
+    /// Records that `arg` of the LAST step in `recorded` was written
+    /// in `unit`, replacing any notation already there.
+    ///
+    /// **The derived door.** The index is `recorded.len() - 1` and
+    /// never a number the caller wrote, so the leg a notation lands on
+    /// is the leg the author had just recorded when they wrote it:
+    ///
+    /// ```ignore
+    /// let path = path.line_to(p1, t)?;
+    /// n.set_after(path.recorded(), StepArg::TargetX, MM.def())?;
+    /// ```
+    ///
+    /// Every verb records exactly one step
+    /// (`profile::PartialPath::recorded`), binders included, so "the
+    /// last recorded step" is the verb just called — after `fillet(r)`
+    /// it is that binder, whose radius is
+    /// [`StepArg::Radius`]. A recorded step keeps its index through
+    /// the lift, so `recorded.len() - 1` IS the `step` half of the
+    /// address [`RecordedNotation::set`] takes.
+    ///
+    /// **Two moments, two spellings of the recording.** MID-CHAIN it
+    /// is `recorded()`, which every path state that holds the core
+    /// answers — the partial path and each arrival builder a verb
+    /// hands back — so the door is reachable wherever an author has
+    /// just recorded. AFTER THE CLOSER the chain is a
+    /// `profile::ClosedLoop` and the recording is its public
+    /// `program` field, which addresses the closing step. The two are
+    /// the same slice at the same index; which one a caller writes is
+    /// decided by which value they are holding.
+    ///
+    /// This closes the miscount, not the misnaming: a role the last
+    /// step does not carry is still the lift's
+    /// [`RecordedProgramError::NotationOffProgram`], now with the
+    /// index certainly the author's own leg.
+    ///
+    /// # Errors
+    ///
+    /// [`RecordedProgramError::NotationBeforeAnyStep`] when `recorded`
+    /// is empty — there is no last step to write against — and
+    /// [`RecordedProgramError::Literal`] carrying
+    /// [`DimensionError::DisplayUnitMismatch`] when the unit's
+    /// quantity is not the dimension the role holds, which is
+    /// [`RecordedNotation::set`]'s refusal in the vocabulary the lift
+    /// speaks.
+    pub fn set_after(
+        &mut self,
+        recorded: &[Step<f64>],
+        arg: StepArg,
+        unit: quantity::UnitDef,
+    ) -> Result<(), RecordedProgramError> {
+        let Some(last) = recorded.len().checked_sub(1) else {
+            return Err(RecordedProgramError::NotationBeforeAnyStep { arg });
+        };
+        self.set(program_index(last), arg, unit)?;
         Ok(())
     }
 

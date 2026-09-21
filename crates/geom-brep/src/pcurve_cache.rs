@@ -1117,31 +1117,32 @@ pub struct PcurveCertificate<T: Real> {
 
 /// **Which scalars can derive which certificate** — the static lane
 /// splits, in the `topo::props::PropsQuadLane` shape (M5 PR 11's
-/// ratified pattern; `topo/src/props.rs`). The trait carries TWO
-/// splits, and they are not the same split:
+/// ratified pattern; `topo/src/props.rs`).
 ///
-/// - **The fitted-pcurve derivations** ([`Self::fitted_certificate`],
-///   [`Self::general_image`], [`Self::chart_foot`]) are a C9-ring hull
-///   bound reached through a scalar's bracket, and building one is
-///   **certification**. `f64`, the telemetry probe and the interval
-///   scalar may certify; [`geom_core::Dual`] may not — Ev's D1 ruling,
-///   2026-08-19: a dual carries a bracket (the value channel's) and may
-///   still not certify, which is why `geom_core::CertifiedEnclosure`
-///   has no dual impl and `geom_core::Bounds` now does. So these exist
-///   for the first three and are **statically absent** for the fourth.
-/// - **The offset-fit re-derivation** ([`Self::remap_certificate`]) is
-///   `f64` ALONE. Its home (`crate::offset_fit`) is written at `f64`
-///   throughout — the interpolation stack, the span schedule and the
-///   patch-bound meters all are — so the split there is not about which
-///   scalars may certify but about which scalar the derivation was
-///   written in. Three of the four arms answer `None`, and the probe
-///   and interval arms are the ones that make the difference visible:
-///   they delegate the pcurve derivations through the C9 ring and still
-///   have nothing to offer here.
+/// What it carries is the **fitted-pcurve derivations**
+/// ([`Self::fitted_certificate`], [`Self::general_image`],
+/// [`Self::chart_foot`]): a C9-ring hull bound reached through a
+/// scalar's bracket, and building one is **certification**. `f64`, the
+/// telemetry probe and the interval scalar may certify;
+/// [`geom_core::Dual`] may not — Ev's D1 ruling, 2026-08-19: a dual
+/// carries a bracket (the value channel's) and may still not certify,
+/// which is why `geom_core::CertifiedEnclosure` has no dual impl and
+/// `geom_core::Bounds` now does. So these exist for the first three and
+/// are **statically absent** for the fourth, stated as a refusing impl
+/// rather than discovered as a mysterious failure at run time, and a
+/// scalar added later has to say what it can do on each.
 ///
-/// Either way a `None` arm is stated as a refusing impl rather than
-/// discovered as a mysterious failure at run time, and a scalar added
-/// later has to say what it can do on each.
+/// **The offset fit is a different absence and is not one of these
+/// methods.** It is `f64` ALONE, because its home
+/// ([`crate::offset_fit`]) is written at `f64` throughout — the
+/// interpolation stack, the span schedule and the patch-bound meters
+/// all are — so that split is not about which scalars may certify but
+/// about which scalar the derivation was written in. It travels as a
+/// door the passes take ([`crate::OffsetFitLane`]), answered by the
+/// per-scalar policy seam `topo::AtRestPolicy::offset_fit_lane`. The
+/// probe and interval arms here are what make the difference visible:
+/// they delegate the pcurve derivations through the C9 ring and still
+/// have no fit to offer.
 ///
 /// The trait is also what keeps `Bounds` out of `topo`'s signatures:
 /// consumers write `T: PcurveFittedLane` and get the lane, exactly as
@@ -1225,52 +1226,6 @@ pub trait PcurveFittedLane: Decide {
         point: Point3<Self>,
         wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError>;
-
-    /// **The certificate of an offset description's fit, re-derived on
-    /// the given `(description, fit)` pair** — or `None` when this
-    /// scalar has no fit lane.
-    ///
-    /// The pair is handed in rather than read off a
-    /// [`geom::ApproxSurface`] because the caller that needs this does
-    /// not have one yet: it is building the surface, and
-    /// [`geom::ApproxSurface::certify`] is the only door into the type.
-    /// So this is the certifier that door takes, at whatever scalar the
-    /// caller holds. (`topo::props::PropsQuadLane::recertify_approx` is
-    /// the same derivation reached the other way round — from a
-    /// surface that already exists, for the validator that re-derives
-    /// its claim.)
-    ///
-    /// **The classification tolerance is the CALLER's** and so is the
-    /// band: `tolerance` is what the mapped surface will store and
-    /// therefore what it must be shown to honour.
-    ///
-    /// **`None` is a statement about the DERIVATION, never about which
-    /// values can arrive** — the one place that sentence is spelled out
-    /// for this method, and the three refusing arms point here.
-    /// `ApproxSurface::certify` is scalar-generic and takes its
-    /// certifier as an argument, so an approximating surface is
-    /// representable at every scalar and such a surface does reach the
-    /// refusing arms. What is absent is the fit derivation, which
-    /// `crate::offset_fit` writes at `f64` alone (trait docs); a caller
-    /// holding such a surface at a scalar with no lane refuses typed
-    /// rather than carrying the certificate it already has across a
-    /// geometry change. `topo::props::PropsQuadLane`'s
-    /// `recertify_approx` and `approx_offset_surface` are the same
-    /// split over the same derivation, reached from the validator and
-    /// the mint respectively.
-    ///
-    /// # Errors
-    ///
-    /// The fit door's typed refusal, verbatim — a certificate limb
-    /// above tolerance, a door meter, a window this derivation does
-    /// not cover. Never from the "no lane" arm.
-    fn remap_certificate(
-        description: &geom::SurfaceDescription<Self>,
-        fit: &NurbsSurface<Self>,
-        window: geom::ApproxWindow,
-        tolerance: f64,
-        band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>>;
 
     /// The lane's name, for the typed refusal's text.
     fn lane_name() -> &'static str;
@@ -1415,7 +1370,7 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
             )?;
             &chain
         }
-        Curve3::Line { .. } | Curve3::Ellipse { .. } => {
+        Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
             return Err(PcurveCertifyError::UnsupportedCarrier);
         }
     };
@@ -1632,28 +1587,6 @@ impl PcurveFittedLane for f64 {
         chart_foot_lane(point, wall)
     }
 
-    fn remap_certificate(
-        description: &geom::SurfaceDescription<Self>,
-        fit: &NurbsSurface<Self>,
-        window: geom::ApproxWindow,
-        tolerance: f64,
-        band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
-        let geom::SurfaceDescription::Offset { base, d } = description;
-        // The window rule and the derivation behind it live in one
-        // place, so this door, the storage mint and the validator's
-        // re-derivation cannot disagree about the same surface.
-        // The `_at` form, deliberately: this door classifies against
-        // the tolerance the SURFACE's claim was made at — a stored
-        // datum, not the run's ε — which is what keeps the map and the
-        // validator agreeing about a given surface (`topo::transform`'s
-        // `map_approx` argues it). It is the one production caller of a
-        // numeric-target routine, named at that routine's own door.
-        Some(crate::offset_fit::certify_offset_over_at(
-            base, fit, *d, window, tolerance, band,
-        ))
-    }
-
     fn lane_name() -> &'static str {
         "f64"
     }
@@ -1687,21 +1620,6 @@ impl PcurveFittedLane for geom_core::Probe {
         chart_foot_lane(point, wall)
     }
 
-    /// **No fit lane at this scalar, and it certifies elsewhere in this
-    /// very impl** — the two splits the trait docs distinguish, met at
-    /// one scalar. The pcurve derivations above go through the C9 ring
-    /// here; the offset fit is written at `f64` alone, so there is
-    /// nothing to delegate to.
-    fn remap_certificate(
-        _description: &geom::SurfaceDescription<Self>,
-        _fit: &NurbsSurface<Self>,
-        _window: geom::ApproxWindow,
-        _tolerance: f64,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
-        None
-    }
-
     fn lane_name() -> &'static str {
         "telemetry probe"
     }
@@ -1733,21 +1651,6 @@ impl PcurveFittedLane for geom_core::interval::Interval {
         wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
         chart_foot_lane(point, wall)
-    }
-
-    /// **No fit lane at this scalar, and it certifies elsewhere in this
-    /// very impl** — the two splits the trait docs distinguish, met at
-    /// one scalar. The pcurve derivations above go through the C9 ring
-    /// here; the offset fit is written at `f64` alone, so there is
-    /// nothing to delegate to.
-    fn remap_certificate(
-        _description: &geom::SurfaceDescription<Self>,
-        _fit: &NurbsSurface<Self>,
-        _window: geom::ApproxWindow,
-        _tolerance: f64,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
-        None
     }
 
     fn lane_name() -> &'static str {
@@ -1790,21 +1693,6 @@ where
         chart_foot_lane(point, wall)
     }
 
-    // No offset re-derivation lane, for the BASE scalar's reason: the
-    // offset fit is derived at `f64` only, so every non-`f64` lane
-    // answers `None` here and the caller reports the absence typed. The
-    // tier changes how a margin DECIDES, not which derivations exist, so
-    // wrapping a scalar cannot add one.
-    fn remap_certificate(
-        _description: &geom::SurfaceDescription<Self>,
-        _fit: &NurbsSurface<Self>,
-        _window: geom::ApproxWindow,
-        _tolerance: f64,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
-        None
-    }
-
     fn lane_name() -> &'static str {
         "symbolic"
     }
@@ -1844,18 +1732,6 @@ where
         _wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
         Ok(None)
-    }
-
-    /// No fit lane at this scalar — the trait method's docs carry the
-    /// split and its reason.
-    fn remap_certificate(
-        _description: &geom::SurfaceDescription<Self>,
-        _fit: &NurbsSurface<Self>,
-        _window: geom::ApproxWindow,
-        _tolerance: f64,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
-        None
     }
 
     fn lane_name() -> &'static str {
@@ -2254,7 +2130,12 @@ fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
             b: axis.cross(u_ref) * minor,
             l: Vec3::zero(),
         }),
-        Curve3::Nurbs(_) => None,
+        // A spiric has no `{1, cos, sin, t}` form (its `m` channel is
+        // `√((R + r cos v)² − d²)`), so every chart arm of
+        // [`chart_pcurve`] refuses it here, typed: its exact chart
+        // images are the data-free `Pcurve` variant of the spiric
+        // unit's second PR, which precedes this gate when it lands.
+        Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 
@@ -2611,6 +2492,7 @@ fn param_rate<T: Real>(carrier: &Curve3<T>) -> InfSpeed<T> {
         Curve3::Nurbs(ref n) => n.speed_lower_bound(),
         Curve3::Circle { radius, .. } => InfSpeed::new(radius),
         Curve3::Ellipse { minor, .. } => InfSpeed::new(minor),
+        Curve3::Spiric { minor_radius, .. } => InfSpeed::new(minor_radius),
     }
 }
 
@@ -2641,14 +2523,12 @@ fn param_rate_gate<T: Decide>(
         }
         _ => T::one(),
     };
-    match decide("pcurve_interval_meter", Margin::metered(extent, rate), band)? {
-        Sign::Positive => Ok(rate),
-        Sign::Zero | Sign::Negative => Err(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band,
-            predicate: Some("pcurve_interval_meter"),
-        }),
-    }
+    geom_core::k_stats::decide_positive(
+        "pcurve_interval_meter",
+        Margin::metered(extent, rate),
+        band,
+    )?;
+    Ok(rate)
 }
 
 /// Folds a residual into the running max and classifies it against the
@@ -4052,7 +3932,102 @@ fn run_iso_checks<T: Decide>(
         // + |S(u*, v(t)) − B(v(t))|           (exactly 0: B IS S(u*, ·))
         // + |B(v(t)) − C(v(t))|               (control hull, same basis)
         // + |C(v(t)) − C(t)|                  (parameter-map slack).
-        (false, true) => {
+        (false, true) => 'seam: {
+            // **The LINE-carrier limb** (#388): a straight ruling
+            // edge whose carrier was promoted to `Curve3::Line`
+            // upstream (D7 curve recognition) claims the same
+            // boundary column a spline seam claims, and the bound is
+            // the CAP class's linear-precision hull transposed onto
+            // this class's fixed/moving channels. With `B` the
+            // boundary column (weights 1, gated below), `t(v)` the
+            // affine inverse of the image's `v(t)`, and
+            // `M(v) := C(t(v))` — affine in `v`, a line composed
+            // with an affine map — the B-spline basis reproduces `M`
+            // exactly on the Greville abscissae, so on the column's
+            // own knot domain
+            //   |B(v) − M(v)| = |Σ Nᵢ(v)·(bᵢ − M(ξᵢ))|
+            //                 ≤ maxᵢ |bᵢ − M(ξᵢ)|   (the hull),
+            // and sup |S(P(t)) − C(t)| ≤ slack_u + hull + the banded
+            // domain-excursion fold — each term an inequality, no
+            // sampling. A RATIONAL column refuses typed exactly as
+            // the cap class does and for the same reason: linear
+            // precision is a polynomial-basis fact.
+            if let Curve3::Line { origin, dir } = carrier {
+                let u_start = p0.x + pl.x * t0;
+                let (cu0, cu1) = payload.knots_u().domain();
+                let Some((end, slack_u)) = side_of(
+                    u_start,
+                    T::from_f64(cu0),
+                    T::from_f64(cu1),
+                    stretch_u,
+                    du_extent.value(),
+                    band,
+                    &esc,
+                )?
+                else {
+                    return Err(PcurveCertifyError::IsoUnsupported {
+                        what: "a LINE seam on a column that is not a chart boundary — the \
+                               limb's hull is stated on a boundary column (a control-net \
+                               copy); the interior collapse route for a promoted line \
+                               arrives with its first minting construction",
+                    });
+                };
+                let b = crate::nurbs_iso::boundary_iso_u(payload, end).map_err(|_| {
+                    PcurveCertifyError::IsoUnsupported {
+                        what: "the chart's boundary row failed to re-wrap as a curve \
+                               (corrupt chart structure)",
+                    }
+                })?;
+                if b.weights().iter().any(|w| *w != 1.0) {
+                    return Err(PcurveCertifyError::IsoUnsupported {
+                        what: "a LINE seam on a RATIONAL chart column: the Greville hull \
+                               is a linear-precision fact and the rational basis has none \
+                               — a line ruling whose column is rational needs its line \
+                               re-expressed in that column's own space, the arc-rim \
+                               class's construction",
+                    });
+                }
+                let (p, kn) = (b.knots().degree(), b.knots().knots());
+                let mut hull = T::zero();
+                // `pl.y ≠ 0` is this class's own classification: the
+                // `(false, true)` arm means the v channel MOVES, so
+                // the `t_at` division is over a nonzero slope by
+                // construction. The hull runs over the FULL column —
+                // for an image trimmed to part of the domain that is
+                // a superset bound: sound and conservative, and no
+                // measured caller exercises the partial case.
+                for (i, cp) in b.control().iter().enumerate() {
+                    #[allow(clippy::cast_precision_loss)]
+                    let xi = kn[i + 1..=i + p].iter().sum::<f64>() / p as f64;
+                    let t_at = (T::from_f64(xi) - p0.y) / pl.y;
+                    hull = hull.max((*cp - (*origin + *dir * t_at)).norm());
+                }
+                // Domain containment, the siblings' gate verbatim on
+                // this class's moving channel: the hull bound holds on
+                // the column's own knot domain only.
+                let v_at_0 = p0.y + pl.y * t0;
+                let v_at_1 = p0.y + pl.y * t1;
+                let (d0, d1) = b.knots().domain();
+                let over = (T::from_f64(d0) - v_at_0.min(v_at_1))
+                    .max(v_at_0.max(v_at_1) - T::from_f64(d1))
+                    .max(T::zero());
+                match decide(
+                    "pcurve_iso_domain",
+                    Margin::metered_sup(over, stretch_v),
+                    band,
+                )
+                .map_err(esc)?
+                {
+                    Sign::Zero => {}
+                    Sign::Positive | Sign::Negative => {
+                        return Err(PcurveCertifyError::IsoUnsupported {
+                            what: "the iso line leaves the chart's parameter domain — the \
+                                   hull bound holds on the domain only",
+                        });
+                    }
+                }
+                break 'seam hull + slack_u + stretch_v.to_meters(over);
+            }
             let Curve3::Nurbs(c) = carrier else {
                 return Err(PcurveCertifyError::IsoUnsupported {
                     what: "a seam-class iso line over a non-spline carrier — no \
@@ -4613,12 +4588,14 @@ pub fn chart_pcurve<T: Decide>(
                         pl: Vec2::new(beta, T::zero()),
                     })
                 }
-                Curve3::Ellipse { .. } | Curve3::Nurbs(_) => {
+                Curve3::Ellipse { .. } | Curve3::Nurbs(_) | Curve3::Spiric { .. } => {
                     // The tilted-section class: azimuth-non-harmonic
                     // on a cone chart (the section's angle is not the
                     // chart azimuth), and no ring-computable meters
                     // composite exists for the cone (ssi/certify docs)
                     // — neither route is honest, so the class refuses.
+                    // A spiric lies on no cone at all, and
+                    // `carrier_harmonic` has already refused it above.
                     Err(PcurveCertifyError::UnsupportedCarrier)
                 }
             }
@@ -5535,6 +5512,224 @@ mod tests {
             .unwrap()
             .get();
         assert!((rate - 1.0).abs() < 1e-15, "the unit-chord net meters at 1");
+    }
+
+    // ---- The seam class's LINE-carrier limb (#388). ----
+
+    /// The limb's wall: a rational quadratic quarter arc in `u`
+    /// (weights 1, 1, √2/2 by column pair), ruled straight one unit up
+    /// in `v` — so the `u = 0` column is a straight degree-1
+    /// unit-weight ruling from `(1,0,0)` to `(1,0,1)`, the shape a
+    /// promoted degree-1 STEP slit/seam carrier claims (dm1's class).
+    /// `weights` overrides the six weights row-major in `u`.
+    fn ruled_wall_with(weights: [f64; 6]) -> Surface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        Surface::Nurbs(Arc::new(
+            geom::NurbsSurface::new(ku, kv, control, weights.to_vec()).unwrap(),
+        ))
+    }
+
+    fn ruled_wall() -> Surface<f64> {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        ruled_wall_with([1.0, 1.0, w, w, 1.0, 1.0])
+    }
+
+    fn wide() -> ChartWindow<f64> {
+        ChartWindow {
+            u_min: -10.0,
+            u_max: 10.0,
+            v_min: -10.0,
+            v_max: 10.0,
+        }
+    }
+
+    /// A `Curve3::Line` from `origin` along `dir` (already unit here).
+    fn ruling_line(origin: Point3<f64>, dir: Vec3<f64>) -> Curve3<f64> {
+        Curve3::Line { origin, dir }
+    }
+
+    /// The positive row: a promoted LINE carrier on the wall's `u = 0`
+    /// column certifies through the seam class, and the envelope is the
+    /// Greville hull's — essentially zero for the exact ruling.
+    #[test]
+    fn a_line_ruling_on_its_column_certifies_through_the_seam_class() {
+        let cache = PcurveCache::certify(
+            Pcurve::IsoLine {
+                p0: Point2::new(0.0, 0.0),
+                pl: Vec2::new(0.0, 1.0),
+            },
+            0.0,
+            1.0,
+            &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+            &ruled_wall(),
+            wide(),
+            band(),
+        )
+        .expect("the exact ruling certifies");
+        let cert = cache.certificate();
+        assert!(
+            cert.max_residual < 1e-14,
+            "sampled: {:e}",
+            cert.max_residual
+        );
+        assert!(cert.envelope < 1e-14, "envelope: {:e}", cert.envelope);
+    }
+
+    /// The REVERSED row (`#389`'s shape): the same column traversed
+    /// against the chart's increasing `v` — negative image slope —
+    /// certifies identically; direction is data, not an assumption.
+    #[test]
+    fn the_reversed_column_certifies_too() {
+        let cache = PcurveCache::certify(
+            Pcurve::IsoLine {
+                p0: Point2::new(0.0, 1.0),
+                pl: Vec2::new(0.0, -1.0),
+            },
+            0.0,
+            1.0,
+            &ruling_line(Point3::new(1.0, 0.0, 1.0), Vec3::new(0.0, 0.0, -1.0)),
+            &ruled_wall(),
+            wide(),
+            band(),
+        )
+        .expect("the reversed ruling certifies");
+        assert!(cache.certificate().envelope < 1e-14);
+    }
+
+    /// The SIDE mutant is red: the same line, with an image claiming
+    /// the chart's OTHER column (`u = 1`), refuses — that column is a
+    /// different ruling a quarter turn away, and the residual schedule
+    /// meters the gap in metres.
+    #[test]
+    fn the_wrong_column_side_refuses() {
+        let got = PcurveCache::certify(
+            Pcurve::IsoLine {
+                p0: Point2::new(1.0, 0.0),
+                pl: Vec2::new(0.0, 1.0),
+            },
+            0.0,
+            1.0,
+            &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+            &ruled_wall(),
+            wide(),
+            band(),
+        );
+        assert!(got.is_err(), "the other column is not this line: {got:?}");
+    }
+
+    /// The hull is load-bearing, pinned from both sides: a line
+    /// displaced off the column INSIDE the band certifies with an
+    /// envelope at least the displacement (deleting or weakening the
+    /// Greville hull would report ~0 here), and a displacement beyond
+    /// the band refuses. Both displacements SCALE with the ambient
+    /// band — "in-band" is a band-relative fact, and a fixed metre
+    /// value flips the row's meaning across the ε matrix (3e-10 is
+    /// in-band at 1e-9 and three decades OUT at 1e-12).
+    #[test]
+    fn the_hull_meters_an_off_column_line_from_both_sides() {
+        let displaced =
+            |d: f64| ruling_line(Point3::new(1.0 + d, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
+        let image = || Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(0.0, 1.0),
+        };
+        let d = 0.3 * Tol::witness().get().eps;
+        let cache = PcurveCache::certify(
+            image(),
+            0.0,
+            1.0,
+            &displaced(d),
+            &ruled_wall(),
+            wide(),
+            band(),
+        )
+        .expect("an in-band displacement certifies");
+        let envelope = cache.certificate().envelope;
+        assert!(
+            envelope >= d * 0.99,
+            "the hull must see the displacement: {envelope:e}"
+        );
+        assert!(
+            PcurveCache::certify(
+                image(),
+                0.0,
+                1.0,
+                &displaced(1.0e3 * Tol::witness().get().eps),
+                &ruled_wall(),
+                wide(),
+                band(),
+            )
+            .is_err(),
+            "a displacement three decades past the band must refuse"
+        );
+    }
+
+    /// The rational gate holds, typed: a column with non-unit weights
+    /// is outside the Greville hull's linear-precision hypothesis and
+    /// refuses naming that, exactly as the cap class does. The two
+    /// weights are EQUAL (a constant weight scales out of the rational
+    /// basis), so the column's locus and parameterization are the
+    /// exact ruling and the pointwise schedule passes — the weight
+    /// gate is the deciding check, not a residual.
+    #[test]
+    fn a_rational_column_refuses_typed() {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let got = PcurveCache::certify(
+            Pcurve::IsoLine {
+                p0: Point2::new(0.0, 0.0),
+                pl: Vec2::new(0.0, 1.0),
+            },
+            0.0,
+            1.0,
+            &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+            &ruled_wall_with([0.7, 0.7, w, w, 1.0, 1.0]),
+            wide(),
+            band(),
+        );
+        match got {
+            Err(PcurveCertifyError::IsoUnsupported { what }) => {
+                assert!(what.contains("RATIONAL chart column"), "{what}");
+            }
+            other => panic!("a rational column must refuse typed: {other:?}"),
+        }
+    }
+
+    /// The domain gate holds: an image whose moving channel leaves the
+    /// column's knot domain refuses by name — the hull bound holds on
+    /// the domain only, even though the straight ruling EXTRAPOLATES
+    /// exactly (the pointwise schedule alone would pass this).
+    #[test]
+    fn an_image_leaving_the_column_domain_refuses() {
+        let got = PcurveCache::certify(
+            Pcurve::IsoLine {
+                p0: Point2::new(0.0, 0.0),
+                pl: Vec2::new(0.0, 1.0),
+            },
+            0.0,
+            1.5,
+            &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+            &ruled_wall(),
+            wide(),
+            band(),
+        );
+        match got {
+            Err(PcurveCertifyError::IsoUnsupported { what }) => {
+                assert!(
+                    what.contains("leaves the chart's parameter domain"),
+                    "{what}"
+                );
+            }
+            other => panic!("the domain gate must refuse by name: {other:?}"),
+        }
     }
 }
 

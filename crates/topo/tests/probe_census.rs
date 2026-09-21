@@ -20,7 +20,12 @@ use topo::{BooleanResult, subtract};
 
 fn bx(s: f64, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<Probe> {
     let f = |v: f64| v * s;
-    brick::<Probe>((f(x.0), f(x.1)), (f(y.0), f(y.1)), (f(z.0), f(z.1)))
+    brick::<Probe>(
+        (f(x.0), f(x.1)),
+        (f(y.0), f(y.1)),
+        (f(z.0), f(z.1)),
+        Tol::witness(),
+    )
 }
 
 #[test]

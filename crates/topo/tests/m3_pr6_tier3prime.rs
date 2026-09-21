@@ -35,7 +35,14 @@ fn run_body<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
     a: &Body<T>,
     b: &Body<T>,
 ) -> BooleanBody<T> {
-    match op(a, b, &common::flush_declarations(a, b), Tol::witness()).unwrap() {
+    match op(
+        a,
+        b,
+        &common::flush_declarations(a, b, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("expected a non-empty boolean result"),
     }
@@ -43,7 +50,9 @@ fn run_body<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
 
 /// The green/red promotion pair: 3′ passes with the carried contacts,
 /// and withholding them yields `UndeclaredContact` (and nothing else).
-fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
+fn assert_promoted<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>(
     b: &BooleanBody<T>,
 ) {
     assert_eq!(
@@ -66,9 +75,11 @@ fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>
 // ---------------------------------------------------------------
 
 /// Corner kiss (v-v): the PR 5 assembly, now certified at rest.
-fn corner_kiss_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
-    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+fn corner_kiss_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() {
+    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
     assert_eq!(body.contacts.vv.len(), 1);
     assert_promoted(&body);
@@ -84,9 +95,11 @@ fn corner_kiss_promoted() {
 /// two shared-endpoint v-v records, and the census reconstructs the
 /// full-length coincident-edge SEGMENT from them (the D3 rule's
 /// bounded-by-declared-records lane, live end to end).
-fn tangent_edge_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
-    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
+fn tangent_edge_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() {
+    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
     assert_eq!(body.contacts.vv.len(), 2);
     assert_promoted(&body);
@@ -106,9 +119,11 @@ fn tangent_edge_promoted() {
 /// that agrees — 3′ ≡ tier 3 on it. ∩: every touching sector
 /// classifies Out ⇒ the typed empty. ∖: operand A (records dropped
 /// with B absent), tier 3.
-fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0));
+fn skew_edges_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() {
+    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
     assert!(body.contacts.vv.is_empty());
     assert!(body.contacts.a_on_b.is_empty() && body.contacts.b_on_a.is_empty());
@@ -122,7 +137,13 @@ fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadL
         "3′ ≡ tier 3 here"
     );
     assert!(matches!(
-        intersect_with(&a, &b, &common::flush_declarations(&a, &b), Tol::witness()).unwrap(),
+        intersect_with(
+            &a,
+            &b,
+            &common::flush_declarations(&a, &b, Tol::witness()),
+            Tol::witness()
+        )
+        .unwrap(),
         BooleanResult::Empty
     ));
     let sub = run_body(subtract_with as BoolOp<T>, &a, &b);
@@ -144,21 +165,24 @@ fn skew_edges_promoted() {
 /// assembly carrying exactly the one v-on-f record.
 #[test]
 fn vertex_on_face_kiss_promoted() {
-    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
+    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
     // Corner (0,0,0) of the mapped cube sits at (2,2,1) exactly; the
     // three edge frames all point upward (material strictly above).
-    let tilted = mapped_cube(|x, y, z| {
-        let (e1, e2, e3) = (
-            Vec3::new(0.9, 0.1, 0.3),
-            Vec3::new(-0.2, 0.8, 0.45),
-            Vec3::new(-0.3, -0.4, 0.85),
-        );
-        Point3::new(
-            2.0 + x * e1.x + y * e2.x + z * e3.x,
-            2.0 + x * e1.y + y * e2.y + z * e3.y,
-            1.0 + x * e1.z + y * e2.z + z * e3.z,
-        )
-    });
+    let tilted = mapped_cube(
+        |x, y, z| {
+            let (e1, e2, e3) = (
+                Vec3::new(0.9, 0.1, 0.3),
+                Vec3::new(-0.2, 0.8, 0.45),
+                Vec3::new(-0.3, -0.4, 0.85),
+            );
+            Point3::new(
+                2.0 + x * e1.x + y * e2.x + z * e3.x,
+                2.0 + x * e1.y + y * e2.y + z * e3.y,
+                1.0 + x * e1.z + y * e2.z + z * e3.z,
+            )
+        },
+        Tol::witness(),
+    );
     let body = run_body(union_with as BoolOp<f64>, &tilted, &slab);
     assert_eq!(body.contacts.a_on_b.len(), 1, "{:?}", body.contacts);
     assert!(body.contacts.vv.is_empty() && body.contacts.b_on_a.is_empty());
@@ -172,9 +196,11 @@ fn vertex_on_face_kiss_promoted() {
 /// (`split_other_at_point` — no vertex-on-edge record type exists,
 /// by derivation), and the census certifies the collinear overlap
 /// segment from those bounding records (D3).
-fn edge_rest_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<T>((1.0, 3.0), (-2.0, 0.0), (2.0, 4.0));
+fn edge_rest_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() {
+    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = brick::<T>((1.0, 3.0), (-2.0, 0.0), (2.0, 4.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
     // Two refined v-v pairs: B's corner (1,0,2) on A's edge interior;
     // A's corner (2,0,2) on B's edge interior.
@@ -198,9 +224,11 @@ fn edge_rest_promoted_d4_pin() {
 /// undeclared door refuses unchanged (the ladder is law). ∖ returns
 /// operand A at tier 3, as before — pure REST subtracts never reach
 /// a join door.
-fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
-    let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-    let pillar = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
+fn flush_rests_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() {
+    let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let pillar = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &slab, &pillar);
     assert!(body.contacts.vv.is_empty() && body.contacts.b_on_a.is_empty());
     assert_eq!(
@@ -209,7 +237,7 @@ fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuad
     );
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
 
-    let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0));
+    let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0), Tol::witness());
     // Undeclared: the coincidence door refuses first now (M4 PR 5's
     // rung (b) narrowing — value equality never classifies).
     let err = union(&slab, &corner, Tol::witness()).unwrap_err();
@@ -248,8 +276,10 @@ fn flush_rests() {
 /// D1.5's pin: on a tier-3 body with EMPTY declarations, the census
 /// must find nothing and 3′ ≡ tier 3 (plus the census actually run) —
 /// pinned on a plain prism, an L-prism, and a Seamed boolean result.
-fn tier3_equivalence_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
-    let plain = brick::<T>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0));
+fn tier3_equivalence_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() {
+    let plain = brick::<T>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     assert_eq!(validate_geometric(&plain, Tol::witness()), Ok(()));
     assert_eq!(
         validate_pseudomanifold(&plain, &ContactRecords::default(), Tol::witness()),
@@ -266,6 +296,7 @@ fn tier3_equivalence_scenario<T: Decide + geom_core::CertifiedBounds + topo::Pro
         ],
         0.0,
         1.0,
+        Tol::witness(),
     )
     .body;
     assert_eq!(validate_geometric(&ell, Tol::witness()), Ok(()));
@@ -273,8 +304,8 @@ fn tier3_equivalence_scenario<T: Decide + geom_core::CertifiedBounds + topo::Pro
         validate_pseudomanifold(&ell, &ContactRecords::default(), Tol::witness()),
         Ok(())
     );
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
+    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
     assert!(body.contacts.vv.is_empty());
     assert_eq!(validate_geometric(&body.body, Tol::witness()), Ok(()));
@@ -299,8 +330,8 @@ fn tier3_equivalence_empty_contacts() {
 /// fire on one body.
 #[test]
 fn tampered_declaration_is_stale() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let body = run_body(union_with as BoolOp<f64>, &a, &b);
     let mut tampered = body.contacts.clone();
     let real_a = tampered.vv[0].a;
@@ -332,10 +363,15 @@ fn tampered_declaration_is_stale() {
 /// cross) have no backing path by design.
 #[test]
 fn hand_built_self_intersection_is_undeclared() {
-    let mut body = mapped_cube(|x, y, z| Point3::new(2.0 * x, 2.0 * y, 2.0 * z));
-    common::cube_into(&mut body, |x, y, z| {
-        Point3::new(1.0 + 2.0 * x, 1.0 + 2.0 * y, 1.0 + 2.0 * z)
-    });
+    let mut body = mapped_cube(
+        |x, y, z| Point3::new(2.0 * x, 2.0 * y, 2.0 * z),
+        Tol::witness(),
+    );
+    common::cube_into(
+        &mut body,
+        |x, y, z| Point3::new(1.0 + 2.0 * x, 1.0 + 2.0 * y, 1.0 + 2.0 * z),
+        Tol::witness(),
+    );
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(!errors.is_empty());
@@ -370,9 +406,10 @@ fn hand_built_self_intersection_is_undeclared() {
 // ---------------------------------------------------------------
 
 /// The corner-kiss assembly (1 v-v declaration) as the 3′ base.
-fn kiss_base<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() -> BooleanBody<T> {
-    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+fn kiss_base<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>()
+-> BooleanBody<T> {
+    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     run_body(union_with as BoolOp<T>, &a, &b)
 }
 
@@ -380,7 +417,7 @@ fn kiss_base<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() -> 
 #[test]
 fn closure_kiss_vs_mover() {
     let base = kiss_base::<f64>();
-    let mover = brick::<f64>((1.5, 2.5), (1.5, 2.5), (1.5, 2.5));
+    let mover = brick::<f64>((1.5, 2.5), (1.5, 2.5), (1.5, 2.5), Tol::witness());
 
     // ∪: closes structurally (volume oracle exact); the surviving
     // kiss is operand-internal — undeclared in the new result's
@@ -434,7 +471,7 @@ fn closure_kiss_vs_mover() {
 #[test]
 fn closure_kiss_vs_second_toucher() {
     let base = kiss_base::<f64>();
-    let toucher = brick::<f64>((0.0, 1.0), (1.0, 2.0), (1.0, 2.0));
+    let toucher = brick::<f64>((0.0, 1.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     match union(&base.body, &toucher, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
             let verdict = validate_pseudomanifold(&r.body, &r.contacts, Tol::witness());
@@ -464,14 +501,14 @@ fn closure_kiss_vs_second_toucher() {
 /// the clean closure row.
 #[test]
 fn closure_consumed_base_stays_certified() {
-    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-    let pillar = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0));
+    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let pillar = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0), Tol::witness());
     let boss = run_body(union_with as BoolOp<f64>, &slab, &pillar);
     assert_eq!(
         mass_properties(&boss.body, Tol::witness()).unwrap().volume,
         18.0
     );
-    let cutter = brick::<f64>((3.0, 3.5), (3.0, 3.5), (0.5, 1.5));
+    let cutter = brick::<f64>((3.0, 3.5), (3.0, 3.5), (0.5, 1.5), Tol::witness());
     let r = run_body(subtract_with as BoolOp<f64>, &boss.body, &cutter);
     assert_eq!(
         mass_properties(&r.body, Tol::witness()).unwrap().volume,

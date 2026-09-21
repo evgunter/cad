@@ -1404,7 +1404,9 @@ fn face_flux<T: Decide>(
             let is_trimmed = outer.iter().any(|e| {
                 matches!(
                     e.carrier,
-                    geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_)
+                    geom::Curve3::Ellipse { .. }
+                        | geom::Curve3::Spiric { .. }
+                        | geom::Curve3::Nurbs(_)
                 )
             });
             // A described NURBS face ALWAYS takes the quadrature
@@ -1897,68 +1899,6 @@ pub trait PropsQuadLane:
     /// also keeps `lo`/`hi` unshadowed at every concrete call site.
     fn datum_lo(self) -> f64;
 
-    /// Re-derives an approximating surface's certificate against its
-    /// own stored description and fit, classified against
-    /// `tolerance` — the tier-3 never-trust posture (O5), one
-    /// dimension up from `EdgeCurve::recertify`.
-    ///
-    /// **The tolerance is the RUN's, not the surface's.** The edge
-    /// machinery re-certifies every carrier against the run's band and
-    /// never against a stored bound, and the surface claim is the same
-    /// shape: O3 ratifies `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so
-    /// verifying it means measuring against the ε this validation call
-    /// runs at. A surface minted at a loose tolerance validating
-    /// forever afterwards would be the stored bound quietly replacing
-    /// the ratified one. The stored tolerance stays what it always
-    /// was: the MINT's parameter, and the fit door's own gate.
-    ///
-    /// `None` = this scalar has no re-derivation lane. That is a
-    /// statement about the DERIVATION, never about which values can
-    /// arrive: [`geom::ApproxSurface::certify`] is generic in the
-    /// scalar and takes its certifier as an argument, so an
-    /// `ApproxSurface<Self>` is representable at every scalar and such
-    /// a face reaches this arm. `None` is not a pass — tier 3 reports
-    /// it as [`ValidationError::ApproxLaneUnsupported`](crate::ValidationError),
-    /// because a surface certificate is the one claim this kernel
-    /// refuses to leave unchecked.
-    ///
-    /// # Errors
-    ///
-    /// The fit door's typed refusal, when the re-derivation fails.
-    fn recertify_approx(
-        approx: &geom::ApproxSurface<Self>,
-        tol: Tol,
-        band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>>;
-
-    /// Mints the certified approximating surface for a NURBS operand's
-    /// offset — the fit door, reached through the lane so the doors
-    /// above it stay scalar-generic.
-    ///
-    /// The fit target is the run's ε and arrives as the witness, for
-    /// [`PropsQuadLane::recertify_approx`]'s reason: the mint and the
-    /// re-derivation that must later re-establish its claim classify
-    /// against the same number by construction, not because two
-    /// callers passed the same one.
-    ///
-    /// `None` = this scalar has no fit lane. That is not a pass: a
-    /// caller that cannot mint the offset refuses, exactly as tier 3
-    /// refuses a certificate it cannot re-derive. The fit itself is
-    /// derived at `f64` only, so `None` is every other scalar's honest
-    /// answer — the absence of a derivation, not of a representable
-    /// operand.
-    ///
-    /// # Errors
-    ///
-    /// The fit door's typed refusal (the meters, a rational operand,
-    /// the refinement budget, a certificate limb).
-    fn approx_offset_surface(
-        base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        d: Self,
-        tol: Tol,
-        band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>>;
-
     /// # Errors
     ///
     /// [`PropsError`] from the quadrature lane (budget, unsupported
@@ -1978,23 +1918,6 @@ impl PropsQuadLane for f64 {
         geom_core::Bounds::lo(self)
     }
 
-    fn recertify_approx(
-        approx: &geom::ApproxSurface<Self>,
-        tol: Tol,
-        band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        Some(geom_brep::recertify_approx(approx, tol, band))
-    }
-
-    fn approx_offset_surface(
-        base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        d: Self,
-        tol: Tol,
-        band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        Some(geom_brep::approx_offset_surface(base, d, tol, band))
-    }
-
     fn quad_cut_face(
         body: &Body<Self>,
         surface: &Surface<Self>,
@@ -2009,29 +1932,6 @@ impl PropsQuadLane for f64 {
 
 #[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
-    // The offset fit is derived at `f64` only, so this scalar has no
-    // re-derivation lane. That is the whole reason, and it is about the
-    // derivation: an `ApproxSurface<Self>` is representable here —
-    // `ApproxSurface::certify` is scalar-generic and takes its
-    // certifier as an argument — so such a face does reach this arm and
-    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
-    fn recertify_approx(
-        _approx: &geom::ApproxSurface<Self>,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        None
-    }
-
-    fn approx_offset_surface(
-        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        _d: Self,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        None
-    }
-
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -2050,26 +1950,6 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
-    // No re-derivation lane at this scalar; the reason has one home, on
-    // [`PropsQuadLane::recertify_approx`], and it is about the
-    // DERIVATION rather than about which values can arrive.
-    fn recertify_approx(
-        _approx: &geom::ApproxSurface<Self>,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        None
-    }
-
-    fn approx_offset_surface(
-        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        _d: Self,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        None
-    }
-
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -2100,26 +1980,6 @@ where
     geom_core::Sym<T>: Decide + geom_core::Bounds,
     T: geom_core::CertifiedBounds,
 {
-    // No re-derivation lane, for the base scalar's reason: the offset
-    // fit is derived at `f64` only. This is about the DERIVATION, not
-    // about which values can arrive.
-    fn recertify_approx(
-        _approx: &geom::ApproxSurface<Self>,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        None
-    }
-
-    fn approx_offset_surface(
-        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        _d: Self,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        None
-    }
-
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -2142,26 +2002,6 @@ impl<T> PropsQuadLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
-    // No re-derivation lane at this scalar; the reason has one home, on
-    // [`PropsQuadLane::recertify_approx`], and it is about the
-    // DERIVATION rather than about which values can arrive.
-    fn recertify_approx(
-        _approx: &geom::ApproxSurface<Self>,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        None
-    }
-
-    fn approx_offset_surface(
-        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        _d: Self,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        None
-    }
-
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -2187,7 +2027,7 @@ where
 ///
 /// Certified validation is an act of certification — its tier-3
 /// battery re-derives surface certificates
-/// ([`PropsQuadLane::recertify_approx`]), encloses volume flux
+/// ([`geom_brep::OffsetFitLane::recertify`]), encloses volume flux
 /// through the quadrature lane, and certifies the contact census —
 /// so it belongs to the scalars with certification rights (`f64`,
 /// the telemetry probe, the interval scalar), whose impls here
@@ -2218,7 +2058,34 @@ where
 /// doors themselves keep their meaning at every `PropsQuadLane`
 /// scalar; this trait only decides which scalars' evaluation-service
 /// gates consult them.
+///
+/// The trait also carries the OFFSET FIT's seam
+/// ([`AtRestPolicy::offset_fit_lane`]), for the same reason it carries
+/// the gates: it is the per-scalar policy home, and the fit's absence
+/// is a per-scalar fact. The two absences are different facts, and the
+/// doc on that method says which is which.
 pub trait AtRestPolicy: PropsQuadLane {
+    /// **This scalar's offset-fit door, or `None` where the fit is not
+    /// derived here** — the ONE seam the `Some` comes from, read by
+    /// check 1's tier-3 battery, the offset mint
+    /// ([`crate::replace_face_offset`]) and the transform's surface
+    /// map ([`crate::transform_rigid`]).
+    ///
+    /// `None` is a statement about the DERIVATION and never about
+    /// which values may arrive: an `ApproxSurface<T>` is representable
+    /// at every scalar, so a face carrying one does reach those passes
+    /// at a scalar with no door, and each refuses typed rather than
+    /// passing. That makes it a different fact from
+    /// [`AtRestOutcome::NotRunAtThisScalar`] below, which is about
+    /// certification rights (DL1).
+    ///
+    /// It is a per-scalar seam and not a lane trait of its own
+    /// (`work/scalar/H5.md` §RATIFIED ruling 3, which keeps this trait
+    /// as the per-scalar policy that cut leaves standing): the door
+    /// itself is a value the passes take as a parameter, and this is
+    /// the one place each scalar's answer is written.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -2258,6 +2125,12 @@ pub enum AtRestOutcome {
 }
 
 impl AtRestPolicy for f64 {
+    /// The fit IS written here: `geom_brep::offset_fit` is an `f64`
+    /// module throughout, so this is the one arm that answers `Some`.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        Some(geom_brep::OffsetFitLane::fit())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2274,6 +2147,13 @@ impl AtRestPolicy for f64 {
 
 #[cfg(feature = "probe")]
 impl AtRestPolicy for geom_core::Probe {
+    /// The fit is derived at `f64` only. The recording scalar is `f64`
+    /// with a sink attached, and that is still not the type
+    /// `geom_brep::offset_fit` is written in.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2290,6 +2170,13 @@ impl AtRestPolicy for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl AtRestPolicy for geom_core::interval::Interval {
+    /// The fit is derived at `f64` only — a fact about the scalar the
+    /// derivation was written in, not about this scalar's
+    /// certification rights, which it has in full.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2314,6 +2201,13 @@ where
     geom_core::Sym<T>: PropsQuadLane,
     T: geom_core::CertifiedBounds,
 {
+    /// The fit is derived at `f64` only. The tier changes how a margin
+    /// DECIDES, not which derivations exist, so wrapping a scalar
+    /// cannot add one.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2338,6 +2232,13 @@ impl<T> AtRestPolicy for geom_core::Dual<T>
 where
     geom_core::Dual<T>: PropsQuadLane,
 {
+    /// The fit is derived at `f64` only — the same reason every other
+    /// arm here gives, and a separate fact from the gates below, which
+    /// are absent because a dual does not certify.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }
@@ -2461,7 +2362,7 @@ mod at_rest_policy_tests {
 mod quad_lane {
     use geom_brep::Pcurve;
     use geom_brep::props::quad::{
-        self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimEdgeQ,
+        self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
     };
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
     use geom_core::Tol;
@@ -2538,6 +2439,20 @@ mod quad_lane {
                 let pad_s = (RingInterval::point(eps) / RingInterval::from_certified(*minor)).mag();
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
+            // The spiric's chart images are not harmonic (its `m`
+            // channel is `√((R + r cos v)² − d²)`), so the trig
+            // brackets this lane reads do not exist for it. Unreachable
+            // by construction: this lane is entered only for a CYLINDER
+            // chart (`cut_face_rounds`'s chart gate), and a spiric lies
+            // on no cylinder — the arm names the kind so the gate's
+            // removal would meet a typed refusal here rather than a
+            // wildcard. The props quadrature lane for a spiric-bounded
+            // face is the spiric unit's props PR.
+            Curve3::Spiric { .. } => Err(PropsError::QuadratureUnsupported {
+                what: "spiric trim carrier on an ANALYTIC chart's quadrature lane — the \
+                       hollowed partial revolve's torus wall and plane cap; the spiric \
+                       quadrature lane is not yet written",
+            }),
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
                 what: "B-spline trim carrier on an ANALYTIC chart's quadrature lane — \
                        the cut-loft class (a loft wall cut by a plane/cylinder), which \
@@ -2695,6 +2610,20 @@ mod quad_lane {
                        mid-surgery body has no mass properties (tier 2 refuses it at rest)",
             });
         }
+        // **The dispatch is by pcurve KIND** (TRIM-2 §8.1): a loop
+        // whose every image is an iso class pins the trim region to an
+        // axis-aligned rectangle and keeps the rectangle certificate
+        // below, bit for bit; a loop carrying a `General` image bounds
+        // a region that is not a rectangle of its chart at all, and
+        // takes the trimmed lane. `Fitted` keeps its own refusal in
+        // both — no shipped construction mints one here.
+        if hes
+            .iter()
+            .filter_map(|he| body.pcurve(*he))
+            .any(|c| matches!(c.pcurve(), Pcurve::General(_)))
+        {
+            return trimmed_face(body, payload, outer, hes, band, tol, window);
+        }
         let eps = tol.eps();
         // Exact-structure read of a T scalar (point bracket required).
         let exact = |x: RingInterval| -> Result<f64, PropsError> {
@@ -2759,30 +2688,7 @@ mod quad_lane {
                 polygon.push((bx, by));
             }
             // Metric boundary length bound + the map-residual defect.
-            let len = match &le.carrier {
-                geom::Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
-                    * RingInterval::from_certified(t1 - t0))
-                .mag(),
-                geom::Curve3::Nurbs(c) => {
-                    let mut l = RingInterval::zero();
-                    for w in c.control().windows(2) {
-                        l = l + RingInterval::from_certified(w[0].distance(w[1]));
-                    }
-                    l.mag()
-                }
-                // An ARC cap rim on a rational wall (M8-3): the metric
-                // length is exactly `r·Δθ` — the carrier's own
-                // parameter IS the angle, so no bound is needed.
-                geom::Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
-                    * RingInterval::from_certified(t1 - t0))
-                .mag(),
-                _ => {
-                    return Err(PropsError::QuadratureUnsupported {
-                        what: "a NURBS-face boundary carrier outside the loft inventory \
-                               (line, spline and circle rims are the minted classes)",
-                    });
-                }
-            };
+            let len = carrier_metric_length(&le.carrier, t0, t1)?;
             perimeter += len;
             boundary_defect +=
                 len * RingInterval::from_certified(cache.certificate().envelope).mag();
@@ -2855,6 +2761,184 @@ mod quad_lane {
             flux: if winding < 0.0 { -b.flux } else { b.flux },
             area: b.area,
         }))
+    }
+
+    /// A certified UPPER bound on a trim carrier's METRIC length, in
+    /// metres — the lever of both honesty pads (`Σ L·envelope` widens
+    /// the area, and `× p_bound` the flux) and of the extent gate's
+    /// perimeter. ONE home: the rectangle certificate and the trimmed
+    /// lane bound the same quantity the same way, and two spellings of
+    /// it would be two things to keep equal.
+    fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
+        carrier: &Curve3<T>,
+        t0: T,
+        t1: T,
+    ) -> Result<f64, PropsError> {
+        Ok(match carrier {
+            Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
+                * RingInterval::from_certified(t1 - t0))
+            .mag(),
+            // The control polygon bounds the spline's arc length
+            // (the convex-hull/variation-diminishing fact).
+            Curve3::Nurbs(c) => {
+                let mut l = RingInterval::zero();
+                for w in c.control().windows(2) {
+                    l = l + RingInterval::from_certified(w[0].distance(w[1]));
+                }
+                l.mag()
+            }
+            // An ARC cap rim on a rational wall (M8-3): the metric
+            // length is exactly `r·Δθ` — the carrier's own parameter
+            // IS the angle, so no bound is needed.
+            Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
+                * RingInterval::from_certified(t1 - t0))
+            .mag(),
+            _ => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face boundary carrier outside the loft inventory \
+                           (line, spline and circle rims are the minted classes)",
+                });
+            }
+        })
+    }
+
+    /// **The TRIMMED-region flux lane** (TRIM-2): a described NURBS
+    /// face whose loop carries a `General` chart image, so its trim
+    /// region is what the image bounds rather than a rectangle of the
+    /// chart.
+    ///
+    /// This function assembles; the certification is
+    /// [`quad::trimmed_patch_face_rounds`]'s. The traversal's own
+    /// direction is carried per chord and the S10 winding is the chord
+    /// polygon's shoelace sign, read inside the engine — winding-derived
+    /// end to end, exactly as the rectangle certificate and the cylinder
+    /// lane are.
+    #[allow(clippy::too_many_arguments)]
+    fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
+        body: &Body<T>,
+        payload: &geom::NurbsSurface<T>,
+        outer: &[LoopEdge<T>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+        tol: Tol,
+        window: RoundWindow,
+    ) -> Result<RoundOutcome, PropsError> {
+        let ring = |x: T| RingInterval::from_certified(x);
+        let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
+        for (le, he) in outer.iter().zip(hes) {
+            let Some(cache) = body.pcurve(*he) else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "NURBS face half-edge carries no stored pcurve cache — the \
+                           loft assembly mints them; a body that lost its caches must \
+                           re-mint before mass properties",
+                });
+            };
+            let (t0, t1) = cache.params();
+            let (pa, pb) = (cache.pcurve().eval(t0), cache.pcurve().eval(t1));
+            let (a, b) = if le.forward {
+                ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
+            } else {
+                ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
+            };
+            let piece = match cache.pcurve() {
+                // An iso image is one exact chord: its endpoints are
+                // structure, so there is no arc to bound.
+                Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,
+                Pcurve::General(image) => {
+                    // The engine subdivides the WHOLE stored image, so
+                    // a cache whose carrier interval is a sub-range of
+                    // its image's domain would have the lane integrate
+                    // along chart the face does not bound. Exact
+                    // structure, like every other read on this path.
+                    let (d0, d1) = image.domain();
+                    let (r0, r1) = (ring(t0), ring(t1));
+                    // NO ROW AND NO KNOWN PRODUCER, stated so a reader
+                    // does not take the guard for evidence of the case:
+                    // `derive_general_image` mints an image over the
+                    // carrier's whole interval, so nothing at rest
+                    // stores a sub-range, and nothing in the suites
+                    // hand-builds one. It is here because the trimmed
+                    // lane subdivides the STORED image whole, and a
+                    // future producer that stored a sub-range would get
+                    // a certified number for chart the face does not
+                    // bound rather than a refusal.
+                    if !(r0.lo() == r0.hi() && r1.lo() == r1.hi() && r0.lo() == d0 && r1.hi() == d1)
+                    {
+                        return Err(PropsError::QuadratureUnsupported {
+                            what: "a General trim image whose carrier interval is not its \
+                                   own knot domain — the trimmed lane subdivides the \
+                                   stored image whole, and a sub-range would integrate \
+                                   along chart the face does not bound",
+                        });
+                    }
+                    Some(TrimPiece {
+                        knots: image.knots().clone(),
+                        control: image
+                            .control()
+                            .iter()
+                            .map(|p| (ring(p.x), ring(p.y)))
+                            .collect(),
+                        weights: image.weights().to_vec(),
+                    })
+                }
+                Pcurve::Fitted(_) => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a FITTED (rung-3) pcurve — \
+                               the trimmed lane certifies the General class, whose \
+                               agreement with its carrier is a measurement; nothing \
+                               ships that mints a Fitted image on a spline chart",
+                    });
+                }
+                Pcurve::Harmonic { .. } => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a HARMONIC pcurve — that is \
+                               an analytic chart's closed form, and this chart is a \
+                               spline patch",
+                    });
+                }
+            };
+            chords.push(TrimChord {
+                a,
+                b,
+                piece,
+                forward: le.forward,
+                env: ring(cache.certificate().envelope),
+            });
+        }
+        // **One bracket per shared vertex.** Two consecutive half-edges
+        // meet at a vertex, and each reads it through its OWN pcurve —
+        // an `IsoLine`'s `eval(t)` against a `General`'s clamped end —
+        // so at `f64` the two reads can differ by the certification's
+        // own size (2.2e-16 on the P-2 fixture, where the image's
+        // control box is `u ∈ [2 − 2.2e-16, 2]` against the rim's exact
+        // `u = 2`). Hulling them makes the walk close by construction
+        // and hands the door the honest bracket for the vertex; the
+        // door's own closure check then guards a CALLER, not this
+        // assembler's rounding.
+        for i in 0..chords.len() {
+            let j = (i + 1) % chords.len();
+            let merged = (
+                RingInterval::hull(chords[i].b.0, chords[j].a.0),
+                RingInterval::hull(chords[i].b.1, chords[j].a.1),
+            );
+            chords[i].b = merged;
+            chords[j].a = merged;
+        }
+        let control: Vec<quad::RVec3> = payload
+            .control()
+            .iter()
+            .map(|p| [ring(p.x), ring(p.y), ring(p.z)])
+            .collect();
+        quad::trimmed_patch_face_rounds::<T>(
+            payload.knots_u(),
+            payload.knots_v(),
+            &control,
+            payload.weights(),
+            &chords,
+            tol.eps(),
+            band,
+            window,
+        )
     }
 
     /// The vertex POINT at a half-edge's carrier-interval start (its
@@ -3102,15 +3186,9 @@ mod face_list_door_tests {
         let bodies = corpus();
         let (_, pair) = &bodies[3];
         for (solid, _) in pair.solids() {
-            let faces: Vec<FaceKey> = pair
-                .faces()
-                .filter(|&(k, _)| {
-                    pair.get_face(k)
-                        .and_then(|d| pair.get_shell(d.shell))
-                        .is_some_and(|s| s.solid == solid)
-                })
-                .map(|(k, _)| k)
-                .collect();
+            let faces = pair
+                .faces_of_solid(solid)
+                .expect("a solid the body yielded");
             assert_eq!(faces.len(), 6);
             let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
             // Both prisms of the pair are unit cubes.

@@ -31,7 +31,7 @@ use crate::common;
 /// suite covers only at the geom-brep unit level.
 #[test]
 fn mirrored_cube_is_caught_by_negative_volume() {
-    let body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z));
+    let body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z), Tol::witness());
     assert_eq!(validate(&body), Ok(()), "tier 1 cannot see orientation");
     assert_eq!(
         validate_closed(&body),
@@ -58,7 +58,7 @@ fn mirrored_cube_is_caught_by_negative_volume() {
 #[test]
 fn megascale_mirrored_cube_is_caught() {
     let s = 1e6;
-    let body = common::mapped_cube(|x, y, z| Point3::new(-x * s, y * s, z * s));
+    let body = common::mapped_cube(|x, y, z| Point3::new(-x * s, y * s, z * s), Tol::witness());
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter()
@@ -72,7 +72,7 @@ fn megascale_mirrored_cube_is_caught() {
 /// artifact of the raw construction path.
 #[test]
 fn unmirrored_twin_is_tier3_valid() {
-    let body = common::mapped_cube(Point3::new);
+    let body = common::mapped_cube(Point3::new, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
@@ -94,8 +94,9 @@ fn unmirrored_twin_is_tier3_valid() {
 fn thin_inverted_slab_exemption_boundary() {
     let eps = geom_core::Tol::witness().get().eps;
     // (a) sub-2ε thickness: refused upstream, Zero branch unreachable.
-    let sub =
-        std::panic::catch_unwind(|| common::mapped_cube(|x, y, z| Point3::new(-x, y, z * eps)));
+    let sub = std::panic::catch_unwind(|| {
+        common::mapped_cube(|x, y, z| Point3::new(-x, y, z * eps), Tol::witness())
+    });
     assert!(
         sub.is_err(),
         "a sub-ε slab should fail construction (forward certification), \
@@ -103,7 +104,7 @@ fn thin_inverted_slab_exemption_boundary() {
     );
     // (b) escalation-band thickness: builds, is inside out, passes.
     let t = 10.0 * eps; // = Kε at default K: certifies; |V|/A = 5ε ∈ (ε, Kε).
-    let body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z * t));
+    let body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z * t), Tol::witness());
     let props = mass_properties(&body, Tol::witness()).unwrap();
     assert!(props.volume < 0.0, "the slab is genuinely inside out");
     assert_eq!(
@@ -120,7 +121,7 @@ fn thin_inverted_slab_exemption_boundary() {
 /// defect.
 #[test]
 fn volume_check_is_gated_on_otherwise_clean_reports() {
-    let mut body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z));
+    let mut body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z), Tol::witness());
     // Corrupt one face's plane through the public setter: origin
     // shifted along the normal ⇒ planar residual errors at tier 3.
     let (fk, face) = body.faces().next().unwrap();

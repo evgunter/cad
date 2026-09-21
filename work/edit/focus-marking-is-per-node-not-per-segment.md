@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-29
 refs: [authored-step-to-canonical-segment-map-has-no-home]
 github: 1182
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 1182

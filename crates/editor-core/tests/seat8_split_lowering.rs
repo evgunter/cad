@@ -50,13 +50,8 @@ use editor_core::{
     SplitSide, ValuePayload, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, scl, square};
-use geom_core::Tol;
+use fixture::{len, scl, square, tol};
 use topo::{Body, SourceExpr};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
 
 /// The registered split documents, by name: a tilted plane through a
 /// cylinder (curved section edges), a plane through a box with both

@@ -55,6 +55,8 @@ mod common;
 
 #[path = "arc_fillet.rs"]
 mod arc_fillet;
+#[path = "arc_spec_census.rs"]
+mod arc_spec_census;
 #[path = "blend7_review_probes.rs"]
 mod blend7_review_probes;
 #[path = "bool11_probes.rs"]

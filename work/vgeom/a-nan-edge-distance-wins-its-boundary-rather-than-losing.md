@@ -4,6 +4,8 @@ kind: issue
 title: A NaN edge-pick distance is installed as best and never displaced, beating every legitimate candidate
 status: open
 opened: 2026-09-17
+priority: P0
+cost: E
 ---
 
 Found by the review of #2798, correcting that PR's own sweep

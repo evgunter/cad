@@ -557,3 +557,198 @@ the `ALL` reader fails, the four-entry array beside it passes, same
 binary otherwise. Worth doing for a change whose whole claim is about
 what stays silent — and it is what proved the two left-alone sites are
 covered rather than skipped.
+
+## The design-free sweep reaches DOOR (2026-09-20)
+
+Ev, in chat, asked of FIX: *"can you kick all the design decisions back
+to the track they actually belong to, leaving fix design-free?"* — and
+then asked for the same thing here. Four of eight open rows left.
+
+### Why the rule bites harder here than on FIX
+
+FIX owns three files, so where a row's decision is about `checks.rs`,
+`refactor.rs` or `crates/quantity`, FIX **is** the track it belongs to
+and the seat ruled rather than re-homed (three rows, same day).
+
+**DOOR owns no paths at all.** So there is no row here whose surface is
+this program's to decide, and the rule has no exception: a row that
+needs a decision always leaves. That is now the charter's first clause.
+
+**It also resolved a contradiction this program has carried since it
+opened.** The charter admitted `M` rows whose fix was written but which
+added *"a small design call (where a shared helper's home goes, what a
+door looks like)"* — while the territory section, two paragraphs down,
+said *"a row that grows a design question stops being this program's"*.
+Both rows the `M` clause was written for turned out to ask **the same
+question** — where a shared thing lives, in a `geom-core` file PROPS
+owns — and both went to PROPS. The clause is retired; the rule stands.
+
+### The routing
+
+| row | → | decision it was blocked on |
+|---|---|---|
+| `S114` | PROPS | the home for the interval-containment predicate: `geom-core` beside `Interval`, or `test-utils` |
+| `patherror-display-renders-float-noise` | PROPS | where `num` lives once a second crate consumes it |
+| `all-census-idiom-forces-the-visit-not-the-update` | CENSUS | which mechanism replaces an `ALL` pin that cannot see a missing entry — the row lists four and decides none |
+| `unit-symbol-proptest-generators-under-cover-with-no-file` | TINT | how two `prop_oneof!` generators stop under-covering — *"a way for the generator to draw from the symbol table itself"* is a direction, not a diff |
+
+Routing from `scripts/work.py territory --files -` over every path the
+rows cite, never from this program's `keep_out` prose. PROPS's two are
+the same shape and arrive together; CENSUS and TINT each already carry
+the row's siblings (`inert-deny-unknown-fields-on-unit-enums`;
+`anti-vacuity-floor-cannot-go-red-on-degradation`).
+
+### A decided thing was about to die in a plan rewrite
+
+`plan.md`'s **Review posture** carried a long section prescribing the
+rounding point `patherror` should adopt: an absolute cap at
+`DEFAULT_EPS / 10` met with a relative arm, the finer grid winning,
+`RELATIVE` left for the lane to pick and argue at the site.
+
+**That is not an open choice — it is the code in the tree.**
+`crates/profile/src/path.rs`'s `num` reads
+`let tol = (DEFAULT_EPS * 0.1).min(x.abs() * 1e-9);` today, landed by
+FIX's **PR 2399 on 2026-09-12**, closing
+`num-relative-tolerance-collides-above-a-decimetre` — one day after this
+plan was written, and the plan was never re-read against the tree. The
+reasoning the section argued for (why the cap is compile-time
+`DEFAULT_EPS` and never the run's live `Tolerance::eps()`) is now in the
+helper's own doc comment, which is where it belongs.
+
+The section was **lifted onto the item** before the plan was rewritten,
+as a record of what was decided and where it landed rather than as an
+instruction. A plan states present state only (`work/README.md`), so
+text that is neither present state nor recoverable elsewhere has to move
+before the rewrite, not after.
+
+**And the vocabulary trap in it is now recorded**, because it would have
+cost the next reader: the plan called `DEFAULT_EPS / 10` an *"absolute
+floor"* while the item says *"do not reintroduce an absolute floor at
+the small end"*, meaning the opposite thing. `min` CAPS the tolerance
+and makes the grid finer at large magnitudes; the defect PR 2366 removed
+was `1e-9 * x.abs().max(1.0)`, which FLOORED it and rendered every
+sub-nanometre margin as `0` — the margins those messages exist to
+report. The helper's doc states it at the site: *"a FLOOR under the
+tolerance is the mirror defect and is precisely what a `min` cannot
+become."*
+
+### One row that looked like a decision and is not
+
+`vectorslot-slots-has-no-reader` reads *"Delete it, or name the
+consumer"*. Its own sibling `vectorslot-all-has-no-reader` closed **by
+deletion** (PR 2446, 2026-09-12), on the same `impl`, on the same lines,
+after re-measuring the premise two ways — and this row was filed by that
+unit's own compile measurement. The precedent is one PR old and the row
+inherits it, so it stays as a written fix with the inheritance recorded
+on it.
+
+### Stale fences, again, and the same lesson as FIX's sweep
+
+Three rows here still named **DOCM** as their owner — DOCM closed on
+2026-09-13 (`docs/DOC-LEDGER.md`, sweep 14) and the rows moved to DOOR
+in that sweep without their fence prose being re-read. Territory says
+`node.rs` and `eval/parts.rs` are **EDIT's** and `mate/member.rs` is
+**MSOLVE's**. `keep_out` now leads with the instruction to route from
+the instrument rather than from itself.
+
+### What this leaves
+
+Four rows, every one `E`: two doc sentences, one field, one literal, one
+deletion. Nothing on the slate takes a full correctness lane, and
+nothing blocks anything else.
+
+**The FIX-adjacency question stays settled.** Ev ruled on 2026-09-12
+that the rows stay in DOOR — *FIX is a grab bag of small things and DOOR
+is the more coherent home* — and this sweep does not reopen it. FIX's
+`plan.md` was corrected in the same commit: it had raised the overlap as
+a handoff question, which is re-litigating a decision already made.
+
+## The wave that empties the slate (2026-09-21)
+
+Four rows, four PRs, four merges: **2984** (`axis_datum`'s `expected:`
+comes from `phrase::DATUM_AXIS`), **2985** (the placer docs say what the
+placers accept and yield), **2986** (`PartFault::PartProduct` carries
+the class beside the sentence), **2989** (`VectorSlot::slots` deleted).
+Every one on its own green hosted head, full matrix, no narrowing. The
+slate is empty.
+
+### The lanes corrected the dispatching seat twice
+
+Both times the brief passed on a summary and the lane read the code:
+
+- **2985.** The brief said both placers are *"shape-preserving over
+  `Instances`"*, taken from the row and from ruling 2137's own summary.
+  `wire_pattern` returns `ValuePayload::Instances` **unconditionally** —
+  N bodies for a one-body master. Shape-preserving is true of
+  `Transform` and false of `Pattern`, and writing it twice would have
+  put a false sentence in a declaration `node_value_kind` reasons from.
+  CHROME's `body-seat-reads-through-the-placer-chain` carries the same
+  imprecise parenthetical (its TITLE gets it right) and has been told.
+- **2989.** The brief said to delete the method *"and the re-export"*.
+  There is no separate re-export; the enum's is load-bearing and the
+  lane proved it with a revert-after-probe (`E0432` from the viewer).
+
+That is instruction 1 — *read the clause, not the row's summary* —
+working in the direction nobody plans for: catching the orchestrator.
+
+### What the units measured rather than inherited
+
+Every row's numbers were stale and every lane re-derived them.
+`vectorslot`'s `.slots()` count drifted 36 → 41; `datum-axis`'s "third
+and last copy" became a measurement (four patterns, including the
+rustfmt-wrapped spelling, plus a read of every `WrongOperand`
+construction in `editor-core/src`); `node-placer` found a **third**
+rotted sentence in fence and three more outside it.
+
+**The deletion sweep is the technique worth keeping** (2989): rather
+than grepping for readers of the sibling members, the lane deleted each
+one and read the compiler — `slot` 2 errors, `label` 3, `dimension` 2.
+A negative result by grep is a claim about the pattern; a negative
+result by deletion is a fact about the tree.
+
+### Instruction 3 went two for four, and the misses are the interesting half
+
+`part-fault`: nothing in the tree had ever constructed or asserted
+`PartFault::PartProduct`, so the arm could have carried anything — the
+new pin instantiates two documents refusing the gather differently and
+mutation-checks that the classes discriminate.
+
+`datum-axis`: the answer was **yes** for the first time in two waves,
+measured by mutation (drifting the literal reds 4 of 8 rows) — and the
+unit then *closes* that discrimination, because both sides become the
+same const. What still pins the user-visible sentence is two literals in
+`crates/editor-core/tests/`, and they must stay literals: a test naming
+the const could never catch a change to the const's expansion.
+
+The other two changed no behaviour, so they owe no pin, and both said so
+plainly instead of inventing one — an assertion over a compile-time fact
+is the §2 defect, not a deliverable.
+
+### A lint collision worth knowing about
+
+2989's first run failed one job: `work tracker lint`, on a rule a
+parallel session added — *"program is ready but none of its 4 live rows
+is dispatchable"*. Green on the branch alone, green on main alone, red
+only on the merge, because two DOOR PRs each moved a row to `review`.
+**Whichever landed second would have hit it**, and every review PR on a
+one-orchestrator program will. The lane set `status: active`, which is
+the program's own word and the orchestrator's to set — it flagged the
+overreach loudly rather than doing it quietly, and the value it chose is
+the true one, so it stands.
+
+### Where this leaves DOOR
+
+Empty, and `active` only because an orchestrator is on it writing this.
+Neither of the other two statuses is TRUE of an empty track — `ready`
+means "something to pick up" and `blocked` means "every live row is in
+flight" — though lint accepts both, since it checks only the half of
+each claim the tree can see. Tested, not assumed.
+
+Ev closed FIX on 2026-09-21 for a reason that reads across:
+*"most of those were either mis-filed or should've been done as drive-by
+fixes."* **It reads harder here.** DOOR claims no paths at all, so every
+row it ever held was on another program's ground by construction; this
+wave's four were two doc sentences, one field, one literal and one
+deletion, all in files EDIT or MSOLVE own. The recommendation is to
+close DOOR on the same ruling — but that is Ev's call, not this seat's,
+and it is recorded here as a recommendation rather than taken.

@@ -4,6 +4,8 @@ kind: issue
 title: SketchPlane stores only the Affine3, so the frame witness dies at the read-back boundary
 status: open
 opened: 2026-09-15
+priority: P0
+cost: H
 ---
 
 ## What

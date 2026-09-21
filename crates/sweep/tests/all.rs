@@ -95,6 +95,8 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "r1_lane0_e2e.rs"]
+mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
 mod r1_mate3_probes;
 #[path = "r2_mate3_probes.rs"]
@@ -666,6 +668,8 @@ mod shell8_r2_probes;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
+#[path = "spiric_rim.rs"]
+mod spiric_rim;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;

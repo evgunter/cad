@@ -2,8 +2,13 @@
 id: vectorslot-slots-has-no-reader
 kind: issue
 title: VectorSlot::slots() is public and unread: deleting it leaves the workspace green
-status: open
+status: closed
 opened: 2026-09-12
+priority: P4
+cost: E
+branch: door/vectorslot-slots-delete
+pr: 2989
+closed: 2026-09-21
 ---
 
 
@@ -54,3 +59,72 @@ Moved from `work/docm/` to `work/door/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the fix is written in the row and it is one PR on a file another program owns, which is DOOR's test. Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## The decision it asks for was already taken next door (DOOR orchestrator, 2026-09-20)
+
+This row reads *"Delete it, or name the consumer"*, which looks like a
+decision and is not one any more: **its own sibling closed by deletion**.
+`vectorslot-all-has-no-reader` (PR 2446, closed 2026-09-12) deleted the
+neighbouring unread member from this same `impl` in this same file,
+after re-measuring the premise two ways. This row was filed BY that
+unit's compile measurement and differs from it only in which member it
+names.
+
+So the row stays on DOOR's slate through the 2026-09-20 design-free
+sweep: the fix is written (delete `VectorSlot::slots`, and the
+re-export of it through `crates/pncad/src/document.rs`), and the
+precedent for the call is one PR old on the same lines.
+
+**What the lane still does rather than inherits.** Re-take the deletion
+measurement at your own merge base — the row's evidence is
+`cargo check --workspace --all-targets` clean in 8.4 s with the function
+removed, and 36 `.slots()` call sites all having a `Node`,
+`ProfileProgram` or `TubeWindow` receiver — and check the Python surface
+again rather than trusting the note that `VectorSlot` sits in the
+binding census's not-bound set.
+
+**Fence:** `crates/editor-core/src/node.rs` is EDIT's (territory; the
+row's own text says DOCM's, which closed on 2026-09-13). Announce there.
+
+## Closed (2026-09-21) — PR 2989, five lines deleted
+
+`VectorSlot::slots` is gone. Nothing else in code changed.
+
+**The brief was wrong and the lane measured instead of obeying.** It
+said *"delete it and the re-export"*; there is no separate re-export of
+the method — `slots` reached `pncad::document` only through the ENUM's
+re-export. The lane probed removing that (`VectorSlot` out of the
+node-vocabulary `pub use` in `crates/pncad/src/document.rs`) and got
+`error[E0432]: unresolved import` from `viewer/src/props.rs` and
+`viewer/tests/panel_display.rs`, so the enum's door is load-bearing and
+the probe was reverted. **`document.rs` is not in the diff**, which also
+keeps the unit to the one unread member. Second brief this wave the
+lanes corrected.
+
+**Measured by deletion, twice, and past `--workspace`.** The row's
+evidence was re-taken at the merge base and again after merging main:
+`cargo check --workspace --all-targets` clean, **plus all seven
+non-workspace roots** from `scripts/doc-gate.sh --print-roots` checked
+individually — `benches`, `demos/tour`, `demos/wild`,
+`interval-transcendentals` and the three `tools/*`. The row's count had
+drifted (36 `.slots()` sites → **41**); all 41 compile without the
+method, so none had a `VectorSlot` receiver.
+
+**The sweep generalised the instruction rather than the symbol**: the
+lane deleted each of the sibling members in turn to see what the
+compiler said. `slot` reds with 2 errors, `label` with 3, `dimension`
+with 2 — so all three have readers and stay, and the "one unread
+member" claim is now a measurement rather than a reading.
+
+**No pin, correctly.** Deleting dead code changes no behaviour, so
+there is no runtime value an assertion could discriminate; the compiler
+is the check, exercised at all eight cargo roots and again by the gate.
+
+**Python:** `VectorSlot` is dispositioned as a whole TYPE in the binding
+census's `NOT_BOUND`, so the census never enumerates its members and a
+member leaving cannot move a row. Confirmed by running the census
+standalone, not inherited from the row.
+
+**Fences:** `crates/editor-core/src/node.rs` (EDIT's) is crossed;
+`crates/pncad/src/document.rs` (LIB's) was probed and reverted and is
+not in the diff.

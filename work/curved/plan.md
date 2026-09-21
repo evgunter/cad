@@ -15,94 +15,36 @@ entry in the opening commit, per that entry's rule.
 **Opened for dispatch 2026-09-04** at VERBS' exit. See §Opening
 condition.
 
-## Charter
+## Charter (re-cut 2026-09-20)
 
-Every ordinary curved shape a modeller reaches first — a filleted
-stacked pair, a crenellation slab through a drum, a sectioned box with
-a round boss, two cylinders meeting at a pinch — and every declared
-contact the census cannot yet back. The register is
-`docs/KERNEL-VERBS.md`'s Wave 2 remainder plus S-MATE's exit residue.
+The exact spiric rim carrier is delivered end to end and the klein
+elbow hollows. Everything else this program carried on 2026-09-19 (69
+items across six lanes) moved on Ev's in-chat direction to three
+successor tracks opened in the same commit: **REACH** (`work/reach/`,
+the boolean lanes and S-BOOL's residue, 49 items), **TANG**
+(`work/tang/`, declared tangency, germ and pierce, the pinch design, 8
+items) and **CHART** (`work/chart/`, the three SSI drive-bys with
+TRIM's chart-side residue). The former lane list and the S-BOOL fence
+are recoverable in this file's history at the cut commit.
 
-## Opening condition (met)
+## Remaining slate
 
-VERBS' exit walk was ratified at PR #1793 (2026-09-04, ledgered);
-S-MATE's directory was swept into MSOLVE; the fence against S-BOOL
-below is written into both `program.md`s (the opening PR). VERBS'
-fourteen re-homed items were adopted from `work/issues/` at the
-opening (see the log); `sphere-flux-arm-refuses-partial-bands` went to
-PROPS as a props unit.
-
-## Fence against S-BOOL
-
-S-BOOL keeps: the PATHS lattice (`crates/profile`, BOOL-9/10/12), the
-containment examination (BOOL-4), the wedge props arm (BOOL-5), the
-loft fold (BOOL-6), the vdiff rung (BOOL-7) and Track Q's rows (BOOL-Q).
-CURVED takes: the declared-contact rungs (`rest.rs`, `carrier_eq.rs`,
-`census.rs`), the germ and pierce lanes (`chord_join.rs`,
-`boolean/join`, `splitting/*` as the pierce reads them), the operand
-reach arms (`sectors.rs`, `ops.rs`'s curved arm, `boxes.rs`),
-`geom-brep/{intersect,implicit}.rs`. The operand-reach items, the two
-containment doors and the graft/boolean-declarations singles are on
-S-BOOL's slate today and move here by an announced handover on the
-away channel (opened 2026-09-04, Ev's nod) or at S-BOOL's exit.
-
-## Lanes
-
-- **VERBS' executable remainder (first dispatches)**: `VERBS-C5ARMS`
-  PR-2 (cone×cylinder section arm; DELIVERED #1864, 2026-09-05; the
-  spec is ledgered) → `VERBS-CONE` (the cone and
-  torus operand lanes; spec to write, sequenced on what C5ARMS PR-2 and
-  the torus lane learn) with `plane-cone-elliptic-section-split-refusal`
-  folded in where VERBS-CONE's spec reaches `intersect.rs`.
-- **The spiric carrier (Ev-gated design)**: the RIMCAP torus half —
-  `docs/VERBS-RIMCAP-SPEC.md` §PR-2's option (a) fence-permanently vs
-  (b) an exact spiric carrier kind — as one `[ev]` design doc together
-  with #1377's valence-4 pinch machinery
-  (`pinch-carrying-machinery-valence-4`), opened early (Ev, in-chat
-  2026-09-04) because only Ev can advance it. It owns the klein elbow
-  (C5ARMS rows 3/4/8, TORAX's elbow half).
-- **Declared tangency (kiss/cusp)**: `m9-3-semantic-residues` items
-  4–5 (contfp's pre-pass order; move `tangent_locus` out of `rest.rs`)
-  → `dev1-cylinder-sphere-circle-locus-arm` (D: revise the DEV-1 set;
-  the residual-sign story is the gate) →
-  `declared-cusps-second-order-wedge-arm` items 3–4 (VERBS' today) →
-  `torus-declared-rest-lane-banked` (the 0/2π kissing arm) → item 5's
-  consumer sweep.
-- **Torus lane completion** (VERBS' today):
-  `torus-operand-boxes-span-whole-ring` (DELIVERED #1907, 2026-09-07) →
-  `circle-residual-harmonics-needs-torus-arm` (DELIVERED #2535,
-  2026-09-15; the spec is ledgered). Left on the lane:
-  `torus-operand-gate-admission` (the lily's remaining pin) and
-  `the-chord-dip-charge-has-two-homes` (S-BOOL's half).
-- **Germ and pierce** (VERBS' today): `arc-aware-point-in-loop` (with
-  #1077) → `pierce-ring-has-no-join-arm` →
-  `boolean-refuses-on-arc-carrier-not-arc` (door 2) →
-  `pinch-carrying-machinery-valence-4` (D→H: spec first; parked on
-  SEAT-6).
-- **Operand reach** (S-BOOL's today):
-  `slab-cut-cylinder-refuses-sector-side` →
-  `split-refuses-cylindrical-feature-box` →
-  `cosurface-disjoint-curved-walls-refuse` (D: is same-sense cosurface
-  a `ContactClass` member).
-- **Merge-door reach**: `cylindrical-rest-pair-hits-planar-merge`
-  (DELIVERED #2105, 2026-09-14 — the door records; the STOP-2 re-scope
-  filed `rest-zip-seam-chord-on-cylinder-wall`) →
-  `coplanar-cap-pair-f7-repair-half-b` (VERBS' today).
-- **At-rest census strengths**: `overlap-lane-boundary-crossing-cuts`
-  (the D3 cut schedule) → `census-at-rest-two-boolean-lane-premises`
-  stage 2 (parked by name on the C6 interference-fit era).
-- **Singles**: `signed-penetration-depth` (M10 residue; needs a
-  certified point-in-solid), `verbs-1031b-assigner-checker-divergence`
-  (validate's check 6 learns the arc-bounded winding arm the merge
-  assigner already has; the refusal-surface measurement first — kept
-  here because the merge-door lane owns the same arc machinery),
-  `graft-copies-provenance-keys-verbatim`
-  and `boolean-declarations-has-no-geometric-producer` and the
-  containment doors (S-BOOL's today), `plane-cone-elliptic-section-split-refusal`
-  if VERBS-CONE is never dispatched, the `ssi*` drive-bys
-  (`plane-nurbs-ssi-misblames-control-net`,
-  `ssi-lever-arm-min-fold-hides-poison`, `ssi-chart-speed-usability-boundary`;
-  VERBS' today, "Track Q ground behind PCURVE P-2" in two keep_outs).
+1. `spiric-rim-carrier` — PR-1a MERGED #2566 (block CURVED-B2 slot 1);
+   PR-1b (#2861, slot 2) in its fix pass after the dual (adjudication
+   comment 5746969779); merging PR-1b concludes block CURVED-B2 and
+   closes the item.
+2. `equator-seam-reauthor-refuses-the-hollowed-elbow` — the STOP-1
+   finding of PR-1a: rotate the `RevolvedPoint` placement to the moved
+   corner's own azimuth and take the span from the moved ends. E–M /
+   STRUCTURAL; opening measurement already taken (#2566's body). The
+   elbow's hollow then reaches the props door, which is the walk's
+   headline.
+3. `c5-plane-torus-cone-cylinder-arms` — rows 3/4/8's demo re-authoring
+   and the third panel wait on a props lane that is QUAD's; the item
+   closes at the walk with the kernel half delivered and the demo half
+   re-homed to QUAD by file.
+4. `c5a2-ledger-sample-143-collides-with-seatfw` — a ledger fix (E, the
+   orchestrator's own read).
 
 ## Review posture
 
@@ -111,5 +53,9 @@ review.
 
 ## Exit shape
 
-The register's Wave 2 is empty and every declared contact the census
-admits is backed; the walk convention applies.
+`Curve3::Spiric` and `Pcurve::Spiric` are landed, certified and
+exported; the klein elbow hollows end to end and refuses at the props
+door with its payload named; `docs/CURVED-SPIRIC-SPEC.md` is deleted
+per the ledger; the C9 ring `sqrt` question is opened as an `[ev]`
+conversation (on TANG if unasked at the walk); the walk convention
+applies.

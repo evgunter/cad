@@ -314,16 +314,62 @@ marker — *"21 jobs, `docs-only ok` success, the docs-only tier
 exactly"*. It concludes **success on the full code tier too**: #2390,
 #2392 and #2400 each carry a green `docs-only ok` inside a 38-job
 closure-tier run, alongside `gate ok`. So its presence is no evidence
-of a tier at all. The only evidence is the one already written down two
-rules above — **the COUNT, and `gate ok`** — which is exactly what this
-register says about an unsubstituted matrix placeholder, applied to a
-job name instead of a job name's contents. The reading was never
-falsified because on a docs-only run both facts are true at once, so
-the proxy agreed with itself every time.
+of a tier at all. The evidence is the shape the rule below states —
+**`gate ok`, and the `TIER=` the change filter prints** — which is
+exactly what this register says about an unsubstituted matrix
+placeholder, applied to a job name instead of a job name's contents.
+The reading was never falsified because on a docs-only run both facts
+are true at once, so the proxy agreed with itself every time.
 
-Verify a tier by: **21 jobs** (docs-only) or **38-39 with 12 `test (…)`
-and 5 `k-lint (gate, …)`** (full code), plus `gate ok` success. Never by
-which summarising job reports green.
+**And the replacement it first got was a COUNT, which is the same
+defect one step weaker.** This rule read *"21 jobs (docs-only) or 38-39
+with 12 `test (…)` and 5 `k-lint (gate, …)`"* for fourteen days; a
+docs-only run then showed **22** (PR #2954, run 35550934699, a
+tracker-only diff whose change filter printed `TIER=docs`), so a lane
+following the rule literally reads 22 and concludes it is NOT on the
+docs tier — the opposite of the error the rule exists to prevent. **A
+job total is a number with no enumeration rule**: it moves whenever
+`ci.yml` gains or loses a job, nothing in CI reds when it does, and it
+goes stale silently. The register's own *a count fixed in ONE place*
+and *a count carries its enumeration rule* apply to the register.
+
+**So verify a tier by a printed word and a shape, never by a total.**
+
+- **Which tier am I on: `python3 scripts/ci-filter.py --base <base>`,
+  which prints `TIER=docs|closure|all`.** That is the authoritative
+  answer and the only one that cannot go stale against a workflow
+  change, because the workflow classifies with the same script. Run it
+  on the COMMITTED branch: over an uncommitted tree it reports
+  `falling back to TIER=all: empty change set`, which is the tree's
+  answer and not the branch's. The run prints the same word at the
+  `change filter` job's *classify the change set* step.
+- **Docs tier, on the run: `gate ok` GREEN with every code row
+  SKIPPED.** Those two facts together and nothing else. `docs-only ok`
+  is green on BOTH tiers — the thirteenth proxy, above — so it is
+  never the marker, and the job total is not one either. The three
+  other green rows are `change filter`, `CI half parity + gate wiring
+  (every tier)` and `docs-only ok`; that is the receipt shape the
+  docs-tier rule below already asks a docs-only lane to report.
+- **Full code tier: twelve `test (…)` rows and five
+  `k-lint (gate, …)` rows, present and green, plus `gate ok`.** These
+  two numbers stay because each carries its enumeration rule and
+  `ci.yml` states both: twelve is `{default, interval}` x
+  `{default, 1e-6, 1e-12}` x `shard: [1, 2]` across the two matrix
+  jobs, and five is the literal `klint_rows` list — `dev-default`,
+  `release-default`, `release-budget`, `dev-budget`, `dev-probe`. The
+  workflow's own narrowing annotation says both in one sentence, so a
+  run that gates fewer says so out loud. **Do not carry a TOTAL beside
+  them** — "38-39" was this rule's other count and has the same
+  defect as the 21 did.
+- **`gate ok` RED on a diff that touches `crates/` is not a tier at
+  all**, it is the un-mergeable-PR signature; three quarters of that
+  signature is also true of a healthy docs tier. Diagnose it with
+  `git merge-tree --write-tree origin/main origin/<branch>`, never
+  from the logs. The rule at the end of this register has the whole
+  shape.
+
+Never verify a tier by which summarising job reports green, and never
+by how many rows the run has.
 
 **A viewer test command needs `--no-fail-fast` or it silently does not
 run the suite.** `cargo test -p viewer --features app` — which this
@@ -1087,6 +1133,368 @@ caught it was reading the file's other sections, not re-measuring.
 Generalises: a ratio between two measurements is only a ratio if both
 were taken at the same setting, and a number quoted without its
 setting is not yet a measurement.
+
+**An item that asks for a test may be asking for traceability, not
+coverage — and mutation is how you tell.** The register already says a
+suggested assertion's cheapest failure is being GREEN on the broken
+tree. `a-supersession-outlives-its-own-frame` adds the reason one can
+be: **the tree cannot be broken past it.** The lane built four
+falsifications of `frame.rs` — `apply`'s `Keep` arm clearing, `acts`
+returning `true`, `apply`'s `Expire` going subject-blind,
+`batch_status`'s acting arm keeping — and in every direction three to
+five EXISTING rows red first. The row the item proposed could not have
+been the first failure of any of them, so writing it would have added a
+name, not a guard. What was actually missing was a reader's route from
+the stated lifetime to the rows that hold it, which the doc now gives
+by naming them. So before writing an item's suggested row, **mutate the
+code the row would guard and read which rows red** — if the suite
+already reds three deep in every direction, the deliverable is a
+citation and not an assertion, and saying so is a finding rather than a
+skipped chore.
+
+**And check the orchestrator's arithmetic too.** The ruling that item
+carried asserted `Subject::Document` lacks an `Expire` issuer *"where
+three other subjects do"*. `frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER` is
+`[Subject; 2]`, and `vocab.rs` says *"names two of five"* in as many
+words — so the asymmetry the ruling narrowed the item to did not exist
+in the direction it named. The conclusion survived on its other leg,
+which is luck, not method. A ruling is evidence with a name on it, and
+the name is not the evidence.
+
+**A receipt read off the end of a pipeline is a receipt for the wrong
+command.** The `view/datum-refusals-named` lane ran
+`scripts/doc-gate.sh 2>&1 | tail -20; echo "BARE=$?"` and reported the
+bare gate green. `$?` there is **`tail`'s** status, not the gate's —
+the gate had already failed locally, and the lane learned it from
+hosted CI a round trip later (three intra-doc links to
+`ViewerApp::update`, a function that has never existed; the entry
+point is `<ViewerApp as eframe::App>::ui`). This is the register's
+*receipt for a command nobody ran* class in a new shape: the command
+DID run, and the number reported belongs to a different one. Redirect
+to a file and take `$?` off the command itself, or use
+`PIPESTATUS`/`set -o pipefail`. **A pipeline's exit status is its last
+stage, and every validation line in a PR body that pipes is making a
+claim about `tail`, `head` or `grep` unless it says otherwise.**
+
+**Two open PRs can both be right about a count and both be wrong
+together.** `#2762` (`view/dead-seam-badge`) and `#2788`
+(`view/datum-refusals-named`) each add one member to `frame.rs`'s
+badge family, and each moves `frame_policy.rs`'s
+`assert_eq!(badge_doors, 8, …)` and `crates/viewer/README.md`'s
+*"eight"* to **nine**. Both are correct against `main` and against
+each other's absence. Git conflicts on the line, which is the good
+outcome — **and the resolution is `10`, not whichever side arrives
+second.** More generally: a hand-written population count is a
+cross-branch hazard the way a lockfile is, and two lanes told to
+"correct the census" in parallel will each correct it to the same
+wrong number. Where a count is guarded by a `matches(…).count()`
+sweep, the sweep is the thing that is right; the literal beside it is
+the thing to re-derive at merge, never to carry across.
+
+**A probe that samples a per-point quantity once has already chosen
+its answer.** The review of #2788 measured the datum fixture's scale,
+found it absent at `f64::MAX`, and concluded the unit's whole design
+argument rested on an unreachable case. The lane re-derived it under
+instrumentation and the conclusion inverted: `View::metres_per_pixel_at`
+takes a POINT, and `datums.rs` scales its two marks at two DIFFERENT
+points — the ruling at the patch centre (`view.half_patch_at(centre,
+…)`, `view.metres_per_pixel_at(centre)`), the normal tick at the datum
+origin (`view.screen_metres_at(origin, NORMAL_TICK_PX)`). The probe
+read the origin. At `M = 1e100` the centre still scales at `1.87e-4`
+while the origin is at `1.04e97`, so the ruling IS entered and the
+lost-extent arm DOES fire — with an ordinary 1280x800 window and an
+ordinary camera, only the datum extreme. The review's magnitude-
+independent ratio (`half/cv ≈ 1.46`) assumed the eye is about as far
+from the centre as from the origin, and it is not: the centre is what
+the camera is aimed at.
+
+This is **this program's own proxy rule with the reviewer holding the
+proxy** — a single `has_scale` column is a classifier standing in for
+a property that does not have one value. So: before believing any
+measurement of a per-point or per-mark quantity, **ask what point it
+was taken at, and check that against what the code samples at each
+site.** A one-column table over a quantity the module computes per
+mark is a summary of an assumption, not a measurement.
+
+**And the complaint under the wrong evidence was still right.** The
+lane's prose had named `f64::MAX` as *the* lost-extent case when it is
+three refusals at once — the tick's depth overflowing, one direction's
+`cv/pitch` overflowing past the finiteness guard, and the other losing
+its extent — with no row splitting them. A wrong reason can arrive
+attached to a real finding, and the finding survives the reason's
+death: the fix was a new row isolating the arm at `1e100`, where the
+origin still scales.
+
+**A float-valued door has a THIRD cheapest failure, and it is the
+assertion shape the other two teach you to write.** The register says
+a suggested assertion most cheaply fails by being green on the broken
+tree, and next by being red on both. `a-clamp-is-not-a-bound-against-
+nan` found a third that only exists for a door answering a float. The
+lane wrote the share row in the same *differs from every legitimate
+answer* shape that is exactly right for the `u8` and the `usize` doors
+beside it — and for an `f32` it is **worthless**, because a `NaN`
+differs from everything including itself, so `Some(NaN)` — the broken
+door's own output — passes it. It surfaced only because a mutation
+reported an unexpected row.
+
+So: **`assert_ne!` against a float is not a distinguishability test.**
+A float-valued door needs the pair — *poisoned inputs answer the
+refusal* AND *every legitimate input answers a value* — and neither
+half says anything alone. Before writing a difference assertion, ask
+what the type's equality does to the value you are excluding.
+
+**And hunt the producer, not the input.** The same unit's row named
+three `NaN` inputs; the reachable defect had **no `NaN` input at all**.
+An authored bulge of `1e-320` on a horizontal chord gives
+`theta = 4e-320`, an apothem of `inf`, and a left normal of exactly
+`-0` — so `-0 * inf` puts a `NaN` in the arc's centre, and 256 points
+are emitted at `[NaN, NaN]`. Every value is finite at every guard;
+`Expr::literal` accepts `1e-320` because it is a number. Verified
+independently. **A value that is a number at every guard and stops
+being one downstream is invisible to any grep over comparison
+operators**, which is why the sweep that found the three inputs could
+not have found this one. Sweeping for the bad value finds the arm
+nobody reaches; sweeping for the arithmetic that MINTS it finds the
+arm anybody can.
+
+**A `git log -S` that finds nothing in a SHALLOW clone is not evidence
+of anything.** CLAUDE.md tells every agent to run the pickaxe before
+waiting on Ev, and this repo is worked through ephemeral worktrees
+whose clones are shallow — `.git/shallow` exists and `git blame`
+bottoms out at a boundary commit (`^cf2164600f` today). A pickaxe over
+a truncated history reports an absence it has no standing to report.
+The `view/clamp-nan` lane cited `07b41f6bf6` as the commit that wrote
+a `theme.rs` sentence; **that SHA does not resolve at all**, here or on
+GitHub. The real commit is `df8cc27873` (2026-08-30). Two things
+conspired: the shallow history, and the register's own split-span trap
+— the sentence spans a `///` continuation, so the whole-phrase pickaxe
+returned nothing even where the history reached.
+
+**But `is-shallow-repository` is not the test, and on THIS repository it
+gives the wrong answer.** `.git/shallow` exists here, so that command
+says `true` — and `git log origin/main` still reaches
+`c857d68a42 initial commit`. The grafts are for refs fetched shallowly
+at some point; main's own history was deepened and is complete. A
+reviewer caught the orchestrator asserting the opposite in a dispatch,
+after the orchestrator had already reached for "the clone is shallow"
+to explain a nil `--grep` whose real cause was a wrong pattern. **The
+test is whether the history you are searching reaches the initial
+commit** (`git log <ref> | tail -1`), not whether a shallow file exists.
+Discounting a nil result on a complete history throws away evidence.
+
+So a provenance receipt owes three things, not one: **the SHA must
+resolve** (`git cat-file -t` it, or look it up on GitHub when the clone
+is shallow), the search must be a **fragment short enough to survive a
+line wrap**, and a nil result must say **"not found in a shallow
+clone"** rather than "no such commit". The conclusion can still be
+right while the receipt is worthless — it was here, because `theme.rs`
+is in no companion table and no ratified text was touched either way.
+A ratification check that concludes correctly from a SHA that does not
+exist has not checked anything.
+
+**Overturning a claim about WHERE a defect lives is half the work; the
+other half is finding where it actually lives.** The `view/clamp-nan`
+lane correctly overturned the orchestrator's framing — `theme.rs`'s
+`channel_to_srgb8` is not a paint path, its only consumers are the
+colourblind safety rows — and then stopped. The next question was one
+step away and unasked: **then which door does a NaN actually reach?**
+The answer was `gpu.rs`'s `mark_lane`, which hands raw `Mark::strength`
+to the uniform, and a WGSL `clamp` that does not bound a NaN either. So
+the unit hardened the measurement path and left the painting one, and
+the PR disclosed that the shader half was unswept without filing
+anything for it.
+
+The lane diagnosed this itself, and its framing is the right one: this
+was **one** failure, not the four findings it produced. A correction
+that removes a location without supplying one leaves the defect
+unlocated, and a body that then says "this half was not swept" has
+turned a live defect into a sentence. So when a re-derivation moves a
+defect off the site an item named: **say where it went before you say
+it is not here**, and if you cannot, that is the row — not a line in a
+PR body. `docs/prompts/implementer-discipline.md` §5/§6 already says a
+PR body is not a slate; this is the shape that keeps evading it,
+because the disclosure feels like diligence.
+
+**Sibling, from the same unit: drive a guard through the PUBLIC door.**
+The lane's rows for two new guards were written against a private
+helper and proved nothing about reachability; rewritten through
+`preview`, they immediately showed that its own worked producer was a
+**two-vertex** loop the flattener never sees — the driver refuses it as
+an undeclared cusp two steps earlier, and it takes a third vertex. The
+arithmetic was right and the shape was untested, which is this
+program's *a test can pin the wrong SHAPE and still pass* rule reached
+from the other end.
+
+**A parity row that spells the constants itself is a THIRD copy, and
+it compares one side against the copy.** `gpu.rs`'s
+`the_shaders_srgb_curve_states_the_same_constants_the_palette_does`
+existed because the sRGB curve is spelled twice — once in `theme.rs`,
+once in the WGSL — and its own neighbour says *"two spellings of one
+curve is a thing to know about."* Its body was
+
+```
+for constant in ["12.92", "1.055", "0.055", "1.0 / 2.4", "0.0031308"] {
+    assert!(SHADER.contains(constant), …);
+}
+```
+
+— five literals **in the test**, checked against the shader alone. The
+palette it is named for was never read. Measured on `origin/main` by
+the `view/shader-mark-strength` lane: round `channel_to_srgb8`'s
+exponent to `1.0 / 2.2` and the row is **green, exit 0**. So the row
+filed to catch a divergence between two spellings introduced a third
+and then compared one spelling against it — and for however long it
+sat there, it was a receipt that the two halves agreed, issued by
+something that had looked at one half.
+
+The test to apply to any parity, census or "these two stay in step"
+row: **name the two sources and check the row reads BOTH.** A row that
+restates one side as a literal is a copy wearing a guard's name, and
+it fails in the direction nobody checks — silently, while reporting
+success. Related and already here: *a row can pin the wrong SHAPE of a
+defect and still pass*; this is its parity-flavoured sibling, and it is
+worse, because the name asserts the coverage the body does not have.
+
+**An UN-MERGEABLE PR fails CI in a shape that looks like broken
+infrastructure.** #2808 went red three times with: every job dead in
+**2–3 seconds**, a 22-job **docs-tier** shape on a PR that changes
+`theme.rs` and `gpu.rs`, matrix rows named with **unsubstituted
+placeholders** (`test (eps = ${{ matrix.eps }}, …)`), and `gate ok`
+red. Nothing ran, and nothing in the logs said why — they 404.
+
+**Three of those four are also true of a HEALTHY docs tier**, and that
+is what makes the signature treacherous. A `work/`-only PR legitimately
+gets ~22 jobs, the code rows skipped, and those same placeholder names,
+because an unexpanded matrix is how a skipped matrix job is named. This
+was checked rather than assumed: #2952, a `plan.md`-only change, shows
+exactly that shape with `gate ok` **success**. So the discriminator is
+the pair — **`gate ok` RED on a diff that touches `crates/`** — never
+the placeholders or the job count alone. The `~22` above is an
+observation on one run and not a marker: the tier rule earlier in this
+register says why a job total cannot be one, and `TIER=` from
+`scripts/ci-filter.py --base <base>` is the word to read instead.
+
+That signature reads as a runner fault, and the orchestrator called it
+one out loud after checking three things that all pointed away from the
+diff: `main` green on its last six runs, `ci-filter.py --base
+origin/main` giving `TIER=closure` exit 0 on the exact tree, and
+`check-ci-mirror-parity.py` exit 0. **All three were true and the
+conclusion was still wrong.** The cause is that GitHub builds
+`refs/pull/N/merge` only while the PR is mergeable; when it is not, the
+checkout has nothing to check out, so every job dies before its first
+real step and the tier collapses to the skip-everything default.
+
+**So the diagnostic for a fast, contentless CI red is
+`git merge-tree --write-tree origin/main origin/<branch>`, not the
+logs.** It is one command, it needs no permissions, and it answers in
+one line what an unreadable log cannot. Two things make this trap
+likely here: `work/<program>/log.md` and a row's frontmatter are edited
+by every parallel lane, so a branch left open for even a few hours goes
+un-mergeable on files that have nothing to do with its change; and the
+harness's merge-conflict notice is best-effort and did not arrive.
+
+Two corollaries. **A second identical failure is not a flake** — the
+register already says so, and this one was mis-read as infrastructure
+right up until the second run reproduced it exactly. And **a 403 on
+`rerun-failed-jobs` is not a dead end**: re-running would have proved
+nothing here, because the conflict survives a re-run.
+
+**A board re-derived from the working tree is re-derived from
+whatever commit that tree is pinned at.** The orchestrator opened
+`work/vgeom/` to pick the next unit and read two rows at `status: open`
+over a program log that ended at its opening state. Both false: the
+fixes had merged as #2967 six hours earlier and both rows were closed
+on `main`. This clone sat on the orchestrator branch at `0c530f67ef`,
+and nothing about `cat`ting a file says which commit it came from — a
+tracker file looks identical whether it is current or a week stale, and
+the tracker is exactly the artefact every lane edits in parallel.
+
+It is the same defect the staleness row (#2990) filed one level down —
+a status recorded somewhere nothing checks — and it compounds the same
+way: an orchestrator that mis-reads the board dispatches a unit that is
+already done, or declines one that is not.
+
+**So a board read is `git fetch origin main` and then
+`git show origin/main:<path>`, never `cat <path>`.** Both halves, and
+the rule bit twice more within a day of being written for want of
+each. Once for the first half: the row list was re-derived from
+`origin/main` and the PLAN beside it read from the working tree, which
+was two days stale, so a dispatch quoted an Order and a shape
+precedent a re-scope had deleted. Once for the second: `origin/main`
+is only as fresh as the last fetch, and a lookup for a row filed
+twenty minutes earlier came back absent because the ref was two merges
+behind. **A ref is not a read of the remote.** The same holds
+for `git grep`: pass `origin/main` as the tree. It costs one word per
+read and it is the only form whose answer names its own commit.
+
+**Second instance, from a different cut, the same day.** The
+2026-09-20 priority-seam cut rewrote `work/vgeom/plan.md` and applied
+the **newly-opened-program template** to VGEOM, which is that cut's
+parent and not its child: §Charter and §The register were deleted
+outright — `work/vgeom/program.md` went on pointing every lane at a
+§The register that had not existed for a day — and §Review posture was
+replaced with *"OPEN, for this program's first dispatch … the first
+orchestrator answers it here rather than inheriting an answer."*
+
+That reopened a question Ev had answered twice. `docs/MODEL-AB-LOG.md`'s
+entry for that same cut names the programs the v7 triage question is
+open for — EMIT, GATHER and FIT, the three it opened — in the sentence
+that says *"WIRE and VGEOM are NOT closed and keep their bands"*; and
+its 2026-09-17 clause says the four successors *"inherit VIEW's posture
+verbatim … no duals and no row recorded"*.
+
+So the corollary widens: **a cut's output is a first draft of the
+programs it touches, including the ones it does not open.** What a cut
+writes about territory, posture or status is re-derived before a lane
+is dispatched under it, the same way a count is. The check is cheap in
+both instances found so far — the companion table for a sign-off claim,
+the roster for a posture claim — and both claims were checkable against
+a document the cut itself cited.
+
+**A receipt that was never run in the form it was written down in.**
+Three of this program's defects in one day are one shape. #2994's
+`\`-continued literal was re-minted by `cargo fmt` in the same commit
+that introduced it, so the author's own tree never showed the two runs
+of fourteen spaces. The un-mergeable-PR rule below listed four
+symptoms, three of which fire on a perfectly healthy docs tier. And
+#2998's census rule printed
+`rg -U --no-heading -o '...'` while telling the reader to take "the
+lines that begin `let`" — without `-n`, `--no-heading` prefixes every
+match with `path:`, so that reading returns **0** against a stated 22,
+and the PR body's own receipt silently carried the `-n` form.
+
+The tell in all three is **a rule stated as a description of the output
+rather than as the command that produces the answer.** A description
+cannot be run, so nothing ever runs it, and it stays plausible
+indefinitely. The practice that replaces it: print a command whose
+output IS the number (end it in `| wc -l` if you must), then run the
+exact text you printed, extracted from the file with `sed -n Np`
+rather than retyped. #2998's correction earned its keep the same hour:
+fixing the pattern so it could be run admitted a qualified path, and
+the population moved 22 → 24 — two `egui::` binds at the chrome
+boundary that the old spelling could not see.
+
+**A fence, a posture or a status written by a CUT has no independent
+authority.** The four-track cut (`f8a822e8c1`) wrote
+eighty-six rows' new homes and four `keep_out` clauses in one pass, and
+nothing re-derived the clauses afterwards. One of them told every VDOC
+lane that `crates/viewer/README.md` "is ratified design beside the code
+per CLAUDE.md" and that a decision-row change "waits for Ev". It does
+not and it does not: CLAUDE.md's sign-off exception covers the
+`crates/<crate>/README.md` pages **`docs/DESIGN.md`'s companion table
+lists**, and that table does not list this one — its
+`crates/viewer/GUI-DESIGN.md` row says the README "beside it is the
+implementation record, which the program maintains itself". The fence
+invented a sign-off requirement on a page four open rows touch, and it
+survived two units before a lane read it.
+
+Corollary, because it makes the class checkable: **a `keep_out` that
+asserts a sign-off requirement is a claim about CLAUDE.md, not a local
+decision** — the companion table either lists the page or it does not,
+and `grep -cE '^\| `<path>`' docs/DESIGN.md` settles it. The general
+instrument is CLAUDE.md's own and it is cheap: *check that Ev ever
+agreed, before you wait for Ev*, `git log --all -S` over a short
+phrase. Here it returned the cut's own commit and nothing behind it.
 
 ## Exit shape
 

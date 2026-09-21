@@ -1,0 +1,310 @@
+//! **Rule F — the manifest sign** behind
+//! [`SymRules::manifest_sign`](super::SymRules::manifest_sign): in the
+//! early walk a `copysign(Y, X)` node becomes `abs(Y)` and an
+//! `abs(X)` node becomes `X` wherever the FORM of `X` already shows
+//! `X` positive. Nothing here reads a value: the condition is a fact
+//! about the form's syntax, and both rewrites are equalities of reals
+//! at every point clause 1 admits, so a zero reached through this rule
+//! is a THEOREM and lands in `symbolic_zero`.
+//!
+//! # The invariant, and then where the atoms come from
+//!
+//! **An `abs` or `copysign` atom over a form the SYNTAX shows positive
+//! is not an unknown function: it is the number the form already
+//! denotes.** That is the whole rule, and it is a fact about the
+//! functions `|·|` and `copysign` rather than about any construction
+//! that happens to call them. A kernel that spells a sign decision at
+//! all mints such an atom, and every one it mints over a positive form
+//! is an indeterminate the tier carries into every product above it for
+//! no information at all.
+//!
+//! **Where they come from today.** The measured mint site is
+//! [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis), whose
+//! `s = 1.copysign(n.z)` and `r = 1/(1 + |n.z|)` take a `copysign` and
+//! an `abs` of one quantity, the frame normal's `z`: on a `FaceFrame`
+//! over a body extruded from a frame tilted about `u`, that `z` is
+//! `1/sqrt(P(t))` for a polynomial `P` in the document's parameter — an
+//! `Inv` of a `sqrt` atom, positive wherever it has a value at all.
+//! That construction is not permanent: PROPS' sign-hull work replaces
+//! it, and the replacement frame's own `|n.z|` is the next `abs` of the
+//! same shape, so the rule outlives the spelling that motivated it.
+//! The `copysign` arm is not orphaned by that change either — `copysign`
+//! reaches the DAG from `implicit.rs`, `curved.rs`, `sugar.rs`,
+//! `path.rs` and `svd.rs` as well — though the reach this unit MEASURED
+//! is the `abs` arm's alone (`sym.rs`'s rule-F section).
+//!
+//! # The predicate: manifestly POSITIVE
+//!
+//! `nonneg` is this module's older half — the non-negativity rule D's
+//! `atan2(0, N)` fold reads (`trig`) — and `positive` sharpens it.
+//! The two share the per-term test and differ in what they do with a
+//! zero.
+//!
+//! A polynomial is **manifestly non-negative** when every term has a
+//! non-negative coefficient and a monomial each of whose
+//! indeterminates is raised to an EVEN power or is a `Sqrt`/`Abs` atom
+//! (to any power) — every such term is a product of non-negative reals
+//! wherever it has a value — or when it is a PERFECT SQUARE
+//! (`signed::poly_sqrt`, exact arithmetic that reads no value).
+//!
+//! An indeterminate is **manifestly positive** when it is a `Sqrt` or
+//! an `Abs` atom whose ARGUMENT form is manifestly positive:
+//! `sqrt(X) > 0` and `|X| = X > 0` for `X > 0`. Nothing else is — not a
+//! parameter, not `π`, not an opaque real, not a frozen node, and not a
+//! `sqrt`/`abs` atom over an argument that is only non-negative, whose
+//! value is zero at every zero of the argument.
+//!
+//! A polynomial is **manifestly positive** when every term has a
+//! non-negative coefficient and a non-negative monomial — the term-wise
+//! branch above, and NOT the perfect-square branch — and at least ONE
+//! term has a strictly positive coefficient and a monomial whose every
+//! indeterminate is manifestly positive. The empty monomial qualifies,
+//! which is how a positive constant term carries a sum. Then
+//! `p = (a positive term) + (non-negative terms) > 0` wherever `p` has
+//! a value.
+//!
+//! The perfect-square branch is deliberately not carried over: `p = r²`
+//! is non-negative but vanishes at every real zero of `r`, and its
+//! terms may be negative, so the decomposition the positivity argument
+//! rests on is unavailable there. `(k + δ)²` is exactly the shape this
+//! would get wrong.
+//!
+//! A FORM `N / D` is manifestly positive when `N` is a manifestly
+//! positive polynomial and `D` is a manifestly non-negative one. `D`
+//! needs only non-negativity because `D ≠ 0` at every point of a box
+//! clause 1 admits — and that is `quotient`'s side condition, argued
+//! there in full over the FOUR sources a denominator has. It is NOT
+//! "a point where `D` vanishes is a point the value channel divided by
+//! zero at": that covers only source (i), and `quotient`'s header names
+//! it as the mistake its own paragraph replaces; (ii)–(iv) are non-zero
+//! for RANGE reasons instead. This rule inherits that argument whole
+//! and adds nothing to it, because it mints no new denominator —
+//! `fold_abs` hands back the argument it was given and `magnitude`
+//! returns a constant, its argument, or an indeterminate. So `D > 0`
+//! and `N > 0` wherever the form has a value, hence `N/D > 0` there.
+//!
+//! **What is never folded**: a sum of squares alone (`x² + y²` is zero
+//! at the origin); a bare even power; a form carrying a parameter, an
+//! opaque real or a frozen node at an odd power, or a negative
+//! coefficient on any term; the zero form; poison.
+//!
+//! # The two identities, and why each is unconditional
+//!
+//! For a manifestly positive `X`, at every point of the box:
+//!
+//! ```text
+//! abs(X)         = X,
+//! copysign(Y, X) = |Y|   (and = 1 when Y is the constant 1).
+//! ```
+//!
+//! The first is `|x| = x` for `x > 0`; the second is `copysign`'s
+//! definition, `|y|` with the sign of the second argument, at a second
+//! argument whose sign is `+`.
+//!
+//! **The signed-zero edge, and why strict positivity closes it.**
+//! `copysign` reads a SIGN BIT, not a sign: IEEE gives
+//! `copysign(1, +0.0) = +1` and `copysign(1, −0.0) = −1`. So at a real
+//! ZERO of `X` the node `copysign(Y, X)` does not denote a function of
+//! the real value of `X` at all — which of the two it takes is decided
+//! by how the value channel happened to spell that zero, and `−0.0`
+//! and `+0.0` are one real. A fold under mere NON-negativity would
+//! therefore be a claim about a spelling rather than an identity of
+//! reals, and on the `−0.0` branch it is false. Strict positivity
+//! excludes the point: a manifestly positive `X` is `> 0` at every
+//! point of the box where the form has a value, and clause 1 has
+//! already refused every point where it does not, so the sign is `+`
+//! there unambiguously. The tier's own premise carries the rest —
+//! every node denotes a real-valued function of its indeterminates and
+//! every operation's value channel encloses that same real — so a
+//! value channel that answered `−0.0` for a form this predicate calls
+//! positive would be one that failed to enclose, which is a break of
+//! clause 1 and not of this rule.
+//!
+//! `abs(X) = X` alone would be sound under non-negativity, since
+//! `|0| = 0` too. It is held to the same predicate here for a reason
+//! that is measured rather than logical:
+//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach` records
+//! `abs(X) = X` on a syntactically non-negative `X` LOSING ten
+//! decisions on R1's boss, where the opened atom's products leave the
+//! coefficient ring. The boss's atom is `abs((5/8)·sqrt(L²))` over the
+//! chord `L`, whose `sqrt(L²)` is an atom of a bare square — non-
+//! negative, not manifestly positive — so the positivity predicate
+//! declines exactly the fold that row measured losing, and the
+//! measurement in that row's third table is what holds it to that.
+//!
+//! # Where it runs, and in what order
+//!
+//! At the NODE, in the early walk only (`super::combine`), so the
+//! plain form is untouched and a plain theorem is never re-labelled.
+//! The atom is not minted at all rather than folded afterwards, which
+//! is what keeps it out of every product above it.
+//!
+//! Against the other rules: A0's exact constant fold is tried FIRST
+//! (a constant argument is folded to its exact rational, which is
+//! more than this rule would say), then this one, then rule C
+//! (`signed`) — the value-free rule before the one that reads a value,
+//! so a discharge that could be a theorem is never counted
+//! `sign_gated`. Rules A/B per node and rule E run AFTER `combine`
+//! returns, on the form this rule left, and the argument this rule
+//! tests is the kid's form as those rules already left it — so against
+//! THEM the order is structural and not a choice: an atom this rule
+//! keeps from being minted is not one a later rule could have folded.
+//!
+//! What IS a choice is the order against A0 and rule C at this node,
+//! and it is pinned by a residual BOTH F and C take: `abs(1 + t²)` over
+//! a recorded bracket, and `abs(2/t²)` likewise
+//! (`geom-core`'s `sym_rule_f_rows`,
+//! `the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take`
+//! and `a_shape_both_rules_take_is_what_pins_the_order`). Each is a
+//! `theorem` at the shipped order and `sign_gated` with rule F shut,
+//! and planting C before F reds both. A residual rule C cannot reach —
+//! one built with `Sym::param`, which records no bracket, or one whose
+//! argument carries a `sqrt` atom `signed::fold` will not enclose — is
+//! green under either order and pins nothing.
+
+use std::sync::Arc;
+
+use super::form::{Form, Mono, Poly};
+use super::{AtomInfo, Session, SymOp, indet_atom, signed};
+
+/// How many atom arguments deep `positive` looks before it declines.
+/// The normalisation chains this rule is for are two deep — a `sqrt`
+/// atom over a polynomial, under an `Inv` — and `sqrt` of `sqrt` of
+/// `sqrt` is three; the cap is set well clear of both at four.
+///
+/// **What it bounds, honestly**: the DEPTH of the atom-argument
+/// recursion, and nothing else. It does not bound BREADTH — a term
+/// with many atom indeterminates is walked in full at each level — and
+/// there is no memo, so an atom appearing twice is tested twice. The
+/// predicate is therefore linear in the sub-tree it reaches, not
+/// constant per node; what the cap buys is a bound on that sub-tree's
+/// depth, so a pathological chain cannot make one node's test walk the
+/// whole session. Declining past it is the conservative direction.
+const ATOM_DEPTH: usize = 4;
+
+/// Every indeterminate of `m` is non-negative wherever it has a value:
+/// an EVEN power of anything, or a `Sqrt`/`Abs` atom to any power.
+fn nonneg_mono(m: &Mono, sess: &Session) -> bool {
+    m.iter().all(|&(id, e)| {
+        e % 2 == 0
+            || sess
+                .atoms
+                .get(&id)
+                .is_some_and(|a| matches!(a.op, SymOp::Sqrt | SymOp::Abs))
+    })
+}
+
+/// Every term of `p` is non-negative wherever it has a value.
+fn termwise_nonneg(p: &Poly, sess: &Session) -> bool {
+    p.terms()
+        .iter()
+        .all(|(m, c)| !c.is_negative() && nonneg_mono(m, sess))
+}
+
+/// **A manifestly non-negative POLYNOMIAL** — the term-wise test, or a
+/// perfect square.
+fn nonneg_poly(p: &Poly, sess: &Session) -> bool {
+    termwise_nonneg(p, sess) || signed::poly_sqrt(p, sess.budget).is_some()
+}
+
+/// **A manifestly non-negative FORM**: both halves manifestly
+/// non-negative polynomials, and not the zero form or a poisoned one.
+///
+/// This is the predicate rule D's second fold reads — `atan2(0, N) = 0`
+/// for an `N` non-negative by its syntax (`trig`) — and the half
+/// `positive` sharpens. The module header carries the argument.
+pub(super) fn nonneg(f: &Form, sess: &Session) -> bool {
+    if f.poisoned || f.num.is_zero() {
+        return false;
+    }
+    nonneg_poly(&f.num, sess) && nonneg_poly(&f.den, sess)
+}
+
+/// An indeterminate that is POSITIVE wherever it has a value: a `Sqrt`
+/// or an `Abs` atom over a manifestly positive argument.
+fn positive_indet(id: u128, sess: &Session, depth: usize) -> bool {
+    let Some(atom) = sess.atoms.get(&id) else {
+        return false;
+    };
+    if !matches!(atom.op, SymOp::Sqrt | SymOp::Abs) {
+        return false;
+    }
+    atom.args[0]
+        .as_deref()
+        .is_some_and(|arg| positive_at(arg, sess, depth + 1))
+}
+
+/// Every indeterminate of `m` is positive wherever it has a value —
+/// vacuously true of the EMPTY monomial, which is what makes a
+/// positive constant term a positive term.
+fn positive_mono(m: &Mono, sess: &Session, depth: usize) -> bool {
+    m.iter().all(|&(id, _)| positive_indet(id, sess, depth))
+}
+
+/// **A manifestly positive POLYNOMIAL**: every term non-negative by
+/// the term-wise test, and at least one term strictly positive.
+fn positive_poly(p: &Poly, sess: &Session, depth: usize) -> bool {
+    // `!c.is_negative()` alone says STRICTLY positive here: `Poly` holds
+    // no zero-coefficient term (`Poly::insert` drops one), so a term
+    // that survives has a non-zero coefficient. The zero test that used
+    // to sit beside this one was dead by that invariant and said so
+    // nowhere.
+    termwise_nonneg(p, sess)
+        && p.terms()
+            .iter()
+            .any(|(m, c)| !c.is_negative() && positive_mono(m, sess, depth))
+}
+
+fn positive_at(f: &Form, sess: &Session, depth: usize) -> bool {
+    if f.poisoned || depth > ATOM_DEPTH {
+        return false;
+    }
+    positive_poly(&f.num, sess, depth) && nonneg_poly(&f.den, sess)
+}
+
+/// **A manifestly POSITIVE form**: `> 0` at every point of the box
+/// where it has a value. The module header carries the predicate and
+/// the argument.
+pub(super) fn positive(f: &Form, sess: &Session) -> bool {
+    positive_at(f, sess, 0)
+}
+
+/// **`abs(X) → X`** for a manifestly positive `X`; `None` otherwise.
+pub(super) fn fold_abs(arg: &Form, sess: &Session) -> Option<Form> {
+    positive(arg, sess).then(|| arg.clone())
+}
+
+/// **`copysign(Y, X) → |Y|`** for a manifestly positive `X`: the
+/// magnitude of `Y` as a form.
+///
+/// A constant `Y` folds to its exact rational magnitude — the case the
+/// orthonormal basis mints, `copysign(1, n.z)` — and a `Y` the form
+/// already shows non-negative is its own magnitude. Anything else mints
+/// the `Abs` ATOM over `Y`, which is the same indeterminate an
+/// `abs(Y)` node elsewhere in the DAG mints (same op tag, same zero
+/// payload, same argument digest), so the rewrite trades one opaque
+/// atom for another the tier may already hold rather than for a new
+/// one.
+pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
+    if let Some(n) = y.num.as_constant()
+        && let Some(d) = y.den.as_constant()
+        && let Some(c) = n.mul(&d.recip()?)
+    {
+        return Some(Form::poly(Poly::constant(c.abs())));
+    }
+    if nonneg(y, sess) {
+        return Some(y.clone());
+    }
+    let id = indet_atom(SymOp::Abs.tag(), 0, &[y.digest()]);
+    // Through `mint_atom`, not `sess.atoms.entry` by hand: the door
+    // keeps the plain walk's `plain_atoms` bookkeeping, and a hand
+    // mint would skip it silently the day a rule of this shape ran
+    // anywhere but the early walk. `early = true` is this rule's own
+    // contract (`SymRules::manifest_sign` needs `early`).
+    super::mint_atom(sess, id, true, || AtomInfo {
+        op: SymOp::Abs,
+        payload: 0,
+        args: [Some(Arc::new(y.clone())), None],
+    });
+    Some(Form::poly(Poly::indet(id)))
+}

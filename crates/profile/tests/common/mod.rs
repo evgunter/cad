@@ -748,6 +748,43 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .tangent_arc_to(Start.arrives_tangent(), Tol::witness())
         .unwrap();
 
+    // 16. The fused verb with a RADIUS ARRIVAL: the one chain here
+    //     whose three radius arguments each draw a segment of their
+    //     own — the incoming `Sweep` carrier, the fillet, and the
+    //     arrival `Radius` carrier. It is the only shape that reaches
+    //     the `Carrier2` emission role at all (`Sweep` and `ArcLen`
+    //     are not admissible arrival specs, and `Via` and `Center`
+    //     carry no radius), so without it the guided fence replays
+    //     every verb and two of the three roles.
+    let radius_arrival = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(4.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .arc_fillet_arc(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            0.25,
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(2.0, 6.0))
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
     // 10/11. The complete-loop program forms.
     let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
@@ -766,6 +803,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         subdivided_square,
         d_shape,
         stadium,
+        radius_arrival,
         circle,
         split,
     ]

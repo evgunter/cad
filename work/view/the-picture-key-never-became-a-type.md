@@ -2,10 +2,13 @@
 id: the-picture-key-never-became-a-type
 kind: issue
 title: The (generation, delta) picture key is spelled five ways and its two cache fields have no stated invariant
-status: review
+status: closed
 opened: 2026-09-05
+closed: 2026-09-15
 branch: view/picture-key
 pr: 2670
+priority: P1
+cost: D
 ---
 
 

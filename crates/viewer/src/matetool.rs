@@ -89,9 +89,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Frame, MateFault,
-    MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram, RecipeNodeId,
-    SitedFace, class_admission, member_of, solve_document,
+    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, EvalOptions, Evaluation, Frame,
+    MateFault, MateFrame, MatePrimitive, MateSide, Member, NotAFaceName, ProfileProgram,
+    RecipeNodeId, SitedFace, class_admission, mate_reach, member_of, solve_document, table_gap,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -293,6 +293,19 @@ pub enum MateToolError {
         /// The refused class.
         class: ContactClass,
     },
+    /// The chosen primitive and rider have no row in the coset table
+    /// ([`table_gap`]) — a clocking rider on a planar rest, a
+    /// standalone clocking with no carrying mate — a fact about the
+    /// choice alone, so it is refused HERE before any geometry is
+    /// read, the class door's shape one row down, in the table's own
+    /// words. What is NOT this: a rider on a frame coincidence, which
+    /// the table DECIDES over the mate's lever and the edit door
+    /// refuses when it contradicts (`EditError::MateRefused`),
+    /// surfaced by `perform` like every door refusal.
+    TableRefused {
+        /// What was asked for, in the table's own words.
+        what: &'static str,
+    },
 }
 
 impl core::fmt::Display for MateToolError {
@@ -337,6 +350,9 @@ impl core::fmt::Display for MateToolError {
                     "class {} is not admitted — {CLASS_DEFERRAL}",
                     class.name()
                 )
+            }
+            Self::TableRefused { what } => {
+                write!(f, "the coset table has no row for {what}")
             }
         }
     }
@@ -525,6 +541,9 @@ impl MateTool {
     /// wrong placement — silently, since both reads succeed. Nothing
     /// in the types can enforce the pairing; this sentence is the
     /// contract, and the application's one call site satisfies it.
+    /// `opts` are the options that evaluation ran under (the
+    /// session's `eval_options()`): the solve's lever is each mated
+    /// part's own extent, resolved through the same seam.
     ///
     /// # Errors
     ///
@@ -533,6 +552,7 @@ impl MateTool {
         &self,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
+        opts: &EvalOptions,
         tol: Tol,
         choice: MateChoice,
     ) -> Result<MateProposal, MateToolError> {
@@ -548,6 +568,13 @@ impl MateTool {
                 class: choice.class,
             });
         }
+        // The table door SECOND, still before any geometry: a
+        // primitive-and-rider pair the table has no row for is a fact
+        // about the choice alone, read from the table's one home
+        // (`table_gap`), so the tool's sentence IS the door's.
+        if let Some(what) = table_gap(choice.primitive, choice.clocking) {
+            return Err(MateToolError::TableRefused { what });
+        }
         let (ref_a, member_a, read_a) = picked_member(doc, MateSide::A, a)?;
         let (ref_b, member_b, read_b) = picked_member(doc, MateSide::B, b)?;
         // MEMBERS, not nodes: two copies of one pattern are two
@@ -560,7 +587,8 @@ impl MateTool {
         // The shipped constructive solve answers each instance's
         // CURRENT placement; for a completely-unconstrained instance
         // that is its recorded (or identity) frame verbatim.
-        let poses = solve_document(doc, tol);
+        let reach = mate_reach::<f64>(opts, tol);
+        let poses = solve_document(doc, &reach, tol);
         let frame_of = |side: MateSide,
                         member: &Member,
                         read: &StableName|

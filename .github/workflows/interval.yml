@@ -170,7 +170,7 @@ jobs:
       # either tree as non-triggering (its _is_docs).
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
-      # The `interval` feature's backend is the in-repo
+      # The interval scalar's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
       # job needs no system packages at all now that mold is gone (see the
       # LINKER note at the top of this file).
@@ -601,7 +601,7 @@ jobs:
     # Tier `closure` never reaches this: interval-transcendentals/ is its
     # own workspace, so ANY change under it is tier `all`.
     if: github.event_name != 'push' && inputs.run_interval_backend == 'true'
-    # The `interval` feature's backend lives in its own workspace
+    # The interval scalar's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
     # M5 PR 1's review asked for one — and it catches what the kernel's

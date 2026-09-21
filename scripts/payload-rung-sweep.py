@@ -160,6 +160,12 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Qualifier": ("argued", "NOT_CARRIED, the naming interior (crates/pncad/tests/all.rs)"),
     "RecipeEditRef": ("argued", "the telemetry half, deliberately interior, "
                                 "crates/pncad/src/select.rs"),
+    # `Unexaminable::Corrupt`'s payload, one rung under the
+    # chart-coherence vocabulary the prelude carries for
+    # `StepImport::Solid::coherence`. The `BandField` row's shape; the
+    # argument and its falsifier are written once, at the carry
+    # decision the pointer names, and this row does not restate them.
+    "StructureRead": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
 }
 
 # The same table for the CROSS-LIST set — a payload that IS curated, on no list

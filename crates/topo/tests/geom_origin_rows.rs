@@ -24,7 +24,7 @@ use topo::{Body, GeomOrigin, GeomSource, graft_disjoint, transform_rigid};
 /// The unit cube — the one body every row here runs on, since what
 /// these rows read is the origin channel and never the shape.
 fn unit_brick() -> Body<f64> {
-    brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0))
+    brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness())
 }
 
 fn aside() -> Affine3<f64> {

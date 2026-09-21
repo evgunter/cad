@@ -26,6 +26,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
@@ -148,7 +149,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
 /// it. Exact or typed; silence is the MAJOR.
 #[test]
 fn probe_horizontal_log_halfburied_is_exact_or_typed() {
-    let slab = brick((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let slab = operands::slab();
     // Vertical 2-arc cylinder r=0.7, then rotate about x so the axis
     // runs along y at z = 0.5, spanning y in [0.5, 3.5].
     let log0 = disc2(0.7, 0.0, 0.0, 3.0);
@@ -169,6 +170,15 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
     let seg = r * r * (beta - beta.sin() * beta.cos()); // area beyond each slab plane
     let meet_area = PI * r * r - 2.0 * seg;
     let v_meet = meet_area * 3.0;
+    // `operands::slab()`'s volume, derived here rather than read back
+    // from the kernel so the oracle stays independent of what it
+    // checks. It is NOT the only line that depends on the fixture's
+    // dimensions, so a lane moving the fixture walks the row rather
+    // than this constant: `beta`'s `0.5` is the slab's half-thickness,
+    // as is the last component of the log's translation; that
+    // translation's `2.0` is the slab's x-centre; and the `3.0` in
+    // `v_meet` and `v_b` is the log's length, which is the meeting
+    // length only while the log lies inside the slab's y-extent.
     let v_a = 16.0;
     let v_b = PI * r * r * 3.0;
     for (op, expect) in [

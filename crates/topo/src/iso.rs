@@ -494,7 +494,8 @@ mod tests {
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{ops_cube, ops_holed_box};
+    use crate::fixtures::ops_holed_box;
+    use crate::test_support_fixtures::declined_cube;
 
     fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
         Point3::new(x, y, z)
@@ -585,8 +586,8 @@ mod tests {
 
     #[test]
     fn identical_builds_have_identical_forms() {
-        let a = ops_cube(Tol::witness());
-        let b = ops_cube(Tol::witness());
+        let a = declined_cube::<f64>(Tol::witness());
+        let b = declined_cube::<f64>(Tol::witness());
         assert_eq!(canonical_form(&a.body), canonical_form(&b.body));
         assert!(isomorphic(&a.body, &b.body));
     }
@@ -648,7 +649,7 @@ mod tests {
         // Cycle::first is a representation-internal anchor; rotating it
         // must not change the canonical form (the kill ops re-anchor
         // loops unconditionally, so roundtrips depend on this).
-        let t = ops_cube(Tol::witness());
+        let t = declined_cube::<f64>(Tol::witness());
         let before = canonical_form(&t.body);
         let mut rotated = t.body.clone();
         let loops: Vec<_> = rotated.loops().map(|(k, _)| k).collect();
@@ -667,7 +668,7 @@ mod tests {
     fn form_is_invariant_under_emanating_choice() {
         // Vertex::emanating names an arbitrary orbit member; re-anchoring
         // it must not change the form.
-        let t = ops_cube(Tol::witness());
+        let t = declined_cube::<f64>(Tol::witness());
         let before = canonical_form(&t.body);
         let mut reanchored = t.body.clone();
         let vertices: Vec<_> = reanchored.vertices().map(|(k, _)| k).collect();
@@ -684,7 +685,7 @@ mod tests {
 
     #[test]
     fn cube_is_not_the_holed_box() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let holed = ops_holed_box(Tol::witness());
         assert!(!isomorphic(&cube.body, &holed.body));
     }
@@ -733,8 +734,7 @@ mod tests {
             if split {
                 // Move ONE ring to the other face. ring_move is not an
                 // Euler op; counts are unchanged.
-                let other_face = body.get_half_edge(seg.he_minus).unwrap().parent_loop;
-                let other_face = body.get_loop(other_face).unwrap().face;
+                let other_face = body.face_of_half_edge(seg.he_minus).unwrap();
                 assert_ne!(other_face, split_faces.face);
                 body.ring_move(r1.ring, other_face).unwrap();
             }

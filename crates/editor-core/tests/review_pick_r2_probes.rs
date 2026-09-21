@@ -54,17 +54,22 @@ fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
     (det, det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
 }
 
-/// `pick_face`'s answer over every triangle: [`TSpan::best_of`]
-/// called, not restated — the triangles are offered in their own
-/// order, which is the position key the door reads last.
-fn nearest(tris: &[[Point3<f64>; 3]], ray: &Ray) -> Option<(f64, usize)> {
+/// `pick_face`'s certified tie over every triangle:
+/// [`TSpan::survivors`] called, not restated. The door answers one of
+/// these when they are one face and refuses with them when they are
+/// several; either way a graze is ANSWERED FOR when the aimed point
+/// is one of their parameters.
+fn survivors(tris: &[[Point3<f64>; 3]], ray: &Ray) -> Vec<(f64, usize)> {
     let hits: Vec<(TSpan, usize)> = tris
         .iter()
         .enumerate()
         .filter_map(|(i, tri)| ray_triangle(ray, tri).map(|s| (s, i)))
         .collect();
     let spans: Vec<TSpan> = hits.iter().map(|&(s, _)| s).collect();
-    TSpan::best_of(&spans).map(|w| (hits[w].0.t, hits[w].1))
+    TSpan::survivors(&spans)
+        .into_iter()
+        .map(|w| (hits[w].0.t, hits[w].1))
+        .collect()
 }
 
 /// **Row 1.** Axis rays through every cap and rim vertex of real
@@ -124,8 +129,9 @@ fn no_genuine_determinant_is_refused_on_a_cylinders_vertex_grazes() {
                                 ));
                             }
                         }
-                        if let Some((t, _)) = nearest(&tris, &ray)
-                            && (t - reach).abs() < 1e-9
+                        if survivors(&tris, &ray)
+                            .iter()
+                            .any(|&(t, _)| (t - reach).abs() < 1e-9)
                         {
                             grazes += 1;
                         }

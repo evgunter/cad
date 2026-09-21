@@ -12,7 +12,7 @@ use editor_core::{
     DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
     PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
-use fixture::{DEPTH, desc, die, insert, len, on_frame, scl, square, step};
+use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -33,14 +33,6 @@ fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node,
-        path: vec![seg],
-    }
 }
 
 fn red() -> Attr {
@@ -86,7 +78,7 @@ fn set_appearance_validates_and_applies_purely() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
 
     let applied = doc
         .apply(
@@ -95,6 +87,7 @@ fn set_appearance_validates_and_applies_purely() {
                 attr: red(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap();
     // Non-structural, nothing minted; the input document untouched.
@@ -112,7 +105,7 @@ fn set_appearance_validates_and_applies_purely() {
     );
 
     // Edge/vertex names: typed refusal (v1 scope is face/body).
-    let edge = name1(
+    let edge = minted(
         EntityKind::Edge,
         ext,
         RoleSeg::RimEdge(
@@ -129,14 +122,15 @@ fn set_appearance_validates_and_applies_purely() {
                 name: edge.clone(),
                 attr: red(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::AppearanceWrongKind { name: edge }
     );
 
     // A never-existed node id: typed refusal at the edit door.
-    let bogus = name1(
+    let bogus = minted(
         EntityKind::Face,
         RecipeNodeId(999),
         RoleSeg::Cap(CapEnd::End),
@@ -147,7 +141,8 @@ fn set_appearance_validates_and_applies_purely() {
                 name: bogus.clone(),
                 attr: red(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::AppearanceNamesMissingNode { name: bogus }
@@ -163,7 +158,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         0.0,
         1.0,
     );
-    let body = name1(EntityKind::Body, ext, RoleSeg::OutputBody);
+    let body = minted(EntityKind::Body, ext, RoleSeg::OutputBody);
 
     // Clearing an attribute that is not set: loud.
     assert_eq!(
@@ -172,7 +167,8 @@ fn multi_attribute_per_entity_and_clear_semantics() {
                 name: body.clone(),
                 kind: AttrKind::Color,
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::AppearanceNotSet {
@@ -252,7 +248,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             distance: len(1.0),
         },
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc3 = set(doc2.clone(), cap.clone(), red());
 
     // diff: appearance-only change is reported, and only it.
@@ -279,7 +275,12 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             attr: red(),
         },
     ];
-    let replayed = ProfileDoc::replay(doc3.id(), &edits, Tol::witness()).unwrap();
+    let replayed = ProfileDoc::replay(
+        doc3.id(),
+        &editor_core::LoggedEdit::bare_all(&edits),
+        Tol::witness(),
+    )
+    .unwrap();
     assert!(replayed.bit_eq(&doc3));
 }
 
@@ -290,7 +291,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     let d = die();
     // Attribute the final body and one face of the final table by the
     // names the FINAL node mints.
-    let body = name1(EntityKind::Body, d.final_node, RoleSeg::OutputBody);
+    let body = minted(EntityKind::Body, d.final_node, RoleSeg::OutputBody);
     let ev0 = run(&d.doc);
     let final_table = &ev0.value(d.final_node).unwrap().name_table;
     let face = final_table
@@ -342,7 +343,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
 fn appearance_only_edit_recomputes_zero_nodes() {
     let d = die();
     let ev0 = run(&d.doc);
-    let body = name1(EntityKind::Body, d.final_node, RoleSeg::OutputBody);
+    let body = minted(EntityKind::Body, d.final_node, RoleSeg::OutputBody);
     let doc = set(d.doc, body.clone(), red());
     let ev1 = rerun(&doc, &ev0);
     // Appearance is presentation metadata: not in any content key.
@@ -373,7 +374,7 @@ fn transform_pass_through_carries_the_attribute_downstream() {
             rotation_angle: fixture::ang(0.0),
         },
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
     assert!(ev.appearance.is_lossless());
@@ -405,7 +406,7 @@ fn deleting_the_minting_node_strands_the_attribute_loudly() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     // Deleting the extrude is allowed (N5 dangling semantics — the
     // appearance entry is a reference, not a DAG edge).
@@ -441,7 +442,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     // Degenerate the extrusion: the node fails, the attachment is
     // indeterminate (NOT retired) and typed as such.
@@ -725,7 +726,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
             declare: None,
         },
     );
-    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
     // Lossless, painted at `a` — and NOTHING at the union node.
@@ -746,7 +747,7 @@ fn canceled_run_reports_not_evaluated_not_vanished() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap, red());
     let cancel = CancelToken::new();
     cancel.cancel();

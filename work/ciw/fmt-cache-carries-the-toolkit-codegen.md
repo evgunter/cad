@@ -5,6 +5,8 @@ title: The app-feature test row makes fmt's rust-cache carry toolkit codegen on 
 status: open
 opened: 2026-09-04
 refs: [1755]
+priority: P4
+cost: E
 ---
 
 Raised by CHROME's implementer lane against the CHROME orchestrator's

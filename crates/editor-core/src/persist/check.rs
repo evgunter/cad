@@ -37,7 +37,7 @@
 use crate::appearance::AppearanceRecord;
 use crate::distribution::DistributionFault;
 use crate::doc::{DocParam, DocParamField, ParamName, PlacementFault, WitnessSiteFault};
-use crate::edit::DocEdit;
+use crate::edit::{DocEdit, LoggedEdit};
 use crate::meta::MetaVersionError;
 use crate::names::StableName;
 use crate::node::SlotId;
@@ -134,6 +134,12 @@ pub(crate) enum Walk {
     /// JSON has no non-finite tokens — which is the asymmetry being
     /// BYTE-level, not a reason to fork the validator.
     NonFinite,
+    /// [`first_maintenance_frame_fault`] over the edit log's recorded
+    /// maintenance rows: every frame a row carries is held to the
+    /// `SetPlacement` door's rule ([`crate::Frame::admission_fault`]:
+    /// finite, and proper), because a row's frame re-enters the
+    /// registry at replay without passing that door. Log only.
+    MaintenanceFrame,
     /// [`first_distribution_fault`] over the param table: the E2
     /// invariants of every doc param's distribution beyond finiteness,
     /// by the same `Distribution::check` the edit door runs. Snapshot
@@ -200,8 +206,9 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 8] = [
+    pub(crate) const ORDER: [Walk; 9] = [
         Walk::NonFinite,
+        Walk::MaintenanceFrame,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::SlotDimension,
@@ -224,12 +231,17 @@ impl Walk {
     fn run(
         self,
         snapshot: &ProfileDoc,
-        edits: &[DocEdit<ProfileProgram>],
+        edits: &[LoggedEdit<ProfileProgram>],
         tol: Tol,
     ) -> Option<super::PersistError> {
         match self {
             Walk::NonFinite => first_non_finite(snapshot, edits)
                 .map(|site| super::PersistError::NonFinite { site }),
+            Walk::MaintenanceFrame => {
+                first_maintenance_frame_fault(edits).map(|(index, row, fault)| {
+                    super::PersistError::MaintenanceFrame { index, row, fault }
+                })
+            }
             Walk::Distribution => first_distribution_fault(snapshot)
                 .map(|(name, fault)| super::PersistError::Distribution { name, fault }),
             Walk::DisplayUnit => {
@@ -302,7 +314,7 @@ impl Walk {
 /// contract.
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
+    edits: &[LoggedEdit<ProfileProgram>],
     tol: Tol,
 ) -> Result<(), super::PersistError> {
     for walk in Walk::ORDER {
@@ -511,6 +523,25 @@ fn first_payload_param_ref_fault(
     })
 }
 
+/// **The first recorded maintenance row whose frame is not a
+/// placement** — the log's rows are trusted bytes otherwise, and a
+/// row's frame enters the registry at replay without passing the
+/// `SetPlacement` door, so it is held here to exactly what that door
+/// holds a frame to ([`crate::Frame::admission_fault`]: finite, and
+/// proper). Named by the entry's index in the log and the row's index
+/// in the entry.
+fn first_maintenance_frame_fault(
+    edits: &[LoggedEdit<ProfileProgram>],
+) -> Option<(usize, usize, crate::placement::FrameFault)> {
+    edits.iter().enumerate().find_map(|(index, entry)| {
+        entry.maintenance.iter().enumerate().find_map(|(row, act)| {
+            act.frame()
+                .and_then(|f| f.admission_fault())
+                .map(|fault| (index, row, fault))
+        })
+    })
+}
+
 /// The first non-finite float in ε, the document params, the profile
 /// nodes, the appearance records or the edit log, reported as a
 /// [`NonFiniteSite`], or `None`.
@@ -521,7 +552,7 @@ fn first_payload_param_ref_fault(
 /// value the writer is asked to round-trip.
 fn first_non_finite(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
+    edits: &[LoggedEdit<ProfileProgram>],
 ) -> Option<NonFiniteSite> {
     if !snapshot.epsilon.is_finite() {
         return Some(NonFiniteSite::Epsilon);
@@ -547,8 +578,8 @@ fn first_non_finite(
             });
         }
     }
-    for (index, edit) in edits.iter().enumerate() {
-        if let Some(inner) = edit_non_finite(edit) {
+    for (index, entry) in edits.iter().enumerate() {
+        if let Some(inner) = edit_non_finite(&entry.edit) {
             return Some(NonFiniteSite::Edit {
                 index,
                 inner: Box::new(inner),
@@ -684,6 +715,10 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
 }
 
 /// A structural invariant violation in a parsed snapshot (load door).
+///
+/// Its four document-parameter-reference arms are named under the
+/// convention stated once on [`crate::EditError`], whose own four are
+/// the same four names.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
@@ -843,13 +878,10 @@ pub enum SnapshotError {
     /// A node whose PAYLOAD expression — a measured expression's value
     /// leaf or an assertion's bound, the expressions no slot addresses
     /// ([`crate::node::payload_exprs`]) — reads a document parameter
-    /// the document does not declare. The edit door refuses it through
-    /// the same predicate (`Doc::param_ref_fault`), so a file carrying
-    /// one is data the edit doors could not have produced.
-    ///
-    /// The address is the NODE rather than a slot, which is what
-    /// separates this from [`SnapshotError::SlotUnknownDocParam`]:
-    /// there is no slot to name.
+    /// the document does not declare. The address is the NODE: there
+    /// is no slot to name. The edit door refuses it through the same
+    /// predicate (`Doc::param_ref_fault`), so a file carrying one is
+    /// data the edit doors could not have produced.
     PayloadUnknownDocParam {
         /// The offending node.
         node: RecipeNodeId,
@@ -1439,6 +1471,7 @@ mod tests {
         /// against [`WALKS_IN_CALL_ORDER`] in both directions.
         const WALK: Walk = [
             NonFinite,
+            MaintenanceFrame,
             Distribution,
             DisplayUnit,
             SlotDimension,
@@ -1457,7 +1490,11 @@ mod tests {
     /// or this does not compile.
     const fn raises_snapshot_error(walk: Walk) -> bool {
         match walk {
-            Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
+            Walk::NonFinite
+            | Walk::MaintenanceFrame
+            | Walk::Distribution
+            | Walk::DisplayUnit
+            | Walk::Program => false,
             Walk::SlotDimension | Walk::SlotParamRef | Walk::PayloadParamRef | Walk::Snapshot => {
                 true
             }
@@ -1770,6 +1807,7 @@ mod tests {
                     node: Node::instantiate_part(doc_ref),
                 },
                 Tol::witness(),
+                &crate::mate::RefusingReach,
             )
             .expect("an instance inserts");
             ids.push(applied.record.minted.expect("the insert minted an id"));
@@ -1823,6 +1861,7 @@ mod tests {
             &doc,
             &crate::edit::DocEdit::InsertNode { node: mate },
             Tol::witness(),
+            &crate::mate::RefusingReach,
         )
         .expect("a finite alignment inserts");
         let mate_id = applied.record.minted.expect("the insert minted an id");
@@ -1932,8 +1971,14 @@ mod tests {
                 Node::Declare {
                     pairs: vec![(
                         (
-                            rv_name(derived, crate::names::EntityKind::Face),
-                            rv_name(derived, crate::names::EntityKind::Face),
+                            crate::node::SitedRef::new(
+                                RecipeNodeId(id),
+                                rv_name(derived, crate::names::EntityKind::Face),
+                            ),
+                            crate::node::SitedRef::new(
+                                RecipeNodeId(id),
+                                rv_name(derived, crate::names::EntityKind::Face),
+                            ),
                         ),
                         crate::mate::ContactClass::Rest,
                     )],

@@ -237,6 +237,11 @@ fn every_window_a_curve_mints_evaluates_that_curve() {
             // The whole-curve door locates this very span at `t`.
             assert_eq!(pbits(p0), pbits(c.eval(t)));
             assert_eq!(vbits(win.deriv_in_span(t)), vbits(c.deriv(t)));
+            // And the whole-curve jet is the located span's jet.
+            let (jp, jd) = c.ders1(t);
+            let (wp, wd) = win.ders1_in_span(t);
+            assert_eq!(pbits(jp), pbits(wp));
+            assert_eq!(vbits(jd), vbits(wd));
             checked += 1;
         }
         // The located mint agrees with the indexed one.

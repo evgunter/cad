@@ -46,6 +46,7 @@ fn scene() -> Scene {
             value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the parameter declares")
     .doc;
@@ -55,6 +56,7 @@ fn scene() -> Scene {
             node: fixture::xy_frame(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the sketch frame inserts");
     let plane = applied.record.minted.expect("frame id");
@@ -64,6 +66,7 @@ fn scene() -> Scene {
             node: Node::Profile(plate_profile(plane)),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the parametric profile inserts");
     let profile = applied.record.minted.expect("profile id");
@@ -76,6 +79,7 @@ fn scene() -> Scene {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the extrude inserts");
     let solid = applied.record.minted.expect("solid id");
@@ -96,6 +100,7 @@ fn set_hole_r(doc: &ProfileDoc, value: f64) -> ProfileDoc {
             value: DocParam::continuous(Dimension::Length, value),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("SetDocParam never refuses for downstream profile breakage")
     .doc
@@ -304,6 +309,7 @@ fn the_authoring_door_refuses_but_set_doc_param_does_not() {
             expr: Expr::literal(0.0, Dimension::Length).expect("zero literal"),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         refused.is_err(),
@@ -328,6 +334,7 @@ fn the_authoring_door_refuses_but_set_doc_param_does_not() {
             expr: Expr::literal(0.3, Dimension::Length).expect("literal"),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a well-formed radius applies");
     let ev = eval::<f64>(&ok.doc);
