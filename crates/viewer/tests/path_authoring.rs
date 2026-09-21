@@ -35,6 +35,12 @@ use viewer::sketch::{self, Notation, PreviewError, admits_at, preview};
 /// inside the assertions below.
 const CHORD: f64 = 1.0e-4;
 
+/// A display tolerance coarse enough that an arc of ordinary size
+/// sags less than it over its whole sweep, so `arc_points` answers the
+/// one-segment floor. One row needs that arm and nothing else here
+/// does; it is a δ the caller chooses, not a property of the geometry.
+const COARSE_CHORD: f64 = 1.0e-1;
+
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("path-start", tol), tol)
@@ -975,14 +981,27 @@ fn a_vertexs_second_coordinate_is_asked_the_question_too() {
 /// whole file stayed green under that deletion.
 ///
 /// The arm that separates them is `arc_points` answering **one**. A
-/// tiny arc far from the origin — two vertices a micron apart at
-/// `1.6e308`, bulge `0.5` — has radius `6.25e-7`, which is under half
-/// the chord tolerance, so it needs no subdivision and the
-/// interior-point loop never runs. Its `start` is `atan2` of a finite
-/// ordinate over `-inf`, which is `-π` and perfectly finite. The
-/// centre is `[inf, 5e-7]`, and nothing but the frame check asks.
-/// Without it the arc is drawn as a straight chord — a leg the author
-/// did not write, which is what this module refuses by name.
+/// millimetre-scale arc far from the origin — two vertices a
+/// millimetre apart at `1.6e308`, bulge `0.5` — has radius
+/// `6.25e-4` and a sagitta of `2.5e-4`, so at a COARSE display
+/// tolerance it genuinely needs no subdivision and the interior-point
+/// loop never runs. Its `start` is `atan2` of a finite ordinate over
+/// `-inf`, which is `-π` and perfectly finite. The centre is
+/// `[inf, 5e-4]`, and nothing but the frame check asks. Without it the
+/// arc is drawn as a straight chord — a leg the author did not write,
+/// which is what this module refuses by name.
+///
+/// **The one-segment answer is bought with the CHORD and not with the
+/// geometry**, which is why this row passes its own tolerance rather
+/// than the file's. An earlier draft shrank the arc to a micron
+/// instead, and the eps = 1e-6 row of the matrix refused its junction
+/// at replay two steps before the flattener ever saw it: the turn
+/// margin was `3.75e-7 m`, which at that tolerance is tangency. A
+/// fixture whose scale is near an eps row's is a fixture about that
+/// row. `chord` is the caller's own δ — `pane::viewport` passes the
+/// display budget's — so asking for a coarse one is the ordinary
+/// thing, and it leaves the geometry three orders of magnitude clear
+/// of the coarsest eps the matrix runs.
 #[test]
 fn a_one_segment_arc_about_a_centre_that_is_not_a_point_refuses() {
     let tol = Tol::witness();
@@ -990,10 +1009,10 @@ fn a_one_segment_arc_about_a_centre_that_is_not_a_point_refuses() {
         steps: vec![
             Step::At(pt(1.6e308, 0.0)),
             Step::ArcTo(ArcData::Bulge {
-                target: Target::Point(pt(1.6e308, 1.0e-6)),
+                target: Target::Point(pt(1.6e308, 1.0e-3)),
                 b: 0.5,
             }),
-            Step::LineTo(Target::Point(pt(1.0e307, 5.0e-7))),
+            Step::LineTo(Target::Point(pt(1.0e307, 5.0e-4))),
             Step::LineTo(Target::Start),
         ],
     };
@@ -1001,7 +1020,7 @@ fn a_one_segment_arc_about_a_centre_that_is_not_a_point_refuses() {
         SketchPlane::xy(),
         core::slice::from_ref(&template),
         tol,
-        CHORD,
+        COARSE_CHORD,
     )
     .expect_err("an arc that draws no interior point still has a centre to be asked about");
     assert!(
