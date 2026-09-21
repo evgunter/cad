@@ -4,6 +4,8 @@ kind: issue
 title: Eleven crates/viewer/src files are claimed by none of the four re-scope successors, and three of them are where live rows have to land
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

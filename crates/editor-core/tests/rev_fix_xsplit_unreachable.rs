@@ -206,15 +206,17 @@ fn three_shapes() -> ProfileDoc {
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a
     // two-level nest, which is the name such a table never mints:
-    // NOT an edge, welds nothing.
-    let (doc, _) = step(
+    // NOT an edge, welds nothing. The insert door refuses such a
+    // head, so it is authored the way one arises after insert
+    // (`insert_mate_with_stranded_head`).
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
-        DocEdit::InsertNode {
-            node: seat(
-                in_copy(npc, 1, in_part(c, CapEnd::End)),
-                in_part(b, CapEnd::End),
-            ),
-        },
+        seat(
+            in_copy(npc, 1, in_part(c, CapEnd::End)),
+            in_part(b, CapEnd::End),
+        ),
+        editor_core::MateSide::A,
+        b,
     );
     doc
 }
@@ -242,14 +244,17 @@ fn foreign_master() -> ProfileDoc {
     );
     let (doc, c) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-c")));
     let (doc, d) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-d")));
-    let (doc, _) = step(
+    // The head resolves to no member (the walk reaches `a` under a
+    // name whose master is `c`), which the insert door refuses: it is
+    // authored the way such a head arises after insert.
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
-        DocEdit::InsertNode {
-            node: seat(
-                in_copy(pa, 2, in_part(c, CapEnd::End)),
-                in_part(d, CapEnd::Start),
-            ),
-        },
+        seat(
+            in_copy(pa, 2, in_part(c, CapEnd::End)),
+            in_part(d, CapEnd::Start),
+        ),
+        editor_core::MateSide::A,
+        d,
     );
     doc
 }

@@ -2,10 +2,11 @@
 id: the-fold-left-thirteen-one-line-fixture-wrappers-still-copied
 kind: issue
 title: Six box fixtures are still declared once per suite after the fold, at fifteen sites, and one whole corpus is copied
-status: review
+status: closed
 opened: 2026-09-19
 branch: dup/one-line-fixture-wrappers
 pr: 2899
+closed: 2026-09-20
 ---
 
 **The id says thirteen and the object is fifteen.** Ids are stable

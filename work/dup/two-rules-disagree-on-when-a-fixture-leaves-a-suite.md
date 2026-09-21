@@ -5,6 +5,8 @@ title: sweep's src/test_support header and its tests/common routing rule disagre
 status: open
 opened: 2026-09-20
 needs_ev: true
+priority: P4
+cost: E
 ---
 
 

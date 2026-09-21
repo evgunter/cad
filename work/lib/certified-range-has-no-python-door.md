@@ -5,6 +5,8 @@ title: The certified locally-valid range query has no Python door
 status: open
 opened: 2026-09-13
 refs: [1183]
+priority: P3
+cost: D
 ---
 
 Filed by DOCM-9, which built the kernel side and is forbidden by its

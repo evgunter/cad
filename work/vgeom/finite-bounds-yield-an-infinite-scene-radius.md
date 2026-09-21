@@ -4,6 +4,8 @@ kind: issue
 title: Bounds of a few hundred orders of magnitude pass both guards and return radius = inf as a scene radius
 status: open
 opened: 2026-09-17
+priority: P1
+cost: D
 ---
 
 Found by the review of #2798, in a file that PR's sweep disposed of as

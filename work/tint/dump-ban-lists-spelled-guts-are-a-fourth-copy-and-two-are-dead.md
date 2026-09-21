@@ -4,6 +4,8 @@ kind: issue
 title: editor-core's `guts` dump ban lists are the shape TINT-1's sweep could not see, and the resolve/placement list bans two of the nine identifiers it renders
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

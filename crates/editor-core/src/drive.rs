@@ -1546,21 +1546,29 @@ fn classify_replay<T: geom_core::Decide>(
     // it — on the value if the op built anyway, on the error if it did
     // not — so an escalation an op wrapped in its own error enum (a
     // sweep's `ExtrusionEscalated`, ~40 such variants across five
-    // crates) is seen without matching on any of them, and the FIRST
+    // crates) is seen without matching on any of them — which is what
+    // the log buys HERE, not a claim that those variants are redundant:
+    // the log is a per-bracket side channel, empty for every caller of
+    // those ops that opens no bracket, and this loop is one of the few
+    // callers that does — and the FIRST
     // escalation in decision order speaks: a sliver, or the cue to
     // bisect (a later sliver behind a refinable escalation does not
     // argue — refinement may never reach it on the branch a definite
     // first decision takes — so that order is the conservative one);
-    // (3) the error-enum arms. Those arms are LOAD-BEARING, not a
-    // fallback: the log carries the funnel's escalations only, and a
-    // predicate that asks the funnel, gets a definite sign, and then
-    // mints an `Indeterminate` of its own (`geom_brep::enters`,
-    // `dihedral`, `pcurve_cache`, `certify`, `edge_nurbs`, `ssi::march`
-    // — eight sites) reaches this loop only through the enum it was
-    // wrapped in; the whole-document mate solve's escalations likewise
-    // arrive only as `NodeErrorKind::Mate`, since no node's bracket is
-    // open when it runs. The gap and the unit that closes it:
-    // `work/props/escalation-channel-misses-op-minted-indeterminates.md`.
+    // (3) the error-enum arms, a CONSERVATIVE read with no live path
+    // to them today. Every mint of either kind — `NodeErrorKind::`
+    // `Escalated` and the `ProfileLaneReplay` structure refusal — is in
+    // `eval::wire`, inside the bracket `eval_node` opens around the op,
+    // so the escalation is on the node's log and read (2) answers
+    // first. That is a search, not a proof: it says no path reaches
+    // these arms, not that none can. Deleting them is a behaviour
+    // change of its own — read (2) speaks for the log's FIRST
+    // escalation where an arm speaks for the one the error carried, and
+    // those differ on a node that recovered from an earlier one — so it
+    // wants its own red-first row and its own measurement, which
+    // `work/props/should-classify-replays-error-enum-arms-be-deleted.md`
+    // holds. What HAS been discharged is the precondition the arms were
+    // kept for: the log now carries the op-minted escalations too.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
     // refusing nodes that decides which one speaks: the FIRST
     // indeterminacy in node-id order settles the leaf as a sliver or a

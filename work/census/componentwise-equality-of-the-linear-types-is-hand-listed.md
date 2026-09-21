@@ -4,6 +4,8 @@ kind: issue
 title: componentwise equality of Vec3/Point3 is hand-listed at eleven sites in seven crates and a fourth component would be silently outside every one
 status: open
 opened: 2026-09-16
+priority: P3
+cost: E
 ---
 
 

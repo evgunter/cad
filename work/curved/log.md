@@ -392,3 +392,24 @@ EXCLUDED under 3(e) (R2's 429). Adjudication on the PR (comment
 5746969779); fourteen items; fix pass dispatched. Spec note for the
 ledger at deletion: §3's `nurbs_tighten` sentence was wrong (the
 harmonic arm does not skip; the lane refused, correctly).
+
+## The cut (2026-09-20)
+
+Ev, in-chat: "i sure put a lot on your plate … do you think it'd make
+sense to break them up into smaller tracks, leaving only a chunk sized
+to be finished in this session in the original curved and trim?" —
+yes, and "you can do the split — no need for an [ev] pr since it is
+mostly moving issues around". Done in one commit: **REACH**
+(`work/reach/`, band 6000–6099) takes the boolean lanes and S-BOOL's
+residue, 49 items; **TANG** (`work/tang/`, 6100–6199) the
+declared-tangency and germ/pierce lanes and the pinch design, 8;
+**CHART** (`work/chart/`, 6200–6299) the three SSI drive-bys with
+TRIM's chart-side residue. CURVED keeps four items: the spiric unit
+(PR-1b in its fix pass), the equator-seam re-author, the C5 demo
+half and a ledger fix; its exit is the spiric carrier delivered and
+the elbow hollowed. Plans and program files re-cut; the former lane
+list and the S-BOOL fence are in this plan's history. **Protocol v7**
+(Ev, 2026-09-19, recorded in the A/B log's banding entry) read at the
+cut: the dual runs on triaged-in units only from here; the
+equator-seam unit is E–M and runs opus/opus outside it unless its
+spec finds a decision.

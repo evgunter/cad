@@ -4,6 +4,8 @@ kind: issue
 title: shell_tolerance_chain's hand-rolled sentinel region includes the opening sentinel where source::sentinel_region excludes it
 status: open
 opened: 2026-09-13
+priority: P4
+cost: E
 ---
 
 

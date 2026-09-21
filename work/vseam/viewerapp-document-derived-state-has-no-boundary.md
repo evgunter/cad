@@ -5,6 +5,8 @@ title: ViewerApp's document-derived fields are reset by hand at one door with no
 status: open
 opened: 2026-09-07
 refs: [2103]
+priority: P1
+cost: D
 ---
 
 

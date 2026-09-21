@@ -4,6 +4,8 @@ kind: issue
 title: props: require_iso_rectangle admits a face whose rims encode different material sides; the sense-free residue unanimous_rim_side already decides it in the gate arm
 status: review
 opened: 2026-09-16
+priority: P0
+cost: D
 branch: props/curved-residues
 pr: 2924
 ---

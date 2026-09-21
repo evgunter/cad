@@ -4,6 +4,8 @@ kind: issue
 title: PickCache::indexing's seam half, and Coalescing's orderly-forget arm, have no shipped producer now that a crash panics
 status: open
 opened: 2026-09-17
+priority: P3
+cost: D
 ---
 
 

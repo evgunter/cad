@@ -4,6 +4,8 @@ kind: issue
 title: Node::Transform and Node::Pattern field docs say "the body placed" / "the body replicated" although both placers accept Instances
 status: open
 opened: 2026-09-08
+priority: P4
+cost: E
 ---
 
 

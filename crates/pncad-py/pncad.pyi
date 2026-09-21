@@ -146,7 +146,14 @@ class EditError(PncadError):
     An arm carrying a NESTED refusal projects the carrier's own
     payload and nothing more: `inner_variant` names the arm of the
     refusal it holds, and the fields inside it belong to that type's
-    own door.
+    own door. The one exception is `mate_refused`, the edit door
+    asking the solve's own per-mate admission of a mate being
+    inserted: `fault` carries the solve's `MateFault` about that mate
+    WHOLE — the value `SolvedPoses.fault` answers for a mate the solve
+    refuses on the same datum — so its lever, its clash and its
+    recourse are read off the type a caller already knows, and
+    `inner_variant` is that fault's word (`mate_table_lacks`,
+    `mate_contradictory`, …).
     """
 
     variant: str
@@ -172,6 +179,7 @@ class EditError(PncadError):
     path: Optional[tuple[int, ...]]
     value_path: Optional[str]
     pin: Optional[ContentPin]
+    fault: Optional[MateFault]
 
 class EvaluationError(PncadError):
     """A node produced no value, or produced the wrong kind.
@@ -3146,9 +3154,26 @@ class Doc:
         gauge levers through: its cluster-record maintenance mints the
         cluster's frame from a solve of the prior document, whose lever
         is the mated parts' own extent. Every other edit never consults
-        it. Absent, such an edit raises `EditError` with variant
-        `maintenance_refused` rather than recording a frame nothing
-        decided; everything else is unaffected."""
+        it, with one exception: inserting a mate asks the solve's own
+        per-mate admission at the door, and a clocking rider on a frame
+        coincidence is decided over the mated parts' extent, read
+        through `resolver`. Absent, a gauge-moving edit raises
+        `EditError` with variant `maintenance_refused` rather than
+        recording a frame nothing decided, and a mate with such a rider
+        raises `mate_refused` with `inner_variant == "mate_unleverable"`;
+        everything else is unaffected.
+
+        A mate the solve refuses on its own datum — no member at its
+        head, one member named twice, a class outside the vocabulary,
+        a frame with no definite direction, a primitive-and-rider pair
+        the coset table has no row for, a rider that contradicts the
+        coincidence it rides — raises `EditError` with variant
+        `mate_refused` at this insert; `fault` is the solve's own
+        `MateFault`. The doors decide edits and the solve decides
+        states: a verdict about a PAIR (under-determined, contradicting
+        another mate), and a per-mate fault a mate comes to carry after
+        insert (a stranded head, a re-pointed `Part`, a loaded
+        snapshot), are the solve's at evaluation."""
 
     @property
     def last_maintenance(self) -> list[Maintenance]:
@@ -3225,13 +3250,12 @@ class Doc:
         """Insert a node, answering its minted id — `apply` of
         `DocEdit.insert_node`.
 
-        `resolver` is the document seam an edit that moves a cluster's
-        gauge levers through: its cluster-record maintenance mints the
-        cluster's frame from a solve of the prior document, whose lever
-        is the mated parts' own extent. An insert is a Join at most
-        (the survivor keeps its gauge), so it never consults it; the
-        keyword is here because `insert` is `apply`, and takes what
-        `apply` takes."""
+        `resolver` is the document seam a mate's admission levers
+        through: an insert is a Join at most (the survivor keeps its
+        gauge), so its maintenance never consults it, but a mate's
+        clocking rider on a frame coincidence is decided at the door
+        over the mated parts' extent, read through `resolver` — see
+        `apply` for what a mate refuses here (`mate_refused`)."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -4948,8 +4972,9 @@ class MatePrimitive:
 
     @staticmethod
     def clocking() -> MatePrimitive:
-        """Clocking with no carrying primitive: refused at the
-        solve."""
+        """Clocking with no carrying primitive: refused at the insert
+        of a mate carrying it (`EditError`, variant `mate_refused`)
+        and at every solve that reads the datum."""
     @property
     def variant(self) -> str: ...
     @property
@@ -4964,8 +4989,11 @@ class Alignment:
 
     `clocking` is a RIDER, never a primitive: on `coaxial` it cuts the
     residual to prismatic; on `frame_coincidence` it is
-    redundant-or-contradictory and gets decided; on a planar rest the
-    table has no entry and the solve refuses typed."""
+    redundant-or-contradictory and gets decided over the mated parts'
+    extent — at the insert (`Doc.insert` with `resolver`, variant
+    `mate_refused`) and at every solve that reads the datum, not
+    re-decided on replay; on a planar rest the table has no entry and
+    the same doors refuse typed."""
 
     def __init__(
         self,

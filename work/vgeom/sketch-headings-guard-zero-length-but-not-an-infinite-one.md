@@ -4,6 +4,8 @@ kind: issue
 title: sketch.rs's two 2-D direction sites guard a zero length and not a non-finite one
 status: open
 opened: 2026-09-16
+priority: P1
+cost: E
 ---
 
 

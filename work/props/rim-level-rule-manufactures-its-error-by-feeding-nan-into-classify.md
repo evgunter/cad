@@ -5,6 +5,8 @@ title: The rim-level rule's structurally-impossible arm throws by feeding f64::N
 status: review
 opened: 2026-09-11
 refs: [877, S40]
+priority: P0
+cost: H
 branch: props/curved-residues
 pr: 2924
 ---

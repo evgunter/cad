@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-06
 github: 214
 refs: [213, 501, 502, 2063]
+priority: P4
+cost: E
 ---
 
 ## From GitHub issue 214

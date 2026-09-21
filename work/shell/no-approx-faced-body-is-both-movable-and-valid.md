@@ -4,6 +4,8 @@ kind: issue
 title: an Approx face has no cache route with straight carriers, and the body whose chart does have one cannot be moved - so nothing weighs, meshes or exports
 status: open
 opened: 2026-09-04
+priority: P0
+cost: H
 ---
 
 

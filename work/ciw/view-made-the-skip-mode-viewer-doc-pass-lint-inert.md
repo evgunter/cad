@@ -2,9 +2,10 @@
 id: view-made-the-skip-mode-viewer-doc-pass-lint-inert
 kind: issue
 title: NOTICE, not a request: VIEW changed scripts/doc-gate.sh's skip-mode viewer pass to RUSTDOC_LINTS_INERT on Ev's ruling — read and close
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2332]
+closed: 2026-09-20
 ---
 
 
@@ -81,3 +82,13 @@ edited — a closed row is a record of the tree it was written against:
 `work/ciw/log.md:778` (`:348`) and `:2161` (`:555`) are unshifted, as
 are `work/code-quality/S115.md:26` (`:45-58`) and
 `work/tcost/D113.md:25` (`:71`).
+
+## Closed (2026-09-20)
+
+Read, and nothing disagreed with. The row's own title asked for exactly
+this — *"read and close"* — and nothing was asked of CIW: the change was
+authorised by Ev's ruling in chat on 2026-09-11, the cost it drops is
+written at the site, and `doc-gate.sh --selftest` exits 0 with the two
+inverted arms and three new controls the body lists. The two shifted
+citations it records are both on CLOSED rows, which are records of the
+tree they were written against and are not repointed.

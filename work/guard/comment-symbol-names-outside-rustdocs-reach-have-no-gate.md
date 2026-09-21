@@ -4,6 +4,8 @@ kind: issue
 title: a symbol named in a comment rustdoc cannot read is checked by nothing, and 26 of them sit in viewer alone
 status: open
 opened: 2026-09-10
+priority: P3
+cost: E
 ---
 
 

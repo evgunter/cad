@@ -4,6 +4,8 @@ kind: issue
 title: 38 rows carry a class from the 2026-09-11 cut asserting it was read against the tree; the two that have since been measured were both wrong on the day, and both checkably so
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

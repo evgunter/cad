@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-01
 github: 1439
 refs: [1423]
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 1439

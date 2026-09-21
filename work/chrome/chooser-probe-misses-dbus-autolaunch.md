@@ -4,6 +4,8 @@ kind: issue
 title: The chooser probe's 'no session bus' does not mean rfd cannot reach a portal (D-Bus autolaunch)
 status: open
 opened: 2026-09-18
+priority: P3
+cost: E
 ---
 
 

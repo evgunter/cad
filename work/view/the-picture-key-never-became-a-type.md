@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-05
 branch: view/picture-key
 pr: 2670
+priority: P1
+cost: D
 ---
 
 

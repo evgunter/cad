@@ -5,6 +5,8 @@ title: A declared merge is asymmetric in the pair verb's operands: which member'
 status: open
 opened: 2026-09-06
 refs: [2028, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
+priority: P0
+cost: D
 ---
 
 
