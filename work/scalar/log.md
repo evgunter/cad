@@ -712,3 +712,18 @@ orchestrator's: the item file said "slot 1 (OPUS)", the spec commit's
 wording; RING-1's item carried the same words through its whole dual
 (recorded on its row as an exposure). RING-1 is state-synced
 (`859cbd3880`, main merged) and waits on its run before merging.
+
+## RING-0 specified; block SCALAR-B5 drawn (2026-09-21)
+
+RING-0 (`docs/RING-0-SPEC.md`, item `ring-0-poison-differential`, branch
+`scalar/ring-0`): the per-op verdict assertion (ring poison ⇔ backend
+`dec < Def`, NaI or empty) with a closed allowlist and an adversarial
+corpus, merged; the newtype-over-`DInterval` dry run on
+`scalar/ring-0-dry-run`, never merged, its red rows classed for RING-2;
+the 28 endpoint reads dispositioned. Fence announced here: TCOST/TINT
+(`crates/geom-core/tests/ring_interval_differential.rs`, `test-utils`'s
+fuzz helpers only if needed). Block SCALAR-B5's pre-draw fields (RING-0
+M / test lane; LANE-1 M; RING-2 H, Fable spec) were recorded before the
+byte: **244** ⇒ fable position 1 (slot 0 RING-0 = OPUS, slot 1 LANE-1 =
+FABLE, slot 2 RING-2 = OPUS). RING-0 dispatches when a lane slot frees
+(three are taken: LANE-0's implementer closing out, its two reviewers).

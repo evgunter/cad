@@ -7367,6 +7367,42 @@ which waits on the sitting; slot 0's row is recorded at its merge.
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | CURVE3-JET | 2026-09-21 | CURVE3-JET (PR #2708): the whole-curve order-1 jet door — `NurbsCurve3::ders1(t) -> (Point3, Vec3)` (and `NurbsCurve2::ders1` through the macro) beside `ders`, `Curve3::ders1` exhaustive (`Line`, `Circle` through the shared `circle_point`, `Ellipse`, `Spiric` — main's variant arrived after the frozen head — `Nurbs`); the located-span walk written once (`located_walk`), the four doors one call each; fourteen sites / fifteen `eval`+`deriv` pairs folded (six enum-door sites incl. `certify.rs`'s arm-by-arm shape, `skin.rs`'s two, the tour's four, the `pncad` example's two, `param_near`'s `Circle` arm); no `CurveJet1`, no `ders2`; bit identity by both `span_bit_identity` digests unchanged, the `_ext` corpus at f64/Dual64/Interval, both reviewers' adversarial corpora adopted, the tour listing digest identical; 8–38 % of the pair saved (reporting) | M / structural, low side (pre-draw, branch-side) | FABLE (block SCALAR-B4 slot 0) | **DUAL (ordinal 4109; sample #227 at merge — main's first-parent merge order: SYM-8 #226 at `a5c3116e01`, this at `83b3e8f0bb`; byte 84 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent on frozen `88c47557b`, v6 instrument).** R1 A-W-F 0/4/9, rubric 5/4/4; R2 A-W-F 0/2/7, rubric 4/4/4. **No MAJOR on either arm — no tally candidate.** Both executed the mutant table exactly (M1 the differential row only; M5 141 rows in `sweep::all`; M3 nothing) and both showed why M3 is structural: a NURBS-carried `Curve3` cannot reach the enum-door sites through any user program today — the boolean refuses NURBS input carriers before tier 3 (both reproduced e2e). Both attacked the `Interval` hull fold with their own corpora (R1: degree 1 unequal spans, mult-4 knots, 1e-300 weights, ±1e-12·span, out of domain; R2: two-span off-centre straddles, NaN/±inf) and found no bit. Bilateral: `circle_at`'s "one expression" doc falsified by the `Circle` arm's re-spelling; the span walk written four times; `normal_start_place`'s stated reason backwards. Unique R1: `param_near`'s `Circle` pair left standing on a cost argument the door retires; the one-frame claim unguardable by any bit row (a two-frame mutant stays green — the meter is the only instrument); the meter fixture a 638-byte copy; `ders1` missing from three totality rows; `pncad-py` has the pair's consumer and no producer. Unique R2: the filed rim-wedge row misdescribes its site and understates a bit move; the naming split with `Surface::jet`. **Pair COUNTS** (neither arm interrupted). Two exposures: R1 saw the spec commit's harness trailer name a model in the PR's commit list (the orchestrator's commit; unit-branch orchestrator commits carry no trailer from here); the brief's claim 9 named the pre-rustfmt head and its red run (both arms corrected it and reviewed `88c47557b`) | R1 counted 0 undisclosed deviations (the `circle_at` bypass an undisclosed consequence), R2 counted 0 | R1 5 / R2 4 | 4 | 4 | thirteen items, eleven taken, two declined with reason (`CurveJet1`/rename; the unconsumed `NurbsCurve2::ders1`), fresh lane on the same arm (the implementer had died on a usage limit after its final push; the PR body was its report); both probe branches adopted `--no-ff` (R1's printing example dropped); the walk refactor bit-identical by both digests; M6/M7 added to the table; the tour narration digest moved on main's side between the unit's base and the fix pass's (identical at both ends of the fix pass) | impl CI 35039865934 GREEN on `88c47557b` (first head red on rustfmt only); merged-main head 4f28eed08d needed a `Spiric` arm after main's new variant (run 35550125809 GREEN); fix CI 35562740974 GREEN (twelve `test`, five `k-lint`, python suite, `gate ok`); state-synced + main-merged head 5b4e22201a run 35564865921 GREEN (twelve `test`, five `k-lint`, python suite, `gate ok`); MERGED #2708 at sample #227 | impl ~? (lane died before reporting; ~2 h 47 min wall) / Spiric fix ~80k / fix ~330k / R1 ~300k / R2 ~1.4 M context-in (harness) | impl ~2 h 47 min / Spiric fix ~15 min / fix ~2 h 45 min / R1 ~3 h / R2 ~60 min |
 
+### Block SCALAR-B5 — pre-draw fields (2026-09-21, before the byte)
+
+The next three `H5` units by the plan's order (`work/scalar/plan.md`
+§The H5 units), slots by dispatch order, classes fixed here before the
+byte so the draw does not read them:
+
+- slot 0 — `ring-0-poison-differential` (RING-0; `docs/RING-0-SPEC.md`)
+  — **M / test lane** (a per-op verdict assertion with a closed
+  allowlist and an adversarial corpus in one differential file; a
+  scratch newtype-over-`DInterval` branch that never merges, whose red
+  rows are read and classed; the survey's 28 endpoint reads
+  dispositioned; no `src` change merges).
+- slot 1 — `LANE-1` (`PropsQuadLane` deleted: the certified props doors
+  at `Decide + CertifiedBounds` naming the quad door, the `_structural`
+  twins taking the hook's `None`, `datum_lo` → `Bounds::lo`; dispatched
+  after LANE-0 lands) — **M / structural** (the plan's class; the
+  sub-unit's own sentence is written when it is cut).
+- slot 2 — `RING-2` (`RingInterval` a newtype over `DInterval`, poison
+  `dec < Def`, every certificate re-pinned with the cause named,
+  INSTR's data re-taken; Fable spec; dispatched after RING-0's dry run
+  lands) — **H / numeric** (the plan's class; the sub-unit's own
+  sentence is written when it is cut).
+
+### Block SCALAR-B5 — the draw (2026-09-21)
+
+Draw: `/dev/urandom` byte **244** (< 252), 244 mod 3 = 1 ⇒ fable position
+1. Slots by dispatch order: **slot 0 RING-0 = OPUS, slot 1 LANE-1 =
+FABLE, slot 2 RING-2 = OPUS.** Same box and posture as B1–B4. The block
+stays branch-side on `scalar/orchestrator` until slot 2's reviews
+conclude; each row is recorded at its merge.
+
+### Block SCALAR-B5 rows (recorded at each merge; the section merges to main at block close)
+
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+
 ### Block SCALAR-B3 rows (recorded at each merge branch-side; landed at block close, 2026-09-15)
 
 | # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
