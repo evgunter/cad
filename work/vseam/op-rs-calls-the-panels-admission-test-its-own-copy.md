@@ -8,6 +8,7 @@ priority: P1
 cost: E
 closed: 2026-09-21
 branch: vseam/gesture-naming
+pr: 2965
 ---
 
 
