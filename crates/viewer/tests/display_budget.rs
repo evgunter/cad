@@ -31,12 +31,19 @@ use viewer::session::DocSession;
 
 use crate::corpus;
 
-/// A request the gallery ring exceeds the budget at: a decade finer
-/// than the starting δ, where the ring's ~1.6·10⁵ triangles at 0.1 mm
-/// become ~1.6·10⁶ (the 1/δ law `fit_delta` solves). The budget rows
-/// need a document that is actually over budget, and since the torus
-/// sizing spends its chord bound without slack the ring is not one at
-/// the starting δ any more.
+/// A request the gallery ring exceeds the budget at, where the ring's
+/// ~1.6·10⁵ triangles at 0.1 mm become ~1.6·10⁶ (the 1/δ law
+/// `fit_delta` solves). The budget rows need a document that is
+/// actually over budget, and since the torus sizing spends its chord
+/// bound without slack the ring is not one at the starting δ any more.
+///
+/// **Chosen to be over budget, not derived from [`INITIAL_DELTA`].**
+/// It is a decade finer than the starting δ as both stand, but that
+/// is an observation rather than the requirement: what this constant
+/// has to be is a request the fixture exceeds the budget at, and
+/// spelling it `INITIAL_DELTA / 10.0` would break the row the moment
+/// the starting δ coarsened — a decade under a coarser start is a δ
+/// this same doc records as INSIDE the budget.
 const OVER_BUDGET_DELTA: f64 = 1.0e-5;
 
 /// The tour's gallery ring, as the committed fixture.
