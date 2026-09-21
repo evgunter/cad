@@ -2,7 +2,7 @@
 id: blind
 kind: program
 title: BLIND — CI instruments that cannot see what they name: the denials, the rosters and the runs that read as something else
-status: open
+status: ready
 opened: 2026-09-20
 area: infra
 prefix: blind/

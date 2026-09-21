@@ -2,7 +2,7 @@
 id: budget
 kind: program
 title: BUDGET — the tessellation budget instrument: what tess-lint reads, what it compares, and what its figures are worth
-status: open
+status: ready
 opened: 2026-09-20
 area: infra
 prefix: budget/

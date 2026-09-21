@@ -2,7 +2,7 @@
 id: perf
 kind: program
 title: PERF — the performance work still owed
-status: open
+status: ready
 opened: 2026-07-21
 area: kernel
 prefix: perf/

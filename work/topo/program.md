@@ -2,7 +2,7 @@
 id: topo
 kind: program
 title: TOPO — the Euler operators: the surgery doors that mutate a body, and how they leave it half-described
-status: open
+status: active
 opened: 2026-09-04
 area: kernel
 prefix: topo/

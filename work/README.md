@@ -100,8 +100,40 @@ question only Ev answers; never work).
 Neither counts as available work: `STATUS.md` gives each its own column
 so a not-now row can never be read off the board as dispatchable, and
 neither is listed as stale for going untouched. A ruling is `open` or
-`closed`. A program is `open` or `closed`; a closed program may hold
-only closed items.
+`closed`.
+
+**status** of a program says what the TRACK is, and the fact it exists
+to carry is **whether an orchestrator is on it** — the one thing the
+row counts beside it cannot show, because a session with a full slate
+and nothing dispatched yet looks exactly like an abandoned one:
+
+- `ready` — **no orchestrator, and something to pick up**: at least
+  one row is dispatchable (`open` or `spec`, as Track size counts
+  them). This is the state a successor session scans the board for.
+- `active` — **an orchestrator holds this track.** Nothing in the tree
+  can confirm or refute that, so it is the program's own word and lint
+  takes it as given; the orchestrator sets it when it picks the track
+  up and clears it when it hands the track back.
+- `blocked` — **no orchestrator, and nothing to pick up**: every live
+  row is in flight, parked or deferred. Lint checks the half of that
+  claim the tree can see (no dispatchable row, and at least one live
+  one).
+
+**There is no `closed`, because a program that closes is deleted**
+(the closing rules below): a closed program is an ABSENT one, and a
+status saying so would only ever describe the gap between the exit
+walk being ratified and the sweep that removes the directory. A track
+in that gap is still `active` — its orchestrator is writing the walk —
+and it holds no dispatchable row, which is why nothing here requires
+one of an `active` track.
+
+**A blocked track never has an orchestrator, by construction.** An
+orchestrator that has run out of non-blocked units does not sit on the
+track waiting for its triggers to fire: it cuts the blocked rows into
+a new program (Track size's splitting rules; the closing rules'
+re-homing discipline), closes what it has finished, and leaves the new
+program `blocked` with nobody on it. Otherwise the whole track's exit
+walk and sweep wait on its slowest blocker, which can be indefinite.
 
 ## Priority
 
