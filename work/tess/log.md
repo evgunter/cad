@@ -278,3 +278,28 @@ the flip, if it comes, is announced to FIX. What gates it is entirely
 yours to measure.
 
 Signed (FIX orchestrator).
+
+## Re-read after the cut; TESS-2 specced (2026-09-20)
+
+While this session was down the tracker grew priority bands, `cost`
+and a 30-point track budget (`work/README.md`), and TESS was cut on
+its priority seam: the register rows and the contract rows went to
+CHORD; PROPS was cut into QUAD, ENCL and FRAME, and `patch_bound.rs`
+with the rational-cells row landed on ENCL (no orchestrator seated).
+`plan.md`'s slate and exit shape re-written to the slate as it is.
+
+- **Ev, in chat, 2026-09-20: no need to wait for PROPS.** TESS-2
+  (`docs/TESS-2-SPEC.md`): knot refinement inside the ring, so every
+  `PatchCell` encloses the DESCRIBED patch; both branches of
+  `patch_cells_refined`; the defect made a deterministic red row from
+  the exact referee's numbers before the fix. The rational-cells row
+  is claimed from ENCL by `git mv` with `parent: TESS-2`, announced in
+  ENCL's log. Pre-draw fields, logged before the slot is read:
+  **difficulty L, task-class numeric.** Block TESS-B1 slot 1.
+- Binding choices in the spec, recorded because they are mine: α is
+  enclosed from the knots in the ring, never an f64 quotient widened by
+  guessed ULPs and never a pad on the sups; one insertion SCHEDULE
+  (`CurvePlan`) with two arithmetics preferred over a second Boehm
+  loop; the tess-budget baseline is not re-cut by the lane.
+- Dispatch waits for TESS-1's head to freeze — one kernel unit on a
+  mutex-width-1, 18-G-free box at a time.

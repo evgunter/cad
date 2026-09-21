@@ -106,7 +106,7 @@ on a sweep of knot vectors).
   `exact-zero-second-partial-leaves-cell-component-as-subnormal-dust`
   (the ring's `0 + 0` widening — but do not make it worse: a degree-1
   direction's second-derivative nets stay the exact `None` they are);
-  `work/props/refine-dir-hairline-knot-insertion.md`; the recentring
+  `work/nurbs/refine-dir-hairline-knot-insertion.md`; the recentring
   origins row on ENCL.
 
 ## What will move, and whose it is
