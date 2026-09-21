@@ -596,3 +596,14 @@ default-build caller out of the kernel doors at `Interval` — RING-3 and
 LANE-1..4 specs carry it. One exposure: the PR body's auto-appended
 footer names a vendor and re-appends on every body update; the row
 records it.
+
+## RING-0 merged (2026-09-21)
+
+PR 2993, block SCALAR-B5 slot 0, ordinal 4112. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's one unilateral
+MAJOR (the allowlist sampled six exponents; `powi(-1)` disagrees the
+other way) is recorded as the block's first tally candidate, on the
+OPUS reviewing arm. Three facts carried into RING-2's spec: what
+`from_certified` returns under cut (ii) decides whether two register
+sites are hazards; the dry run's red set is conditional on the `hull`
+and `clamped_to` guards; the register wants to be executable.
