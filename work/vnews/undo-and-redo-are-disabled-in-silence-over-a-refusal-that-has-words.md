@@ -2,7 +2,7 @@
 id: undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words
 kind: issue
 title: Undo and Redo are disabled on exactly the condition Refusal::NothingToDo refuses, and say nothing
-status: open
+status: review
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
 priority: P1
@@ -79,3 +79,45 @@ vnews's ground. Filed here because the subject is news vocabulary and
 because `the-new-document-button-states-its-refusal-twice`, the row
 eighteen lines up the same file, is already on this slate. A lane that
 takes it announces the crossing.
+
+## Done (2026-09-20) — answer 2, the direction is the payload
+
+Taken with `the-new-document-button-states-its-refusal-twice` as one
+unit; both are `crates/viewer/src/app.rs`, one rule and one shape of
+fix. Branch `vnews/app-controls-read-their-refusals`.
+
+**The row's two answers, and why the second won.** This file called
+answer 2 *"a decision rather than a two-line edit"* and left it there.
+It is the right answer and the argument is stronger than the row's own
+tooltip-ergonomics one: **the joint sentence is reachably FALSE, and
+not only at a button.** Undo at the root refuses while the redo the
+cursor just left is live — `tests/undo_tree.rs`'s
+`undo_at_the_root_and_redo_at_a_leaf_refuse_rather_than_wrap`
+constructs exactly that state — and there the status line's *"nothing
+to undo or redo"* denies a control the reader can see and click. So
+answer 1 would have moved a false sentence onto a button rather than
+composing a true one once, and the census's third obligation (*that
+the sentence be true*) is not satisfied by either surface today.
+
+That makes it this program's own charter case and not a tooltip
+preference: the session works out WHICH direction had nothing and the
+type throws the fact away.
+
+**What landed.** `Refusal::NothingToDo { direction: Step }`, rendering
+*"nothing to undo"* / *"nothing to redo"*; `Refusal::nothing_to_step`
+as the one predicate `DocSession::step` refuses on and the two buttons
+gate on, in the `Refusal::self_instance` shape the module already
+carries; `DocSession::step` taking the direction instead of a bool.
+`app.rs` draws the pair the way the cancel doors below them are drawn.
+
+**The row's reachability premise was verified and holds.**
+`grep -rn 'SessionOp::Undo\|SessionOp::Redo'` over `crates/`, `demos/`
+and `tools/`: the only production producers are the two buttons; every
+other hit is a test or an example. No keyboard route exists —
+`consume_key` appears nowhere in the crate. So the refusal's sentence
+was unreachable from the chrome entirely, which is the row's argument
+for putting it on the button.
+
+Asserted by `crates/viewer/tests/chrome_labels.rs`'s
+`a_disabled_toolbar_control_says_what_its_own_operation_refuses`,
+mutation-proven red three ways on a committed tree.
