@@ -21,56 +21,103 @@ fn s() -> Sym<f64> {
 fn r2_the_negative_predicates_strictness_at_the_scalar_door() {
     type Case = (&'static str, fn() -> Sym<f64>, bool);
     let cases: [Case; 12] = [
-        ("abs(−(1 + t²)) − (1 + t²)", || {
-            let x = -(one() + t().powi(2));
-            x.abs() + x
-        }, true),
-        ("abs(−t²) − t²  [negated square: must decline]", || {
-            let x = -t().powi(2);
-            x.abs() + x
-        }, false),
-        ("abs(−(t² + s²)) − (t² + s²)  [negated sum of squares: must decline]", || {
-            let x = -(t().powi(2) + s().powi(2));
-            x.abs() + x
-        }, false),
-        ("abs(−|t|) − |t|  [no strictly negative term of positive indets]", || {
-            let x = -t().abs();
-            x.abs() + x
-        }, false),
-        ("abs(−(1 + t²)/(1 + s²)) − (1 + t²)/(1 + s²)", || {
-            let x = -((one() + t().powi(2)) / (one() + s().powi(2)));
-            x.abs() + x
-        }, true),
-        ("abs(−(1 + t²)/s²) − (1 + t²)/s²  [D can be zero: clause 1's]", || {
-            let x = -((one() + t().powi(2)) / s().powi(2));
-            x.abs() + x
-        }, true),
-        ("abs(−2 + t²) − |−2 + t²|  [mixed signs: must decline]", || {
-            let x = t().powi(2) - Sym::from_f64(2.0);
-            x.abs() + x
-        }, false),
-        ("copysign(1, −(1 + t²)) + 1", || {
-            one().copysign(-(one() + t().powi(2))) + one()
-        }, true),
-        ("copysign(y, −sqrt(1 + t²)) + |y|", || {
-            let y = s() - t();
-            y.copysign(-(one() + t().powi(2)).sqrt()) + y.abs()
-        }, true),
-        ("copysign(0, −(1 + t²))", || {
-            Sym::from_f64(0.0).copysign(-(one() + t().powi(2)))
-        }, true),
-        ("abs(−(1 + t²)) − (1 + t²) [the theorem, F shut must NOT reach]", || {
-            let x = -(one() + t().powi(2));
-            x.abs() + x
-        }, true),
-        ("abs(−(1 + t²) + 1) + (1 + t²) − 1 = abs(−t²) − t² spelled through a sum", || {
-            let x = -(one() + t().powi(2)) + one();
-            x.abs() + x
-        }, false),
+        (
+            "abs(−(1 + t²)) − (1 + t²)",
+            || {
+                let x = -(one() + t().powi(2));
+                x.abs() + x
+            },
+            true,
+        ),
+        (
+            "abs(−t²) − t²  [negated square: must decline]",
+            || {
+                let x = -t().powi(2);
+                x.abs() + x
+            },
+            false,
+        ),
+        (
+            "abs(−(t² + s²)) − (t² + s²)  [negated sum of squares: must decline]",
+            || {
+                let x = -(t().powi(2) + s().powi(2));
+                x.abs() + x
+            },
+            false,
+        ),
+        (
+            "abs(−|t|) − |t|  [no strictly negative term of positive indets]",
+            || {
+                let x = -t().abs();
+                x.abs() + x
+            },
+            false,
+        ),
+        (
+            "abs(−(1 + t²)/(1 + s²)) − (1 + t²)/(1 + s²)",
+            || {
+                let x = -((one() + t().powi(2)) / (one() + s().powi(2)));
+                x.abs() + x
+            },
+            true,
+        ),
+        (
+            "abs(−(1 + t²)/s²) − (1 + t²)/s²  [D can be zero: clause 1's]",
+            || {
+                let x = -((one() + t().powi(2)) / s().powi(2));
+                x.abs() + x
+            },
+            true,
+        ),
+        (
+            "abs(−2 + t²) − |−2 + t²|  [mixed signs: must decline]",
+            || {
+                let x = t().powi(2) - Sym::from_f64(2.0);
+                x.abs() + x
+            },
+            false,
+        ),
+        (
+            "copysign(1, −(1 + t²)) + 1",
+            || one().copysign(-(one() + t().powi(2))) + one(),
+            true,
+        ),
+        (
+            "copysign(y, −sqrt(1 + t²)) + |y|",
+            || {
+                let y = s() - t();
+                y.copysign(-(one() + t().powi(2)).sqrt()) + y.abs()
+            },
+            true,
+        ),
+        (
+            "copysign(0, −(1 + t²))",
+            || Sym::from_f64(0.0).copysign(-(one() + t().powi(2))),
+            true,
+        ),
+        (
+            "abs(−(1 + t²)) − (1 + t²) [the theorem, F shut must NOT reach]",
+            || {
+                let x = -(one() + t().powi(2));
+                x.abs() + x
+            },
+            true,
+        ),
+        (
+            "abs(−(1 + t²) + 1) + (1 + t²) − 1 = abs(−t²) − t² spelled through a sum",
+            || {
+                let x = -(one() + t().powi(2)) + one();
+                x.abs() + x
+            },
+            false,
+        ),
     ];
     for (what, build, folds) in cases {
         let on = sound(what, how(SymRules::shipped(), build));
-        let off = sound(&format!("{what} [F shut]"), how(SymRules::without_rule_f(), build));
+        let off = sound(
+            &format!("{what} [F shut]"),
+            how(SymRules::without_rule_f(), build),
+        );
         println!("  => shipped {on} | F shut {off}");
         assert_eq!(on == "theorem", folds, "{what}: shipped");
         if what.starts_with("copysign(0") {
@@ -79,7 +126,10 @@ fn r2_the_negative_predicates_strictness_at_the_scalar_door() {
             // both dials — not rule F's.
             assert_eq!(off, "theorem", "{what}: the at-zero fold, not rule F");
         } else {
-            assert_ne!(off, "theorem", "{what}: rule F is the only rule that could take it");
+            assert_ne!(
+                off, "theorem",
+                "{what}: rule F is the only rule that could take it"
+            );
         }
     }
 }
@@ -122,7 +172,16 @@ fn r2_the_minted_magnitude_of_a_manifestly_negative_y_is_not_the_folded_abs() {
     };
     let (on_p, _) = how(SymRules::shipped(), pos_e);
     println!("  Y positive, same shape: shipped {on_p}");
-    assert_eq!(on_p, "theorem", "the positive Y closes through magnitude's nonneg branch");
-    assert_eq!(on_d, "theorem", "copysign(Y, X) + Y, Y manifestly negative, X positive — the arm's own identity");
-    assert_eq!(on_e, "theorem", "copysign(Y, X)·sqrt(Q/Q) − abs(Y) for a manifestly negative Y: main closed this in the early walk (both spellings one atom); here abs(Y) folds to −Y and copysign mints the atom");
+    assert_eq!(
+        on_p, "theorem",
+        "the positive Y closes through magnitude's nonneg branch"
+    );
+    assert_eq!(
+        on_d, "theorem",
+        "copysign(Y, X) + Y, Y manifestly negative, X positive — the arm's own identity"
+    );
+    assert_eq!(
+        on_e, "theorem",
+        "copysign(Y, X)·sqrt(Q/Q) − abs(Y) for a manifestly negative Y: main closed this in the early walk (both spellings one atom); here abs(Y) folds to −Y and copysign mints the atom"
+    );
 }
