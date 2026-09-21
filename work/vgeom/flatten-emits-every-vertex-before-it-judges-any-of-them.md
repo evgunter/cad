@@ -92,4 +92,15 @@ its badge. `preview` draws a loop that replays and does not validate
 `work/vnews/the-profiles-badge-names-the-arc-case-only.md` carries
 what that leaves narrower than its mechanism.
 
+**Two arms the review added, both inside this row's population.**
+`drawable`'s second conjunct was asserted nowhere — every fixture
+carried its non-finite coordinate in `x`, and deleting
+`point[1].is_finite()` left 637 viewer rows green — so a vertex whose
+ORDINATE is the bad one now carries it. And the arc FRAME's own
+`drawable(centre)` was subsumed by the point guard in every fixture:
+the arm that separates them is `arc_points` answering **one**, where
+the interior loop never runs, `start` is `atan2` of a finite ordinate
+over `-inf` and so finite, and only the frame asks about a centre of
+`[inf, 5e-7]`. Without it that arc is drawn as a straight chord.
+
 PR: `vgeom/sketch-infinity`.

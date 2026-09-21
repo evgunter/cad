@@ -78,16 +78,41 @@ nothing of the kind.
 
 **`heading`** now refuses: the guard is `length.is_finite() && length
 > 0.0`, and the `None` the type always offered is what an
-unmeasurable separation gets. A finite length is also what makes the
-division a unit vector — neither component exceeds it — so the one
-conjunct is the whole bound, and no value is substituted for one the
+unmeasurable separation gets. No value is substituted for one the
 arithmetic could not compute.
+
+**What the added conjunct does and does not buy, corrected.** It
+bounds each quotient to `[-1, 1]`, because no component exceeds a
+finite length — that is what the code comment claims and it is
+right. It does **not** deliver unit LENGTH, which is what the door's
+header promises, and an earlier draft of this section said it did.
+Executed: `dx = dy = 5e-324` gives `length = 5e-324`, finite and
+greater than zero, so the guard passes and the answer is
+`[1.0, 1.0]`, of length `1.4142`; at `1e-320` the answer's length is
+`1.0001287`. The division loses at the bottom of the subnormal range
+the precision that would make it one.
+
+**That is a wrong claim rather than a live defect, on a search that
+is not a proof.** Four separations were driven through `preview` and
+the driver refuses the degenerate junction two steps earlier every
+time, at `Tol::witness()` and at `1e-12`. A document tolerance below
+`1e-12` was not tried, so this is a negative result about the search
+and not about the door.
+`work/vgeom/headings-unit-vector-is-not-unit-at-the-bottom-of-the-range.md`
+carries it, because this row is deleted with the program's directory
+and a residue disclosed only in a closed row's prose dies with it.
+Note that `camera.rs`'s ray direction, cited below as the precedent
+for the spelling, does not make this mistake: it argues unit-ness from
+its caller, which is the honest form.
 
 **Reachability: LIVE, and the producer mints the infinity itself.**
 Not an infinite input: a three-leg path whose corners are at
 `±7e307`, every literal an ordinary finite number and every replayed
 vertex finite. `dx` and `dy` at vertex 0 are each `1.4e308` — still
-finite — and `dx.hypot(dy)` is `1.98e308`, which is not. The door
+finite — and `dx.hypot(dy)` answers **`inf`**: the true result is
+about `1.98e308` and `f64` cannot hold it. (An earlier draft named
+`1.98e308` as the value the call returns. It is the value the call
+cannot return; the conclusion is untouched.) The door
 then answered `Some([0.0, 0.0])`, executed through the public
 `preview` and read off its flattened points
 (`crates/viewer/tests/path_authoring.rs`,

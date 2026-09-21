@@ -260,8 +260,24 @@ substituted for a value the arithmetic could not compute.
 `heading` guarded `length > 0.0` over `dx.hypot(dy)` and an infinity
 is greater than zero, so it answered `Some([0.0, 0.0])` — a zero
 vector through a door whose `None` exists to say there is no heading.
-The guard is now `length.is_finite() && length > 0.0`, which is also
-exactly what makes the division a unit vector.
+The guard is now `length.is_finite() && length > 0.0`.
+
+**The first draft of this entry said that conjunct is also what makes
+the division a unit vector. It is not**, and the review caught it. It
+bounds each quotient to `[-1, 1]`, which is what the code comment
+claims; it does not deliver unit length, because at the bottom of the
+subnormal range the division has no precision to divide with —
+`dx = dy = 5e-324` answers `[1.0, 1.0]`, of length `1.4142`. Four
+separations were driven through `preview` and the driver refuses the
+degenerate junction two steps earlier at `Tol::witness()` and at
+`1e-12`; below `1e-12` was not tried, so that is a negative result
+about the search. The residue is
+`headings-unit-vector-is-not-unit-at-the-bottom-of-the-range`, filed
+rather than left in a row that gets deleted.
+
+Also corrected from the first draft: `dx.hypot(dy)` over two
+`1.4e308` differences answers **`inf`**, not `1.98e308`. That figure
+is the true result, which is what `f64` has no room for.
 
 `flatten` emitted `[from.x, from.y]` above every guard, and the arc
 guards it sits above are all under a `bulge == 0.0` `continue` — so a
@@ -291,7 +307,32 @@ that sentence stays true of every profile it counts today, and it is
 narrower than the mechanism behind it, filed as
 `work/vnews/the-profiles-badge-names-the-arc-case-only.md`.
 
-Certification: the three rows are red on `origin/main`'s `sketch.rs`
-from a committed tree with every pre-existing row green, and on the
-fixed tree each of the three guards deleted alone reds exactly one
-named row and nothing else.
+Certification: the rows are red on `origin/main`'s `sketch.rs` from a
+committed tree with every pre-existing row green, and on the fixed
+tree each guard deleted alone reds one named row and nothing else.
+
+**The review's two follow-ups landed here rather than after, because
+both sit in rows this PR closes.** `flatten` was still spelling
+`drawable`'s own question by hand over `centre` eleven lines below the
+call that names it — a second copy of the predicate the same diff
+introduced to unify, in the same function, with the trap named in the
+PR body that did not prevent it. And `drawable`'s SECOND conjunct was
+asserted nowhere: deleting `point[1].is_finite()` left the whole
+viewer suite green at 637 rows, because every fixture carried its
+non-finite coordinate in `x`. Two rows were added — one vertex whose
+ordinate is the bad one, and one arc whose frame check is the only
+thing that asks, which is the `arc_points`-answers-ONE arm where the
+interior loop never runs and nothing else would notice a centre at
+`[inf, 5e-7]`.
+
+**And the sweep was tree-only, which the plan's rule says is half of
+one.** A tracker pass would have reached
+`the-viewport-and-position-lanes-narrow-to-f32-with-no-door`, whose
+recorded negative result — *no in-tree producer of a non-finite value
+in any of these lanes* — this unit's three fixtures falsify:
+`push_segment` narrows exactly what `flatten` emits, and `7e307_f64
+as f32` is `inf`. That row now carries the producer, and the reading
+it forces back onto this unit is that at these magnitudes the picture
+is already nowhere one door along — so *"the production consumer
+reaches it"* is true of the door and an overstatement about the
+drawing.
