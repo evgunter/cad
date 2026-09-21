@@ -212,7 +212,6 @@ use crate::entity::{EdgeKey, FaceKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
 use crate::offset_together::ChartMove;
-use crate::props::PropsQuadLane;
 use crate::replace_face::ReplaceFaceError;
 
 /// The revolution axis every accepted surface shares, with the scope's
@@ -373,7 +372,7 @@ impl<T: Decide> Profile<T> {
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
 /// plan is decided before anything is written, and the writes go to a
 /// clone that replaces `body` only on success.
-pub fn offset_charts_together<T: Decide + PropsQuadLane>(
+pub fn offset_charts_together<T: Decide + geom_brep::PcurveFittedLane>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,

@@ -194,12 +194,13 @@ the cost of reading it before every dispatch.
 
 ## What is left of this slate
 
-**Two rows**, both in `view/seam-residue`'s lane and both residue of
-Ev's *panic on crash* ruling of 2026-09-17:
+**Nothing.** The two rows that were left — both residue of Ev's *panic
+on crash* ruling of 2026-09-17 —
 `the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer`
-and `the-dying-seam-fakes-mirror-a-machine-they-do-not-share`. If
-either survives that lane open it goes to **VSEAM**, whose ground
-`evalseam.rs` and `pickcache.rs` are.
+and `the-dying-seam-fakes-mirror-a-machine-they-do-not-share` — are
+both **closed** at `view/seam-residue`, so neither had to go to VSEAM.
+Two findings went onto VSEAM's slate from that lane; `log.md`'s entry
+for the day has them.
 
 The other five were re-homed on 2026-09-21 (Ev, in chat) against each
 receiving program's own charter test — one to VNEWS, two to VSEAM, two
