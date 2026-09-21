@@ -9,6 +9,7 @@ refs: [derived-frame-placement-freezes-on-the-symbolic-lane, coefficient-ring-wi
 priority: P1
 cost: H
 pr: 2616
+closed: 2026-09-21
 ---
 
 
