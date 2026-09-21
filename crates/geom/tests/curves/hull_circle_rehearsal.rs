@@ -177,18 +177,34 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
         worst_sphere = worst_sphere.max(b.sphere);
         worst_plane = worst_plane.max(b.plane);
         // Soundness by falsification: dense sampling inside the arc.
+        //
+        // **The sampler's own error is outside the bound, and has to
+        // be added back.** `b.sphere`/`b.plane` enclose the residual
+        // of the REAL curve; `residuals_at(curve.eval(t))` is an `f64`
+        // rational evaluation followed by two `f64` dot products, and
+        // its rounding is not a value the certificate ever claimed to
+        // cover. While the arithmetic padded one representable step
+        // per operation the bound absorbed that rounding by accident;
+        // it does not now, and the residual here is exactly zero in
+        // ℝ, so the bound collapses to fp representation error alone.
+        // `SAMPLER_SLACK` is a bound on the SAMPLER, at the same
+        // 64-ulp scale this file's ceilings use, and it never widens
+        // the certificate: the tightness assertions below read
+        // `b.sphere`/`b.plane` unwidened.
         let (t0, t1) = (f64::from(arc as u32) / 4.0, f64::from(arc as u32 + 1) / 4.0);
+        let slack_sphere = 64.0 * RADIUS * RADIUS * f64::EPSILON;
+        let slack_plane = 64.0 * RADIUS * f64::EPSILON;
         for k in 0..=512 {
             let t = t0 + (t1 - t0) * (f64::from(k) / 512.0);
             let (s, pl) = residuals_at(curve.eval(t));
             assert!(
-                s.abs() <= b.sphere,
-                "arc {arc}: sampled sphere residual {s:e} exceeds bound {:e}",
+                s.abs() <= b.sphere + slack_sphere,
+                "arc {arc}: sampled sphere residual {s:e} exceeds bound {:e} widened by                  the sampler's own error {slack_sphere:e}",
                 b.sphere
             );
             assert!(
-                pl.abs() <= b.plane,
-                "arc {arc}: sampled plane residual {pl:e} exceeds bound {:e}",
+                pl.abs() <= b.plane + slack_plane,
+                "arc {arc}: sampled plane residual {pl:e} exceeds bound {:e} widened by                  the sampler's own error {slack_plane:e}",
                 b.plane
             );
             max_sampled_sphere = max_sampled_sphere.max(s.abs());
@@ -218,19 +234,23 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
         worst_plane < 64.0 * RADIUS * f64::EPSILON,
         "plane bound {worst_plane:e} is far above the fp scale"
     );
-    // The refactor pin: the promoted compose module reproduces the PR 2
-    // test-local pipeline BIT-identically (same lifts, same association
-    // orders, same hull folds — captured 2026-07-27 from the pre-refactor
-    // revision of this file at full precision).
+    // The pipeline pin: same lifts, same association orders, same
+    // hull folds. **Re-captured when the C9 ring became a newtype over
+    // the backend** — the ring padded one representable step outward
+    // on every operation and the backend pads only where the operation
+    // was inexact, so both bounds moved TIGHTER on a residual that is
+    // exactly zero in ℝ.
     assert_eq!(
         worst_sphere.to_bits(),
-        0x3d1f_8000_0000_0009, // 2.7977620220553973e-14
-        "sphere bound drifted from the PR 2 rehearsal: {worst_sphere:.17e}"
+        0x3d15_0000_0000_0002, // 1.8651746813702636e-14, was 2.7977620220553973e-14
+        "sphere bound drifted: {worst_sphere:.17e} ({:#018x})",
+        worst_sphere.to_bits()
     );
     assert_eq!(
         worst_plane.to_bits(),
-        0x3ce9_74b2_334f_2349, // 2.8261664256307962e-15
-        "plane bound drifted from the PR 2 rehearsal: {worst_plane:.17e}"
+        0x3ce0_f876_ccdf_6cda, // 1.8841109504205303e-15, was 2.8261664256307962e-15
+        "plane bound drifted: {worst_plane:.17e} ({:#018x})",
+        worst_plane.to_bits()
     );
 }
 

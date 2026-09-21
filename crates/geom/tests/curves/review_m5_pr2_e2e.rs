@@ -222,13 +222,26 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
         max_clean = max_clean.max(sampled_residual(&curve, t).abs());
         max_dirty = max_dirty.max(sampled_residual(&corrupted, t).abs());
     }
+    // **The sampler's own error is outside the bound.** The certified
+    // bound encloses the residual of the REAL curve, and
+    // `sampled_residual` is an `f64` rational evaluation followed by
+    // three products and three sums — its rounding is not a value the
+    // certificate ever claimed to cover. The clean fixture's control
+    // points lie EXACTLY on the plane (pinned above), so the real
+    // residual is identically zero and the certified bound collapses
+    // to exactly `0`: there is nothing left for the sampler's rounding
+    // to hide inside. `SAMPLER_SLACK` bounds that rounding — six
+    // operations at the `|OFFSET| + Σ|N| · max|p| ≈ 4` scale, times a
+    // generous 64 ulps — and is never added to the certificate, which
+    // is compared against `EPS` unwidened above.
+    let sampler_slack = 64.0 * f64::EPSILON * 4.0;
     assert!(
-        max_clean <= bound,
-        "clean sample {max_clean:e} escapes the bound {bound:e}"
+        max_clean <= bound + sampler_slack,
+        "clean sample {max_clean:e} escapes the bound {bound:e} widened by the          sampler's own error {sampler_slack:e}"
     );
     assert!(
-        max_dirty <= dirty_bound,
-        "corrupted sample {max_dirty:e} escapes the bound {dirty_bound:e}"
+        max_dirty <= dirty_bound + sampler_slack,
+        "corrupted sample {max_dirty:e} escapes the bound {dirty_bound:e} widened by          the sampler's own error {sampler_slack:e}"
     );
     println!(
         "[review-scratch e2e] clean bound {bound:.3e} m (certifies at eps={EPS:e}; \
