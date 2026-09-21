@@ -276,6 +276,9 @@ fn rules_named(name: &str) -> SymRules {
         // quotient's common factor) shut, which is M10-10's tier bit
         // for bit.
         "no_e" => SymRules::without_rule_e(),
+        // SYM-8's differential: the shipped set with rule F (the
+        // manifest sign) SHUT, which is SYM-5's tier bit for bit.
+        "no_f" => SymRules::without_rule_f(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,
@@ -310,8 +313,8 @@ fn rules_named(name: &str) -> SymRules {
             ..SymRules::without_the_algebra()
         },
         other => panic!(
-            "unknown rule set {other:?}: shipped | none | all | shut | off | d_only | ab_only \
-             | top_only | d_top_only"
+            "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f \
+             | d_only | ab_only | top_only | d_top_only"
         ),
     }
 }
@@ -669,6 +672,41 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
                 "   {name:<20} x{scale:<10.3e} {label}: certifies_whole={ok} in {:.3}s",
                 t.elapsed().as_secs_f64()
             );
+        }
+    }
+}
+
+/// **The per-predicate split at the NOMINAL, per document, under a
+/// chosen rule set** (`CAD_M10_10_RULES`, default shipped;
+/// `CAD_M10_10_DOCS` names a subset of [`documents`] and [`controls`]).
+/// The pins hold these tables one rule set at a time
+/// (`m10_10_pins_interval`, `m10_bulge_interval`); this row prints them
+/// all under any set, which is how a new dial's differential — every
+/// predicate that moved, and in which column — is read on all eight
+/// documents at once rather than one pin at a time.
+#[test]
+#[ignore = "evidence-only: the per-document splits at the nominal under a named rule set"]
+fn m10_10_splits_at_the_nominal_under_a_rule_set() {
+    let tol = Tol::witness();
+    let rules = rules_from_env();
+    println!("== rules {rules:?}");
+    let only = std::env::var("CAD_M10_10_DOCS")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
+    let defaults: Vec<&'static str> = documents(tol).iter().map(|(n, _)| *n).collect();
+    for (name, at) in documents(tol).into_iter().chain(controls(tol)) {
+        let wanted = match only.as_deref() {
+            Some(list) => list.split(',').any(|n| n.trim() == name),
+            None => defaults.contains(&name),
+        };
+        if !wanted {
+            continue;
+        }
+        let t = std::time::Instant::now();
+        let table = crate::m10_8_harness::split_at_the_nominal(&at(1.0), rules, tol);
+        println!("   {name} ({:.2}s)", t.elapsed().as_secs_f64());
+        for (pred, row) in table {
+            println!("      {pred:<36} {row:?}");
         }
     }
 }
