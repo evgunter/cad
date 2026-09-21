@@ -197,11 +197,7 @@ fn sqrt_poly(p: &Poly, sess: &mut Session, early: bool) -> Option<Form> {
 /// the module header's side-condition source 3.
 fn primitive_root_is_an_atom(d: &Poly, sess: &Session) -> bool {
     content_split(d).is_some_and(|(_, primitive)| {
-        let id = indet_atom(
-            SymOp::Sqrt.tag(),
-            0,
-            &[Form::poly(primitive).digest()],
-        );
+        let id = indet_atom(SymOp::Sqrt.tag(), 0, &[Form::poly(primitive).digest()]);
         sess.atoms.contains_key(&id)
     })
 }
@@ -217,9 +213,7 @@ fn denominator_nonneg(d: &Poly, sess: &Session) -> Option<bool> {
     if manifest::nonneg(&Form::poly(d.clone()), sess) || primitive_root_is_an_atom(d, sess) {
         return Some(false);
     }
-    if sess.rules.signed_root
-        && signed::enclose_poly(d, sess).is_some_and(|r| r.lo() > 0.0)
-    {
+    if sess.rules.signed_root && signed::enclose_poly(d, sess).is_some_and(|r| r.lo() > 0.0) {
         return Some(true);
     }
     None

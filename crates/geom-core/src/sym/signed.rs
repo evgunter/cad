@@ -434,8 +434,8 @@ fn enclose_form_deep(
     if f.poisoned {
         return None;
     }
-    let q = enclose_deep(&f.num, params, atoms, depth)?
-        / enclose_deep(&f.den, params, atoms, depth)?;
+    let q =
+        enclose_deep(&f.num, params, atoms, depth)? / enclose_deep(&f.den, params, atoms, depth)?;
     (!q.is_poison()).then_some(q)
 }
 
@@ -501,7 +501,14 @@ pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
     if d.poisoned || sess.params.is_empty() {
         return None;
     }
-    let enclose = |p: &Poly| enclose_deep(&strip_positive_content(p, sess), &sess.params, &sess.atoms, 0);
+    let enclose = |p: &Poly| {
+        enclose_deep(
+            &strip_positive_content(p, sess),
+            &sess.params,
+            &sess.atoms,
+            0,
+        )
+    };
     let den = enclose(&d.den)?;
     let den_positive = if manifest::positive(&Form::poly(d.den.clone()), sess) {
         true

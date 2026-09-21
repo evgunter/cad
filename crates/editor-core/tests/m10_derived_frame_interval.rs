@@ -611,7 +611,8 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         "plain form alone refuses: {plain_fails:?}"
     );
     assert!(
-        plain_fails[0].contains("newell_plane_residual") && plain_fails[0].contains("margin is invalid"),
+        plain_fails[0].contains("newell_plane_residual")
+            && plain_fails[0].contains("margin is invalid"),
         "with no rule the gate is still a theorem and what refuses is clause 1's, on the \
          boss's side plane: {plain_fails:?}"
     );
