@@ -34,6 +34,20 @@ went. Three things follow for you:
   unifications.** That is what the job list shows: if you cannot see twelve
   test jobs and five `k-lint (gate, …)` jobs on a code-tier run, something
   narrowed it and you should find out what.
+
+  **Six of those twelve are named under a prefix, and counting them flat comes
+  up six short.** The interval lane runs from a CALLED workflow
+  (`ci.yml` -> `uses: ./.github/workflows/interval.yml`), so GitHub names its
+  jobs `interval / test (interval, eps = …, n/2)` — six of those, beside six
+  flat `test (eps = …, n/2)`. The five `k-lint (gate, …)` are unprefixed. A
+  lane grepping the job list for `test (` and finding six has found the
+  default half of a full matrix, not a narrowed run, and the mistake reads
+  exactly like the breakage this bullet tells you to go looking for. Three of
+  the conditional skips moved under the same prefix. **Read the run's jobs
+  API, not a grep of names you expect** — the run record is the instrument
+  (`memories/agent-lane-operations.md`), and `change filter` prints `LANE`,
+  `EPS` and `KLINT_ROW` directly, which settles narrowed-or-not without
+  counting anything.
 - **A commit trailer cannot configure a run, and nothing in CI reads one.**
   Between 2026-08-22 and 2026-09-04 the run drew one point per dimension and a
   `CI-Config:` trailer on the head commit was how you ASKED for the one your
@@ -45,7 +59,8 @@ went. Three things follow for you:
   proved, dispatch the workflow instead. **To narrow deliberately, dispatch the
   workflow** with the `lane` / `eps` / `klint` inputs — and say in the PR that
   you narrowed it, because a reader counting six test jobs where there should
-  be twelve cannot tell a narrowing from a broken matrix.
+  be twelve cannot tell a narrowing from a broken matrix — nor, since the
+  interval lift, either of those from the prefix above.
 - **The k-lint row is not drawn either, since 2026-09-04.** `k-lint (gate)`'s
   five feature unifications run as five jobs — `k-lint (gate, dev-default)`,
   `(release-default)`, `(release-budget)`, `(dev-budget)`, `(dev-probe)` — on
