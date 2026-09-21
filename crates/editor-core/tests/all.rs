@@ -531,6 +531,9 @@ mod lib_tube_r2_probes;
 
 #[path = "m10_7_r2_probes_interval.rs"]
 mod m10_7_r2_probes_interval;
+#[path = "decide_1_self_dot_interval.rs"]
+mod decide_1_self_dot_interval;
+
 #[path = "m10_8_arc_family_interval.rs"]
 mod m10_8_arc_family_interval;
 #[path = "m10_8_harness.rs"]
