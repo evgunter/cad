@@ -79,3 +79,50 @@ CHROME owns `crates/viewer`. `work.py territory` reports
 **CHROME co-owns every file this row touches** and the accessor half
 is dispatchable here rather than waiting on anyone. A lane taking it
 announces the overlap to VIEW, which is what a double claim is for.
+
+## Measured
+
+All three copies are gone; the suite reads each number from its one
+home. `scene::PROBE_FACTOR` and `scene::SCALE_PROBE_DELTA` became
+`pub const` beside the `TRIANGLE_BUDGET` they sit with, each carrying
+the reason `Camera::pitch_limit` states. `INITIAL_DELTA` needed a door
+that survives the `app` gate rather than a `pub`: the value itself
+moved out from behind the gate into `scene`, beside the δ vocabulary
+it belongs to, and `app` now reads `scene::INITIAL_DELTA`. Nothing is
+`cfg`-gated any more, so there is no second spelling to keep in sync.
+
+Each constant can now redden the suite, which is what the copies cost:
+
+- `PROBE_FACTOR` 8.0 → 16.0 fails
+  `the_budget_commits_the_delta_it_always_has`.
+- `INITIAL_DELTA` 1.0e-4 → 2.0e-4 fails that row and
+  `no_probe_out_tessellates_the_picture_it_sizes`. Before the move no
+  mutation of the application's value could reach the suite at all —
+  the gate made the copy unreachable, not merely stale.
+- `SCALE_PROBE_DELTA` 1.0e9 → 1.0e-6 fails
+  `a_bodys_count_has_stopped_falling_by_its_own_extent`, the row that
+  reads it.
+
+## The fourth site, and which kind it is
+
+The sweep re-run for this fix was value-normalised (every numeric
+`const` in `crates/viewer/src/**` matched against numerically equal
+literals in `crates/viewer/tests/**` and in the in-`src` `#[cfg(test)]`
+modules, rather than against its textual spelling), which closes the
+"a literal spelled differently is invisible" blind spot above. It
+turned up one site the earlier census did not, because that census
+looked only at PRIVATE constants: `display_budget.rs`'s
+`reads_back_as_a_delta` spells `1.0e3` and `1.0e-3` where
+`scene::MM_PER_METRE` is public.
+
+**That one is the argued opposite and is left alone.** The row exists
+to check that `render_mm` applies the millimetre conversion; reading
+the constant `render_mm` reads would make the row agree with the code
+by construction, which is `edge_pick.rs`'s argument for its own
+occlusion band. A comment now says so, so the next sweep does not have
+to re-derive it.
+
+`scene.rs`'s own `#[cfg(test)]` module spells `1.0e-4` as the request
+it fits at. That is numerically the opening δ but does not depend on
+being it — the row is about how many rungs a flat body pays — so it is
+a value the row chooses, not a copy.

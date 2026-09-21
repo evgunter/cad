@@ -920,9 +920,10 @@ pub const TRIANGLE_BUDGET: usize = 1_000_000;
 /// more than the answer's whole picture ([`fit_delta`] says what
 /// replaced that).
 ///
-/// Public because it is a *contract* the ladder's shape is read
-/// against, and a row that restates it as a literal is a hand-synced
-/// copy of a private constant. One home; read it.
+/// Public because it is a *contract*: the ladder's shape is read
+/// against it, and a row that restates it as a literal holds a
+/// hand-synced copy that drifts without the build noticing. One home;
+/// read it.
 pub const PROBE_FACTOR: f64 = 8.0;
 
 /// The δ the scale probe runs at: coarser than any body this viewer

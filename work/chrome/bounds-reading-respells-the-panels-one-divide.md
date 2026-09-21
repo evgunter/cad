@@ -46,3 +46,33 @@ AUTH-2's Q1 sweep for a second unit vocabulary in the viewer
 (`docs/AUTH-2-SPEC.md` C7). The sweep's pattern was `factor()` across
 `crates/viewer/src/`; the hits were `props::in_written`,
 `props::from_written` and this one.
+
+## Measured
+
+`BoundsReading::wording` now calls `props::shown_in`; the
+hand-written `map_or` is gone. The reading is wired to the door
+rather than agreeing with it by coincidence: forcing
+`props::in_written` to `canonical / (2.0 * unit.factor())` reddens
+`valid_range::a_bound_too_fine_for_four_decimals_is_still_said`,
+which the same mutation could not reach while `wording` did its own
+divide.
+
+The sweep this unit ran was shaped for the case a `factor()` pattern
+cannot see — an `Option<UnitDef>` resolved by a hand-written
+`map_or`/`match`, and a unit factor spelled as a bare literal — over
+`crates/viewer/src/` and `crates/viewer/tests/`. Two further sites,
+both outside this row:
+
+- `session/probe.rs`'s `probe_seed` writes `props::authored_in` by
+  hand, in the inverse direction
+  (`work/chrome/probe-seed-respells-props-authored-in.md`).
+- `pane/view.rs`'s camera readout spells the metre-to-millimetre
+  factor as `1000.0` beside `scene::MM_PER_METRE`
+  (`work/chrome/camera-readout-spells-the-millimetre-factor-itself.md`).
+
+**What the sweep could not match**: a conversion that computes its
+factor rather than spelling one; a conversion performed in another
+crate on the viewer's behalf; and `.map(|u| u.symbol())`, which
+resolves the same `Option` but converts nothing, so the shape is
+indistinguishable from the defect by pattern alone and was separated
+by reading.

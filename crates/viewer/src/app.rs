@@ -728,8 +728,7 @@ impl ViewerApp {
     /// Every arm of [`StartupError`] except
     /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
     fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
-        let delta =
-            DisplayTolerance::new(crate::scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
+        let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
         // A provisional camera at a square aspect, because no pane has
