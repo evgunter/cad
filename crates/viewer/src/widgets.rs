@@ -504,10 +504,9 @@ pub(crate) fn value_field_ops(
         // where that stops being a value — so there is nothing for the
         // number door to carry and the field keeps what the document
         // says it holds. The refusal reaches a word on the DRAG path,
-        // where `session`'s gesture door maps it to
-        // `Refusal::Dimension`; on this path it has none yet, and
-        // `work/vnews/a-refused-typed-value-reaches-no-word.md` is
-        // where that is owed.
+        // where the session's gesture door maps it to
+        // `crate::session::Refusal::Dimension`; on this path there is
+        // no operation to carry one, so it is silent.
         Some(props::FieldEdit::Number(written)) => {
             if let Ok(value) = props::SlotValue::of(dimension, writing.authored(written)) {
                 ops.push((doors.number)(value));
