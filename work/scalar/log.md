@@ -650,3 +650,18 @@ unit-branch commits by the orchestrator carry no trailer); the review
 brief named the pre-rustfmt head and the red first run as claim 9 (both
 arms corrected it; both reviewed `88c47557b` and read run 35039865934).
 
+## RING-1 in review (2026-09-21)
+
+RING-1 landed as PR 2971 (ordinal 4110; byte 41 ⇒ R1 FABLE, R2 OPUS on
+frozen `cf15f29bc5`, impl CI 35555608396 green): the interval scalar
+compiles in every build, `interval-transcendentals` a normal
+dependency, the feature gating only the instantiation; seven gates
+gone in `geom-core`, nine test gates kept, 48 + 4 + 126 outside for
+RING-3; a four-row ungated pin; the two prose re-wordings; the
+measurement re-taken (153 → 152 s). One row filed
+(`gate-on-the-type-in-prose-outside-geom-core`). The PR body's
+auto-appended footer carried the session URL and was stripped on the
+orchestrator's instruction — recorded as an exposure with the
+spec-commit trailer. The brief tells both arms the spec commit is the
+orchestrator's.
+
