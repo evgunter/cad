@@ -964,3 +964,54 @@ fn a_vertexs_second_coordinate_is_asked_the_question_too() {
         "{refusal}",
     );
 }
+
+/// **The arc FRAME's own question is load-bearing, and only a
+/// one-segment arc shows it.**
+///
+/// Every other undrawable arc here is caught twice over: the frame
+/// refuses it, and the points it would have minted are not numbers
+/// either, so deleting the frame's `drawable(centre)` leaves the
+/// refusal and its ordinal unchanged and no row moves. Measured — the
+/// whole file stayed green under that deletion.
+///
+/// The arm that separates them is `arc_points` answering **one**. A
+/// tiny arc far from the origin — two vertices a micron apart at
+/// `1.6e308`, bulge `0.5` — has radius `6.25e-7`, which is under half
+/// the chord tolerance, so it needs no subdivision and the
+/// interior-point loop never runs. Its `start` is `atan2` of a finite
+/// ordinate over `-inf`, which is `-π` and perfectly finite. The
+/// centre is `[inf, 5e-7]`, and nothing but the frame check asks.
+/// Without it the arc is drawn as a straight chord — a leg the author
+/// did not write, which is what this module refuses by name.
+#[test]
+fn a_one_segment_arc_about_a_centre_that_is_not_a_point_refuses() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(1.6e308, 0.0)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(1.6e308, 1.0e-6)),
+                b: 0.5,
+            }),
+            Step::LineTo(Target::Point(pt(1.0e307, 5.0e-7))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("an arc that draws no interior point still has a centre to be asked about");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 0
+            }
+        ),
+        "{refusal}",
+    );
+}
