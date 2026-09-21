@@ -139,3 +139,49 @@ has six copies where lifting has one. Note the counter-pressure from
 `let` PATTERNS precisely so a new stored field is an E0027 — a door
 returning a fixed-length array gives that up unless the door itself is
 the pattern site.
+
+## The viewer's own consumers, re-derived 2026-09-21 by `vgeom/deletions`
+
+Added by VGEOM's `viewer-array-lowered-vector-ops-escaped-the-hand-
+rolled-sweep` lane, which swept `crates/viewer/src` for hand-rolled
+vector arithmetic over array-lowered data and landed on this row's
+class. Nothing below is fixed; it is the population.
+
+**The row's own `crates/viewer/src/datums.rs:550` entry is stale and is
+disclosed rather than repointed.** PR #2783 deleted that file's `unit`,
+`cross`, `dot` and seed-rule helpers, and `:550` is a doc comment about
+the three ways a datum loses a mark today. No lowering survives at that
+number and the subject is not elsewhere in the file under that name, so
+the entry names nothing; the file's live members are the three below.
+
+**New members in `crates/viewer/src`**, each an array or field lowering
+with no door to delegate to:
+
+- `display.rs`, `is_rigid` — a local
+  `|a: [f64; 3], b: [f64; 3]| a[0]*b[0] + a[1]*b[1] + a[2]*b[2]`
+  closure, over `pncad::document::Frame::columns: [[f64; 3]; 3]`. This
+  is the strongest viewer instance of this row's argument, because
+  editor-core has ALREADY written the door and kept it: `Frame::
+  linear_f64` (`crates/editor-core/src/placement.rs`) is exactly the
+  `[[f64; 3]; 3] -> Mat3<f64>` lift, and it is a private `fn`. So the
+  viewer re-spells by hand a conversion that exists twenty lines from
+  the data, in the same repository — `ssi/system.rs`'s hand-written
+  `v3`/`p3` one step further along.
+- `pickindex.rs`, the closest-point-on-segment arithmetic — subtraction,
+  dot and length hand-rolled over `[f64; 2]` where `Vec2`/`Point2`
+  exist. The 2-D half of the same absence.
+- `scene.rs`, `triangle_normal` — a hand-rolled cross, norm and
+  normalize over `[f64; 3]` built from `Point3` fields. Already filed
+  for its substitution half as
+  `work/chord/degenerate-triangle-normal-is-substituted`; named here
+  for its lowering half only.
+
+**And one class this row does not yet reach.** `crates/viewer/src/
+camera.rs` spells a 4x4 matrix-vector product, a 4x4 matrix product and
+a perspective divide by hand over `[[f64; 4]; 4]` and `[f64; 4]` —
+`view_matrix`, `project`, and the `(0..4).map(|k| a[k][row] * b[col][k])
+.sum()` composition. There is no door to add an array conversion TO:
+`crates/geom-core/src/linalg/mat.rs` declares `Mat3` and no `Mat4`, so
+the viewer's projection arithmetic is not a lowering of a geometry type
+but a type the library does not have. Whether that belongs in this
+row's schedule or in its own is not decided here.
