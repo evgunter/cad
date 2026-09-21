@@ -479,11 +479,6 @@ impl VectorSlot {
         }
     }
 
-    /// All three of this family's slots, component order (x, y, z).
-    pub fn slots(self) -> [SlotId; 3] {
-        Axis3::ALL.map(|axis| self.slot(axis))
-    }
-
     /// The family as a prose noun — the one spelling a user-facing
     /// rendering uses.
     pub fn label(self) -> &'static str {
