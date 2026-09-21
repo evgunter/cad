@@ -2140,32 +2140,30 @@ mod wiring_rows {
 /// is a per-scalar fact. The two absences are different facts, and the
 /// doc on that method says which is which.
 ///
-/// **Why the two lane traits ride along.**
-/// [`geom_brep::PcurveFittedLane`] and
-/// [`crate::chart_region::ChartRegionLane`] are supertraits because they
-/// are the same split, over the same scalars, for the same reason as the
-/// gates: a fitted (rung-3) pcurve's between-samples obligation and the
-/// chart-region overlap predicate are certificates reached through a
-/// scalar's bracket, exactly as the quadrature's flux enclosures are;
-/// `f64`, the telemetry probe, the interval scalar and `Sym` over any of
-/// those can derive them, and a [`Dual`](geom_core::Dual) cannot and
-/// says so in a refusing impl on each side (a dual carries a bracket
-/// since D1 — the refusal stands on DL1, a dual may not certify, which
-/// is [`geom_core::CertifiedEnclosure`]'s absence and not
-/// [`geom_core::Bounds`]'). So `T: AtRestPolicy` reads at every consumer
-/// as "this scalar's at-rest policy, lanes included", where the
-/// alternative is threading two pointwise-identical lane bounds through
-/// every tier-3 signature and generic body helper for no additional
-/// honesty — the refusing side is the same scalar. The bundle holds
-/// until each lane trait goes the way the quadrature lane's did, a bound
-/// or an argument in place of a trait, and it shrinks by one name each
-/// time. [`geom_core::Bounds`] deliberately does
+/// **Why the one lane trait rides along.**
+/// [`geom_brep::PcurveFittedLane`] is a supertrait because it is the
+/// same split, over the same scalars, for the same reason as the
+/// gates: a fitted (rung-3) pcurve's between-samples obligation is a
+/// certificate reached through a scalar's bracket, exactly as the
+/// quadrature's flux enclosures are; `f64`, the telemetry probe, the
+/// interval scalar and `Sym` over any of those can derive it, and a
+/// [`Dual`](geom_core::Dual) cannot and says so in a refusing impl (a
+/// dual carries a bracket since D1 — the refusal stands on DL1, a dual
+/// may not certify, which is [`geom_core::CertifiedEnclosure`]'s
+/// absence and not [`geom_core::Bounds`]'). So `T: AtRestPolicy` reads
+/// at every consumer as "this scalar's at-rest policy, lane included",
+/// where the alternative is threading a pointwise-identical lane bound
+/// through every tier-3 signature and generic body helper for no
+/// additional honesty — the refusing side is the same scalar. The
+/// bundle holds until that lane trait goes the way the quadrature
+/// lane's ([`QuadLane`]) and the chart-region lane's
+/// ([`crate::RegionLane`]) did, a value in place of a trait, taken as
+/// an `Option` by the passes that run at both kinds of scalar.
+/// [`geom_core::Bounds`] deliberately does
 /// not ride along: a name that hands out a bracket door is a bound the `Bounds`
 /// scope rule's gate cannot read at its use sites, so every door that
 /// reads a bracket spells `Bounds` where the reader can see it.
-pub trait AtRestPolicy:
-    Decide + geom_brep::PcurveFittedLane + crate::chart_region::ChartRegionLane
-{
+pub trait AtRestPolicy: Decide + geom_brep::PcurveFittedLane {
     /// **This scalar's offset-fit door, or `None` where the fit is not
     /// derived here** — the ONE seam the `Some` comes from, read by
     /// check 1's tier-3 battery, the offset mint

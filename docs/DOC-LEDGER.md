@@ -4691,3 +4691,36 @@ a gated dispute is producible (`sqrt(((r + d) − d)²) − r` at
 entry.
 
 - `SYM-11-SPEC.md` — SYM-11, the point channel is not a proof (#3028)
+
+## Per-merge deletion — LANE-2's spec (2026-09-21)
+
+Recoverable at `git show 6f8f7132ab:docs/LANE-2-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "What must not change:
+every certificate, verdict, refusal and `Display` at every scalar" —
+overridden by the spec's own §1 ("the `_structural` twin `None`") and
+by ruling 3: the `_structural` doors at `f64` on a declared straddle
+seat answer `Ok(())` at the base and, at the head, a
+`CensusLaneUnsupported` refusal plus the two crossings the declaration
+backed as `UndeclaredContact`, both reviews' MAJOR, ruled to stand
+(the base's `f64` reach of Door 2 through the supertrait was the
+lane-keeping hybrid the cut removes) and disclosed in the door docs,
+the PR body and the extended ATREST row; "with the certified door's
+`Some` replaced by `None` … the census rows that assert an overlap
+verdict go red (`census_g2_carrier`, `mate5_cyl_eps_rung`,
+`r1_mate5_probe`, `r2_probes`, `m9_2_chart_region_loft`)" — those
+call the two doors directly and cannot red; the set that notices is
+seventeen topo+sweep rows (twenty-four reach; thirty-five more in
+`editor-core`), measured; "a row that `pair_region_verified` with
+`None` answers `false` where `Some` answers `true` on the mate9
+crossing rung's isolator body" — the isolator's `Some` answers `false`
+too; the pin is on the straddle seat's declared pair; the survey's
+"the `_structural` twin is the dual's door" — it is a public door with
+`f64` callers in the tree; the citations were taken at the branch
+point `5b74236e03` and the merge base was `ff1e982788` (the counts
+agree); `real.rs`'s M9-2 entry was called naming-only and its
+selector moved from scalar-keyed to door-keyed (an agent-written
+sentence; no ratification owed). Recorded in the PR body and the
+unit's `## Closed` section.
+
+- `LANE-2-SPEC.md` — LANE-2, `ChartRegionLane` deleted: the chart-region doors are one `Option<RegionLane<T>>` parameter through the census, `None` keeping today's typed refusal (#3038)
+
