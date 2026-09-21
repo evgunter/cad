@@ -234,6 +234,12 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
     // operations at the `|OFFSET| + Σ|N| · max|p| ≈ 4` scale, times a
     // generous 64 ulps — and is never added to the certificate, which
     // is compared against `EPS` unwidened above.
+    //
+    // **A house scale, not a measurement**, and one of three
+    // spellings of this obligation in the tree — `mesh::nurbs_cert`'s
+    // `SAMPLER_ULPS` is relative, the circle rehearsal's is derived
+    // from its own measured escape. They have no shared home:
+    // `work/props/the-samplers-own-error-has-three-spellings-and-no-home`.
     let sampler_slack = 64.0 * f64::EPSILON * 4.0;
     assert!(
         max_clean <= bound + sampler_slack,

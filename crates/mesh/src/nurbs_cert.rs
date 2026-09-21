@@ -1296,6 +1296,13 @@ pub(crate) mod tests {
     /// being a band the certificate could hide a real escape in: the
     /// escapes this row is for are relative 1e-3 and up, and the
     /// largest observed here is 1.7e-16.
+    ///
+    /// **Two other sites owe the sampler the same thing and spell it
+    /// their own way** — `geom/tests/curves/hull_circle_rehearsal.rs`
+    /// (absolute, derived from its one measured escape) and
+    /// `review_m5_pr2_e2e.rs` (absolute, a house scale). The crate all
+    /// three can reach is `geom-core`:
+    /// `work/props/the-samplers-own-error-has-three-spellings-and-no-home`.
     pub(crate) const SAMPLER_ULPS: f64 = 64.0;
 
     impl<'a> Domination<'a> {
