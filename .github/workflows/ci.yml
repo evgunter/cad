@@ -2473,7 +2473,8 @@ jobs:
   #
   # THE CACHE KEY MOVES WITH THE AXIS, and it has to. One `rust-cache`
   # entry over two feature selections is the hazard `clippy`'s own header
-  # names against `--all-features` and `lint-interval` restates below,
+  # names against `--all-features` and `lint-interval` restates in
+  # interval.yml,
   # and taking the axis without keying on it walks straight into it: the
   # two selections share no artifacts, because excluding a member changes
   # the feature unification of the members that remain. Measured on this

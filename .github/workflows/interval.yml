@@ -109,7 +109,8 @@ jobs:
   # doc-tests (both need this graph compiled anyway), then archives the
   # test binaries for the `test-interval` matrix below.
   #
-  # NO LOCAL MIRROR: the archive split, the same as `build` above and for the
+  # NO LOCAL MIRROR: the archive split, the same as `build` in ci.yml and for
+  # the
   # same reason — one machine locally, so nothing is archived and nothing is
   # shipped. That is the part with no local half, and it is not the whole job:
   # `list archived tests (interval)` IS reproduced locally, inside
@@ -174,7 +175,7 @@ jobs:
       # The interval scalar's backend is the in-repo
       # `interval-transcendentals` crate — pure Rust over libm — so this
       # job needs no system packages at all now that mold is gone (see the
-      # LINKER note at the top of this file).
+      # LINKER note at the top of ci.yml, where this job used to live).
       - uses: dtolnay/rust-toolchain@stable
       # CACHE SEPARATION (verified against the action's source,
       # 2026-07-30): this job builds a DIFFERENT feature set from the
@@ -201,7 +202,8 @@ jobs:
       # job, and that is why it had to go. A GitHub cache entry is
       # readable from the ref that wrote it plus the default branch;
       # these jobs never run on a push to main (see the PUSH RUN note at
-      # the top of this file), so no entry under their key existed on main
+      # the top of ci.yml, which is the caller and so decides the events
+      # this lane sees at all), so no entry under their key existed on main
       # and every branch's first build job restored nothing —
       # 40 of 49 sampled build jobs, measured 2026-09-03, in
       # docs/CI-MINUTES-2026-08.md's entry of that date. `cache-prime-interval`
@@ -225,20 +227,34 @@ jobs:
       # picking when a name is set more than once in it. Its self-test is a
       # row of ci.yml's `mirror` job, where it reds the pull request that
       # breaks it.
-      - name: read the sccache and nextest pins from ci.yml
+      # THE SCCACHE PIN IS READ ONLY WHEN THE RIG IS ON, and that condition is
+      # the same one the install step carries. `scripts/ci-pin.py` REFUSES a
+      # name ci.yml does not set (exit 2), and the note at this job's `env:`
+      # block contemplates deleting `SCCACHE_VERSION` outright when the rig is
+      # retired — so reading it unconditionally would turn that deletion into a
+      # hard red on a lane that is not even using sccache. The old
+      # `${{ env.SCCACHE_VERSION }}` form interpolated to empty on a skipped
+      # step and cost nothing; this keeps that property.
+      - name: read the sccache pin from ci.yml (only when the rig is on)
+        id: sccache_pin
+        if: vars.SCCACHE == '1'
+        run: |
+          set -euo pipefail
+          v="$(scripts/ci-pin.py SCCACHE_VERSION)"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "sccache pin read from ci.yml: $v"
+      - name: read the nextest pin from ci.yml
         id: pins
         run: |
           set -euo pipefail
-          sccache="$(scripts/ci-pin.py SCCACHE_VERSION)"
-          nextest="$(scripts/ci-pin.py NEXTEST_VERSION)"
-          echo "sccache=$sccache" >> "$GITHUB_OUTPUT"
-          echo "nextest=$nextest" >> "$GITHUB_OUTPUT"
-          echo "pins read from ci.yml: sccache $sccache, nextest $nextest"
+          v="$(scripts/ci-pin.py NEXTEST_VERSION)"
+          echo "nextest=$v" >> "$GITHUB_OUTPUT"
+          echo "nextest pin read from ci.yml: $v"
       - name: install sccache (off; enable with vars.SCCACHE = '1')
         if: vars.SCCACHE == '1'
         uses: ./.github/actions/install-sccache
         with:
-          version: ${{ steps.pins.outputs.sccache }}
+          version: ${{ steps.sccache_pin.outputs.version }}
           lane: interval
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && ld --version | head -1
