@@ -5,7 +5,7 @@ title: geom-core tests/all.rs accumulates in two halves and its ADDING A SUITE l
 status: open
 opened: 2026-09-21
 priority: P4
-cost: S
+cost: E
 refs: [ring-1-interval-type-ungated]
 ---
 

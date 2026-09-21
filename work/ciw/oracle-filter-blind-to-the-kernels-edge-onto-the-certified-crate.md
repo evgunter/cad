@@ -5,7 +5,7 @@ title: the inari/MPFR oracle's path filter cannot see a change that makes the ba
 status: open
 opened: 2026-09-21
 priority: P3
-cost: S
+cost: E
 refs: [ring-1-interval-type-ungated]
 ---
 
