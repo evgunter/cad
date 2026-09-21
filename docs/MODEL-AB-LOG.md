@@ -7793,3 +7793,40 @@ Sample number at merge.
 ## TESS program rows (work/tess/; band 5100–5199; blocks named TESS-B<n>)
 
 TESS-1 review ordinal fixed at dispatch (2026-09-20, PR #2852 open, frozen head `7a5fe831e`, hosted run 35550649883 green on the full matrix): **ordinal 5100** (TESS band, its first). Unit: a curved face whose loop classifies with no meridian traversal refuses typed (`TessellateError::MeridianFreeCurvedFace`) where it meshed as a hole. Pre-draw fields, logged in `work/tess/log.md` before the block draw: difficulty **M**, task-class **STRUCTURAL**; implementer arm per block TESS-B1 slot 0 (record branch-side on `tess/b1-block`). Protocol v6 dual: R1/R2 byte and assignment recorded branch-side with the block. Method, recorded before either review runs: CONCURRENT same-head, both briefs generated from one template and STORED with sha256 on `tess/b1-block` before either dispatches, neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and scratch per reviewer. Method note applying to BOTH arms equally: ~16 G free on the box, so `CARGO_INCREMENTAL=0`, debug, per-package builds, and a stop-building floor at 8 G, stated identically in both briefs. Implementer-phase gap annotated branch-side (a usage-limit outage, 2026-09-19 → 2026-09-20). Sample number assigned at merge.
+
+## Block SYM-B3 — record (branch-side on `sym/b3-block` until the block concludes; opened 2026-09-21)
+
+Block SYM-B3 pre-draw fields (2026-09-21, logged before the draw):
+slot 0 = SYM-11 (`docs/SYM-11-SPEC.md`, the point channel is not a
+proof — the theorem-vs-numeric contradiction charged per witness kind,
+declared on the lane scalar; item
+`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`) —
+difficulty **H**, task-class **STRUCTURAL**; slot 1 = SYM-12 (the
+derived-frame freeze's next shape: `tiltUV` rendered, the
+manifest-NEGATIVE arm, the other `copysign` mint sites; item
+`derived-frame-placement-freezes-on-the-symbolic-lane`) —
+**H / NUMERIC**; slot 2 = SYM-13 (the leaf receipt's `frozen` column
+under the drive memo — its NEED rather than its work, or dropped;
+item `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`)
+— **D / STRUCTURAL**. SYM-11's spec is on `main` before this draw
+(the orchestrator's tracker PR); the specs for slots 1 and 2 are
+written at their dispatch with the fields above binding — recorded as
+this block's one deviation from SYM-B2's "all three specs on main
+first" (the fields, not the specs, are what the draw must not see
+chosen after it). Protocol v7 triage, per unit: SYM-11 IN (an
+architectural decision on the `Decide` door), SYM-12 IN by the
+program's default for a unit that changes what the tier decides on a
+document, SYM-13 IN as a receipt-contract decision; each re-asked at
+its spec. The orchestrator's model is FABLE (the cloud session).
+Dispatch order: slot 0 now; slots 1 and 2 as lanes free.
+
+Block SYM-B3 draw (2026-09-21, after the pre-draw fields above; the
+2026-09-04 ratio amendment — triple {opus, opus, fable}, one
+/dev/urandom byte, reject ≥ 252, byte mod 3 = fable's position): byte
+**178**, 178 mod 3 = 1 = fable's position ⇒ **fable at slot 1**.
+Recorded branch-side on `sym/b3-block`; this record reaches `main`
+when the block's last slot's reviews conclude.
+
+Block SYM-B3 slot record (branch-side, appended as each slot concludes):
+
+slot 0 = SYM-11 implementer dispatch (2026-09-21, ~14:30Z): arm OPUS per the draw above (byte 178); `docs/SYM-11-SPEC.md` (H / STRUCTURAL, pre-draw); brief `/home/user/sym-briefs/unit-11-brief.md` (lane-local; the spec is the binding text), sha256 recorded at dispatch below. Review ordinal claimed on main at the dual's dispatch (SYM's band 4700–4799, next 4705).
