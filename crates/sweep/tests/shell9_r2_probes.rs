@@ -10,12 +10,13 @@ use std::f64::consts::PI;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{ProfileVertex, RawLoop};
 use sweep::Revolution;
+use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
 use super::common::latitude_seam::two_arc_sphere;
 use super::shell7_common::{drum, hollow_moves, p2, polyline, revolved, tol};
 use super::shell8_common::beside;
-use super::verbs_shell::{boxy, vessel};
+use super::verbs_shell::vessel;
 
 fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
     let (u, v) = (a - c, b - c);
@@ -166,7 +167,7 @@ fn r2_e2e_sphere_zone_vase_hollowed_then_opened() {
 /// vessel's ceiling.**
 #[test]
 fn r2_e2e_box_beside_vessel_hollowed_and_opened() {
-    let b = boxy(2.0, 2.0, 2.0);
+    let b = block(2.0, 2.0, 2.0, Tol::witness());
     let v = vessel(1.0, 2.0);
     let pair = beside(&b, &v, 6.0);
     let sealed = topo::shell(&pair, 0.2, tol()).expect("shells the pair");
@@ -302,7 +303,7 @@ fn r2_the_closing_mint_launders_a_stale_row() {
 /// on a two-solid operand against two calls on the two operands apart.
 #[test]
 fn r2_multi_solid_pays_one_mint() {
-    let b = boxy(2.0, 2.0, 2.0);
+    let b = block(2.0, 2.0, 2.0, Tol::witness());
     let v = vessel(1.0, 2.0);
     let pair = beside(&b, &v, 6.0);
     let one = topo::shell(&pair, 0.2, tol()).expect("the pair shells");

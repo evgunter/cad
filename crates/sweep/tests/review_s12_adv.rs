@@ -26,11 +26,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use std::f64::consts::PI;
+use sweep::test_support::brick;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
@@ -41,22 +43,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
-}
-
-fn boxy(x0: f64, y0: f64, w: f64, h: f64, z0: f64, t: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(t), Tol::witness())
-        .unwrap()
-        .body
 }
 
 /// 2-arc disc radius `r` centred at origin with seam vertices at
@@ -96,7 +82,7 @@ fn probe_torus_union_is_never_silently_wrong() {
     let torus = revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()
         .body;
-    let slab = boxy(-3.0, -3.0, 6.0, 6.0, -0.1, 0.2);
+    let slab = brick((-3.0, 3.0), (-3.0, 3.0), (-0.1, 0.1), Tol::witness());
     for op in [BooleanOp::Union, BooleanOp::Subtract, BooleanOp::Intersect] {
         match boolean_op_with(
             op,
@@ -123,7 +109,7 @@ fn probe_torus_union_is_never_silently_wrong() {
 #[test]
 fn probe_cylinder_radial_poke_is_exact_or_typed() {
     let r: f64 = 1.05;
-    let a = boxy(-1.0, -1.0, 2.0, 2.0, 0.0, 1.0);
+    let a = brick((-1.0, 1.0), (-1.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = disc2(r, PI / 4.0, 0.2, 0.6);
     let alpha = (1.0 / r).acos();
     let cap = r * r * (alpha - alpha.sin() * alpha.cos()); // one side's escape segment
@@ -163,7 +149,7 @@ fn probe_cylinder_radial_poke_is_exact_or_typed() {
 /// it. Exact or typed; silence is the MAJOR.
 #[test]
 fn probe_horizontal_log_halfburied_is_exact_or_typed() {
-    let slab = boxy(0.0, 0.0, 4.0, 4.0, 0.0, 1.0);
+    let slab = operands::slab();
     // Vertical 2-arc cylinder r=0.7, then rotate about x so the axis
     // runs along y at z = 0.5, spanning y in [0.5, 3.5].
     let log0 = disc2(0.7, 0.0, 0.0, 3.0);
@@ -184,6 +170,15 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
     let seg = r * r * (beta - beta.sin() * beta.cos()); // area beyond each slab plane
     let meet_area = PI * r * r - 2.0 * seg;
     let v_meet = meet_area * 3.0;
+    // `operands::slab()`'s volume, derived here rather than read back
+    // from the kernel so the oracle stays independent of what it
+    // checks. It is NOT the only line that depends on the fixture's
+    // dimensions, so a lane moving the fixture walks the row rather
+    // than this constant: `beta`'s `0.5` is the slab's half-thickness,
+    // as is the last component of the log's translation; that
+    // translation's `2.0` is the slab's x-centre; and the `3.0` in
+    // `v_meet` and `v_b` is the log's length, which is the meeting
+    // length only while the log lies inside the slab's y-extent.
     let v_a = 16.0;
     let v_b = PI * r * r * 3.0;
     for (op, expect) in [
@@ -220,7 +215,7 @@ fn probe_horizontal_log_halfburied_is_exact_or_typed() {
 /// without a surface crossing, which the frontier door catches.
 #[test]
 fn probe_contained_cylinder_reaches_the_fallback_soundly() {
-    let a = boxy(0.0, 0.0, 3.0, 3.0, 0.0, 1.0);
+    let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
     let b = disc2(0.3, 0.0, 0.3, 0.4); // wholly interior at (0,0)?? centred origin — move it
     let b = topo::transform_rigid(
         &b,
@@ -259,7 +254,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
 /// mixed senses) — both encodings must each flip exactly once, twice.
 #[test]
 fn probe_involution_on_a_boolean_result_body() {
-    let plate = boxy(0.0, 0.0, 3.0, 3.0, 0.0, 0.8);
+    let plate = brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), Tol::witness());
     let boss = {
         let at = |th: f64| p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin());
         let lp = ProfileLoop::new(

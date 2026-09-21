@@ -20,14 +20,17 @@
 
 use crate::common;
 
+use std::collections::BTreeMap;
+
 use pncad::document::{
-    Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    Doc, Evaluation, Expr, Frame, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{Ray, Resolution};
+use pncad::select::{HitTestError, Ray, Resolution};
 use viewer::camera::Camera;
+use viewer::display::DisplayView;
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
-use viewer::pickindex::{IdMap, PatchId, PickIndex};
+use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::{self, PLATE_EXTENT};
 use viewer::session::{DocSession, Hovered, Selection, SessionOp, Standing};
@@ -49,7 +52,13 @@ fn index_of(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the plate indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the plate indexes")
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -840,7 +849,11 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     session.pump();
     let index = index_of(&session);
     assert!(
-        index.current_for(session.landed_generation(), delta()),
+        index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        ),
         "freshly built, it describes the run on screen"
     );
 
@@ -851,15 +864,31 @@ fn a_pick_index_from_an_older_generation_is_not_current() {
     });
     session.pump();
     assert!(
-        !index.current_for(session.landed_generation(), delta()),
+        !index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        ),
         "a re-evaluation invalidates the index — it is DISCARDED, not repaired"
     );
     // A different display tolerance invalidates it too: the parts are
     // the tessellations the picture is drawn from.
     let coarser = delta().scaled(2.0).expect("a positive delta");
     let rebuilt = index_of(&session);
-    assert!(rebuilt.current_for(session.landed_generation(), delta()));
-    assert!(!rebuilt.current_for(session.landed_generation(), coarser));
+    assert!(
+        rebuilt.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        )
+    );
+    assert!(
+        !rebuilt.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, coarser))
+        )
+    );
 }
 
 #[test]
@@ -911,5 +940,150 @@ fn a_product_scene_carries_no_ids_and_is_therefore_unpickable() {
     assert!(
         scene.ids().iter().all(|id| *id == IdMap::NOTHING),
         "an unowned part draws under no id"
+    );
+}
+
+// --- the merge across display groups ------------------------------
+
+/// **Two identical boxes, authored as two roots at one place.**
+///
+/// The display view is what separates them: a root it free-moves is
+/// picked in its own `pick_face` call, everything else in one batch.
+/// So this one document offers a tie INSIDE the unmoved batch (a ray
+/// across a top rim edge meets the top face and the wall under it) and
+/// a second root the view can put anywhere along the ray — the two
+/// things the cross-group merge has to hold together.
+///
+/// Answers the document and the two extrude roots.
+fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-two-roots", tol);
+    let box_of = |doc: &Doc<ProfileProgram>| {
+        let (doc, profile) = common::framed_square(doc, 0.02, tol);
+        common::inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: common::len(0.01),
+            },
+            tol,
+        )
+    };
+    let (doc, first) = box_of(&doc);
+    let (doc, second) = box_of(&doc);
+    (doc, first, second)
+}
+
+/// The index for a document, at this file's display tolerance.
+fn indexed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let (landed, eval) = session.landed_pair().expect("the inline seam lands");
+    let generation = session
+        .landed_generation()
+        .expect("a landed evaluation has a generation");
+    let index = PickIndex::build(landed, eval, PictureKey::of(generation, delta()), tol)
+        .expect("the fixture indexes");
+    (session, index)
+}
+
+/// The ray across the first box's top rim edge: it meets the top face
+/// and the wall below it at ONE point, so the two tie.
+fn across_the_rim() -> Ray {
+    Ray {
+        origin: Point3::new(0.6, 0.01, 2.01),
+        dir: Vec3::new(-0.3, 0.0, -1.0),
+    }
+}
+
+/// **A group that refuses does not shadow a nearer face in another
+/// group.**
+///
+/// The unmoved batch here refuses on its own — the ray crosses a top
+/// rim edge, and the top face and the wall under it are one certified
+/// tie — while the second root is free-moved to sit squarely in front
+/// of it. Its face PRECEDES both tied ones, so it is the answer: the
+/// pick is a function of the whole candidate set and not of which
+/// batch the display view happened to split the scene into.
+///
+/// Reds a merge that propagates a group's refusal before the other
+/// groups are seen.
+#[test]
+fn a_moved_face_in_front_of_a_tied_batch_is_the_answer() {
+    let tol = Tol::witness();
+    let (doc, first, second) = two_boxes(tol);
+    let (session, index) = indexed(doc, tol);
+    let eval = session.evaluation().expect("an evaluation has landed");
+    let ray = across_the_rim();
+
+    // The premise: with the second root free-moved out of the ray, the
+    // unmoved batch is the first box alone and it REFUSES.
+    let away = DisplayView {
+        moved_roots: BTreeMap::from([(second, Frame::translation([0.0, 0.5, 0.0]))]),
+        ..DisplayView::none()
+    };
+    let refusal = index
+        .pick_for(eval, &ray, &away)
+        .expect_err("the rim ray ties the top face with the wall under it");
+    let HitTestError::Ambiguous { hits } = refusal else {
+        panic!("the certified tie between faces: {refusal}")
+    };
+    assert_eq!(hits.len(), 2, "the top face and the wall: {hits:?}");
+    assert!(
+        hits.iter().all(|hit| hit.node == first),
+        "both of them the unmoved root's: {hits:?}"
+    );
+
+    // The second root, put in front of that tie along the same ray.
+    let ahead = DisplayView {
+        moved_roots: BTreeMap::from([(second, Frame::translation([0.29, 0.0, 1.0]))]),
+        ..DisplayView::none()
+    };
+    let hit = index
+        .pick_for(eval, &ray, &ahead)
+        .expect("a face in front of a tie is not tied with it")
+        .expect("the moved box is on the ray");
+    assert_eq!(
+        hit.node, second,
+        "the moved root's face is the answer, not the refusal of the batch behind it"
+    );
+    assert!(
+        hit.t_hi < hits[0].t_lo && hit.t_hi < hits[1].t_lo,
+        "and it is in front of both tied faces by the certified order: {hit:?} vs {hits:?}"
+    );
+}
+
+/// **Two coincident faces in different groups refuse with both.**
+///
+/// The second root is free-moved to exactly where the first one is
+/// drawn, so a ray down the two boxes' shared top face meets two faces
+/// the arithmetic cannot order — one in the unmoved batch, one in a
+/// moved instance's own call. Neither `pick_face` call sees the other,
+/// so the refusal is the MERGE's, and it names both.
+#[test]
+fn two_coincident_faces_across_groups_refuse_with_both() {
+    let tol = Tol::witness();
+    let (doc, first, second) = two_boxes(tol);
+    let (session, index) = indexed(doc, tol);
+    let eval = session.evaluation().expect("an evaluation has landed");
+    // The identity displacement: the root is drawn where it always
+    // was, and is its own group because the display view holds it.
+    let held = DisplayView {
+        moved_roots: BTreeMap::from([(second, Frame::translation([0.0, 0.0, 0.0]))]),
+        ..DisplayView::none()
+    };
+    let refusal = index
+        .pick_for(eval, &down_at(0.01, 0.01), &held)
+        .expect_err("two coincident top faces cannot be ordered");
+    let HitTestError::Ambiguous { hits } = refusal else {
+        panic!("the certified tie between faces: {refusal}")
+    };
+    assert_eq!(
+        hits.iter().map(|hit| hit.node).collect::<Vec<_>>(),
+        vec![first, second],
+        "one hit per group, the unmoved batch first: {hits:?}"
+    );
+    assert_eq!(
+        hits[0].t, hits[1].t,
+        "the two faces are coincident, so they answer one parameter: {hits:?}"
     );
 }

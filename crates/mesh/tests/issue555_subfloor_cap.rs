@@ -29,6 +29,7 @@ use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -57,10 +58,11 @@ fn skewed_prism(nu: f64, poly: &[(f64, f64)], h: f64) -> Body<f64> {
 /// geometry that seats boundary vertices on anchor→through-chord
 /// diagonals by symmetry rather than by accident.
 fn skewed_prism_ringed(nu: f64, outer: &[(f64, f64)], ring: &[(f64, f64)], h: f64) -> Body<f64> {
-    let plane = SketchPlane::from_frame(
+    let plane = sketch_from_axes(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(1.0, 0.0, nu),
         Vec3::new(0.0, 1.0, 0.0),
+        Tol::witness(),
     );
     let mut loops = vec![lp(outer)];
     if !ring.is_empty() {

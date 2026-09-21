@@ -74,6 +74,8 @@ mod curves_compose;
 mod curves_curvo_oracle;
 #[path = "curves/decoration_ring_coords.rs"]
 mod curves_decoration_ring_coords;
+#[path = "curves/domain_door.rs"]
+mod curves_domain_door;
 #[path = "curves/fit_certify.rs"]
 mod curves_fit_certify;
 #[path = "curves/fitting.rs"]
@@ -167,14 +169,7 @@ mod surfaces_s32_jet_projection;
 #[path = "surfaces/span_window_pairing.rs"]
 mod surfaces_span_window_pairing;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 #[path = "curves/n3r2_c24_meter.rs"]
 mod curves_n3r2_c24_meter;
 #[path = "curves/n3r2_probes.rs"]

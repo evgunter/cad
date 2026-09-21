@@ -8,17 +8,13 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::{brick, prism_z};
+use geom_core::COINCIDENCE_RECOURSE;
 use geom_core::Tol;
-use geom_core::{COINCIDENCE_RECOURSE, Decide};
 use topo::{
-    Body, BooleanError, BooleanOp, ContactRecords, ValidationError, boolean_reduce,
+    BooleanError, BooleanOp, ContactRecords, ValidationError, boolean_reduce,
     validate_pseudomanifold,
 };
-
-fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 /// The recourse a message must carry exactly once. Contact-tier
 /// findings carry the TWO-arm contact menu (SELECT-DESIGN §3d,
@@ -52,8 +48,8 @@ fn assert_unified(msg: &str, recourse: &str) {
 #[test]
 fn probe_boolean_coincidence_pair_e2e() {
     // Exactly-on: b sits flush on a (shared plane z = 1), undeclared.
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0));
-    let b = brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.0, 2.0));
+    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.0, 2.0), Tol::witness());
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
         .expect_err("undeclared flush contact must refuse");
     let msg = err.to_string();
@@ -67,8 +63,8 @@ fn probe_boolean_coincidence_pair_e2e() {
     // In-band: corner gap of 3 eps (inside the sliver band).
     let eps = geom_core::Tol::witness().get().eps;
     let g = 1.0 + 3.0 * eps;
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0));
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness());
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
         .expect_err("in-band gap must escalate");
     let msg = err.to_string();
@@ -100,6 +96,7 @@ fn probe_census_pair_e2e() {
             ],
             0.0,
             1.0,
+            Tol::witness(),
         );
         validate_pseudomanifold(&fx.body, &ContactRecords::default(), Tol::witness())
             .expect_err("touch/near-touch must be loud")

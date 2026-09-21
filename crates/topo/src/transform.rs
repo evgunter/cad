@@ -496,6 +496,25 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
             minor,
             u_ref: map_vec(map, u_ref),
         },
+        // The same argument: a rigid map preserves both radii, the
+        // stand-off and the frame's orthonormality, so the two-oval
+        // regime and the carried side transfer unchanged — no
+        // re-decision (the mint decided; this is data motion).
+        Curve3::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } => Curve3::Spiric {
+            center: map.transform_point(center),
+            axis: map_vec(map, axis),
+            u_ref: map_vec(map, u_ref),
+            major_radius,
+            minor_radius,
+            offset,
+        },
         // The surface arm's argument, one dimension down: a described
         // net maps by its control points (weights and knots verbatim)
         // and the placeholder alone is refused.

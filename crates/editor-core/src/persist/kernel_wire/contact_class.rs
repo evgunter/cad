@@ -43,7 +43,7 @@
 //!   `boolean_op` module's does; what the suite reaches is the admit
 //!   path, through the schema round trip.
 
-use crate::names::StableName;
+use crate::node::SitedRef;
 use serde::de::Error as _;
 use serde::ser::Error as _;
 use serde::{Deserialize, Deserializer, Serializer};
@@ -143,12 +143,12 @@ pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<ContactCla
 /// The declare payload's `((a, b), class)` list, spelling its classes
 /// with the same table as the single-class form above.
 pub(crate) mod pairs {
-    use super::{ContactClass, StableName, spelling, unknown, untag};
+    use super::{ContactClass, SitedRef, spelling, unknown, untag};
     use serde::de::Error as _;
     use serde::ser::Error as _;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    type Pairs = Vec<((StableName, StableName), ContactClass)>;
+    type Pairs = Vec<((SitedRef, SitedRef), ContactClass)>;
 
     /// # Errors
     ///
@@ -171,7 +171,7 @@ pub(crate) mod pairs {
     /// An unknown spelling refuses typed, quoting the same table and
     /// the same deferral as the single-class form.
     pub(crate) fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Pairs, D::Error> {
-        let raw: Vec<((StableName, StableName), String)> = Vec::deserialize(de)?;
+        let raw: Vec<((SitedRef, SitedRef), String)> = Vec::deserialize(de)?;
         raw.into_iter()
             .map(|(pair, t)| {
                 untag(&t)

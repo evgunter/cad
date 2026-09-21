@@ -12,50 +12,20 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
-    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocRef, DocumentId, EvalOptions, Expr,
-    MateFrame, MatePrimitive, Node, PartResolver, PatternKind, ProfileDoc, ProfileProgram,
-    RecipeNodeId, ResolveFailure, ResolveFault, SitedRef, content_pin, evaluate,
+    Alignment, AxisSense, CancelToken, Doc, DocEdit, DocumentId, Expr, MateFrame, MatePrimitive,
+    Node, PatternKind, ProfileDoc, ProfileProgram, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
 use viewer::tree::{self, RowStatus};
 
-/// An in-memory part store — the seam an `InstantiatePart` reaches
-/// its document through, over a map.
-#[derive(Debug, Default)]
-struct PartStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl PartStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for PartStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        self.docs
-            .get(&doc_ref.id)
-            .cloned()
-            .ok_or_else(|| ResolveFailure {
-                fault: ResolveFault::Unresolved,
-                message: "no such document".to_string(),
-            })
-    }
-}
-
 /// A small block, as a whole part document: frame, profile, extrude,
-/// so the extrude is node 2.
+/// so the extrude is `fixture::resolver::PART_BODY`.
 fn block(label: &str, tol: Tol) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let (doc, profile) = common::framed_square(&doc, 0.02, tol);
@@ -68,23 +38,6 @@ fn block(label: &str, tol: Tol) -> ProfileDoc {
         tol,
     );
     doc
-}
-
-/// A cap face of `instance`'s part product, in the wrapper the
-/// instantiate node mints.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId(2),
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 /// **The finding's document, through the tree the chrome draws.**
@@ -122,7 +75,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         &doc,
         DocEdit::InsertNode {
             node: Node::Mate {
-                a: SitedRef::at_mint(StableName {
+                a: common::head(StableName {
                     kind: EntityKind::Face,
                     node: pattern,
                     path: vec![RoleSeg::Instance {
@@ -130,7 +83,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
                         of: in_part(legs, CapEnd::End).into(),
                     }],
                 }),
-                b: SitedRef::at_mint(in_part(cap, CapEnd::Start)),
+                b: common::head(in_part(cap, CapEnd::Start)),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
@@ -145,10 +98,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     );
     let mate = mate.expect("the mate mints");
 
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store) as Arc<dyn PartResolver>),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
     let rows = tree::rows(&doc, Some(&ev));
     let row = rows

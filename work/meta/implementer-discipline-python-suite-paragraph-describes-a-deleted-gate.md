@@ -4,6 +4,8 @@ kind: issue
 title: implementer-discipline §2 still tells every lane the python suite is seed-gated; the gate was deleted on 2026-09-12 and it runs on every code-tier run
 status: open
 opened: 2026-09-13
+priority: P4
+cost: E
 ---
 
 

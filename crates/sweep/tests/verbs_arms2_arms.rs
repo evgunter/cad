@@ -36,6 +36,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::oracles::sigma;
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Vec3};
 use sweep::blend::arms::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
@@ -281,15 +282,14 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
         let mut centers = Vec::new();
         for senses in [(true, true), (false, false), (true, false), (false, true)] {
             let (blend, center) = row.blend(radius, senses);
-            let side = |b: bool| if b { 1.0 } else { -1.0 };
             for (s, sense, which) in [(&row.a, senses.0, "first"), (&row.b, senses.1, "second")] {
                 let d = signed_dist(s, center);
                 assert!(
-                    (d + radius * side(sense)).abs() < EPS,
+                    (d + radius * sigma(sense)).abs() < EPS,
                     "{} {senses:?}: the ball centre is {d} from its {which} support, \
                      wanted {}",
                     row.arm.name(),
-                    -radius * side(sense)
+                    -radius * sigma(sense)
                 );
             }
             // The trimlines are the contact loci: on the support, at

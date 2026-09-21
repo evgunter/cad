@@ -60,11 +60,13 @@ fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let post_side_x030 = post.side_faces[3];
     let mut body = post.body;
@@ -163,7 +165,7 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
     // (b) And the pairing call's failure is Invalid — the
     //     question-not-posed diagnosis — at every band, not an
     //     in-band ε residue.
-    let err = geom_brep::classify_material_pairing(&s_post, 1.0, &s_shelf, 1.0, q, arm, band())
+    let err = geom_brep::classify_material_pairing(&s_post, true, &s_shelf, true, q, arm, band())
         .expect_err("perpendicular normals decide neither aligned nor opposed");
     assert_eq!(
         err.margin,
@@ -175,8 +177,9 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
     // Widening the band does not change it: nothing about this is a
     // tolerance question.
     let wide = Band::new(1e-3, 1e-2).unwrap();
-    let err_wide = geom_brep::classify_material_pairing(&s_post, 1.0, &s_shelf, 1.0, q, arm, wide)
-        .expect_err("still no verdict at a 1e-3 band");
+    let err_wide =
+        geom_brep::classify_material_pairing(&s_post, true, &s_shelf, true, q, arm, wide)
+            .expect_err("still no verdict at a 1e-3 band");
     assert_eq!(
         err_wide.margin,
         geom_core::MarginDiag::Invalid,
@@ -289,16 +292,19 @@ fn r2_an_unverified_opposed_pair_backs_no_crossing() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let far: common::Prism<f64> = common::prism_z(
         &[(0.62, 0.02), (0.86, 0.02), (0.86, 0.26), (0.62, 0.26)],
         0.2,
         0.5,
+        Tol::witness(),
     );
     let mut body = post.body;
     let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();

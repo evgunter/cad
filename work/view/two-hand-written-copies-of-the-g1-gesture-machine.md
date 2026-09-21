@@ -2,9 +2,13 @@
 id: two-hand-written-copies-of-the-g1-gesture-machine
 kind: issue
 title: session::Gesture and display::FreeMoveGesture are two hand-written copies of one G1 preview/commit state machine
-status: open
+status: review
 opened: 2026-09-04
-refs: [two-gestures-can-be-in-flight-together, gesture-drags-have-no-cancel-door]
+branch: view/g1-gesture
+refs: [two-gestures-can-be-in-flight-together, gesture-drags-have-no-cancel-door, the-value-drags-in-flight-refusal-has-two-spellings]
+pr: 2672
+priority: P1
+cost: D
 ---
 
 
@@ -72,3 +76,51 @@ document edit. Sequencing this after
 ## Home
 
 VIEW's: `crates/viewer/src/session.rs`, `crates/viewer/src/display.rs`.
+
+## The sequencing question, answered: it does not wait (2026-09-15)
+
+The item says *"sequencing this after `no-persistent-setplacement-session-op`
+is probably right"* because DI5 brings the two machines closer. It does
+not, and the caveat lands on the shape this item already rules out
+rather than on this one.
+
+DI5 changes what the probe's commit LANDS — a `DocEdit::SetPlacement`
+on the document instead of an entry in `DisplayState::moves` — and
+changes none of the three rules: begin-refuses-when-in-flight,
+preview-replaces, and never-previewed-lands-nothing are true whatever
+the commit lands in. What DI5 would bring closer is the two machines'
+VALUE KINDS and side effects, which is the sharing this item says would
+be worse than two clear copies. Holding the rules first is also the
+cheaper order: after it, DI5 changes one landing step in one caller
+against a machine it cannot break, instead of re-deriving the no-move
+rule in a second copy. `g1::Slot::commit` already hands its caller back
+the frame it took, which is the shape DI5's session-side edit needs.
+
+## Closed by `view/g1-gesture`
+
+`crates/viewer/src/g1.rs` holds the three rules once, as `Slot<Held,
+Value>` with `Refusals<Fault>` handed in per call. The in-flight state
+is private to that module, so no caller can observe or move a gesture
+except through `begin` / `preview` / `commit` / `cancel` / `discard` —
+a rule about the transitions cannot be spelled anywhere else, and one
+cannot be fixed in one machine and left broken in the other. The two
+vocabularies are NOT merged: `session::gesture_words` and
+`display::free_move_words` each declare their three words once.
+
+The prose reconciliations are gone as reconciliations: `commit_free_move`
+and the `CancelGesture` arm now say where the rule is held rather than
+that the other copy follows it.
+
+**What this did not settle**, filed rather than absorbed:
+`the-value-drags-in-flight-refusal-has-two-spellings` — the value
+drag's rule-1 refusal is now raised both by `perform`'s table and by
+`g1::Slot::begin`, and the free-move rows in `session/op.rs` argue
+against exactly that shape.
+
+**One claim in this item is now historical.** *"`CancelGesture` and
+`CancelFreeMove` both have zero emitters"* was the evidence that the
+divergence was live; `gesture-drags-have-no-cancel-door` closed on
+2026-09-11 and both have doors. Re-derived on this tree, the two copies
+AGREE on all three rules today, so the defect this unit closes is the
+hazard rather than a present divergence — which is what
+`widgets::drag_ops`'s own history is evidence for.

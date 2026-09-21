@@ -1,11 +1,14 @@
 ---
 id: circle-residual-harmonics-needs-torus-arm
-kind: issue
+kind: unit
 title: circle_residual_harmonics needs a torus arm — the declared-Rest torus boolean lane's last blocker
-status: open
+status: closed
 opened: 2026-09-01
 github: 1489
 refs: [1477, 968]
+branch: curved/torus-arm
+pr: 2535
+closed: 2026-09-15
 ---
 
 ## From GitHub issue 1489
@@ -30,3 +33,16 @@ Filed at MATE-7a's adjudication (PR #1477) as the scheduled home for its disclos
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Closed (2026-09-15)
+
+PR #2535 merged (ordinal 2203, sample #200; block CURVED-B2 slot 0
+concluded): `circle_residual_harmonics` carries a torus arm — a
+sampled enclosure at a certified arc-scoped curvature bound behind the
+door the closed-form arms answer. The lily resolves. The unit's
+record is MODEL-AB-LOG row TARM; the spec's §PR-2 amendments
+(2026-09-14: the monotonicity theorem, the charge table at the
+arc-scoped `f2`, the corrected 8.36e3) are the ruling. Residues filed
+by the unit: `the-chord-dip-charge-has-two-homes` (the cross-crate
+half is S-BOOL's file); `torus-operand-gate-admission` stays the
+retirement of the lily's remaining pin.

@@ -109,6 +109,33 @@ impl Box3 {
         }
     }
 
+    /// **The sup of `‖·‖` over this box**: `√(Σ mag²)`, where `mag` is
+    /// the larger absolute end of a side.
+    ///
+    /// Read off a derivative box it is a certified UPPER bound on the
+    /// surface's speed there — metres per chart unit — which is what
+    /// the three sites that need one compute: the chart floor's rate
+    /// in `plane_nurbs_ssi`, limb 3's chart tube pad, and the
+    /// transverse stretch inside `probe_tube_chart`. One arithmetic,
+    /// one home.
+    ///
+    /// It answers the number and nothing else, and mints no
+    /// [`SupSpeed`](geom_core::SupSpeed): a box whose sides are poison
+    /// or whose magnitudes overflow can answer `0`, `NaN` or `+∞`, and
+    /// what each of those MEANS is the caller's decision — the two
+    /// chart-rate sites currently answer it differently, which is a
+    /// finding filed on TRIM's slate and not this method's to settle.
+    /// The tag goes on past each caller's own guard.
+    ///
+    /// `offset_meters::norm_sup` is the same shape over a different
+    /// operand and a different arithmetic — it rounds the square root
+    /// outward — so the two are siblings, not copies, and folding them
+    /// into one would move bits.
+    pub(crate) fn speed_sup(self) -> f64 {
+        (self.x.mag() * self.x.mag() + self.y.mag() * self.y.mag() + self.z.mag() * self.z.mag())
+            .sqrt()
+    }
+
     /// Componentwise hull.
     pub(crate) fn hull(self, o: Self) -> Self {
         Self {

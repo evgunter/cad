@@ -2,8 +2,10 @@
 id: viewport-adapter-drops-part-of-two-toolkit-values
 kind: issue
 title: The viewport adapter reads part of the scroll delta and part of the modifiers, and states neither
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-09-15
+branch: view/viewport-adapter
 ---
 
 
@@ -78,3 +80,55 @@ which parts the viewer reads and why the rest are not gestures here.
 names what would have to change to reverse it.
 
 Cheap either way; the point is the statement, not the code.
+
+## Closed (2026-09-15, branch `view/viewport-adapter`)
+
+**Both narrowings are stated, and both are compiler-held.** The two
+reads go through named conversions in `pane/viewport.rs` —
+`viewer_modifiers` over `egui::Modifiers` and `scroll_event` over the
+scroll vector — whose docs are one statement in two halves, each
+pointing at the other. Each destructures the toolkit's struct with
+every field named, so a sixth modifier field (or a third axis) fails to
+compile at the site rather than passing silently through a field
+access. `egui::Modifiers` is a plain struct and not
+`#[non_exhaustive]`, which is what makes that lever available; it is
+the struct's form of the exhaustive `match` PR 2450 used on
+`egui::PointerButton`, and it fires at the same moment — a version
+bump.
+
+**What the compiler still cannot hold is the PAIRING**, exactly as at
+the button half: `(shift, alt)` is a pair of bools and swapping the two
+type-checks. `tests::a_drag_carries_the_two_modifiers_this_viewport_
+binds` is the second statement of that table, over six modifier
+combinations driven through a real toolkit frame.
+
+**The `ctrl` half of this row's premise was wrong, and the
+re-derivation is the unit's main finding.** The row said an unread
+`ctrl` makes a ctrl+scroll and a plain scroll the same event. They are
+not: `InputState::begin_pass` routes a wheel whose modifiers match
+`InputOptions::zoom_modifier` into `zoom_factor_delta` and leaves
+`smooth_scroll_delta` at zero, so **a ctrl+wheel produces no
+`ViewportEvent` at all** and reading `ctrl` in the adapter would
+recover nothing. That is a live product gap in the gesture CAD and
+browsers zoom with, and it is filed rather than disclosed here:
+`work/view/ctrl-wheel-reaches-no-zoom.md`.
+
+**The same mechanism answers shift and alt**, which the row did not
+reach. `horizontal_scroll_modifier` is SHIFT, so a shift+wheel is
+folded onto `x` and dropped; `vertical_scroll_modifier` is ALT, so an
+alt+wheel is folded onto `y` and zooms exactly as a plain wheel does.
+Three rows hold those three facts, each with the positive control that
+stops it passing over a wheel the probe never delivered.
+
+**`x` stays dropped and the reason is now specific.** It is not only a
+trackpad's sideways swipe: it is where the toolkit puts shift+wheel on
+any mouse. Zoom is the only binding a scroll has, so an `x` passed on
+would have to zoom, and a sideways swipe that zooms is worse than one
+that does nothing.
+
+**No README amendment, and none is owed.** Behaviour is unchanged, so
+`crates/viewer/README.md`'s mouse-bindings table stays true; and
+neither new item is a membership list in either shape
+`viewer-vocab-declared-once.sh` scans for — a destructuring pattern in
+a function body is no `const ALL` and no `const` array literal — so
+its roster neither sees them nor wants a row.

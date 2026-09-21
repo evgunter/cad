@@ -3,9 +3,7 @@
 //! review artifact for M1 PR 2 (2026-07-16); promoted per Ev's
 //! request (PR #17 thread).
 //!
-//! These are **independent derivations** — do not "simplify" them to
-//! match shipped fixtures (e.g. `fixtures.rs::deep_snapshot`); the
-//! independence is the regression value.
+//! These are **independent derivations**.
 //!
 //! **Moved from `tests/` into `src/` (cfg(test)) at M1 PR 5**, when the
 //! raw builder retreated to `pub(crate)`: the atomicity, degenerate-

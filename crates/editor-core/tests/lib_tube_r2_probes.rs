@@ -47,7 +47,9 @@ fn angle(v: f64) -> Expr {
     Expr::literal(v, Dimension::Angle).expect("finite")
 }
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness()).expect("edit applies").doc
+    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+        .expect("edit applies")
+        .doc
 }
 fn stored_minor_bits(body: &Body<f64>) -> Vec<u64> {
     let mut bits: Vec<u64> = body
@@ -363,40 +365,64 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
     println!("r2: non-unit axis -> datum_failed={datum_failed} tube_built={tube_built}");
 }
 
-/// **PROBE 3b — the `u_ref` verdicts STAY reachable**, which is the
-/// half of the disclosure that would make it a real loss if it were
-/// false. A bare direction passes through no datum, so both its
-/// verdicts are still the door's.
+/// **PROBE 3b — what a `u_ref` does from a document now that the door
+/// takes a frame.** A bare direction passes through no datum, so the
+/// recipe layer is where it is decided: a long one is normalized into
+/// the frame and builds, and one on the spine axis line refuses under
+/// the direction vocabulary with the tube's own role word. Neither is
+/// a tube verdict any more.
 #[test]
 fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
-    for (what, u) in [
-        ("non-unit u_ref", [2.0, 0.0, 0.0]),
-        ("u_ref parallel to the axis", [0.0, 0.0, 1.0]),
-    ] {
-        let (mut doc, spine) = axis_doc("r2_uref", [0.0, 0.0, 1.0]);
-        doc = push(
-            &doc,
-            &DocEdit::InsertNode {
-                node: Node::Tube {
-                    spine,
-                    u_ref: u.map(scalar),
-                    major_radius: len(2.0),
-                    window: TubeWindow::Full,
-                    minor_radius: len(0.5),
-                },
+    let (mut long_doc, long_spine) = axis_doc("r2_uref_long", [0.0, 0.0, 1.0]);
+    long_doc = push(
+        &long_doc,
+        &DocEdit::InsertNode {
+            node: Node::Tube {
+                spine: long_spine,
+                u_ref: [2.0, 0.0, 0.0].map(scalar),
+                major_radius: len(2.0),
+                window: TubeWindow::Full,
+                minor_radius: len(0.5),
             },
-        );
-        let tube = *doc.order().last().expect("the tube");
-        let ev = eval::<f64>(&doc);
-        match ev.nodes.get(&tube) {
-            Some(NodeResult::Failed(e)) => match &e.kind {
-                NodeErrorKind::Tube(t) => {
-                    println!("r2: {what} -> {t}");
-                }
-                other => panic!("{what} must refuse as the TUBE door's verdict, got {other:?}"),
+        },
+    );
+    let long_tube = *long_doc.order().last().expect("the tube");
+    let long_ev = eval::<f64>(&long_doc);
+    assert!(
+        matches!(long_ev.nodes.get(&long_tube), Some(NodeResult::Ok(_))),
+        "a long u_ref names the same radial and must build"
+    );
+
+    // A `u_ref` ON the spine axis line names no radial at all, and
+    // refuses where the frame is minted rather than at the door.
+    let (mut doc, spine) = axis_doc("r2_uref", [0.0, 0.0, 1.0]);
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Tube {
+                spine,
+                u_ref: [0.0, 0.0, 1.0].map(scalar),
+                major_radius: len(2.0),
+                window: TubeWindow::Full,
+                minor_radius: len(0.5),
             },
-            other => panic!("{what} must refuse, got {other:?}"),
-        }
+        },
+    );
+    let tube = *doc.order().last().expect("the tube");
+    let ev = eval::<f64>(&doc);
+    match ev.nodes.get(&tube) {
+        Some(NodeResult::Failed(e)) => match &e.kind {
+            NodeErrorKind::DegenerateDirection { role } => {
+                assert_eq!(
+                    *role,
+                    "tube reference direction's component perpendicular to the spine axis"
+                );
+            }
+            other => {
+                panic!("a u_ref on the axis line refuses as a direction verdict, got {other:?}")
+            }
+        },
+        other => panic!("a u_ref on the axis line must refuse, got {other:?}"),
     }
 }
 
@@ -410,9 +436,11 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
 /// A reviewer cannot compile a stale kernel, so this executes the
 /// thing the stale build would actually SEE: the save's own bytes with
 /// the node variant renamed to one this build does not know. That is
-/// exactly the serde situation — an unknown enum variant under
-/// `deny_unknown_fields` — and it must come back as the one typed door
-/// `persist/mod.rs` promises, not a panic and not a silent drop.
+/// exactly the serde situation — an externally-tagged enum meeting a
+/// variant name it has no arm for, which it refuses unconditionally
+/// and with no attribute involved — and it must come back as the one
+/// typed door `persist/mod.rs` promises, not a panic and not a silent
+/// drop.
 ///
 /// Labelled honestly: this is the byte-level equivalent, not a run of
 /// a genuinely older binary.

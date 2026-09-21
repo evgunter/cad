@@ -5,6 +5,8 @@ title: The tree's badge WEIGHT carries meaning no palette can tune, and no test 
 status: open
 opened: 2026-09-04
 refs: [1769, 1463]
+priority: P4
+cost: E
 ---
 
 Found by CHROME's style lane on PR 1769; judged a class question by the
@@ -47,3 +49,64 @@ lint` now REFUSES a `parked` row whose every blocker is closed, and a
 program cannot un-park another program's rows in the PR that closes
 their trigger — `work/README.md`'s one-file-one-item rule makes that a
 merge conflict by design.
+
+## Parked on VIEW's tone row, 2026-09-15
+
+`theme.rs` and `pane/features.rs` are ceded to VIEW under the carve-out,
+and VIEW's `tone-is-a-value-in-frame-and-a-comment-in-two-panes` is on
+the same two sites — it proposes `tree::RowStatus` grow a `tone()`,
+which is the pure `RowStatus -> paint` function this row's second
+decision asks for. Any CHROME fix here collides with that row's shape.
+
+**This row's census is dead and must be re-derived by subject before
+anyone acts.** It says `ui.weak` is spelled 49 times in `app.rs` against
+8 `colored_label`s. Measured 2026-09-15: `app.rs` has **3** and no
+`colored_label` at all; the population moved to `pane/create.rs` (23),
+`pane/properties.rs` (19), `pane/features.rs` (3) and `pane/view.rs`
+(2). The crate-wide habit claim survives; the file claim does not. The
+row also cites the drawing at an `app.rs` band that no longer exists,
+for a badge that is now in `pane/features.rs`.
+
+Half-dissolved since filing: `frame::Tone` is a typed value and
+`crates/viewer/tests/frame_policy.rs` asserts `badge.tone()`, so the
+POLICY is seen by a test. Only the paint is not.
+
+## Un-parked by the row it was parked on (2026-09-20)
+
+`tone-is-a-value-in-frame-and-a-comment-in-two-panes` closed at PR
+2915. `work/README.md`'s *a fired trigger is not a blocker* makes
+`parked` false of this row the moment that lands, and the error it
+would otherwise raise is the one the README says a closing PR must not
+leave for a program that cannot see it coming. **Opened rather than
+re-parked, because nothing gates it**: neither decision below waits on
+a trigger, and `deferred` would need a ratification nobody has made.
+Un-parked here by VNEWS, in the same commit that closes the trigger,
+which is what that clause asks for.
+
+**What the trigger actually delivered, and what it did not** — read
+against the tree rather than taken from the other row's summary:
+
+- **Decision 2 is half answered.** This row asked for *"a pure
+  `RowStatus -> paint` function for a headless row to assert on"*. The
+  POLICY half is now one: `tree::RowStatus::tone()` returns a
+  `frame::Tone`, is pure, and
+  `tree_badges::only_the_row_whose_own_operation_refused_is_actionable`
+  asserts it headlessly over rows a real evaluation produced. The PAINT
+  half is now a pure function too — `app::toned(text, &Theme, Tone) ->
+  egui::RichText`, the one place the mapping is made — **but it is
+  `pub(crate)`**, so `crates/viewer/tests/*` cannot reach it and no
+  integration row can assert a colour. What is left is either a
+  `#[cfg(test)]` unit test inside the crate or a visibility decision,
+  which is smaller than the *"change to how the chrome draws"* this row
+  anticipated.
+- **Decision 1 is untouched.** Whether a semantic distinction drawn in
+  WEIGHT belongs inside the theme contract is exactly as open as it
+  was. `ui.weak` is still an egui default that no palette — including
+  `colorblind-safe` — can tune, and `theme.rs`'s dichromacy carve-out
+  still argues redundancy only for the `unresolved` HUE. That decision
+  now has an obvious landing site it did not have before, since both
+  spellings are produced in one function.
+
+The census in the section above stays dead and still owes a
+re-derivation by subject before anyone acts; `app.rs` now has **one**
+`.color(chrome(` and it is inside `toned`.

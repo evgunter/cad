@@ -200,7 +200,7 @@ class TestTheContinuousSlotEdit(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.set_param(box, "distance", expr))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "unknown_doc_param")
+        self.assertEqual(refusal.variant, "slot_unknown_doc_param")
         self.assertEqual(refusal.param, "wall")
         self.assertEqual(refusal.slot, "distance")
         self.assertEqual(refusal.node, box)

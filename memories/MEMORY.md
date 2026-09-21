@@ -23,8 +23,8 @@ gate = hosted Actions.
 - [Ev profile](ev-profile.md) — differential-geometry fluent; define
   CAD jargon, don't simplify the math; probes fudged invariants
 - [Git workflow](git-workflow.md) — the hazards CLAUDE.md's merge-only
-  rules leave out: issue-closing keywords, stacked branches, unprotected
-  main, identifiers that stay off GitHub
+  rules leave out: stacked branches, unprotected main, identifiers
+  that stay off GitHub
 - [Demo purpose](demo-purpose.md) — demos demonstrate REAL usage;
   awkwardness is a library finding, never hidden (cited by name from
   source comments across the tree)

@@ -21,9 +21,14 @@ use crate::corpus;
 /// **Greenness is what this asserts; bit-identity is what it is reaching
 /// for.** Nothing here compares a `Probe` result against an f64 one, and
 /// greenness is tolerance-dependent, so the claim holds at the ε the run
-/// used. `m4_pr8_k_probe`'s `run_doc` asserts the same predicate over
+/// used. (`profile`'s `review_m2_pr2_probe.rs` has compared the two
+/// scalars bit for bit at the CANONICAL-FORM lane since M2; what this
+/// crate's evaluation lane lacked is below.) `m4_pr8_k_probe`'s `run_doc` asserts the same predicate over
 /// every corpus document — this one included — at three ε on every
-/// merge; what this row adds is that this file executes.
+/// merge, and its
+/// `probe_agrees_with_f64_bit_for_bit_over_the_corpus` is where the
+/// bit-identity this reaches for is actually compared; what this row
+/// adds is that this file executes.
 #[test]
 fn cut_cylinder_replays_at_probe() {
     let doc = corpus::cut_cylinder::document();

@@ -1,7 +1,8 @@
 //! M5 S10 acceptance row: the tessellator honours `Face::sense`.
 //!
 //! S10 gave `topo::Face` an explicit orientation bit — the face's
-//! outward normal is `sense_sign · chart_normal`. Most of the mesh
+//! outward normal is the chart normal, negated where the bit is
+//! `false`. Most of the mesh
 //! crate is deliberately **sense-invariant by derivation**: the emitted
 //! triangle order comes from the loop's stored winding, which the
 //! interior-left rule already ties to the outward normal, and which
@@ -12,12 +13,13 @@
 //! walk needs to know **which azimuth half** the band occupies — a
 //! direction in the surface's CHART frame, recovered from the loop's
 //! 3-D vector area, which is stated in the OUTWARD frame. Those two
-//! frames differ by exactly `sense_sign`, so `walk.rs` multiplies. This
+//! frames differ by exactly the sense, so `walk.rs` negates on a
+//! reversed face. This
 //! row is what proves it: flip one band's bit and the branch selection
 //! moves by π, meshing the complementary half of the sphere.
 //!
 //! **Tolerance shape**: structural, per the `PartialSphereFace`
-//! precedent. `sense_sign` is a `±1` selected by a `bool`, never a
+//! precedent. The sense is a `bool` selecting a negation, never a
 //! decided quantity, so there is no ε-relative margin to sweep — the
 //! discrimination is an exact branch change, and the assertions are
 //! against the analytic ball or against bitwise equality.

@@ -3839,7 +3839,6 @@ lesson is what the review's dispatch-level findings are: a doc comment
 that states a COUNT goes stale silently; one that states a TEST goes
 stale loudly, because the next reader can apply it.
 
-
 ## #2026 MERGED, and the orchestrator branch had gone 32 commits unmerged again (2026-09-06)
 
 **#2026 merged at `c2d7e78ce`.** Ten units on main this session. CI: 37
@@ -7604,6 +7603,7 @@ README: nothing), alongside HTML blocks and block quotes.
 used to red about a table having no rows when it had two. With the
 strip, a one-to-three-space row IS a row and the case cannot arise; a
 four-space one is reported by `!indent`, which is asked before both.
+
 ## 2026-09-10 — `view/wasm-docs`: the repo had already answered this one axis over
 
 `viewer-docs-do-not-build-at-wasm32` offered two shapes over nine broken
@@ -8798,6 +8798,7 @@ push — which it named as its own worst error of the lane, because it
 had offered a force-push to route around a diagnosis it had not
 checked. It was offered and refused; the merge that was owed on the
 merits was the answer, and it is what fired Actions.
+
 ## 2026-09-11 — `view/gesture-doors`: the two gesture doors, and one fan-out
 
 Two items, both adjacent to what #2348 landed.
@@ -8906,6 +8907,7 @@ before either branch existed.
 nobody was watching: the skip-mode pass exited 0 over three intra-doc
 links to items this diff had just deleted, while the full workspace pass
 exited 1. Both passes are owed by a viewer lane. In `plan.md`.
+
 ## 2026-09-11 — `view/gesture-identity`: the driving operations name their gesture
 
 `preview-and-commit-carry-no-gesture-identity` closed. Shape 1 of the
@@ -10290,6 +10292,7 @@ attached is not evidence about four; it is one claim about a method.
 arithmetic** — including when the arithmetic was mine.
 
 **VIEW stands at 70 open / 85 closed, nothing waiting on Ev.**
+
 ## 2026-09-12, later — `view/drag-field-precision`: every numeric field gets a text that reads back
 
 `a-drag-field-renders-a-length-at-a-precision-its-drag-speed-sets` is
@@ -10481,6 +10484,7 @@ beside a name may go stale, and two closed `work/door/` rows left alone
 because a closed row is a record.
 
 **VIEW stands at 71 open / 86 closed, nothing waiting on Ev.**
+
 ## 2026-09-12 — `probe-identity-stops-at-the-instance`: answered
 
 `view/probe-identity`. The fork was *should the door refuse a second
@@ -10836,6 +10840,7 @@ for the prose**; when one returns nothing, re-run it joined before
 believing the absence.
 
 **VIEW stands at 73 open / 88 closed, nothing waiting on Ev.**
+
 ## 2026-09-14 — `view/toolbar-wrap`: the row was measured, and it misses by 580 points
 
 `the-toolbar-row-does-not-wrap` — **closed.** The row's own framing
@@ -11501,3 +11506,1210 @@ where the walk runs). Site (3) untouched. Filed:
 `scene-mesh-carries-an-identity-index-buffer`.
 
 **VIEW stands at 74 open / 91 closed, nothing waiting on Ev.**
+
+## 2026-09-15 — `index-reads-without-the-evaluation-co-guard`
+
+Branch `view/index-co-guard`. **The item's framing moved twice under the
+sweep**, and both moves are recorded on the item.
+
+The population is **eight** uses of a pane's `&PickIndex` at four
+bindings, not the item's six at one file: `pane::create`'s all-edges
+button takes one too (already with the evaluation), and the two the item
+does not enumerate — `marks::highlight` and `marks::edge_overlay` — were
+both ungated and both picture-side.
+
+And the harm site does not want the evaluation. An id is a word of the
+alphabet of the index that minted the drawn corners, so
+`frame::disagreement` wants the scene and the index to be ONE BUILD.
+`ViewerApp::scene_generation` — written twice, read nowhere — became
+`scene_key: Option<(Generation, DisplayTolerance)>`, taken from the
+index rather than re-derived from the session, and
+`pane::viewport::drawn_index` asks `PickIndex::current_for` with it.
+Both halves of the key, because a δ typed while the document stands
+rebuilds the index at the same generation over a different tessellation;
+a generation-only guard would have read as co-identity while checking
+something else. Five picture-side uses route through it, the two
+document-side ones keep the index+evaluation pair, and the identity read
+(`PickIndex::generation` as a cache key) keeps neither.
+
+Two rows filed rather than absorbed:
+`id-query-is-keyed-on-the-generation-not-on-the-picture` — a SECOND
+producer of *the two picking paths disagree*, which no co-guard closes,
+because there the index is the drawn one and the GPU ANSWER is stale —
+and `a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see`,
+the product question the rule's document-side half leaves open.
+
+## 2026-09-15 — #2615 merged; a picture-side index read is guarded on the picture's key, and my proposed guard was short a term
+
+**#2615 merged** (`26f77ea66d`), verified from the job list: code tier,
+**39 check runs, 12 `test (…)`, 5 `k-lint (gate, …)`, `gate ok`
+success**, all four render-lane rows success, six skipped, nothing
+failed or neutral.
+
+**I dispatched a wrong guard and said it was a claim; the lane found
+the missing term.** My brief proposed `scene_generation ==
+index.generation()` as the honest check at `frame::disagreement`. It is
+right in substance and **insufficient**: `PickIndex::current_for`
+(`pickindex.rs:820-822`) compares `(generation, δ)`, because a δ typed
+while the document stands rebuilds the index at the **same generation**
+over a different tessellation — a different id alphabet under an
+identical generation. A generation-only check would have read as
+co-identity while checking something else, **which is the exact defect
+the unit was sent to remove**. Recorded as such: proposing the fix
+shape is where a dispatcher's exposure is highest, and stating it as a
+claim is what let the lane overturn it.
+
+**`scene_generation` had no reader at all.** `git grep` on `main`:
+declaration, initializer, one write, zero reads — and its doc said
+*"when it disagrees with the session's landed generation, the picture
+is out of date"*, a sentence nothing checked. It became
+`scene_key: Option<(Generation, DisplayTolerance)>`, taken from the
+index rather than re-derived from the session, and got the reader that
+makes its doc true.
+
+**The item's population was wrong twice** and the lane's census stands:
+eight uses, not six, across two files. `marks::highlight` and
+`marks::edge_overlay` are picture-side and the item omits both, so a
+fix guided by its list would have repaired two of five. `create.rs:1133`
+is the document-side read the item never mentioned, already correct
+(`target.zip(self.session.evaluation()).zip(self.index)`).
+
+**My shift map: four rows right, one gloss wrong.** I wrote that `:302`
+*"reads `self.indexing`, not `self.index`"* — true of the line and
+wrong about the site, which is the `else` arm of the `:284` guard and
+so is exactly the item's read-about-the-index's-ABSENCE. A lane
+trusting the gloss would have concluded the item's citation was bogus.
+Four of five subjects right is better than the 2-of-4 that made me
+warn about shift maps in the first place, and the failure mode moved
+from *wrong line* to *right line, wrong description* — which a lane
+catches only by opening the file, exactly as this one did.
+
+**One correction I made after merging, not on the lane branch.** The
+README's sweep paragraph named the guard's binding `drawn`; the lane's
+final commit renamed it `on_screen` precisely because two unrelated
+inner bindings at `viewport.rs:424` and `:432` are called `drawn`, so
+the prose sent a reader to the wrong symbols. The branch was verified
+green at `469eb52b32` and re-pushing for one word would have cost a
+full code-tier re-run and a second 39-row verification; the fix rides
+here instead. Same end state on `main`, stated in both places.
+
+Filed by the lane, both on VIEW's slate:
+`id-query-is-keyed-on-the-generation-not-on-the-picture` — a **second
+producer of the same false sentence that no co-guard closes**, since
+`IdQueryLog::step` keys on `(cursor, generation)` while the scene also
+rebuilds on display-revision and focus changes that hold the generation
+still — and
+`a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see`,
+the product question the rule's document-side half deliberately leaves
+open.
+
+Item **closed**. **VIEW stands at 75 open / 92 closed, nothing waiting
+on Ev.**
+
+## 2026-09-15 — `view/stale-pick`: a click over a stale picture refuses
+
+Ev ruled the product question on 2026-09-15: **refuse**. The pick path
+now asks `drawn_index` — the same picture-side predicate, keyed on
+`(generation, δ)` through `PickIndex::current_for` — and differs from
+the picture-side reads only in what it does on `None`: they skip
+silently, it refuses typed. The claim that the pick might want a
+different predicate did not survive reading it; an id and a pick resolve
+against one alphabet.
+
+The refusal is a **third arm of `pickcache::NotIndexed`**,
+`AnotherPicture`, rather than a vocabulary of its own: that type's
+stated subject is *no index describes the picture on screen*, and an
+index for a picture nobody has seen is the third way the sentence is
+true. `unindexed` takes the index in hand as a parameter; it and
+`indexing` cannot both be set, because `PickCache::sync` drops the held
+index in the step that marks a build outstanding, so they are not a pair
+of flags a caller could swap. The arm is retired by a SCENE rebuild
+where the other two wait on an index build — both seams sit under
+`Subject::Display`, so the subject read off the type is right for all
+three, and the arm's doc names its own event for a later split.
+
+**Reachability: no end-to-end row is arrangeable.**
+`ViewerBehavior::viewport_ui` is a private method over an `egui::Ui`
+painting through a wgpu callback; nothing headless drives it, which is
+the wall `crates/viewer/tests/panel_display.rs` already records for the
+parameter field's widget and the reason the viewport's own probe senses
+only the event translation. Stated rather than approximated with an
+adjacent row. What landed instead: the door's arm in `frame_policy.rs`,
+and the PAIR of predicates the pick path composes — over a real
+session — in `pane/viewport.rs`'s own tests.
+
+`crates/viewer/README.md`'s *A pick id is one index's word* no longer
+says the pick path is deliberately ungated; the re-statement is record
+of what the code does and lands with the change.
+
+## 2026-09-15 — `view/picture-key`: the key becomes a type
+
+`(Generation, DisplayTolerance)` is now `pickindex::PictureKey`: private
+fields, `PictureKey::of` the only door, `PartialEq` over the pair. The
+five spellings the item named were five; the compiler found **fifteen
+files and 54 type errors**, because `ViewerApp::scene_key` and
+`pane::viewport::drawn_index` carry the same key and the item did not
+name them, and because ten test files build indexes through
+`PickIndex::build`. A grep over the tuple type found five sites and a
+grep over the positional pair found three; neither can see the other's,
+which is the argument for the type rather than a sweep.
+
+The cache's two fields are one. `PickCache::outstanding` was always
+`None` or exactly `attempted` — four writes in the file, read one by
+one — so the pair is `Attempt::Asked(key)` / `Attempt::Answered(key)`,
+one value with a state. A cache waiting on a picture other than the one
+attempted is unrepresentable rather than merely absent, and `land` moves
+a state where it used to clear a second field.
+
+Both landmines held. `<FitRequest as Job>::supersedes` still compares
+`(generation, requested)`, now with the argument at the impl for why it
+is not this key; `frame.rs` was not opened. `crates/viewer/README.md`'s
+*A pick id is one index's word* re-states by symbol name;
+`GUI-DESIGN.md` is untouched, its `(generation, δ)` sentence still true
+and its wasm doc-link census re-taken above the module boundary at
+2 / 1 / 3, unchanged.
+
+## Announced seam from WIRE (2026-09-15)
+
+WIRE's `nobodyroots-classification-has-two-homes` gave the
+empty-document reading of a gather refusal ONE home:
+`ProductErrorKind::means_no_body` in
+`crates/editor-core/src/product.rs` (WIRE's), with the argument moved
+onto it. A predicate with no caller would be the very defect this
+program has an open row for
+(`work/wire/frame-linear-generic-door-has-no-consumers.md`), so the
+consumers that re-derived the partition now cite it. Four did; the three sites below are yours.
+
+**`crates/viewer/src/frame.rs` and `crates/viewer/src/session.rs`
+(CHROME's and VIEW's), two files, three edits.**
+
+- `frame::product_badge`'s filter: the `ProductError::NoBodyRoots`
+  alternative leaves the `matches!` and becomes
+  `fault.kind().means_no_body() || matches!(…)` over the other
+  three. The four declined arms are the same four.
+- `product_badge`'s doc, the first "arms that stay silent" paragraph:
+  the *"EMPTY, not malformed / a fresh document is in that state / one
+  whose last feature was just deleted"* argument becomes a citation of
+  `pncad::document::ProductErrorKind::means_no_body`, **worked examples
+  included** — the paragraph now says only what is the chrome's: the
+  blank viewport is already the picture of this state, so a badge here
+  would make an ordinary state look like a failure. The examples are
+  MOVED, not copied; leaving them on both sides is the defect this unit
+  closes, one size smaller. **The second paragraph is untouched**: the
+  three per-node arms are declined because the Features pane already
+  badges them with a typed cause, which is not the same reason and is
+  not WIRE's to move.
+- `DocSession`'s landing: `matches!(fault, ProductError::NoBodyRoots)`
+  becomes `fault.kind().means_no_body()`, and the comment above it
+  cites the predicate instead of restating *"has no product and no
+  failure either"*.
+
+**No signature moved.** `product_badge`, `run_checks`,
+`DocSession`'s landing and `checks_report` keep their signatures,
+their arms and their behaviour — `means_no_body` is true of exactly
+`NoBodyRoots` and of nothing else, which this lane pins as a census
+test over `product::tests::every_arm`. The doc/comment edits replace a
+re-argument of the shared classification with a citation of it and
+leave every site-specific sentence standing (the viewer's three
+per-node arms stay the viewer's chrome policy, argued where they are).
+
+Filed while sweeping, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `Subject::refused` is public and takes the one arm that must not
+reach `Subject::Unavailable`.
+
+Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## 2026-09-15, `view/withdrawal-causes` — the INNER join gets a type
+
+Closes `withdrawal-causes-join-on-a-mark-a-fault-may-contain`, filed
+by #2665 when it fixed the outer level. `Display for Withdrawal` joins
+a withdrawal's causes with `LIST_SEPARATOR`, flat, and
+`DisplayFault::NonRigidFrame` writes one inside a single sentence. It
+was unambiguous only because neither admission test happens to raise
+that arm — a property of two functions' error sets, with no type
+carrying it.
+
+**The fix is the item's own first option: `Withdrawn.cause` narrows.**
+`display::AdmissionFault` holds the four faults the admission tests
+answer, MOVED out of `DisplayFault` rather than copied, and
+`DisplayFault` gains `Admission(AdmissionFault)`. The three check
+functions answer the narrow type; every door still answers
+`DisplayFault` through `From` at the `?`; ~30 call sites moved under
+the compiler.
+
+**Why not the other two.** The mark treatment (`Message::new` /
+`Message::joined` one level in) needs a mark that is never legitimate
+in-band, and one level in from the bullet there is none left — every
+candidate is punctuation a sentence is entitled to, and a rewriting
+door would show a reader words its author did not write, which is the
+objection `frame_status`'s own doc already makes to escaping at a
+join. Re-wording `NonRigidFrame` is a claim about one arm, and it has
+a cost nobody had priced: #2665's
+`a_joined_line_splits_back_into_the_notices_it_was_made_from` is built
+on that sentence as the one REAL fault text carrying the mark, and
+guards itself with an assert that reds if it stops carrying one. That
+row would have had to fall back to prose written for the row, which is
+what its doc says it refuses to do.
+
+**Receipts.** Reverting the field to `DisplayFault` and letting the
+census range over the type it then has: the split returns **nine
+pieces for eight causes**, `NonRigidFrame`'s single sentence cut in
+two. Giving `MateConstrained` a semicolon on the fixed tree: both new
+rows red. Widening `free_move_check` to answer `NonRigidFrame`: E0308.
+
+**Two findings filed from the sweep**, both on this slate.
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` is the same
+class at `LIST_SEPARATOR`'s other consumer and is **live, not latent**
+— three `prefs::Notice` arms carry a `"; "` and two startup notices
+need only a prefs file naming an unknown theme and an unknown preset.
+`seat-line-spells-the-list-mark-as-a-literal` is the mark's second
+spelling.
+
+**Also corrected, both stale before this branch:** `display.rs` and
+`frame.rs` each said *"the remaining three"* `DisplayFault` arms name
+no id, written 2026-09-05 when there were seven arms and falsified on
+2026-09-11 by `WrongFreeMove`; the split states it structurally
+instead. `crates/viewer/README.md` said `rank`'s `Display(_)` is a
+catch-all, which #2053's fix pass made false on 2026-09-06 —
+`git log -S` finds an agent commit and no ratification.
+
+Signed (VIEW implementer lane `withdrawal-causes`, PR #2693).
+
+## 2026-09-15 — `view/style-installs`: startup's two context-wide installs are held, and the premise was measured before it was built on
+
+`work/view/nothing-holds-startups-two-context-wide-style-installs.md`.
+The premise was checked the only way it can be — on a committed tree,
+each call line deleted in turn, the whole viewer suite run. Both times
+the suite was **unchanged** (`--lib` 88 passed / 1 failed, the standing
+`gpu::tests::every_pass_builds_on_a_real_device` adapter red;
+`--test all` 562 passed / 0 failed / 1 ignored), so no existing row
+covered either install. **Both installs are on the `assemble` side**,
+so both rows are ordinary `--lib` tests and no gate was needed:
+`egui_ctx` occurs four times in `app.rs` — `new`'s call, `assemble`'s
+parameter, and the two installs — which is also why the population is
+two rather than a claim that it is.
+
+One qualification the item does not make: deleting
+`install_number_formatter`'s call leaves the function with no
+non-test caller, so the lib build warns `never used`. That is not a
+row and says nothing about which context the install reaches or when,
+but a `-D warnings` build would notice the deletion. Deleting
+`apply_polarity`'s call is silent — it has a second caller in the
+palette picker.
+
+Two rows rather than one, because a single row cannot say which
+install went. Both read behaviourally: a `NumberFormatter`'s
+`PartialEq` is `Arc::ptr_eq`, so the formatter is read by spelling
+40 nm through the context's own styles and comparing the text with
+`widgets::number_text`'s, with a third assertion holding the witness
+apart from the toolkit's default so the row reports when it stops
+being able to see the install. The polarity row reads BOTH the
+preference the context states and the `dark_mode` a first frame would
+paint, because `egui`'s `fallback_theme` is `Theme::Dark` and
+`Theme::DEFAULT` is a dark palette: the `dark_mode` read alone is
+green over a context nobody touched, which is the flattering reading
+this item warns about, one level in.
+
+Mutation receipts, on the committed tree with the rows in it: deleting
+`apply_polarity(egui_ctx, theme.polarity)` reds
+`startup_states_the_resolved_polarity_on_the_context` and nothing else
+(`System` where `Dark` was wanted); deleting
+`crate::widgets::install_number_formatter(egui_ctx)` reds
+`startup_installs_the_number_rule_onto_both_of_the_contexts_styles`
+and nothing else (`"0.000"` where `"0.00004"` was wanted). `--test
+all` stayed 562/0/1 under both.
+
+The sweep and its blind spot are in the PR body. Nothing in
+`GUI-DESIGN.md` moved: G5 decides what a theme IS and says nothing
+about when it reaches the chrome, so this unit touches no clause it
+decides.
+
+Signed (VIEW implementer lane `view/style-installs`).
+
+## 2026-09-16 — `view/scientific-arm`: the render's last resort is truth
+
+`readout::number`'s scientific fallback was the one arm not held to the
+module's own rule, and it rounds. It now falls through to the exact
+spelling exactly where the four-figure one does not read back — which
+measurement says is only the band `[1.7975000000000001e308, f64::MAX]`,
+about 9.7·10¹¹ `f64` values each sign. Over `1.0e-320`..`1.0e300`
+stepped by 1.05, **no render changes**.
+
+`the-scientific-arm-rounds-out-of-the-type` **closed**. Its three
+producer claims were measured and all three fail as bounds: every
+producer's guard is `is_finite()` and every one then multiplies toward
+the top of the type (δ by `1.0e3`, a camera distance by `1.0e5`, a
+probed bound by up to `1.0e3`), so the headroom is three to five decades
+rather than the three hundred the carve-out claimed. A δ in
+`[1.7975e305, 1.7976931348623156e305]` is accepted by
+`DisplayTolerance::new` and lands *inside* the band.
+
+Not an Ev question: `git log -S` on every sentence of the carve-out and
+of `MAX_CHARS`'s bound returns four agent commits of 2026-09-12, and
+`docs/DESIGN.md`, `crates/viewer/GUI-DESIGN.md` and
+`crates/viewer/README.md` name `readout` nowhere at all.
+
+Two residues filed, both on this slate:
+`render-mm-overflows-to-inf-for-a-delta-the-door-accepts` (the δ door's
+millimetre product overflows for a δ the door accepts, and
+`no_delta_renders_as_a_number_a_delta_cannot_be`'s sweep stops at a
+kilometre so it cannot see it) and
+`the-fields-door-has-no-width-bound-at-all` (`number_text` returns the
+widget's own spelling at any width — 311 characters at the top of the
+type, and a twelve-character text that an existing row already asserts).
+
+`the_field_shows_the_longest_render` renamed to
+`the_field_shows_every_render_the_bound_covers`: it measures the bound,
+not the render's worst case, and those stopped being the same thing.
+Its two citations outside `log.md` were repointed.
+
+Signed (VIEW implementer lane `view/scientific-arm`).
+
+## 2026-09-16 — `view/startup-notices`: the third consumer was the second level misread
+
+`startup-notices-join-on-a-mark-a-prefs-notice-contains` closed (#2710). Unlike
+its two siblings the defect was live, so the red is on the base tree
+rather than a post-hoc mutation: a preferences file naming a theme and
+an input preset the registries do not hold renders
+``preferences: no theme called `aurora`; using `dark-neutral`;
+preferences: no input preset called `modal`; using the default`` — four
+`"; "`-delimited pieces for two notices, no error path involved.
+
+None of the item's three candidate fixes was taken and the reason is
+one fact: two of `prefs::Notice`'s four arms echo a TOML key out of the
+user's own file, so there is no mark out of band here and no type that
+bounds the sentences. `withdrawal-causes-…` rejected its own option 2
+because one level in there is no mark that is never legitimate in band;
+the objection is stronger at this level, not weaker.
+
+What was wrong was the classification. A `Withdrawal`'s causes are the
+items a counted preamble introduces; the startup notices have no
+preamble and nothing counts them, so they are several notices and take
+the boundary mark. `startup_notices` now builds one `Message` per
+element and joins with `Message::joined`, which puts the startup line
+under the hold `frame_status`'s line already has.
+
+The door's own doc claimed three types and named the wrong three:
+`resolve_theme` and `resolve_keys` return `Option<Notice>`, the same
+type `from_toml` yields; the unnamed third is `prefs::StoreError`.
+Corrected at the door and in the README, whose *"NOT held this way"*
+paragraph this change falsified and replaces.
+
+Two findings filed outside the fence, both the same class:
+`work/exch/step-import-joins-rendered-refusals-on-a-mark-they-may-contain`
+and
+`work/props/stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain`.
+`seat-line-spells-the-list-mark-as-a-literal` is NOT subsumed and stays
+open: its argument is about a constant spelled twice, not about a mark
+an element may carry.
+
+Signed (VIEW implementer lane `view/startup-notices`).
+
+## 2026-09-16 — the δ door gets an upper bound (`view/render-mm-inf`)
+
+`render-mm-overflows-to-inf-for-a-delta-the-door-accepts` closed.
+`DisplayTolerance::new` accepted any finite δ > 0 and `render_mm` is
+`readout::number(δ * 1.0e3)`, so a δ the door accepted rendered as
+`"inf"`. The item's table was re-measured rather than believed and
+holds in every row; the bisection adds the edge it did not name, which
+is `f64::MAX * 1.0e-3` — the coarsest δ whose millimetre product is
+finite, and also, exactly, the coarsest δ the field's `mm * 1.0e-3`
+commit path can name.
+
+Answered at the door rather than in the render, because past that edge
+the millimetre value is not an `f64` and no text of it reads back as
+one: answering in `render_mm` means a second carve-out at the top of
+the type, which is what the previous unit had just removed a level
+down. `MM_PER_METRE` is now the one factor the door and the render
+both read, and
+`SceneError::DisplayToleranceOverflowsMillimetres` is the typed
+refusal — its own arm because the δ it names IS finite and strictly
+positive and `mesh::tessellate` would take it.
+
+The row over it owed an end regardless and has one: the sweep reaches
+the top of the type, the character bound moved out of the property (the
+band above `1.7975e305` is spelled exactly, at twenty-two characters),
+and past the bound the row asks the door's own answer, so it reds on a
+tree whose door has none. **Base-tree red on both new rows at
+`bfc577bbdd`**, green with the fix — stronger than a planted mutation
+and taken because the defect was live.
+
+Sweep residue filed:
+`renders-that-multiply-a-finite-guarded-length-spell-the-product-inf`
+— the camera readout, `Bounds::wording` and `props::field_text`, all
+three the same *finite guard, multiplication up, render of the
+product* shape and none of them with a door of its own to narrow.
+
+`readout` and `DisplayTolerance` are named in no README roster table
+and in neither design doc; checked rather than assumed, so nothing was
+owed there.
+
+Signed (VIEW implementer lane `view/render-mm-inf`).
+
+## 2026-09-16 — `view/two-spellings`: rule 1 moves down for the value drag
+
+`the-value-drags-in-flight-refusal-has-two-spellings` closed with a
+change rather than a written reason. `SessionOp::BeginGesture` and
+`BeginParamGesture` are `true` in `permitted_during_value_gesture`, and
+the second-begin refusal a user meets is `g1::Slot::begin`'s — the same
+door the probe's begin goes through, with the value drag's words.
+
+The site a user reached before was the table's: `perform` consults it
+before dispatch, so the slot's arm was unreachable through the only
+door that calls it. The alternative — keep the floor, write down which
+row is policy and which is safety — was refused because the two answers
+have no input on which they differ: same state, same `GestureInFlight`.
+The table's own certifying sentence did not cover the rows either
+(*"everything else moves the document, the history or the file"*, false
+of both begins, and of `ProbeBounds`, which is now named as the one
+refusal that reads rather than moves).
+
+Both doors' target checks moved inside `DocSession::start`'s closure, so
+rule 1 still answers before them and no user-visible refusal changed —
+`driver_of` and `guard_driven` are free functions over the committed
+document to make that borrow work. Nothing could red on the base tree
+as a result, so the receipt is the other direction: deleting
+`g1::Slot::begin`'s in-flight arm reds 5 tests on `origin/main` (all
+probe rows) and 12 on this branch, the seven new ones all the value
+drag's.
+
+The hand-written `expected` table keeps its census — the free-move
+table's property shape is not available here, because `ProbeBounds` is
+a counterexample to the nearest short description of the 24 refusals.
+Its calibration paragraph was re-measured on this tree rather than
+carried forward.
+
+Signed (VIEW implementer lane `view/two-spellings`).
+
+## 2026-09-16 — `frame.rs` split in three (lane `view/frame-split`)
+
+`frame-module-has-eight-concerns-and-no-holds-row` is closed. The
+orchestrator's rule was the module's own first sentence — *"the
+per-frame policies the viewport runs, as values, so they are
+replayable"* — and it removes two things: the environment probes, which
+take the machine as their argument and cannot be replayed from any
+value a test builds (`platform.rs`), and the id pass's query
+bookkeeping, which is state carried ACROSS frames because a query and
+its answer sit on different ones (`idpass.rs`). 2,996 lines became
+2,583 + 257 + 254. A move: no test assertion changed, and the only test
+edits are import paths.
+
+**The membership was checked against the ruling rather than taken from
+it, and five things moved that neither list names** — `Zenity`,
+`SessionBus`, `PREFS_DIR`, `PREFS_FILE` and `NO_CHOOSER_BACKEND`, the
+last of which the item files under concern 4 and the ruling omits. The
+item's own span, `frame.rs:1671-1878`, was wrong at the merge base and
+not merely stale: the probes are at `1856-2076`, so the range's start
+was two hundred lines short and its end landed inside
+`ChooserBackend`'s variants. Recorded in the item's closing section
+with the rest.
+
+`scripts/gates/no-ambient-env.sh`'s allowlist entry moved with the
+code. `git log -S` on *"ONE file on purpose: every ambient read the
+viewer performs"* over that path returns exactly one commit,
+`cf2164600f`, the merge of **#1717** from `m10/m10-7-spec` — an agent
+program branch, and every commit in this repo carries `evgunter`'s
+signature, so authorship is not evidence either way. No ratification by
+Ev turns up, and `work/README.md` says Ev does not edit files. The
+entry moved and the sentence was re-worded to name `platform.rs`; what
+the gate DECIDES is untouched. Territory names `scripts/gates/*` as
+GUARD's, the same warning VIEW already carries for
+`viewer-vocab-declared-once.sh`.
+
+**One roster elsewhere had to register the move**, and the local viewer
+suite was structurally incapable of seeing it — #2293's shape again.
+`crates/pncad-py/src/prose_census.rs`'s `UNDECIDED` table names
+`Disagreement`'s positional `{:?}` site by PATH, so the row said
+`crates/viewer/src/frame.rs` and the file is now `idpass.rs`. Caught by
+hosted CI: six `test (…, 1/2)` shards red on
+`prose_census::tests::every_site_this_census_cannot_decide_is_named_with_its_reason`,
+one test, deterministic across all six lane/eps points. The path was
+corrected in place — a census that exists so a site registers itself,
+which is the registration half rather than the audit half, announced
+here because `prose_census.rs` is LIB's ground by territory. Receipt on
+the fixed tree: `cargo nextest run --workspace --no-fail-fast`, 7,570
+run, 7,570 passed, 38 skipped.
+
+Signed (VIEW implementer lane `view/frame-split`).
+
+## 2026-09-16 — the supersession lifetime is stated, not confessed (lane `view/supersession-lifetime`)
+
+`a-supersession-outlives-its-own-frame` is closed on Ev's fork-1
+ruling. `frame::Withdrawal`'s *Why the line and not a badge* section
+said *"That is a weaker lifetime than the argument above wants"* and
+pointed at this item as residue. It now states the lifetime the code
+has, in three legs with the row that holds each, and says why that
+lifetime is the right one — including the part the old sentence made
+underivable, that `Clear` is **tighter** than a per-instance
+retirement rather than looser.
+
+**Re-derived, not inherited.** `frame::acts` is
+`!matches!(op, SessionOp::Hover(_))` at `frame.rs:561-563`, not the
+`537-539` the item cites: `frame.rs` was split this morning and every
+number in the row predates it. `batch_status` is at `571-582` and
+reads as the ruling describes.
+
+**The "survives navigation" clause is true, and for two independent
+reasons rather than the one the item gives.** No `SessionOp` variant is
+a camera move — `camera::CameraOp` is its own vocabulary — so a fold
+never reaches `batch_status` at all; and
+the retirement a clean fold does issue is `Expire(Subject::Camera)`,
+which `apply` drops only against a message whose subject matches.
+Either alone is enough.
+
+**The ruling's one wrong fact.** It says `Subject::Document` *"has no
+typed `StatusUpdate::Expire` issuer where three other subjects do"*.
+Two do. `SUBJECTS_WITH_AN_EXPIRY_ISSUER` is `[Subject; 2]` —
+`Camera` and `Cursor` — and `Document` shares the absence with
+`Display` and `Preferences`, which the roster's own paragraph states
+in as many words. So `Document` is not the odd one out; it is one of
+three, and the asymmetry the ruling narrows the item's framing to does
+not exist in the direction it names. The conclusion is untouched: the
+arm's doc is accurate and was not this unit's to change.
+
+**No new assertion, and the argument is a mutation table rather than a
+preference.** Each leg of the sentence was falsified in the source and
+the suite run:
+
+| mutation | rows that red |
+|---|---|
+| `apply`'s `Keep` arm clears | `a_cursor_that_has_not_moved_retires_nothing`, `deliver_sends_news_to_the_notices_and_retirements_to_the_field`, `keep_clear_and_show_are_four_different_sentences` |
+| `acts` returns `true` (a hover acts) | `a_hover_only_batch_leaves_the_status_line_alone` |
+| `apply`'s `Expire` is subject-blind | `a_clean_fold_keeps_a_message_it_did_not_write`, `expiry_reaches_one_subject_and_no_other`, `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write`, `a_gather_fault_the_tree_cannot_badge_outlives_the_open_that_raised_it`, `a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ` |
+| `batch_status`'s acting arm keeps instead of clearing | `a_supersession_survives_the_accepted_edit_that_caused_it`, `a_superseded_free_move_is_news_the_ranking_shows`, `a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch`, `a_tool_notice_survives_the_batch_that_carried_its_own_pick`, `an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on` |
+
+So a row composing the three legs over a real `Withdrawal` could not
+be red on any tree where it would be the row that caught the break —
+four sibling rows red first. That is the register's *an item's
+suggested assertion is a claim whose cheapest failure is being GREEN
+on the broken tree*, answered by measurement: this one would be green
+on the broken tree because the tree cannot be broken past it. The
+deliverable instead is that the doc NAMES the five rows, which is what
+the item was actually missing — a stated lifetime nobody could trace.
+
+The one leg with no mutation is `frame_status` delegating to
+`batch_status` on a hover-only batch, and it needs none:
+`a_tool_notice_survives_the_batch_that_carried_its_own_pick` asserts
+the two are equal verdict for verdict over `[Hover(None)]`, so a
+`frame_status` that stopped delegating reds there by construction.
+
+**Filed:** `a-doc-comment-names-a-test-row-and-nothing-checks-it-exists`
+— naming rows in a doc comment is the crate's convention
+(`blend.rs:347`, `readout.rs:121`) and is checked by nothing, because
+bracketing does not help: a `#[cfg(test)]` row and a row under
+`crates/viewer/tests/` are invisible to every rustdoc pass this repo
+runs, so a link would be broken rather than checked. 35 spans over 29
+names, all this crate's own resolving; five of them arrived with this
+unit.
+
+Signed (VIEW implementer lane `view/supersession-lifetime`).
+
+## 2026-09-16 — `view/datums-basis`: the datum basis takes the kernel's door
+
+Two rows, one unit:
+`datums-basis-hand-rolls-the-least-aligned-axis-basis` and
+`datums-unit-helper-normalizes-with-a-silent-x-fallback`.
+`crates/viewer/src/datums.rs`'s `basis` is now
+`UnitVec3::orthonormal_basis`, and the local `dot`, `cross` and `unit`
+helpers are deleted with the seed rule that needed them. The sweep's
+one other in-fence hit, `camera::up` spelling a cross by hand beside
+`Vec3::cross`, is bit-identical and taken here too.
+
+**The ruling was to adopt the door, and the measurement it turned on
+was whether the drawn axis moves. It does.** Over the world axes, the
+equator from both sides of the signed zero, the `<=` ties the local
+rule breaks, and 20,000 random unit normals, the pair turns about the
+normal for every normal sampled — none agreed to within 1e-9°. What a
+reader sees is less: a square grid is symmetric under a quarter turn
+and a tick under a half, so the six world axes (which move by exact
+multiples of 90°) leave the three default PLANES drawing the same
+picture — **while `MAX_GRID_LINES` does not bind; the review of #2783
+measured it binding at 2560 px and the row carries the correction** —
+while an axis datum along ±y or ±z has its end ticks turned 90° about
+itself. Every other normal's grid turns visibly, up to 45°.
+
+Not a cost to weigh: the pair is a display convention with no document
+meaning — the module says so itself, and `a_frames_grid_follows_its_
+own_axes` is the row that exists because a frame must NOT be drawn
+through it. What the trade buys is measured too: the replaced rule is
+discontinuous at each of its three magnitude ties and the kernel's
+door at one seam, the equator, which it states. Three conditions for
+one circle. **The per-crossing figures this entry first carried were
+seam samples read as seam values and are corrected on the row**: all
+three local ties share one profile (grid 0°→30°), and the door's
+equator costs up to 45° of grid, which is worse per crossing, not
+better.
+
+**The dispatch's premise was half wrong and the item's was right.**
+The brief called the overflowed-norm-to-paint-path a live defect that
+nothing catches. Transcribed and executed, `unit` really does return
+`[0,0,0]` for `[1e200; 3]` and `[1,0,0]` for `[1e-200; 3]` — but its
+only two call sites were in `basis`, whose only parameter is a
+`UnitVec3<f64>`, so neither input could arrive. The item's own body
+said so; the dispatch strengthened it. The ruling survives on the
+other two legs (a prose-unreachable fallback is the shape the charter
+rejects, and the viewer was maintaining a conditioning argument for a
+policy it did not decide) — and the correction changes the repair:
+what an unreachable defect justifies is deleting the code that needs
+the argument, not adding a finiteness question to it.
+
+**Base-tree red**, taken from a committed tree at `27d0571b09`, not by
+checkout gymnastics: `a_planes_ruling_runs_along_the_kernels_
+orthonormal_basis` and `an_axis_datums_ticks_run_along_the_kernels_
+first_basis_axis` fail on `origin/main` with the seed rule's directions
+printed; the other two rows are green on both and are labelled as
+standing guards rather than receipts. Four mutations on the fixed tree
+red each row by name — swapping the pair reds the axis row ALONE
+(a grid cannot tell `b1` from `b2`, and the plane row correctly does
+not claim it can), a 30° turn reds the three direction rows, and a
+planted zero axis reds `no_normal_makes_a_datum_draw_something_that_is
+_not_a_drawing` through the axis tick only, because `rule_patch`'s
+`span > 0.0` arm already refuses a collapsed ruling.
+
+**Filed:** `sketch-headings-guard-zero-length-but-not-an-infinite-one`
+(VIEW's own — two `hypot` sites the `sqrt()` pattern could not see,
+both guarding `> 0.0` and both handing back a zero vector for an
+infinite length) and, on MESH's slate,
+`degenerate-normal-rows-model-resolution-cites-a-deleted-helper` — its
+worked resolution cites `datums::unit`'s fallback as the model, and
+the subject is deleted rather than moved, so the sentence cannot be
+repointed.
+
+Signed (VIEW implementer lane `view/datums-basis`).
+
+## 2026-09-16 — `view/datum-refusals-named`: two refusals that were right and had no name
+
+Closed `datum-view-propagates-rather-than-refusing-by-name` and
+`a-datum-the-view-cannot-scale-vanishes-without-a-word` as one unit —
+the signature change is the second row's prerequisite.
+
+**`datum_view` answers `Result<View, CameraError>`**, refusing a
+non-finite width or height by name with the value in the message and a
+zero-area viewport with `UnusableBounds`. The `Result` over the
+`Option` the row also offered was the dispatch's ruling and it paid:
+`datum_view_refuses_a_window_the_way_the_cameras_own_door_does`
+compares this door's reply against `Camera::ray_through`'s on the same
+`ViewportSize`, variant for variant, which is an assertion an `Option`
+cannot carry. Compared through `Debug` rather than `==`, because half
+the inputs are `NaN` and a `CameraError` holding one is not equal to
+itself.
+
+**The class instance the first row recorded against itself is
+retired.** Both sides refused means `viewport_px` is `width.max(height)`
+over two finite positive numbers, so the `NaN` arm is deleted and no
+value the function did not compute leaves the door. `View`'s two field
+docs stop citing `datum_view` as the producer of one and say instead
+what is still true: the fields are the caller's, and the doors below
+owe their own check whatever is written there.
+
+**Both rows' reachability premise is right about its conclusion and
+wrong about its reason, and the gap is live.** `ViewportSize::aspect`
+asks whether both sides are above zero — so it refuses zero and
+refuses `NaN`, and **admits `inf`**. A pane of infinite extent has an
+aspect, passes `viewport_ui`'s early return and reaches `datum_view`,
+where every mark then refuses in silence. So the door's refusal is not
+a subset of the pane's guard, which is the whole reason the rows gave
+for calling this a hardening.
+`the_panes_aspect_guard_admits_an_extent_this_door_refuses` pins both
+halves. No production route was found that hands egui an infinite pane
+extent; what is established is that the guard does not exclude one —
+*a guard that admits everything positive is not a bound*, the register's
+own rule with the sign flipped.
+
+**So: the second row is the LIVE one and the first is hardening**, and
+the first is hardening for a narrower reason than it claims. Row A's
+two reachable causes are both real — the eye exactly on a datum, and a
+ruling whose extent is lost to the datum's own magnitude — and neither
+needs a pathological window.
+
+**`draws` answers `DatumDraws`**, the wireframes plus
+`vanished()`: how many came out with nothing drawn. A type change, so
+the compiler is the sweep over callers, and a method rather than a
+field, so the count cannot disagree with the thing it counts. The
+property is **"drew nothing"**, not "has no scale" — the second is a
+proxy that would miss the lost-extent case, which is one of the two
+live ones.
+
+**The shape pinned is the DIFFERENCE**, because "the segment list is
+empty" is equally true of a document with no datums.
+`how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed`
+measures four cases under one view: four datums at `f64::MAX` (four
+vanished), the same four with the eye on them (four), the same four
+from an ordinary place (**none** — without which the first two pass
+for a module that never draws), and a document with no datums (none,
+and an empty list). `a_datum_that_drew_some_of_itself_has_not_vanished`
+holds the far boundary.
+
+**No second latch was minted.** `frame::datums_badge` reads a count,
+`Subject::Camera`, `Tone::Actionable`, silent at zero — and
+the frame entry point (`<ViewerApp as eframe::App>::ui`, which is what
+the crate's prose elsewhere miscalls `update`) zeroes the local the
+panes write **before** they
+draw and assigns it back **unconditionally** after, whether or not the
+viewport was one of them. That is `profile_form_drawn`'s discipline,
+which `projection-fault-has-no-sweeper.md` names as the pattern the
+fault still lacks, so the count cannot outlive the view it describes
+and there is no sweeper to be missing. At `datum_view`'s refusal the
+pane writes the EXISTING `projection_fault` and returns; that is not a
+new latch and not a new condition either — every input this door
+refuses makes `view_projection` refuse a hundred lines down (an
+infinite height gives aspect `0.0`, an infinite width aspect `inf`,
+both aspect `NaN`), so the badge was going to be written on that frame
+and what changed is that it now names which side was not pixels.
+
+**Verification.** Both changes are signature changes, so a base-tree
+red can only be a compile failure and is not offered as one. Six
+mutations on the fixed tree instead, each redding a named row: deleting
+both refusals reds the parity row AND the aspect-gap row; deleting only
+the zero-area arm reds the parity row alone (the gap row is about `inf`
+and correctly does not claim the other); `vanished()` returning `0` and
+`vanished()` counting every drawing each red the distinguishability row
+(the second also reds the boundary row); a badge that never fires and a
+noun that never agrees each red the badge row.
+
+**The badge family's own header was wrong before this touched it.**
+`frame.rs`'s module doc enumerated the members as seven where the
+population is eight — `prefs_badge` was missing, and the README's list
+of the same family had it. Corrected to nine with the sentence now
+pointing at the counted population rather than restating it.
+
+**Sweep**, for the class *a door that hands back a value it did not
+compute, in a field shaped like one it did*, over `crates/viewer/src`:
+five patterns, ten hits, two filed —
+`id-readback-failure-reads-as-nothing-under-the-cursor` (a failed GPU
+readback becomes `IdMap::NOTHING`, and `idpass::disagreement` then
+reports it to the reader as the two picking paths disagreeing about the
+picture) and
+`corner-count-substitutes-u32-max-for-a-length-it-could-not-cast`
+(unreachable below 51.5 GB of position data, and still the class). The
+hit list and the patterns' blind spots are in the PR body.
+
+Signed (VIEW implementer lane `view/datum-refusals-named`).
+
+**Addendum, same lane.** The first push's `rustdoc (gate)` went red on
+three intra-doc links this unit wrote to `ViewerApp::update`. There is
+no such function and there never has been — the frame entry point is
+`<ViewerApp as eframe::App>::ui` — and the name was taken from prose
+already in the tree (`frame.rs`'s `projection_badge` doc, and one row
+in `work/view/`), which says `update` in a code span where nothing
+checks it. Links were corrected; the two pre-existing spans are left as
+written and filed as
+`viewer-prose-calls-the-frame-entry-point-update`, per the in-fence
+rule about a citation that was wrong at the merge base.
+
+**And the receipt that missed it was mine.** `scripts/doc-gate.sh 2>&1
+| tail -20; echo "BARE=$?"` reports **`tail`'s** exit code, not the
+gate's. The bare pass had in fact failed locally before the push and
+the `0` was a measurement of the pipeline's last stage. Redirect to a
+file and read `$?` off the command itself; a pipeline's `$?` is never
+the receipt you think you are taking. All three forms re-run this way:
+`--selftest` 0, bare 0, `--skip-viewer-toolkit` 0.
+
+**Second addendum: the review's central correction was itself wrong,
+and finding that out corrected me too.** The review reported that at
+`f64::MAX` every mark refuses for want of a scale and `rule_patch`'s
+lost-extent arm is never reached, so the unit's justification for
+counting "drew nothing" rather than "has no scale" rested on an
+unreachable case. Instrumenting `grid` and `rule_patch` and running the
+fixture says otherwise: **the patch centre has a scale at every
+magnitude** — `Some(1.87e-4)` — because the centre is the point the
+camera is aimed at and the eye is a decimetre from it, so `rule_patch`
+is entered and the lost-extent arm fires. The review's probe read the
+scale at the datum's ORIGIN, which is where the normal tick is scaled;
+the module's own doc says the two marks are scaled at two different
+points, and that is the distinction the probe collapsed. Its ratio
+argument (`half / cv ≈ 1.46`, magnitude-independent) assumes the eye is
+about as far from the centre as the datum's origin is; measured, `half`
+is `0.26 m` against a `cv` running to `1e308`.
+
+**But the complaint under the wrong evidence was right.** The prose
+named `f64::MAX` as THE lost-extent case when it is three refusals at
+once — the tick's depth overflowing to `inf`, one ruled direction's
+`cv / pitch` overflowing past the finiteness guard, and the other
+losing its extent — and no row split them. The measured band is in the
+closed row's resolution as a table, and
+`a_plane_can_lose_its_extent_while_every_point_of_it_still_has_a_scale`
+is the row that splits them: at `1e100` the origin still scales, the
+tick draws, one direction still loses its extent, and the plane has NOT
+vanished. It reds under a `rule_patch` that emits its collapse.
+
+**Generalises, and it is the register's proxy rule with the reviewer
+holding the proxy.** *Scale* is not one quantity in this module — it is
+one per mark, at one point per mark, which the module says in as many
+words. A probe that samples it at a single point and reports
+`has_scale` has already chosen an answer. The check is the one this
+register states: name the property first and the instrument second,
+then ask what a member could look like that the instrument cannot see.
+
+**`git checkout <file>` took an uncommitted doc rewrite, again.**
+Reverting the mutation that certified the new row also discarded the
+`vanished()` doc edit made an hour earlier in the same file, and only
+`git status` showing `datums.rs` unmodified caught it. Third instance
+this program has recorded; the rule is already written (*commit before
+you mutate*) and I did not follow it for an edit made after the commit.
+
+Signed (VIEW implementer lane `view/datum-refusals-named`).
+
+## 2026-09-17 — `view/clamp-nan`: a clamp is not a bound against NaN
+
+Three doors that handed back a value the arithmetic did not compute,
+in a field shaped like one it did. All three of the row's claims
+re-executed and held; all three got a different repair, because the
+question a door can answer is a property of the door.
+
+`theme::channel_to_srgb8` refuses with `is_nan` and not `is_finite`,
+which is the whole argument at that site: **an infinity is ordered and
+a `NaN` is not**, so the clamp genuinely bounds one and cannot see the
+other. Refusing an infinity there would have been a second, unargued
+decision wearing the first one's clothes.
+
+`sketch::arc_points` refuses with `is_finite`, which is the OPPOSITE
+call for the opposite reason: an infinite radius emits `NaN` points
+just as surely as a `NaN` radius does. Two sites in one diff, two
+different finiteness tests, and a lane that reached for one rule for
+both would have been wrong at one of them.
+
+**The row's own framing was wrong about site 1, and the correction
+made the site stronger.** It called `channel_to_srgb8` a paint path
+that cannot refuse mid-frame. `Mark::over` and `from_linear` have one
+caller between them — `crates/viewer/tests/theme.rs`, the colourblind
+check — because the shader mixes in WGSL. So the consequence is not a
+black pixel; it is that the SAFETY MEASUREMENT would have taken pure
+black, the far end of every distance it computes, as the composited
+colour and certified the palette on it. A door that can refuse was
+argued as one that cannot, and the argument came from the item.
+
+**Site 2's live producer is not a `NaN` at all.** A bulge of `1e-320`
+on a horizontal chord — a finite literal `Expr::literal` accepts, typed
+through an ordinary `DragValue` — gives an infinite apothem, and the
+chord's left normal is exactly zero there, so `0 * inf` puts a `NaN` in
+the centre. 256 points at `[NaN, NaN]`, reached through the CAP rather
+than the floor, from an authored path. Hunting only the `NaN` input
+would have closed the arm nobody can reach and left the one anybody
+can.
+
+**A distinguishability assertion over an `f32` needs two rows, not
+one.** The share row was first written as *the poisoned answer differs
+from every legitimate answer*, which is the right shape for the `u8`
+and `usize` sites and worthless for this one: a `NaN` differs from
+everything including itself, so `Some(NaN)` — the broken door's own
+output — passed. The mutation found it, not the reading. The landed
+pair is *the poisoned inputs answer `None`* plus *every legitimate
+input answers a share*; neither row says anything alone. Generalises to
+the register's rule about a suggested assertion's two cheapest
+failures: for a float-valued door there is a third, which is an
+assertion the defect satisfies by being a defect.
+
+**Site 3's red could only be a compile failure**, because the function
+it holds did not exist on the base tree. Certified instead by three
+mutations, each redding the named row: the base tree's guard verbatim,
+the stack-half alone, and the `wanted`-half alone. Sites 1 and 2 took
+ordinary base-tree reds from a committed tree.
+
+Signed (VIEW implementer lane `view/clamp-nan`).
+
+### The review, and the three guards that were held by nothing
+
+**A `git log -S` that finds nothing in a SHALLOW clone is not evidence
+of anything, and I reported a provenance receipt I had not taken.**
+The PR body named `07b41f6bf6` as the commit that wrote `theme.rs`'s
+clamp sentence. That SHA does not resolve in this repository. The real
+commit is `df8cc27873` (2026-08-30). Two things are worth keeping:
+this checkout is shallow — `.git/shallow` exists and history bottoms
+out at a grafted boundary — so a pickaxe over it reports an absence it
+has no standing to report; and the sentence spans a `///`
+continuation, which is the register's split-span trap and would have
+defeated the search even in a full clone. **The conclusion survived
+anyway** — `theme.rs` is in no companion table, so nothing was waiting
+for Ev — which is exactly what makes the class expensive: a receipt
+that is wrong about its own evidence and right about its answer passes
+every reading that stops at the answer.
+
+**Three of the guards I landed were held by nothing, and mutation is
+the only thing that said so.** The reviewer ran three and all three
+were green: undoing the theme refusal into the cap
+(`unwrap_or(255)`), deleting `flatten`'s `centre`/`start` filter, and
+replacing its `return Err` with `continue`. I reproduced all three
+before repairing any. The general shape is this program's own — *a
+typed refusal whose production is asserted nowhere* — and what it
+cost here is specific: I wrote a distinguishability row for the
+`usize` site that compared against the floor, the cap and an ordinary
+value, wrote one for the `u8` site that compared against the floor
+ALONE, and then wrote a PR body claiming both did the first thing. The
+sentence was true of one row and false of the other, and it read as
+true because the two rows sit in different files.
+
+**So: a claim about a POPULATION of rows is checked against each
+member, not against the row you wrote most recently.** The body's
+"both rows" is the same defect this register already records as *a
+universal in prose owes the sweep rule that produces its population*,
+scoped down to two.
+
+**The guard I argued for at greatest length was the one held by
+nothing, and my own account of why it exists was wrong.** The
+`centre`/`start` check: I wrote that it is earned by the denormal
+bulge. It is not — in that producer `radius` is `inf`, so `arc_points`
+refuses and `centre` never fires. It is earned by an arc whose radius
+is ORDINARY and whose midpoint overflows: two vertices near the top of
+the exponent range. Both cases are now rows and deleting the filter
+reds exactly one of them. A long argument attached to the wrong
+example is harder to catch than a short one, because the length reads
+as diligence.
+
+**And driving it through the real door moved a claim of mine.** I had
+written that the denormal bulge is a live producer and described it in
+a two-vertex loop. Through `preview` that loop never reaches the
+flattener at all — the seam reverses onto itself and the driver
+refuses it as an undeclared cusp two steps earlier. It takes a third
+vertex. The claim was right; the shape I stated it in was not, and the
+arithmetic I executed standalone could not tell me, because it was the
+flattener's arithmetic and not the door's. **Executing a function's
+arithmetic is not the same as reaching the function.**
+
+Signed (VIEW implementer lane `view/clamp-nan`, after review).
+
+## 2026-09-17 — the cut: four successors opened, 86 rows re-homed, VIEW not closed
+
+Ev, in chat: *"you can self merge the cut pr. moving existing items is
+low risk."* This entry records what moved and, first, the verification
+the whole cut rests on.
+
+### The Order's six units, re-derived against the tree
+
+The exit shape above reads *"every item above has landed or been ruled
+out"*, where **above** is the `Order`'s six numbered units and not the
+open slate. Each was checked against the tree and the tracker rather
+than against this file, because this file's own standing hazard is a
+claim going stale rather than a number:
+
+1. **`viewer-session-god-module-split` — DONE**, four PRs on `main`
+   (#1801, #1816, #1830, #1832). Its two named residues are rows:
+   `session-shims-and-test-imports` (live, now VDOC's) and
+   `tool-kind-all-and-ordinal-have-no-production-reader` (closed).
+2. **`pick-priority-filter-vocabulary` — DEFERRED**, status `deferred`
+   in the file, ratified by `crates/viewer/GUI-DESIGN.md` GQ7. Not
+   work, and not dispatchable by the tracker's own vocabulary.
+3. **`camera-fold-clears-status-line` — DONE**, #1849. Both residues
+   closed (#1957, #2026). The eighteenth status-line writer has its own
+   row, `startup-notices-need-holding-to-badge`, which stays here.
+4. **`focus-marking-is-per-node-not-per-segment` — HANDED OFF.** Its
+   blocker was the authored-step to canonical-segment map, whose
+   siting question is `authored-step-to-canonical-segment-map-has-no-home`
+   — **now CLOSED on EDIT's slate at PR #2759, 2026-09-16**, with DM8's
+   follow-through merged at #2785. So the blocker has fired, the map
+   exists, and both halves of the ground are EDIT's. The row goes to
+   EDIT with its `refs` intact.
+5. **`layer3-recipenodeid-aliases-across-rewinds` — HANDED OFF**, and
+   it was never this program's to clear: it is `parked` on
+   `next-id-has-no-layer3-door`, a door in `crates/editor-core/src/doc.rs`
+   that was DOCM's and is EDIT's since DOCM exited (`docs/DOC-LEDGER.md`
+   sweep 14). Both rows go to EDIT together, so the trigger and the
+   row it gates land on one slate.
+6. **`pick-index-built-on-ui-thread` — DONE**, #1888. 6a ruled by Ev at
+   #1843, 6c collapsed into 6b. Seven residues filed as items; the one
+   still open, `ui-thread-work-after-the-index-seam`, is VSEAM's.
+
+**So the reading holds: none of the six is open VIEW work.** Three
+landed, one is ratified not-now, and two are blocked on doors in
+another program's crate — which is a hand-off, not a slate.
+
+### What the slate actually was
+
+**Ninety-four live rows**, not the seventy-eight a triage taken on
+2026-09-16 recorded: five of that triage's rows had closed
+(`a-supersession-outlives-its-own-frame` and the four `datums.rs`
+rows), and **twenty-one new rows had been filed since**, sixteen of
+them by the six units that merged in between. The triage's own counts
+were stale by construction and are not carried forward; every count in
+this entry was re-derived with `scripts/work.py status --program view`
+on the branch's merge base.
+
+### Where they went
+
+| destination | rows |
+|---|---|
+| `vnews` | 14 |
+| `vgeom` | 21 |
+| `vseam` | 14 |
+| `vdoc` | 22 |
+| `guard`, `ciw`, `edit` | 3 each |
+| `suite`, `meta` | 2 each |
+| `dup`, `chrome` | 1 each |
+| stayed here | 8 |
+
+Eighty-six moves, each a `git mv` with the body, the id and the history
+unchanged. **No row's prose was edited on the way past** — and the item
+schema carries no `program:` field at all (`scripts/work.py`'s `SCHEMA`;
+ownership is read from the directory and nowhere else), so a re-home is
+the move and nothing else. `refs`, `blocked_on` and `rides_with`
+resolve by id and are unaffected.
+
+### The four charters, and the test they were held to
+
+Each track's charter is the sentence that is true of its rows and false
+of the other three tracks' rows — this program's own rule about splits,
+applied to itself. In one line each:
+
+- **`vnews`** — a defect in the vocabulary a fact travels in on its way
+  to a reader, never in the fact; the fix changes a type or a door and
+  nothing it touches survives its frame.
+- **`vgeom`** — a value: a non-finite, out-of-range or under-precise
+  number crossing a door whose prose says it refuses such a thing, or a
+  control that never reaches the transform it names; the fix changes
+  what the viewer SHOWS.
+- **`vseam`** — something the viewer holds on behalf of the document
+  that outlives the frame that made it, with no named boundary owning
+  it; the fix names one.
+- **`vdoc`** — a claim the tree makes about itself; apply any fix on
+  that slate and nothing a person could observe has changed.
+
+**One row was placed by elimination and its plan says so**:
+`adjacent-same-typed-arguments-are-the-same-swap` is on VSEAM's slate
+because its two worst instances are that program's authoring doors and
+because the other three charters are each false of it, not because the
+charter fits.
+
+### Sequencing, and why `vdoc` is last
+
+`vnews`, `vgeom` and `vseam` are file-disjoint except at the shared
+files their `keep_out`s name on both sides, and all three dispatch from
+their opening day. **`vdoc` does not.** Its spine is
+`stale-file-citations-after-the-split` and every unit the other three
+land invalidates more of it; the register's own rule is that an
+out-of-fence citation table expires the moment another diff touches the
+same file. That is written into `work/vdoc/plan.md` §Order as the
+program's opening condition, with two named exceptions whose subject
+does not move with the code.
+
+### Territory
+
+`work.py lint` went **18 warnings → 24**, all six new ones one-sided
+pairs whose other half is in a file this program may not edit: four
+against CHROME and two (via `vdoc`'s `crates/viewer/tests/*`) against
+S-TCOST and S-TINT. The six pairs *inside* the new family are silent,
+because both sides were written in this commit. This program's own
+`keep_out` was extended to name the four successors, which is why the
+`view` pairs do not appear. The CHROME half is filed as
+`work/chrome/the-four-view-successors-are-a-one-sided-double-claim`;
+the tests half is the standing case in
+`work/meta/double-claim-lint-rule-waits-on-the-tests-seam`.
+
+### The register
+
+The six hundred lines of rule register in `work/view/plan.md` bind
+lanes in all four successors and are **inherited by reference, not
+copied** — four copies of a register re-derived every wave give four
+divergent copies inside a week, which is this program's own
+count-fixed-in-one-place defect turned on its own discipline. The cost
+is stated rather than hidden: the file dies with this directory. Filed
+as `the-lane-register-has-no-home-after-views-directory-goes`, and it
+is a **precondition of the exit walk**, not a follow-up to it.
+
+### What this entry does NOT record
+
+This program is not closed. There is no exit walk, no
+`docs/DOC-LEDGER.md` entry, and no directory sweep; PR #2762 is still
+open and parked on a ruling. Eight rows stay on this slate and the
+successors' `plan.md` §Inbound names where each of the six in `review`
+goes when its PR merges.
+---
+
+## 2026-09-17 — a crashed seam worker panics; the badge vocabulary is deleted
+
+`a-dead-seam-worker-reads-as-an-ordinary-idle-state` closed a second
+time, on a different ruling. The first (2026-09-16: badge it,
+`Tone::Actionable`, and the fit seam refuses the index build) was made
+on a description of the cost that was **wrong**, and Ev replaced it
+rather than amending it: *"isn't a worker dying an infra thing that
+should show up as a panic?"*, then *"panic on crash is good"*.
+
+**What the review found, and why it inverted the justification.** The
+fit refusal does not cost picking. `settled_delta` answers `None`
+forever once the fitter is gone, `PickCache::sync` forgets and returns
+`CacheStep::Nothing`, and `sync_scene` returns on that step BEFORE the
+scene rebuild — and `self.scene` has exactly one writer. On a fresh
+open, where the first landing is what fires the fit, the document never
+draws. Ev's own justification for refusing was *a frozen window is
+worse than a dead one*; the true cost was a dead one.
+
+**The gating fact, established before anything was built.** The
+announcement is a panic on the UI thread, raised inside
+`<ViewerApp as eframe::App>::ui` — so if anything up the toolkit stack
+caught it, the loudest thing this crate does would be a lie. It does
+not: `egui`, `eframe`, `egui-winit` and `egui-wgpu` 0.36.1 contain no
+`catch_unwind` at all (eframe's only panic machinery is
+`web/panic_handler.rs`, a `set_hook` on the wasm build), and `winit`
+0.30.13 has none on the linux backends — it catches on macOS and
+Windows only, and both re-raise (`macos/event_loop.rs:307` and `:374`,
+`windows/event_loop.rs:425`). The layer nearest the panic is
+**executed** rather than read:
+`a_panic_inside_an_egui_frame_is_not_swallowed` plants one inside
+`Context::run_ui` — eframe's own per-frame call, at
+`epi_integration.rs:288` — and asserts the unwind escapes with its
+payload intact.
+
+**The discriminator is exact, and that is the whole fix.**
+`Coalescing::close` takes the request channel and is called from `Drop`
+and nowhere else, so on a running application a detection that still
+holds the channel is a crash and nothing else. The two endings used to
+be answered by the same three lines, which is what made a crashed seam
+report exactly what an idle one reports — the item's defect, one layer
+below where the item looked for it.
+
+**What could not be tested the way the dispatch asked, and why.** The
+three shipped handles cannot be crashed from outside: a worker dies
+only by panicking inside its own job, and the job is `build_index`,
+`run_fit` or `run_once` behind a private closure. A row through
+`ThreadIndexer` would have to make the kernel panic on an input, which
+is what D9 says cannot happen. The rows therefore drive `Coalescing`
+itself — the shipped machine every handle delegates to, not a mirror of
+it — and say so.
+
+**And one of the two arms is not sequence-reachable.** `dispatch`'s
+failed send needs `running` false with a dead worker; after a crash
+`running` stays true until a `poll` clears it, and that poll takes the
+other arm. The redispatch entry needs a buffered answer AND a dead
+worker at once, which the worker loop cannot produce: it sends an
+answer only when `answer` RETURNED, and a worker that returned is one
+that went back to `recv` and can only die on a job it was then handed,
+for which no answer is ever sent. The arm stays — the condition means
+what it means — and its row clears `running` by hand and claims the
+arm's behaviour and nothing about reachability.
+
+**Four mutations, each redding only its own row**, and the first is the
+base tree's own behaviour: `poll` forgetting instead of announcing
+(the reachable row), `dispatch` forgetting instead of announcing (the
+arm row), an orderly close treated as a crash (the discriminator row,
+which nothing else covers), and removing the planted panic from the
+egui row.
+
+**Deleted, not kept:** `WorkerGone` and its three sentences,
+`worker_gone` on the three seam traits and all six implementations,
+`evalseam::settled_delta`, `frame::dead_seam_badge` with
+`EVALUATION_SEAM`, `DocSession::eval_worker_gone`,
+`PickCache::worker_gone`, the disabled Re-evaluate control, and the
+README's badge-population and seam clauses. A badge reachable only
+through a test fake is a badge family held up by its own tests. The
+first ruling's residue row — `the-canceled-label-names-a-cause-a-dead-worker-did-not-have`
+— was deleted rather than carried, because its premise was a dead
+evaluator reaching `Progress::Canceled`, which the ruling makes
+unreachable.
+
+**Surfaced rather than overridden.** This is the workspace's first
+non-test `panic!`: every existing `allow(clippy::panic)` in `crates/`
+sits on a `#[cfg(test)]` module. D9's family is scoped to INPUT and a
+worker thread is reachable from none, so the site takes an `expect`
+with that reason written at it — but PIPE's `work/pipe/S14` is open,
+`needs_ev: true`, and carries Ev's own 2026-08-18 reframe, *"no panic
+on any reachable state, yes panic on things that can only indicate
+bugs"*, which S14 records as an **amendment** to D9 rather than a
+clarification. This unit lands on that ground while it is unruled.
+Read, not edited — S14 is PIPE's.
+
+Residue filed:
+`the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer`
+and `the-dying-seam-fakes-mirror-a-machine-they-do-not-share`.
+
+Signed (VIEW implementer lane `view/dead-seam-badge`, after Ev's
+second ruling).

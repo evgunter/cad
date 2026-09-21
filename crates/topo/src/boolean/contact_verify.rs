@@ -61,7 +61,8 @@
 
 use geom::Curve3;
 use geom_brep::{
-    CERT_SAMPLES, sample_param, tangent_certificate_lane, tangent_jet, tangent_span_bounds,
+    CERT_SAMPLES, implicit_outward_normal, sample_param, tangent_certificate_lane, tangent_jet,
+    tangent_span_bounds,
 };
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
@@ -300,8 +301,6 @@ pub fn tangent_locus_relation<T: Decide>(
         tangent_span_bounds(s1, s2, carrier, t0, t1).ok_or(ContactRefusal::NotCertifiable {
             what: "the jet schedule's span bounds are unavailable for this configuration",
         })?;
-    let sa = if sense1 { T::one() } else { -T::one() };
-    let sb = if sense2 { T::one() } else { -T::one() };
     // The locus's honest spatial extent, capping every lever arm the
     // schedule uses — the same `edge_extent` cap the edge certifier
     // applies (`certify.rs`'s tangent arm), shared rather than
@@ -346,8 +345,8 @@ pub fn tangent_locus_relation<T: Decide>(
         // point at each other. Aligned normals on a shared tangency
         // are containment, and a contact claiming it is a lie
         // (the C1 lemma, one dimension down from C3's patch clause).
-        let n1: Vec3<T> = geom_brep::implicit_gradient(s1, p).normalize() * sa;
-        let n2: Vec3<T> = geom_brep::implicit_gradient(s2, p).normalize() * sb;
+        let n1: Vec3<T> = implicit_outward_normal(s1, sense1, p).vec();
+        let n2: Vec3<T> = implicit_outward_normal(s2, sense2, p).vec();
         let arm = geom_brep::curvature_lever_arm(s1, p)
             .min(geom_brep::curvature_lever_arm(s2, p))
             .min(extent);

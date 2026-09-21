@@ -6,6 +6,7 @@
 
 use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
@@ -15,9 +16,12 @@ const RING: f64 = 5.0;
 
 fn full_torus(major: f64) -> Body<f64> {
     tube_along_arc(
-        Point3::origin(),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         major,
         TubeWindow::Full,
         TUBE,

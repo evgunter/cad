@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use common::census;
+use common::arena_census;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
@@ -20,7 +20,7 @@ fn report(tag: &str, text: &str) {
         Ok(StepImport::Solid { body, .. }) => {
             println!(
                 "{tag}: SOLID census (solids,shells,faces,edges,verts)={:?} tier3={:?}",
-                census(&body),
+                arena_census(&body),
                 topo::validate_geometric(&body, Tol::witness()).map(|()| "ok")
             );
         }

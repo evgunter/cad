@@ -246,9 +246,8 @@ pub fn tangent_span_bounds<T: Real>(
     };
     let (f2a, da) = bounds_of(s1)?;
     let (f2b, db) = bounds_of(s2)?;
-    let eighth = T::from_f64(0.125);
     Some(TangentSpanBounds {
-        residual_sag: step.powi(2) * eighth * f2a.max(f2b),
+        residual_sag: crate::implicit::chord_dip_charge(f2a.max(f2b), step),
         kappa_drift: step * (da + db),
     })
 }
@@ -489,7 +488,7 @@ fn circle_span_bounds<T: Real>(
     let (f2a, da) = bounds_of(s1)?;
     let (f2b, db) = bounds_of(s2)?;
     Some(TangentSpanBounds {
-        residual_sag: step.powi(2) * T::from_f64(0.125) * f2a.max(f2b),
+        residual_sag: crate::implicit::chord_dip_charge(f2a.max(f2b), step),
         kappa_drift: step * (da + db),
     })
 }

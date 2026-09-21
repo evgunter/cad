@@ -31,6 +31,7 @@ use core::f64::consts::PI;
 
 use geom::Surface;
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{Revolved, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
@@ -45,9 +46,12 @@ const T1: f64 = 1.75;
 
 fn hollow(window: TubeWindow<f64>) -> Revolved<f64> {
     tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            Tol::witness(),
+        ),
         R,
         window,
         OUTER,
@@ -121,9 +125,12 @@ fn hollow_elbow_is_valid_with_pappus_mass_properties() {
     // is heavier by exactly the bore, which is the same Pappus form
     // on the inner disc.
     let solid = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            Tol::witness(),
+        ),
         R,
         TubeWindow::Arc { t0: T0, t1: T1 },
         OUTER,
@@ -266,9 +273,12 @@ fn hollow_intent_parameters_are_stored_bit_exact() {
 fn hollow_wall_and_shared_refusal_doors() {
     let build = |minor: f64, wall: f64| {
         tube_along_arc_hollow::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_y(),
+                Vec3::unit_x(),
+                Tol::witness(),
+            ),
             R,
             TubeWindow::Full,
             minor,
@@ -325,9 +335,12 @@ fn hollow_wall_and_shared_refusal_doors() {
             collapsed += 1;
             for window in [TubeWindow::Full, TubeWindow::Arc { t0: T0, t1: T1 }] {
                 let e = tube_along_arc_hollow::<f64>(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::unit_y(),
-                    Vec3::unit_x(),
+                    tube_frame(
+                        Point3::new(0.0, 0.0, 0.0),
+                        Vec3::unit_y(),
+                        Vec3::unit_x(),
+                        Tol::witness(),
+                    ),
                     big * 2.0,
                     window,
                     big,
@@ -362,9 +375,7 @@ fn hollow_wall_and_shared_refusal_doors() {
     // The solid door's own doors, unchanged through the hollow one.
     let frame = |axis: Vec3<f64>, u_ref: Vec3<f64>, window, major: f64| {
         tube_along_arc_hollow::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            axis,
-            u_ref,
+            tube_frame(Point3::new(0.0, 0.0, 0.0), axis, u_ref, Tol::witness()),
             major,
             window,
             OUTER,
@@ -372,17 +383,29 @@ fn hollow_wall_and_shared_refusal_doors() {
             Tol::witness(),
         )
     };
-    assert!(matches!(
-        frame(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full, R),
-        Err(TubeError::NonUnitAxis)
-    ));
-    assert!(matches!(
-        frame(Vec3::unit_y(), Vec3::unit_y(), TubeWindow::Full, R),
-        // `unit_y` IS unit length, so only the orthogonality arm is
-        // reachable here — the or-pattern the shipped suite carried
-        // asserted a door this fixture cannot open.
-        Err(TubeError::FrameNotOrthogonal)
-    ));
+    // The hollow door has no frame refusals either: a scaled axis
+    // names the same spine once the mint has normalized it, and the
+    // body it builds is the unit axis's, bit for bit.
+    let scaled = frame(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full, R)
+        .expect("a scaled axis names the same spine");
+    let unit =
+        frame(Vec3::unit_y(), Vec3::unit_x(), TubeWindow::Full, R).expect("the unit axis builds");
+    assert_eq!(
+        scaled.body.faces().count(),
+        unit.body.faces().count(),
+        "the normalized axis builds the same hollow torus"
+    );
+    assert_eq!(
+        topo::mass_properties(&scaled.body, Tol::witness())
+            .expect("mass properties")
+            .volume
+            .to_bits(),
+        topo::mass_properties(&unit.body, Tol::witness())
+            .expect("mass properties")
+            .volume
+            .to_bits(),
+        "the normalized axis builds it bit for bit"
+    );
     assert!(matches!(
         frame(
             Vec3::unit_y(),
@@ -434,9 +457,12 @@ mod certified {
     #[test]
     fn the_hollow_torus_certifies_and_encloses_its_closed_forms() {
         let t = tube_along_arc_hollow::<Interval>(
-            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            tube_frame(
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                Tol::witness(),
+            ),
             iv(R),
             TubeWindow::Full,
             iv(OUTER),
@@ -468,9 +494,12 @@ mod certified {
     #[test]
     fn the_hollow_elbow_certifies_at_interval() {
         let t = tube_along_arc_hollow::<Interval>(
-            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            tube_frame(
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                Tol::witness(),
+            ),
             iv(R),
             TubeWindow::Arc {
                 t0: iv(T0),

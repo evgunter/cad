@@ -110,3 +110,14 @@ pub fn chamfered_cube_removed(a: f64, d: f64) -> f64 {
 pub fn rounded_box_volume(l: f64, r: f64) -> f64 {
     l.powi(3) + 6.0 * l * l * r + 3.0 * PI * l * r * r + (4.0 / 3.0) * PI * r.powi(3)
 }
+
+/// **The oracle's `σ` for a ball-side bit**: `+1` where the ball rests
+/// behind the chart normal (`SupportTrace`'s `side` is `true`), `−1`
+/// where it rests in front — the sign the rolling-ball closed forms
+/// the blend suites re-derive are written in. A test-side scalar by
+/// design: the kernel spells the same selection as a conditional
+/// negation and never mints this number, so a suite that wants the
+/// textbook `R ∓ σr` form derives `σ` here and nowhere else.
+pub fn sigma(side: bool) -> f64 {
+    if side { 1.0 } else { -1.0 }
+}

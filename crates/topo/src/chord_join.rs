@@ -77,7 +77,9 @@
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve};
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{
+    Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, Vec3,
+};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
@@ -1220,7 +1222,7 @@ fn chord_spec<T: Decide>(
             // comparison; a zero span is a degenerate chord site.
             let (carrier, s1, s2) = match decide(
                 "split_tangent_chord_forward",
-                Margin::metered(t2 - t1, len),
+                Margin::metered(t2 - t1, InfSpeed::new(len)),
                 band,
             )
             .map_err(|diag| SplitJoinError::Escalated { face, diag })?
@@ -1507,6 +1509,13 @@ fn between_edge_in_plane<T: Decide>(
     };
     match curve.carrier() {
         geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => Ok(Some(true)),
+        // The join lanes are fenced against the spiric (the boolean's
+        // operand gate refuses the kind), so a run edge carrying one is
+        // an invariant break, never assumed ON.
+        geom::Curve3::Spiric { .. } => Err(SplitJoinError::SectionInvariant {
+            face: owning_face()?,
+            what: "a join lane reached a spiric run edge (the operand gate refuses the kind)",
+        }),
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
             let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));

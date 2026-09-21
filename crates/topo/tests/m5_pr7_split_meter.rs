@@ -234,7 +234,7 @@ fn a_split_at_the_endpoint_band_escalates_or_refuses_in_metres() {
     // A split parameter whose distance-to-endpoint, METERED through
     // the certified speed bound, sits inside the band: place it from
     // the band the run resolved, through the carrier's own meter.
-    let meter = carrier.speed_lower_bound();
+    let meter = carrier.speed_lower_bound().get();
     assert!(meter > 0.0);
     let band = Band::linear(Tol::witness()).unwrap();
     let t_bad = h0 + 0.5 * (band.zero() + band.escalate()) / meter;
@@ -252,7 +252,7 @@ fn the_meter_the_split_arm_will_use_is_a_real_lower_bound() {
     // endpoints, which is the failure the conservative posture exists
     // to prevent (`Circle` ⇒ radius, `Ellipse` ⇒ the MINOR semi-axis).
     let n = nurbs_carrier();
-    let m = n.speed_lower_bound();
+    let m = n.speed_lower_bound().get();
     assert!(m > 0.0, "a monotone carrier meters positively: {m}");
     for i in 0..=400 {
         let t = f64::from(i) / 400.0;
@@ -366,7 +366,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     // The margins are honest: the meter is a genuine lower bound on
     // the carrier's speed, and the metered interiority it hands the
     // split gate never overstates the arc it stands for.
-    let m = carrier.speed_lower_bound();
+    let m = carrier.speed_lower_bound().get();
     assert!(m > 0.0, "a rational carrier meters positively: {m}");
     for i in 0..=400 {
         let t = h0 + (h1 - h0) * f64::from(i) / 400.0;

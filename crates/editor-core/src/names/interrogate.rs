@@ -50,6 +50,10 @@ use crate::node::RecipeNodeId;
 /// A tie is a naming success and a REFERENCING failure: the name is
 /// well-formed and several entities answer to it equally, so a door
 /// that must pick one refuses with [`InterrogateError::Ambiguous`].
+/// A door handed a name of a kind it does not read is not a door that
+/// must pick one, and refuses [`InterrogateError::WrongKind`] instead
+/// — the kind question is asked first, so the two refusals do not
+/// depend on which one the name happened to be.
 /// This type is how a caller finds that out before asking, and it
 /// deliberately carries a COUNT rather than the candidates: the
 /// candidates are arena keys, and those do not leave this crate.
@@ -90,7 +94,10 @@ pub enum InterrogateError {
     /// a name from another node.
     NoSuchName,
     /// The N2 tie: the name is well-formed and several entities
-    /// answer to it, so there is no single geometry to report.
+    /// answer to it, so there is no single geometry to report. Asked
+    /// AFTER the kind, so every candidate of the tie is of the kind
+    /// the door reads; a tied name of another kind is
+    /// [`Self::WrongKind`].
     Ambiguous {
         /// How many entities answer.
         candidates: usize,
@@ -226,8 +233,8 @@ pub fn denotation<T: Decide>(
 
 /// **Where is the face I selected?** — the named face's carrier
 /// frame, as of THIS evaluation, with the face's orientation sense
-/// beside it ([`Pose::sense`]: the outward normal is `sense · axis`,
-/// and `axis` stays the chart's).
+/// beside it ([`Pose::sense`]: `axis` stays the chart's, and the
+/// outward normal is `OutwardNormal::from_chart(axis, sense)`).
 ///
 /// Analytic carriers answer from their stored origin and axes (a
 /// definitional re-read: no pad); a NURBS face has no canonical frame
@@ -236,8 +243,10 @@ pub fn denotation<T: Decide>(
 /// # Errors
 ///
 /// Every [`InterrogateError`]: the node ladder, `NoSuchName`,
-/// `Ambiguous` for an N2 tie, `WrongKind` for a non-face name, and
-/// the wrapped [`ReadbackError`].
+/// `WrongKind` for a non-face name, `Ambiguous` for an N2 tie among
+/// FACES, and the wrapped [`ReadbackError`]. The kind is asked first,
+/// so a non-face name is refused `WrongKind` whether or not it is
+/// tied ([`entity_of`]).
 pub fn face_frame<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
@@ -258,9 +267,8 @@ pub fn face_frame<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`face_frame`]: the node ladder, `NoSuchName`, `Ambiguous`,
-/// `WrongKind` for a non-face name, and the wrapped
-/// [`ReadbackError`].
+/// As [`face_frame`]: the node ladder, `NoSuchName`, `WrongKind` for
+/// a non-face name, `Ambiguous`, and the wrapped [`ReadbackError`].
 pub fn face_carrier_kind<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
@@ -299,9 +307,8 @@ pub fn edge_frame<T: Decide>(
 ///
 /// # Errors
 ///
-/// As [`face_frame`]: the node ladder, `NoSuchName`, `Ambiguous`,
-/// `WrongKind` for a non-edge name, and the wrapped
-/// [`ReadbackError`].
+/// As [`face_frame`]: the node ladder, `NoSuchName`, `WrongKind` for
+/// a non-edge name, `Ambiguous`, and the wrapped [`ReadbackError`].
 pub fn edge_carrier_kind<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
@@ -341,6 +348,12 @@ pub fn vertex_position<T: Decide>(
 /// tied-name rule (GS-Q4) must measure EVERY candidate of a tie —
 /// which the name-level doors deliberately refuse to do.
 ///
+/// The point is the pose's `origin`, which is the CARRIER's
+/// distinguished point and need not lie on the entity: a spiric edge
+/// answers its torus's centre, `≥ R − r − |offset|` off the curve
+/// (`readback::edge_pose`), exactly as a planar face answers its
+/// plane's origin.
+///
 /// # Errors
 ///
 /// [`InterrogateError::WholeBody`] for a body key; the wrapped
@@ -369,21 +382,32 @@ pub(crate) fn entity_point<T: Decide>(
 ///
 /// # Errors
 ///
-/// The node ladder and `NoSuchName`/`Ambiguous` through
-/// [`entity_of`], [`InterrogateError::WrongKind`] (or
-/// [`InterrogateError::WholeBody`]) where the name denotes another
-/// kind, and the wrapped [`ReadbackError`] the kernel door refuses
-/// with.
+/// The node ladder and `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
+/// through [`entity_of`], which asks them in that order, and the
+/// wrapped [`ReadbackError`] the kernel door refuses with.
 fn read<T: Decide, K: Denoted, R>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
     name: &StableName,
     door: fn(&Body<T>, K) -> Result<R, ReadbackError>,
 ) -> Result<R, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name)?;
+    let (body, key) = entity_of(ev, node, name, K::KIND)?;
     match K::of(key) {
         Some(k) => Ok(door(body, k)?),
-        None => Err(kind_mismatch(K::KIND, key)),
+        // The kind question was answered off the NAME in
+        // [`entity_of`], and the table admits a row only at its
+        // name's kind, so reaching here is that rule broken.
+        // Asserted in debug; in release this answers what the KEY is,
+        // the one place the two can disagree.
+        None => {
+            debug_assert!(
+                false,
+                "the node's table holds a key whose kind is not its name's: \
+                 `NameTable::insert_ref` and `insert_tied_ref` admit a row only at \
+                 its name's kind"
+            );
+            Err(kind_mismatch(K::KIND, key.kind()))
+        }
     }
 }
 
@@ -435,12 +459,12 @@ impl Denoted for topo::VertexKey {
 /// The kind refusal, with `Body` broken out: a whole body has no
 /// frame at all, which is a different fact from "wrong kind of
 /// entity".
-fn kind_mismatch(wanted: EntityKind, found: EntityKey) -> InterrogateError {
+fn kind_mismatch(wanted: EntityKind, found: EntityKind) -> InterrogateError {
     match found {
-        EntityKey::Body => InterrogateError::WholeBody,
+        EntityKind::Body => InterrogateError::WholeBody,
         other => InterrogateError::WrongKind {
             wanted,
-            found: other.kind(),
+            found: other,
         },
     }
 }
@@ -462,19 +486,40 @@ pub(crate) fn value_of<T: Decide>(
     }
 }
 
-/// Name → (the body it lives in, the entity within it). The arena key
-/// is produced and consumed inside this crate — that confinement is
-/// the whole point of the module.
+/// Name → (the body it lives in, the entity within it), for a door
+/// that reads `wanted`. The arena key is produced and consumed inside
+/// this crate — that confinement is the whole point of the module.
+///
+/// **KIND BEFORE MULTIPLICITY.** A name that denotes another kind
+/// than the door reads is refused `WrongKind` (or `WholeBody`) before
+/// the tie is looked at: an edge name handed to a face door is not
+/// readable however few entities answer to it, so narrowing it is no
+/// recourse and `Ambiguous` would be the wrong word for the fault.
+/// The kind is the NAME's, which the table makes every candidate's
+/// kind — `NameTable::insert_ref` and `insert_tied_ref` refuse a row
+/// whose name's kind is not its key's, and they are the only two
+/// writers of a row — so a tie answers this as readily as a unique
+/// row does.
+///
+/// `NoSuchName` still outranks it, and the node ladder outranks that:
+/// nothing is said about what a name denotes here until this node has
+/// a table and that table answers to it.
 fn entity_of<'a, T: Decide>(
     ev: &'a Evaluation<T>,
     node: RecipeNodeId,
     name: &StableName,
+    wanted: EntityKind,
 ) -> Result<(&'a Body<T>, EntityKey), InterrogateError> {
     let value = value_of(ev, node)?;
-    let ent = match value.name_table.lookup(name) {
-        None => return Err(InterrogateError::NoSuchName),
-        Some(Entry::Unique(e)) => *e,
-        Some(Entry::Tied(candidates)) => {
+    let Some(entry) = value.name_table.lookup(name) else {
+        return Err(InterrogateError::NoSuchName);
+    };
+    if name.kind != wanted {
+        return Err(kind_mismatch(wanted, name.kind));
+    }
+    let ent = match entry {
+        Entry::Unique(e) => *e,
+        Entry::Tied(candidates) => {
             return Err(InterrogateError::Ambiguous {
                 candidates: candidates.len(),
             });

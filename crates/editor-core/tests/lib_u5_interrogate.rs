@@ -190,3 +190,70 @@ fn every_materialized_name_denotes_uniquely_and_answers() {
         assert!(vertex_position(&ev, node, &name).is_ok());
     }
 }
+
+/// **A read door asks what a name denotes before it asks how many
+/// entities answer to it** — PORT-DOORS-1's rule
+/// (`assembly::resolve_face`) at the body the five read doors share.
+///
+/// A face name handed to `edge_frame` is unreadable there however few
+/// entities answer to it, so narrowing is no recourse and `WrongKind`
+/// is the whole fault. Before the order changed, the answer depended
+/// on whether the name happened to be tied: a unique face name got
+/// `WrongKind`, a tied one got `Ambiguous` and an instruction to
+/// narrow. The rows below pin that the two now agree, and that the
+/// tie still refuses at the door that DOES read faces.
+#[test]
+fn a_read_door_refuses_a_tied_name_of_another_kind_by_its_kind() {
+    use editor_core::Entry;
+
+    // The symmetric U cutter's N2 tie.
+    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived(
+        "lib_u5_interrogate_tie",
+        Tol::witness(),
+    ));
+    let ev = eval(&doc);
+    let table = &ev.value(sub).expect("the U subtract evaluates").name_table;
+    let tied: StableName = table
+        .iter()
+        .find_map(|(n, e)| {
+            (n.kind == EntityKind::Face && matches!(e, Entry::Tied(_))).then(|| n.clone())
+        })
+        .expect("the U fixture ties a face");
+    let unique: StableName = table
+        .iter()
+        .find_map(|(n, e)| {
+            (n.kind == EntityKind::Face && matches!(e, Entry::Unique(_))).then(|| n.clone())
+        })
+        .expect("the U subtract names a unique face");
+
+    // The tie is REAL and the door's own kind is the one the name
+    // does NOT denote: without both, the row below passes vacuously.
+    let candidates = match denotation(&ev, sub, &tied) {
+        Ok(editor_core::Denotation::Tied { candidates }) => candidates,
+        other => panic!("the declared name must really be tied, got {other:?}"),
+    };
+    assert!(candidates >= 2, "a tie is two or more candidates");
+
+    let wrong_kind = InterrogateError::WrongKind {
+        wanted: EntityKind::Edge,
+        found: EntityKind::Face,
+    };
+    assert_eq!(
+        edge_frame(&ev, sub, &tied).err(),
+        Some(wrong_kind),
+        "an edge door handed a FACE name is not a door that must pick one — the tie is \
+         not the fault and narrowing is no recourse"
+    );
+    assert_eq!(
+        edge_frame(&ev, sub, &unique).err(),
+        Some(wrong_kind),
+        "and the unique name of the same kind gets the same word"
+    );
+    // The tie still refuses where the kind DOES match: this changes
+    // the order of two questions, not whether a tie is referenceable.
+    assert_eq!(
+        face_frame(&ev, sub, &tied).err(),
+        Some(InterrogateError::Ambiguous { candidates }),
+        "a tied FACE name at the face door is still the N2 tie"
+    );
+}

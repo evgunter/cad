@@ -5111,7 +5111,7 @@ mod inf_arms {
             NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap(),
         ));
         let inf_u = geom_brep::chart_stretch_inf(&s).inf_u;
-        let (sup_u, _) = geom_brep::chart_stretch_sup(&s);
+        let sup_u = geom_brep::chart_stretch_sup(&s).unwrap().0.get();
         assert!((inf_u - 0.5).abs() < 1e-14, "inf |S_u| = 0.5, got {inf_u}");
         assert!((sup_u - 8.0).abs() < 1e-14, "sup |S_u| = 8, got {sup_u}");
         assert!(
@@ -5389,7 +5389,12 @@ mod inf_arms_interval {
     /// Promoted from the reviewer probe's printed table.
     #[test]
     fn the_spline_pole_joint_gate_answers_all_three_ways() {
-        let sup = |span: f64| geom_brep::chart_stretch_sup(&flat_chart(span, span)).0;
+        let sup = |span: f64| {
+            geom_brep::chart_stretch_sup(&flat_chart(span, span))
+                .unwrap()
+                .0
+                .get()
+        };
         assert_eq!(
             decide("pcurve_loop_pole_joint", Margin::of(sup(1e-12)), band()),
             Ok(Sign::Zero)

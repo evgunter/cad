@@ -18,61 +18,16 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit,
-    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
-    MintRefusal, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef,
-    StableName, assemble, content_pin, evaluate, product_recorded,
+    Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
+    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, MintRefusal, Node, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, assemble, product_recorded,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, step};
 use geom_core::Tol;
 
-// ---- The stub store (ASM-2A/R2a's shape) ----
-
-#[derive(Debug, Default, Clone)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl editor_core::PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        if content_pin(doc, Tol::witness()).expect("the pin computes") != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
+// ---- Evaluation through the shared part store ----
 
 // ---- Documents ----
 
@@ -101,12 +56,6 @@ fn block(
     )
 }
 
-/// A one-block part document: `[0,1]³`. Its extrude is node 1.
-/// The extrude in a one-block part document. A block is three nodes
-/// — the sketch frame, the profile drawn on it, then the extrude — so
-/// a part-local name is minted by node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
-
 fn cube_part(label: &str) -> ProfileDoc {
     let (doc, _) = block(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
@@ -116,24 +65,6 @@ fn cube_part(label: &str) -> ProfileDoc {
         1.0,
     );
     doc
-}
-
-/// A face of `instance`'s part product, named through the instance
-/// qualifier (A12's reading-edge head), where the part's own face is
-/// the cap of ITS node 1.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
 }
 
 /// The same reading, one level deeper: `instance`'s part is ITSELF an
@@ -174,8 +105,8 @@ fn classed_mate(
     class: ContactClass,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -291,13 +222,13 @@ fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<S
 /// it — the inner mate — was minted by a door the seam does not call.
 #[test]
 fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-cube"), Tol::witness());
     let (inner, _, _) = stand("mate6-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, ids) = row_of("mate6-row", inner_ref, 3, 4.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
     assert_eq!(
         gathered.body.solids().count(),
@@ -331,7 +262,7 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
 /// its level's gather produced.
 #[test]
 fn the_carry_survives_a_second_nesting_level() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-deep-cube"), Tol::witness());
     let (inner, _, _) = stand("mate6-deep-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
@@ -340,7 +271,7 @@ fn the_carry_survives_a_second_nesting_level() {
     let mid_ref = store.insert(mid, Tol::witness());
     let (outer, _) = row_of("mate6-deep-outer", mid_ref, 2, 12.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the deep row gathers");
     assert_eq!(gathered.body.solids().count(), 8, "two mids of two stands");
     assert_eq!(
@@ -380,14 +311,14 @@ fn the_carry_survives_a_second_nesting_level() {
 /// it — the verdict above is still the kernel's, taken here, once.
 #[test]
 fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-gap-cube"), Tol::witness());
     let (inner, _, inner_mate) = stand("mate6-gap-stand", part, 1.5);
     let inner_id = inner.id();
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, instances) = row_of("mate6-gap-row", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     let raised = findings(&result);
     // The arm that FIRES is asserted, not "either refuting arm": the
@@ -441,7 +372,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
 /// authored the declaration it refutes.
 #[test]
 fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-outer-cube"), Tol::witness());
     let (inner, subs, _) = stand("mate6-outer-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
@@ -468,7 +399,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     );
     let mate = mate.expect("the outer mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the pair gathers");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -496,11 +427,11 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
 /// declaration appears exactly once however many doors read it.
 #[test]
 fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-once-cube"), Tol::witness());
     let (doc, _, mate) = stand("mate6-once-stand", part, 1.0);
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
     assert_eq!(
         gathered.contacts.patches.len(),
@@ -527,11 +458,11 @@ fn assemble_gates_the_gathers_own_record_set_and_mints_nothing() {
 /// its minted list is empty.
 #[test]
 fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-bare-cube"), Tol::witness());
     let (doc, _) = row_of("mate6-bare-row", part, 3, 4.0);
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the bare row gathers");
     assert_eq!(gathered.body.solids().count(), 3);
     assert_eq!(
@@ -553,7 +484,7 @@ fn a_document_with_no_mates_gathers_exactly_what_it_did_before() {
 /// build.)
 #[test]
 fn mint_makes_distinct_face_patches_and_no_curve_records() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-shape-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-shape-row", part, 3, 4.0);
     let (doc, _) = step(
@@ -577,7 +508,7 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
         },
     );
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(gathered.minted.len(), 2, "both mates minted");
     assert!(
@@ -604,7 +535,7 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
 /// the gate, naming the class.
 #[test]
 fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-tangent-cube"), Tol::witness());
     let (doc, ids, _) = stand("mate6-tangent-stand", part, 1.0);
     let mut node = rest_mate(
@@ -620,7 +551,7 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     let (doc, tangent) = step(doc, DocEdit::InsertNode { node });
     let tangent = tangent.expect("the tangent mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness())
         .expect("the gather answers with the geometry, not a refusal");
     assert_eq!(gathered.body.solids().count(), 2);
@@ -631,10 +562,13 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
         gathered.unminted
     );
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::NoAtRestRecord { class, mate, .. }) => {
-            assert_eq!(class, ContactClass::Tangent);
-            assert_eq!(mate, tangent, "naming the mate that declared it");
-        }
+        Err(AssemblyError::Mint { refusals }) => match refusals.as_slice() {
+            [MintRefusal::NoAtRestRecord { class, mate, .. }] => {
+                assert_eq!(*class, ContactClass::Tangent);
+                assert_eq!(*mate, tangent, "naming the mate that declared it");
+            }
+            rows => panic!("one mate refused, so one row: {rows:?}"),
+        },
         other => panic!("the at-rest door refuses a Tangent: {other:?}"),
     }
 }
@@ -662,7 +596,7 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
 /// contact the consuming document then cannot account for.
 #[test]
 fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-tot-ref-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-ref-row", part, 3, 4.0);
     let (doc, bad) = step(
@@ -684,7 +618,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     );
     let good = good.expect("the good mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -717,7 +651,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
 /// over, and the mate authored after it still mints.
 #[test]
 fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-tot-class-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-class-row", part, 3, 4.0);
     // Non-touching (seat 1.5) so the Tangent declares without seating
@@ -746,7 +680,7 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
     );
     let good = good.expect("the good mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -771,15 +705,15 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
 
 /// GUARD (the rows, and their ORDER): a document that refuses BOTH ways
 /// with a good mate between them. The refusal rows are the whole set, in
-/// DOCUMENT ORDER — which is what makes `assemble`'s "raise the first
-/// one" a statement about the document rather than about the walk.
+/// DOCUMENT ORDER — which is what makes `assemble`'s "raise every one"
+/// a statement about the document rather than about the walk.
 ///
 /// This is the row the stop-at-first-bad-mate walk cannot pass on any
 /// assertion: it would mint nothing, record one refusal, and never reach
 /// the second.
 #[test]
 fn every_unmintable_mate_gets_its_row_in_document_order() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("mate6-tot-order-cube"), Tol::witness());
     let (doc, ids) = row_of("mate6-tot-order-row", part, 3, 4.0);
     let (doc, first_bad) = step(
@@ -813,7 +747,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     );
     let second_bad = second_bad.expect("the dangling mate is a node");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
     assert_eq!(
         gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
@@ -836,12 +770,28 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         "each under its own arm: {:?}",
         gathered.unminted
     );
-    // And the door that raises reads that set head-first, so the verdict
-    // is the FIRST refusal in document order, not merely some refusal.
+    // And the door that raises reads the WHOLE set, in document order:
+    // an author with two broken mates has two repairs, and a verdict
+    // naming one of them makes the second a second evaluation.
     match assemble(&doc, &ev, Tol::witness()) {
-        Err(AssemblyError::NoAtRestRecord { mate, .. }) => {
-            assert_eq!(mate, first_bad, "the first refusal in document order");
+        Err(AssemblyError::Mint { refusals }) => {
+            assert_eq!(
+                refusals.iter().map(MintRefusal::mate).collect::<Vec<_>>(),
+                vec![first_bad, second_bad],
+                "every refusal, in document order"
+            );
+            assert!(
+                matches!(refusals[0], MintRefusal::NoAtRestRecord { .. })
+                    && matches!(refusals[1], MintRefusal::Reference { .. }),
+                "each still under its own arm: {refusals:?}"
+            );
+            let rendered = AssemblyError::Mint { refusals }.to_string();
+            assert!(
+                rendered.contains(&format!("mate {}", first_bad.0))
+                    && rendered.contains(&format!("mate {}", second_bad.0)),
+                "and both are in the one message: {rendered:?}"
+            );
         }
-        other => panic!("expected the first refusal raised, got {other:?}"),
+        other => panic!("expected every refusal raised, got {other:?}"),
     }
 }

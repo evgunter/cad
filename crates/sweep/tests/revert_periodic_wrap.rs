@@ -132,7 +132,7 @@ fn wrapping_loops(body: &Body<f64>) -> Vec<LoopKey> {
 
 /// What `chart_boundary` answers for every face of `body`, by result
 /// KIND (`Ok`, or which refusal variant), in face order. Its closure
-/// lever is `azimuth_arm` at the FIRST edge's entry, so the anchor move
+/// lever is `chart_u_arm` at the FIRST edge's entry, so the anchor move
 /// changes where a refusal would fire; this reader is what pins that
 /// it does not change whether one fires.
 fn boundary_kinds(body: &Body<f64>) -> Vec<(FaceKey, Result<(), Discriminant<PcurveMintError>>)> {

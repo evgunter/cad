@@ -2,9 +2,10 @@
 id: frame-module-has-eight-concerns-and-no-holds-row
 kind: issue
 title: frame.rs holds eight concerns, its header describes three, and it has no Holds row in the viewer README
-status: open
+status: closed
 opened: 2026-09-04
 refs: [opoutcome-superseded-has-no-production-reader, four-badges-five-spellings]
+closed: 2026-09-16
 ---
 
 Found by the VIEW-6 review (2026-09-04), which added the ninth
@@ -204,3 +205,55 @@ replayable".
 Evidence for the split, not a task. Nothing here asks a lane to move
 it.
 
+
+## The split is taken, and the ledger's last entry (2026-09-16)
+
+984 lines when this was filed, 1,131 at #1886, 2,037 at #1933, 2,298 at
+#1957, 2,475 at #2026, 2,536 after the `dialog_status` deletion, 2,996
+when the rule above was written. **After the cut: `frame.rs` 2,583,
+`platform.rs` 257, `idpass.rs` 254** — 3,094 over three files against
+2,996 over one, the difference being two module headers, two `use`
+blocks and three doc links that had to be spelled across the new
+boundary. Nothing was deleted and no behaviour changed.
+
+**The membership, checked rather than taken.** The ruling's two OUT
+sets are right about what leaves; the item's own lists under them were
+not complete, and one of its numbers was never true.
+
+- **The span is wrong at the merge base, not merely stale.**
+  *"`crates/viewer/src/frame.rs:1671-1878`"* above names
+  `/// stands for exactly as long as the policy holds the refusal.`
+  through `/// arm, and the one the chrome disables the dialogs over.`
+  on `origin/main` at `c0648077ce`. The probes run `1856-2076`: the
+  span's END lands inside `ChooserBackend`'s variants and its START is
+  two hundred lines short. A range that names the wrong opening line
+  reads as a measurement of the concern's size and is not one.
+- **Concern 4 had two members the ruling's list does not name**, and
+  they are the ones the README argues about: `Zenity` and `SessionBus`,
+  the two named readings `chooser_backend_of` ranks. They moved with
+  it; a probe's typed reading is not a per-frame policy either.
+- **`PREFS_DIR` and `PREFS_FILE`** are concern 5's and appear in
+  neither list. They moved with `prefs_path_in`, which is their only
+  reader.
+- **`NO_CHOOSER_BACKEND` is concern 4's by this item's own list and the
+  ruling's OUT list omits it. It moved**, and the reason is its own
+  doc: *"there is no status-line route beside it"* — it is the text a
+  disabled control carries, not a `Message`, so the status-line
+  vocabulary is not what it belongs to. It reads `ChooserBackend` and
+  nothing else in `frame` reads it.
+- **Concern 2 is not one function.** *"the toolbar badge for the landed
+  product — `product_badge`"* was true when written and has been false
+  since #1957: `Badge`, `Tone`, `Affordance`, `SeamSubject` and eight
+  badge doors. All stay, all are pure functions of a frame.
+- **`Progress`/`progress` belong to none of the eight.** They arrived
+  at #2055, after the list was written, and no ledger entry recorded
+  them. A pure function of `(Outstanding, bool)`; it stays, and it is
+  now named in the charter.
+
+**It closes.** Both moves this item asked for are taken — the `Holds`
+row at #1957, the split here — and the test the ruling set is met: the
+module's first sentence is now true of everything under it, and
+`crates/viewer/README.md`'s `frame` row states the exclusions rather
+than confessing it cannot cover what is there. The concerns that remain
+co-located (1, 2, 3, 7, plus `progress`) are the ones the ruling holds
+the charter true of, so there is nothing left here to keep open for.

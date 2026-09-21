@@ -14,7 +14,8 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
-use crate::verbs_shell::{boxy, brick, cut, two_void_box};
+use crate::verbs_shell::{cut, two_void_box};
+use sweep::test_support::{block, brick};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -66,10 +67,16 @@ fn shell_box(body: &Body<f64>, shell: ShellKey) -> [(f64, f64); 3] {
 #[test]
 fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     let tol = Tol::witness();
-    let outer = boxy(6.0, 4.0, 4.0);
+    let outer = block(6.0, 4.0, 4.0, Tol::witness());
     // A: x 1.0..2.5, y 0.8..1.8   B: x 2.9..4.4, y 2.3..3.3, both z 1..3.
-    let one = cut(&outer, &brick(1.0, 2.5, 0.8, 1.8, 1.0, 3.0));
-    let body = cut(&one, &brick(2.9, 4.4, 2.3, 3.3, 1.0, 3.0));
+    let one = cut(
+        &outer,
+        &brick((1.0, 2.5), (0.8, 1.8), (1.0, 3.0), Tol::witness()),
+    );
+    let body = cut(
+        &one,
+        &brick((2.9, 4.4), (2.3, 3.3), (1.0, 3.0), Tol::witness()),
+    );
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(body.shells().count(), 3, "outer plus two voids");
     let voids = void_shells(&body);
@@ -106,9 +113,15 @@ fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
 #[test]
 fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     let tol = Tol::witness();
-    let outer = boxy(6.0, 4.0, 4.0);
-    let one = cut(&outer, &brick(1.0, 2.5, -1.0, 1.8, 1.0, 3.0));
-    let body = cut(&one, &brick(2.9, 4.4, 2.3, 5.0, 1.0, 3.0));
+    let outer = block(6.0, 4.0, 4.0, Tol::witness());
+    let one = cut(
+        &outer,
+        &brick((1.0, 2.5), (-1.0, 1.8), (1.0, 3.0), Tol::witness()),
+    );
+    let body = cut(
+        &one,
+        &brick((2.9, 4.4), (2.3, 5.0), (1.0, 3.0), Tol::witness()),
+    );
     assert_eq!(body.solids().count(), 1);
     assert_eq!(body.shells().count(), 1, "notches, not voids");
 
@@ -259,10 +272,17 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
 #[test]
 fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
     let tol = Tol::witness();
-    let inner = topo::shell(&brick(2.0, 4.0, 2.0, 4.0, 2.0, 4.0), 0.25, tol)
-        .expect("the small box shells")
-        .body;
-    let body = cut(&brick(0.0, 6.0, 0.0, 6.0, 0.0, 6.0), &inner);
+    let inner = topo::shell(
+        &brick((2.0, 4.0), (2.0, 4.0), (2.0, 4.0), Tol::witness()),
+        0.25,
+        tol,
+    )
+    .expect("the small box shells")
+    .body;
+    let body = cut(
+        &brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness()),
+        &inner,
+    );
     assert_eq!(body.solids().count(), 1, "one solid");
     assert_eq!(body.shells().count(), 3, "three shells in it");
     let roles = topo::classify_shells(&body, tol).expect("classifies");
@@ -353,7 +373,7 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
 #[test]
 fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
     let tol = Tol::witness();
-    let mut body = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, tol)
+    let mut body = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, tol)
         .expect("the box hollows")
         .body;
     let voids = void_shells(&body);

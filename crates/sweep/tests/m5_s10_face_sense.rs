@@ -1,7 +1,8 @@
 //! M5 S10 acceptance: the face orientation bit (`topo::Face::sense`).
 //!
 //! S10 landed the ratified fix for PR 9c's contract gap — a face's
-//! outward normal is its surface's chart normal times `sense_sign`,
+//! outward normal is its surface's chart normal negated where `sense`
+//! is `false`,
 //! rather than the chart normal outright. At S10 every constructor
 //! still minted `sense: true`; what the acceptance rows prove is that
 //! the outward-normal consumers **actually read the bit**. Since M5
@@ -19,8 +20,8 @@
 //! it noticed.
 //!
 //! **Tolerance shape.** These rows are STRUCTURAL, in the sense of the
-//! `PartialSphereFace` precedent (M5 PR 9c): `sense_sign` is a `±1`
-//! selected by a `bool`, never a decided quantity, so no row here has
+//! `PartialSphereFace` precedent (M5 PR 9c): the sense is a `bool`
+//! selecting a negation, never a decided quantity, so no row here has
 //! an ε-relative margin to sweep — the discriminations are exact
 //! arithmetic sign changes and typed refusals. Where a row does need a
 //! numeric comparison it is against an ANALYTIC constant with a
@@ -28,6 +29,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::pellet;
 use crate::revolve_common;
 
 use core::f64::consts::{FRAC_PI_8, PI};
@@ -83,7 +85,7 @@ fn first_face(body: &Body<f64>) -> FaceKey {
 /// material. `props/curved.rs` used to hardcode `s_f = +1` there,
 /// justified by "M2 sweeps emit single outward shells only". S10 makes
 /// an inward band representable, so the hardcode became
-/// `s_f = sense_sign` — and this row is what proves it is read.
+/// the face's `sense` bit — and this row is what proves it is read.
 ///
 /// With both bands outward the ball meters `4π/3`. Flip ONE band's
 /// sense and that band's anchored term changes sign; since the sphere
@@ -288,7 +290,7 @@ fn mixed_turn_arcs() -> sweep::Extruded<f64> {
 ///    `|interior probe − axis| > radius`) carries `sense: false`;
 ///    every other wall of the fixture keeps `true`.
 /// 2. **Consequence**: `point_in_solid` — whose cylinder door reads
-///    `sense_sign · chart normal` as outward — now reports `Out`
+///    the chart normal with `sense` folded in as outward — now reports `Out`
 ///    throughout the notch the concave arc cuts. At `x = 1` the true
 ///    boundary is `y = 2.5 − √2 ≈ 1.0858`; before S11 the door did
 ///    not turn over until `y ≈ 1.5`.
@@ -352,30 +354,6 @@ fn fixed_concave_arc_wall_sense_is_false() {
     );
 }
 
-/// A small cuboid strictly inside the concave notch — `x ∈ [0.9, 1.1]`,
-/// `y ∈ [1.25, 1.35]`, `z ∈ [0.3, 0.7]`, volume `0.2·0.1·0.4 = 0.008`.
-/// Every point of it is genuinely OUTSIDE `mixed_turn_arcs` (the notch
-/// floor at `x = 1` is `y ≈ 1.0858`), so the two solids are disjoint.
-fn pellet() -> Body<f64> {
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(0.9, 1.25),
-        p2(1.1, 1.25),
-        p2(1.1, 1.35),
-        p2(0.9, 1.35),
-    ]);
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, 0.3),
-        geom_core::Vec3::new(1.0, 0.0, 0.0),
-        geom_core::Vec3::new(0.0, 1.0, 0.0),
-    );
-    let vp = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body
-}
-
 /// **Construction row (M5 S11, e2e half — flipped from S10's
 /// finding, per its own flip instruction).**
 ///
@@ -391,7 +369,7 @@ fn pellet() -> Body<f64> {
 #[test]
 fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
     let a = mixed_turn_arcs().body;
-    let b = pellet();
+    let b = pellet::<f64>();
     let vol_a = topo::props::mass_properties(&a, Tol::witness())
         .unwrap()
         .volume;

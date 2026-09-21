@@ -19,20 +19,18 @@ use topo::{
     validate_pseudomanifold,
 };
 
-use crate::common;
-use common::brick;
 use geom_core::Tol;
 
 /// A pocketed die: `[x0,x0+1]³` minus a centered 0.5×0.5×0.5 pocket
 /// opening through the TOP face (cutter overshoots above). Exact
 /// volume 0.875.
+///
+/// The operands are the kernel's own — `step-export`'s suites build the
+/// same die from the same door — and the boolean is done here because
+/// what this row measures is the RESULT's contact lists, which a
+/// body-returning fixture cannot hand back.
 fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
-    let cube = brick((x0, x0 + 1.0), (y0, y0 + 1.0), (z0, z0 + 1.0));
-    let cutter = brick(
-        (x0 + 0.25, x0 + 0.75),
-        (y0 + 0.25, y0 + 0.75),
-        (z0 + 0.5, z0 + 1.5),
-    );
+    let (cube, cutter) = sweep::test_support::pocket_die_parts(x0, y0, z0, Tol::witness());
     let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };

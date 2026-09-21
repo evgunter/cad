@@ -20,7 +20,7 @@ use crate::common;
 
 use std::f64::consts::PI;
 
-use common::{FREECAD_FIXTURES, census, freecad_fixture};
+use common::{FREECAD_FIXTURES, arena_census, freecad_fixture};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
@@ -348,7 +348,7 @@ fn foreign_corpus() {
     for name in FREECAD_FIXTURES {
         let (body, _eps, normalizations) = freecad_body(name);
         let e = expect(name);
-        assert_eq!(census(&body), e.census, "{name}: census");
+        assert_eq!(arena_census(&body), e.census, "{name}: census");
         assert_eq!(
             normalizations.len(),
             e.normalizations,
@@ -493,8 +493,8 @@ fn cross_dialect_fixed_point() {
             panic!("{name}: re-import lost the solid");
         };
         assert_eq!(
-            census(&body1),
-            census(&body2),
+            arena_census(&body1),
+            arena_census(&body2),
             "{name}: census identical across the adoption pass"
         );
         let export2 = step_export::step_string(&body2, &options, Tol::witness())
@@ -902,8 +902,8 @@ fn refusals_survive_the_dialect_relaxations() {
         panic!("both are solids");
     };
     assert_eq!(
-        census(a),
-        census(b),
+        arena_census(a),
+        arena_census(b),
         "the same edge said the other way round is the same edge"
     );
     assert_eq!(
@@ -929,7 +929,11 @@ fn refusals_survive_the_dialect_relaxations() {
     let StepImport::Solid { body: c, .. } = &rescaled else {
         panic!("a solid");
     };
-    assert_eq!(census(a), census(c), "the magnitude changes no topology");
+    assert_eq!(
+        arena_census(a),
+        arena_census(c),
+        "the magnitude changes no topology"
+    );
     assert_eq!(volume_mm3(a), volume_mm3(c), "and moves no geometry");
     // What still refuses: a magnitude that is not a positive scale.
     for bad in ["0.", "-1.", "1.E400"] {
@@ -998,8 +1002,8 @@ fn refusals_survive_the_dialect_relaxations() {
         panic!("a solid");
     };
     assert_eq!(
-        census(base),
-        census(moved),
+        arena_census(base),
+        arena_census(moved),
         "a rigid placement moves a body, it does not re-shape one"
     );
     assert!(
@@ -1031,8 +1035,8 @@ fn refusals_survive_the_dialect_relaxations() {
         panic!("a solid");
     };
     assert_eq!(
-        census(base),
-        census(split),
+        arena_census(base),
+        arena_census(split),
         "placing one component of two re-shapes neither"
     );
     // The evidence that the frames landed on the RIGHT components:
@@ -1077,7 +1081,11 @@ fn refusals_survive_the_dialect_relaxations() {
     else {
         panic!("a solid");
     };
-    assert_eq!(census(base), census(instanced), "still the same two bodies");
+    assert_eq!(
+        arena_census(base),
+        arena_census(instanced),
+        "still the same two bodies"
+    );
     let want: Vec<(f64, f64)> = solid_x_mm(base)
         .into_iter()
         .enumerate()

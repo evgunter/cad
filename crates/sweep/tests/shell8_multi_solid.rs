@@ -15,7 +15,8 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::{block, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
 use topo::{Body, ShellError, SolidKey};
 
@@ -24,7 +25,7 @@ use crate::shell8_common::{
     beside, bits, charts_of, deep_dump, edge_rows, outer_and_void_of, points, solid_of,
     solid_of_vertex, tol, top_chart, volume,
 };
-use crate::verbs_shell::{boxy, hollow_box, v, vessel};
+use crate::verbs_shell::{hollow_box, v, vessel};
 
 // ---------------------------------------------------------------------
 // Row 2 — two disjoint boxes in one body
@@ -41,7 +42,11 @@ fn two_disjoint_boxes_each_shell_and_the_gap_between_them_never_gates() {
     let one_wall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
 
     for dx in [10.0, 2.0 + 0.05] {
-        let pair = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), dx);
+        let pair = beside(
+            &block(2.0, 3.0, 4.0, Tol::witness()),
+            &block(2.0, 3.0, 4.0, Tol::witness()),
+            dx,
+        );
         assert_eq!(pair.solids().count(), 2);
         let s = topo::shell(&pair, t, tol()).expect("both solids shell");
         let body = &s.body;
@@ -73,7 +78,7 @@ fn two_disjoint_boxes_each_shell_and_the_gap_between_them_never_gates() {
 fn a_box_beside_a_vessel_takes_one_door_each() {
     let t = 0.05;
     let (r, h) = (1.0, 2.0);
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &vessel(r, h), 10.0);
+    let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &vessel(r, h), 10.0);
     // The whole-body reading, measured: not all-planar, not axial.
     assert!(
         !topo::is_axial(&pair, band()).expect("the axis gate decides"),
@@ -102,9 +107,12 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
     let t = 0.05;
     let (big_r, r) = (2.0, 0.5);
     let torus = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol(),
+        ),
         big_r,
         TubeWindow::Full,
         r,
@@ -112,7 +120,7 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
     )
     .expect("the solid torus builds")
     .body;
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &torus, 20.0);
+    let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &torus, 20.0);
     let s = topo::shell(&pair, t, tol()).expect("each solid takes its own door");
     let body = &s.body;
     let want = (v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t))
@@ -139,7 +147,7 @@ fn a_box_beside_a_full_torus_takes_one_door_each() {
 #[test]
 fn a_hollow_solid_beside_a_plain_one_gives_three_thin_solids() {
     let t = 0.05;
-    let pair = beside(&hollow_box(), &boxy(2.0, 3.0, 4.0), 10.0);
+    let pair = beside(&hollow_box(), &block(2.0, 3.0, 4.0, Tol::witness()), 10.0);
     assert_eq!(pair.solids().count(), 2);
     assert_eq!(
         pair.shells().count(),
@@ -175,7 +183,11 @@ fn a_hollow_solid_beside_a_plain_one_gives_three_thin_solids() {
 #[test]
 fn designations_land_on_whichever_solid_carries_them() {
     let t = 0.05;
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);
+    let pair = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let lid = |i: usize| top_chart(&pair, solids[i], 4.0);
     let one_wall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
@@ -229,7 +241,11 @@ fn designations_land_on_whichever_solid_carries_them() {
 /// re-author all stay inside the named solid.
 #[test]
 fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &boxy(2.0, 3.0, 4.0), 10.0);
+    let pair = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let moves = |body: &Body<f64>, solid: SolidKey, d: f64| -> Vec<topo::ChartMove<f64>> {
         charts_of(body, solid)

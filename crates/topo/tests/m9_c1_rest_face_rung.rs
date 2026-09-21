@@ -32,8 +32,8 @@ use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, Validatio
 /// faces the seat's mate would name — the post's top cap and the
 /// shelf's underside.
 fn seat(post: &[(f64, f64)], shelf: &[(f64, f64)]) -> (Body<f64>, FaceKey, FaceKey) {
-    let post: common::Prism<f64> = common::prism_z(post, 0.0, 0.5);
-    let shelf: common::Prism<f64> = common::prism_z(shelf, 0.5, 0.54);
+    let post: common::Prism<f64> = common::prism_z(post, 0.0, 0.5, Tol::witness());
+    let shelf: common::Prism<f64> = common::prism_z(shelf, 0.5, 0.54, Tol::witness());
     let mut body = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();

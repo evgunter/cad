@@ -1,16 +1,15 @@
 //! **R2 review probes for BOOL-12's wire spelling** (PR #1573, frozen
 //! head 50740f96).
 //!
-//! The unit adds `ProgramTarget::StartArriving` / `WireTarget::StartArriving`
-//! and their two-member `Arrival` mirrors, plus content-key tags 43/44.
+//! The unit adds `ProgramTarget::StartArriving` and its two-member
+//! `Arrival` mirrors, plus content-key tags 43/44.
 //! No row in the tree constructs one: `switch_program_vocabulary`'s
 //! corpus carries `ProgramTarget::Start` and `ProgramTarget::Point` only
 //! (its census is over `Verb::ALL`, and there is no target census), the
 //! checked-in `.pncad` documents are byte-identical because none of them
 //! authors the new target, and the profile-side coverage corpus never
-//! reaches this crate. So `from_target` / `into_target`, the serde
-//! derives on `WireArrival`, `arrival` / `arrival_lit` and the two new
-//! tags are compiled but never executed.
+//! reaches this crate. So the target form's serde, `arrival` /
+//! `arrival_lit` and the two new tags are compiled but never executed.
 //!
 //! These rows execute them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

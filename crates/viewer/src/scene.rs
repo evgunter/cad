@@ -37,6 +37,16 @@ use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
 use pncad::topo::Body;
 
+/// Millimetres per world unit — the one factor the δ render and the δ
+/// door both read.
+///
+/// **Spelled once because the two have to agree.**
+/// [`DisplayTolerance::new`] refuses a δ whose millimetre value is not
+/// an `f64` and [`DisplayTolerance::render_mm`] forms that value; a
+/// second literal at either site would be a bound on one number
+/// guarding a conversion by another.
+pub const MM_PER_METRE: f64 = 1.0e3;
+
 /// The chordal display tolerance δ: how far the drawn triangles may
 /// sag from the exact surfaces.
 ///
@@ -47,13 +57,30 @@ use pncad::topo::Body;
 pub struct DisplayTolerance(f64);
 
 impl DisplayTolerance {
-    /// A display tolerance, refused unless finite and strictly
-    /// positive.
+    /// A display tolerance, refused unless it is a finite, strictly
+    /// positive length whose millimetre value is a finite number too.
     ///
-    /// **What this door checks is exactly that, and no more.** It is
-    /// `mesh::tessellate`'s `InvalidChordalTolerance` condition —
+    /// **Two conditions, and they answer different questions.** The
+    /// first is `mesh::tessellate`'s `InvalidChordalTolerance` —
     /// `chordal.is_finite() && chordal > 0.0` — hoisted so a caller
-    /// meets it once at construction rather than at every call.
+    /// meets it once at construction rather than at every call. The
+    /// second is this crate's own: a δ whose millimetre value is not an
+    /// `f64` has no reading, and [`DisplayTolerance::render_mm`]
+    /// multiplies by [`MM_PER_METRE`] before any spelling is chosen, so
+    /// such a δ used to render as `inf` — not a δ this door accepts,
+    /// and infinitely far from the value. No text repairs that, because
+    /// the millimetre value does not exist; the door is the only place
+    /// the render's domain can be made total, and
+    /// [`SceneError::DisplayToleranceOverflowsMillimetres`] is what it
+    /// says instead.
+    ///
+    /// **The bound takes nothing a person could have typed.** The δ
+    /// field parses millimetres and commits `mm * 1.0e-3`
+    /// (`crate::pane::view`'s `delta_field`), so the coarsest δ it can
+    /// name is `f64::MAX * 1.0e-3` — which is exactly the coarsest δ
+    /// whose millimetre product is finite.
+    /// `the_door_refuses_a_delta_whose_millimetre_value_is_not_one`
+    /// measures that the two coincide rather than restating it.
     ///
     /// **What it does NOT foreclose**, stated because the first
     /// version of this sentence implied it did: a δ that is a valid
@@ -71,13 +98,17 @@ impl DisplayTolerance {
     /// # Errors
     ///
     /// [`SceneError::InvalidDisplayTolerance`] for a δ that is not a
-    /// finite, strictly positive length.
+    /// finite, strictly positive length;
+    /// [`SceneError::DisplayToleranceOverflowsMillimetres`] for one
+    /// that is, but whose millimetre value is not.
     pub fn new(delta: f64) -> Result<Self, SceneError> {
-        if delta.is_finite() && delta > 0.0 {
-            Ok(Self(delta))
-        } else {
-            Err(SceneError::InvalidDisplayTolerance { delta })
+        if !delta.is_finite() || delta <= 0.0 {
+            return Err(SceneError::InvalidDisplayTolerance { delta });
         }
+        if !(delta * MM_PER_METRE).is_finite() {
+            return Err(SceneError::DisplayToleranceOverflowsMillimetres { delta });
+        }
+        Ok(Self(delta))
     }
 
     /// The value, in world units.
@@ -93,6 +124,12 @@ impl DisplayTolerance {
     /// one when no decimal spelling does. What this method adds is the
     /// millimetre conversion the δ field's own commit path uses, and
     /// nothing else.
+    ///
+    /// **The conversion is total on this type**, which is the door's
+    /// doing rather than this method's: [`DisplayTolerance::new`]
+    /// refuses a δ whose millimetre value is not an `f64`, so the
+    /// product below is finite for every δ that reaches here and
+    /// [`crate::readout::number`] never sees a value with no reading.
     ///
     /// **No δ renders as `0.000`.** The rule refuses it without knowing
     /// anything about δ: a text reading zero is a hundred percent away
@@ -111,7 +148,7 @@ impl DisplayTolerance {
     /// and never a commit path: the number a δ moves to is the one a
     /// user types, never one the chrome echoed at them.
     pub fn render_mm(self) -> String {
-        crate::readout::number(self.0 * 1.0e3)
+        crate::readout::number(self.0 * MM_PER_METRE)
     }
 
     /// This tolerance scaled by `factor` — the coarsen/refine step the
@@ -119,7 +156,10 @@ impl DisplayTolerance {
     ///
     /// # Errors
     ///
-    /// As [`DisplayTolerance::new`], on the product.
+    /// As [`DisplayTolerance::new`], on the product — including its
+    /// millimetre bound, so a coarsening of a δ already within a factor
+    /// of the coarsest refuses rather than producing one no reading
+    /// names.
     pub fn scaled(self, factor: f64) -> Result<Self, SceneError> {
         Self::new(self.0 * factor)
     }
@@ -132,6 +172,21 @@ pub enum SceneError {
     /// δ was not a finite, strictly positive length.
     InvalidDisplayTolerance {
         /// The offending value.
+        delta: f64,
+    },
+    /// δ was a length, but so coarse that its millimetre value is not
+    /// an `f64` — so nothing this crate could write would name it.
+    ///
+    /// Its own arm because it is a different fact from
+    /// [`SceneError::InvalidDisplayTolerance`]: this δ IS finite and
+    /// strictly positive, and `mesh::tessellate` would take it. What
+    /// refuses it is the reading rather than the tessellation — the δ a
+    /// person sees and types is in millimetres
+    /// ([`DisplayTolerance::render_mm`]), and past `f64::MAX` divided by
+    /// [`MM_PER_METRE`] there is no millimetre value to show or to type
+    /// back.
+    DisplayToleranceOverflowsMillimetres {
+        /// The offending value, in world units.
         delta: f64,
     },
     /// The document's roots did not gather into a product body: a
@@ -185,6 +240,16 @@ impl core::fmt::Display for SceneError {
                 f,
                 "{delta} is not a finite, strictly positive display tolerance"
             ),
+            // Scientific, and not the plain `Display` the arm above
+            // uses: every value that reaches this arm is within three
+            // decades of `f64::MAX`, so `{delta}` is three hundred
+            // digits of decimal expansion — a sentence nobody can read,
+            // about a number nobody can read.
+            Self::DisplayToleranceOverflowsMillimetres { delta } => write!(
+                f,
+                "{delta:e} is past the coarsest display tolerance this viewer can read: \
+                 its value in millimetres is not a finite number"
+            ),
             Self::NoProduct(error) => write!(f, "{error}"),
             Self::NotTessellated(error) => {
                 write!(
@@ -218,6 +283,15 @@ impl core::error::Error for SceneError {}
 /// The buffers are `f32` because that is what a GPU consumes; every
 /// decision above them was taken at `f64` (D2's precision boundary
 /// sits at the display seam, not inside it).
+///
+/// **Non-indexed geometry.** Every triangle emits its own three
+/// corners carrying its own face normal, so no corner is ever shared
+/// and there is no permutation for a draw to go through: a pass over
+/// this scene draws [`SceneMesh::positions`]`.len()` vertices in the
+/// order they were emitted. A welded build — shared corners, normals
+/// averaged across the triangles that meet at one — would be a
+/// different walk producing different corners, and it is that walk
+/// which would mint the index buffer such a scene needs.
 #[derive(Clone, Debug)]
 pub struct SceneMesh {
     /// One entry per triangle corner: three per triangle, never
@@ -226,9 +300,6 @@ pub struct SceneMesh {
     /// The owning triangle's outward unit normal, repeated per
     /// corner.
     normals: Vec<[f32; 3]>,
-    /// `0, 1, 2, …` — kept explicit so the draw call is an indexed
-    /// one and a future welded build changes only this module.
-    indices: Vec<u32>,
     /// The id of the patch each corner belongs to, parallel to
     /// [`SceneMesh::positions`]. `IdMap::NOTHING` for a corner drawn
     /// from a part that carries no ids.
@@ -330,7 +401,6 @@ impl SceneMesh {
         Self {
             positions: Vec::new(),
             normals: Vec::new(),
-            indices: Vec::new(),
             ids: Vec::new(),
             flags: Vec::new(),
             bounds,
@@ -526,7 +596,6 @@ impl SceneMesh {
                 }
             }
         }
-        let indices = (0..positions.len() as u32).collect();
         let bounds = Aabb::from_points(parts.iter().flat_map(|part| {
             let map: Option<Affine3<f64>> = part.probe.map(|frame| frame.affine());
             part.mesh
@@ -538,7 +607,6 @@ impl SceneMesh {
         Ok(Self {
             positions,
             normals,
-            indices,
             ids,
             flags,
             bounds,
@@ -552,7 +620,9 @@ impl SceneMesh {
         })
     }
 
-    /// Triangle-corner positions, one per index.
+    /// Triangle-corner positions: three per triangle, in draw order.
+    /// Their count is the number of vertices one pass over this scene
+    /// draws.
     pub fn positions(&self) -> &[[f32; 3]] {
         &self.positions
     }
@@ -561,11 +631,6 @@ impl SceneMesh {
     /// [`SceneMesh::positions`].
     pub fn normals(&self) -> &[[f32; 3]] {
         &self.normals
-    }
-
-    /// The index buffer.
-    pub fn indices(&self) -> &[u32] {
-        &self.indices
     }
 
     /// The per-corner patch ids, parallel to
@@ -1328,7 +1393,16 @@ fn insert(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
-    let applied = apply(&doc, &DocEdit::InsertNode { node }, tol).map_err(SceneDocError::Edit)?;
+    // The scene's document has no instance and no mate, so no edit
+    // here can move a cluster's gauge: the refusing reach is never
+    // asked.
+    let applied = apply(
+        &doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .map_err(SceneDocError::Edit)?;
     let minted = applied.record.minted.ok_or(SceneDocError::NoNodeMinted)?;
     Ok((applied.doc, minted))
 }

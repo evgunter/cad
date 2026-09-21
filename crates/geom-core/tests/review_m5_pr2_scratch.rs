@@ -45,6 +45,7 @@ test_utils::gated_to![
 ];
 
 use geom_core::RingInterval;
+use geom_core::exact::two_sum;
 use std::cmp::Ordering;
 use test_utils::fuzz;
 
@@ -186,20 +187,6 @@ fn cmp_x_vs_quot(x: f64, a: f64, b: f64) -> Ordering {
     if b < 0.0 { ord.reverse() } else { ord }
 }
 
-/// The exact error of a rounded sum: `a + b == s + two_sum_err(a, b, s)`
-/// exactly, for finite `s` (valid with no underflow caveat).
-fn two_sum_err(a: f64, b: f64, s: f64) -> f64 {
-    let bv = s - a;
-    let av = s - bv;
-    (a - av) + (b - bv)
-}
-
-/// One exact TwoSum: returns `(sum, err)` with `sum + err == a + b`.
-fn two_sum(a: f64, b: f64) -> (f64, f64) {
-    let s = a + b;
-    (s, two_sum_err(a, b, s))
-}
-
 /// Exact ordering of a bound `x` against the true real `a + b`
 /// (TwoSum distillation; module docs). `sub` negates `b` first — `f64`
 /// negation is exact, so subtraction needs no separate comparator.
@@ -210,17 +197,17 @@ fn cmp_x_vs_sum(x: f64, a: f64, b: f64) -> Ordering {
     if x == f64::NEG_INFINITY {
         return Ordering::Less;
     }
-    let s = a + b;
+    let (s, e) = two_sum(a, b);
     if !s.is_finite() {
         // Overflow decides: the true sum's magnitude exceeds MAX, so any
-        // finite bound lies on the near side of it.
+        // finite bound lies on the near side of it. (`e` is a NaN here
+        // and is not read.)
         return if s > 0.0 {
             Ordering::Less
         } else {
             Ordering::Greater
         };
     }
-    let e = two_sum_err(a, b, s);
     // GROW-EXPANSION of the nonoverlapping [-e, -s] by x: the result
     // [h0, h1, q] is nonoverlapping and sums to x - (a+b) exactly.
     let (q1, h0) = two_sum(x, -e);

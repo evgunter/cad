@@ -36,13 +36,13 @@ use pncad::topo::{Body, BooleanBody, BooleanResult, validate_pseudomanifold};
 use crate::booleans::{check, expect_seamed, try_intersect};
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::authoring::{p3, polygon, v3, validated};
-use pncad::geom_core::Tol;
+use pncad::authoring::{p3, polygon, validated};
+use pncad::geom_core::{OrthoFrame, Tol};
 
 /// "H" sketch: xy plane at z = -0.25, extruded 3.5 (z ∈ [-0.25, 3.25] —
 /// covering the full-height T).
 fn h_prism<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(p3(0.0, 0.0, -0.25), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, -0.25)));
     let outline = polygon(poly, tol).expect("letterform outline");
     extrude(
         &validated(plane, vec![outline], tol).expect("letterform profile"),
@@ -55,7 +55,7 @@ fn h_prism<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> Body<S> {
 
 /// "T" sketch: yz plane at x = -0.25, extruded 2.5 (x ∈ [-0.25, 2.25]).
 fn t_prism<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(p3(-0.25, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0));
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(p3(-0.25, 0.0, 0.0)));
     let outline = polygon(poly, tol).expect("letterform outline");
     extrude(
         &validated(plane, vec![outline], tol).expect("letterform profile"),
@@ -79,7 +79,7 @@ fn t_prism<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> Body<S> {
 /// H's full-height left column, and its top arm spans every x at the
 /// T-bar band.
 fn c_prism<S: Scalar>(tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(p3(0.0, -0.5, 0.0), v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0));
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(p3(0.0, -0.5, 0.0)));
     // (z, x), counterclockwise; right-opening notch makes the C.
     let poly = [
         (0.1875, -0.0625),

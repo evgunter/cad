@@ -11,14 +11,59 @@ use eframe::egui;
 use crate::app::{ViewerBehavior, chrome, to_f32};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
-use crate::frame::{self, IdStep};
+use crate::frame;
 use crate::gpu::{IdQuery, ViewportCallback};
+use crate::idpass::{self, IdStep};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
 use crate::pickcache;
-use crate::pickindex::PickIndex;
+use crate::pickindex::{PickIndex, PictureKey};
 use crate::session::SessionOp;
-use crate::sketch::{heading, tip_mark};
+use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
+
+/// **One sketch-plane segment, placed and appended to an overlay lane**
+/// as the line-list pair the edge pass draws.
+fn push_segment(
+    lane: &mut Vec<[f32; 3]>,
+    plane: &pncad::profile::SketchPlane<f64>,
+    a: [f64; 2],
+    b: [f64; 2],
+) {
+    for [x, y] in [a, b] {
+        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
+        lane.push([world.x as f32, world.y as f32, world.z as f32]);
+    }
+}
+
+/// **One drawn loop, placed on its plane and appended to a lane.**
+///
+/// A CLOSED loop's segment list wraps — the last point joins the
+/// first, which is the same thing `ProfileLoop` means by being closed
+/// by construction. An OPEN one's must not: the leg back to the start
+/// is the provisional close `sketch::preview` walked the chain under
+/// and nobody authored, so the wrap is dropped and what is drawn is the
+/// authored legs exactly. That is the whole of "a path draws while it
+/// is still being written".
+fn push_loop(
+    lane: &mut Vec<[f32; 3]>,
+    plane: &pncad::profile::SketchPlane<f64>,
+    polyline: &PreviewLoop,
+) {
+    let points = &polyline.points;
+    let segments = if polyline.closed {
+        points.len()
+    } else {
+        points.len().saturating_sub(1)
+    };
+    for index in 0..segments {
+        push_segment(
+            lane,
+            plane,
+            points[index],
+            points[(index + 1) % points.len()],
+        );
+    }
+}
 
 /// Land a fold: take the camera it reached, and show the refusal that
 /// stopped it.
@@ -46,6 +91,61 @@ pub(crate) fn land(
     // sentence and reaches the field directly, because a notice cannot
     // un-say anything.
     frame::deliver(notices, status, frame::fold_status(folded));
+}
+
+/// The index the picture on screen was drawn FROM, or `None` when the
+/// index in hand describes some other picture.
+///
+/// # Why a read of the index can need this and not the evaluation
+///
+/// `ViewerBehavior::index` is the index for the document the session
+/// has landed. `ViewerBehavior::scene` is the mesh of whatever picture
+/// last succeeded in being built, which is the same thing on almost
+/// every frame and is NOT the same thing whenever a scene rebuild
+/// refused: `ViewerApp::sync_scene` marks the pair current only on
+/// success, so a landed index over a refused rebuild leaves a new index
+/// beside an older picture, and nothing retries while the display and
+/// the focus hold still.
+///
+/// Three reads care. Two of them have a pick **id** for their
+/// currency:
+///
+/// - resolving an id the id pass produced, which is a word of the id
+///   map of whichever index minted the picture's corners; and
+/// - minting ids or world-space segments for the picture to draw over
+///   itself, where the shader compares them against those same
+///   corners.
+///
+/// Both are false-by-construction across two pictures, and the first
+/// writes its falsehood to the status line as *the two picking paths
+/// disagree* — a sentence issue #1097 §4 tells an operator to read as
+/// an `R32Uint` clear fault, so a wrong subsystem gets named.
+///
+/// The third is the **pick**, and it asks for a different reason.
+///
+/// **The whole key, not the generation.** An index is keyed by a
+/// [`PictureKey`] and so is its id map: a δ typed while the picture
+/// stands rebuilds the index at the same generation, over a different
+/// tessellation, with a different alphabet. A generation-only check
+/// reads as co-identity and is not it, so the question goes to
+/// [`PickIndex::current_for`], the one door that answers *does this
+/// index describe this picture* — and the key is one value, so that
+/// door cannot be handed half of it.
+///
+/// **The pick path asks too, and what it does on `None` is
+/// different.** A click asks what is under the cursor in the
+/// DOCUMENT, and resolves it through the index and the evaluation
+/// with no id and no mesh in sight — so nothing about it is false by
+/// construction, and the reason it is gated is a product ruling
+/// rather than a correctness one: an answer about geometry the screen
+/// is not showing selects something the user cannot see, and Ev ruled
+/// on 2026-09-15 that the click is refused instead. The picture-side
+/// reads skip silently on `None`, because a mark nobody can draw is
+/// nothing to say; the pick path refuses TYPED, because a click is an
+/// act the user made and got nothing for
+/// ([`crate::pickcache::NotIndexed::AnotherPicture`]).
+fn drawn_index(index: Option<&PickIndex>, scene_key: Option<PictureKey>) -> Option<&PickIndex> {
+    index.filter(|index| index.current_for(scene_key))
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -112,6 +212,106 @@ fn egui_buttons() -> [egui::PointerButton; egui::NUM_POINTER_BUTTONS] {
         egui::PointerButton::Extra1,
         egui::PointerButton::Extra2,
     ]
+}
+
+/// Which modifier keys this viewport binds, in the order
+/// [`ViewportEvent::Drag`] carries them: shift, then alt.
+///
+/// **The one place the toolkit's modifier state meets the viewer's**,
+/// and — with [`scroll_event`], which is the other half of the same
+/// decision — the place that says what this adapter reads of a frame's
+/// pointer state and what it drops. The toolkit offers five modifier
+/// fields and two scroll axes; this viewport binds two of the five and
+/// one of the two, and the parts it does not bind are named here and
+/// discarded rather than never mentioned, because a part an adapter
+/// leaves out is indistinguishable downstream from a part nobody
+/// touched.
+///
+/// **Two, because [`input::InputMap`] has two to bind**: `alt`, which
+/// turns [`input::InputMap::alt_orbit_button`]'s drag into an orbit
+/// (the trackpad binding), and `shift`, which turns the orbit binding
+/// into a pan. `ctrl`, `command` and `mac_cmd` are not gestures in
+/// this viewport — no binding field, preset or preferences key names
+/// one, and [`ViewportEvent::Drag`] carries a bare `shift` and a bare
+/// `alt` and nothing else, so a ctrl-drag is a plain drag at every
+/// reader downstream. Binding one arrives the way a side button's
+/// would ([`viewer_button`]): a field on [`ViewportEvent::Drag`] that
+/// can carry it, a binding that can name it, and a pattern here that
+/// stops discarding it.
+///
+/// **The compiler holds the SET.** `egui::Modifiers` is a plain struct
+/// and not `#[non_exhaustive]`, so a pattern over it must mention
+/// every field the toolkit declares: the day egui grows a sixth
+/// modifier this stops compiling, and someone answers for it in
+/// writing. **A stop rather than a wall** — the error names the
+/// missing field and offers `..` among its repairs, so what it buys is
+/// that the answer is given HERE, on the day the field appears,
+/// instead of being given by omission. It is the struct's form of the
+/// exhaustive match
+/// [`viewer_button`] makes over the toolkit's button enum, and it
+/// fires at the same moment — a version bump, the only moment either
+/// set can change. **It holds the set and nothing else**: which field
+/// lands in which half of the returned pair is a naming decision with
+/// nothing to derive it from, and swapping the two type-checks while
+/// inverting every modified drag in the viewer.
+/// `tests::a_drag_carries_the_two_modifiers_this_viewport_binds` is
+/// what makes that edit red.
+fn viewer_modifiers(modifiers: egui::Modifiers) -> (bool, bool) {
+    let egui::Modifiers {
+        shift,
+        alt,
+        ctrl: _,
+        mac_cmd: _,
+        command: _,
+    } = modifiers;
+    (shift, alt)
+}
+
+/// The scroll event this frame's wheel denotes, or `None` when the
+/// wheel turned in no direction this viewport binds.
+///
+/// The other half of [`viewer_modifiers`]' decision: of the toolkit's
+/// two scroll axes this viewport reads `y`, which
+/// [`input::InputMap::map`] reads as the one binding a scroll has —
+/// zoom.
+///
+/// **`x` is dropped because the viewer has no horizontal gesture.** A
+/// positive `x` is content moving right: a trackpad's sideways swipe,
+/// a tilt wheel, and shift+wheel on an ordinary mouse, which the
+/// toolkit folds onto that axis itself (`InputOptions`'
+/// `horizontal_scroll_modifier`, SHIFT by default). Zoom being the
+/// only binding a scroll has, an `x` passed on would have to zoom, and
+/// a sideways swipe that zooms is a worse answer than one that does
+/// nothing.
+///
+/// **A ctrl+wheel reaches this function as a zero, and that is the
+/// toolkit's doing rather than this adapter's.** `InputState`'s
+/// per-frame pass routes a wheel whose modifiers match `InputOptions`'
+/// `zoom_modifier` — ctrl, ⌘ or `command`, by default — into
+/// `zoom_factor_delta`, leaving `smooth_scroll_delta` at zero. So the
+/// gesture most CAD and browser users expect to zoom produces no
+/// [`ViewportEvent`] here at all: not a plain scroll wearing a
+/// modifier this adapter drops — nothing. Reading `ctrl` above would
+/// not recover it; binding it means reading a THIRD toolkit value,
+/// which is a product decision and is
+/// `work/view/ctrl-wheel-reaches-no-zoom.md`. An alt+wheel is the one
+/// modified wheel that already works, by the same mechanism in the
+/// other direction: `vertical_scroll_modifier` folds it onto `y`, so
+/// it zooms exactly as a plain wheel does.
+///
+/// **The compiler holds both axes** the way [`viewer_modifiers`] holds
+/// the five fields — `egui::Vec2` is a plain struct, so the pattern
+/// names `x` in order to drop it. That upgrade hold is nominal, a
+/// two-axis vector being unlikely to grow a third; what the pattern
+/// buys here is that the drop is written at the site rather than
+/// implied by a field access.
+fn scroll_event(delta: egui::Vec2) -> Option<ViewportEvent> {
+    let egui::Vec2 { y: points, x: _ } = delta;
+    (points != 0.0).then(|| ViewportEvent::Scroll {
+        // egui reports scroll in points; a wheel notch is
+        // conventionally 50 of them.
+        units: f64::from(points) / 50.0,
+    })
 }
 
 /// The drag and click events this frame's pointer denotes.
@@ -192,7 +392,7 @@ impl ViewerBehavior<'_> {
             return;
         };
 
-        let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
+        let (shift, alt) = ui.input(|i| viewer_modifiers(i.modifiers));
         // The cursor, first: `hover_pos` is in screen POINTS, and the
         // viewport speaks physical pixels from the pane's own top-left
         // corner, so the two conversions happen here and everything
@@ -206,14 +406,7 @@ impl ViewerBehavior<'_> {
         });
         let mut events = button_events(&response, shift, alt, pixels_per_point, cursor_px);
         if response.hovered() {
-            let scroll = ui.input(|i| i.smooth_scroll_delta.y);
-            if scroll != 0.0 {
-                // egui reports scroll in points; a wheel notch is
-                // conventionally 50 of them.
-                events.push(ViewportEvent::Scroll {
-                    units: f64::from(scroll) / 50.0,
-                });
-            }
+            events.extend(ui.input(|i| scroll_event(i.smooth_scroll_delta)));
         }
         match cursor_px {
             Some(pos_px) => {
@@ -258,8 +451,18 @@ impl ViewerBehavior<'_> {
         // drag ran a full ray cast AND a blocking GPU readback on every
         // frame, because the app pushes a `Hover` whenever the pointer
         // is inside the pane — true of every frame of a drag.
-        let generation = self.index.map(PickIndex::generation);
-        let step = self.id_log.step(cursor_px, generation);
+        //
+        // **The subject is the pair.** What is under this cursor
+        // depends on the picture the id pass reads — which a hidden
+        // part changes without moving the generation — and on the
+        // index that resolves its ids, which a landing over a refused
+        // rebuild changes without moving the picture. `idpass::IdSubject`
+        // carries the argument for both.
+        let subject = idpass::IdSubject {
+            revision: self.revision,
+            generation: self.index.map(PickIndex::generation),
+        };
+        let step = self.id_log.step(cursor_px, subject);
         // **A cursor event retires what the cursor last said.** The id
         // log has just judged whether the outstanding pick question
         // still describes this cursor and this picture; a message
@@ -281,7 +484,15 @@ impl ViewerBehavior<'_> {
         // the one door that answers what a cursor means, so a tool
         // cannot end up on a different rule.
         let kinds = self.tools.pick_kinds();
-        if let (Some(index), Some(eval)) = (self.index, self.session.evaluation()) {
+        // **The index the PICTURE was drawn from**, which is the index
+        // in hand on every frame but the ones `drawn_index` exists for.
+        // Every read of an index below this line asks this one:
+        // the marks composited against the drawn corners' ids, the id
+        // pass's answer read back through an id map, and — since Ev's
+        // 2026-09-15 ruling — the pick itself, which would otherwise
+        // answer about geometry the screen is not showing.
+        let on_screen = drawn_index(self.index, self.scene_key);
+        if let (Some(index), Some(eval)) = (on_screen, self.session.evaluation()) {
             for action in actions {
                 // A hover over an unchanged picture at an unmoved
                 // cursor asks a question whose answer the session
@@ -299,24 +510,29 @@ impl ViewerBehavior<'_> {
                     Err(error) => self.notices.push(frame::pick_refusal(&error)),
                 }
             }
-        } else if let Some(refusal) = pickcache::unindexed(&actions, self.indexing) {
-            // **Not indexed yet is not a miss.** There is no index to
-            // ask, because one is being built on its own seam, and a
-            // click that quietly did nothing here is the fail-quiet
-            // this window's indexing indicator would otherwise be
-            // painted over.
+        } else if let Some(refusal) = pickcache::unindexed(&actions, self.index, self.indexing) {
+            // **Not indexed yet is not a miss.** There is nobody to
+            // ask about the picture on screen — no index at all while
+            // one is built on its own seam, or an index in hand that
+            // describes a rebuild nobody has seen — and a click that
+            // quietly did nothing here is the fail-quiet this window's
+            // indexing indicator would otherwise be painted over.
+            //
+            // `self.index` rather than `on_screen`: this arm is the
+            // `else` of the currency read above, so an index reaching
+            // the door is by construction one for another picture,
+            // which is the fact `pickcache::unindexed` reads the
+            // sentence from.
             self.notices.push(frame::unindexed_refusal(&refusal));
         }
 
         // What to mark, as a pure function of what is drawn and what is
         // selected. Recomputed every frame; nothing retains it.
-        let highlight = self
-            .index
+        let highlight = on_screen
             .map(|index| marks::highlight(index, self.session.selection(), self.session.hover()));
         // The edge half of the same question, and the same discipline:
         // recomputed every frame from state that lives in one place.
-        let mut edges = self
-            .index
+        let mut edges = on_screen
             .map(|index| {
                 marks::edge_overlay(
                     index,
@@ -335,10 +551,82 @@ impl ViewerBehavior<'_> {
         // body) narrowing a single selection gets — one pass over the
         // target's drawn edges, so the cost is the body's edge count
         // and not its square.
-        if let (Some(index), Some(tool)) = (self.index, self.tools.blend()) {
+        if let (Some(index), Some(tool)) = (on_screen, self.tools.blend()) {
             edges
                 .selected
                 .extend(tool.mark_segments(index, self.display));
+        }
+        // **The document's construction geometry.** Which lane is drawn
+        // over which is `marks::EdgeLane::DRAW_ORDER`'s, not the order
+        // these blocks fill them in. Sized against the VIEW
+        // (`datums::draws`): a datum has no size of its own, and one
+        // sized against the model opens into a hole the moment the
+        // camera is closer than a grid cell is wide.
+        if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
+            // **A window this camera has no view of is the projection
+            // refusal, said one step earlier and by name.** The door
+            // refuses exactly the two quantities `view_projection`
+            // refuses below — a viewport dimension that is not finite,
+            // or a viewport with no area — so every input that gets
+            // here is one the matrix would decline a hundred lines
+            // down. `aspect()` has already answered `Some` above, so
+            // the arm that actually reaches this door is a dimension
+            // that is INFINITE, and the matrix declines those by two
+            // different names: an infinite width gives an aspect of
+            // `inf` and `NotFinite { what: "aspect" }`, an infinite
+            // height an aspect of `0.0` and `UnusableBounds`. Either
+            // way the badge names an argument nobody passed; what
+            // this writes names the side of the pane that was not a
+            // number of pixels. Held in the same field for the same
+            // reason: it is true of this camera and this pane on
+            // every frame until one of them changes, which is what a
+            // badge reads.
+            let view = match datum_view(self.camera, viewport) {
+                Ok(view) => view,
+                Err(error) => {
+                    *self.projection_fault = Some(error);
+                    return;
+                }
+            };
+            let drawn = datums::draws(doc, evaluation, view);
+            // **Counted every frame, never latched.** The count is
+            // recomputed here from this frame's drawings and written
+            // back by the frame entry point whether or not this pane
+            // drew — so a viewport tabbed away reports none rather
+            // than leaving yesterday's count standing, which is the
+            // hole `work/view/projection-fault-has-no-sweeper.md`
+            // records in the field above.
+            *self.datums_vanished = drawn.vanished();
+            for drawn in drawn.drawn {
+                for point in drawn.segments {
+                    edges
+                        .datums
+                        .push([point[0] as f32, point[1] as f32, point[2] as f32]);
+                }
+            }
+        }
+        // **The profiles the document holds**, from the landed
+        // evaluation, every frame — the treatment datums get, because a
+        // profile node has no body until something extrudes it and so
+        // nothing else would draw it. Not behind the datum toggle: a
+        // profile is authored content, not construction geometry.
+        //
+        // `except`: the profile the edit door is previewing, if any
+        // ([`ViewerBehavior::profile_edited`]) — drawn by its live
+        // preview below and not also as it was committed, which would
+        // show two shapes where there is one. The create door's
+        // profile is not a node while it is composed, and comes to
+        // rest when its add is accepted (`Drafts::accepted`), so it
+        // has nothing to leave out.
+        if let Some((doc, evaluation)) = self.session.landed_pair() {
+            let committed =
+                sketch::committed(doc, evaluation, self.delta.get(), self.profile_edited);
+            *self.profiles_undrawn = committed.undrawn.len();
+            for profile in &committed.drawn {
+                for polyline in &profile.loops {
+                    push_loop(&mut edges.profiles, &profile.plane, polyline);
+                }
+            }
         }
         // **The profile being authored, drawn where it would land.**
         //
@@ -355,55 +643,27 @@ impl ViewerBehavior<'_> {
         // the form; one that replayed but does not VALIDATE draws
         // anyway, which is the case where looking at it is the whole
         // point.
-        // **The document's construction geometry**, drawn before the
-        // preview so a form composing something over a datum reads on
-        // top of it. Sized against the VIEW (`datums::draws`): a datum
-        // has no size of its own, and one sized against the model
-        // opens into a hole the moment the camera is closer than a
-        // grid cell is wide.
-        if let Some((doc, evaluation)) = self.session.landed_pair().filter(|_| *self.show_datums) {
-            for drawn in datums::draws(doc, evaluation, datum_view(self.camera, viewport)) {
-                for point in drawn.segments {
-                    edges
-                        .datums
-                        .push([point[0] as f32, point[1] as f32, point[2] as f32]);
-                }
-            }
-        }
-        if let Some(Ok(drawn)) = self.profile_preview {
+        // Both doors of the one profile editor draw the same way: the
+        // add-profile form's loops and an edit's, each where it lands.
+        let previews = self
+            .profile_previews
+            .as_ref()
+            .into_array()
+            .into_iter()
+            .filter_map(|preview| preview.as_ref()?.as_ref().ok());
+        for drawn in previews {
             let plane = drawn.plane;
-            // ONE size for every loop in the preview, from the whole
-            // picture's extent: marks that each scaled to their own
-            // loop would draw a bore's crosses smaller than its
-            // outer's for no reason a reader could name.
-            let tick = tip_mark(&drawn.loops);
+            // The marks are sized in pixels, read at each vertex's own
+            // depth — the same door the datum glyphs go through. A
+            // window this camera has no view of draws the chain and no
+            // marks; the projection refusal below is what says why.
+            let view = datum_view(self.camera, viewport).ok();
             for polyline in &drawn.loops {
                 let points = &polyline.points;
-                // A CLOSED loop's segment list wraps — the last point
-                // joins the first, which is the same thing
-                // `ProfileLoop` means by being closed by construction.
-                // An OPEN one's must not: the leg back to the start is
-                // the provisional close `sketch::preview` walked the
-                // chain under and nobody authored, so the wrap is
-                // dropped and what is drawn is the authored legs
-                // exactly. That is the whole of "a path draws while it
-                // is still being written".
-                let segments = if polyline.closed {
-                    points.len()
-                } else {
-                    points.len().saturating_sub(1)
-                };
+                push_loop(&mut edges.preview, &plane, polyline);
                 let mut segment = |a: [f64; 2], b: [f64; 2]| {
-                    for [x, y] in [a, b] {
-                        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
-                        edges
-                            .preview
-                            .push([world.x as f32, world.y as f32, world.z as f32]);
-                    }
+                    push_segment(&mut edges.preview, &plane, a, b);
                 };
-                for index in 0..segments {
-                    segment(points[index], points[(index + 1) % points.len()]);
-                }
                 // **The directed point at each step.** A tip is a
                 // position and, once a verb has bound one, a
                 // direction — the pair the lattice calls a directed
@@ -424,6 +684,12 @@ impl ViewerBehavior<'_> {
                 for &at in &polyline.vertices {
                     let here = points[at];
                     let Some([dx, dy]) = heading(points, at, polyline.closed) else {
+                        continue;
+                    };
+                    let world = plane.to_world(pncad::geom_core::Point2::new(here[0], here[1]));
+                    let Some(tick) =
+                        view.and_then(|view| view.screen_metres_at(world, TIP_MARK_PX))
+                    else {
                         continue;
                     };
                     // Both marks are drawn ACROSS the heading, never
@@ -489,20 +755,24 @@ impl ViewerBehavior<'_> {
         // freshness rule, this only declines to do the work when no
         // question is outstanding at all.
         let outstanding = self.id_log.outstanding();
-        let from_ray = outstanding.and_then(|_| {
-            let index = self.index?;
-            let eval = self.session.evaluation()?;
-            index
-                .face_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
-                .ok()
-                .flatten()
-        });
-        if let Some(report) = self.index.and_then(|index| {
-            frame::disagreement(
+        let from_ray: Vec<_> = outstanding
+            .and_then(|_| {
+                let index = on_screen?;
+                let eval = self.session.evaluation()?;
+                index
+                    .faces_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
+                    .ok()
+            })
+            .unwrap_or_default()
+            .into_iter()
+            .map(|face| face.name)
+            .collect();
+        if let Some(report) = on_screen.and_then(|index| {
+            idpass::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
-                from_ray.as_ref().map(|face| &face.name),
+                &from_ray,
             )
         }) {
             self.notices.push(report.notice());
@@ -562,12 +832,18 @@ mod tests {
 
     use eframe::egui;
 
-    use super::{button_events, egui_buttons, land, viewer_button};
+    use super::{
+        button_events, drawn_index, egui_buttons, land, scroll_event, viewer_button,
+        viewer_modifiers,
+    };
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
+    use crate::idpass;
     use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::pickcache::{self, NotIndexed};
+    use crate::pickindex::{IdMap, PickIndex, PictureKey};
     use crate::props::SlotValue;
-    use crate::scene;
+    use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
     use pncad::document::SlotId;
     use pncad::geom_core::Tol;
@@ -779,10 +1055,12 @@ mod tests {
     /// `egui` events.
     ///
     /// The viewport pane itself needs a GPU, a session and a scene;
-    /// what the rows below are about is one function of it — the
+    /// what the rows below are about is one part of it — the
     /// translation from what the toolkit says the pointer did to the
     /// vocabulary `input` consumes — so the probe allocates the same
-    /// [`egui::Sense`] over a bare `Ui` and reads that function.
+    /// [`egui::Sense`] over a bare `Ui` and reads the same three
+    /// functions [`ViewerBehavior::viewport_ui`] does:
+    /// [`viewer_modifiers`], [`button_events`] and [`scroll_event`].
     struct Pane {
         ctx: egui::Context,
     }
@@ -822,7 +1100,12 @@ mod tests {
                 let cursor_px = response
                     .hover_pos()
                     .map(|pos| [f64::from(pos.x - rect.min.x), f64::from(pos.y - rect.min.y)]);
-                *out = button_events(&response, false, false, 1.0, cursor_px);
+                let (shift, alt) = ui.input(|i| viewer_modifiers(i.modifiers));
+                let mut events = button_events(&response, shift, alt, 1.0, cursor_px);
+                if response.hovered() {
+                    events.extend(ui.input(|i| scroll_event(i.smooth_scroll_delta)));
+                }
+                *out = events;
             });
             // A frame's texture upload is the caller's to apply; this
             // probe paints nothing, and dropping it unapplied panics.
@@ -861,9 +1144,245 @@ mod tests {
     /// Press and move: what the toolkit calls a drag. The moving frame
     /// is the one that reports it.
     fn drag(pane: &Pane, egui_button: egui::PointerButton) -> Vec<ViewportEvent> {
+        drag_modified(pane, egui_button, egui::Modifiers::NONE)
+    }
+
+    /// The same drag with `modifiers` held.
+    ///
+    /// The modifier change is its own event because that is how the
+    /// toolkit carries one: `InputState` keeps the modifier state
+    /// across frames and only `ModifiersChanged` moves it, so a
+    /// modifier named on a pointer event alone never reaches
+    /// `i.modifiers`.
+    fn drag_modified(
+        pane: &Pane,
+        egui_button: egui::PointerButton,
+        modifiers: egui::Modifiers,
+    ) -> Vec<ViewportEvent> {
         pane.reach();
-        pane.frame(vec![button(egui_button, true, AIM)]);
+        pane.frame(vec![
+            egui::Event::ModifiersChanged(modifiers),
+            egui::Event::PointerButton {
+                pos: AIM,
+                button: egui_button,
+                pressed: true,
+                modifiers,
+            },
+        ]);
         pane.frame(vec![egui::Event::PointerMoved(AIM + egui::vec2(40.0, 0.0))])
+    }
+
+    /// A wheel turn small enough that the toolkit hands it straight
+    /// over: `InputState` smooths a wheel of eight points or more
+    /// across several frames, and this probe reads one frame.
+    const WHEEL_POINTS: f32 = 4.0;
+
+    /// Turn the wheel over the pane with `modifiers` held, and hand
+    /// back what the viewport read from that frame.
+    fn turn_wheel(pane: &Pane, modifiers: egui::Modifiers) -> Vec<ViewportEvent> {
+        pane.reach();
+        pane.frame(vec![
+            egui::Event::ModifiersChanged(modifiers),
+            egui::Event::MouseWheel {
+                unit: egui::MouseWheelUnit::Point,
+                delta: egui::vec2(0.0, WHEEL_POINTS),
+                phase: egui::TouchPhase::Move,
+                modifiers,
+            },
+        ])
+    }
+
+    /// The scroll a plain [`turn_wheel`] denotes.
+    fn a_wheels_scroll() -> ViewportEvent {
+        ViewportEvent::Scroll {
+            units: f64::from(WHEEL_POINTS) / 50.0,
+        }
+    }
+
+    /// A δ, coarse enough to index the plate quickly.
+    fn a_delta(mm: f64) -> DisplayTolerance {
+        DisplayTolerance::new(mm * 1.0e-3).expect("a positive δ")
+    }
+
+    /// The plate, landed, plus the index of its landed evaluation at
+    /// `delta`.
+    fn plate_index(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
+        let (doc, eval) = session.landed_pair().expect("the inline seam lands");
+        let generation = session
+            .landed_generation()
+            .expect("a landed evaluation has a generation");
+        PickIndex::build(doc, eval, PictureKey::of(generation, delta), session.tol())
+            .expect("the plate indexes")
+    }
+
+    /// **The picture's alphabet is `(generation, δ)`, and the guard
+    /// holds both halves.**
+    ///
+    /// The half a generation-only check would drop is δ: a δ typed
+    /// while the document stands rebuilds the index at the SAME
+    /// generation over a different tessellation, so the id map is a
+    /// different alphabet under an identical generation. A guard that
+    /// compared generations would pass the cross pairing below and read
+    /// as co-identity while checking something else — which is the
+    /// shape this unit was sent to remove, not to re-mint.
+    #[test]
+    fn the_drawn_index_is_the_one_whose_generation_and_delta_the_picture_carries() {
+        let tol = Tol::witness();
+        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+
+        let coarse = plate_index(&session, a_delta(0.5));
+        let fine = plate_index(&session, a_delta(0.05));
+        let key = PickIndex::key;
+        assert_eq!(
+            coarse.generation(),
+            fine.generation(),
+            "both index the same landed evaluation, so only δ separates them"
+        );
+        assert_ne!(
+            coarse.key().delta(),
+            fine.key().delta(),
+            "and δ does separate them"
+        );
+
+        assert!(
+            drawn_index(Some(&coarse), Some(key(&coarse))).is_some(),
+            "the index the picture was built from IS the drawn index"
+        );
+        assert!(
+            drawn_index(Some(&fine), Some(key(&coarse))).is_none(),
+            "an index at another δ did not mint this picture's ids"
+        );
+
+        // The other half, over the same predicate: an edit lands a new
+        // generation, and the index of it is not the index of the
+        // picture still on screen.
+        let outcome = session.perform(SessionOp::SetSlot {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: SlotValue::Continuous(0.004),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+        let edited = plate_index(&session, a_delta(0.5));
+        assert_ne!(
+            edited.generation(),
+            coarse.generation(),
+            "the edit landed a new generation"
+        );
+        assert!(
+            drawn_index(Some(&edited), Some(key(&coarse))).is_none(),
+            "an index of the edited document did not mint the old picture's ids"
+        );
+    }
+
+    /// **The false diagnosis this guard exists to stop, shown to be a
+    /// real sentence, and shown to be unreachable through the guard.**
+    ///
+    /// A picture no index minted ids for — the startup mesh, whose
+    /// corners all carry [`IdMap::NOTHING`] — makes the id pass answer
+    /// *nothing* everywhere. Compared against a ray that names a face,
+    /// that is a disagreement, and [`idpass::Disagreement`] writes it to
+    /// the status line as *the two picking paths disagree*, which issue
+    /// #1097 §4 tells an operator to read as an `R32Uint` clear fault.
+    ///
+    /// So the first assertion is that the sentence really is produced
+    /// by the pairing, and the second is that `drawn_index` never hands
+    /// the comparison that pairing.
+    #[test]
+    fn a_picture_no_index_minted_ids_for_is_not_compared_against_one() {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+
+        let id = index.ids().ids().next().expect("the plate draws patches");
+        let named = index
+            .name_of(id)
+            .expect("an id of this index has an entry")
+            .as_ref()
+            .expect("and the plate's patches name cleanly")
+            .clone();
+
+        let serial = 7u32;
+        let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
+        let report =
+            idpass::disagreement(&index, nothing, Some(serial), std::slice::from_ref(&named))
+                .expect("nothing-under-the-cursor against a named face is a disagreement");
+        assert_eq!(report.from_gpu, None, "the id pass answered nothing");
+        assert_eq!(report.from_ray, vec![named], "the ray answered a face");
+
+        assert!(
+            drawn_index(Some(&index), None).is_none(),
+            "a picture with no index behind it is compared against no index"
+        );
+    }
+
+    /// **A click over a picture the index in hand did not draw is
+    /// refused, typed** — Ev's ruling, 2026-09-15.
+    ///
+    /// This row is the PAIR of predicates the pick path composes, over
+    /// a real session: `drawn_index` answers `None` for an index that
+    /// did not mint the picture's corners, and the index it declined
+    /// is what `pickcache::unindexed` reads
+    /// [`NotIndexed::AnotherPicture`] from. Each assertion can fail for
+    /// the reason the rule exists: a generation-only guard passes the
+    /// cross pairing, and a door that ignored the held index says *the
+    /// picture has no pick index* over one that plainly has.
+    ///
+    /// **What it does not assert is the wiring**, and no row in this
+    /// crate can. `ViewerBehavior::viewport_ui` is a private method
+    /// over an `egui::Ui` that paints through a wgpu callback and
+    /// borrows twenty-odd fields of the application, so it is driven by
+    /// nothing headless — the probe below reaches only the event
+    /// translation, for the same reason. That the pick path asks
+    /// `drawn_index` rather than the index in hand is held by its one
+    /// call site being one line, the way
+    /// `crates/viewer/tests/panel_display.rs` records for the
+    /// parameter field's widget.
+    #[test]
+    fn a_click_over_a_picture_the_index_did_not_draw_is_refused_typed() {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+
+        let drawn = plate_index(&session, a_delta(0.5));
+        let landed = plate_index(&session, a_delta(0.05));
+        let picture = drawn.key();
+        assert!(
+            drawn_index(Some(&landed), Some(picture)).is_none(),
+            "the index in hand describes a rebuild the picture is not"
+        );
+
+        let click = [input::PickAction::Select([10.0, 10.0])];
+        assert_eq!(
+            pickcache::unindexed(&click, Some(&landed), false),
+            Some(NotIndexed::AnotherPicture),
+            "so the click gets the picture's answer, which is a refusal",
+        );
+        assert_eq!(
+            pickcache::unindexed(
+                &[
+                    input::PickAction::Hover([10.0, 10.0]),
+                    input::PickAction::ClearHover,
+                ],
+                Some(&landed),
+                false,
+            ),
+            None,
+            "and a hover, pushed every frame the pointer is inside the \
+             pane, is not news",
+        );
+
+        // The other side of the same door: the index that DID draw the
+        // picture answers, so nothing is refused over it.
+        assert!(
+            drawn_index(Some(&drawn), Some(picture)).is_some(),
+            "the index that minted the picture's corners still answers",
+        );
     }
 
     /// **[`egui_buttons`] is every toolkit button exactly once, and
@@ -1006,6 +1525,119 @@ mod tests {
     /// exhaustive matches over a closed enum, so neither can fall
     /// behind the toolkit while the other moves: a sixth
     /// `egui::PointerButton` reds them together.
+    /// **A drag carries the two modifiers this viewport binds, and the
+    /// other three leave no trace on it.**
+    ///
+    /// Two claims, and the second is the one nothing else can make.
+    /// [`viewer_modifiers`]'s pattern holds the SET of fields it reads;
+    /// the PAIRING — shift into the first half of the returned pair,
+    /// alt into the second — is a naming decision with nothing to
+    /// derive it from, and swapping the two type-checks while turning
+    /// every constrain into an orbit and back. That is the same gap
+    /// [`viewer_button`]'s doc names for the button table, answered the
+    /// same way: a second statement of the table, here at the far end
+    /// of a real toolkit frame.
+    #[test]
+    fn a_drag_carries_the_two_modifiers_this_viewport_binds() {
+        for (modifiers, expected) in [
+            (egui::Modifiers::NONE, (false, false)),
+            (egui::Modifiers::SHIFT, (true, false)),
+            (egui::Modifiers::ALT, (false, true)),
+            (egui::Modifiers::CTRL, (false, false)),
+            (egui::Modifiers::COMMAND, (false, false)),
+            (egui::Modifiers::MAC_CMD, (false, false)),
+        ] {
+            let pane = Pane::new();
+            let events = drag_modified(&pane, egui::PointerButton::Middle, modifiers);
+            let (shift, alt) = expected;
+            assert_eq!(
+                events,
+                vec![ViewportEvent::Drag {
+                    button: PointerButton::Middle,
+                    shift,
+                    alt,
+                    delta_px: [40.0, 0.0],
+                }],
+                "what a middle drag carries with {modifiers:?} held"
+            );
+        }
+    }
+
+    /// **A plain wheel is the one scroll this viewport binds.**
+    ///
+    /// The control the three rows below need: each of them asserts that
+    /// some modified wheel produces NO scroll, and a probe that never
+    /// delivered a wheel event at all would satisfy every one of them.
+    #[test]
+    fn a_plain_wheel_is_the_one_scroll_this_viewport_binds() {
+        let pane = Pane::new();
+        assert_eq!(
+            turn_wheel(&pane, egui::Modifiers::NONE),
+            vec![a_wheels_scroll()]
+        );
+    }
+
+    /// **A ctrl+wheel produces no viewport event at all, and this
+    /// adapter is not where that is decided.**
+    ///
+    /// The toolkit spends the modifier first: a wheel whose modifiers
+    /// match `InputOptions`' `zoom_modifier` goes into
+    /// `zoom_factor_delta` and `smooth_scroll_delta` stays at zero, so
+    /// there is no `y` left for [`scroll_event`] to read and reading
+    /// `ctrl` in [`viewer_modifiers`] would recover nothing. The second
+    /// assertion is what makes the first mean anything — it shows the
+    /// wheel arrived and where the toolkit put it, which is also the
+    /// value a binding would have to read
+    /// (`work/view/ctrl-wheel-reaches-no-zoom.md`).
+    #[test]
+    fn a_ctrl_wheel_is_spent_by_the_toolkit_before_the_adapter_sees_it() {
+        let pane = Pane::new();
+        assert_eq!(
+            turn_wheel(&pane, egui::Modifiers::CTRL),
+            Vec::<ViewportEvent>::new(),
+            "the gesture CAD and browsers zoom with reaches the viewport as nothing"
+        );
+        assert_ne!(
+            pane.ctx.input(|i| i.zoom_delta()),
+            1.0,
+            "the wheel did arrive, and the toolkit put it in the zoom accumulator"
+        );
+    }
+
+    /// **A shift+wheel is folded onto the axis this viewport drops.**
+    ///
+    /// `horizontal_scroll_modifier` is SHIFT, so the toolkit moves the
+    /// whole delta onto `x` before the adapter sees it — the axis
+    /// [`scroll_event`] names in order to drop. Shift is a modifier
+    /// this viewport DOES bind on a drag, which is why the row is worth
+    /// having: the two halves of the decision are independent.
+    #[test]
+    fn a_shift_wheel_is_folded_onto_the_axis_this_viewport_drops() {
+        let pane = Pane::new();
+        assert_eq!(
+            turn_wheel(&pane, egui::Modifiers::SHIFT),
+            Vec::<ViewportEvent>::new()
+        );
+        assert_ne!(
+            pane.ctx.input(|i| i.smooth_scroll_delta.x),
+            0.0,
+            "the wheel did arrive, on the axis the viewer has no gesture for"
+        );
+    }
+
+    /// **An alt+wheel is folded onto the axis this viewport binds**, so
+    /// it zooms exactly as a plain wheel does. The same toolkit
+    /// mechanism as the two rows above, pointing the other way:
+    /// `vertical_scroll_modifier` is ALT.
+    #[test]
+    fn an_alt_wheel_is_folded_onto_the_axis_this_viewport_binds() {
+        let pane = Pane::new();
+        assert_eq!(
+            turn_wheel(&pane, egui::Modifiers::ALT),
+            vec![a_wheels_scroll()]
+        );
+    }
+
     #[test]
     fn the_pairing_is_the_one_this_module_intends() {
         for egui_button in egui_buttons() {

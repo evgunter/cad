@@ -5,6 +5,8 @@ title: MispairedIds exempts the zero case, which is the window shape most worth 
 status: open
 opened: 2026-09-04
 refs: [1768, 1098]
+priority: P3
+cost: E
 ---
 
 Found by CHROME's style lane on PR 1768, against that PR's own claim.
@@ -42,3 +44,37 @@ the guard's exemption is harmless and the finding is the comment that
 does not say so.
 
 Signed: (CHROME orchestrator)
+
+## Parked on VIEW's index-buffer row, 2026-09-15
+
+`scene.rs` is ceded to VIEW under the carve-out, and VIEW's
+`scene-mesh-carries-an-identity-index-buffer` rewrites the tail of
+`SceneMesh::build_parts_focused` — the very function this guard opens.
+Editing the guard from CHROME's side while that change is pending would
+put two branches in one function.
+
+Note for whoever takes it: the row makes a reachability question a
+precondition, and answering it needs `NodePick::patch_names` in
+`crates/editor-core/src/resolve/pick.rs` — a claim about another
+crate's emission, outside both programs' viewer ground.
+
+## The trigger fired and left this row untouched (2026-09-15)
+
+VIEW closed `scene-mesh-carries-an-identity-index-buffer`, so `parked`
+became false and lint said so. Re-opened.
+
+The park note expected that change to rewrite the tail of
+`SceneMesh::build_parts_focused` — the function this guard opens. It
+did, and **the guard is unchanged**:
+
+```rust
+if !part.ids.is_empty() && part.ids.len() != part.mesh.patches.len() {
+```
+
+So the finding is live exactly as filed, and the reason for parking is
+spent. The reachability question the row makes a precondition is also
+untouched: answering it still needs `NodePick::patch_names` in
+`crates/editor-core/src/resolve/pick.rs`, outside both programs' viewer
+ground.
+
+Ground is ceded to VIEW under the carve-out, so CHROME does not work it.

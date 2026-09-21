@@ -73,6 +73,8 @@ mod coeffs_bit_identity_ext;
 mod coeffs_bit_identity_interval;
 #[path = "coeffs_pair_identity.rs"]
 mod coeffs_pair_identity;
+#[path = "d290_r2_probes.rs"]
+mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
 #[path = "decoration_seam.rs"]
@@ -140,14 +142,7 @@ mod sym_rule_f_rows;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 #[path = "cert4r2_probes.rs"]
 mod cert4r2_probes;
@@ -162,6 +157,8 @@ mod cert4r1_probe_period;
 mod r1_p2_onb_probes;
 #[path = "r2_cert3_probes.rs"]
 mod r2_cert3_probes;
+#[path = "rate_pair_doors.rs"]
+mod rate_pair_doors;
 
 #[path = "cert3_evidence.rs"]
 mod cert3_evidence;

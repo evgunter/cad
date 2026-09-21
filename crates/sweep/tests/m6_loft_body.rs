@@ -15,26 +15,17 @@
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common;
-
-use common::quad;
+use geom_core::Affine3;
 use geom_core::Tol;
-use geom_core::{Affine3, Vec3};
 use profile::RawLoop;
+use sweep::test_support::{PRISM_Z, loft_prism_sections, stacked_at};
 use sweep::{Section, loft_body};
 
 /// The shape (iii) acceptance sections: squares at z = 0 and z = 2,
-/// a trapezoid at z = 1.
+/// a trapezoid at z = 1 — `sweep::test_support`'s `loft_prism`
+/// sections under the placement this suite's derivation assumes.
 fn shape_iii_sections() -> (Vec<Section>, Vec<Affine3<f64>>) {
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let sections = vec![quad(square), quad(trapezoid), quad(square)];
-    let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-    ];
-    (sections, places)
+    (loft_prism_sections(), stacked_at(&PRISM_Z))
 }
 
 #[test]

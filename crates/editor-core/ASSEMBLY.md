@@ -18,7 +18,7 @@ walk is `docs/guide/assembly.md`.
 | Decisions | Modules |
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartCache`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
-| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the three doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`; the memo's drop in `src/eval/mod.rs` |
+| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
@@ -54,34 +54,107 @@ cross-instance boolean node, never implied. A resolved document whose
 recorded ε disagrees refuses `ResolveFault::EpsilonSeam`.
 
 **A2a — The pairing doors.** A4's identity stamp is what these read.
-THREE doors refuse a mismatched (document, evaluation) pair typed,
-before reading anything of the value: `product` (with `product_named`
-and `product_recorded`, `ProductError::EvaluationOfAnotherDocument`),
-`assemble` (the same refusal, through `AssemblyError::Product`), and
-`SolvedPoses::placement` (`MateFault::PosesOfAnotherDocument`), which
-pairs a document with a solve rather than an evaluation and states the
-same rule. The memo is the fourth reader and refuses differently, since
-`evaluate` returns no `Result`: a prior of another document is dropped
-whole before the schedule is built, and the run records the drop as
+A door that takes a document — or a value OF a document — plus a
+second value that must be of that same document refuses a mismatch
+typed, before reading anything of the second. The comparison is the
+one predicate `ident::mispaired`, and each door carries its own arm
+over it, in its own error vocabulary.
+
+**The rule binds only where BOTH halves carry an identity to compare**
+— a `Doc`, or a value stamped with one: an `Evaluation`, a
+`SolvedPoses`, a `NodePick` and the `PickTarget` it mints. A value with
+no provenance of its own is outside the clause, because there is
+nothing to run the predicate on rather than because a check was
+declined: `resolve::hit`'s `face_name` / `edge_name` / `vertex_name`
+take a raw arena key beside an evaluation, and a bare `StableName` is
+text. Those are #1098's raw-key class, and the door that closes them is
+a stamped value to hand instead — which is what `NodePick` is for the
+pick doors below.
+
+The doors that refuse:
+
+- `product` (with `product_named` and `product_recorded`,
+  `ProductError::EvaluationOfAnotherDocument`), and `assemble`
+  through them (the same refusal, wrapped as `AssemblyError::Product`);
+- `SolvedPoses::placement` (`MateFault::PosesOfAnotherDocument`),
+  which pairs a document with a SOLVE rather than an evaluation and
+  states the same rule;
+- `run_checks_on`, and `run_checks` as its wrapper
+  (`ChecksError::EvaluationOfAnotherDocument`), which checks the
+  evaluation AND the document a `Subject::Product` carries, because a
+  resident reading `doc.roots()` against a foreign evaluation finds a
+  value for every root;
+- `resolve::apply_with_names`
+  (`EditError::EvaluationOfAnotherDocument`), which reads the handed
+  evaluation's name tables, so a foreign one admits a name the edited
+  document does not carry or refuses one it does;
+- the pick index's three doors —`NodePick::patch_names`,
+  `NodePick::boundary_names` and `pick_face`
+  (`HitTestError::EvaluationOfAnotherDocument`). These pair a value
+  OF a document with an evaluation rather than a document with one:
+  a `NodePick` is built from one evaluation and handed a SECOND at
+  each name door, and `pick_face` takes `PickTarget`s built from one
+  evaluation beside an `eval` argument. So the stamp is on the VALUE
+  — `NodePick` keeps the building evaluation's `DocumentId` and
+  `NodePick::target` carries it onto the target it mints — and the
+  refusal is of the CALL, outside the per-entity vector, because a
+  mispairing is one thing wrong with the arguments rather than one
+  thing wrong with each patch. `pick_face` checks every target
+  before it reads any target's standing: a twin recipe's evaluation
+  mints the same node ids, so the standing ladder admits it and the
+  hit would resolve to a name out of the twin's table.
+
+The memo reads the stamp too and refuses differently, since `evaluate`
+returns no `Result`: a prior of another document is dropped whole
+before the schedule is built, and the run records the drop as
 `Evaluation::prior_refused` while recomputing everything. Node ids
 alone could not decide any of this — they are minted by a per-document
 counter, so two documents built from one recipe carry the SAME ids for
 the same nodes, and a gather over the wrong one would succeed, in
 full, about other geometry.
 
-Other doors that take such a pair — `run_checks`, `apply_with_names`,
-`stackup` and `sensitivities`, `drive::certifying` — do NOT check it
-today; `assembly::mint` is covered downstream by `product_recorded`.
-That gap is tracked at
-`work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+What the stamp decides is the DOCUMENT half only, at every door
+here. A LATER evaluation of the same document is admitted — by the
+pick index's doors as by the rest — because a pairing is about
+identity and never about a version (DI3); whether anything may be
+reused across such a run is the content keys' business.
+
+At the pick doors the stamp reaches EVERY target a consumer can hold.
+A `PickTarget`'s fields are private and `NodePick::target` is its only
+reachable mint: the document, the node, the body and the mesh index all
+come from the one tessellation `NodePick::build` performed, so a caller
+declares none of them and the door's check is a statement about the
+type. The hand-assembled mint — `PickTarget::new`, and `MeshPick::build`
+the index it needs — is behind `editor-core`'s `test-support` cargo
+feature, which this crate's own dev-dependency enables and which no
+consumer's manifest wires onto an edge of its own —
+`scripts/gates/test-features-dev-only.sh` holds that across every
+manifest in the repository, and its header says why that is the claim a
+feature carries rather than a stronger one: a build COMMAND may ask for
+any feature by name. That closes issue #1098's
+residual raw-assembly class at the API: the class now lives exactly
+where the feature does, in the rows that measure it (a raw target's
+declaration is taken at its word in the document half as in the node
+half, which is unprovable in principle — arena keys collide numerically
+across sibling nodes of one document) and in the rows that need an
+index no tessellation produced or a node `NodePick::build` refuses.
+
+Other doors that take such a pair — `stackup` and `sensitivities`,
+`drive::certifying` — do NOT check it today; `assembly::mint` is
+covered downstream by `product_recorded`. That gap is the tracker row
+`pair-doors-outside-the-three-do-not-check-document-identity`. Ids, not
+paths: a row moves between programs and a path written here rots at
+the move.
 
 ## Nodes and mates
 
 **A3 — The node vocabulary; mates are declarations.**
 `Node::InstantiatePart { doc_ref, interface }` has no placement field
 (A11 puts it on the cluster). `Node::Mate { a, b, class, alignment }`:
-`a`/`b` are `SitedRef`s — an instance-qualified stable name plus the
-operand node it is read at; `class` is the kernel
+`a`/`b` are `SitedFace`s — an instance-qualified FACE name
+(`names::FaceName`, whose one constructor is the only way a face name
+is made) plus the operand node it is read at, so a mate naming an edge
+is a program that does not compile; `class` is the kernel
 `topo::ContactClass`; `Alignment` is two `MateFrame`s in each side's
 part coordinates, a `MatePrimitive` (`FrameCoincidence`, `Coaxial`,
 `PlanarRest { offset }`; `Clocking` exists only to be refused as a bare
@@ -92,13 +165,13 @@ mate's declaration into the product's `ContactRecords`, the same
 currency as the boolean wrapper's; declarations are verified, never
 trusted. `class_admission` is the one table the solve and the mint door
 both read: `Rest` solves and mints; `Tangent` solves and refuses at the
-mint door (`AssemblyError::NoAtRestRecord`, no witness edge at rest,
+mint door (`MintRefusal::NoAtRestRecord`, no witness edge at rest,
 recourse `NO_AT_REST_RECORD_RECOURSE`);
 anything else, including the reserved and unbuilt `Fit { gap }`,
 refuses at the solve door.
 
-**A12 — Mate edges and roots.** A mate's two references are `SitedRef`s
-— a name, and the OPERAND node it is read at — and each contributes a
+**A12 — Mate edges and roots.** A mate's two references are `SitedFace`s
+— a face name, and the OPERAND node it is read at — and each contributes a
 *reading edge* to the member that operand resolves to — the walk's
 minting instance, whatever the depth of the copy chain above it —
 recomputed by `reading_edges`, never stored. `inputs()` stays empty because a reading
@@ -171,9 +244,10 @@ reads at whether the name is spelled in its own table — a name spelled
 there at a node the product does not list refuses
 `RefusedRef::ReadBelowARoot { at }` in the operand's voice, so
 `RefusedRef::Vanished` means a name nothing answers to where the mate
-reads it. The operand's entry decides its kind first: a non-face
-entry refuses `RefusedRef::NotAFace` wherever it is read, and only a
-face entry at a non-root refuses `ReadBelowARoot`. It runs no predicate of its own; kernel findings
+reads it. The gate asks no KIND question at all: a head is a
+`SitedFace` over a `FaceName` (A3), so what the name denotes is fixed
+by the type, and the refusal vocabulary here has three arms and no
+kind arm. It runs no predicate of its own; kernel findings
 come back as `AtRestFinding`s attributed to the mate whose declaration
 they concern. Undeclared contact between instances is a hard error,
 never blessed. `AssemblyError::AtRest` is a verdict against the
@@ -203,12 +277,15 @@ path a record can take without its row (a boolean over a source) is
 one no instance carrying a declaration can reach: such an instance is
 a multi-solid product, which the pair boolean refuses. An inner mate
 that could not be minted refuses the outer gate
-(`AssemblyError::CarriedMintRefusal`), on the head row in gather order,
-before this document's own unminted head and before the at-rest gate —
-an outer assembly is unusable while an inner part's contact is
-unverified. Nothing is re-verified or re-minted across the seam:
-verification runs once, at the outermost gate. Interference fits
-through recorded gate-skips are not implemented.
+(`AssemblyError::CarriedMintRefusal`), carrying every such row in
+gather order, before this document's own unminted rows and before the
+at-rest gate — an outer assembly is unusable while an inner part's
+contact is unverified. Nothing is re-verified or re-minted across the seam:
+verification runs once, at the outermost gate. An interference fit —
+one instance's material containing a vertex of another's — is decided
+by the census's material test and refused typed
+(`ValidationError::InstanceInterference`); recorded gate-skips, the
+declaration C6 above describes, are not implemented.
 
 ## Mirror
 
@@ -265,14 +342,28 @@ pair's relative pose to a coset of an SE(3) subgroup; the closure is
 `Subgroup::{Se3, Planar, Cylindrical, Prismatic, Revolute, Trivial,
 Empty}` and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`): DETERMINED, UNDER or CONTRADICTORY, the last refusing
-with the added mate's measured clash. (2) Placement lives on the
+with the added mate's measured clash. The edit door asks the same
+per-mate admission of a mate being inserted — the walk, the class,
+each frame, the table's row, the rider on a coincidence decided over
+the mate's own lever — so a mate the table refuses on its own is
+refused at the insert door (`EditError::MateRefused`, carrying the
+solve's fault); the doors decide edits and the solve decides states,
+so a verdict about the pair, and a state a mate comes to hold after
+insert (a head a rebind or a shrunk pattern strands, a re-pointed
+`Part`, a loaded snapshot), stay the solve's. (2) Placement lives on the
 cluster: clusters are connected components of the instance–mate graph
 (`clusters`); `Doc::placements` holds at most one `Frame` per cluster,
 keyed by its gauge, a missing entry being the identity, so zero- and
 multi-anchor states are unrepresentable; `reconcile` re-keys records
 when an edit joins or splits clusters
 (`ClusterMaintenance::{Join, Split, GaugeRewrite}`, gauge-exact in
-bits). (3) The gauge is the cluster's earliest instance in document
+bits). When a gauge moves the maintenance solves the prior document
+with the mated parts' reach (`apply` takes it) to mint the new gauge's
+frame from its solved pose, and asks nothing otherwise; a solve that
+reaches no verdict refuses the edit typed
+(`EditError::MaintenanceRefused`). The rows ride the logged edit
+(`LoggedEdit`), and replay re-applies them without solving. (3) The
+gauge is the cluster's earliest instance in document
 order, a convention, not data; pattern-placed instances are
 gauge-ineligible. (4) `solve_document` takes the deterministic spanning
 tree rooted at the gauge: tree mates DETERMINE and must fold to
@@ -298,7 +389,26 @@ CHAIN of copies the walk consumed (outermost first) and the operand it
 was read at: two references to one instance read at different operands
 are two members, and so are two references to sibling copies at any
 level. Nothing in the walk is evaluated, so the partitions never
-depend on a slot value. The two questions that DO need a number are
+depend on a slot value. The solve's inputs are the document plus its
+mated parts' evaluations, and it reads no geometry except what each
+mated part's own evaluation answers, through one door asked lazily
+per pair (`mate::MateReach`; the evaluation answers from its own part
+cache, so a mated part is evaluated once). Two answers cross that
+door. The part's EXTENT — an upper bound taken from its evaluated
+body — enters only as the lever a parallelism verdict is decided
+over: `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored
+lengths|`, no floor and no constant. A mate frame authored
+`FromFace` takes that FACE's canonical pose, read off its surface
+parameters exactly (`topo::readback::face_pose`, no tolerance) in the
+part's own coordinates, as the side's frame; a face with no canonical
+frame refuses typed and keeps taking authored vectors. Neither read
+changes the solve's algorithm — coset intersection over decided
+predicates, no numeric fitting, no geometry inspected inside the
+fold — and nothing is stored twice: the face name is the state, the
+frame is derived. A mated part that does not resolve faults its
+mate `MateFault::Unleverable` in the resolver's own voice, carrying
+the part fault unaltered, and that fault poisons the cluster as any
+mate fault does. The two questions that DO need a number are
 asked once per reference, where the solve reads it — for every
 reference of every live mate, not only the ones a tree edge's offset
 derives: the named copy must exist (its index against the pattern's

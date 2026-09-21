@@ -44,8 +44,8 @@ pub struct FacePatch {
     /// from outside the material, per the D1 loop conventions).
     ///
     /// "Outward" means the *material* side, not the chart-normal side.
-    /// A face's outward normal is
-    /// `topo::Face::sense_sign() · chart_normal`, and this contract is
+    /// A face's outward normal is its chart normal with
+    /// `topo::Face::sense` folded in, and this contract is
     /// stated in the outward frame: on a face with `sense: false` the
     /// emitted triangles wind CCW about `−chart_normal`. The
     /// tessellator reaches that without consulting the bit on this

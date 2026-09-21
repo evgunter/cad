@@ -418,7 +418,10 @@ fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(),
                 geom::Curve3::Line { .. }
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
-                geom::Curve3::Nurbs(_) => {
+                // The boolean fence: no join, section or pierce arm
+                // reads a spiric, so an operand carrying one refuses
+                // here, at the gate, as a spline does.
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                     return Err(BooleanError::CurvedEdgeUnsupported {
                         operand,
                         edge: edge_key,
@@ -449,36 +452,22 @@ pub(super) fn face_source<T: Decide>(
 /// The face's plane description (post-gate: always a `Plane`), with
 /// the **face's outward normal** — not the chart's.
 ///
-/// [`PlaneDesc::normal`] is contractually the unit OUTWARD normal, and
-/// since S10 that is the surface's chart normal times
-/// [`crate::entity::Face::sense_sign`]: the chart is the only place
-/// orientation was ever encoded, so on a `sense: false` face the
-/// stored normal points INTO the material, and every consumer reading
-/// a material direction off it would answer backwards. The flip
-/// itself lives in [`crate::face_normal`], which this function is
-/// defined in terms of — one door for the planar consumers
-/// (`plane_of`, this sweep, the pierce lane, the REST lane, and the
-/// SHARED [`crate::sector_face`] walk, which is why the door sits at
-/// the crate root rather than here), one flip, so those consumers stay
-/// orientation-blind.
+/// [`PlaneDesc::normal`] is contractually the unit OUTWARD normal —
+/// the surface's chart normal with [`crate::entity::Face::sense`]
+/// folded in: the chart is the only place orientation is encoded, so
+/// on a `sense: false` face the stored normal points INTO the
+/// material, and every consumer reading a material direction off it
+/// would answer backwards. The flip itself lives in
+/// [`crate::face_normal`], which this function is defined in terms of
+/// — one door for the planar consumers (`plane_of`, this sweep, the
+/// pierce lane, the REST lane, and the SHARED [`crate::sector_face`]
+/// walk, which is why the door sits at the crate root rather than
+/// here), one flip, so those consumers stay orientation-blind.
 ///
-/// "One door" is true of those consumers, not of the workspace: other
-/// faces' outward normals are still hand-multiplied. The ones **in
-/// this crate** are inventoried by [`crate::face_normal`]'s guard,
-/// which COMPUTES them rather than reciting them. The ones outside it
-/// are beyond any `topo` walk, so they are recited here — four in
-/// production, `editor_core::names::emit_topo::face_plane`,
-/// `mesh::walk::loop_polygon` (the chart area's sign),
-/// `sweep::blend::build::outward_of` and
-/// `sweep::blend::battery::outward`, plus two in a test oracle,
-/// `sweep/tests/common/orient.rs`'s `wall_outward_at` and
-/// `assert_caps_face_out`. Two crates that look like readers are not:
-/// **`geom-brep`** does not depend on `topo` at all and its
-/// `sense_sign` occurrences in `props/curved.rs` are a parameter name
-/// on a value `topo::props` passes in; **`step-export`** reads
-/// `Face::sense` as the `same_sense` bit, never the ±1. **This list is
-/// recited, not computed** — it is the work order for consolidating
-/// them onto this door, and it goes stale the moment that work runs.
+/// Outside this crate the same fold is spelled through
+/// [`geom_brep::OutwardNormal::from_chart`], the type's only
+/// constructor, which takes the bit; there is no scalar sign on a face
+/// for a reader anywhere to multiply by.
 ///
 /// Consumers that only compare the plane RESIDUAL `(p − o)·n̂` against
 /// Zero, or that hand the normal to a ray-parity test, are unaffected
@@ -555,11 +544,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
     band: Band,
 ) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
-        let face_of = |he| {
-            let parent = body.get_half_edge(he)?.parent_loop;
-            Some(body.get_loop(parent)?.face)
-        };
-        let (Some(f1), Some(f2)) = (face_of(edge.he_plus), face_of(edge.he_minus)) else {
+        let (Some(f1), Some(f2)) = (
+            body.face_of_half_edge(edge.he_plus),
+            body.face_of_half_edge(edge.he_minus),
+        ) else {
             continue;
         };
         if f1 == f2 {
@@ -1107,15 +1095,13 @@ fn curved_face_arm<T: Decide>(
     // the on-carrier claim the numeric rows then certify per
     // incidence.
     let covered = {
-        let parent = |he| {
-            x.get_half_edge(he)
-                .and_then(|h| x.get_loop(h.parent_loop))
-                .map(|l| l.face)
-        };
-        [parent(edge.he_plus), parent(edge.he_minus)]
-            .into_iter()
-            .flatten()
-            .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
+        [
+            x.face_of_half_edge(edge.he_plus),
+            x.face_of_half_edge(edge.he_minus),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
     };
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),
@@ -1174,12 +1160,15 @@ fn curved_face_arm<T: Decide>(
     //   edge; for a short arc it answers about geometry the edge does
     //   not occupy, which is what made a corner round's carrier — not
     //   its arc — decide a cut (#347).
-    // - **the arc's**: the residual at the two ENDPOINTS bounds the
-    //   interior through the same chord-dip argument the line row uses
-    //   along a segment — a smooth function stays within `|F″|·Δθ²/8`
-    //   of its endpoint chord, and `|F″|` is the harmonics' own bound
-    //   (`geom_brep::circle_residual_curvature_bound`). Tight for a
-    //   short arc, useless for a full turn.
+    // - **the arc's**: the residual is SAMPLED across the arc at
+    //   `geom_brep::ARC_RESIDUAL_SAMPLES` steps and the sample hull is
+    //   widened by one sub-arc's chord-dip charge — a smooth function
+    //   stays within `|F″|·h²/8` of the chord of a sub-arc of width
+    //   `h` (`geom_brep::circle_arc_residual_range`). Tight for a
+    //   short arc, useless for a full turn, and it is what gives the
+    //   torus a verdict at all: the torus's composed residual has no
+    //   harmonic form, so the sampled enclosure is the only one it
+    //   has, on the arc and on the whole turn alike.
     //
     // Both are valid enclosures of the ARC's range, so the clearance
     // margin is the larger of the two one-sidedness margins: definitely
@@ -1202,26 +1191,18 @@ fn curved_face_arm<T: Decide>(
                 return Err(frontier());
             };
             let carrier_margin = lo.max(-hi);
+            let (t0, t1) = curve.params();
+            // The line row's vertex CLAMP does not port here, and the
+            // reason is the curve: along a line the residual is
+            // exactly quadratic, so "the vertex is outside the span"
+            // is a statement about a parabola and is decided by the
+            // endpoint gap alone. Along a circle it has up to four
+            // critical parameters, so an endpoint gap says nothing
+            // about where its minimum sits. Subdivision is what is
+            // available without solving for them.
             let arc_margin =
-                geom_brep::circle_residual_curvature_bound(&surface, center, axis, radius, u_ref)
-                    .map_or(carrier_margin, |f2| {
-                        let (t0, t1) = curve.params();
-                        // The line row's vertex CLAMP does not port
-                        // here, and the reason is the curve: along a
-                        // line the residual is exactly quadratic, so
-                        // "the vertex is outside the span" is a
-                        // statement about a parabola and is decided by
-                        // the endpoint gap alone. Along a circle it is
-                        // a degree-≤2 TRIGONOMETRIC polynomial with up
-                        // to four critical parameters, so an endpoint
-                        // gap says nothing about where its minimum
-                        // sits. The unclamped chord-dip charge is what
-                        // is available without solving for them.
-                        let dip = f2 * (t1 - t0).powi(2) * T::from_f64(0.125);
-                        let r_u = geom_brep::implicit_residual(&surface, pu);
-                        let r_v = geom_brep::implicit_residual(&surface, pv);
-                        (r_u.min(r_v) - dip).max(-(r_u.max(r_v) + dip))
-                    });
+                geom_brep::circle_arc_residual_range(&surface, center, axis, radius, u_ref, t0, t1)
+                    .map_or(carrier_margin, |(arc_lo, arc_hi)| arc_lo.max(-arc_hi));
             let margin = Margin::of(carrier_margin.max(arc_margin));
             return match decide("bool_circle_curved_clearance", margin, band) {
                 Ok(Sign::Positive) => Ok(CurvedEvent::None),

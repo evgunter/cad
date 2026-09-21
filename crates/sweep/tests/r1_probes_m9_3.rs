@@ -7,8 +7,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::plate6;
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
@@ -17,17 +19,6 @@ use topo::{
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn plate6(z0: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(6.0, 0.0), p2(6.0, 4.0), p2(0.0, 4.0)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
 }
 
 fn cyl_at(cx: f64, z0: f64, h: f64, r: f64) -> Body<f64> {
@@ -359,27 +350,21 @@ fn probe_partial_engagement_never_silent() {
     }
 }
 
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .unwrap()
-        .body
-}
-
 /// A plate with `holes` square through-holes (two-ring patches when
 /// stacked): the ring-capable glue must handle TWO rings per patch
 /// face, and the volume must be exactly additive.
 fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> Body<f64> {
-    let mut b = brick((0.0, 6.0), (0.0, 3.0), (z0, z1));
+    let mut b = brick((0.0, 6.0), (0.0, 3.0), (z0, z1), Tol::witness());
     for &(hx, hy) in holes {
         b = body_of(
             topo::subtract(
                 &b,
-                &brick((hx, hx + 1.0), (hy, hy + 1.0), (z0 - 0.5, z1 + 0.5)),
+                &brick(
+                    (hx, hx + 1.0),
+                    (hy, hy + 1.0),
+                    (z0 - 0.5, z1 + 0.5),
+                    Tol::witness(),
+                ),
                 Tol::witness(),
             )
             .unwrap(),

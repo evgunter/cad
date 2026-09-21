@@ -269,6 +269,19 @@ fn the_min_clearance_bracket_bounds_the_trimmed_faces_from_below() {
 /// it asserts the SHAPE of the looseness (the window's `LIFT` inside
 /// the bracket) so a fix that tightens windows turns it red and says
 /// so, rather than letting the counterexample above silently pass.
+///
+/// **TRIM-3 PR-2 tightened the clearance SWEEP's windows and did not
+/// turn this row red**, which is a finding rather than an oversight.
+/// This door runs INSIDE an evaluation, called by the `min_clearance`
+/// measure primitive, and MINTING a description there records the
+/// boundary walk's own funnel rows in the leaf's census while the
+/// `f64` witness build never walks at all — so the two builds differ
+/// `0 -> N` on every box and every leaf refuses `flip_crossing`
+/// (measured:
+/// seven M10-6/R2 drive rows lose their certified leaf). The bracket is
+/// therefore still the window's `LIFT`, `Certified::LowerBoundOnly`
+/// still refuses the two unsound arms, and the recourse is
+/// `work/trim/min-separation-tightening-crosses-the-drive.md`.
 #[test]
 fn the_notch_bracket_is_the_windows_not_the_faces() {
     let (doc, measure, _) = notch(0.2, AssertionDir::AtLeast);

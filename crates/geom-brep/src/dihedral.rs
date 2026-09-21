@@ -27,7 +27,8 @@
 //! [`DihedralClass`] compares tangent PLANES, so it is unsigned: the
 //! cusp (wedge 0), the seam (π) and the knife slit (2π) all read
 //! `Smooth`. Signing it takes the faces' material sides — each face's
-//! outward normal, `Face::sense_sign · ∇F` — and that is
+//! outward normal, its own `∇F` selected by the face's `Face::sense`
+//! bit — and that is
 //! [`classify_material_pairing`]: aligned normals mean one material
 //! side and the legal π seam; opposed normals mean the wedge is one of
 //! the two ends. Which end is a SECOND-order fact, and
@@ -86,9 +87,10 @@
 //! small to say" is always an escalation, never a classification.
 
 use geom::Surface;
+use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
-use crate::implicit::{curvature_lever_arm, implicit_gradient};
+use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
 
 /// A definite dihedral classification (the indeterminate outcome is the
 /// typed [`Indeterminate`] error — the sliver escalation, D4 ¶3).
@@ -123,6 +125,33 @@ pub(crate) fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
+}
+
+/// The crate's **collapsed-arm gate**, the same wrapper one door over
+/// ([`geom_core::k_stats::decide_positive`]): for a predicate whose
+/// question is only validly posed through a definitely-positive margin
+/// — a folded lever arm, a metered span. The gate's refusal of a
+/// definite non-positive sign is the funnel's escalation, recorded on
+/// the open frame, so no caller here mints an [`Indeterminate`] the
+/// verdict log cannot see.
+pub(crate) fn decide_positive<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_positive(name, margin, band)
+}
+
+/// The crate's **collapsed-discriminant gate**
+/// ([`geom_core::k_stats::decide_nonzero`]): for a predicate that reads
+/// a side off the margin's sign and has none to read at a definite
+/// zero.
+pub(crate) fn decide_nonzero<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<NonzeroSign, Indeterminate> {
+    geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at
@@ -161,16 +190,7 @@ pub fn classify_dihedral<T: Decide>(
     // true magnitude, unreachable Negative) arm escalates as Invalid —
     // "the question was never validly posed here" — and an in-band or
     // poisoned arm escalates through `decide` itself via `?`.
-    match decide("dihedral_arm", Margin::of(arm), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("dihedral_arm"),
-            });
-        }
-    }
+    decide_positive("dihedral_arm", Margin::of(arm), band)?;
     let margin = Margin::levered(sin_theta, arm);
     Ok(match decide("dihedral_wedge", margin, band)? {
         Sign::Positive => DihedralClass::Transverse,
@@ -404,7 +424,8 @@ pub enum MustCarryVerdict {
 /// The first-order classifier ([`DihedralClass`]) compares tangent
 /// *planes* and is therefore unsigned: wedge 0, π and 2π all read
 /// `Smooth`. The material verdict is that classification signed by the
-/// two faces' outward normals (`Face::sense_sign · chart normal`), so
+/// two faces' outward normals (each face's chart normal selected by
+/// its `Face::sense` bit), so
 /// it distinguishes the three:
 ///
 /// | verdict | wedge | legality |
@@ -478,10 +499,17 @@ pub enum MaterialPairing {
 /// on-locus point where the tangent planes already classified
 /// [`DihedralClass::Smooth`].
 ///
-/// `sense_plus`/`sense_minus` are the faces' outward-normal signs
-/// (`Face::sense_sign`), so `sense · ∇F` is each face's outward normal
-/// and `n̂₊ · n̂₋` is the sign the wedge turns on: aligned ⇒ π,
-/// opposed ⇒ 0 or 2π. This is the C1 lemma the declared-contact
+/// `sense_plus`/`sense_minus` are the faces' `Face::sense` BITS, not
+/// signs to multiply by: each selects whether the face's own implicit
+/// gradient already points out of the material or must be negated, so
+/// the door mints each outward normal ITSELF — through
+/// [`implicit_outward_normal`], the one home of that fold on a curved
+/// carrier — and `n̂₊ · n̂₋` is the sign the wedge turns on: aligned ⇒ π,
+/// opposed ⇒ 0 or 2π. The parameter is the bit rather than an
+/// [`crate::enters::OutwardNormal`] because the normals are this door's own to
+/// compute, and rather than a `T` ±1 for the reason
+/// [`crate::enters::OutwardNormal::from_chart`]'s doc gives.
+/// This is the C1 lemma the declared-contact
 /// verifier already decides between bodies (`contact_tangent_opposed`),
 /// read edge-locally between two faces of ONE body — same construction,
 /// same margin: the dot of unit normals levered by the folded arm
@@ -498,28 +526,25 @@ pub enum MaterialPairing {
 /// site — the collapsed-arm gate's posture, one order over.
 pub fn classify_material_pairing<T: Decide>(
     s_plus: &Surface<T>,
-    sense_plus: T,
+    sense_plus: bool,
     s_minus: &Surface<T>,
-    sense_minus: T,
+    sense_minus: bool,
     p: Point3<T>,
     arm: T,
     band: Band,
 ) -> Result<MaterialPairing, Indeterminate> {
-    let n_plus = implicit_gradient(s_plus, p).normalize() * sense_plus;
-    let n_minus = implicit_gradient(s_minus, p).normalize() * sense_minus;
-    match decide(
-        "material_wedge_side",
-        Margin::levered(n_plus.dot(n_minus), arm),
-        band,
-    )? {
-        Sign::Positive => Ok(MaterialPairing::Aligned),
-        Sign::Negative => Ok(MaterialPairing::Opposed),
-        Sign::Zero => Err(Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
+    let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
+    let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
+    Ok(
+        match decide_nonzero(
+            "material_wedge_side",
+            Margin::levered(n_plus.dot(n_minus), arm),
             band,
-            predicate: Some("material_wedge_side"),
-        }),
-    }
+        )? {
+            NonzeroSign::Positive => MaterialPairing::Aligned,
+            NonzeroSign::Negative => MaterialPairing::Opposed,
+        },
+    )
 }
 
 /// **The cusp/slit discriminant**: the jet's relative transverse
@@ -528,16 +553,23 @@ pub fn classify_material_pairing<T: Decide>(
 ///
 /// `kappa_rel` is `κ₊ − κ₋`, both measured against the plus surface's
 /// implicit gradient `n̂`. Two sign steps carry it into the material
-/// frame, and both are exact (a negation and a ±1 product), so the
-/// magnitude — and with it the jet-determinacy verdict — is untouched:
+/// frame, and both are exact negations, so the magnitude — and with
+/// it the jet-determinacy verdict — is untouched:
 ///
 /// 1. **The implicit convention.** Expanding `F = 0` in the frame
 ///    `(d̂, n̂)` gives `|∇F|·t + ½u²·d̂ᵀ∇²F d̂ = 0`, so a surface's HEIGHT
 ///    coefficient over its tangent plane along `+n̂` is `−κ`: a
 ///    positive jet curvature is a surface bending away from `n̂`.
-/// 2. **The material side.** The plus face's outward normal is
-///    `sense_plus · n̂`, so measuring the heights along it flips them
-///    again when `sense_plus` is `−1`.
+/// 2. **The material side.** The plus face's outward normal is `n̂`
+///    where the face's `Face::sense` bit is set and `−n̂` where it is
+///    not, so measuring the heights along it flips them again on a
+///    reversed face. `sense_plus` is that BIT, not a sign to multiply
+///    by — [`crate::enters::OutwardNormal::from_chart`]'s doc for why. Selecting the
+///    negation is EXACT where multiplying by a `±1` is not: `-x` flips
+///    the sign of every value including a signed zero and a `NaN`, and
+///    at `Interval` it is the exact reflection where a `[-1, -1]`
+///    product pads by an ulp at tiny magnitudes. The magnitude, and
+///    with it the jet-determinacy verdict, is untouched either way.
 ///
 /// The result is `h₊ − h₋`, the two surfaces' height coefficients over
 /// their shared tangent plane along the plus face's OUTWARD normal.
@@ -546,8 +578,8 @@ pub fn classify_material_pairing<T: Decide>(
 /// between them ([`MaterialWedge::Cusp`]); negative ⇒ that crescent is
 /// the void and the material is everything else
 /// ([`MaterialWedge::Slit`]).
-pub fn material_kappa_rel<T: Real>(kappa_rel: T, sense_plus: T) -> T {
-    -(kappa_rel * sense_plus)
+pub fn material_kappa_rel<T: Real>(kappa_rel: T, sense_plus: bool) -> T {
+    if sense_plus { -kappa_rel } else { kappa_rel }
 }
 
 #[cfg(test)]
@@ -650,7 +682,7 @@ mod tests {
     }
 
     /// Two coplanar faces on one tangent plane: material sides agree
-    /// (both senses +1 on the same normal) ⇒ the legal π seam; flip
+    /// (both senses set on the same normal) ⇒ the legal π seam; flip
     /// one face's sense and the same geometry is the 0/2π pair. The
     /// FIRST-order data is identical in both rows — that is the whole
     /// content of "the dihedral classification is unsigned".
@@ -664,11 +696,11 @@ mod tests {
             DihedralClass::Smooth
         );
         assert_eq!(
-            classify_material_pairing(&s1, 1.0, &s2, 1.0, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, true, p, 1.0, band()).unwrap(),
             MaterialPairing::Aligned
         );
         assert_eq!(
-            classify_material_pairing(&s1, 1.0, &s2, -1.0, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, false, p, 1.0, band()).unwrap(),
             MaterialPairing::Opposed
         );
         // Antiparallel STORED normals with agreeing senses are the
@@ -677,7 +709,7 @@ mod tests {
         // the sense bit, and the pairing sees only the product.
         let s3 = plane(-Vec3::unit_z(), Vec3::unit_x());
         assert_eq!(
-            classify_material_pairing(&s1, 1.0, &s3, -1.0, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&s1, true, &s3, false, p, 1.0, band()).unwrap(),
             MaterialPairing::Aligned
         );
     }
@@ -707,24 +739,24 @@ mod tests {
             DihedralClass::Smooth
         );
         // Material between them: the inner cylinder bounds it from
-        // inside (outward normal points INTO the inner cylinder, i.e.
-        // sense −1 against the outward-pointing implicit gradient),
-        // the outer from outside (sense +1).
+        // inside (outward normal points INTO the inner cylinder, so
+        // its sense bit is clear against the outward-pointing implicit
+        // gradient), the outer from outside (sense bit set).
         assert_eq!(
-            classify_material_pairing(&inner, -1.0, &outer, 1.0, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&inner, false, &outer, true, p, 1.0, band()).unwrap(),
             MaterialPairing::Opposed
         );
         let jet = crate::tangent_jet(&inner, &outer, p, Vec3::unit_y());
-        // Plus = the inner cylinder, whose outward normal (sense −1)
-        // points down: the crescent is the material ⇒ cusp.
+        // Plus = the inner cylinder, whose outward normal (sense bit
+        // clear) points down: the crescent is the material ⇒ cusp.
         assert!(
-            material_kappa_rel(jet.kappa_rel, -1.0) > 0.0,
+            material_kappa_rel(jet.kappa_rel, false) > 0.0,
             "kappa_rel {} in the material frame",
-            material_kappa_rel(jet.kappa_rel, -1.0)
+            material_kappa_rel(jet.kappa_rel, false)
         );
         // Revert: every outward normal negates, the crescent becomes
         // the void, and the same edge is the slit.
-        assert!(material_kappa_rel(jet.kappa_rel, 1.0) < 0.0);
+        assert!(material_kappa_rel(jet.kappa_rel, true) < 0.0);
     }
 
     /// Osculation: one surface against a coincident copy of itself.
@@ -737,11 +769,28 @@ mod tests {
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
         let p = Point3::origin();
         assert_eq!(
-            classify_material_pairing(&s1, 1.0, &s2, -1.0, p, 1.0, band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, false, p, 1.0, band()).unwrap(),
             MaterialPairing::Opposed
         );
         let jet = crate::tangent_jet(&s1, &s2, p, Vec3::unit_y());
-        assert_eq!(material_kappa_rel(jet.kappa_rel, 1.0), 0.0);
+        assert_eq!(material_kappa_rel(jet.kappa_rel, true), 0.0);
+        // **The bit SELECTS a negation; it does not scale by a `±1`**,
+        // and a zero is where the two spellings part: `-(κ · ±1.0)`
+        // answers `-0.0` on the clear bit and `+0.0` on the set one,
+        // the opposite of both rows below. No verdict reads a zero's
+        // sign — this collapse is `Zero` either way — so what these
+        // pin is the exactness the door's contract claims, on the one
+        // input where an inexact spelling is visible.
+        assert_eq!(
+            material_kappa_rel(0.0_f64, false).to_bits(),
+            0.0_f64.to_bits(),
+            "the clear bit returns its argument unchanged, sign bit included"
+        );
+        assert_eq!(
+            material_kappa_rel(0.0_f64, true).to_bits(),
+            (-0.0_f64).to_bits(),
+            "the set bit negates, and negating +0.0 gives -0.0"
+        );
     }
 
     /// The pairing escalates on a poisoned gradient exactly as the
@@ -755,7 +804,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err = classify_material_pairing(&cone, 1.0, &s1, 1.0, Point3::origin(), 1.0, band())
+        let err = classify_material_pairing(&cone, true, &s1, true, Point3::origin(), 1.0, band())
             .unwrap_err();
         assert_eq!(err.margin, geom_core::MarginDiag::Invalid);
     }

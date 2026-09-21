@@ -19,35 +19,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Vec3};
 use mesh::budget::{self, Mode};
-use sweep::loft_body;
+use sweep::test_support::loft_prism;
 use topo::Body;
 
 use crate::common;
-use common::quad;
 use geom_core::Tol;
 
 /// The tightness floor `the_deviation_pass_samples_and_stays_under_its_certificates`
 /// asserts, and the argument for its value is there.
 const RATIO_FLOOR: f64 = 0.1;
-
-/// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
-/// non-affine trapezoid at z = 1, v-degree 2.
-fn loft_prism() -> Body<f64> {
-    let sections = vec![
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-    ];
-    let places: Vec<Affine3<f64>> = [0.0, 1.0, 2.0]
-        .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect();
-    loft_body::<f64>(&sections, &places, 2, Tol::witness())
-        .expect("the corpus loft builds")
-        .body
-}
 
 /// The body's described-NURBS faces, in arena order.
 fn nurbs_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
@@ -66,7 +47,7 @@ fn nurbs_faces(body: &Body<f64>) -> Vec<topo::FaceKey> {
 /// must not be a thing a caller can accidentally pay for.
 #[test]
 fn a_disarmed_meter_records_nothing() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     assert!(!budget::armed());
     assert!(budget::deviation_samples().is_none());
     mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
@@ -79,7 +60,7 @@ fn a_disarmed_meter_records_nothing() {
 /// nothing about them.
 #[test]
 fn every_nurbs_face_is_measured_once_and_by_key() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     let walls = nurbs_faces(&body);
     assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     budget::arm(Mode::Sizing);
@@ -204,7 +185,7 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
 /// do not read this row's silence about cylinders as coverage.
 #[test]
 fn the_deviation_pass_samples_and_stays_under_its_certificates() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     budget::arm(Mode::Deviation {
         samples_per_edge: 6,
     });
@@ -259,7 +240,7 @@ fn the_deviation_pass_samples_and_stays_under_its_certificates() {
 /// must not be an exception to).
 #[test]
 fn arming_the_meter_does_not_change_the_mesh() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     let plain = mesh::tessellate(&body, 6e-3, Tol::witness()).expect("tessellates");
     budget::arm(Mode::Deviation {
         samples_per_edge: 6,

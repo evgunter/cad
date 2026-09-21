@@ -26,9 +26,37 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use test_utils::source::{code_and_literals, rust_sources};
+use test_utils::source::{balanced_end, code_and_literals, code_only, repo_root, rust_sources};
+
+/// **The aggregation row macro's invocation, spelled ONCE.**
+///
+/// Two needles in this file are built from it — shape (2) of
+/// [`reads_rust_source`] and [`SHARED_LEXER_DOORS`] — and a `macro_rules!`
+/// is what makes them one spelling rather than two hand-kept ones, since
+/// `concat!` takes literals and a `const` is not one. Collapsing fifteen
+/// copies of a row onto one macro and then hand-keeping two copies of its
+/// name is the class that collapse closes, one level down.
+///
+/// **No delimiter.** `every_suite_file_is_aggregated! { }` and `! [ ]`
+/// are the same invocation to `rustc` as `! ( )`, so a needle ending in
+/// `(` would stop seeing a file whose row was re-delimited — which reds
+/// fifteen `Shared` lines over a change that altered nothing. The
+/// trailing `!` is what keeps a prose mention of the row's `fn` NAME
+/// (`crates/bvh/tests/aggregator_headers.rs` holds one, inside an
+/// `assert!` message) from answering as an invocation.
+///
+/// [`the_aggregation_row_needle_names_a_macro_that_exists`] is what
+/// holds this to the macro's real name.
+macro_rules! aggregation_row_macro {
+    () => {
+        "every_suite_file_is_aggregated!"
+    };
+}
+
+/// [`aggregation_row_macro`]'s text, for the rows that reason about it.
+const AGGREGATION_ROW_MACRO: &str = aggregation_row_macro!();
 
 /// The repository's own directories, skipped by NAME rather than by a
 /// roster: a build directory, and anything hidden.
@@ -128,6 +156,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
+        path: "crates/editor-core/tests/msolve7_member_residue.rs",
+        disposition: Shared, // one-environment-per-solve build count over
+                             // mate/member.rs and mate/solve.rs, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/wire_entity_door.rs",
         disposition: Shared, // entity-door and entity-kind-carrier census over
                              // eval/wire.rs and eval/mod.rs, code view
@@ -141,6 +174,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/geom-brep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/geom-brep/tests/kstats_escalation_channel.rs",
+        disposition: Shared, // op-minted `Indeterminate` scan, code view
     },
     Entry {
         path: "crates/geom-brep/tests/pcurve_conic.rs",
@@ -172,9 +209,25 @@ const LEDGER: &[Entry] = &[
                              // structure, literal view for the format string
     },
     Entry {
+        path: "crates/pncad-py/src/surface_census.rs",
+        disposition: Shared, // every `*Options` type CONSTRUCTED under src/py/, so the
+                             // options rosters' membership is derived rather than hand-kept:
+                             // code view, which is what keeps a doc comment naming a struct
+                             // from reading as a door building one
+    },
+    Entry {
         path: "crates/pncad-py/src/tests.rs",
         disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
-                             // read; the kind words in src/node_kind.rs: literal view alone
+                             // read; the kind words in src/node_kind.rs: literal view alone;
+                             // the literal census of src/errors.rs: code, literal and comment
+                             // views together, so a literal adjoining a comment is told apart;
+                             // the roster's and the blind-spot list's test names, re-derived
+                             // against this file's own source: code view, which is what keeps
+                             // a name written in prose from answering yes; and the instance
+                             // attributes pncad.pyi declares, which is a Python stub and no
+                             // Rust source at all — it is read by line prefix and triple-quote
+                             // parity, with tests/test_stubs.py's `ast` walk the second reader
+                             // of that one convention (work/census/one-stub-convention-…)
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
@@ -203,6 +256,13 @@ const LEDGER: &[Entry] = &[
         path: "crates/profile/tests/raw_door_census.rs",
         disposition: Shared, // production-writer census + the raw door's own
                              // gate, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/recourse_roster.rs",
+        disposition: Shared, // the dispatch-order row reads path.rs's own match
+                             // patterns, code+literal view. The decide-site walk
+                             // it also runs is source::predicate_census, so that
+                             // half reads nothing here
     },
     Entry {
         path: "crates/profile/tests/seal.rs",
@@ -252,6 +312,20 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/test-utils/src/source.rs",
         disposition: Home,
+    },
+    Entry {
+        path: "crates/test-utils/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/test-utils/tests/deny_unknown_fields_census.rs",
+        disposition: Shared, // `deny_unknown_fields` sites and the declaration
+                             // each heads, code view
+    },
+    Entry {
+        path: "crates/test-utils/tests/hand_written_impl_census.rs",
+        disposition: Shared, // hand-written `Debug`/`PartialEq` impls and the bodies
+                             // they walk, code view
     },
     Entry {
         path: "crates/test-utils/tests/reader_census.rs",
@@ -350,28 +424,6 @@ const LEDGER: &[Entry] = &[
     },
 ];
 
-/// The repository root: this crate's directory, two levels up.
-///
-/// The "both ways the suite runs" resolution is
-/// [`test_utils::source::crate_dir`]'s, shared — three copies of that
-/// six-line fallback and its paragraph existed in this tree, which is
-/// the same defect one level up from the one this file guards.
-fn repo_root() -> PathBuf {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        // Canonical, so `..` is not a path COMPONENT: the skip below
-        // reads components, and a relative one matched every file in
-        // the tree at once — which looked exactly like a clean walk.
-        .canonicalize()
-        .expect("the repository root resolves");
-    assert!(
-        root.join("Cargo.toml").is_file(),
-        "{} is not the repository root",
-        root.display()
-    );
-    root
-}
-
 /// Whether `code` (a comments-blanked view) reads Rust source as text.
 ///
 /// **Three independent shapes, because a single-shaped sweep is what
@@ -386,7 +438,13 @@ fn repo_root() -> PathBuf {
 /// `.rs` file and reads nothing, so every `tests/all.rs` in the tree
 /// would otherwise be a hit — but every mount contributes **exactly
 /// one** `.rs"` literal, so a file holding more of those than it holds
-/// mounts is naming a source file for some other reason. Two shapes
+/// mounts is naming a source file for some other reason. An
+/// aggregator's own margin is now zero: the `include_str!("all.rs")`
+/// that used to carry it lives in
+/// `test_utils::every_suite_file_is_aggregated!`'s expansion, and shape
+/// (2) below is what sees those files. Shape (1) still decides every
+/// other named-path site, and still keeps a mount from reading as a
+/// read. Two shapes
 /// were tried and are wrong, each in its own direction:
 ///
 /// - **slicing the `#[path … ]` attributes out first** is an ad-hoc
@@ -548,12 +606,18 @@ fn reads_rust_source(code: &str) -> bool {
     //     in a gated-suite marker.
     let named = code.matches(".rs\"").count();
     let mounted = code.matches("#[path = \"").count() + gated_to_names(code);
-    // (2) Walks a source tree.
+    // (2) Walks a source tree — directly, or by invoking a macro whose
+    //     expansion does. The aggregation row walks the invoking crate's
+    //     `tests/` and reads every suite file in it; the tokens land in
+    //     the invoking file, so the walk is that file's, and the needle
+    //     is the INVOCATION because the expansion is not in the text
+    //     this reads. `aggregation_row_macro!` is the one spelling.
     let walks_a_source_tree = [
         "rust_sources(",
         "crate_sources(",
         "src_root(",
         "suite_files(",
+        aggregation_row_macro!(),
     ]
     .iter()
     .any(|n| code.contains(n))
@@ -612,7 +676,7 @@ fn sites_reading_rust_source(root: &Path) -> Vec<String> {
 /// directory underneath it as well.
 #[test]
 fn every_site_that_reads_rust_source_is_in_the_ledger() {
-    let root = repo_root();
+    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let mut found = sites_reading_rust_source(&root);
     found.sort();
     let ledger: Vec<&str> = LEDGER.iter().map(|e| e.path).collect();
@@ -632,6 +696,34 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
     );
 }
 
+/// The ways a site reaches the shared lexer, as they are SPELLED.
+///
+/// Two, because one of them hides the other: an aggregating
+/// `tests/all.rs` reaches `test_utils::source::aggregation_violations`
+/// through the aggregation row macro, and the module path it reaches is
+/// in the macro's EXPANSION rather than in the file. A door added to the
+/// façade that no site can be seen to use does not belong here; a door
+/// that fifteen files use does.
+///
+/// **What the second entry costs, stated because it is a real trade.**
+/// The first entry is checked against its subject on every `Shared`
+/// row: the file names `test_utils::source` or it does not. The second
+/// is a claim about a macro body that is NOT in the file being read, and
+/// `crates/test-utils/src/source.rs` — where that body lives — is
+/// dispositioned [`Home`], so it is filtered out of
+/// [`every_shared_entry_actually_reaches_the_shared_lexer`] before that
+/// row looks at anything. Before the collapse, fifteen `all.rs` files
+/// each carried their own copy and each was checked on its own text; a
+/// reversion in ONE of them red'd that file. Now one body answers for
+/// fifteen call sites.
+/// [`the_aggregation_row_macro_reaches_the_shared_lexer`] is what checks
+/// it, and it is ONE check where there were fifteen — the loss of
+/// redundancy is what the collapse costs, and it is not nothing.
+const SHARED_LEXER_DOORS: [&str; 2] = [
+    "test_utils::source",
+    concat!("test_utils::", aggregation_row_macro!()),
+];
+
 /// **A `Shared` line is a CLAIM, and this is what checks it.**
 ///
 /// Without this row the ledger's own silent direction is the one it
@@ -640,7 +732,7 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
 /// census stays green over exactly the change it was built to catch.
 #[test]
 fn every_shared_entry_actually_reaches_the_shared_lexer() {
-    let root = repo_root();
+    let root = repo_root(env!("CARGO_MANIFEST_DIR"));
     let liars: Vec<&str> = LEDGER
         .iter()
         .filter(|e| matches!(e.disposition, Shared))
@@ -648,16 +740,87 @@ fn every_shared_entry_actually_reaches_the_shared_lexer() {
             let text = std::fs::read_to_string(root.join(e.path))
                 .unwrap_or_else(|err| panic!("reading {}: {err}", e.path));
             // The code view: a mention in prose is not a call.
-            !test_utils::source::code_only(&text).contains("test_utils::source")
+            let code = test_utils::source::code_only(&text);
+            !SHARED_LEXER_DOORS.iter().any(|door| code.contains(door))
         })
         .map(|e| e.path)
         .collect();
     assert!(
         liars.is_empty(),
         "these entries are dispositioned Shared but no longer call \
-         `test_utils::source` — either they reverted to a hand-rolled reader, or \
-         the line is stale: {liars:#?}"
+         `test_utils::source`, by any of {SHARED_LEXER_DOORS:?} — either they reverted \
+         to a hand-rolled reader, or the line is stale: {liars:#?}"
     );
+}
+
+/// The file holding the aggregation row macro's body — the subject of
+/// the two rows below.
+fn aggregation_row_macro_home() -> std::path::PathBuf {
+    repo_root(env!("CARGO_MANIFEST_DIR")).join("crates/test-utils/src/source.rs")
+}
+
+/// The macro's bare name, from the one spelling of its invocation.
+fn aggregation_row_macro_name() -> &'static str {
+    AGGREGATION_ROW_MACRO
+        .strip_suffix('!')
+        .expect("the needle is an invocation, so it ends in `!`")
+}
+
+/// **The needle names a macro that EXISTS, under that name.**
+///
+/// [`AGGREGATION_ROW_MACRO`] is a string. Renaming the macro re-spells
+/// fifteen invocations for free — the compiler does it — and leaves the
+/// string untouched, at which point shape (2) of [`reads_rust_source`]
+/// matches nothing, fifteen `Shared` lines red as stale, and the cause is
+/// a needle nobody edited rather than a reader anybody reverted. This row
+/// is the edge a rename trips on instead, and it names the cause.
+#[test]
+fn the_aggregation_row_needle_names_a_macro_that_exists() {
+    let name = aggregation_row_macro_name();
+    let text = std::fs::read_to_string(aggregation_row_macro_home()).expect("a readable source");
+    let declaration = format!("macro_rules! {name} {{");
+    assert!(
+        code_only(&text).contains(&declaration),
+        "`{declaration}` is not declared in crates/test-utils/src/source.rs. The needle \
+         `{AGGREGATION_ROW_MACRO}` names no macro, so every aggregating tests/all.rs has \
+         stopped reading as a source reader for a reason that is in THIS file, not in theirs."
+    );
+}
+
+/// **The one check where there were fifteen.**
+///
+/// [`SHARED_LEXER_DOORS`]' second entry says that invoking the
+/// aggregation row macro reaches the shared lexer. That is a claim about
+/// a body in `crates/test-utils/src/source.rs`, which is dispositioned
+/// [`Home`] and therefore never looked at by
+/// [`every_shared_entry_actually_reaches_the_shared_lexer`] — so
+/// rewriting the macro to walk `tests/` by hand leaves all fifteen
+/// `Shared` lines green and every other row in this file passing.
+/// Measured, not supposed: that reversion reds this row and nothing else.
+///
+/// Before the collapse each of the fifteen carried its own copy and each
+/// was checked against its own file. This is the one that survives, and
+/// it is stated as one check replacing fifteen rather than as their
+/// equal.
+#[test]
+fn the_aggregation_row_macro_reaches_the_shared_lexer() {
+    let name = aggregation_row_macro_name();
+    let text = std::fs::read_to_string(aggregation_row_macro_home()).expect("a readable source");
+    let code = code_only(&text);
+    let at = code
+        .find(&format!("macro_rules! {name} {{"))
+        .expect("the row above proves the declaration is here");
+    let open = at + code[at..].find('{').expect("the declaration opens a brace");
+    let end = balanced_end(&code, open).expect("the macro's braces close");
+    let body = &code[open..=end];
+    for door in ["source::crate_dir(", "source::aggregation_violations("] {
+        assert!(
+            body.contains(door),
+            "the `{name}!` expansion no longer calls `{door}` — it has stopped reaching the \
+             shared lexer, and no other row in this file can see that, because the fifteen \
+             call sites carry the invocation and this one body carries the reader."
+        );
+    }
 }
 
 /// **The debt, stated as an equality and hand-synced loudly.**

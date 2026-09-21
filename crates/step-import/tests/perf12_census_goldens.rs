@@ -22,7 +22,7 @@
 
 use crate::common;
 
-use common::{FREECAD_FIXTURES, SOLID_FIXTURES, census, fixture, freecad_fixture};
+use common::{FREECAD_FIXTURES, SOLID_FIXTURES, arena_census, fixture, freecad_fixture};
 use geom_core::Tol;
 use step_import::{ImportContact, ImportOptions, StepImport, import_step};
 
@@ -63,7 +63,7 @@ fn row(label: &str, text: &str, options: &ImportOptions, out: &mut String) {
     out.push_str(&format!("## {label}\n"));
     match import_step(text, options, Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let (solids, shells, faces, edges, vertices) = census(&body);
+            let (solids, shells, faces, edges, vertices) = arena_census(&body);
             out.push_str(&format!(
                 "import: Ok(Solid) solids={solids} shells={shells} faces={faces} edges={edges} vertices={vertices}\n"
             ));

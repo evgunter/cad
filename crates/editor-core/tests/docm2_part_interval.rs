@@ -77,6 +77,7 @@ fn widened_document(width: f64) -> ProfileDoc {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the parameter re-declares with a distribution")
     .doc

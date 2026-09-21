@@ -2,8 +2,12 @@
 id: the-two-seams-are-hand-maintained-twins
 kind: issue
 title: evalseam is two modules with one coalescing machine copied four times, and nothing in it says so
-status: open
+status: review
 opened: 2026-09-05
+branch: view/seam-twins
+pr: 2666
+priority: P1
+cost: D
 ---
 
 
@@ -53,3 +57,68 @@ hand-maintained copies of one invariant are the part that can silently
 diverge, and the two `dispatch` bodies are already identical enough
 that a fix to one would not be applied to the other by anyone reading
 either.
+
+
+## The count, re-derived — the item was stale in its central number
+
+Read on `origin/main` at `d71bb6a785`. The fit seam landed after this
+row was written (#2606), so the file holds **three** seams, not two:
+three traits (`EvalService`, `IndexService`, `FitService`), three
+`Inline*` impls, three `Thread*` impls, **three `dispatch` bodies** and
+**six `busy` bodies** (plus the three trait declarations). The
+coalescing machine is written **six** times, not four, and the module
+header's *"Both implementations do this, by the same mechanism"* was
+wrong twice over — about the number and about there being one
+mechanism.
+
+The test half was stale the same way: the row says *both* threaded
+rows carry the 10 000 × 1 ms spin harness. `crates/viewer/tests/
+eval_seam.rs` carries **six** copies of it, in three shapes, and four
+more sites live in three other test files.
+
+## The fork, decided: the generic worker, not the split
+
+The two candidates are not the same fix and only one of them touches
+what can silently diverge.
+
+**Taken: a generic worker over a job trait.** The threaded half is now
+one `Coalescing<J>` handle — at-most-one-outstanding, latest-wins, the
+worker-gone reset and `busy() == running || waiting.is_some()` written
+once — plus a private `Job` trait carrying the ONE rule that differs
+between the seams, `supersedes`. Each threaded seam keeps only what is
+genuinely its own: the evaluator's cancel token and its bounded join,
+the index and fit seams' key comparisons.
+
+**Not taken: splitting the file.** It removes no copies. The header's
+disjointness is a symptom of the seams being three restatements of one
+shape; naming the shape removes the restatements AND most of the
+disjointness, where a split would have left three files each carrying
+its own copy of the machine and a fourth seam free to add a fourth.
+`crates/viewer/README.md`'s *The seam modules are a chain* also makes
+one-file-owns-every-thread the property that won the current module
+shape, so a split is a design change and not a tidy-up.
+
+**The inline half is not a copy and is left alone.** An inline seam's
+whole machine is one `Option`: `Option::replace` IS latest-wins, `busy`
+is the slot, there is no worker to be ahead of and no `running` flag to
+disagree with anything. Nothing in it can diverge without changing the
+field's type. The prose that said it three times is now said once, in
+the module header.
+
+## Where the invariant lives now
+
+`Coalescing`'s doc comment, in `crates/viewer/src/evalseam.rs`'s
+threaded module — all four clauses, in one place, beside the two fields
+they are about. A fourth seam diverging from it is no longer expressible
+without writing a second handle: it would have to re-declare
+`to_worker`, `from_worker`, `running` and `waiting` and re-implement
+four methods, rather than get one of them subtly wrong.
+
+## Residue
+
+- The four wait-loop copies outside `eval_seam.rs`:
+  `work/view/threaded-seam-wait-loops-are-hand-copied-across-four-test-files`.
+- The coalescing rule is still prose no arbitrary implementor is held
+  to — `work/view/evalservice-coalescing-rule-is-prose-no-implementor-is-held-to`
+  is unchanged by this, and is now the only place the rule is
+  unenforced.

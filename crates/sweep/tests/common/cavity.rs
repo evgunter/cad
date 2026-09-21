@@ -33,21 +33,11 @@
 //!   file) and the parallelogram's four vertices at 1e-9
 //!   (`blend4_r1_probes`) stay at their sites: each is a value that
 //!   suite chose, and moving one here would move a fixture value;
-//! - the `prism`/`brick` builders of the OTHER crates' suites
-//!   (`topo`, `mesh`, `stl`, `step-export`, `editor-core`) — a
-//!   cross-crate home is LIB-U6's territory, which this tree's routing
-//!   rule says is deliberately not built here;
-//! - two copy classes of the same SHAPE elsewhere in this crate's
-//!   corpus, which are a different family and not this unit's:
-//!   `brick(x, y, z)` over tuple ranges (`bool2_cone_doors.rs`,
-//!   `bool3_torus_doors.rs`, `verbs_gate_r1_probes.rs` byte-identical,
-//!   plus `bool2_r2_probes.rs`, `r1_probes_m9_3.rs`,
-//!   `s49_census_jurisdiction.rs` diverged), and
-//!   `prism(pts, h)` over `(f64, f64)` pairs from `SketchPlane::xy()`
-//!   (`sf2a_r2_probes.rs` = `verbs_shell.rs`,
+//! - the `prism(pts, h)` copy class over `(f64, f64)` pairs from
+//!   `SketchPlane::xy()` (`sf2a_r2_probes.rs` = `verbs_shell.rs`,
 //!   `m8_4_intersection_iso.rs` = `r1_p2_probes.rs`, plus six
-//!   singletons). They are tracked as
-//!   `work/tcost/sweep-boolean-suite-brick-and-prism-copies.md`;
+//!   singletons) — a different family and not this unit's, tracked as
+//!   `work/tint/sweep-boolean-suite-brick-and-prism-copies.md`;
 //! - `super::approx::prism`, which builds the `Surface::Approx`
 //!   surgery's base rather than a boolean operand.
 
@@ -64,30 +54,21 @@ pub fn sketch_at(z: f64) -> SketchPlane<f64> {
     ))
 }
 
-/// A polygon on the plane at `z0`, extruded to `z1`.
+/// A polygon on the plane at `z0`, extruded to `z1` — this module's
+/// `(Point2, z0, z1)` vocabulary over the kernel's own fixture door.
 pub fn prism(poly: &[Point2<f64>], z0: f64, z1: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon(poly.iter().copied());
-    let profile = Profile::new(sketch_at(z0), vec![lp])
-        .validate(Tol::witness())
-        .expect("a convex polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a prism extrudes")
-        .body
+    sweep::test_support::extruded(sketch_at(z0), vec![lp], z1 - z0, Tol::witness())
 }
 
 /// An axis-aligned box: the rectangle `lo.xy … hi.xy` on the plane at
 /// `lo.z`, extruded to `hi.z`.
+///
+/// The body is [`sweep::test_support::brick`]'s. What lives here is
+/// this module's `Point3` corner vocabulary, which is how the cavity
+/// suites are written.
 pub fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
-    prism(
-        &[
-            Point2::new(lo.x, lo.y),
-            Point2::new(hi.x, lo.y),
-            Point2::new(hi.x, hi.y),
-            Point2::new(lo.x, hi.y),
-        ],
-        lo.z,
-        hi.z,
-    )
+    sweep::test_support::brick((lo.x, hi.x), (lo.y, hi.y), (lo.z, hi.z), Tol::witness())
 }
 
 /// A circular rod: two half-arc profile segments extruded, so its wall

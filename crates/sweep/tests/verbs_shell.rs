@@ -18,6 +18,7 @@ use crate::common::census::{genus_of, rings_of};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::{block, brick, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
 };
@@ -25,41 +26,6 @@ use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRol
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-/// A `w x d x h` box at the origin.
-pub(crate) fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(w, 0.0), 0.0),
-        ProfileVertex::new(p2(w, d), 0.0),
-        ProfileVertex::new(p2(0.0, d), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a rectangle extrudes")
-        .body
-}
-
-/// An axis-aligned box `[x0,x1] × [y0,y1] × [z0,z1]`, extruded from a
-/// sketch plane at `z0` (R2's `brick`; shared with the review rows).
-pub(crate) fn brick(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(x0, y0), 0.0),
-        ProfileVertex::new(p2(x1, y0), 0.0),
-        ProfileVertex::new(p2(x1, y1), 0.0),
-        ProfileVertex::new(p2(x0, y1), 0.0),
-    ]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(tol)
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .expect("a rectangle extrudes")
-        .body
 }
 
 /// `topo::subtract` with the result body pulled out.
@@ -161,7 +127,7 @@ pub(crate) fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
 #[test]
 fn a_sealed_shelled_box_is_an_outer_and_a_void() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let hollow = topo::shell(&boxy(w, d, h), t, Tol::witness())
+    let hollow = topo::shell(&block(w, d, h, Tol::witness()), t, Tol::witness())
         .expect("a box thicker than twice the wall shells")
         .body;
 
@@ -220,7 +186,7 @@ const VALIDATOR_SHARED: &str = "bool_ring_run_winding";
 
 #[test]
 fn shell_runs_no_intersection_machinery() {
-    let body = boxy(2.0, 3.0, 4.0);
+    let body = block(2.0, 3.0, 4.0, Tol::witness());
     let bracket = Bracket::open();
     let hollow = topo::shell(&body, 0.25, Tol::witness())
         .expect("it shells")
@@ -276,7 +242,7 @@ fn a_sealed_shelled_vessel_matches_its_closed_form() {
 #[test]
 fn an_opened_shelled_box_is_a_closed_thin_solid_with_a_rim() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let body = boxy(w, d, h);
+    let body = block(w, d, h, Tol::witness());
     let top = plane_face_at(&body, h);
     let cup = topo::shell_open(&body, t, &[top], Tol::witness())
         .expect("a box opens at its top")
@@ -313,7 +279,7 @@ fn an_opened_shelled_box_is_a_closed_thin_solid_with_a_rim() {
 #[test]
 fn opening_two_faces_gives_two_rims_and_one_shell() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let body = boxy(w, d, h);
+    let body = block(w, d, h, Tol::witness());
     let (top, bottom) = (plane_face_at(&body, h), plane_face_at(&body, 0.0));
     let tubey = topo::shell_open(&body, t, &[top, bottom], Tol::witness())
         .expect("a box opens at both caps")
@@ -346,10 +312,10 @@ pub(crate) fn v(w: f64, d: f64, h: f64) -> f64 {
     w * d * h
 }
 
-/// The `boxy(2, 3, 4)` box shelled at `0.25`: one solid, two shells,
+/// The `block(2, 3, 4, Tol::witness())` box shelled at `0.25`: one solid, two shells,
 /// the hollow operand every row below starts from.
 pub(crate) fn hollow_box() -> Body<f64> {
-    topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, Tol::witness())
+    topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, Tol::witness())
         .expect("the first shell is the sealed row's own green")
         .body
 }
@@ -393,7 +359,7 @@ pub(crate) fn roles_by_solid(body: &Body<f64>) -> Vec<(SolidKey, Vec<ShellRole>)
 const OUTER_TERM: fn() -> f64 = || v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
 const INNER_TERM: fn() -> f64 = || v(1.6, 2.6, 3.6) - v(1.5, 2.5, 3.5);
 
-/// **The ruled composition.** `shell(shell(boxy(2,3,4), 0.25), 0.05)`:
+/// **The ruled composition.** `shell(shell(block(2,3,4, Tol::witness()), 0.25), 0.05)`:
 /// two solids, four shells, tier 3 green, one `Outer` and one `Void`
 /// PER SOLID, the volume the sum of the two walls' closed forms, and
 /// every operand face resolving in the result under its own key in
@@ -537,8 +503,14 @@ fn the_clearance_gate_reads_across_shells() {
 /// wall — built as two subtractions, the way a user would write it.
 /// Returns the body and the void gap.
 pub(crate) fn two_void_box() -> (Body<f64>, f64) {
-    let one = cut(&boxy(6.0, 4.0, 4.0), &brick(1.0, 2.2, 1.0, 3.0, 1.0, 3.0));
-    let two = cut(&one, &brick(2.6, 3.8, 1.0, 3.0, 1.0, 3.0));
+    let one = cut(
+        &block(6.0, 4.0, 4.0, Tol::witness()),
+        &brick((1.0, 2.2), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
+    );
+    let two = cut(
+        &one,
+        &brick((2.6, 3.8), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
+    );
     assert_eq!(two.solids().count(), 1, "one solid");
     assert_eq!(two.shells().count(), 3, "outer plus two voids");
     (two, 0.4)
@@ -638,9 +610,12 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     let tol = Tol::witness();
     let (big_r, r, w, t) = (2.0, 0.5, 0.125, 0.05);
     let solid = sweep::tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         big_r,
         TubeWindow::Full,
         r,
@@ -649,9 +624,12 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     .expect("the solid torus builds")
     .body;
     let hollow = tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         big_r,
         TubeWindow::Full,
         r,
@@ -902,7 +880,7 @@ fn shell_of_a_hollow_runs_no_intersection_machinery() {
 #[test]
 fn a_nonpositive_thickness_refuses_typed() {
     for t in [0.0_f64, -0.1] {
-        let e = topo::shell(&boxy(2.0, 3.0, 4.0), t, Tol::witness())
+        let e = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), t, Tol::witness())
             .expect_err("a non-positive wall must not build");
         assert!(
             matches!(e, ShellError::Thickness { .. }),
@@ -944,7 +922,7 @@ fn a_wall_past_the_reach_refuses_typed() {
 /// and curved.
 #[test]
 fn the_open_face_designation_gates_refuse_typed() {
-    let body = boxy(2.0, 3.0, 4.0);
+    let body = block(2.0, 3.0, 4.0, Tol::witness());
     let top = plane_face_at(&body, 4.0);
     let bottom = plane_face_at(&body, 0.0);
     let t = 0.25;
@@ -1102,7 +1080,12 @@ fn the_shell_cost_is_measured_not_asserted() {
     let v = vessel(1.0, 2.0);
     let top = plane_chart_at_y(&v, 2.0);
     let cases: Vec<(&str, Body<f64>, f64, Vec<FaceKey>)> = vec![
-        ("box", boxy(2.0, 3.0, 4.0), 0.25, Vec::new()),
+        (
+            "box",
+            block(2.0, 3.0, 4.0, Tol::witness()),
+            0.25,
+            Vec::new(),
+        ),
         ("vessel", v.clone(), 0.2, Vec::new()),
         ("tube", tube(0.6, 1.0, 2.0), 0.1, Vec::new()),
         // The opened arm: its lift door mints the whole body once more
@@ -1186,18 +1169,24 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// the elbow meets the rest of the bottle. That is the "paid once per
 /// wall" debt the demo's own findings list records.
 ///
-/// **It does not retire in this unit, and this row is why.** A partial
-/// revolve of a disc gives a TORUS wall and two PLANAR meridian end
-/// caps, so every rim is a torus × meridian-plane seam vertex. The
-/// rim-construction capability (VERBS-RIMCAP) moved the elbow's wall
-/// one door deeper: the corner now SOLVES — a meridian cap stops
-/// containing the axis the instant it is offset inward, and the
-/// carried-datum arm answers the displaced corner from the wall's own
-/// profile circle plus the moved cap — but the rim EDGE between them
-/// has no carrier. The moved cap stands `t` off the axis, parallel to
-/// it, and cuts the torus in a spiric QUARTIC; the latitude mint
-/// refuses the off-axis centre it will not pretend is a latitude, and
-/// this row pins that payload.
+/// **It does not retire yet, and this row is why.** A partial revolve
+/// of a disc gives a TORUS wall and two PLANAR meridian end caps, so
+/// every rim is a torus × meridian-plane seam vertex. The corner
+/// SOLVES (the carried-datum arm), and the rim EDGE between wall and
+/// moved cap now MINTS: the moved cap stands `t` off the axis,
+/// parallel to it, and cuts the torus in a spiric, which the axial
+/// door mints as the exact `Curve3::Spiric` it is. What this row pins
+/// now is the door AFTER the carrier: the elbow's EQUATOR SEAMS, the
+/// disc's two profile vertices revolved as `RevolvedPoint`-declared
+/// chart seams, whose re-author refuses a corner the moved cap has
+/// displaced off the family's own sketch plane
+/// (`offset_axial_reauthor_plane`).
+///
+/// **The old door, verbatim (measured at the unit's head before the
+/// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
+/// circular edge between two charts whose centre is off the axis" } }`
+/// — the latitude mint's `offset_axial_centre` predicate, on the same
+/// door face, edge and predicate for the open and the sealed arm.
 ///
 /// **This is not a torus gap — and it is not every curved wall's gap
 /// either.** A partial revolve whose wall is a CYLINDER hollows today:
@@ -1211,18 +1200,17 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// premise — a wall its OPERAND already stands behind. What is missing
 /// here is exactly the torus's moved-rim CARRIER.
 ///
-/// **What would retire it**, concretely, is the SPIRIC carrier: a
-/// plane parallel to a torus's axis at distance `t` cuts it in a
-/// spiric section, not a circle, and `Curve3` has no quartic kind. The
-/// C5 table now routes `plane × torus` (VERBS-C5ARMS shipped the two
-/// exact-degenerate closed forms), but the shipped arm REFUSES exactly
-/// this configuration — the axis-parallel offset plane routes to the
-/// general rung, named at the arm's own refusal — so the rim waits on
-/// the spiric carrier (the VERBS-RIMCAP spec's design-gated PR-2
-/// conversation), not on the C5 table and no longer on the corner.
-/// `torax_axial` carries that measurement too — on this elbow's own
-/// numbers the section's half-width and half-height differ by
-/// `2.03e-4` m, a circle's do not.
+/// **What would retire it**, concretely, is two doors: a re-author
+/// for a revolved point's declaration whose corner leaves the sketch
+/// plane (the seam's family still passes through the moved corner —
+/// rotated to the corner's own azimuth — but that re-authoring is a
+/// design question, not this row's), and then the props quadrature
+/// lane for a spiric-bounded face, where the sectioned vessel already
+/// stands (`spiric_rim`). The C5 table is not involved: the axial
+/// door mints the rim inline, and `plane_torus_section` keeps refusing
+/// the tilted pose. `torax_axial` carries the section's own
+/// measurement — on this elbow's numbers the half-width and
+/// half-height differ by `2.03e-4` m, a circle's do not.
 ///
 /// The comparison this row would make once that lands: topology exactly
 /// equal, stored radii within one ulp (the two spellings reach the
@@ -1258,50 +1246,33 @@ fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
-    let e = topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
-        .expect_err("the elbow's moved rim is a spiric section away from a carrier");
-    let ShellError::Face {
-        face: open_door,
-        error: open_error,
-    } = e
-    else {
-        panic!("expected the offset door's refusal, got {e}");
+    let seam_reauthor = |e: ShellError<f64>| {
+        let ShellError::Face { face, error } = e else {
+            panic!("expected the offset door's refusal, got {e}");
+        };
+        let topo::ReplaceFaceError::TogetherAxialEdge { edge, what } = *error else {
+            panic!("expected the seam re-author's refusal, got {error}");
+        };
+        assert_eq!(
+            what,
+            "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
+        );
+        (face, edge, what)
     };
-    let topo::ReplaceFaceError::TogetherAxialEdge {
-        edge: open_edge,
-        what: open_what,
-    } = *open_error
-    else {
-        panic!("expected the latitude mint's off-axis refusal, got {open_error}");
-    };
-    assert_eq!(
-        open_what, "a circular edge between two charts whose centre is off the axis",
-        "the latitude mint names the off-axis centre"
+    let open = seam_reauthor(
+        topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
+            .expect_err("the opened elbow's equator seam cannot be re-authored off its plane"),
     );
 
-    // The sealed arm stops at the same wall, on the same edges — the
-    // blocker is the rim pair, not the opening — asserted on the
-    // PAYLOAD (same door face, same edge, same predicate), not just
-    // the variant.
-    let sealed = topo::shell(&solid, KLEIN_WALL, Tol::witness())
-        .expect_err("the sealed arm meets the same rim");
-    let ShellError::Face {
-        face: sealed_door,
-        error: sealed_error,
-    } = sealed
-    else {
-        panic!("the sealed arm must refuse at the offset door too, got {sealed}");
-    };
-    let topo::ReplaceFaceError::TogetherAxialEdge {
-        edge: sealed_edge,
-        what: sealed_what,
-    } = *sealed_error
-    else {
-        panic!("the sealed arm must stop at the same carrier mint, got {sealed_error}");
-    };
+    // The sealed arm stops at the same wall, on the same edge — the
+    // blocker is the seam, not the opening — asserted on the PAYLOAD
+    // (same door face, same edge, same predicate).
+    let sealed = seam_reauthor(
+        topo::shell(&solid, KLEIN_WALL, Tol::witness())
+            .expect_err("the sealed arm meets the same seam"),
+    );
     assert_eq!(
-        (sealed_door, sealed_edge, sealed_what),
-        (open_door, open_edge, open_what),
+        sealed, open,
         "the sealed arm's refusal is the open arm's: same wall, same edge, same predicate"
     );
 }
@@ -1789,7 +1760,7 @@ fn the_simultaneous_door_names_its_scope() {
 
     // A face the door was not told about is a plane missing from every
     // corner it touches.
-    let mut boxy_body = boxy(2.0, 3.0, 4.0);
+    let mut boxy_body = block(2.0, 3.0, 4.0, Tol::witness());
     let mut partial = move_all(&boxy_body, -0.1);
     partial.pop();
     let e = topo::offset_planes_together(&mut boxy_body, &partial, band(), tol)
@@ -2107,7 +2078,10 @@ fn plane_of(body: &Body<f64>, face: FaceKey) -> (geom_core::Point3<f64>, geom_co
     let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(data.surface) else {
         panic!("{face:?} is not planar")
     };
-    (*origin, if data.sense { *normal } else { -*normal })
+    (
+        *origin,
+        geom_brep::OutwardNormal::from_chart(*normal, data.sense).vec(),
+    )
 }
 
 /// The edges a loop walks, in cycle order.
@@ -2512,7 +2486,7 @@ fn assert_ring_rows(
 /// The fixtures the audit runs over: both arms, both cap shapes, both
 /// hole shapes, and a chart designated in each order.
 fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
-    let boxed = boxy(2.0, 3.0, 4.0);
+    let boxed = block(2.0, 3.0, 4.0, Tol::witness());
     let top = plane_face_at(&boxed, 4.0);
     let bottom = plane_face_at(&boxed, 0.0);
     let cup_body = vessel(0.5, 0.4);
@@ -2531,8 +2505,18 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         })
         .collect();
     vec![
-        ("the sealed box", boxy(2.0, 3.0, 4.0), Vec::new(), 0.25),
-        ("the box cup", boxy(2.0, 3.0, 4.0), vec![top], 0.25),
+        (
+            "the sealed box",
+            block(2.0, 3.0, 4.0, Tol::witness()),
+            Vec::new(),
+            0.25,
+        ),
+        (
+            "the box cup",
+            block(2.0, 3.0, 4.0, Tol::witness()),
+            vec![top],
+            0.25,
+        ),
         ("the two-ended box", boxed, vec![top, bottom], 0.25),
         ("the revolved cup", vessel(0.5, 0.4), cup_chart, 0.05),
         (
@@ -2568,7 +2552,7 @@ fn the_record_reads_against_the_body_on_every_arm() {
 fn the_sealed_boxs_record_names_every_wall_and_its_twin() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let tol = Tol::witness();
-    let source = boxy(w, d, h);
+    let source = block(w, d, h, Tol::witness());
     let shelled = topo::shell(&source, t, tol).expect("the box shells");
     let (body, record) = (&shelled.body, &shelled.naming);
     let roles = face_roles(body);

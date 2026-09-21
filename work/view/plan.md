@@ -1,10 +1,36 @@
 # VIEW — viewer architecture (plan)
 
-**STATUS: OPEN, and dispatching (2026-09-04).** Opened 2026-09-03 from
-`docs/WORK-TRACKS-2026-09.md` (VIEW section). Orchestrator handed over
-twice; the third session took it 2026-09-04 evening. Live state is
-`work/view/log.md`'s tail and the item files beside this plan, never
-this file.
+**STATUS: OPEN, RE-SCOPED 2026-09-17, NOT DISPATCHING.** Opened
+2026-09-03 from `docs/WORK-TRACKS-2026-09.md` (VIEW section).
+Orchestrator handed over twice; the third session took it 2026-09-04
+evening. Live state is `work/view/log.md`'s tail and the item files
+beside this plan, never this file.
+
+**What the re-scope did, and what it did not.** The six units of the
+`Order` below are all done, deferred or handed off — that verification
+is in `log.md`'s 2026-09-17 entry, row by row. What remained was
+ninety-four live rows of review accretion on one crate, and four
+successor programs were opened for them per `work/README.md`'s
+re-homing clause (Ev, 2026-09-06): **`vnews`** (the news vocabulary),
+**`vgeom`** (geometry, camera and the numeric renders), **`vseam`**
+(the seams and the session vocabulary) and **`vdoc`** (prose,
+citations and censuses, dispatching last). Fifteen further rows went
+to seven live programs. **This program did not close and does not
+dispatch**: its exit walk is a separate ratified step and
+`docs/DOC-LEDGER.md` records the sweep when it happens.
+
+**The eight rows that stayed, and why.** Six are in `review` with their
+lanes in flight (#2622, #2662, #2665, #2666, #2670, #2672) — a rename
+mid-review is a merge conflict for nothing, and each row's successor is
+named in that program's `plan.md` §Inbound.
+`a-dead-seam-worker-reads-as-an-ordinary-idle-state` is parked on a
+ruling at PR #2762 and nothing touches it.
+`startup-notices-need-holding-to-badge` is the last of the status-line
+sweep's residue. Plus
+`the-lane-register-has-no-home-after-views-directory-goes`, filed by
+the re-scope: **the register below binds four live programs by
+reference and dies with this file, so re-homing it is a precondition of
+this program's exit walk rather than a follow-up to it.**
 
 Branch prefix (the #396 convention): **`view/`** — unit branches
 `view/<unit>-<slug>`, orchestrator branch `view/orchestrator`. Sessions
@@ -334,7 +360,7 @@ at ~7.33 points per digit — about **six and a half characters**, so it
 could not display `0.001667` even before any render change. A fix to a
 render that leaves the width alone is delivered clipped, and a clipped
 render reads as a different value, which is the defect again. The field
-is now 88 points with `the_field_shows_the_longest_render` measuring
+is now 88 points with `the_field_shows_every_render_the_bound_covers` measuring
 both numbers through egui's own font metrics (the crate sets no text
 styles, so headless metrics are the app's) and going red at 56.
 

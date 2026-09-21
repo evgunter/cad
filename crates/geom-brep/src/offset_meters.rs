@@ -141,7 +141,7 @@
 //! offset distance against a patch's.
 
 use geom_core::ring_interval::RingInterval;
-use geom_core::{Band, Indeterminate, Margin, Sign};
+use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
 
 use crate::dihedral::decide;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
@@ -296,12 +296,19 @@ fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
 /// The enclosure of `‖v‖²` — the DEPENDENT square per component, so
 /// a component straddling zero cannot drag the lower end negative
 /// (`x·x` treats its factors as independent; `x.sqr()` does not).
-fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
+pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
     v[0].sqr() + v[1].sqr() + v[2].sqr()
 }
 
 /// A certified upper bound on `‖v‖` for a componentwise enclosure.
-fn norm_sup(v: &[RingInterval; 3]) -> f64 {
+///
+/// Every step rounds outward: the per-component `sqr()` and the two
+/// ring sums, then [`sqrt_up`]. An `f64` fold of the same endpoints
+/// rounds to nearest at each step and can land BELOW the real norm
+/// by ulps, which is the unsound side wherever the result is a
+/// divisor of a lower bound — so a site that wants an upper bound on
+/// a norm calls this rather than re-spelling the fold.
+pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
     sqrt_up(norm_sq(v).hi())
 }
 
@@ -311,11 +318,12 @@ fn norm_sup(v: &[RingInterval; 3]) -> f64 {
 pub struct CellNormal {
     /// Componentwise enclosure of `m = S_u × S_v` on the cell.
     pub m: [RingInterval; 3],
-    /// Certified LOWER bound on `‖m‖` over the cell (m²) — the
-    /// regularity floor. Exactly `0.0` when neither assembly could
-    /// separate the cell's normal from zero.
+    /// Certified LOWER bound on `‖m‖` over the cell, in
+    /// [`PatchRegularity::floor`]'s units (m² per unit parameter
+    /// area) — the regularity floor. Exactly `0.0` when neither
+    /// assembly could separate the cell's normal from zero.
     pub floor: f64,
-    /// Certified UPPER bound on `‖m‖` over the cell (m²).
+    /// Certified UPPER bound on `‖m‖` over the cell, same units.
     pub sup: f64,
 }
 
@@ -378,14 +386,22 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
 /// (module docs).
 #[derive(Clone, Copy, Debug)]
 pub struct PatchRegularity {
-    /// `inf ‖S_u × S_v‖` from below, over the whole patch (m²).
+    /// `inf ‖S_u × S_v‖` from below, over the whole patch — an AREA
+    /// RATE, m² per unit parameter area, which is `‖S_u × S_v‖`'s own
+    /// unit and the module docs' one spelling of it.
     pub floor: f64,
-    /// `sup ‖S_u × S_v‖` from above (m²).
+    /// `sup ‖S_u × S_v‖` from above, in [`PatchRegularity::floor`]'s
+    /// units.
     pub sup: f64,
-    /// `sup ‖S_u‖` (m per unit parameter).
-    pub speed_u: f64,
-    /// `sup ‖S_v‖` (m per unit parameter).
-    pub speed_v: f64,
+    /// `sup ‖S_u‖` (m per unit parameter) — a [`SupSpeed`] by
+    /// signature: every consumer of it meters an overshoot (the
+    /// regularity lever below, the refinement schedule's split
+    /// selection), where over-stating the speed refuses and
+    /// under-stating admits a fold.
+    pub speed_u: SupSpeed<f64>,
+    /// `sup ‖S_v‖` (m per unit parameter); see
+    /// [`PatchRegularity::speed_u`] for the bound direction.
+    pub speed_v: SupSpeed<f64>,
     /// `floor / (speed_u · speed_v)` — a dimensionless lower bound on
     /// `sin∠(S_u, S_v)`. A DIAGNOSTIC: the predicate classifies
     /// [`PatchRegularity::thinness`], not this (module docs).
@@ -396,9 +412,11 @@ pub struct PatchRegularity {
 
 impl PatchRegularity {
     /// The lever the regularity predicate divides by: the patch's
-    /// faster chart speed, in metres per unit parameter.
-    pub fn speed_lever(&self) -> f64 {
-        self.speed_u.max(self.speed_v)
+    /// faster chart speed, in metres per unit parameter. The max of
+    /// two sup bounds is a sup bound, so the pair's tag survives the
+    /// fold.
+    pub fn speed_lever(&self) -> SupSpeed<f64> {
+        SupSpeed::new(self.speed_u.get().max(self.speed_v.get()))
     }
 
     /// The margin [`offset_normal_floor`] classifies — the chart
@@ -410,8 +428,20 @@ impl PatchRegularity {
     /// number on every input: a zero lever leaves `0/0`, which
     /// escalates rather than certifying, and an infinite one leaves a
     /// zero margin, which refuses. Both are the loud answer.
+    /// **Why the tag comes off here.** The rate pair's
+    /// [`to_param`](SupSpeed::to_param) door crosses a model-space
+    /// LENGTH to parameter units, and `floor` is not one: it is an
+    /// area rate (m² per unit parameter area), so `floor / lever` is
+    /// m per unit parameter — itself a rate, and an inf-side one
+    /// (`≤ min(‖S_u‖, ‖S_v‖)·sin∠`, under-stated by the sup in the
+    /// denominator). What makes it the metres the predicate
+    /// classifies is the module's own unit-parameter-cell convention
+    /// (module docs, *The margin and its lever*), which is
+    /// [`Margin::over_lever`]'s argument and not the rate pair's. So
+    /// the quotient leaves this door untyped rather than reaching for
+    /// one whose dimensional argument does not cover it.
     pub fn thinness(&self) -> f64 {
-        self.floor / self.speed_lever()
+        self.floor / self.speed_lever().get()
     }
 }
 
@@ -452,8 +482,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     PatchRegularity {
         floor,
         sup,
-        speed_u,
-        speed_v,
+        speed_u: SupSpeed::new(speed_u),
+        speed_v: SupSpeed::new(speed_v),
         sine_floor,
         cells: cells.len() as u32,
     }
@@ -472,7 +502,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 /// below zero, [`MeterError::Escalated`] when it lands in the
 /// ambiguity band or is poisoned.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
-    let margin = Margin::over_lever(reg.floor, reg.speed_lever());
+    let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
     match decide("offset_normal_floor", margin, band)
         .map_err(|source| MeterError::Escalated { source })?
     {
@@ -480,7 +510,7 @@ pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), Mete
         Sign::Zero | Sign::Negative => Err(MeterError::NormalFloor {
             floor: reg.floor,
             thinness: margin.value(),
-            speed_lever: reg.speed_lever(),
+            speed_lever: reg.speed_lever().get(),
         }),
     }
 }

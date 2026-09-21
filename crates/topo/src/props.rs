@@ -284,7 +284,8 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, &reporting_hook::<T>, tol)
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    mass_properties_impl(body, &faces, band, &reporting_hook::<T>, tol)
 }
 
 /// **The lane-dispatched hook at the REPORTING level, one home**: the
@@ -491,21 +492,76 @@ pub struct SignCertificate<'b, T: Decide> {
 impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, T> {
     /// The certificate, not the body it reads: the bracket, the rounds
     /// its faces reached, and whether a number is still refused.
+    ///
+    /// # Why this does not render in braced struct shape
+    ///
+    /// **Not one of the four things below is a field of this type, and
+    /// not one of this type's five fields is rendered under its own
+    /// name.** The bracket and the surface area are folded out of
+    /// `runs`, the open round is a maximum over a field of `FaceRun`,
+    /// and the refusal comes through [`Self::target_refusal`]. So the
+    /// question a braced shape raises — what happens to this render
+    /// when a field is added — has no useful answer: `Type { a: …, b:
+    /// … }` is what `derive(Debug)` and `debug_struct(…).finish()`
+    /// emit, and `finish_non_exhaustive` exists to say when such a
+    /// dump is partial, so the braces tell a reader these ARE the
+    /// fields. That is already false of every element here, and a
+    /// sixth field could not make it any falser. The braces are what
+    /// goes, and a reading of the certificate is what this says it is.
+    ///
+    /// # The correspondence that IS here, and is tied
+    ///
+    /// An earlier draft of this comment said there was "no
+    /// correspondence to be short of". **That was false and a style
+    /// review executed it.** [`Self::enclosure`] returns a
+    /// [`VolumeEnclosure`], which declares exactly three fields, and
+    /// all three are rendered below under their own names and nothing
+    /// else of it is. So the render is a field list — that type's —
+    /// and a fourth field on it compiled clean while this comment
+    /// argued no such list existed.
+    ///
+    /// Both patterns below are the tie. [`VolumeEnclosure`] is
+    /// destructured for the same reason `Self` is: a field added to
+    /// either is an E0027 here and has to be given a rendering or a
+    /// reason. What stays untied is `FaceRun::open_at`, read through
+    /// `runs.iter().filter_map(…)` — a field reached through an
+    /// iterator adaptor, which no pattern here can bind and which
+    /// `componentwise-equality-of-the-linear-types-is-hand-listed`'s
+    /// sibling question covers.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let e = self.enclosure();
+        let Self {
+            // The body is what the certificate READS; rendering it
+            // here would be a dump of the model, not of this.
+            body: _,
+            // The bracket below is the answer these two settled; the
+            // settings themselves are the caller's, not the
+            // certificate's.
+            band: _,
+            tol: _,
+            runs,
+            // Rendered through `Self::target_refusal`, which is where
+            // the rule for reading it — first refusing face in arena
+            // order — is stated.
+            refused: _,
+        } = self;
+        let VolumeEnclosure {
+            volume_lo,
+            volume_hi,
+            surface_area,
+        } = self.enclosure();
         write!(
             f,
-            "SignCertificate {{ volume in [{:?}, {:?}], surface_area {:?}, \
-             open_at {:?}, target_refusal {:?} }}",
-            e.volume_lo,
-            e.volume_hi,
-            e.surface_area,
+            "SignCertificate: volume in [{:?}, {:?}], surface area {:?}, \
+             rounds still open {:?}, target refusal {:?}",
+            volume_lo,
+            volume_hi,
+            surface_area,
             // The rounds that REMAIN, not the rounds run: `None` here
             // is a finished walk (every face converged, exhausted its
             // schedule, or is closed-form), which is what a certificate
             // stopped at round 0 looks like and must not read as "no
             // rounds".
-            self.runs.iter().filter_map(|r| r.open_at).max(),
+            runs.iter().filter_map(|r| r.open_at).max(),
             self.target_refusal(),
         )
     }
@@ -673,7 +729,24 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, band, &|_, _, _, _, _, _, _| Ok(None), tol)
+    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    mass_properties_closed_form_of(body, &faces, band, tol)
+}
+
+/// [`mass_properties_closed_form`] over exactly `faces` — the enclosure
+/// those faces bound, summed in the order given. The whole-body door
+/// is this one handed the face arena in arena order, so its answer is
+/// bit-for-bit the same (`face_list_door_tests` pins it); the
+/// point-in-solid door's per-solid entry hands it one solid's faces so
+/// a no-hit ray reads THAT solid's at-infinity side and not the
+/// body's total.
+pub(crate) fn mass_properties_closed_form_of<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -1184,12 +1257,12 @@ mod continuation_refusal_order_tests {
 /// neither the bits nor the logs.
 fn mass_properties_impl<T: Decide>(
     body: &Body<T>,
+    faces: &[FaceKey],
     band: Band,
     quad: &QuadHook<'_, T>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
-    let runs = decide_faces(&faces, |&face_key| {
+    let runs = decide_faces(faces, |&face_key| {
         face_flux(body, face_key, band, quad, tol, RoundWindow::SCHEDULE)
     })?;
     // The refusal arm is not dead, and it is not reachable from
@@ -1331,7 +1404,9 @@ fn face_flux<T: Decide>(
             let is_trimmed = outer.iter().any(|e| {
                 matches!(
                     e.carrier,
-                    geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_)
+                    geom::Curve3::Ellipse { .. }
+                        | geom::Curve3::Spiric { .. }
+                        | geom::Curve3::Nurbs(_)
                 )
             });
             // A described NURBS face ALWAYS takes the quadrature
@@ -1380,7 +1455,7 @@ fn face_flux<T: Decide>(
                 // scalar with NO certified lane (the dual arm of
                 // [`PropsQuadLane`]) — whose honest outcome on a
                 // trimmed face is the closed form's typed refusal.
-                None => curved_face(surface, &outer, face.sense_sign(), band).map_err(wrap)?,
+                None => curved_face(surface, &outer, face.sense, band).map_err(wrap)?,
             }
         }
     };
@@ -2388,7 +2463,7 @@ mod at_rest_policy_tests {
 mod quad_lane {
     use geom_brep::Pcurve;
     use geom_brep::props::quad::{
-        self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimEdgeQ,
+        self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
     };
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
     use geom_core::Tol;
@@ -2465,6 +2540,20 @@ mod quad_lane {
                 let pad_s = (RingInterval::point(eps) / RingInterval::from_certified(*minor)).mag();
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
+            // The spiric's chart images are not harmonic (its `m`
+            // channel is `√((R + r cos v)² − d²)`), so the trig
+            // brackets this lane reads do not exist for it. Unreachable
+            // by construction: this lane is entered only for a CYLINDER
+            // chart (`cut_face_rounds`'s chart gate), and a spiric lies
+            // on no cylinder — the arm names the kind so the gate's
+            // removal would meet a typed refusal here rather than a
+            // wildcard. The props quadrature lane for a spiric-bounded
+            // face is the spiric unit's props PR.
+            Curve3::Spiric { .. } => Err(PropsError::QuadratureUnsupported {
+                what: "spiric trim carrier on an ANALYTIC chart's quadrature lane — the \
+                       hollowed partial revolve's torus wall and plane cap; the spiric \
+                       quadrature lane is not yet written",
+            }),
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
                 what: "B-spline trim carrier on an ANALYTIC chart's quadrature lane — \
                        the cut-loft class (a loft wall cut by a plane/cylinder), which \
@@ -2622,6 +2711,20 @@ mod quad_lane {
                        mid-surgery body has no mass properties (tier 2 refuses it at rest)",
             });
         }
+        // **The dispatch is by pcurve KIND** (TRIM-2 §8.1): a loop
+        // whose every image is an iso class pins the trim region to an
+        // axis-aligned rectangle and keeps the rectangle certificate
+        // below, bit for bit; a loop carrying a `General` image bounds
+        // a region that is not a rectangle of its chart at all, and
+        // takes the trimmed lane. `Fitted` keeps its own refusal in
+        // both — no shipped construction mints one here.
+        if hes
+            .iter()
+            .filter_map(|he| body.pcurve(*he))
+            .any(|c| matches!(c.pcurve(), Pcurve::General(_)))
+        {
+            return trimmed_face(body, payload, outer, hes, band, tol, window);
+        }
         let eps = tol.eps();
         // Exact-structure read of a T scalar (point bracket required).
         let exact = |x: RingInterval| -> Result<f64, PropsError> {
@@ -2686,30 +2789,7 @@ mod quad_lane {
                 polygon.push((bx, by));
             }
             // Metric boundary length bound + the map-residual defect.
-            let len = match &le.carrier {
-                geom::Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
-                    * RingInterval::from_certified(t1 - t0))
-                .mag(),
-                geom::Curve3::Nurbs(c) => {
-                    let mut l = RingInterval::zero();
-                    for w in c.control().windows(2) {
-                        l = l + RingInterval::from_certified(w[0].distance(w[1]));
-                    }
-                    l.mag()
-                }
-                // An ARC cap rim on a rational wall (M8-3): the metric
-                // length is exactly `r·Δθ` — the carrier's own
-                // parameter IS the angle, so no bound is needed.
-                geom::Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
-                    * RingInterval::from_certified(t1 - t0))
-                .mag(),
-                _ => {
-                    return Err(PropsError::QuadratureUnsupported {
-                        what: "a NURBS-face boundary carrier outside the loft inventory \
-                               (line, spline and circle rims are the minted classes)",
-                    });
-                }
-            };
+            let len = carrier_metric_length(&le.carrier, t0, t1)?;
             perimeter += len;
             boundary_defect +=
                 len * RingInterval::from_certified(cache.certificate().envelope).mag();
@@ -2782,6 +2862,184 @@ mod quad_lane {
             flux: if winding < 0.0 { -b.flux } else { b.flux },
             area: b.area,
         }))
+    }
+
+    /// A certified UPPER bound on a trim carrier's METRIC length, in
+    /// metres — the lever of both honesty pads (`Σ L·envelope` widens
+    /// the area, and `× p_bound` the flux) and of the extent gate's
+    /// perimeter. ONE home: the rectangle certificate and the trimmed
+    /// lane bound the same quantity the same way, and two spellings of
+    /// it would be two things to keep equal.
+    fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
+        carrier: &Curve3<T>,
+        t0: T,
+        t1: T,
+    ) -> Result<f64, PropsError> {
+        Ok(match carrier {
+            Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
+                * RingInterval::from_certified(t1 - t0))
+            .mag(),
+            // The control polygon bounds the spline's arc length
+            // (the convex-hull/variation-diminishing fact).
+            Curve3::Nurbs(c) => {
+                let mut l = RingInterval::zero();
+                for w in c.control().windows(2) {
+                    l = l + RingInterval::from_certified(w[0].distance(w[1]));
+                }
+                l.mag()
+            }
+            // An ARC cap rim on a rational wall (M8-3): the metric
+            // length is exactly `r·Δθ` — the carrier's own parameter
+            // IS the angle, so no bound is needed.
+            Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
+                * RingInterval::from_certified(t1 - t0))
+            .mag(),
+            _ => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face boundary carrier outside the loft inventory \
+                           (line, spline and circle rims are the minted classes)",
+                });
+            }
+        })
+    }
+
+    /// **The TRIMMED-region flux lane** (TRIM-2): a described NURBS
+    /// face whose loop carries a `General` chart image, so its trim
+    /// region is what the image bounds rather than a rectangle of the
+    /// chart.
+    ///
+    /// This function assembles; the certification is
+    /// [`quad::trimmed_patch_face_rounds`]'s. The traversal's own
+    /// direction is carried per chord and the S10 winding is the chord
+    /// polygon's shoelace sign, read inside the engine — winding-derived
+    /// end to end, exactly as the rectangle certificate and the cylinder
+    /// lane are.
+    #[allow(clippy::too_many_arguments)]
+    fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
+        body: &Body<T>,
+        payload: &geom::NurbsSurface<T>,
+        outer: &[LoopEdge<T>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+        tol: Tol,
+        window: RoundWindow,
+    ) -> Result<RoundOutcome, PropsError> {
+        let ring = |x: T| RingInterval::from_certified(x);
+        let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
+        for (le, he) in outer.iter().zip(hes) {
+            let Some(cache) = body.pcurve(*he) else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "NURBS face half-edge carries no stored pcurve cache — the \
+                           loft assembly mints them; a body that lost its caches must \
+                           re-mint before mass properties",
+                });
+            };
+            let (t0, t1) = cache.params();
+            let (pa, pb) = (cache.pcurve().eval(t0), cache.pcurve().eval(t1));
+            let (a, b) = if le.forward {
+                ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
+            } else {
+                ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
+            };
+            let piece = match cache.pcurve() {
+                // An iso image is one exact chord: its endpoints are
+                // structure, so there is no arc to bound.
+                Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,
+                Pcurve::General(image) => {
+                    // The engine subdivides the WHOLE stored image, so
+                    // a cache whose carrier interval is a sub-range of
+                    // its image's domain would have the lane integrate
+                    // along chart the face does not bound. Exact
+                    // structure, like every other read on this path.
+                    let (d0, d1) = image.domain();
+                    let (r0, r1) = (ring(t0), ring(t1));
+                    // NO ROW AND NO KNOWN PRODUCER, stated so a reader
+                    // does not take the guard for evidence of the case:
+                    // `derive_general_image` mints an image over the
+                    // carrier's whole interval, so nothing at rest
+                    // stores a sub-range, and nothing in the suites
+                    // hand-builds one. It is here because the trimmed
+                    // lane subdivides the STORED image whole, and a
+                    // future producer that stored a sub-range would get
+                    // a certified number for chart the face does not
+                    // bound rather than a refusal.
+                    if !(r0.lo() == r0.hi() && r1.lo() == r1.hi() && r0.lo() == d0 && r1.hi() == d1)
+                    {
+                        return Err(PropsError::QuadratureUnsupported {
+                            what: "a General trim image whose carrier interval is not its \
+                                   own knot domain — the trimmed lane subdivides the \
+                                   stored image whole, and a sub-range would integrate \
+                                   along chart the face does not bound",
+                        });
+                    }
+                    Some(TrimPiece {
+                        knots: image.knots().clone(),
+                        control: image
+                            .control()
+                            .iter()
+                            .map(|p| (ring(p.x), ring(p.y)))
+                            .collect(),
+                        weights: image.weights().to_vec(),
+                    })
+                }
+                Pcurve::Fitted(_) => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a FITTED (rung-3) pcurve — \
+                               the trimmed lane certifies the General class, whose \
+                               agreement with its carrier is a measurement; nothing \
+                               ships that mints a Fitted image on a spline chart",
+                    });
+                }
+                Pcurve::Harmonic { .. } => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a HARMONIC pcurve — that is \
+                               an analytic chart's closed form, and this chart is a \
+                               spline patch",
+                    });
+                }
+            };
+            chords.push(TrimChord {
+                a,
+                b,
+                piece,
+                forward: le.forward,
+                env: ring(cache.certificate().envelope),
+            });
+        }
+        // **One bracket per shared vertex.** Two consecutive half-edges
+        // meet at a vertex, and each reads it through its OWN pcurve —
+        // an `IsoLine`'s `eval(t)` against a `General`'s clamped end —
+        // so at `f64` the two reads can differ by the certification's
+        // own size (2.2e-16 on the P-2 fixture, where the image's
+        // control box is `u ∈ [2 − 2.2e-16, 2]` against the rim's exact
+        // `u = 2`). Hulling them makes the walk close by construction
+        // and hands the door the honest bracket for the vertex; the
+        // door's own closure check then guards a CALLER, not this
+        // assembler's rounding.
+        for i in 0..chords.len() {
+            let j = (i + 1) % chords.len();
+            let merged = (
+                RingInterval::hull(chords[i].b.0, chords[j].a.0),
+                RingInterval::hull(chords[i].b.1, chords[j].a.1),
+            );
+            chords[i].b = merged;
+            chords[j].a = merged;
+        }
+        let control: Vec<quad::RVec3> = payload
+            .control()
+            .iter()
+            .map(|p| [ring(p.x), ring(p.y), ring(p.z)])
+            .collect();
+        quad::trimmed_patch_face_rounds::<T>(
+            payload.knots_u(),
+            payload.knots_v(),
+            &control,
+            payload.weights(),
+            &chords,
+            tol.eps(),
+            band,
+            window,
+        )
     }
 
     /// The vertex POINT at a half-edge's carrier-interval start (its
@@ -2953,6 +3211,89 @@ mod recourse_tests {
                 RECOURSE_VERBS.iter().any(|v| lower.contains(v)),
                 "no recourse in: {msg}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod face_list_door_tests {
+    use super::*;
+    use geom_core::Tol;
+
+    /// The closed-form corpus this module's pins are taken over: the
+    /// in-crate geometric prisms, alone and grafted into two-solid
+    /// arenas (the census's subject), all planar so the closed form
+    /// answers at every scalar.
+    fn corpus() -> Vec<(&'static str, Body<f64>)> {
+        use crate::splitting::reassembly::quad_prism;
+        let tol = Tol::witness();
+        let unit = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
+        let skew = quad_prism(&[(0.0, 0.0), (2.0, 0.3), (1.7, 1.9), (-0.4, 1.2)], 0.7, tol);
+        let tall = quad_prism(&[(3.0, 3.0), (3.5, 3.0), (3.5, 3.5), (3.0, 3.5)], 4.0, tol);
+        let mut pair = unit.clone();
+        crate::instance::graft_disjoint(&mut pair, &tall, tol).unwrap();
+        let mut trio = skew.clone();
+        crate::instance::graft_disjoint(&mut trio, &tall, tol).unwrap();
+        crate::instance::graft_disjoint(&mut trio, &unit, tol).unwrap();
+        vec![
+            ("unit", unit),
+            ("skew", skew),
+            ("tall", tall),
+            ("pair", pair),
+            ("trio", trio),
+        ]
+    }
+
+    /// The whole-body closed-form door's bits on the corpus, recorded
+    /// before the face-list door existed (base `3f2336b21`): the door
+    /// became the face-list door handed the arena, and these are what
+    /// say it changed no number.
+    const PINNED: [(&str, u64, u64); 5] = [
+        ("unit", 0x3ff0_0000_0000_0000, 0x4018_0000_0000_0000),
+        ("skew", 0x4001_0d4f_df3b_645a, 0x4026_2907_4669_5750),
+        ("tall", 0x3ff0_0000_0000_0000, 0x4021_0000_0000_0000),
+        ("pair", 0x4000_0000_0000_0000, 0x402d_0000_0000_0000),
+        ("trio", 0x4010_86a7_ef9d_b22d, 0x4039_9483_a334_aba8),
+    ];
+
+    #[test]
+    fn the_whole_body_door_is_bitwise_the_face_list_door_over_the_arena() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        for ((name, body), (pin_name, volume, area)) in corpus().into_iter().zip(PINNED) {
+            assert_eq!(name, pin_name);
+            let whole = mass_properties_closed_form(&body, band, tol).unwrap();
+            assert_eq!(whole.volume.to_bits(), volume, "{name}: volume moved");
+            assert_eq!(whole.surface_area.to_bits(), area, "{name}: area moved");
+            let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+            let listed = mass_properties_closed_form_of(&body, &faces, band, tol).unwrap();
+            assert_eq!(listed.volume.to_bits(), whole.volume.to_bits(), "{name}");
+            assert_eq!(
+                listed.surface_area.to_bits(),
+                whole.surface_area.to_bits(),
+                "{name}"
+            );
+        }
+    }
+
+    /// One solid's faces enclose that solid's volume, whichever other
+    /// solids share the arena: the per-solid read the point-in-solid
+    /// door's at-infinity fold depends on.
+    #[test]
+    fn a_solid_s_faces_enclose_that_solid_s_volume_in_a_shared_arena() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let bodies = corpus();
+        let (_, pair) = &bodies[3];
+        for (solid, _) in pair.solids() {
+            let faces = pair
+                .faces_of_solid(solid)
+                .expect("a solid the body yielded");
+            assert_eq!(faces.len(), 6);
+            let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
+            // Both prisms of the pair are unit cubes.
+            assert_eq!(one.volume.to_bits(), 0x3ff0_0000_0000_0000, "{solid:?}");
         }
     }
 }

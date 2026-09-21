@@ -117,7 +117,8 @@ pub(in crate::blend) fn corner_plan<'a, T: Decide + Bounds>(
     let mut normals = [Vec3::new(T::zero(), T::zero(), T::zero()); 3];
     for (slot, &f) in normals.iter_mut().zip(faces.as_slice()) {
         *slot = outward_of(body, f)
-            .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?;
+            .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))?
+            .vec();
     }
     // Any one incident link answers for all of them (`Corner`'s field
     // doc): the battery's corner predicate admits a termination only
@@ -359,7 +360,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
                 )
                 .map_err(|e| op("trimline mef", e))?;
             first_trim.get_or_insert(created.he_plus);
-            described.push((created.edge, trim_carrier()));
+            described.push((created.edge, trim_carrier(), walk[i].edge));
             // The chord runs foot(start of walk[i]) → foot(start of
             // walk[i+1]): it parallels walk[i]'s own source edge, in
             // this support face. Birth data, straight off the plan.
@@ -442,6 +443,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
                     Some((center, radius)) => ContactCarrier::CornerArc { center, radius },
                     None => ContactCarrier::Chord,
                 },
+                l.edge,
             ));
             rec.arcs.push((created.edge, vertex, l.edge));
             Ok(created.edge)

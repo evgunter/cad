@@ -114,7 +114,7 @@ pub enum PatternRuleSpec {
 /// Total, for [`crate::combine::pattern_node`]'s reason: the components arrive
 /// as `Expr`s that were checked at their own construction, and whether
 /// each suits the slot it lands in is the edit door's question.
-pub(super) fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
+pub(crate) fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
     Node::Datum(match spec {
         DatumSpec::Plane { origin, normal } => Datum::Plane { origin, normal },
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },

@@ -15,13 +15,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::slab;
 use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::brick;
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
 
@@ -35,25 +37,6 @@ fn slack() -> f64 {
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
-}
-
-fn boxy(x0: f64, y0: f64, x1: f64, y1: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
-
-fn slab() -> Body<f64> {
-    boxy(0.0, 0.0, 4.0, 4.0, 1.0)
 }
 
 fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
@@ -109,7 +92,7 @@ fn cap(r: f64, h: f64) -> f64 {
 /// silently wrong (typed refusal is acceptable; a wrong volume is not).
 #[test]
 fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
-    let fin = boxy(0.0, 1.9, 4.0, 2.1, 0.8);
+    let fin = brick((0.0, 4.0), (1.9, 2.1), (0.0, 0.8), Tol::witness());
     let ball = ball_at(0.6, Vec3::new(2.0, 2.0, 1.2));
     let decls = BooleanDeclarations::none();
     let r = boolean_op_with(

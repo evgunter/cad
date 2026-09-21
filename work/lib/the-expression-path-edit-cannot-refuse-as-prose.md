@@ -2,9 +2,10 @@
 id: the-expression-path-edit-cannot-refuse-as-prose
 kind: issue
 title: SetExpression cannot be bound: path_off_tree Debug-renders its address and the prose gate panics
-status: parked
+status: open
 opened: 2026-09-09
-blocked_on: [debug-in-prose-residue-after-finding-sink]
+priority: P3
+cost: D
 ---
 
 
@@ -49,3 +50,13 @@ a sentence — the node, the slot's word, and the child indices), the
 attributes `EditError` already reads back, its `path_off_tree` and
 `dimension` rows, and the `DocEdit::SetExpression` census row leaving
 `MEMBERS_NOT_BOUND` under rule 1's namesake spelling.
+
+## Unparked (2026-09-16, EDIT orchestrator)
+
+The trigger fired: `debug-in-prose-residue-after-finding-sink` closed
+with PR #2719, whose measurement says this row's site — `EditError`'s
+`{path:?}` over `ExprPath` — needs a prose spelling for an expression
+path MINTED, not a rendering re-pointed, and that door is LIB's. So
+nothing on EDIT's slate gates this row any more; it is open work here.
+Header edited from outside LIB's fence only to keep the tracker true
+(`work/README.md`: a fired trigger is not a blocker).

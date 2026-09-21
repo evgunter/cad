@@ -238,18 +238,35 @@ fn the_remint_admits_no_gap_the_examination_reports() {
 }
 
 /// **Nothing that meshes or measures consumes the discarded
-/// coordinate.** The shape door and the branch door ADMIT the rim-only
-/// cap — a rim row is at its own extreme by definition and contains no
-/// pole in any span — and the flux lane refuses it: the face's
-/// latitude extent is the very gap, `R·Δv` inside the ambiguity band,
-/// so `props_face_extent` escalates (and is coincident with zero at
-/// `Δv = 0`). What the walk does with the admitted face is issue
-/// 1615's.
+/// coordinate**, and the two doors and the flux lane each answer the
+/// rim-only cap on their own terms. The shape door and the branch door
+/// ADMIT it — a rim row is at its own extreme by definition and
+/// contains no pole in any span — and the flux lane's answer turns on
+/// the GAP, which is the coordinate this unit's row is about:
+///
+/// * **`Δv = 0`** — the two arcs state ONE rim circle, so the body is a
+///   sphere split by one rim into two caps, and each face MEASURES.
+///   Its levels hold one latitude and carry no extent, so the missing
+///   extreme is the pole the rims' shared traversal points at
+///   (`props_rim_interior_side`'s σ; issue 1250, PROPS
+///   sphere-pole-side). The two caps sum to `4πR³/3`, which is what
+///   `topo/tests/props_sphere_cap_door.rs` weighs directly.
+/// * **`R·Δv` inside the ambiguity band** — the levels carry an extent
+///   that is neither definitely zero nor definitely positive, so
+///   whether this is a cap whose pole should be folded in or a zone of
+///   sub-band height is exactly what cannot be decided:
+///   `props_rim_only_extent` escalates, typed, before any pole is
+///   pushed. That escalation is the row, and it is the same margin at
+///   the same lever `props_face_extent` would have read one step
+///   later.
+///
+/// What the walk does with the admitted face is issue 1615's.
 #[test]
-fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_refuses_it() {
+fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    for (f, degenerate) in [(1.5, false), (0.0, true)] {
+    let mut caps = Vec::new();
+    for (f, in_band) in [(1.5, true), (0.0, false)] {
         let body = two_level_rim_cap(f * tol.eps() / RS).unwrap();
         for (_, face) in body.faces() {
             let surface = body.get_surface(face.surface).unwrap();
@@ -257,19 +274,34 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_refuses_it() {
             assert_eq!(outer.len(), 2, "a rim-only loop: two arcs, no meridian");
             assert_eq!(require_iso_rectangle(surface, &outer, band), Ok(()));
             assert_eq!(require_one_chart_branch(surface, &outer, band), Ok(()));
-            let flux = curved_face(surface, &outer, face.sense_sign(), band);
-            if degenerate {
-                assert!(matches!(flux, Err(PropsError::DegenerateFace)), "{flux:?}");
-            } else {
+            let flux = curved_face(surface, &outer, face.sense, band);
+            if in_band {
                 assert!(
                     matches!(
                         &flux,
                         Err(PropsError::Escalated { cause })
-                            if cause.predicate == Some("props_face_extent")
+                            if cause.predicate == Some("props_rim_only_extent")
                     ),
                     "{flux:?}"
                 );
+            } else {
+                caps.push(flux.unwrap_or_else(|e| panic!("a rim-only cap measures: {e:?}")));
             }
         }
     }
+    // The two caps of one sphere: their areas sum to `4πR²` and their
+    // fluxes to `3V = 4πR³`, which is the closed form the gap was
+    // hiding.
+    let area: f64 = caps.iter().map(|c| c.area).sum();
+    let flux: f64 = caps.iter().map(|c| c.flux).sum();
+    let tau = core::f64::consts::TAU;
+    assert_eq!(caps.len(), 2, "one sphere, two rim-only caps");
+    assert!(
+        (area - 2.0 * tau * RS * RS).abs() < 1e-12 * area,
+        "the two caps' areas sum to 4πR²: {area}"
+    );
+    assert!(
+        (flux - 2.0 * tau * RS.powi(3)).abs() < 1e-12 * flux,
+        "and their fluxes to 3V = 4πR³: {flux}"
+    );
 }

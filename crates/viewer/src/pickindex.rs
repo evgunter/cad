@@ -48,19 +48,21 @@
 //! by construction and offers no other constructor, so the pairing
 //! cannot drift as this structure grows a field. **Nothing here
 //! re-pairs a mesh with a node by hand, and this type offers no door
-//! through which it could** — said about `PickIndex` and about nothing
-//! else: whether the FAÇADE hands a consumer the raw-assembly lane is
-//! a separate question, answered in `pncad::select`'s own docs.
+//! through which it could** — and neither does anything below it: the
+//! raw mints are behind `editor-core`'s `test-support` feature, which
+//! no consumer's manifest enables, so this is the local half of a claim
+//! the whole stack now makes (`pncad::select`'s own docs).
 //!
-//! # Staleness is by generation, and it is a discard
+//! # Staleness is by picture, and it is a discard
 //!
-//! The key is [`crate::generation::Generation`] — the session's
-//! evaluation generation. A [`PickIndex`] built under one generation
-//! is never repaired against another: [`PickIndex::current_for`]
-//! answers whether the index still describes the run on screen, and a
-//! stale one is dropped and rebuilt whole. Re-pairing by hand is the
-//! failure #1098 exists to name. WHEN a rebuild is asked for, and what
-//! is done with the answer, is not this module's: that is
+//! The key is [`PictureKey`] — the session's evaluation generation and
+//! the δ the roots were tessellated at, as one value because it is one
+//! question. A [`PickIndex`] built for one picture is never repaired
+//! against another: [`PickIndex::current_for`] answers whether the
+//! index still describes the picture on screen, and a stale one is
+//! dropped and rebuilt whole. Re-pairing by hand is the failure #1098
+//! exists to name. WHEN a rebuild is asked for, and what is done with
+//! the answer, is not this module's: that is
 //! [`crate::pickcache::PickCache`] over the index seam.
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
@@ -74,6 +76,14 @@ use pncad::prelude::StableName;
 use pncad::select::{
     HitTestError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, Ray, pick_face,
 };
+// The kernel's certified order over hit intervals, which the
+// cross-group merge below applies to the groups' own answers. A DIRECT
+// edge rather than a new re-export on the façade's root — the ruling
+// `pncad`'s own crate docs state for a type the façade does not carry,
+// and the same one this crate's `bvh` and `Rgba8` edges cite. Spelling
+// the rule again here instead would be the second copy of the door
+// that `TSpan::survivors` and `answer_of` exist to prevent.
+use editor_core::resolve::{Answer, FaceAnswer, TSpan, answer_of};
 
 use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
@@ -344,6 +354,20 @@ pub enum PickIndexError {
         /// The output body drawn twice.
         body: u32,
     },
+    /// A part's name doors refused the evaluation this index is being
+    /// built against — the pairing refusal, forwarded.
+    ///
+    /// Unreachable ON THIS PATH, and the condition is worth stating
+    /// rather than the conclusion: every part here is built from the
+    /// evaluation it is then read against, and the memo the build goes
+    /// through refuses a prior of another document (the row is
+    /// `editor_core`'s `edit_pair_apply_names::the_memo_refuses_a_prior_of_another_document`),
+    /// so no part of another document can reach this loop. It is a
+    /// refusal rather than an assumption for
+    /// [`PickIndexError::DrawnTwice`]'s reason, and because a future
+    /// caller that assembled parts elsewhere would otherwise get the
+    /// wrong document's names in window order.
+    Names(HitTestError),
 }
 
 impl core::fmt::Display for IdMapError {
@@ -385,6 +409,7 @@ impl core::fmt::Display for PickIndexError {
                 "body {} of node {} is drawn by two parts; one drawn body is one part",
                 body, node.0
             ),
+            Self::Names(error) => write!(f, "{error}"),
         }
     }
 }
@@ -417,7 +442,15 @@ trait DrawnKind {
     /// what say how long it is. Pairing the kind with its own name
     /// source here is also what stops a caller handing patch names to
     /// the edge window.
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>>;
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError`] when the part is not of `eval`'s document —
+    /// the door's own pairing refusal, verbatim.
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError>;
 
     /// The address of the entity at `position` in the part drawing
     /// `(node, body)`, which is at `flat` in the whole index.
@@ -432,7 +465,10 @@ struct Patches;
 impl DrawnKind for Patches {
     type Id = u32;
 
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
         part.patch_names(eval)
     }
 
@@ -454,7 +490,10 @@ struct Edges;
 impl DrawnKind for Edges {
     type Id = EdgeId;
 
-    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+    fn names_of(
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+    ) -> Result<Vec<Result<StableName, HitTestError>>, HitTestError> {
         part.boundary_names(eval)
     }
 
@@ -482,7 +521,7 @@ struct PartWindow {
 
 /// Why a per-part window answers no name at an address — the kind-free
 /// half of [`EdgeNameFault`], which is this plus the address asked for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 enum WindowFault {
     /// No part draws that (node, body).
     NotDrawn,
@@ -552,9 +591,11 @@ impl<K: DrawnKind> PartWindows<K> {
     /// # Errors
     ///
     /// [`PickIndexError::DrawnTwice`] when a part for that
-    /// (node, body) is already here.
+    /// (node, body) is already here; [`PickIndexError::Names`] when
+    /// the part is not of `eval`'s document.
     fn push(&mut self, part: &NodePick, eval: &Evaluation<f64>) -> Result<(), PickIndexError> {
-        self.push_names(part.node(), part.body(), K::names_of(part, eval))
+        let names = K::names_of(part, eval).map_err(PickIndexError::Names)?;
+        self.push_names(part.node(), part.body(), names)
     }
 
     /// [`Self::push`] over a name list directly — the seam a row can
@@ -646,7 +687,7 @@ impl<K: DrawnKind> PartWindows<K> {
         }
         match self.names.get(window.start + position) {
             Some(Ok(name)) => Ok(name),
-            Some(Err(error)) => Err(WindowFault::Unnamed(*error)),
+            Some(Err(error)) => Err(WindowFault::Unnamed(error.clone())),
             // Unreachable: the window is a range of `names`, and the
             // two are filled in one pass. Reported as the address
             // fault it would be rather than degraded to a miss.
@@ -695,6 +736,73 @@ impl PartWindows<Patches> {
     }
 }
 
+/// **What a picture IS**: the landed generation an index describes and
+/// the δ its roots were tessellated at.
+///
+/// **One value because it is one question.** *Is this the same
+/// picture?* is asked at every step of an index's life — by the cache
+/// deciding whether to rebuild ([`crate::pickcache::PickCache::sync`]),
+/// by the seam deciding whether a waiting request supersedes the answer
+/// in hand, by the pane deciding whether the index it holds minted the
+/// ids on screen ([`PickIndex::current_for`]) — and each half alone
+/// answers a different question. A δ typed while the document stands
+/// rebuilds the index at the SAME generation over a different
+/// tessellation, so a generation-only comparison reads as co-identity
+/// while checking something else; and a δ is a tessellation OF a
+/// generation, so a δ-only comparison has no subject at all.
+///
+/// **The halves are compared together because there is no way to
+/// compare them apart.** [`PictureKey::of`] is the only door and takes
+/// both, `PartialEq` is over the pair, and every site that asks the
+/// question holds one of these rather than two fields — so the
+/// comparison a site means is the comparison it can write. Reading a
+/// half ([`PictureKey::generation`], [`PictureKey::delta`]) is for
+/// USING it: tessellating at the δ, naming the run. Neither read
+/// answers *the same picture?*, and the two sites in this crate that
+/// legitimately key on less than a picture do not go through this type
+/// at all.
+///
+/// **Two neighbours are NOT this key**, and both are worth naming here
+/// because a reader meeting them will see this shape:
+///
+/// - [`crate::evalseam::FitRequest`] carries `(generation, requested)`
+///   and is spelled identically. A fit's δ is the δ somebody ASKED for
+///   — the question the budget is being paid to answer — not the δ a
+///   picture was built at, so the two values mean different things and
+///   an answer for one is no answer for the other.
+/// - [`crate::idpass::IdSubject`] carries the scene revision and the
+///   index's generation, with no δ. That is not half of this key; it
+///   is a different key over a different pair, and its own doc holds
+///   the argument for both of its halves.
+///
+/// `PartialEq` and not `Eq`: [`DisplayTolerance`] is a float, so the
+/// pair inherits its equivalence and nothing here strengthens it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PictureKey {
+    generation: Generation,
+    delta: DisplayTolerance,
+}
+
+impl PictureKey {
+    /// The picture a run at `generation`, tessellated at `delta`, is.
+    #[must_use]
+    pub fn of(generation: Generation, delta: DisplayTolerance) -> Self {
+        Self { generation, delta }
+    }
+
+    /// The run half — what the index was built from.
+    #[must_use]
+    pub fn generation(self) -> Generation {
+        self.generation
+    }
+
+    /// The tessellation half — what the roots were built at.
+    #[must_use]
+    pub fn delta(self) -> DisplayTolerance {
+        self.delta
+    }
+}
+
 /// The pick index for one evaluation generation.
 ///
 /// Built from the document's roots, one [`NodePick`] per output body,
@@ -702,8 +810,7 @@ impl PartWindows<Patches> {
 /// parts both follow, so a reader of either can predict the other.
 #[derive(Debug)]
 pub struct PickIndex {
-    generation: Generation,
-    delta: DisplayTolerance,
+    key: PictureKey,
     parts: Vec<NodePick>,
     ids: IdMap,
     /// The drawn face patches, part by part — the ids, their names,
@@ -735,12 +842,11 @@ impl PickIndex {
     pub fn build(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         tol: Tol,
     ) -> Result<Self, PickIndexError> {
-        Self::assemble(doc, eval, generation, delta, |node| {
-            NodePick::build_all(eval, node, delta.get(), tol)
+        Self::assemble(doc, eval, key, |node| {
+            NodePick::build_all(eval, node, key.delta().get(), tol)
         })
     }
 
@@ -763,13 +869,12 @@ impl PickIndex {
     pub fn build_with(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Self, PickIndexError> {
-        let index = Self::assemble(doc, eval, generation, delta, |node| {
-            NodePick::build_all_with(eval, node, delta.get(), tol, memo)
+        let index = Self::assemble(doc, eval, key, |node| {
+            NodePick::build_all_with(eval, node, key.delta().get(), tol, memo)
         });
         memo.end_picture();
         index
@@ -780,8 +885,7 @@ impl PickIndex {
     fn assemble(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
-        generation: Generation,
-        delta: DisplayTolerance,
+        key: PictureKey,
         mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
@@ -804,8 +908,7 @@ impl PickIndex {
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
         Ok(Self {
-            generation,
-            delta,
+            key,
             parts,
             ids,
             patches,
@@ -817,18 +920,25 @@ impl PickIndex {
     ///
     /// A `false` here means DISCARD: rebuild the index whole from the
     /// current evaluation. It never means repair.
-    pub fn current_for(&self, generation: Option<Generation>, delta: DisplayTolerance) -> bool {
-        Some(self.generation) == generation && self.delta == delta
+    pub fn current_for(&self, key: Option<PictureKey>) -> bool {
+        Some(self.key) == key
+    }
+
+    /// The picture this index describes — the whole key, and the value
+    /// anything asking whether two pictures are the same compares.
+    pub fn key(&self) -> PictureKey {
+        self.key
     }
 
     /// The generation this index was built under.
+    ///
+    /// **Half a key, and legitimately so**: the id query's subject
+    /// ([`crate::idpass::IdSubject`]) names the alphabet a GPU answer
+    /// was read through, which is the index's identity and not the
+    /// picture's. Anything asking whether two PICTURES are the same
+    /// wants [`PickIndex::key`].
     pub fn generation(&self) -> Generation {
-        self.generation
-    }
-
-    /// The δ this index was tessellated at.
-    pub fn delta(&self) -> DisplayTolerance {
-        self.delta
+        self.key.generation()
     }
 
     /// The drawn parts, in id order.
@@ -975,7 +1085,7 @@ impl PickIndex {
             // has. An empty document is a state, not a fault, and
             // [`SceneMesh::nothing`] is the picture of it.
             if self.parts.is_empty() {
-                return Ok(SceneMesh::nothing(self.delta));
+                return Ok(SceneMesh::nothing(self.key.delta()));
             }
             // Parts that exist but offer no point to bound is still a
             // refusal, and deliberately still this one: that is a
@@ -987,9 +1097,9 @@ impl PickIndex {
                     .flat_map(|part| part.mesh().positions.iter().copied()),
             )
             .ok_or(SceneError::EmptyMesh)?;
-            return Ok(SceneMesh::empty(bounds, self.delta));
+            return Ok(SceneMesh::empty(bounds, self.key.delta()));
         }
-        SceneMesh::build_parts_focused(&parts, self.delta, focus)
+        SceneMesh::build_parts_focused(&parts, self.key.delta(), focus)
     }
 
     /// The nearest face a ray meets, as a stable name.
@@ -1000,7 +1110,13 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// [`HitTestError`], verbatim from `pick_face`.
+    /// [`HitTestError`], verbatim from `pick_face` — including
+    /// [`HitTestError::EvaluationOfAnotherDocument`] when `eval` is an
+    /// evaluation of a document this index's parts are not of, refused
+    /// before any triangle or any node's standing is read (A2a). The
+    /// parts carry the stamp of the evaluation they were built from,
+    /// so the caller that hands a different one is the caller this
+    /// arm is about.
     pub fn pick(&self, eval: &Evaluation<f64>, ray: &Ray) -> Result<Option<PickHit>, HitTestError> {
         self.pick_for(eval, ray, &DisplayView::none())
     }
@@ -1013,17 +1129,39 @@ impl PickIndex {
     /// probe frame's inverse, so the picture and the pick answer stay
     /// one tessellation even while the display displaces it.
     ///
-    /// The comparison across groups is by the hit parameter `t`, which
-    /// the display layer keeps comparable by admitting only rigid
-    /// probe frames (lengths preserved, so `t` in units of `|dir|`
-    /// means the same world distance in every group). Ties keep the
-    /// first group considered: the unmoved batch first, then moved
-    /// instances in node order — deterministic, stated, and reachable
-    /// only by a graze across two instances' coincident triangles.
+    /// **The merge across groups is the kernel's own order**, not a
+    /// comparison of rounded parameters: a group's answer is in front
+    /// of another's only when the whole of its certified interval is
+    /// ([`TSpan::precedes`]), and groups whose intervals overlap are
+    /// the same certified tie the kernel refuses inside one call —
+    /// so this refuses too, with every tied group's hit
+    /// ([`HitTestError::Ambiguous`]). Group order (the unmoved batch
+    /// first, then moved instances in node order) is the order the
+    /// refusal LISTS them in and decides nothing.
+    ///
+    /// **A group's own refusal does not end the call.** A group that
+    /// cannot order ITS faces has said nothing about another group's,
+    /// and every hit it carries is true — so its tied faces join the
+    /// candidate set and the merge runs over the union. Otherwise a
+    /// tie inside the unmoved batch would shadow a moved instance in
+    /// front of it, and the answer would depend on which batch the
+    /// caller's display view happened to split the scene into rather
+    /// than on the geometry.
+    ///
+    /// The parameters stay comparable because the display layer
+    /// admits only rigid probe frames (lengths preserved, so `t` in
+    /// units of `|dir|` means the same world distance in every group);
+    /// a moved instance's hit crosses back with its point converted
+    /// and its interval carried, which is
+    /// `work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`
+    /// §1.
     ///
     /// # Errors
     ///
-    /// [`HitTestError`], verbatim from `pick_face`.
+    /// [`HitTestError`], verbatim from `pick_face` — the pairing arm
+    /// ([`PickIndex::pick`]) included, and refused for the whole call
+    /// before either batch is offered — plus the cross-group
+    /// [`HitTestError::Ambiguous`] this function raises itself.
     pub fn pick_for(
         &self,
         eval: &Evaluation<f64>,
@@ -1038,7 +1176,10 @@ impl PickIndex {
             .filter(|part| !display.moved_roots.contains_key(&part.node()))
             .map(NodePick::target)
             .collect();
-        let mut best = pick_face(eval, &unmoved, ray)?;
+        // Every group's whole answer, in group order: the unmoved
+        // batch, then the moved instances. A group that refuses
+        // contributes its tied faces rather than ending the call.
+        let mut candidates: Vec<PickHit> = group_answer(pick_face(eval, &unmoved, ray))?;
         for (&node, frame) in &display.moved_roots {
             if display.hidden_roots.contains(&node) {
                 continue;
@@ -1058,23 +1199,48 @@ impl PickIndex {
                 origin: inverse.transform_point(ray.origin),
                 dir: inverse.transform_vec(ray.dir),
             };
-            if let Some(hit) = pick_face(eval, &targets, &local)? {
+            for hit in group_answer(pick_face(eval, &targets, &local))? {
                 // The hit's point is display-local; the answer the
-                // caller compares against the picture is world.
-                let world = PickHit {
+                // caller compares against the picture is world. The
+                // interval rides across unconverted, which is the
+                // rigid-frame argument above and
+                // `work/vgeom/pickindex-merges-parts-on-a-rounded-t-it-never-converts.md`
+                // §1.
+                candidates.push(PickHit {
                     point: map.transform_point(hit.point),
                     ..hit
-                };
-                let better = match &best {
-                    None => true,
-                    Some(b) => world.t < b.t,
-                };
-                if better {
-                    best = Some(world);
-                }
+                });
             }
         }
-        Ok(best)
+        // The kernel's own rule over the whole candidate set, through
+        // the kernel's own callable: the survivors of `precedes`,
+        // grouped by face, then one answer or the refusal.
+        let pairs: Vec<(TSpan, (RecipeNodeId, u32, StableName))> = candidates
+            .iter()
+            .map(|hit| {
+                (
+                    TSpan {
+                        t: hit.t,
+                        t_lo: hit.t_lo,
+                        t_hi: hit.t_hi,
+                    },
+                    (hit.node, hit.body, hit.name.clone()),
+                )
+            })
+            .collect();
+        let at = |face: &FaceAnswer<(RecipeNodeId, u32, StableName)>| PickHit {
+            t: face.span.t,
+            t_lo: face.span.t_lo,
+            t_hi: face.span.t_hi,
+            ..candidates[face.member].clone()
+        };
+        match answer_of(&pairs) {
+            Answer::Miss => Ok(None),
+            Answer::One(face) => Ok(Some(at(&face))),
+            Answer::Ambiguous(faces) => Err(HitTestError::Ambiguous {
+                hits: faces.iter().map(at).collect(),
+            }),
+        }
     }
 
     /// The face selection a ray denotes, or `None` for a miss.
@@ -1240,15 +1406,25 @@ impl PickIndex {
     /// hides is rejected rather than selected through the solid.
     ///
     /// Determinism: the candidates within the radius are ordered by
-    /// `(pixel distance, boundary position, segment position)` — the
-    /// same shape of total tie-break `pick_face` documents, so two
-    /// edges meeting at the cursor answer the earlier one every time —
-    /// and the answer is the first of them the solid does not hide.
+    /// `(pixel distance, boundary position, segment position)` — a
+    /// TOTAL order over pixels, which is this door's own and not the
+    /// kernel's, so two edges meeting at the cursor answer the earlier
+    /// one every time — and the answer is the first of them the solid
+    /// does not hide. The face pick has no such key: where its
+    /// candidates tie it refuses, and an edge is what a cursor on a
+    /// shared edge means anyway (below).
+    ///
+    /// **A certified tie between faces does not refuse here.** The
+    /// seed is a depth ([`PickIndex::front_of`]), and the cursors
+    /// where the face pick ties are exactly the cursors an edge is
+    /// aimed with — a shared edge's own pixels. The face answer is
+    /// where the tie costs something ([`PickIndex::hovered_for`]).
     ///
     /// # Errors
     ///
     /// [`PickError`]: the camera's refusal for a cursor the viewport
-    /// cannot un-project, or the hit-test service's.
+    /// cannot un-project, or the hit-test service's — less the
+    /// certified tie.
     pub fn edge_at_for(
         &self,
         eval: &Evaluation<f64>,
@@ -1257,17 +1433,19 @@ impl PickIndex {
         cursor: [f64; 2],
         display: &DisplayView,
     ) -> Result<Option<EdgePick>, PickError> {
-        let Some(hit) = self.seed(eval, camera, viewport, cursor, display)? else {
+        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
             return Ok(None);
         };
-        self.edge_near(eval, camera, viewport, cursor, display, &hit)
+        self.edge_near(eval, camera, viewport, cursor, display, &front.nearest)
     }
 
-    /// **The face under a cursor**, whichever entity the priority rule
-    /// would answer with — the ray path's own answer, un-narrowed.
+    /// **The faces under a cursor**, whichever entity the priority rule
+    /// would answer with — the ray path's own answer, un-narrowed:
+    /// empty for a miss, one face ordinarily, and the whole certified
+    /// TIE where the kernel refuses to name one of them.
     ///
     /// The door the GPU id buffer's cross-check reads
-    /// (`crate::frame::disagreement`): that comparison's subject is the
+    /// (`crate::idpass::disagreement`): that comparison's subject is the
     /// PATCH under the cursor, because a patch id is the only thing an
     /// id buffer can answer, so the ray side has to answer the same
     /// question. The hover cannot stand in for it — once the priority
@@ -1275,30 +1453,92 @@ impl PickIndex {
     /// patch name compares two different questions and reports a
     /// disagreement that is not one.
     ///
+    /// **The tie is an answer here, not a refusal**, which is why this
+    /// door hands back a list: the comparison's question is what the
+    /// ray path SAYS about this cursor, and "these two faces, and
+    /// nothing to choose between them" is what it says. The click path
+    /// is where a tie costs a selection ([`PickIndex::op_under`]).
+    ///
     /// # Errors
     ///
-    /// As [`PickIndex::edge_at_for`].
-    pub fn face_under_cursor(
+    /// As [`PickIndex::edge_at_for`], less the certified tie.
+    pub fn faces_under_cursor(
         &self,
         eval: &Evaluation<f64>,
         camera: &Camera,
         viewport: ViewportSize,
         cursor: [f64; 2],
         display: &DisplayView,
-    ) -> Result<Option<FaceSelection>, PickError> {
-        Ok(self
-            .seed(eval, camera, viewport, cursor, display)?
-            .map(|hit| FaceSelection {
-                name: hit.name,
-                node: hit.node,
-                body: hit.body,
-            }))
+    ) -> Result<Vec<FaceSelection>, PickError> {
+        let selection = |hit: PickHit| FaceSelection {
+            name: hit.name,
+            node: hit.node,
+            body: hit.body,
+        };
+        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
+            return Ok(Vec::new());
+        };
+        Ok(if front.tied.is_empty() {
+            vec![selection(front.nearest)]
+        } else {
+            front.tied.into_iter().map(selection).collect()
+        })
+    }
+
+    /// **What is in front on `ray`**, read as a MEASUREMENT: the
+    /// nearest of the faces the door names, and the whole tied set
+    /// when it names several.
+    ///
+    /// A certified tie between faces is not a refusal here, because
+    /// the question is not which face the ray met. A ray that meets
+    /// two faces the arithmetic cannot order has met a surface either
+    /// way, and the tied answers pairwise overlap, so the smallest of
+    /// their rounded parameters is a depth this question can be asked
+    /// with and is a function of the set. Only a caller whose own
+    /// answer IS a face refuses on `tied`.
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError`] from `pick_face`, less the tie.
+    fn front_of(
+        &self,
+        eval: &Evaluation<f64>,
+        ray: &Ray,
+        display: &DisplayView,
+    ) -> Result<Option<Front>, HitTestError> {
+        match self.pick_for(eval, ray, display) {
+            Ok(hit) => Ok(hit.map(|hit| Front {
+                nearest: hit,
+                tied: Vec::new(),
+            })),
+            Err(HitTestError::Ambiguous { hits }) => {
+                // `min_by` keeps the FIRST of equal parameters, so a
+                // tie inside the tie falls to the list's order, which
+                // is the door's own. An empty list is not a refusal
+                // the kernel raises, and is a miss if one ever is.
+                let nearest = hits.iter().min_by(|left, right| left.t.total_cmp(&right.t));
+                Ok(nearest.cloned().map(|nearest| Front {
+                    nearest,
+                    tied: hits,
+                }))
+            }
+            Err(other) => Err(other),
+        }
     }
 
     /// The ray path's answer for a cursor: the un-projection and the
     /// face pick, in one place because three doors above open with
     /// exactly these two steps and a fourth spelling is how they come
     /// to disagree about which ray a cursor names.
+    ///
+    /// **The seed is a DEPTH, not a pick** — [`PickIndex::front_of`],
+    /// through the same door the occlusion probe reads. A cursor on a
+    /// shared edge is exactly the pixel a user aims an EDGE with, and
+    /// it is also where the face pick ties; seeding on the face
+    /// answer would refuse the edge search before it ran, on the
+    /// cursors it matters most on. So the tie rides along in
+    /// [`Front::tied`] and only the callers whose answer is a face
+    /// raise it.
     fn seed(
         &self,
         eval: &Evaluation<f64>,
@@ -1306,11 +1546,11 @@ impl PickIndex {
         viewport: ViewportSize,
         cursor: [f64; 2],
         display: &DisplayView,
-    ) -> Result<Option<PickHit>, PickError> {
+    ) -> Result<Option<Front>, PickError> {
         let ray = camera
             .ray_through(cursor, viewport)
             .map_err(PickError::Camera)?;
-        self.pick_for(eval, &ray, display)
+        self.front_of(eval, &ray, display)
             .map_err(PickError::HitTest)
     }
 
@@ -1338,9 +1578,17 @@ impl PickIndex {
     /// cursor means — and so a tool that needs one kind narrows the
     /// rule ([`PickKinds`]) instead of re-deciding it.
     ///
+    /// **This is where the certified tie costs an answer**, and only
+    /// after the priority rule has run: an edge within the radius is
+    /// what the cursor means whether or not the faces behind it tie,
+    /// and the refusal is raised only for the cursor whose answer
+    /// would have been a FACE.
+    ///
     /// # Errors
     ///
-    /// As [`PickIndex::edge_at_for`].
+    /// As [`PickIndex::edge_at_for`], plus
+    /// [`HitTestError::Ambiguous`] for a cursor whose answer is a
+    /// face the door will not name.
     pub fn hovered_for(
         &self,
         eval: &Evaluation<f64>,
@@ -1350,11 +1598,12 @@ impl PickIndex {
         display: &DisplayView,
         kinds: PickKinds,
     ) -> Result<Option<Hovered>, PickError> {
-        let Some(hit) = self.seed(eval, camera, viewport, cursor, display)? else {
+        let Some(front) = self.seed(eval, camera, viewport, cursor, display)? else {
             return Ok(None);
         };
         if kinds.edges()
-            && let Some(edge) = self.edge_near(eval, camera, viewport, cursor, display, &hit)?
+            && let Some(edge) =
+                self.edge_near(eval, camera, viewport, cursor, display, &front.nearest)?
         {
             return Ok(Some(Hovered::Edge(edge.selection())));
         }
@@ -1364,10 +1613,18 @@ impl PickIndex {
             // cursor can mean is here, not the face it did not aim at.
             return Ok(None);
         }
+        if !front.tied.is_empty() {
+            // The answer being asked for IS a face, and the door names
+            // several it cannot order: this is where the refusal
+            // belongs, after the edge rule has had the cursor.
+            return Err(PickError::HitTest(HitTestError::Ambiguous {
+                hits: front.tied,
+            }));
+        }
         Ok(Some(Hovered::Face(FaceSelection {
-            name: hit.name,
-            node: hit.node,
-            body: hit.body,
+            name: front.nearest.name,
+            node: front.nearest.node,
+            body: front.nearest.body,
         })))
     }
 
@@ -1495,9 +1752,9 @@ impl PickIndex {
             let [a, b] = candidate.ends;
             let (t, point) = ray_segment_closest(&ray, a, b);
             let hidden = self
-                .pick_for(eval, &ray, display)
+                .front_of(eval, &ray, display)
                 .map_err(PickError::HitTest)?
-                .is_some_and(|front| front.t < t - OCCLUSION_SLACK_REL * t.abs());
+                .is_some_and(|front| front.nearest.t < t - OCCLUSION_SLACK_REL * t.abs());
             if hidden {
                 continue;
             }
@@ -1626,7 +1883,7 @@ impl PickIndex {
 /// away; the failure being traded against is a mark drawn through
 /// solid material, which is the louder of the two.
 ///
-/// `crate::gpu`'s `EDGE_CLIP_Z_SHRINK` plays the same
+/// `crate::gpu`'s `EDGE_CLIP_Z_LIFT` plays the same
 /// coincident-edge-over-its-own-face role on the GPU draw lane, in
 /// f32 clip z — a pointer each way, deliberately not one shared
 /// constant.
@@ -1684,6 +1941,41 @@ impl EdgePick {
             body: self.body,
         }
     }
+}
+
+/// **One group's whole answer as a list**: the one hit, the empty
+/// miss, or the faces it refused with.
+///
+/// A refusal is an ANSWER about the ray — every hit in it is true —
+/// and a group that cannot order its own faces has said nothing about
+/// another group's, so the tie travels to the cross-group merge
+/// instead of ending the call there
+/// ([`PickIndex::pick_for`]). Every other refusal is about the
+/// TARGETS, not the geometry, and propagates.
+fn group_answer(
+    answer: Result<Option<PickHit>, HitTestError>,
+) -> Result<Vec<PickHit>, HitTestError> {
+    match answer {
+        Ok(hit) => Ok(hit.into_iter().collect()),
+        Err(HitTestError::Ambiguous { hits }) => Ok(hits),
+        Err(other) => Err(other),
+    }
+}
+
+/// **What the ray path found in front**, read as a measurement of the
+/// surface rather than as a pick of a face
+/// ([`PickIndex::front_of`]).
+///
+/// `nearest` is the hit with the smallest rounded parameter among the
+/// faces the door names — a point of the surface under the cursor
+/// whichever face of a tie owns it, and the body whose drawn edges an
+/// edge search is over. `tied` is empty when the door named one face
+/// and carries the whole certified tie when it named several, so a
+/// caller whose own answer is a face can raise the refusal verbatim
+/// while one asking about depth or about an edge never sees it.
+struct Front {
+    nearest: PickHit,
+    tied: Vec<PickHit>,
 }
 
 /// The best drawn edge segment a cursor found so far: how near it
@@ -1789,7 +2081,7 @@ pub enum PickError {
 }
 
 /// Why an [`EdgeId`] names no stable name here (closed enum, D4 ¶3).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum EdgeNameFault {
     /// This index draws no body at that (node, body): an ordinary
     /// answer for a selection made against another generation, or

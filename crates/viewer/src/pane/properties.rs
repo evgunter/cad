@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId};
+use pncad::document::{Axis3, Dimension, Frame, Node, ParamName, RecipeNodeId};
 use pncad::quantity::{self, UnitDef};
 
 use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
@@ -38,9 +38,7 @@ impl ViewerBehavior<'_> {
                 if groups.is_empty() {
                     ui.weak("this feature carries no parameters");
                 }
-                for group in &groups {
-                    self.slot_group_ui(ui, node, group);
-                }
+                self.feature_rows_ui(ui, node, &groups);
             }
             // Slot rows for the feature that MADE the picked entity —
             // the node `slot_groups` itself answered for, so the rows
@@ -58,9 +56,7 @@ impl ViewerBehavior<'_> {
                 // re-derived so the rows and the edits land on the
                 // node `slot_groups` answered for.
                 if let Some(feature) = self.session.selection().node() {
-                    for group in &groups {
-                        self.slot_group_ui(ui, feature, group);
-                    }
+                    self.feature_rows_ui(ui, feature, &groups);
                 }
             }
             Selection::Param(name) => {
@@ -133,6 +129,39 @@ impl ViewerBehavior<'_> {
             }
         }
         self.add_param_ui(ui);
+    }
+
+    /// **A feature's editing rows**: its slot rows — and, for a
+    /// profile, the add-profile form's own editor above them
+    /// ([`ViewerBehavior::edit_profile_ui`]).
+    ///
+    /// Under the editor the slot rows are FOLDED, not dropped: they are
+    /// the door for what the editor's number fields do not carry —
+    /// driving an argument by an expression, re-noting its unit,
+    /// probing its range. A profile the editor cannot hold (an argument
+    /// already driven) shows its refusal and the rows open.
+    fn feature_rows_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, groups: &[SlotGroup]) {
+        let profile = matches!(
+            self.session.committed_doc().node(node),
+            Some(Node::Profile(_))
+        );
+        if profile && self.edit_profile_ui(ui, node) {
+            egui::CollapsingHeader::new("arguments")
+                .id_salt(("profile_arguments", node.0))
+                .show(ui, |ui| {
+                    ui.weak(
+                        "each argument as a slot: drive it by an expression, change the unit it \
+                         is written in, or probe its range — an edit here reloads the editor above",
+                    );
+                    for group in groups {
+                        self.slot_group_ui(ui, node, group);
+                    }
+                });
+        } else {
+            for group in groups {
+                self.slot_group_ui(ui, node, group);
+            }
+        }
     }
 
     /// The create half of the document-parameters section: name,
@@ -346,11 +375,28 @@ impl ViewerBehavior<'_> {
     }
 
     /// The selected instance's display controls: the hide toggle and
-    /// the free-move probe. Draws nothing for a non-instance node —
-    /// the section is about per-instance display state, which other
-    /// nodes do not have.
+    /// the free-move probe. Draws nothing for a node the document does
+    /// not admit display state on — the section is about per-instance
+    /// display state, which neither another kind of node nor an id the
+    /// document no longer holds has.
+    ///
+    /// **Silence is the whole answer for both refusals, and for the
+    /// absent id it is half of a rule rather than a discard.** A
+    /// selection outlives the thing it names ([`Standing`]: *a vanished
+    /// reference is a STATE, not an event*), so this door really is
+    /// reached with an id the document no longer holds — and in that
+    /// frame [`Self::standing_ui`] has already drawn the vanished
+    /// verdict, from the same `doc().node(..)` lookup, directly above
+    /// this section. The rule's other clause is that *the affordances
+    /// that need a live entity switch off*, which is this. Saying it
+    /// again here would be one fact spelled twice in one pane, which is
+    /// what the parameter half of this panel already does and is not a
+    /// pattern to copy.
     pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
-        if !crate::display::is_instance(self.session.doc(), node) {
+        // The fault is discarded HERE, at the party that decides the
+        // two refusals are one answer, rather than by a door that
+        // answered a `bool` and could not have offered anything else.
+        if crate::display::instance_check(self.session.doc(), node).is_err() {
             return;
         }
         ui.separator();

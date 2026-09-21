@@ -1,151 +1,70 @@
-# S-TINT — test-suite integrity (plan)
+# TINT — the plan
 
-**STATUS: OPEN (2026-09-11).** Opened on Ev's direction (in-chat,
-2026-09-11: *"could you move the fourth bucket to a new track in
-work/?"*), out of S-TCOST's re-sort of its board against the repository
-going public. Live state is `work/tint/log.md`'s tail and the item files
-beside this plan, never this file.
+test-suite integrity
 
-Branch prefix (the #396 convention): **`tint/`** — unit branches
-`tint/<unit>-<slug>`, orchestrator branch `tint/orchestrator`. Away-channel
-tag `(S-TINT orchestrator)`. A/B ordinal band **S-TINT = 3500–3599**, the
-next free band, claimed in `docs/MODEL-AB-LOG.md`'s banding entry in this
-program's opening commit.
-
-## Charter
-
-**A row that cannot go red is not a test, and a guard that cannot go red
-is not a guard.** This program owns the suite's claim on its own
-contents: whether a test asserts what its name says, whether a check can
-fail, and whether the prose around both describes the tree as it is. It
-does NOT own what the suite costs — that is S-TCOST's, and the fence
-between them is a QUESTION, not a path.
-
-Four shapes, all of them turned up by S-TCOST while it was measuring
-something else, and none of them a cost finding:
-
-1. **Rows that cannot fail.** A codomain assertion
-   (`assert!(sup >= 0.0)` on a fold of nonnegative magnitudes); a
-   positivity assert riding `3.1e-16` of cancellation noise on a
-   measurement that is structurally zero; a certified bound compared
-   against a sample with no ceiling and no anti-vacuity floor; eleven
-   `compile_fail` doctests in `tests/`, which rustdoc never collects, so
-   each is a negative proof no tier has ever run; thirteen silent
-   whole-row stand-downs that report green having asserted nothing.
-   `memories/test-suite-cost.md` names the class and says the fix is a
-   deletion or a repair, never a re-wording.
-
-2. **Guards that do not guard.** A `Shared` ledger row checked by one
-   substring, which a bare `use` satisfies with no call. A `compile_fail`
-   row whose `EXXXX` is compared to nothing — measured, one annotated
-   `E0277` emits `E0308`. A loud-skip marker whose row list is hand-kept
-   in eight files, each copy admitting in its own rustdoc that it goes
-   stale silently. A body-hash duplicate census blind to rename-only
-   twins. The standing rule: **a census has one executable home and every
-   other site points at it** — inherited from INSTR's `baseline_census`
-   and it binds here for the same reason.
-
-3. **One claim, N copies.** The dedup rows, where the harm is DRIFT and
-   never compute — and this program says so out loud, because S-TCOST
-   measured it: homing the blend tree's fixtures changed no execution
-   time at all (TCOST-10), and `sweep-boolean-suite-brick-and-prism-copies`
-   states *"not a cost finding"* in its own body. A copy that must be
-   kept in sync in fourteen places is the shape that drifts, and
-   `D386` is the class caught mid-drift: the same composite implemented
-   twice, already reading its value out of two different views.
-
-4. **Citations and names that have gone stale.** Sixteen `tests/` → `tests/`
-   citations across thirteen sweep suites, eight naming files that no
-   longer exist. A header saying a crossing is pinned by no row, beside
-   the module that pins it with three. Row names that assert the arm the
-   shipped default ε does not take.
-
-## Ratified ground (cited, not re-litigated)
-
-- `memories/test-suite-cost.md` — the three shapes of a test and which
-  wants a varying seed; **an assertion-free test never gates**; a
-  codomain assertion is a deletion, not a repair, and a sweep for the
-  class must key on the ASSERTION and not on the test; silent skips are
-  the escape-hatch shape and the tree's named loud-skip idiom is the fix.
-- `memories/review-and-dependency-policy.md` — retirement is always
-  permitted, and a reviewer suite's independence is worth keeping where
-  it pulls its weight; **reviewer tests are ordinary tests** (Ev's
-  ruling of 2026-09-04, in `work/tcost/log.md`'s seam).
-- `memories/output-stability-as-justification.md` — a test kept only
-  because its output has not changed has not been justified.
-- The aggregation invariant (`scripts/gates/test-aggregation.sh`, one
-  test target per crate) and `autotests = false`: a retired suite file
-  leaves `tests/all.rs` in the same commit.
-- **S-TCOST's keep-outs bind here unchanged.** No test is deleted for
-  being slow; every deletion names the row that now owns the claim; no
-  fixed seed is introduced; no `#[ignore]` on a row that gates.
-
-## The fence with S-TCOST
-
-Both programs' `paths` cover `crates/*/tests/*` and
-`crates/test-utils/*`, so `work.py territory` will warn on most branches
-of either. **That is correct and is not a defect**: territory warns and
-does not block (`work/README.md`), and the two programs are separated by
-the question they ask about the same files, which no glob can express.
-
-The rule, so a lane never has to guess:
-
-- **A row justified by a second — cpu or wall — is S-TCOST's.** If work
-  here finds one, `git mv` it back rather than taking it.
-- **A row justified by a claim that cannot fail, a guard that cannot
-  fail, or a copy that can drift is this program's**, even where the fix
-  happens to make something faster; the saving is a side effect and is
-  never the argument.
-- Three things stay S-TCOST's whatever they look like: the per-file gate
-  mechanism (`gated_to!`, `ci-filter.py --gated-check`, the nightly
-  re-take) and its two open defects, the fuzz-gating policy question
-  (`proptest-modules-in-src-ungated`, `r1-probe-seeds-are-not-on-the-fuzz-dial`),
-  and everything under `scripts/`.
-
-A unit whose diff crosses the fence says so in its PR rather than letting
-the warning stand unexplained — the CIW precedent.
-
-## Review posture
-
-Inherited from S-TCOST for the test-only work these rows are, and **open
-for Ev to reset**: Opus implementer, **one style review per unit**
-against `docs/prompts/reviewer-style-lane.md` by path, plus the unit's
-own claims (every retired claim has a named owner, no assertion
-weakened, labels unambiguous). **No A/B row and no A/B protocol** — the
-band above is claimed for bookkeeping, the CIW/CHROME/INSTR posture.
-
-A unit that moves kernel logic, or that changes what a guard decides in a
-way worth a second opinion on correctness, gets one extra reviewer named
-in its PR with the reason. That is a per-unit judgement, not a default.
-
-Three rows on this slate are **decisions, not work**, and ride `[ev]` PRs:
-`D70` (whether 13 silent stand-downs should be ε-conditional at all),
-`D113` (what an intra-doc link in a `tests/` file is), and any change to
-a `memories/` clause this program finds wrong.
-
-Hosted CI is the only gate. Implementer dispatches point at
-`docs/prompts/implementer-discipline.md` by path.
+Re-scoped 2026-09-20 by TINT's priority-seam cut
+(`work/README.md`, Track size). Nothing dispatched.
 
 ## The slate
 
-Thirty rows, moved by `git mv` from `work/tcost/` with ids unchanged and
-a `## Moved to S-TINT (2026-09-11)` record in each. Fourteen are the
-Track W units (`C18`, `D70`, `D72`, `D113`, `D380`–`D386`, `H12`,
-`S216`, `S230`); sixteen are the slugs S-TCOST's lanes filed while
-measuring. **No unit order is fixed yet** — the first orchestrator cuts
-one, and the two obvious pairings are recorded so they are not lost:
+**34 budget points** of dispatchable work against a ceiling of 30.
 
-- `D383` and `S230` are the same class under two names (a certified
-  bound with no ceiling) and both want the `test_utils::tightness` home;
-  they want one lane.
-- `H12`, `S216`, `C18` and `D113` are one question from four sides
-  (what a doctest in `tests/` is, and whether a `compile_fail` row
-  verifies the reason it names). `S216` is explicitly *not takeable as a
-  doc edit* — it needs machinery — and is the one row here whose fix
-  ADDS compute, which the public repo makes cheaper to justify rather
-  than harder.
+| pri | item | cost | title |
+|---|---|---|---|
+| P1 | `test-utils-is-production-source-to-every-narrowing-gate` | D | test-utils documents itself as dev-only but is production source to every gate that narrows by test-only mounts |
+| P3 | `C18` | D | Close the three residues of H12's own enumeration left open by #734, all coverage or prose |
+| P3 | `D380` | E | Rename the band-keyed test rows whose names assert the arm the default epsilon does not take |
+| P3 | `D381` | E | Pin RecipeEditRef::ForeignNode at both mid-evaluation doors of editor-core's shared name ladder |
+| P3 | `D66` | E | Fix the NURBS re-gate comment that credits sweep's s16_box_soundness with both blockers, or write the missing row |
+| P3 | `D72` | E | Re-mine the epsilon-keyed conditioning pin in profile/tests/review_s2.rs so its building bands exercise the collapse |
+| P3 | `H12` | D | Move, convert or delete the eleven never-collected compile_fail doctests in geom-core/tests/ |
+| P3 | `S216` | D | Make the repo's ~39 compile_fail rows verify the reason they claim, with machinery rather than a sweep |
+| P3 | `S230` | D | Put a measured ceiling on the certified widths in editor-core, pncad-py and sweep test rows, on the tightness home |
+| P3 | `census-verdict-golden-hashes-an-anchor-ordered-stream` | E | the shell census golden hashes voided_rod's verdicts in decision order, so a pure re-anchoring of a loop moves it and a sign change is indistinguishable from a move |
+| P3 | `decoration-seam-header-names-no-pin-for-enclose` | E | decoration_seam.rs's header says the ssi::enclose crossing is pinned by no row; enclose.rs's own decoration_seam module pins it |
+| P3 | `dump-ban-lists-spelled-guts-are-a-fourth-copy-and-two-are-dead` | E | editor-core's `guts` dump ban lists are the shape TINT-1's sweep could not see, and the resolve/placement list bans two of the nine identifiers it renders |
+| P3 | `interrogate-ladder-header-claims-every-rung-and-pins-five` | E | lib_u5_interrogate's header claims every rung of InterrogateError is pinned; five of ten have no row |
+| P3 | `item-body-takes-a-const-generic-brace-for-an-item-body` | E | item_body reads a const-generic argument's brace as the item's body, so an impl with one silently stops being a scope in two censuses |
+| P3 | `r1-dual-digest-ladder-collides-and-has-no-keeper` | E | The R1 dual digest's hand-numbered tag ladder collides at 24, beside a comment claiming the opposite |
+| P3 | `sentinel-markers-with-no-reader-are-grep-only` | E | mesh7r1_probes' R1-DOOR-ONLY markers are grep-only: sentinels with no programmatic reader |
+| P3 | `source-scanning-censuses-are-a-tripwire-on-ordinary-rust` | D | the source-scanning censuses hand-parse Rust and fail loud, so an ordinary-but-unusual signature reds another program's test with a byte offset for a message |
+| P3 | `test-fixtures-hand-spell-the-knot-rescale-with-computed-ends` | E | Six test fixtures hand-spell the knot rescale with computed ends instead of the on_domain door |
+| P3 | `tests-common-body-fixtures-triplicated` | E | Three crates' tests/common each carry the same six body fixtures; three pairs are byte-identical and three have drifted |
+| P3 | `topo-display-contract-rosters-could-be-derived-beside-the-enum` | E | topo's two display-contract enums could carry a compiler-derived variant list beside the enum, as its own src rows already do |
+| P3 | `topo-prism-z-construction-is-written-out-again-across-the-tree` | E | prism_z's construction is written out again elsewhere in the tree, including once inside its own file |
+| P3 | `topo-tests-has-two-vocabulary-homes-with-no-stated-boundary` | E | topo/tests has two tests-only vocabulary homes and neither names the other |
+| P3 | `topo-tests-scaled-probe-box-five-spellings` | E | topo's suites spell the box wrapper n ways, of which the scaled probe box is five |
+| P3 | `topo-the-ops-cube-has-four-spellings-and-no-shared-home` | E | The bare-topology ops cube (mev_line/mef_chord) is written out four times in topo, with no shared door |
+| P3 | `value-channel-digest-tag-24-collides` | E | the value-channel digest's discriminator is not injective: tag 24 is claimed twice |
+| None | `D113` | None | Decide what an intra-doc link in a tests/ file is, and land the mechanism the decision needs |
+| None | `D382` | None | Collapse the copies of every_suite_file_is_aggregated onto one test-utils macro (fifteen at the time of the fix; test-utils is already opted in) |
+| None | `D70` | None | Decide whether the 13 silent whole-row stand-downs in three test files should be epsilon-conditional at all |
+| None | `assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums` | None | assert_f6's dumps lists mirror whole error enums by hand, with nothing to say the enum grew |
+| None | `loud-skip-marker-is-a-hand-kept-idiom` | None | The loud-skip marker is a hand-kept idiom in eight files, each copy naming its rows by hand and admitting it goes stale silently |
+| None | `loud-stand-down-announcements-are-discarded-by-the-gate` | None | test_utils::vacuity::stood_down prints to a stdout the twelve gating nextest jobs discard: 22 announcements nobody can hear |
+| None | `m10-4-bore-pin-row-red-at-interval-1e-6` | None | M10-4 the_bore_pin_fit_as_a_consumer_reads_it is red at interval / eps 1e-6 on main |
+| None | `r2-m10-6-header-roster-omits-the-suites-heaviest-row` | None | A test file's own roster lists five of seven rows, omits the heaviest, and names one in the opposite sense |
+| None | `sibling-display-contract-suites-hand-mirror-their-enums-too` | None | mesh and topo display-contract suites hand-mirror their enums too, and mesh's list is already one variant short |
+| None | `test-headers-name-fns-that-exist-nowhere` | None | Two test file headers name retired fns that exist nowhere in the tree |
 
-Every row's own body is the spec; several carry a "this enumeration is a
-FLOOR" line, and those are to be re-derived against the tree at dispatch
-rather than trusted — the line numbers in the older rows are frozen at a
-named SHA.
+## Order
+
+By instrument, and start with the ones whose failure mode is a SILENT
+pass: `source-scanning-censuses-are-a-tripwire-on-ordinary-rust` (they
+hand-parse Rust and fail loud, so an ordinary construct reds the gate),
+`sentinel-markers-with-no-reader-are-grep-only`, and
+`the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks`.
+
+`test-utils-is-production-source-to-every-narrowing-gate` is P1 and is
+the structural row under several others — `test-utils` documenting
+itself as dev-only while being production source to every narrowing
+gate is a fact the gates' own arguments rest on. `H12`, `S216` and
+`C18` are the compile_fail family and are one unit.
+
+## Review posture
+
+OPEN, for this program's first dispatch. TINT inherits protocol v7
+(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
+only, opus/opus outside it. Nobody has re-asked the triage question for
+this slate, so the first orchestrator answers it here rather than
+inheriting an answer.

@@ -4,6 +4,8 @@ kind: issue
 title: A CLASS - hand-written citations nothing checks: line-numbered file.rs:NNN citations across work/ (seven rot in one doc-only PR) and test-function names in doc comments, which cannot be intra-doc links
 status: open
 opened: 2026-09-12
+priority: P3
+cost: D
 ---
 
 
@@ -95,3 +97,84 @@ that this row names one confirmed instance and one mechanism, and the
 population is unknown. Whoever takes it measures it first.
 
 Citations accurate at `7d5782045`.
+
+## Arm B measured on a unit that moved TO test-name citation (2026-09-16)
+
+INSTR unit 0 (PR 2735) is the arm-B case arriving from the other
+direction, and it is worth recording because the unit was **following
+§7 correctly** and still landed here.
+
+METER's fold deleted `tools/tess-lint/tests/baseline_sizing_census.rs`,
+so every site naming that path pointed at nothing. The repair replaced
+the dead path with the enclosing test name —
+`the_committed_baseline_sizes_this_much` in
+`tools/tess-lint/tests/baseline_census.rs` — at four sites:
+`tools/tess-lint/tests/report_columns_pin.rs`, two in
+`docs/TESS-BUDGET.md`, and one tracker row. That is exactly what §7
+asks for, and the name is a good one: it encodes no quantity, so a
+re-cut cannot falsify it.
+
+**The rot rate dropped; the rot did not stop, and the diff does not say
+so.** Three of those four citations cross a cargo-root boundary
+(`docs/` and a tracker row into `tools/`), where an intra-doc link was
+never available even in principle, so arm B's "cannot be a link" holds
+in a second way beyond `#[cfg(test)]`.
+
+**And the new failure is quieter than the old one**, which is the part
+worth generalising:
+
+- A dead FILE PATH is a distinctive token. `baseline_sizing_census`
+  appears nowhere else in the tree, so `grep` found every site — which
+  is how INSTR's row came to exist at all.
+- A renamed TEST leaves `baseline_census.rs` still resolving. Only the
+  name token rots, inside a sentence that still reads correctly. There
+  is no distinctive dead token to grep for, and the reader has no
+  signal that the pointer has stopped resolving.
+
+So arm B's instrument is worth more than the row's framing implies:
+migrating a path citation to a name citation is a §7 improvement that
+**trades a loud failure for a silent one**, and the inversion this row
+already proposes as "the general fix" is the thing that avoids the
+trade. INSTR's sibling review found the complementary hazard in the
+same file — two test names there DO encode readings a re-cut moves
+(`five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows`
+and `the_name_column_separates_pairs_in_exactly_this_scene`), and both
+are cited from elsewhere.
+
+## Arm B gets a partial instrument (INSTR unit 1, 2026-09-16, PR 2757)
+
+This row's arm-B analysis — *"migrating a path citation to a name
+citation trades a loud failure for a silent one"* — was handed to INSTR
+unit 1 as a constraint, and the unit had to add four such citations. It
+answered with a guard rather than a disclosure, and the shape may be
+reusable wherever arm B bites:
+`the_sites_that_cite_this_census_cite_names_it_has`, in
+`tools/tess-lint/tests/baseline_census.rs`, writes each cited test name
+**twice** —
+
+- as a **path expression** (`test: the_committed_baseline_sizes_this_much`),
+  which stops compiling the instant the test is renamed. This is the
+  half that answers this row: it needs no link, crosses no cargo root,
+  and covers every citation anywhere, because it never looks at the
+  citing site;
+- as a **string** asserted still present in the citing text, which
+  catches the citation being edited off the name.
+
+**What it does not solve, and the asymmetry is the point.** The second
+arm reaches `docs/TESS-BUDGET.md` and stops there. It cannot read
+`tools/tess-lint/src/lib.rs` or `tests/report_columns_pin.rs`: an
+`include_str!` on either makes the reading file a site that reads Rust
+source as text, which `crates/test-utils`' reader census ledgers, and
+`tools/tess-lint` is a dependency-free cargo root that cannot reach the
+shared lexer — so the honest ledger line would be `Unconverted`, new
+debt bought for the weaker half. It also excludes tracker rows, which
+are deleted with their program and would red the test on an ordinary
+edit.
+
+**So the first arm is the general one and it is cheap**: any file that
+can name a test as a path expression gets rename-safety for free,
+including across the `#[cfg(test)]` boundary this row says a link
+cannot cross. The second arm is only available where the citing text is
+prose the guarding file may read. If this row's "inversion" lands as a
+general instrument, the split between those two is the thing to carry
+over.

@@ -94,15 +94,18 @@ layer whose types it serves (`topo/src/query.rs`):
   `SEL_DATUM_DISTANCE` funnel site in `geom-core`'s `k_stats`, with an
   honest `Margin` door and a typed indeterminate in band. Datum-node
   resolution — `RecipeNodeId` → `DatumValue` — stays in `editor-core`'s
-  `prepare`. One further door here is deliberately not a selection
-  question and says so: `decide_unit_direction`, the workspace's one
-  `Margin::norm3` decide-then-normalize body, reached under two
-  ratified funnel names by the datum constructor and the evaluation
-  layer's direction door. The finiteness question it asks first is
-  `geom-core`'s `is_finite_length`, a statement about a scalar that
-  lives beside `Real`/`is_poison` and `Vec3::normalize`'s own overflow
-  note rather than at this seat — every crate with directions has to be
-  able to ask it, including the ones below this one.
+  `prepare`. One further decision this seat NAMES but does not house
+  is deliberately not a selection question and says so:
+  `geom_core::decide_unit_direction`, the workspace's one
+  `Margin::norm3` decide-then-normalize body under
+  `geom_core::UnitVec3::new`, reached under two ratified funnel names —
+  `topo`'s `DATUM_UNIT_NORM`, passed by the evaluation layer's datum
+  door, and the evaluation layer's own `EVAL_DIRECTION_NORM`. The
+  finiteness question it asks first is `geom-core`'s
+  `is_finite_length`, a statement about a scalar that lives beside
+  `Real`/`is_poison` and `Vec3::normalize`'s own overflow note rather
+  than at this seat — every crate with directions has to be able to
+  ask it, including the ones below this one.
 - **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** is a
   fourth EXACT door: the rim an arc belongs to, whole
   (FILLET-RIM, retired into `docs/DOC-LEDGER.md`). It reads stored tags

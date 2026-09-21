@@ -11,28 +11,21 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-/// **Loud skip.** Without `--features interval` this binary is empty;
-/// announce the skip so a lane that silently lost its certified rows
-/// stays visible in the battery log.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): m5_s13_pips_interval.rs \
-         contributes NO certified coverage in this run — the S13 rows \
-         (the bracketed 17.30900 union, the pip ∖/∩ enclosures and \
-         their additivity) run only in the interval lane."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of the S13 die-pip rows",
+);
 
 #[cfg(feature = "interval")]
 mod certified {
+    use crate::common::operands::slab;
     use core::f64::consts::PI;
     use geom_core::Tol;
 
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
     use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
-    use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+    use sweep::{Revolution, RevolveAxis, revolve};
     use topo::{Body, mass_properties};
 
     fn iv(x: f64) -> Interval {
@@ -47,23 +40,6 @@ mod certified {
         Profile::new(SketchPlane::xy(), loops)
             .validate(Tol::witness())
             .unwrap()
-    }
-
-    /// The 4 × 4 × 1 slab of the finding row.
-    fn slab() -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            p2(0.0, 0.0),
-            p2(4.0, 0.0),
-            p2(4.0, 4.0),
-            p2(0.0, 4.0),
-        ]);
-        extrude(
-            &validated(vec![lp]),
-            Extrusion::Distance(iv(1.0)),
-            Tol::witness(),
-        )
-        .unwrap()
-        .body
     }
 
     /// A radius-`r` ball at `centre` (horizontal polar axis — the §1
@@ -113,18 +89,27 @@ mod certified {
     /// they are judged against. The row therefore certifies exactly
     /// when ε is at or above it.
     ///
-    /// The escalation arm pins `hi` to this value BIT-EXACTLY, in both
-    /// directions. A regression that widens the arc chain is loud, and
-    /// so is a tightening that narrows it — including a partial one
-    /// landing between the band and this constant, which an
-    /// upper-bound-only guard would admit in silence. Either way the
-    /// answer is the same: re-measure and re-state the constant, never
-    /// loosen the guard around it.
-    /// The last MEASURED mapped-source enclosure width for this union.
-    /// It is a ceiling and a crossover marker, not a required value:
-    /// the chain is expected to narrow it over time, and at ε = 1e-12
-    /// it has already narrowed past the point where this union escalates
-    /// at all.
+    /// **It is a ceiling and a crossover marker, not a required
+    /// value**, and the escalation arm bounds `hi` from above alone.
+    /// That is deliberate: the chain is expected to narrow, and a
+    /// both-sides pin would make the improvement this programme exists
+    /// for report as a regression. The row's own body says the same,
+    /// and says why the arm is now chosen by the OUTCOME rather than by
+    /// comparing ε to this constant.
+    ///
+    /// A both-sides pin on the same quantity does exist, on a different
+    /// fixture: `m5_s12_curved_ops_interval`'s `RECUT_MAPPED_ENCLOSURE_HI`.
+    /// A paragraph claiming this constant was pinned that way too stood
+    /// here until 2026-09-19; it was left behind by the change the body
+    /// comment records and contradicted the assertion six lines below
+    /// it.
+    ///
+    /// **Measured 2026-09-19: the escalation arm does not execute at
+    /// any gated ε.** At 1e-12, 1e-9 and 1e-6 this union decides, so
+    /// the ceiling below is unreached on every row CI runs. Nothing
+    /// here is therefore evidence about the enclosure width today —
+    /// which is a coverage question and is filed as one, not something
+    /// to repair by re-scoping the row.
     const UNION_MAPPED_ENCLOSURE_HI: f64 = 1.127306994088959e-12;
 
     /// **The finding row's flip, BRACKETED**: ∪ of the slab and the

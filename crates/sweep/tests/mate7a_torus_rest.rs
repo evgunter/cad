@@ -21,21 +21,24 @@
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
-//! an admitted torus pair reaches the crossing layer and refuses there
-//! at the curved-pierce frontier. Every edge a torus-walled body
-//! carries is a CIRCLE, and the circle×face clearance enclosure the
-//! frontier consults has no torus arm, so it declines before the
-//! declared-cover rung behind it can be consulted at all. Two rows
-//! below hold that boundary still, so the day the enclosure grows an
-//! arm they are what changes.
+//! an admitted torus pair reaches the crossing layer and refuses
+//! there. The enclosure the circle rung consults HAS a torus arm now
+//! (`geom_brep::circle_arc_residual_range`), so the rung no longer
+//! declines for want of one — it decides, and on a COINCIDENT pair it
+//! decides definitely-not-one-sided, because the residual is
+//! identically zero along a seam meridian and the sampled enclosure
+//! is `±charge` about it. The declared-cover rung behind it needs a
+//! `Zero` and is still never consulted. Two rows below hold that
+//! boundary, and the one that names it carries the measurement.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
 
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Band, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::{axis_y, p2, validated};
+use sweep::test_support::tube_frame;
 use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::query;
 use topo::{
@@ -64,9 +67,12 @@ fn window(deg: f64) -> TubeWindow<f64> {
 /// starting at the origin heading `+z`.
 fn segment_a() -> Body<f64> {
     tube_along_arc(
-        Point3::new(-RING, 0.0, 0.0),
-        axis(),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-RING, 0.0, 0.0),
+            axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         RING,
         window(TURN),
         TUBE,
@@ -89,9 +95,7 @@ fn segment_b() -> Body<f64> {
     let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
     let center = end + inward * 1.1;
     tube_along_arc(
-        center,
-        axis(),
-        (end - center).normalize(),
+        tube_frame(center, axis(), (end - center).normalize(), Tol::witness()),
         1.1,
         window(170.0),
         TUBE,
@@ -105,9 +109,12 @@ fn segment_b() -> Body<f64> {
 /// radius [`TUBE`] — the curved spelling of the bored plate.
 fn socket() -> Body<f64> {
     tube_along_arc_hollow(
-        Point3::new(-RING, 0.0, 0.0),
-        axis(),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-RING, 0.0, 0.0),
+            axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         RING,
         window(TURN),
         0.09,
@@ -133,9 +140,12 @@ fn kissing_pair() -> (Body<f64>, Body<f64>) {
 /// the origin on `+z`. It carries its two wall faces and nothing else.
 fn full_torus(major: f64) -> Body<f64> {
     tube_along_arc(
-        Point3::origin(),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         major,
         TubeWindow::Full,
         TUBE,
@@ -228,9 +238,12 @@ fn a_declared_torus_rest_pair_passes_the_declaration_door() {
 fn a_contradicted_torus_rest_declaration_refuses_loudly() {
     let s = socket();
     let thin = tube_along_arc(
-        Point3::new(-RING, 0.0, 0.0),
-        axis(),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-RING, 0.0, 0.0),
+            axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         RING,
         window(TURN),
         TUBE * 0.75,
@@ -382,22 +395,78 @@ fn a_partly_covered_torus_pair_still_gates_on_the_uncovered_one() {
 
 /// **Where the lane stops once the gate is past, held still.** The
 /// admitted pair reaches the crossing layer and refuses at the
-/// curved-pierce frontier: every edge of a torus-walled body is a
-/// CIRCLE, and the circle-versus-face clearance enclosure the frontier
-/// consults has no torus arm, so it declines before the declared-cover
-/// rung behind it is consulted at all. This is a boundary, not a
-/// verdict about the declaration — and it is asserted so that growing
-/// that enclosure shows up here as a change rather than as silence.
+/// curved-pierce frontier — and the ROW is the same while the CAUSE
+/// has moved one rung on.
+///
+/// It used to be that every edge of a torus-walled body is a CIRCLE
+/// and the clearance enclosure had no torus arm at all, so the rung
+/// declined on a `None` before the declared-cover rung behind it was
+/// consulted. The enclosure has a torus arm now
+/// (`geom_brep::circle_arc_residual_range`), so the rung DECIDES —
+/// and on this fixture, two coincident tori, it decides
+/// definitely-NEGATIVE: the residual is identically zero along a seam
+/// meridian, so the sampled enclosure is `±charge` and its
+/// one-sidedness margin is `−charge`, which is 1.8e-5 m and outruns
+/// every eps cell in the run matrix. The rung takes the frontier at
+/// its `Zero | Negative` arm instead of at the `None` door.
+///
+/// The declared-cover rung behind it needs a `Zero`, and a sampled
+/// enclosure of a COINCIDENT pair cannot produce one at any `K`: the
+/// charge falls as `K⁻²` and the band does not follow it. That is
+/// `work/curved/torus-coincident-pair-cannot-reach-the-covered-rung`,
+/// and the enclosure's own width is pinned in `geom-brep`'s
+/// `a_coincident_torus_pair_encloses_pm_charge_and_reads_negative`.
+///
+/// **The landing is eps-DEPENDENT, and the margin is why.** The
+/// margin here is −4.56e-6 m. Where the escalation threshold stands
+/// under it the verdict is a definite Negative and the rung takes the
+/// typed frontier; where the margin falls INSIDE the ambiguity band
+/// the predicate is `Indeterminate` and the op escalates instead.
+/// Both are typed refusals of the same fact — no crossing verdict for
+/// a coincident torus pair — and the row asserts whichever the run's
+/// own band selects rather than picking one and skipping the other.
 #[test]
 fn the_admitted_torus_lane_stops_at_the_curved_pierce_frontier() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("the circle-versus-torus clearance has no enclosure yet");
+        .expect_err("a coincident torus pair still has no crossing verdict");
+    println!("the admitted torus lane answers {err:?}");
+    // **The PROPERTY, not the variant.** Both arms of the v6 dual
+    // agreed the conservative reading is the one to pin: a coincident
+    // torus pair must never reach a validated BODY, and which typed
+    // refusal carries that is the run's band's business, not this
+    // row's. Matching on whichever the run selects made the row a
+    // restatement of the implementation rather than a claim about it.
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the lane's stopping point is the curved-pierce frontier: {err:?}"
+        matches!(
+            err,
+            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
+        ),
+        "a coincident torus pair must refuse TYPED, never grant: {err:?}"
     );
+    // And where the run's band puts the margin inside the ambiguity
+    // window, the escalation's payload is pinned — so a charge that
+    // drifts is visible here rather than silently reclassifying the
+    // refusal. The margin is the chord-dip charge on this fixture's
+    // seam meridian, which is a half meridian: 4.56e-6 m.
+    let band = Band::linear(Tol::witness()).expect("the run's linear band");
+    const MARGIN: f64 = 4.559_414_566_271_785e-6;
+    if MARGIN < band.escalate() && MARGIN > band.zero() {
+        let BooleanError::Escalated { diag } = &err else {
+            panic!("inside the ambiguity band the clearance predicate escalates: {err:?}");
+        };
+        let text = format!("{diag:?}");
+        assert!(
+            text.contains("bool_circle_curved_clearance"),
+            "the escalation must name the clearance predicate: {text}"
+        );
+        assert!(
+            text.contains("-4.559414566271785e-6"),
+            "and carry the measured margin, so a drifting charge is \
+             visible rather than silent: {text}"
+        );
+    }
 }
 
 // -------------------------------------------------------------------
@@ -511,9 +580,12 @@ fn a_torus_pair_with_no_shared_rim_keeps_the_class_refusal() {
     // The same elbow displaced far along `y`, so nothing meets and no
     // boundary circle is shared.
     let b = tube_along_arc(
-        Point3::new(-RING, 40.0, 0.0),
-        axis(),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-RING, 40.0, 0.0),
+            axis(),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         RING,
         window(TURN),
         TUBE,
@@ -656,4 +728,47 @@ fn the_chain_fixture_is_g1_with_one_shared_rim() {
         }
         Err(_) => {}
     }
+}
+
+/// **The routing reads the SECOND face's sense, not the first's
+/// twice.** `verify_tangent_declaration` resolves each declared face
+/// once and hands `classify_shared_rim` one bit per face. The two
+/// arguments are adjacent `bool`s of the same type, so a call site
+/// passing the plus face's bit in both positions compiles — and every
+/// row above still passes, because both fixtures there carry
+/// `sense: true` on every wall and the two arguments are equal by
+/// accident.
+///
+/// This row removes the accident. It is the kissing pair — whose
+/// unflipped verdict is the slit, the row above — with the SECOND
+/// body's walls reversed through the public `Body::set_face_sense`.
+/// The outward normals then agree across the rim, so the routing must
+/// answer the seam; a door reading the first bit twice would still
+/// answer the slit.
+#[test]
+fn the_rim_routing_reads_the_second_faces_sense_and_not_the_firsts() {
+    let (a, mut b) = kissing_pair();
+    for fb in torus_faces(&b, TUBE) {
+        let s = b.get_face(fb).expect("the wall face resolves").sense;
+        b.set_face_sense(fb, !s).expect("the key is live");
+    }
+    // The premise, stated rather than assumed: the two operands' walls
+    // now carry DIFFERENT bits, so the second argument is load-bearing.
+    let sense_of = |body: &Body<f64>| {
+        let f = torus_faces(body, TUBE)[0];
+        body.get_face(f).expect("the wall face resolves").sense
+    };
+    assert_ne!(
+        sense_of(&a),
+        sense_of(&b),
+        "the fixture must put different sense bits on the two sides of the rim"
+    );
+
+    let decls = wall_declarations(&a, &b, TUBE, ContactClass::Tangent);
+    let err = topo::union_with(&a, &b, &decls, Tol::witness())
+        .expect_err("a seam takes no declaration, and the join wiring is not built");
+    assert!(
+        matches!(err, BooleanError::RimSeamNotDeclarable { .. }),
+        "with one side reversed the kissing rim's normals AGREE: wedge π, not the slit: {err:?}"
+    );
 }

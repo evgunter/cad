@@ -17,8 +17,8 @@
 //! of the three whose work can be stopped — and
 //! [`InlineEvaluator`] — which runs the whole evaluation inside
 //! `poll` — satisfies it exactly as well as [`ThreadEvaluator`] does.
-//! Every test in this crate drives the inline one; the application
-//! drives the threaded one; nothing else changes.
+//! Rows in this crate's suite drive both, and the application drives
+//! the threaded one; nothing else changes.
 //!
 //! # The policy for an edit during an evaluation: CANCEL AND RESTART
 //!
@@ -32,18 +32,25 @@
 //! superseded run's result is dropped HERE rather than travelling up to
 //! be discarded by generation.
 //!
-//! **Both implementations do this, by the same mechanism**: at most one
-//! request is ever outstanding, and a submit while one is outstanding
-//! REPLACES the waiting request rather than adding to it. For
-//! [`InlineEvaluator`] that is a single `Option`; for
-//! [`ThreadEvaluator`] it is a single `Option` in the handle plus a
-//! `running` flag, so the channel to the worker never holds more than
-//! one job. Making the worker drain a queue would have produced the
-//! same observable answer, but it would have left the handle's own
-//! accounting (what `busy` reports) describing a queue the caller
-//! cannot see; keeping the queue in the handle is why the two
-//! implementations are the same shape rather than merely the same
-//! outcome. The row that pins it drives BOTH.
+//! **Every implementation of every seam does this, and there are two
+//! mechanisms rather than six**: at most one request is ever
+//! outstanding, and a submit while one is outstanding REPLACES the
+//! waiting request rather than adding to it. An INLINE seam is a
+//! single `Option` and nothing else — `Option::replace` is
+//! latest-wins, `busy` is the slot, and there is no worker to be
+//! ahead of — so the rule holds there by the type rather than by a
+//! machine anyone maintains. A THREADED seam is that same `Option`
+//! in the handle plus a `running` flag, so the channel to the worker
+//! never holds more than one job; that half IS a machine, and it is
+//! written ONCE — the `Coalescing` handle in the native module below,
+//! which every threaded seam is built from and which is where the
+//! whole invariant, `busy` included, is stated. Making the worker
+//! drain a queue would have produced the same observable answer, but
+//! it would have left the handle's own accounting (what `busy`
+//! reports) describing a queue the caller cannot see; keeping the
+//! queue in the handle is why the implementations are the same shape
+//! rather than merely the same outcome. The row that pins it drives
+//! [`InlineEvaluator`] and [`ThreadEvaluator`] both.
 //!
 //! The cancelation is the shipped `CancelToken` and nothing else: it
 //! is checked between nodes, so a canceled run returns its completed
@@ -113,7 +120,7 @@ use pncad::select::PickMemo;
 use pncad::topo::Body;
 
 use crate::generation::Generation;
-use crate::pickindex::{PickIndex, PickIndexError};
+use crate::pickindex::{PickIndex, PickIndexError, PictureKey};
 use crate::scene::{DisplayTolerance, FittedDelta, SceneError, fit_delta, product_of_evaluation};
 
 /// What the seam was asked to evaluate.
@@ -293,10 +300,11 @@ impl InlineEvaluator {
 
 impl EvalService for InlineEvaluator {
     fn submit(&mut self, request: EvalRequest) {
-        // Cancel-and-restart, degenerately: nothing has started, so
-        // the newer request simply replaces the older one. The token
-        // is fresh because the run this cancel would have stopped is
-        // the one being replaced.
+        // The whole machine is the `Option` (module docs, the
+        // coalescing section): nothing has started, so the newer
+        // request replaces the older one. The token is fresh because
+        // the run this cancel would have stopped is the one being
+        // replaced.
         self.cancel = CancelToken::new();
         self.pending = Some(request);
     }
@@ -328,11 +336,11 @@ impl EvalService for InlineEvaluator {
 /// evaluation while the interaction layer keeps editing.
 #[derive(Clone, Debug)]
 pub struct IndexRequest {
-    /// The generation of the evaluation this index describes.
-    pub generation: Generation,
-    /// The chordal tolerance the roots are tessellated at — half the
-    /// key, and the half the evaluation knows nothing about.
-    pub delta: DisplayTolerance,
+    /// The picture to build — the generation of the evaluation this
+    /// index describes and the chordal tolerance its roots are
+    /// tessellated at, as one value ([`PictureKey`]). The δ half is
+    /// the half the evaluation knows nothing about.
+    pub key: PictureKey,
     /// The document whose roots are walked.
     pub doc: Doc<ProfileProgram>,
     /// The run those roots' payloads are read from. Shared rather than
@@ -351,10 +359,8 @@ pub struct IndexRequest {
 /// which is the assumption a coalescing seam exists to break.
 #[derive(Debug)]
 pub struct IndexDone {
-    /// The generation the request carried.
-    pub generation: Generation,
-    /// The δ the request carried.
-    pub delta: DisplayTolerance,
+    /// The picture the request asked for.
+    pub key: PictureKey,
     /// What the seam's memo did for this answer.
     pub memo: MemoReport,
     /// The index, or the refusal that stopped it — a failed or
@@ -452,14 +458,12 @@ fn build_index(request: &IndexRequest, memo: &mut PickMemo) -> IndexDone {
     let index = PickIndex::build_with(
         &request.doc,
         &request.evaluation,
-        request.generation,
-        request.delta,
+        request.key,
         request.tol,
         memo,
     );
     IndexDone {
-        generation: request.generation,
-        delta: request.delta,
+        key: request.key,
         memo: MemoReport::of(memo),
         index,
     }
@@ -495,9 +499,6 @@ impl InlineIndexer {
 
 impl IndexService for InlineIndexer {
     fn submit(&mut self, request: IndexRequest) {
-        // Restart, degenerately: nothing has started, so the newer
-        // request replaces the older one and the older one costs
-        // nothing at all.
         self.pending = Some(request);
     }
 
@@ -633,8 +634,6 @@ impl InlineFitter {
 
 impl FitService for InlineFitter {
     fn submit(&mut self, request: FitRequest) {
-        // Restart, degenerately: nothing has started, so the newer
-        // request replaces the older one at no cost.
         self.pending = Some(request);
     }
 
@@ -689,22 +688,7 @@ mod threaded {
         IndexRequest, IndexService, PickMemo, PriorRun, build_index, run_fit, run_once,
     };
 
-    /// A request plus the token that stops it.
-    ///
-    /// **The token travels with the job, and is minted by the
-    /// submitter.** The alternative — one long-lived token the worker
-    /// clears between runs — loses a cancel raised while the queue is
-    /// draining: the clear would wipe a cancelation aimed at the job
-    /// it was clearing for. A per-job token has no such window,
-    /// because the only thing a cancel can name is a job that already
-    /// exists.
-    #[derive(Debug)]
-    struct Job {
-        request: EvalRequest,
-        cancel: CancelToken,
-    }
-
-    /// Which of this module's two workers a refusal is about (D4 ¶3:
+    /// Which of this module's three workers a refusal is about (D4 ¶3:
     /// a closed enum, because the set is this file's own and a reader
     /// asking which values occur should be able to see them).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -731,7 +715,7 @@ mod threaded {
     ///
     /// The worker is NAMED, because this crate spawns one per seam and
     /// a startup refusal that did not say which would send its reader
-    /// to the wrong half of this module.
+    /// to the wrong third of this module.
     #[derive(Debug)]
     pub enum SpawnError {
         /// The OS refused the thread.
@@ -759,95 +743,394 @@ mod threaded {
 
     impl core::error::Error for SpawnError {}
 
-    /// A background-thread evaluation seam.
+    /// What a worker carries, what it answers with, and **the one rule
+    /// that differs between the three seams**.
     ///
-    /// **At most one job is ever with the worker.** A submit while the
-    /// worker holds one replaces [`ThreadEvaluator::waiting`] rather
-    /// than queueing, and [`EvalService::poll`] drops a result that a
-    /// waiting job has already superseded — which is the coalescing the
-    /// module docs promise, in the same shape [`super::InlineEvaluator`]
-    /// has it.
-    #[derive(Debug)]
-    pub struct ThreadEvaluator {
-        to_worker: Option<Sender<Job>>,
-        from_worker: Receiver<EvalDone>,
-        /// The token of the most recently submitted job — what
-        /// `cancel` names, and what the next `submit` cancels.
-        cancel: CancelToken,
-        /// The job the worker is evaluating, if any. A flag rather
-        /// than a count, because the channel never holds more than one.
-        running: bool,
-        /// The newest request, held back until the worker is free.
-        /// Replaced, never appended to: that is latest-wins.
-        waiting: Option<Job>,
-        worker: Option<JoinHandle<()>>,
+    /// Everything else about carrying a job is [`Coalescing`]'s and is
+    /// written once there; this trait is where a seam says the part
+    /// that is its own.
+    trait Job: Send + 'static {
+        /// What the worker sends back for one job.
+        type Done: Send + 'static;
+
+        /// Whether `self`, which was WAITING when `done` arrived, asks
+        /// for something `done` does not already answer.
+        ///
+        /// `false` drops the waiting job and keeps the answer in hand.
+        /// **This is the only place a seam's notion of "the same
+        /// picture" is written**, so a seam that keys on a pair and a
+        /// seam that keys on a generation differ here and nowhere
+        /// else.
+        fn supersedes(&self, done: &Self::Done) -> bool;
     }
 
-    impl ThreadEvaluator {
-        /// Spawn the worker.
+    /// **The coalescing machine, written once.** Every threaded seam in
+    /// this module is one of these plus whatever else that seam owns.
+    ///
+    /// The invariant, in one place rather than once per seam, because
+    /// four hand-maintained copies of it are four things that can
+    /// silently disagree:
+    ///
+    /// - **at most one outstanding**: the worker holds at most one job,
+    ///   which is why `running` is a flag and not a count, and at most
+    ///   one more job is `waiting`;
+    /// - **latest wins**: a submit while the worker is busy REPLACES
+    ///   `waiting` rather than queueing behind it;
+    /// - **a worker ends in exactly one of two ways, and they are not
+    ///   the same event**: [`Coalescing::close`] took its request
+    ///   channel, which is an orderly shutdown and clears `running`
+    ///   and `waiting` so no indicator stays lit for an answer that is
+    ///   not coming ([`Coalescing::forget_worker`]); or the worker
+    ///   CRASHED under a job, which is a bug in this process and ends
+    ///   it ([`Coalescing::crashed`]). Both are noticed at the same
+    ///   two places — a `send` that fails and a `Disconnected` receive
+    ///   — and telling them apart is a read of `to_worker`, which
+    ///   `close` is the only thing that takes;
+    /// - **`busy()` is `running || waiting.is_some()`** — the two
+    ///   fields are what the caller's one boolean is computed from, and
+    ///   nothing else may compute it.
+    ///
+    /// What is NOT here is what each seam does differently: whether a
+    /// waiting job supersedes the answer in hand
+    /// ([`Job::supersedes`]), whether there is a token to cancel with,
+    /// and whether `Drop` may wait for the worker
+    /// ([`Coalescing::close_and_join`] against [`Coalescing::close`]).
+    #[derive(Debug)]
+    struct Coalescing<J: Job> {
+        /// Which seam this is. Carried so a crash names the worker it
+        /// was, rather than being labelled by whichever consumer
+        /// happened to be the one that noticed.
+        worker: Worker,
+        to_worker: Option<Sender<J>>,
+        from_worker: Receiver<J::Done>,
+        /// Whether the worker holds a job. A flag rather than a count,
+        /// because the channel never holds more than one.
+        running: bool,
+        /// The newest job, held back until the worker is free.
+        /// Replaced, never appended to: that is latest-wins.
+        waiting: Option<J>,
+        handle: Option<JoinHandle<()>>,
+    }
+
+    impl<J: Job> Coalescing<J> {
+        /// Spawn the worker and return the handle on it.
+        ///
+        /// `answer` is the seam's own work, run on the worker thread
+        /// over `state` — the previous completed run an evaluation
+        /// worker primes its memo from, the [`PickMemo`] an index
+        /// worker keeps between builds, `()` for a seam with nothing to
+        /// carry. **That state lives on the worker thread for the
+        /// thread's life, which is the seam's**, so nothing above the
+        /// seam holds it in order to hand it back.
         ///
         /// # Errors
         ///
         /// [`SpawnError::Thread`] if the OS refuses the thread. Loud
         /// rather than degraded on purpose: a seam whose worker never
         /// started accepts every submit and answers none, so the
-        /// application would sit at "evaluating…" forever with no
+        /// application would sit behind an indicator forever with no
         /// failure anywhere to read.
-        pub fn spawn() -> Result<Self, SpawnError> {
-            let (to_worker, requests) = channel::<Job>();
-            let (results, from_worker) = channel::<EvalDone>();
-            let worker = std::thread::Builder::new()
-                .name("viewer-eval".to_owned())
-                .spawn(move || work(&requests, &results))
-                .map_err(|error| SpawnError::Thread {
-                    worker: Worker::Evaluation,
-                    error,
-                })?;
+        fn spawn<S: Send + 'static>(
+            worker: Worker,
+            thread_name: &str,
+            mut state: S,
+            mut answer: impl FnMut(&mut S, J) -> J::Done + Send + 'static,
+        ) -> Result<Self, SpawnError> {
+            let (to_worker, requests) = channel::<J>();
+            let (results, from_worker) = channel::<J::Done>();
+            let handle = std::thread::Builder::new()
+                .name(thread_name.to_owned())
+                .spawn(move || {
+                    // The worker loop, once for all three seams:
+                    // answer one job at a time — which is the other
+                    // half of at-most-one-outstanding, the half that
+                    // lives on this side of the channel — and stop
+                    // when either end closes. A failed `send` means
+                    // the handle is gone, so there is nobody left to
+                    // answer.
+                    while let Ok(job) = requests.recv() {
+                        if results.send(answer(&mut state, job)).is_err() {
+                            return;
+                        }
+                    }
+                })
+                .map_err(|error| SpawnError::Thread { worker, error })?;
             Ok(Self {
+                worker,
                 to_worker: Some(to_worker),
                 from_worker,
-                cancel: CancelToken::new(),
                 running: false,
                 waiting: None,
-                worker: Some(worker),
+                handle: Some(handle),
             })
         }
 
-        /// Hand `job` to the worker, or record that the worker is gone.
-        fn dispatch(&mut self, job: Job) {
+        /// Take `job`: hand it to the worker if it is free, otherwise
+        /// hold it as the one waiting job.
+        fn submit(&mut self, job: J) {
+            if self.running {
+                // Latest wins: the previous waiting job is dropped, not
+                // queued behind this one.
+                self.waiting = Some(job);
+            } else {
+                self.dispatch(job);
+            }
+        }
+
+        /// Hand `job` to the worker — or find out that there is none.
+        ///
+        /// **The two ways there is none are different events**, and
+        /// this is one of the two places the difference is read. A
+        /// sender still in hand whose `send` failed means the receiving
+        /// end went down with the thread holding it, which is a crash;
+        /// a sender that is gone means [`Coalescing::close`] took it,
+        /// which is shutdown.
+        fn dispatch(&mut self, job: J) {
             match self.to_worker.as_ref() {
                 Some(to_worker) if to_worker.send(job).is_ok() => self.running = true,
-                // The worker ended (only reachable after `Drop` has
-                // closed the channel, or if it panicked). Nothing more
-                // will ever be answered, and the indicator must not
-                // stay lit for an answer that is not coming.
-                _ => {
-                    self.running = false;
-                    self.waiting = None;
+                Some(_) => self.crashed(),
+                None => self.forget_worker(),
+            }
+        }
+
+        /// **A worker thread crashed, so this process ends here** (Ev,
+        /// in-chat, 2026-09-17: *"isn't a worker dying an infra thing
+        /// that should show up as a panic?"*, then *"panic on crash is
+        /// good"*).
+        ///
+        /// # Why a panic and not a typed fact
+        ///
+        /// A crash is not a state the application can be IN. Nothing
+        /// respawns a worker, so a seam that loses one accepts every
+        /// later submit and answers none, for the life of the window —
+        /// and every consumer above the seam reads that as an idle
+        /// seam, because the reset that stops the indicator lying
+        /// clears the very fields a consumer would have to read to
+        /// tell the two apart. Describing that state in the chrome
+        /// means carrying a vocabulary for a condition no document and
+        /// no gesture can cause; ending the process says the same
+        /// thing once, at the moment it becomes true, and cannot be
+        /// missed.
+        ///
+        /// **This does not touch D9.** The workspace's no-panic family
+        /// is scoped to INPUT — *"the kernel never panics on any
+        /// INPUT — every input-reachable failure is a typed error"*
+        /// (the root `Cargo.toml`'s `[workspace.lints.clippy]`) — and a
+        /// worker thread dying is reachable from no input at all: no
+        /// document, no gesture and no parameter can stop one. It is
+        /// the same class that clause hands to `unreachable!`, a bug
+        /// the code can observe in a branch, and it takes a `panic!`
+        /// rather than `unreachable!` because it IS reachable and
+        /// saying otherwise would be false.
+        ///
+        /// # The message is the whole of what a user sees
+        ///
+        /// So it names the seam, says whose fault it is, and offers no
+        /// recourse: the process is already going down, and advice a
+        /// reader cannot act on before the window closes would be
+        /// decoration on a crash.
+        #[expect(
+            clippy::panic,
+            reason = "a crashed worker is not input-reachable: D9's family is scoped \
+                      to input, and this is the bug-observed-in-a-branch class"
+        )]
+        fn crashed(&self) -> ! {
+            panic!(
+                "the {} worker thread crashed. This is a bug in the viewer: no \
+                 document and nothing a reader can do stops a worker, and nothing \
+                 starts another one, so the seam is dead and every answer it owes \
+                 is lost. Stopping here rather than going on with a picture that \
+                 silently never changes again.",
+                self.worker
+            );
+        }
+
+        /// The worker ended in the ORDERLY way: [`Coalescing::close`]
+        /// took the request channel and the thread's `recv` returned.
+        /// Nothing more will ever be answered, so nothing may go on
+        /// reporting busy.
+        ///
+        /// **Only shutdown reaches here now.** This used to answer
+        /// both endings in the same three lines, which is what made a
+        /// crashed seam read as a quiet one everywhere above it; the
+        /// crash goes to [`Coalescing::crashed`] instead. `close` is
+        /// called from `Drop` and from nowhere else, so on a running
+        /// application there is no path to this function at all — the
+        /// rows that reach it close the channel by hand.
+        fn forget_worker(&mut self) {
+            self.running = false;
+            self.waiting = None;
+        }
+
+        /// Take a finished answer, if one is ready. Never blocks.
+        ///
+        /// An answer a waiting job supersedes dies HERE rather than
+        /// travelling up to be discarded by key.
+        fn poll(&mut self) -> Option<J::Done> {
+            loop {
+                match self.from_worker.try_recv() {
+                    Ok(done) => {
+                        self.running = false;
+                        match self.waiting.take() {
+                            Some(next) if next.supersedes(&done) => self.dispatch(next),
+                            _ => return Some(done),
+                        }
+                    }
+                    Err(TryRecvError::Empty) => return None,
+                    // The worker is gone. Which way it went is the
+                    // same read `dispatch` makes, for the same reason:
+                    // a request channel still in hand means the thread
+                    // that held the other end died under a job.
+                    Err(TryRecvError::Disconnected) => {
+                        if self.to_worker.is_some() {
+                            self.crashed();
+                        }
+                        self.forget_worker();
+                        return None;
+                    }
                 }
+            }
+        }
+
+        /// Whether a job is in flight or waiting.
+        fn busy(&self) -> bool {
+            self.running || self.waiting.is_some()
+        }
+
+        /// Close the request channel so the worker's `recv` returns and
+        /// the thread ends after whatever it is running, and drop the
+        /// job that will now never be sent. **The worker is not waited
+        /// for**: the handle is dropped with `self`, so the thread
+        /// finishes and dies on its own.
+        fn close(&mut self) {
+            self.to_worker = None;
+            self.waiting = None;
+        }
+
+        /// [`Coalescing::close`], and then WAIT for the worker.
+        ///
+        /// Only a seam whose job can be stopped may do this, because
+        /// nothing else bounds the join.
+        fn close_and_join(&mut self) {
+            self.close();
+            if let Some(handle) = self.handle.take() {
+                let _ = handle.join();
             }
         }
     }
 
-    /// The worker loop: evaluate each job, answer with its generation,
-    /// keep the memo.
+    /// A request plus the token that stops it.
     ///
-    /// The memo lives HERE, on the thread that owns it, so nothing
-    /// above the seam holds the previous evaluation in order to hand
-    /// it back.
-    fn work(requests: &Receiver<Job>, results: &Sender<EvalDone>) {
-        let mut prior: Option<PriorRun> = None;
-        while let Ok(job) = requests.recv() {
-            let evaluation = run_once(&job.request, &mut prior, &job.cancel);
-            if results
-                .send(EvalDone {
-                    generation: job.request.generation,
-                    evaluation,
-                })
-                .is_err()
-            {
-                return;
-            }
+    /// **The token travels with the job, and is minted by the
+    /// submitter.** The alternative — one long-lived token the worker
+    /// clears between runs — loses a cancel raised while the queue is
+    /// draining: the clear would wipe a cancelation aimed at the job
+    /// it was clearing for. A per-job token has no such window,
+    /// because the only thing a cancel can name is a job that already
+    /// exists.
+    #[derive(Debug)]
+    struct EvalJob {
+        request: EvalRequest,
+        cancel: CancelToken,
+    }
+
+    impl Job for EvalJob {
+        type Done = EvalDone;
+
+        /// **Always**, where the two seams below compare keys — and it
+        /// is cancel-and-restart that makes it so. A job only ever
+        /// waits because a submit put it there, and that same submit
+        /// canceled the run `done` answers, so what is in hand is at
+        /// best a canceled prefix of a document the caller has already
+        /// moved past.
+        fn supersedes(&self, _done: &EvalDone) -> bool {
+            true
+        }
+    }
+
+    impl Job for IndexRequest {
+        type Done = IndexDone;
+
+        /// **Superseded is decided by KEY, not by position.** A waiting
+        /// request for the picture `done` already IS is what a δ moved
+        /// away and back produces, and rebuilding it would cost a
+        /// second full build of an answer in hand — the one wasted
+        /// build this seam accepts, paid twice for nothing.
+        ///
+        /// The key is a [`crate::pickindex::PictureKey`] and the
+        /// comparison is over the whole of it, so this impl and
+        /// [`FitRequest`]'s below cannot be read as two spellings of
+        /// one rule: they compare different values, and only one of
+        /// them is a picture.
+        fn supersedes(&self, done: &IndexDone) -> bool {
+            self.key != done.key
+        }
+    }
+
+    impl Job for FitRequest {
+        type Done = FitDone;
+
+        /// By key, for [`IndexRequest`]'s reason: a waiting request for
+        /// the answer already in hand would cost a second ladder for a
+        /// number nobody's view of the world has moved off.
+        ///
+        /// **The pair is not a [`crate::pickindex::PictureKey`] and
+        /// must not become one.** It is spelled identically and sits
+        /// one impl from one that is, but `requested` is the δ somebody
+        /// ASKED for — this seam's question, not its answer — where a
+        /// picture's δ is what an index was built at. A fit for a δ the
+        /// ladder will coarsen and a picture at that δ are different
+        /// things.
+        fn supersedes(&self, done: &FitDone) -> bool {
+            (self.generation, self.requested) != (done.generation, done.requested)
+        }
+    }
+
+    /// A background-thread evaluation seam.
+    ///
+    /// [`Coalescing`]'s machine with a token added: at most one job is
+    /// ever with the worker, a submit while the worker holds one
+    /// replaces the waiting job rather than queueing, and
+    /// [`EvalService::poll`] drops a result a waiting job has already
+    /// superseded — which is the coalescing the module docs promise, in
+    /// the same shape [`super::InlineEvaluator`] has it.
+    #[derive(Debug)]
+    pub struct ThreadEvaluator {
+        inner: Coalescing<EvalJob>,
+        /// The token of the most recently submitted job — what
+        /// `cancel` names, and what the next `submit` cancels.
+        cancel: CancelToken,
+    }
+
+    impl ThreadEvaluator {
+        /// Spawn the worker.
+        ///
+        /// The memo it primes from is the worker's own state
+        /// ([`Coalescing::spawn`]), so nothing above the seam holds the
+        /// previous evaluation in order to hand it back.
+        ///
+        /// # Errors
+        ///
+        /// [`SpawnError::Thread`] if the OS refuses the thread; the
+        /// application would otherwise sit at "evaluating…" forever
+        /// with no failure anywhere to read.
+        pub fn spawn() -> Result<Self, SpawnError> {
+            let inner = Coalescing::spawn(
+                Worker::Evaluation,
+                "viewer-eval",
+                None::<PriorRun>,
+                |prior, job: EvalJob| {
+                    let evaluation = run_once(&job.request, prior, &job.cancel);
+                    EvalDone {
+                        generation: job.request.generation,
+                        evaluation,
+                    }
+                },
+            )?;
+            Ok(Self {
+                inner,
+                cancel: CancelToken::new(),
+            })
         }
     }
 
@@ -861,14 +1144,7 @@ mod threaded {
             self.cancel.cancel();
             let cancel = CancelToken::new();
             self.cancel = cancel.clone();
-            let job = Job { request, cancel };
-            if self.running {
-                // Latest wins: the previous waiting job is dropped, not
-                // queued behind this one.
-                self.waiting = Some(job);
-            } else {
-                self.dispatch(job);
-            }
+            self.inner.submit(EvalJob { request, cancel });
         }
 
         fn cancel(&mut self) {
@@ -876,58 +1152,35 @@ mod threaded {
         }
 
         fn poll(&mut self) -> Option<EvalDone> {
-            loop {
-                match self.from_worker.try_recv() {
-                    Ok(done) => {
-                        self.running = false;
-                        match self.waiting.take() {
-                            // `done` answers a request the caller has
-                            // already superseded. Coalescing means it
-                            // dies HERE rather than travelling up to be
-                            // discarded by generation.
-                            Some(next) => self.dispatch(next),
-                            None => return Some(done),
-                        }
-                    }
-                    Err(TryRecvError::Empty) => return None,
-                    // The worker is gone. Nothing further will ever
-                    // land, so the indicator must not stay lit forever.
-                    Err(TryRecvError::Disconnected) => {
-                        self.running = false;
-                        self.waiting = None;
-                        return None;
-                    }
-                }
-            }
+            self.inner.poll()
         }
 
         fn busy(&self) -> bool {
-            self.running || self.waiting.is_some()
+            self.inner.busy()
         }
     }
 
     impl Drop for ThreadEvaluator {
         fn drop(&mut self) {
-            // Close the request channel so the worker's `recv` returns
-            // and the thread ends, then wait for it: a detached thread
+            // Cancel, then close the request channel so the worker's
+            // `recv` returns, then wait for it: a detached thread
             // holding a `Doc` past the session's life is exactly the
-            // shape that makes shutdown nondeterministic.
+            // shape that makes shutdown nondeterministic. This seam is
+            // the one that may wait, because the evaluation checks the
+            // token between nodes and the join is therefore bounded by
+            // one node.
             self.cancel.cancel();
-            self.to_worker = None;
-            if let Some(worker) = self.worker.take() {
-                let _ = worker.join();
-            }
+            self.inner.close_and_join();
         }
     }
-    // --- the index seam ------------------------------------------
 
     /// A background-thread index seam.
     ///
-    /// [`ThreadEvaluator`]'s shape with the token taken out: at most
-    /// one build is ever with the worker, a submit while it holds one
-    /// replaces [`ThreadIndexer::waiting`] rather than queueing, and
+    /// [`Coalescing`]'s machine with no token at all: at most one build
+    /// is ever with the worker, a submit while it holds one replaces
+    /// the waiting request rather than queueing, and
     /// [`IndexService::poll`] drops an answer a waiting request has
-    /// already superseded.
+    /// already superseded by key ([`Job::supersedes`]).
     ///
     /// **Its own thread, not the evaluator's.** Sharing one worker
     /// would put an uninterruptible index build in front of the next
@@ -938,137 +1191,55 @@ mod threaded {
     /// has moved past finishes into a `poll` that discards it.
     #[derive(Debug)]
     pub struct ThreadIndexer {
-        to_worker: Option<Sender<IndexRequest>>,
-        from_worker: Receiver<IndexDone>,
-        /// Whether the worker holds a request. A flag rather than a
-        /// count, because the channel never holds more than one.
-        running: bool,
-        /// The newest request, held back until the worker is free.
-        /// Replaced, never appended to: that is latest-wins.
-        waiting: Option<IndexRequest>,
+        inner: Coalescing<IndexRequest>,
     }
 
     impl ThreadIndexer {
         /// Spawn the worker.
         ///
+        /// The memo lives on the worker thread for the thread's life,
+        /// which is the seam's: it is what the previous picture left
+        /// behind, and nothing above the seam sees it
+        /// ([`build_index`]).
+        ///
         /// # Errors
         ///
-        /// [`SpawnError::Thread`] if the OS refuses the thread. Loud
-        /// rather than degraded, for [`ThreadEvaluator::spawn`]'s
-        /// reason: a seam whose worker never started accepts every
-        /// submit and answers none, so the picture would sit behind an
-        /// indexing indicator forever with no failure anywhere to read.
+        /// [`SpawnError::Thread`] if the OS refuses the thread; the
+        /// picture would otherwise sit behind an indexing indicator
+        /// forever with no failure anywhere to read.
         pub fn spawn() -> Result<Self, SpawnError> {
-            let (to_worker, requests) = channel::<IndexRequest>();
-            let (results, from_worker) = channel::<IndexDone>();
-            std::thread::Builder::new()
-                .name("viewer-index".to_owned())
-                .spawn(move || index_work(&requests, &results))
-                .map_err(|error| SpawnError::Thread {
-                    worker: Worker::Index,
-                    error,
-                })?;
-            Ok(Self {
-                to_worker: Some(to_worker),
-                from_worker,
-                running: false,
-                waiting: None,
-            })
-        }
-
-        /// Hand `request` to the worker, or record that the worker is
-        /// gone.
-        fn dispatch(&mut self, request: IndexRequest) {
-            match self.to_worker.as_ref() {
-                Some(to_worker) if to_worker.send(request).is_ok() => self.running = true,
-                // The worker ended (only reachable after `Drop` has
-                // closed the channel, or if it panicked). Nothing more
-                // will ever be answered, and the indicator must not
-                // stay lit for an answer that is not coming.
-                _ => {
-                    self.running = false;
-                    self.waiting = None;
-                }
-            }
-        }
-    }
-
-    /// The worker loop: build each index over the worker's memo and
-    /// answer with its key.
-    ///
-    /// The memo lives on this thread for the thread's life, which is
-    /// the seam's: it is what the previous picture left behind, and
-    /// nothing above the seam sees it ([`build_index`]).
-    fn index_work(requests: &Receiver<IndexRequest>, results: &Sender<IndexDone>) {
-        let mut memo = PickMemo::new();
-        while let Ok(request) = requests.recv() {
-            if results.send(build_index(&request, &mut memo)).is_err() {
-                return;
-            }
+            let inner = Coalescing::spawn(
+                Worker::Index,
+                "viewer-index",
+                PickMemo::new(),
+                |memo, request| build_index(&request, memo),
+            )?;
+            Ok(Self { inner })
         }
     }
 
     impl IndexService for ThreadIndexer {
         fn submit(&mut self, request: IndexRequest) {
-            if self.running {
-                // Restart WITHOUT cancel: the build the worker holds
-                // has no token to stop it, so it runs to completion
-                // and `poll` throws its answer away. Latest wins for
-                // the one that has not started — that one costs
-                // nothing to drop.
-                self.waiting = Some(request);
-            } else {
-                self.dispatch(request);
-            }
+            // Restart WITHOUT cancel: the build the worker holds has no
+            // token to stop it, so it runs to completion and `poll`
+            // throws its answer away. Latest wins for the one that has
+            // not started — that one costs nothing to drop.
+            self.inner.submit(request);
         }
 
         fn poll(&mut self) -> Option<IndexDone> {
-            loop {
-                match self.from_worker.try_recv() {
-                    Ok(done) => {
-                        self.running = false;
-                        match self.waiting.take() {
-                            // **Superseded is decided by KEY, not by
-                            // position.** A waiting request for the
-                            // picture `done` already IS is what a δ
-                            // moved away and back produces, and
-                            // rebuilding it would cost a second full
-                            // build of an answer in hand — the one
-                            // wasted build this seam accepts, paid
-                            // twice for nothing.
-                            Some(next)
-                                if (next.generation, next.delta)
-                                    != (done.generation, done.delta) =>
-                            {
-                                // Genuinely superseded: it dies HERE
-                                // rather than travelling up to be
-                                // discarded by key.
-                                self.dispatch(next);
-                            }
-                            _ => return Some(done),
-                        }
-                    }
-                    Err(TryRecvError::Empty) => return None,
-                    // The worker is gone. Nothing further will ever
-                    // land, so the indicator must not stay lit forever.
-                    Err(TryRecvError::Disconnected) => {
-                        self.running = false;
-                        self.waiting = None;
-                        return None;
-                    }
-                }
-            }
+            self.inner.poll()
         }
 
         fn busy(&self) -> bool {
-            self.running || self.waiting.is_some()
+            self.inner.busy()
         }
     }
 
     impl Drop for ThreadIndexer {
         /// Close the request channel so the worker's `recv` returns
         /// and the thread ends after whatever it is building — and
-        /// **do not wait for it**.
+        /// **do not wait for it** ([`Coalescing::close`]).
         ///
         /// [`ThreadEvaluator`] joins, and can: it cancels first, and
         /// the evaluation checks the token between nodes, so the join
@@ -1080,21 +1251,16 @@ mod threaded {
         /// What it holds while it does is a document copy and a handle
         /// on a run nobody is looking at any more.
         fn drop(&mut self) {
-            self.to_worker = None;
-            self.waiting = None;
+            self.inner.close();
         }
     }
-
-    // --- the display budget's fit --------------------------------
 
     /// A background-thread fit seam.
     ///
     /// [`ThreadIndexer`]'s shape exactly, over a shorter job: the
     /// ladder of probe tessellations the display budget prices a
-    /// document with. At most one fit is ever with the worker, a
-    /// submit while it holds one replaces [`ThreadFitter::waiting`]
-    /// rather than queueing, and [`FitService::poll`] drops an answer
-    /// a waiting request has already superseded.
+    /// document with. [`Coalescing`]'s machine, no token, superseded by
+    /// key.
     ///
     /// **Its own thread, not the indexer's.** The two are sequential
     /// for one document — the fit picks the δ the index is built at —
@@ -1107,123 +1273,45 @@ mod threaded {
     /// whatever promise was made above it.
     #[derive(Debug)]
     pub struct ThreadFitter {
-        to_worker: Option<Sender<FitRequest>>,
-        from_worker: Receiver<FitDone>,
-        /// Whether the worker holds a request. A flag rather than a
-        /// count, because the channel never holds more than one.
-        running: bool,
-        /// The newest request, held back until the worker is free.
-        /// Replaced, never appended to: that is latest-wins.
-        waiting: Option<FitRequest>,
+        inner: Coalescing<FitRequest>,
     }
 
     impl ThreadFitter {
         /// Spawn the worker.
         ///
+        /// Nothing survives between jobs here, so the worker's state is
+        /// `()`. The index worker keeps a memo because a picture's
+        /// faces recur; a fit reads a body it is handed and answers a
+        /// number, so there is no state a second fit could reuse.
+        ///
         /// # Errors
         ///
-        /// [`SpawnError::Thread`] if the OS refuses the thread. Loud
-        /// rather than degraded, for [`ThreadEvaluator::spawn`]'s
-        /// reason: a seam whose worker never started accepts every
-        /// submit and answers none, and the index build waits on this
-        /// seam's answer — so every document would open to a picture
-        /// that never arrives, with no failure anywhere to read.
+        /// [`SpawnError::Thread`] if the OS refuses the thread. The
+        /// index build waits on this seam's answer, so every document
+        /// would otherwise open to a picture that never arrives, with
+        /// no failure anywhere to read.
         pub fn spawn() -> Result<Self, SpawnError> {
-            let (to_worker, requests) = channel::<FitRequest>();
-            let (results, from_worker) = channel::<FitDone>();
-            std::thread::Builder::new()
-                .name("viewer-fit".to_owned())
-                .spawn(move || fit_work(&requests, &results))
-                .map_err(|error| SpawnError::Thread {
-                    worker: Worker::Fit,
-                    error,
-                })?;
-            Ok(Self {
-                to_worker: Some(to_worker),
-                from_worker,
-                running: false,
-                waiting: None,
-            })
-        }
-
-        /// Hand `request` to the worker, or record that the worker is
-        /// gone.
-        fn dispatch(&mut self, request: FitRequest) {
-            match self.to_worker.as_ref() {
-                Some(to_worker) if to_worker.send(request).is_ok() => self.running = true,
-                // The worker ended (only reachable after `Drop` has
-                // closed the channel, or if it panicked). Nothing more
-                // will ever be answered, and the indicator must not
-                // stay lit for an answer that is not coming.
-                _ => {
-                    self.running = false;
-                    self.waiting = None;
-                }
-            }
-        }
-    }
-
-    /// The worker loop: price each request and answer with its key.
-    ///
-    /// Nothing survives between jobs here. The index worker keeps a
-    /// memo because a picture's faces recur; a fit reads a body it is
-    /// handed and answers a number, so there is no state a second fit
-    /// could reuse.
-    fn fit_work(requests: &Receiver<FitRequest>, results: &Sender<FitDone>) {
-        while let Ok(request) = requests.recv() {
-            if results.send(run_fit(&request)).is_err() {
-                return;
-            }
+            let inner = Coalescing::spawn(Worker::Fit, "viewer-fit", (), |_, request| {
+                run_fit(&request)
+            })?;
+            Ok(Self { inner })
         }
     }
 
     impl FitService for ThreadFitter {
         fn submit(&mut self, request: FitRequest) {
-            if self.running {
-                // Restart WITHOUT cancel: the ladder the worker is on
-                // has no token to stop it, so it runs to completion
-                // and `poll` throws its answer away.
-                self.waiting = Some(request);
-            } else {
-                self.dispatch(request);
-            }
+            // Restart WITHOUT cancel: the ladder the worker is on has
+            // no token to stop it, so it runs to completion and `poll`
+            // throws its answer away.
+            self.inner.submit(request);
         }
 
         fn poll(&mut self) -> Option<FitDone> {
-            loop {
-                match self.from_worker.try_recv() {
-                    Ok(done) => {
-                        self.running = false;
-                        match self.waiting.take() {
-                            // Superseded is decided by KEY, not by
-                            // position ([`ThreadIndexer::poll`]): a
-                            // waiting request for the answer already
-                            // in hand would cost a second ladder for
-                            // a number nobody's view of the world has
-                            // moved off.
-                            Some(next)
-                                if (next.generation, next.requested)
-                                    != (done.generation, done.requested) =>
-                            {
-                                self.dispatch(next);
-                            }
-                            _ => return Some(done),
-                        }
-                    }
-                    Err(TryRecvError::Empty) => return None,
-                    // The worker is gone. Nothing further will ever
-                    // land, so the indicator must not stay lit forever.
-                    Err(TryRecvError::Disconnected) => {
-                        self.running = false;
-                        self.waiting = None;
-                        return None;
-                    }
-                }
-            }
+            self.inner.poll()
         }
 
         fn busy(&self) -> bool {
-            self.running || self.waiting.is_some()
+            self.inner.busy()
         }
     }
 
@@ -1233,8 +1321,145 @@ mod threaded {
         /// nothing until the ladder finished would be paying for
         /// shutdown determinism with what the seam exists to buy.
         fn drop(&mut self) {
-            self.to_worker = None;
-            self.waiting = None;
+            self.inner.close();
+        }
+    }
+
+    /// **The crash announcement, on the machine that makes it.**
+    ///
+    /// # Why these rows are here and not against a public door
+    ///
+    /// The three shipped handles cannot be crashed from outside, by
+    /// construction: a worker only dies by panicking inside its own
+    /// job, the job is `build_index`, `run_fit` or `run_once`, and the
+    /// closure that calls it is private to this module with no door to
+    /// inject a failure through. So a row driven through
+    /// [`ThreadIndexer`] would have to make the KERNEL panic on an
+    /// input, which is the thing D9 says cannot happen.
+    ///
+    /// What these drive instead is [`Coalescing`] itself — not a
+    /// hand-written mirror of it, but the very type all three handles
+    /// delegate every `submit`, `poll` and `busy` to, carrying both of
+    /// the arms under test. **What that does not prove** is the last
+    /// inch: that a panic inside one of those three private closures is
+    /// the only way to arrive, which is argued from the worker loop's
+    /// three exits rather than executed.
+    ///
+    /// Each row's worker prints one `thread '…' panicked` line to
+    /// stderr before the row's own panic. That line is the subject, not
+    /// a failure.
+    #[cfg(test)]
+    mod tests {
+        // Panicking is a test's failure mechanism (workspace lint
+        // note), and here it is also the subject twice over: the worker
+        // dies by panicking and the machine answers by panicking.
+        #![allow(clippy::expect_used)]
+        #![allow(clippy::panic)]
+
+        use super::{Coalescing, Job, Worker};
+
+        /// A job with nothing in it: these rows are about the machine's
+        /// bookkeeping, and a payload would be scenery.
+        struct Nothing;
+
+        impl Job for Nothing {
+            type Done = ();
+
+            /// Never superseded — the arms under test are the ones
+            /// where no answer comes at all.
+            fn supersedes(&self, (): &()) -> bool {
+                false
+            }
+        }
+
+        /// A seam whose worker dies under the first job it is handed.
+        fn dying(worker: Worker) -> Coalescing<Nothing> {
+            Coalescing::spawn(worker, "viewer-test-crash", (), |(), Nothing| {
+                panic!("the worker dies under the job it was handed")
+            })
+            .expect("the worker starts")
+        }
+
+        /// Wait for the crash to have actually happened.
+        ///
+        /// Taking the handle is a WAIT and not a construction: it does
+        /// not put the seam in the state under test, it only removes
+        /// the race from observing it. The state itself — a dead
+        /// worker, a request channel still in hand, and a `poll` on the
+        /// next frame — is what the application reaches on its own.
+        fn await_crash(seam: &mut Coalescing<Nothing>) {
+            let handle = seam.handle.take().expect("the worker was spawned");
+            assert!(
+                handle.join().is_err(),
+                "the row needs the worker to have actually panicked"
+            );
+        }
+
+        /// **The reachable arm**: the frame after a worker died under
+        /// its job polls for an answer and finds the channel gone.
+        ///
+        /// This is the sequence an application really takes — submit on
+        /// one frame, poll on a later one — and the panic names the
+        /// seam it was.
+        #[test]
+        #[should_panic(expected = "the index worker thread crashed")]
+        fn a_worker_that_crashed_takes_the_process_down_at_the_next_poll() {
+            let mut seam = dying(Worker::Index);
+            seam.submit(Nothing);
+            assert!(seam.busy(), "the job is with the worker");
+            await_crash(&mut seam);
+            let _ = seam.poll();
+        }
+
+        /// **The other arm, which is NOT sequence-reachable**, and the
+        /// row says so rather than implying otherwise.
+        ///
+        /// A `send` that fails with the sender still in hand means the
+        /// receiving end went down with its thread, so it is a crash
+        /// wherever it comes from — but this machine cannot get here.
+        /// `dispatch` runs only when `running` is false, and after a
+        /// crash `running` stays true until a `poll` clears it, which
+        /// is the row above. The alternative entry, `poll`'s
+        /// redispatch of a superseding job, needs a buffered answer AND
+        /// a dead worker at once: the loop sends an answer only when
+        /// `answer` RETURNED, and a worker that returned is a worker
+        /// that went back to `recv` and can only die on a job it was
+        /// then handed — for which no answer is ever sent. So the two
+        /// cannot hold together.
+        ///
+        /// The arm stays because the condition means what it means, and
+        /// answering it with [`Coalescing::forget_worker`] would put
+        /// back the conflation this change removes. This row clears
+        /// `running` by hand to execute it, and therefore asserts the
+        /// ARM's behaviour and nothing at all about reachability.
+        #[test]
+        #[should_panic(expected = "the display fit worker thread crashed")]
+        fn a_send_that_fails_with_the_channel_still_ours_is_a_crash_too() {
+            let mut seam = dying(Worker::Fit);
+            seam.submit(Nothing);
+            await_crash(&mut seam);
+            seam.running = false;
+            seam.submit(Nothing);
+        }
+
+        /// **Shutdown is not a crash**, which is the whole point of
+        /// discriminating: `close` takes the request channel, and a
+        /// machine that has been closed forgets its work quietly.
+        #[test]
+        fn a_closed_channel_is_forgotten_rather_than_announced() {
+            let mut seam = Coalescing::<Nothing>::spawn(
+                Worker::Evaluation,
+                "viewer-test-close",
+                (),
+                |(), Nothing| {},
+            )
+            .expect("the worker starts");
+            seam.close();
+            seam.submit(Nothing);
+            assert!(
+                !seam.busy(),
+                "an orderly shutdown drops the job that will never be sent"
+            );
         }
     }
 }

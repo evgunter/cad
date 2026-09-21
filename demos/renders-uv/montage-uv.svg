@@ -937,7 +937,7 @@
 <circle cx="349.29" cy="60.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
 <circle cx="70.71" cy="60.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
 <circle cx="70.71" cy="260.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
-<text x="54" y="286" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [0.00000, 2.72271] rad</text>
+<text x="54" y="286" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [-0.00000, 2.72271] rad</text>
 <text x="54" y="298" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [-1.12903, 0.86331] rad</text>
 <text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding CCW = sense(+n)  A=5.4246   closure gap 3.4e-16 m</text>
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
@@ -1097,7 +1097,7 @@
 <circle cx="70.71" cy="260.00" r="2.4" fill="#ffffff" stroke="#333" stroke-width="1"/>
 <text x="54" y="286" font-family="monospace" font-size="9.5" fill="#444">u &#8712; [-3.14159, 0.00000] rad</text>
 <text x="54" y="298" font-family="monospace" font-size="9.5" fill="#444">v &#8712; [-0.35451, -0.12612] m</text>
-<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding CCW = sense(+n)  A=0.7175   closure gap 4.6e-16 m</text>
+<text x="54" y="310" font-family="monospace" font-size="9.5" fill="#444">winding CCW = sense(+n)  A=0.7175   closure gap 5.0e-16 m</text>
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 

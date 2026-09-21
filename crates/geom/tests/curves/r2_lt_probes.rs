@@ -117,7 +117,7 @@ fn the_meter_is_sound_on_random_integral_nets() {
             continue;
         };
         built += 1;
-        let m = c.speed_lower_bound();
+        let m = c.speed_lower_bound().get();
         if m.is_nan() {
             // Poison is an honest abstention, never an unsound number.
             continue;
@@ -161,7 +161,7 @@ fn the_join_lattice_is_pinned_cell_by_cell() {
         vec![1.0; 3],
     )
     .unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         m > 0.0,
         "(sound, sound): expected a positive meter, got {m}"
@@ -186,7 +186,7 @@ fn the_join_lattice_is_pinned_cell_by_cell() {
         vec![1.0; 5],
     )
     .unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         m > 0.0,
         "(poison, sound): the abstain-recovery cell must return the \
@@ -215,7 +215,7 @@ fn the_join_lattice_is_pinned_cell_by_cell() {
         vec![1.0; 4],
     )
     .unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         !m.is_nan(),
         "(sound, poison): the global assembly still stands, so the join \
@@ -236,7 +236,7 @@ fn the_join_lattice_is_pinned_cell_by_cell() {
         vec![1.0; 3],
     )
     .unwrap();
-    let m = c.speed_lower_bound();
+    let m = c.speed_lower_bound().get();
     assert!(
         m.is_nan(),
         "(poison, poison): both abstain => poison, got {m}"
@@ -257,7 +257,7 @@ fn the_join_lattice_is_pinned_cell_by_cell() {
         ],
         vec![1.0; 4],
     ) {
-        let m = c.speed_lower_bound();
+        let m = c.speed_lower_bound().get();
         assert!(m.is_nan(), "a poisoned input must stay poison, got {m}");
     }
 }

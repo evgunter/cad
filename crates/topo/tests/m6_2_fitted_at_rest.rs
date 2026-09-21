@@ -180,18 +180,11 @@ fn the_band_is_the_runs_own() {
 // The interval lane — the evidence that the lift happened
 // ==================================================================
 
-/// **Loud skip.** Without `--features interval` this file contributes
-/// no certified coverage, and a lane that silently lost its interval
-/// rows must stay visible in the battery log.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): m6_2_fitted_at_rest.rs contributes NO \
-         certified coverage in this run — the fitted-cache-at-rest certificate \
-         derived AT THE INTERVAL SCALAR is the row that shows the SSI lift happened."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of the fitted cache at rest",
+);
 
 #[cfg(feature = "interval")]
 mod certified {

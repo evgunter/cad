@@ -815,6 +815,9 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
                     assert!(major > minor, "the kernel's strict ordering survives");
                 }
                 Curve3::Nurbs(_) => panic!("{name}: no body at rest carries a NURBS carrier"),
+                Curve3::Spiric { .. } => {
+                    panic!("{name}: the writer refuses a spiric carrier before any record")
+                }
             }
         }
         if name == "cut_cylinder" {

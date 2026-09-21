@@ -270,16 +270,17 @@ pub enum SelectRefusal {
     /// constructor's own diagnostic, because the cause is NOT unique.
     ///
     /// A [`Tolerance`](geom_core::tolerance::Tolerance) that passed its
-    /// own validation (ε finite and strictly positive, K finite and
-    /// strictly above 1) still reaches both of
-    /// [`BandError::InvalidValue`], when K·ε overflows to infinity at an
-    /// ε within a factor K of `f64::MAX`, and [`BandError::Empty`], when
-    /// K·ε rounds back down onto ε. The second needs ε subnormal —
-    /// writing ε = n·2⁻¹⁰⁷⁴, it collapses exactly when K·n rounds back
-    /// to n, so at the smallest ε every K below 1.5 collapses the band
-    /// and at ε above 2⁻¹⁰²³ no admitted K does. The two sit at opposite
-    /// ends of one axis and want opposite repairs, so the query reports
-    /// which one it hit rather than the fact that it hit one.
+    /// own validation still reaches **both** arms of
+    /// [`Band::linear`]'s `# Errors` — K·ε overflowing to infinity at
+    /// an ε near `f64::MAX`, and K·ε rounding back down onto ε at a
+    /// subnormal one. They sit at opposite ends of one axis and want
+    /// opposite repairs, so the query reports which one it hit rather
+    /// than the fact that it hit one.
+    ///
+    /// The conditions are stated once, at
+    /// [`Band::linear`](geom_core::Band::linear), and deliberately not
+    /// restated here: two copies of one derivation are two things to
+    /// keep true, and this one has already drifted apart from that one.
     Band(BandError),
 }
 

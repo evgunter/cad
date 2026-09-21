@@ -280,7 +280,25 @@ TIER_BLIND = (
     # The work tracker's lint. Its inputs are work/ and docs/ — markdown,
     # TIER=docs; work/README.md is the contract it enforces.
     "scripts/work.py lint",
+    # The reach decider, and it is here for the strongest form of the reason.
+    # It answers whether a change set touches the checkers at all, and the
+    # selftest rows in `mirror` are skipped when the answer is no — so gating
+    # its own fixture on its own answer would let a bug that always answered
+    # `false` skip the fixture that catches it, once, with nothing left behind
+    # for a later run to find. Claim 7b spells that out: this is the one
+    # TIER_BLIND entry whose step may carry no condition at all.
+    "scripts/ci-reach.py --selftest",
 )
+
+# CLAIM 7b's vocabulary. `SELFTEST_GATE` is the ONE condition a tier-blind
+# selftest row may carry, verbatim; `REACH_SELFTEST` is the row that may carry
+# none. Both are literals rather than patterns on purpose — the subject is
+# whether a reader can tell, by looking, that a row is gated on the sanctioned
+# decider and not on something that merely resembles it, and a pattern loose
+# enough to accept a variant is loose enough to accept `false`.
+REACH_STEP_ID = "reach"
+SELFTEST_GATE = f"steps.{REACH_STEP_ID}.outputs.selftests == 'true'"
+REACH_SELFTEST = "scripts/ci-reach.py --selftest"
 
 # Declared asymmetries in claim 1. `path: (half, reason)`. An entry is a
 # confession, not a disposition: it says a check runs in one half only.
@@ -901,6 +919,18 @@ class Step:
         # local half spells the same fact as a `cd`, and two spellings nothing
         # compares are two facts that can drift.
         self.workdir: str | None = None
+        # This step's own `if:`, verbatim, or None. Claim 7b reads it; nothing
+        # else does. It sat in `STEP_KEYS` with its value DISCARDED, which is
+        # exactly the state `working-directory:` was in before claim 10 grew an
+        # arm for it — and it is the more expensive silence of the two, because
+        # claim 7's whole subject is whether a row can be skipped and a step
+        # `if:` is the one door into that it could not see.
+        self.cond: str | None = None
+        # `id:`, which is what a step `if:` refers to another step BY. Claim 7b
+        # resolves the sanctioned gate against it: a condition naming a step id
+        # that no step in the job declares is a condition that is always false,
+        # and a gate that is always false skips the row it guards forever.
+        self.step_id: str | None = None
 
 
 class Job:
@@ -1244,6 +1274,10 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
             step.run.append(value)
         elif key == "working-directory":
             step.workdir = _workdir_value(path, n, job.name, value)
+        elif key == "if":
+            step.cond = value.strip()
+        elif key == "id":
+            step.step_id = value.strip().strip("'\"")
         # A block scalar's body is opaque text, not keys — `run: |` is where
         # every invocation this file reads actually lives.
         j = k + 1
@@ -2584,6 +2618,24 @@ def tool_token(pin_name: str) -> str:
     return "_".join(w for w in pin_name.lower().split("_") if w and w != "version")
 
 
+def runs_entry(line: str, want: str) -> bool:
+    """Does `line` invoke TIER_BLIND entry `want`, as opposed to merely
+    containing it?
+
+    THE CASE THIS EXISTS FOR IS A PREFIX. Most check entries are a prefix of
+    their own selftest — `scripts/gates/gate-roster.sh` is a substring of
+    `scripts/gates/gate-roster.sh --selftest` — so a plain `in` test makes the
+    selftest row look like a second host for the CHECK entry. Claim 7b then
+    reads the selftest's gate and reports the check as gated, which is a red on
+    the one arrangement this file exists to license.
+    """
+    if want not in line:
+        return False
+    if want.endswith("--selftest"):
+        return True
+    return "--selftest" not in line
+
+
 def unconditional(jobs: dict[str, "Job"], name: str, seen: frozenset[str] = frozenset()) -> str | None:
     """None if job `name` runs on every tier; otherwise the reason it may not.
 
@@ -2854,7 +2906,8 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
     ci_jobs = {j.name: j for j in read_workflow(HOSTED_HALF)}
     local_exit = local_docs_exit_line(non_comment(LOCAL_HALF))
     for want in TIER_BLIND:
-        hosts = [j for j in ci_jobs.values() if any(want in line for st in j.steps for line in st.lines)]
+        hosts = [j for j in ci_jobs.values()
+                 if any(runs_entry(line, want) for st in j.steps for line in st.lines)]
         if not hosts:
             err(f"no ci.yml job runs `{want}`, which is one of the checks whose INPUTS are the docs tier. "
                 "A check nobody runs cannot fire anywhere")
@@ -2877,6 +2930,92 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                 "exit is not a run — so on a docs-only or "
                 "local-scripts-only change the local half runs it not at all — S61's defect, in the other "
                 "half of the pair. Move the row above the early exit")
+
+    # CLAIM 7b — THE STEP IS THE OTHER DOOR, AND IT WAS THE UNREAD ONE.
+    # `unconditional` above reads the JOB: its `if:`, its `continue-on-error:`
+    # and its `needs:` chain. A STEP carries an `if:` of its own, and until this
+    # claim nothing here read it — so every sentence claim 7 says about a
+    # tier-blind row could be true of a job that runs on every tier with the row
+    # inside it skipped on all of them. That is S61's defect with one more level
+    # of indirection, and it is CHEAPER to reach than the job-level version: a
+    # one-line `if:` on a step, against a job key that someone would have to
+    # argue for.
+    #
+    # WHAT IS AND IS NOT LICENSED. A tier-blind CHECK may carry no condition:
+    # its inputs are the docs tier, which is the whole of why it is in this
+    # list. A tier-blind SELFTEST may carry exactly `SELFTEST_GATE` and nothing
+    # else, because a selftest's inputs are its own script — it builds a fixture
+    # tree under `--root` and reads nothing real — and `scripts/ci-reach.py`
+    # answers that question with a prefix match over the diff, which no widened
+    # filter can talk out of running a script's own fixture. `REACH_SELFTEST` is
+    # the decider itself and may carry nothing: gating it on its own answer is
+    # how a bug in it would hide.
+    #
+    # THE GATE IS RESOLVED, NOT PATTERN-MATCHED. A condition naming a step id no
+    # step declares is always false, and a gate that is always false skips its
+    # row forever while reading, to anyone scanning the file, exactly like a
+    # gate that works.
+    # (i) A TIER-BLIND CHECK CARRIES NO CONDITION. Its inputs ARE the docs
+    # tier, which is the whole of why it is in the list.
+    for job in ci_jobs.values():
+        for st in job.steps:
+            if st.cond is None:
+                continue
+            for want in TIER_BLIND:
+                if want.endswith("--selftest") or not any(runs_entry(line, want) for line in st.lines):
+                    continue
+                err(f"tier-blind CHECK `{want}` runs in job `{job.name}`, step "
+                    f"`{st.name or '(unnamed)'}` under `if: {st.cond}`. Its inputs are prose, "
+                    "documentation or local-scripts/ — the file classes that make a change set "
+                    "TIER=docs — so a condition on the step is S61's defect one level in from the job "
+                    "key claim 7 reads. The SELFTEST beside it may be gated; the check may not")
+
+    # (ii) EVERY SELFTEST ROW IN THE SITING JOB, and not only the tier-blind
+    # ones. THE POPULATION IS THE POINT, and getting it wrong is how the first
+    # draft of this claim passed a planted `if: github.event_name != 'push'` on
+    # the apt fixture: most of the rows gated here — apt, the pin reader, the
+    # tess-budget cut stamp — are not TIER_BLIND entries at all, because their
+    # inputs are not prose. They are in this job because it needs no toolchain,
+    # and they are gated because a fixture's inputs are its own script. A rule
+    # that bound only the TIER_BLIND subset would leave most of the rows it is
+    # about to any condition at all.
+    siting = ci_jobs.get(SITING_JOB)
+    for st in (siting.steps if siting else []):
+        if not any("--selftest" in line for line in st.run):
+            continue
+        where = f"job `{SITING_JOB}`, step `{st.name or '(unnamed)'}`"
+        if any(REACH_SELFTEST in line for line in st.run):
+            if st.cond is not None:
+                err(f"`{REACH_SELFTEST}` runs in {where} under `if: {st.cond}`. That row decides "
+                    "whether the OTHER selftests in this job run, so a condition on it — this one "
+                    "included — lets a bug that always answers `false` skip the fixture that would "
+                    "catch it, once, leaving no red behind for a later run. It is the one row here "
+                    "that carries no condition at all")
+        elif st.cond is None:
+            err(f"{where} runs a `--selftest` with no condition. Every fixture in this job but "
+                f"`{REACH_SELFTEST}` is gated on `{SELFTEST_GATE}`: a selftest builds its own tree "
+                "under `--root` and reads nothing real, so a change set that touches no script "
+                "cannot make it fail, and running it anyway is the wall clock this gate exists to "
+                "give back. Gate it, or — if this one really does read the tree — say so at its key "
+                "and add it to the reader")
+        elif st.cond != SELFTEST_GATE:
+            err(f"{where} runs a `--selftest` under `if: {st.cond}`, and the only condition such a row "
+                f"may carry is `{SELFTEST_GATE}` — the sanctioned gate on `scripts/ci-reach.py`, which "
+                "answers with a prefix match over the diff that no widened filter can talk out of "
+                "running a script's own fixture. Any other condition is a second, unreviewed answer to "
+                "`can this change set break this fixture`")
+
+    # (iii) THE GATE IS RESOLVED, NOT PATTERN-MATCHED. A condition naming a step
+    # id no step declares is always false, and a row skipped forever reads, to
+    # anyone scanning the file, exactly like a row that is gated.
+    for job in ci_jobs.values():
+        if not any(st.cond == SELFTEST_GATE for st in job.steps):
+            continue
+        if REACH_STEP_ID not in {st.step_id for st in job.steps if st.step_id}:
+            err(f"job `{job.name}` gates a step on `{SELFTEST_GATE}`, and no step in it declares "
+                f"`id: {REACH_STEP_ID}`. A condition naming a step id that does not exist is always "
+                "false, so that row is skipped on every run of every tier while reading exactly like "
+                "a row that is gated")
 
     # CLAIM 8 — mirror citations resolve, job AND step.
     #
@@ -3458,8 +3597,12 @@ def plant_clean(t: str) -> None:
             fh.write(f'  {name}: "{value}"\n')
         fh.write("jobs:\n")
         fh.write(f"  {SITING_JOB}:\n    steps:\n      - uses: actions/checkout@v4\n")
-        for want in TIER_BLIND:
-            fh.write(f"      - name: sited {want}\n        run: {want}\n")
+        # CLAIM 7b'S PASSING SHAPE, and it is DERIVED from the same list the
+        # claim reads rather than spelled out: the decider's own row declaring
+        # the id, ungated; every other fixture row gated on it; every CHECK row
+        # ungated. A fixture that hardcoded which entries are selftests would
+        # stop being the clean shape the day the list grew.
+        fh.write(_siting_rows())
         # A step the local half can cite without naming a TIER_BLIND path:
         # the citation marker must survive the plants that delete those rows.
         fh.write("      - name: sited rows\n        run: echo sited\n")
@@ -4700,6 +4843,13 @@ def selftest() -> None:
     _case("aside.yml job `aside` has no local mirror", second_file_job)
     _case("is defined in both", duplicate_job_name)
     _case("carries an `if:`", _hollow_siting_job)
+    # CLAIM 7b. The step is the other door, and the rule that lets a FIXTURE
+    # through it is not the rule for the CHECK beside it.
+    _case("tier-blind CHECK", _gated_tier_blind_check)
+    _case("decides whether the OTHER selftests", _reach_selftest_gated)
+    _case("only condition such a row may carry", _selftest_foreign_condition)
+    _case("with no condition", _selftest_ungated)
+    _case("always false", _gate_names_missing_id)
     _case("a definition above the exit is not a run", _local_row_below_exit)
     _case("never runs", _local_row_deleted)
     # CLAIM 10, every allowlisted flag one at a time.
@@ -4807,7 +4957,10 @@ def selftest() -> None:
           "one-sided tools/ crate, a checked-out job that keeps either tree, an UPPERCASE job name doing "
           "the same, a second workflow file growing one, a prune that comes after the read, the siting job "
           "pruning, an unparseable workflow, a flush-style or three-space step block hiding a checked-out job, the siting job given a `needs:` onto a skipping job or `continue-on-error`, a merge key, an unknown job or step key, a tab, an unrecognised shell function spelling, an exemption that expired or was orphaned, a marker naming the wrong job or a renamed step, the markers "
-          "deleted, an inverted exemption, the sited steps moved back into an `if:` job, the local "
+          "deleted, an inverted exemption, the sited steps moved back into an `if:` job, a tier-blind "
+          "CHECK given a step condition, the reach decider gated on its own answer, a fixture "
+          "gated on something that is not it or left ungated, a gate naming a step id no step "
+          "declares, the local "
           "half's rows wrapped in a function called below its docs-tier exit, or deleted, a hosted JOB "
           "with neither a citation nor a reason, a reason with nothing after it, a reason on a job the "
           "local half cites anyway, a reason separated from its job key by a blank line, a reason too "
@@ -4866,13 +5019,75 @@ def _resite_prune(t: str) -> None:
          f"  {SITING_JOB}:\n    steps:\n      - uses: actions/checkout@v4\n      - run: rm -rf local-scripts .claude\n")
 
 
+def _siting_rows() -> str:
+    """The siting job's rows in the shape claim 7b licenses: the decider's own
+    row declaring the id and carrying no condition, every other fixture gated on
+    it, every check ungated.
+
+    ONE WRITER, TWO READERS. `plant_clean` writes these and `_hollow_siting_job`
+    moves them, by matching the text. When the two spelled the shape separately,
+    teaching the fixture claim 7b's gates left the plant matching the old text —
+    so it substituted nothing, planted nothing, and the selftest reported the
+    checker as having passed a violation it had never been shown.
+    """
+    out = f"      - name: reach\n        id: {REACH_STEP_ID}\n        run: {REACH_SELFTEST}\n"
+    for want in TIER_BLIND:
+        if want == REACH_SELFTEST:
+            continue
+        gate = f"        if: {SELFTEST_GATE}\n" if want.endswith("--selftest") else ""
+        out += f"      - name: sited {want}\n{gate}        run: {want}\n"
+    return out
+
+
 def _hollow_siting_job(t: str) -> None:
     """The reviewer's experiment: hollow `mirror`, move its steps into the
     `if:`-guarded job."""
-    moved = "".join(f"      - name: sited {w}\n        run: {w}\n" for w in TIER_BLIND)
+    moved = _siting_rows()
     _sub(t, HOSTED_HALF, moved, "      - run: echo hollow\n")
     _sub(t, HOSTED_HALF, "      - name: prune local-only tooling\n        run: rm -rf local-scripts .claude\n",
          "      - name: prune local-only tooling\n        run: rm -rf local-scripts .claude\n" + moved)
+
+
+# CLAIM 7b'S FIVE ARMS. Every one of them is DERIVED from TIER_BLIND — a
+# hardcoded entry here would red against a clean fixture the day the list moved,
+# reporting this builder where the finding is the list.
+_A_CHECK = next(w for w in TIER_BLIND if not w.endswith("--selftest"))
+_A_SELFTEST = next(w for w in TIER_BLIND if w.endswith("--selftest") and w != REACH_SELFTEST)
+
+
+def _gated_tier_blind_check(t: str) -> None:
+    """A condition on a tier-blind CHECK — S61's defect one level in from the
+    job key claim 7 reads, and the cheapest version of it to write."""
+    _sub(t, HOSTED_HALF, f"      - name: sited {_A_CHECK}\n        run: {_A_CHECK}\n",
+         f"      - name: sited {_A_CHECK}\n        if: {SELFTEST_GATE}\n        run: {_A_CHECK}\n")
+
+
+def _reach_selftest_gated(t: str) -> None:
+    """The decider gated on its own answer: a bug that always says `false`
+    skips the fixture that would have caught it."""
+    _sub(t, HOSTED_HALF, f"      - name: reach\n        id: {REACH_STEP_ID}\n",
+         f"      - name: reach\n        id: {REACH_STEP_ID}\n        if: {SELFTEST_GATE}\n")
+
+
+def _selftest_foreign_condition(t: str) -> None:
+    """A fixture gated on something that is not the sanctioned decider — a
+    second, unreviewed answer to the question `ci-reach.py` exists to answer."""
+    _sub(t, HOSTED_HALF, f"      - name: sited {_A_SELFTEST}\n        if: {SELFTEST_GATE}\n",
+         f"      - name: sited {_A_SELFTEST}\n        if: needs.filter.outputs.run_build == 'true'\n")
+
+
+def _selftest_ungated(t: str) -> None:
+    """A fixture left to run on every tier. Nothing breaks; the wall clock this
+    gate exists to give back is quietly spent again, which is why it is a red
+    and not a warning."""
+    _sub(t, HOSTED_HALF, f"      - name: sited {_A_SELFTEST}\n        if: {SELFTEST_GATE}\n",
+         f"      - name: sited {_A_SELFTEST}\n")
+
+
+def _gate_names_missing_id(t: str) -> None:
+    """The gate resolves against nothing. Always false, so every fixture in the
+    job is skipped forever — and it reads exactly like a job that gates them."""
+    _sub(t, HOSTED_HALF, f"        id: {REACH_STEP_ID}\n", f"        id: {REACH_STEP_ID}x\n")
 
 
 def _local_row_below_exit(t: str) -> None:

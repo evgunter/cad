@@ -32,10 +32,10 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, Entry, EvalOptions, Evaluation, NameTable, Node, ProfileDoc,
-    RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg,
+    evaluate,
 };
-use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
+use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
 
@@ -178,30 +178,11 @@ fn filleted(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
-}
-
-fn edge_key(t: &NameTable, n: &StableName) -> EdgeKey {
-    match t.lookup(n) {
-        Some(Entry::Unique(r)) => match r.key {
-            EntityKey::Edge(k) => k,
-            other => panic!("{n:?} names {other:?}, not an edge"),
-        },
-        other => panic!("{n:?} is not uniquely named: {other:?}"),
-    }
-}
-
 /// The height along the revolve axis (`y`) at which a trim arc sits.
 /// Each trim arc is a latitude circle, so one of its vertices fixes
 /// it.
 fn arc_height(body: &Body<f64>, e: EdgeKey) -> f64 {
-    let edge = body.get_edge(e).expect("a live edge");
-    let he = body.get_half_edge(edge.he_plus).expect("a live half-edge");
-    let v = body.get_vertex(he.start).expect("a live vertex");
-    body.get_point(v.point).expect("a live point").y
+    fixture::point(body, fixture::ends(body, e)[0]).y
 }
 
 /// The role carried by the trim arc on the wall BELOW the mouth.
@@ -214,7 +195,7 @@ fn role_below_the_mouth(mouth: (f64, f64), top: (f64, f64)) -> RimSupport {
         .iter()
         .filter_map(|(n, _)| match n.path.first() {
             Some(RoleSeg::BandTrim { support, .. }) => {
-                Some((arc_height(body, edge_key(t, n)), *support))
+                Some((arc_height(body, edge_of(t, "a trim arc", n)), *support))
             }
             _ => None,
         })

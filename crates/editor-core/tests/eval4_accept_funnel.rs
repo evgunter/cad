@@ -1,5 +1,5 @@
 //! The accepted edit travels whole through the refactoring doors:
-//! [`split`]'s outcome carries the cluster-record maintenance its
+//! [`split`]'s outcome carries the [`Maintenance`] its
 //! remainder edits and its part edits performed, and [`inline`]'s
 //! carries its own — beside the documents and the recorded edits,
 //! never instead of them.
@@ -18,8 +18,8 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, ClusterMaintenance, ContactClass, DocEdit, DocRef, DocumentId,
-    EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    StableName, clusters, inline, split,
+    EntityKind, Frame, Maintenance, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, clusters, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, len, on_frame_keeping, square, step};
@@ -88,8 +88,8 @@ fn z_up() -> MateFrame {
 /// at its own mint.
 fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: z_up(),
@@ -103,7 +103,10 @@ fn mate(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {
 
 /// A host with one kept instance of `doc_ref` mated to a local block:
 /// the mate welds nothing before the split (its far end is no member)
-/// and welds the kept instance to the new part instance after it.
+/// and welds the kept instance to the new part instance after it. The
+/// insert door refuses a head that resolves to no member, so the mate
+/// is authored the way such a head arises after insert
+/// (`insert_mate_with_stranded_head`).
 fn kept_instance_mated_to_a_local_block(
     label: &str,
     doc_ref: DocRef,
@@ -111,7 +114,12 @@ fn kept_instance_mated_to_a_local_block(
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, kept) = insert(doc, Node::instantiate_part(doc_ref));
     let (doc, cut, body) = local_block(doc, 3.0);
-    let (doc, _) = insert(doc, mate(in_part(kept, CapEnd::Start), local_cap(body)));
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
+        doc,
+        mate(in_part(kept, CapEnd::Start), local_cap(body)),
+        editor_core::MateSide::B,
+        kept,
+    );
     assert_eq!(
         clusters(&doc),
         vec![vec![kept]],
@@ -137,6 +145,7 @@ fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
         &cut,
         DocumentId::derive("eval4-r1-cell"),
         Tol::witness(),
+        None,
     )
     .expect("a local block whose only outside reference is a mate operand cuts");
     assert_eq!(
@@ -146,11 +155,11 @@ fn a_rebind_that_joins_two_clusters_appears_in_the_remainder_maintenance() {
     );
     assert_eq!(
         out.remainder_maintenance,
-        vec![ClusterMaintenance::Join {
+        vec![Maintenance::Cluster(ClusterMaintenance::Join {
             survived: kept,
             absorbed: out.instance,
             absorbed_frame: None,
-        }],
+        })],
         "the join the rebind performed rides the outcome"
     );
     assert!(
@@ -183,11 +192,17 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
     );
     assert_eq!(clusters(&doc), vec![vec![a, b]], "one cluster, two members");
 
+    // Both sides of this cut move a gauge (the remainder's mate delete
+    // splits the cluster, the part's mate insert joins it), so each
+    // side's maintenance solve levers the instances' part through the
+    // store — a cut given no resolver refuses the same solve typed.
+    let store: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let out = split(
         &doc,
         &BTreeSet::from([a, b, joint]),
         DocumentId::derive("eval4-r2-cell"),
         Tol::witness(),
+        Some(&store),
     )
     .expect("a whole cluster and its mate cut");
     let (pa, pb) = (out.node_map[&a], out.node_map[&b]);
@@ -198,11 +213,11 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
     );
     assert_eq!(
         out.part_maintenance,
-        vec![ClusterMaintenance::Join {
+        vec![Maintenance::Cluster(ClusterMaintenance::Join {
             survived: pa,
             absorbed: pb,
             absorbed_frame: None,
-        }],
+        })],
         "the part's mate insert joined the two spliced members"
     );
     // The remainder deletes the mate first (reverse document order),
@@ -212,7 +227,7 @@ fn a_whole_cluster_cut_records_its_join_in_the_part_and_its_split_in_the_remaind
     assert!(
         matches!(
             out.remainder_maintenance[..],
-            [ClusterMaintenance::Split { from, to, frame: Some(_) }] if from == a && to == b
+            [Maintenance::Cluster(ClusterMaintenance::Split { from, to, frame: Some(_) })] if from == a && to == b
         ),
         "the remainder's mate delete split the cluster: {:?}",
         out.remainder_maintenance
@@ -232,21 +247,36 @@ fn inline_records_the_split_its_re_anchoring_performs() {
         &cut,
         DocumentId::derive("eval4-r3-cell"),
         Tol::witness(),
+        None,
     )
     .expect("cuts");
     store.insert(out.part.clone(), Tol::witness());
-    let back = inline(&out.remainder, out.instance, &store, Tol::witness())
-        .expect("the instance inlines back");
+    let back = inline(
+        &out.remainder,
+        out.instance,
+        &(std::sync::Arc::new(store) as std::sync::Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    )
+    .expect("the instance inlines back");
     assert_eq!(
         clusters(&back.doc),
         vec![vec![kept]],
         "after the splice the mate's far end is local again and welds nothing"
     );
+    // FOUND, not indexed: `Applied::maintenance` contracts that the
+    // strands lead and the cluster acts follow, so position 0 is a
+    // cluster act only when the splice stranded nothing. The claim
+    // here is about the split, so the split is what is looked for.
     assert!(
-        matches!(
-            back.maintenance.first(),
-            Some(ClusterMaintenance::Split { from, to, .. }) if *from == kept && *to == out.instance
-        ),
+        back.maintenance
+            .iter()
+            .find_map(|row| match row {
+                Maintenance::Cluster(ClusterMaintenance::Split { from, to, .. }) => {
+                    Some((*from, *to))
+                }
+                _ => None,
+            })
+            .is_some_and(|(from, to)| from == kept && to == out.instance),
         "the re-anchoring rebind split the instance off the kept cluster: {:?}",
         back.maintenance
     );
@@ -254,7 +284,7 @@ fn inline_records_the_split_its_re_anchoring_performs() {
         !back
             .maintenance
             .iter()
-            .any(|act| matches!(act, ClusterMaintenance::Join { .. })),
+            .any(|act| matches!(act, Maintenance::Cluster(ClusterMaintenance::Join { .. }))),
         "nothing the splice did joined a cluster: {:?}",
         back.maintenance
     );

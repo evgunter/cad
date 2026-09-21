@@ -2,8 +2,11 @@
 id: nothing-holds-startups-two-context-wide-style-installs
 kind: issue
 title: nothing holds that startup performs its two context-wide style installs, and the blocker that argued the gap has gone
-status: open
+status: closed
 opened: 2026-09-14
+closed: 2026-09-15
+branch: view/style-installs
+pr: 2692
 ---
 
 
@@ -55,3 +58,19 @@ row covers both installs or each gets its own, is the open part.
 ## Home
 
 VIEW's: `crates/viewer/src/app.rs`, `crates/viewer/src/widgets.rs`.
+
+## Closed
+
+Two `--lib` rows in `app.rs`'s own test module, one per install:
+`startup_states_the_resolved_polarity_on_the_context` and
+`startup_installs_the_number_rule_onto_both_of_the_contexts_styles`.
+Both installs are on the `assemble` side, so neither needed a gate.
+
+The premise was measured before it was built on: each call line
+deleted in turn on a committed tree left the whole viewer suite
+unchanged, so no existing row covered either install. With the rows in
+the tree each deletion reds its own row and only its own row. Receipts
+are in the PR and summarised in `work/view/log.md` (2026-09-15).
+
+The open part is decided as two rows, both reading behaviourally, and
+the reasoning is in the README clause beside the app-driver section.
