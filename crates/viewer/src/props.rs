@@ -576,11 +576,20 @@ pub fn field_text(row: &SlotRow) -> String {
     }
 }
 
-/// A number as the field writes it: `{:?}`'s shortest round-tripping
+/// A number as the chrome writes it: `{:?}`'s shortest round-tripping
 /// digits, with a bare integral form (`8.0` → `8`) — a field showing
 /// `8` and a field showing `8.0` say the same thing, and the shorter
 /// one is what a user typed.
-fn render_number(value: f64) -> String {
+///
+/// One of the crate's TWO number policies, and the one for a number
+/// in an editable field or in a sentence quoting one: the value fields
+/// here, and the frame poses the picker and the feature tree name a
+/// frame by ([`crate::tree::frame_pose`]). The other is
+/// [`crate::readout::number`], which spells a number to fit a FIXED
+/// WIDTH and trades digits for it — right for the View pane's δ field,
+/// wrong for a coordinate a reader compares against what the panel
+/// shows.
+pub fn render_number(value: f64) -> String {
     let repr = format!("{value:?}");
     match repr.strip_suffix(".0") {
         Some(integral) => integral.to_string(),
