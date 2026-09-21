@@ -725,3 +725,6 @@ mod wire_loft_end_profile_lift;
 
 #[path = "review_recourse_roster_r1_probes.rs"]
 mod review_recourse_roster_r1_probes;
+
+#[path = "review_ring2_r1_e2e.rs"]
+mod review_ring2_r1_e2e;
