@@ -1400,7 +1400,6 @@ fn attribute(
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume { .. }
         | ValidationError::VolumeUncomputable { .. }
-        | ValidationError::MultipleOuterShells { .. }
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
         | ValidationError::RingContactEscalated { .. }

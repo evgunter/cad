@@ -2715,7 +2715,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",
-        ValidationError::MultipleOuterShells { .. } => "multiple_outer_shells",
         ValidationError::Pcurve { .. } => "pcurve",
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",
         ValidationError::RingContactEscalated { .. } => "ring_contact_escalated",

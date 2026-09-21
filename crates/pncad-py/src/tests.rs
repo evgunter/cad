@@ -5436,7 +5436,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loop_cycle_overrun",
             "loop_role_inverted",
             "missing_provenance",
-            "multiple_outer_shells",
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",

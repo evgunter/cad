@@ -1140,15 +1140,16 @@ fn material_arm_error_table() {
 }
 
 // ---------------------------------------------------------------------
-// Check 7's subject and check 10 — the per-SOLID reads.
+// Check 7's subject — the per-SOLID volume sign, and what tier 3
+// deliberately does NOT read about a solid's shells.
 //
 // The bodies below are hand-assembled from cubes because that is the
-// shape the defects have: a second solid beside the first, and a second
-// outer shell filed under one solid. Both are states the public verbs
-// produce (a boolean leaves multi-solid results; subtracting a hollow
-// operand files the island it carves under the minuend's solid) and
-// neither is reachable from this crate's own doors, which is what the
-// raw arenas are for here (module docs).
+// shape the states have: a second solid beside the first, and several
+// shells filed under one solid. Both are states the public verbs
+// produce (a boolean leaves multi-solid results; graft-onto fuses two
+// disjoint bodies into one solid) and neither is reachable from this
+// crate's own doors, which is what the raw arenas are for here
+// (module docs).
 // ---------------------------------------------------------------------
 
 /// A cube of side `s` at `origin`, into `body` as its own solid —
@@ -1243,18 +1244,30 @@ fn two_ordinary_solids_in_one_body_certify() {
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
 
-/// **Two outer boundaries filed under one solid refuse by name** — the
-/// hollow-operand subtraction's shape
-/// (`work/bool/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
+/// **A solid holding SEVERAL outer boundaries certifies, and that is
+/// the ratified posture rather than a gap** — the executable form of
+/// `work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
 ///
 /// One solid, three shells: the outer cube, a cavity wall inside it,
-/// and an island inside that cavity. Check 7 passes the solid
-/// (`1 - 0.125 + 0.008 > 0`), so the refusal below is check 10's alone
-/// — the runtime value that makes it false is `outer` coming back with
-/// one key, which is what a check that never asked which solid a shell
-/// belongs to reports.
+/// and an island inside that cavity — the hollow-operand subtraction's
+/// shape
+/// (`work/bool/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
+/// Two of those shells enclose definitely-positive volume.
+///
+/// `graft onto`, the boolean coplanar split, `subtract`, the editor's
+/// placed union and two shell doors all produce this state on purpose,
+/// and how many material components a product should have is answered
+/// one layer up, as `editor_core`'s `CheckId::Connectedness` finding
+/// against an authored expectation. So tier 3 admits it, and this row
+/// reds if a count-level refusal is ever put back at this tier.
+///
+/// What IS unchecked here is the NESTING — that the island sits inside
+/// the cavity — which no tier reads
+/// (`work/atrest/tier-3-does-not-check-shell-roles-per-solid`). The
+/// row cannot assert an absence, so it asserts the admission and names
+/// the residue.
 #[test]
-fn a_solid_holding_two_outer_shells_refuses_by_name() {
+fn a_solid_holding_several_outer_shells_still_certifies() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
@@ -1265,32 +1278,26 @@ fn a_solid_holding_two_outer_shells_refuses_by_name() {
     };
     refile_shells(&mut body, cavity, keeper);
     refile_shells(&mut body, island, keeper);
-    let shells: Vec<_> = body
-        .get_solid(keeper)
-        .expect("the one solid")
-        .shells
-        .clone();
-    assert_eq!(shells.len(), 3, "one solid, three shells");
+    assert_eq!(
+        body.get_solid(keeper).expect("the one solid").shells.len(),
+        3,
+        "one solid, three shells"
+    );
     assert!(
         crate::mass_properties(&body, tol)
             .expect("the cubes measure")
             .volume
             > 0.0,
-        "check 7 must PASS this solid, so that check 10 is what refuses"
+        "check 7's subject is this solid, and its volume is positive"
     );
-    assert_eq!(
-        validate_geometric(&body, tol),
-        Err(vec![ValidationError::MultipleOuterShells {
-            solid: keeper,
-            shells: vec![shells[0], shells[2]],
-        }]),
-        "two material components filed under one solid"
-    );
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
 
-/// **The false-refusal direction for check 10**: a solid with a genuine
-/// cavity — one outer shell, one void — certifies. A check that
-/// counted shells instead of reading their signs reds here.
+/// **Check 7 sums a solid's whole boundary, cavity included**: a solid
+/// with one outer shell and one void certifies. A per-solid walk that
+/// read only one of a solid's shells would red here — the outer cube
+/// alone measures `+1`, the cavity wall alone `-0.125`, and only their
+/// sum is the solid's `+0.875`.
 #[test]
 fn a_solid_with_a_genuine_cavity_certifies() {
     let tol = Tol::witness();
