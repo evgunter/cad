@@ -576,6 +576,16 @@ lanes' figures on the PR thread (compile cost measured on the shared
 4-vCPU box; the no-lane count: 3 kernel traits, 15 impls, 959 lines, 14
 call sites, 104 bounded signatures).
 
+## CURVE3-JET merged (2026-09-21)
+
+PR 2708, block SCALAR-B4 slot 0, ordinal 4109. What landed: the item's
+§Closed. The spec is deleted per the ledger. The implementer lane died
+on a usage limit after its final push and the box sat idle five days;
+main's new `Spiric` curve variant then broke the exhaustive match at
+the merge and took one arm on the implementer's arm. The fix pass
+folded the one pair the spec had excused and wrote the located-span
+walk once. Two protocol exposures recorded on the row.
+
 ## Block SCALAR-B4 drawn; CURVE3-JET dispatched (2026-09-15)
 
 The Curve3 jet door opens block SCALAR-B4 as slot 0 (byte 75 ⇒ slot 0

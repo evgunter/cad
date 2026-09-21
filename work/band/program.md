@@ -2,7 +2,7 @@
 id: band
 kind: program
 title: BAND — the blend and rim bands: what a roll builds over a rim, and what it may call the result
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: band/

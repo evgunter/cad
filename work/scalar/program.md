@@ -2,7 +2,7 @@
 id: scalar
 kind: program
 title: SCALAR — the scalar lane: lifts, newtypes and the generic-scalar questions
-status: open
+status: active
 opened: 2026-09-11
 area: kernel
 prefix: scalar/

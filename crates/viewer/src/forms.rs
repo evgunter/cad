@@ -95,11 +95,16 @@ vocabulary! {
     /// into a label list, so every consumer matches exhaustively and a
     /// new kind cannot leave a silent wildcard arm behind.
     ///
-    /// `AxisInPlane` is the one kind that needs a PICK as well as
-    /// numbers: its frame is a document node, chosen from the frames
-    /// the document holds, and its origin and direction are that
-    /// frame's own 2-D coordinates. It is the only node the revolve
-    /// tool's axis seat admits.
+    /// Two kinds need a PICK as well as numbers, and they pick from
+    /// different places. `AxisInPlane`'s frame is a document node,
+    /// chosen from the frames the document holds, and its origin and
+    /// direction are that frame's own 2-D coordinates; it is the only
+    /// node the revolve tool's axis seat admits. `FaceFrame`'s picks
+    /// are a face in the VIEWPORT and the body-denoting node the ray
+    /// met, which no combo can list, so its seat is the selection
+    /// itself ([`crate::session::face_frame_seat`] is the gate above
+    /// it). Each states the sentence its own unmet seat reads, at
+    /// [`DatumKindChoice::unmet_seat`].
     ///
     /// **`Choice` because `viewer::DatumKind` is a different type** —
     /// the tag [`crate::datums::DatumDraw`] carries for how a datum is
@@ -136,13 +141,17 @@ vocabulary! {
     /// in: the frame sits next to the plane because that is the choice
     /// a reader is actually making — the same surface, with or without
     /// a stated direction on it — and the axis in a sketch sits next to
-    /// the axis for the same reason.
+    /// the axis for the same reason. The frame on a face sits next to
+    /// the frame by the same rule one step on: a frame you type and a
+    /// frame you pick are the same choice, differently sourced.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum DatumKindChoice {
         /// A plane datum.
         Plane = "plane",
         /// A sketch frame — an oriented plane.
         Frame = "frame",
+        /// A sketch frame read off a picked face.
+        FaceFrame = "frame on face",
         /// An axis datum, in world coordinates.
         Axis = "axis",
         /// An axis written in a picked sketch frame — a revolve's axis.
@@ -155,6 +164,35 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
+impl DatumKindChoice {
+    /// **What this kind is still waiting for**, when it is waiting for
+    /// a pick — the sentence the add-datum form shows over a held
+    /// button, and `None` for a kind that has no pick to wait for.
+    ///
+    /// One sentence per kind rather than one for the form: the two
+    /// picking kinds want different things from different places (a
+    /// frame from the document, a face from the viewport), so a single
+    /// sentence over the button is false of whichever kind is not
+    /// showing.
+    ///
+    /// **The `Some` half is exactly the set `Drafts::datum_spec`
+    /// answers `Ok(None)` for**, which is a fact about two functions in
+    /// two modules and is therefore asserted rather than asked to be
+    /// believed (`drafts::tests::the_unmet_seat_sentence_follows_the_kind`).
+    ///
+    /// **The frame-on-a-face sentence is READ, not written here.** The
+    /// face-frame gate refuses an empty pick with the same sentence
+    /// ([`crate::session::FaceFrameFault::NoFace`]), so the two are one
+    /// string at its one home and cannot drift apart.
+    pub(crate) fn unmet_seat(self) -> Option<&'static str> {
+        match self {
+            Self::AxisInPlane => Some("pick a frame to write the axis in"),
+            Self::FaceFrame => Some(crate::session::NO_FACE_PICKED),
+            Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
+        }
+    }
+}
+
 partial_mirror! {
     DatumSpec, onto DatumKindChoice,
     offered [
@@ -163,6 +201,7 @@ partial_mirror! {
         Point { .. } => Point,
         AxisInPlane { .. } => AxisInPlane,
         Frame { .. } => Frame,
+        FaceFrame { .. } => FaceFrame,
     ],
     absent [],
 }

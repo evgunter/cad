@@ -2,7 +2,7 @@
 id: lib
 kind: program
 title: LIB — usable as a library
-status: open
+status: ready
 opened: 2026-08-06
 area: api
 prefix: lib/

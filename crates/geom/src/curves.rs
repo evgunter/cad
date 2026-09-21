@@ -486,9 +486,12 @@ impl<T: Real> Curve3<T> {
     /// `radial = u_ref·c + v_ref·s` with `v_ref = axis × u_ref`, result
     /// `center + radial·radius`, exactly as parenthesized (D9).
     ///
-    /// It is a door rather than a copy: `eval`'s `Circle` arm CALLS
-    /// this, so there is one expression and a caller that builds a
-    /// point here builds the very node `eval` would. That is what
+    /// It is a door rather than a copy: the point expression lives in
+    /// [`Self::circle_point`] alone, this is that expression on a frame
+    /// built here, `eval`'s `Circle` arm CALLS this, and `ders1`'s
+    /// `Circle` arm calls `circle_point` on the one frame it shares
+    /// with its tangent half — so a caller that builds a point here
+    /// builds the very node either door would. That is what
     /// `sweep::swept::register_span_identity` rests on — node ids are
     /// content hashes, so "the constructor states the identity about
     /// the node the certifier will ask about" is a fact of this
@@ -505,8 +508,17 @@ impl<T: Real> Curve3<T> {
         u_ref: Vec3<T>,
         t: T,
     ) -> Point3<T> {
-        let radial = azimuth::frame(axis, u_ref, t).radial.0;
-        center + radial * radius
+        Self::circle_point(center, &azimuth::frame(axis, u_ref, t), radius)
+    }
+
+    /// The circle's point from an azimuthal frame already built:
+    /// `center + radial·radius`, exactly as parenthesized (D9). The one
+    /// spelling of that expression — [`Self::circle_at`] builds the
+    /// frame and calls this; `ders1`'s `Circle` arm calls this on the
+    /// frame its tangent half reads too, which is how the jet pays one
+    /// frame and still produces `eval`'s bits.
+    fn circle_point(center: Point3<T>, frame: &azimuth::AzimuthFrame<T>, radius: T) -> Point3<T> {
+        center + frame.radial.0 * radius
     }
 }
 
@@ -603,12 +615,13 @@ impl<T: SpanLocate> Curve3<T> {
     ///   order; `|dP/dv| ≥ r` (the variant docs).
     /// - Nurbs: the payload’s derivative (all-poison for the placeholder).
     ///
-    /// There is no jet door: a caller wanting `deriv` and [`Self::deriv2`]
-    /// at one `t` pays two frames. Measured at release, that is 19 ns
-    /// per pair against a fused jet on the conic arms, and the one
-    /// consumer that asks for both (the splitting orbit's conic arm)
-    /// evaluated it 0 times on the boolean corpus — so no `CurveJet` is
-    /// minted for it.
+    /// The order-1 jet is [`Self::ders1`]: a caller wanting the point
+    /// and this at one `t` asks once. There is no order-2 jet on the
+    /// enum: a caller wanting `deriv` and [`Self::deriv2`] at one `t`
+    /// pays two frames on the conic arms (its one consumer, the
+    /// splitting orbit's conic arm, never reaches `Nurbs`, where the
+    /// payload's [`NurbsCurve3::ders`] would answer all three from one
+    /// pass).
     pub fn deriv(&self, t: T) -> Vec3<T> {
         match self {
             Curve3::Line { dir, .. } => *dir,
@@ -645,6 +658,87 @@ impl<T: SpanLocate> Curve3<T> {
                 m * f1 + *axis * (*minor_radius * c)
             }
             Curve3::Nurbs(n) => n.deriv(t),
+        }
+    }
+
+    /// The point and the first derivative at parameter `t` from ONE
+    /// pass — the order-1 jet for a caller wanting both, who would
+    /// otherwise run [`Self::eval`] and [`Self::deriv`] (on `Nurbs`, two
+    /// span selections and two basis passes for what one answers).
+    ///
+    /// Each half is its own evaluator's answer, bit for bit:
+    /// - Line: `(origin + dir·t, dir)`.
+    /// - Circle: one azimuthal frame, both its fields —
+    ///   `(center + radial·radius, tangential·radius)`, the frame's own
+    ///   formulas.
+    /// - Ellipse: one `sin_cos`, then the two combinations exactly as
+    ///   [`Self::eval`] and [`Self::deriv`] parenthesize them.
+    /// - Spiric: one `sin_cos`, one `sqrt` (`ρ` and `f` shared), then
+    ///   the two combinations exactly as [`Self::eval`] and
+    ///   [`Self::deriv`] parenthesize them.
+    /// - Nurbs: the payload's [`NurbsCurve3::ders1`].
+    ///
+    /// On the `Nurbs` arm the tangent half is `deriv`'s by
+    /// construction and the point half is `eval`'s because the order-0
+    /// row of the derivative basis recursion is the evaluation
+    /// recursion, pinned by rows — [`NurbsCurve3::ders1`] says which is
+    /// which. At `Dual` each half carries its own derivative channel;
+    /// at `Interval` the point box and the tangent box are each their
+    /// own evaluator's enclosure, hulled independently across the
+    /// spans an interval parameter overlaps, not a coupled jet.
+    ///
+    /// The return is the tuple the NURBS jets return; a consumer
+    /// destructures it on the spot. `eval` and `deriv` keep their own
+    /// passes and are not projections of this one.
+    pub fn ders1(&self, t: T) -> (Point3<T>, Vec3<T>) {
+        match self {
+            Curve3::Line { origin, dir } => (*origin + *dir * t, *dir),
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => {
+                // One frame for both halves: that is the whole saving
+                // on this arm, and no bit row can see it (two frames
+                // give the same bits), so the `ders1_meter` row's
+                // analytic table is its only guard.
+                let f = azimuth::frame(*axis, *u_ref, t);
+                (
+                    Self::circle_point(*center, &f, *radius),
+                    f.tangential.0 * *radius,
+                )
+            }
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => {
+                let ((s, c), v_ref) = azimuth::basis(*axis, *u_ref, t);
+                (
+                    *center + (*u_ref * (*major * c) + v_ref * (*minor * s)),
+                    *u_ref * (-(*major * s)) + v_ref * (*minor * c),
+                )
+            }
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                let ((s, c), m) = azimuth::basis(*axis, *u_ref, t);
+                let (rho, f) = spiric_radial(*major_radius, *minor_radius, *offset, c);
+                let f1 = -(*minor_radius * rho * s) / f;
+                (
+                    *center + *u_ref * *offset + m * f + *axis * (*minor_radius * s),
+                    m * f1 + *axis * (*minor_radius * c),
+                )
+            }
+            Curve3::Nurbs(n) => n.ders1(t),
         }
     }
 
@@ -838,8 +932,8 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
             Curve3::Circle { center, .. } => {
                 let w = p - *center;
-                let r_near = self.eval(near) - *center;
-                let tau_near = self.deriv(near);
+                let (p_near, tau_near) = self.ders1(near);
+                let r_near = p_near - *center;
                 Some(near + w.dot(tau_near).atan2(w.dot(r_near)))
             }
             Curve3::Spiric {
@@ -1644,6 +1738,9 @@ mod tests {
         assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan());
         let d2 = n.deriv2(0.5);
         assert!(d2.x.is_nan() && d2.y.is_nan() && d2.z.is_nan());
+        let (jp, jd) = n.ders1(0.5);
+        assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
+        assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
     }
 
     /// A described NURBS fixture: the rational quadratic quarter circle
@@ -1813,6 +1910,71 @@ mod tests {
         }
     }
 
+    /// `ders1` is `eval` and `deriv` bit for bit at the whole-curve
+    /// level — one span selection and one order-1 pass answering both
+    /// — on the knotted fixture at every knot value, span boundary and
+    /// span midpoint. A differential, not a digest: a one-ulp move in
+    /// either half against its own evaluator reds it by name.
+    #[test]
+    fn ders1_is_eval_and_deriv_bit_for_bit() {
+        let c = knotted_curve();
+        for t in knot_and_span_params(&c) {
+            let (p, d) = c.ders1(t);
+            let q = c.eval(t);
+            let e = c.deriv(t);
+            for (name, a, b) in [
+                ("x", p.x, q.x),
+                ("y", p.y, q.y),
+                ("z", p.z, q.z),
+                ("dx", d.x, e.x),
+                ("dy", d.y, e.y),
+                ("dz", d.z, e.z),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits(), "t = {t}: {name} {a} vs {b}");
+            }
+        }
+    }
+
+    /// The analytic arms' `ders1` is their `eval` and `deriv` bit for
+    /// bit: the line's closed form, the circle's one azimuthal frame
+    /// against the two frames the pair builds, the ellipse's one
+    /// `sin_cos` against the pair's two, the spiric's one `sin_cos` and
+    /// one `sqrt` against the pair's two of each — on the tilted
+    /// fixtures, at parameters that are not special to any of them.
+    #[test]
+    fn analytic_ders1_is_eval_and_deriv_bit_for_bit() {
+        let line = Curve3::Line {
+            origin: Point3::new(1.0, -2.0, 0.5),
+            dir: Vec3::new(0.3, -0.4, 1.2),
+        };
+        for (kind, c) in [
+            ("line", line),
+            ("circle", tilted_circle()),
+            ("ellipse", tilted_ellipse()),
+            ("spiric", tilted_spiric()),
+        ] {
+            for t in [-7.3, -1.0, 0.0, 0.37, 1.0, FRAC_PI_2, 2.9, TAU, 41.5] {
+                let (p, d) = c.ders1(t);
+                let q = c.eval(t);
+                let e = c.deriv(t);
+                for (name, a, b) in [
+                    ("x", p.x, q.x),
+                    ("y", p.y, q.y),
+                    ("z", p.z, q.z),
+                    ("dx", d.x, e.x),
+                    ("dy", d.y, e.y),
+                    ("dz", d.z, e.z),
+                ] {
+                    assert_eq!(
+                        a.to_bits(),
+                        b.to_bits(),
+                        "{kind} at t = {t}: {name} {a} vs {b}"
+                    );
+                }
+            }
+        }
+    }
+
     /// `ders1_in_span` is `ders_in_span`'s first two components bit for
     /// bit — the order-1 pass and the order-2 pass agree on everything
     /// the order-2 pass does not need its third row for — on the
@@ -1855,6 +2017,9 @@ mod tests {
         assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
         let d = c.deriv(f64::NAN);
         assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan());
+        let (jp, jd) = c.ders1(f64::NAN);
+        assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
+        assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
         let line = Curve3::Line {
             origin: Point3::origin(),
             dir: Vec3::unit_x(),
@@ -1864,6 +2029,7 @@ mod tests {
         // The line's deriv is parameter-independent — NaN t does not
         // poison it (there is nothing to poison: the tangent is data).
         assert_eq!(line.deriv(f64::NAN).x, 1.0);
+        assert_eq!(line.ders1(f64::NAN).1.x, 1.0);
     }
 
     #[test]
@@ -1875,11 +2041,15 @@ mod tests {
             let _ = c.eval(t);
             let _ = c.deriv(t);
             let _ = c.deriv2(t);
+            let _ = c.ders1(t);
         }
         // ±∞ specifically poisons through sin_cos — every channel of
         // the point, not the first one.
         let p = c.eval(f64::INFINITY);
         assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
+        let (jp, jd) = c.ders1(f64::INFINITY);
+        assert!(jp.x.is_nan() && jp.y.is_nan() && jp.z.is_nan());
+        assert!(jd.x.is_nan() && jd.y.is_nan() && jd.z.is_nan());
     }
 
     // ------------------------------------------------------------------
