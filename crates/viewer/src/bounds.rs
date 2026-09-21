@@ -290,10 +290,14 @@ impl Bounds {
     /// overclaim this whole doc comment exists to refuse, at the one
     /// end where nothing the probe did is wrong. The conversion is
     /// asked rather than performed
-    /// ([`crate::props::written_text`] over [`crate::props::written`]),
-    /// which is also why the divide is no longer written out here: one
-    /// home for `canonical / factor`, in the module whose subject it
-    /// is.
+    /// ([`crate::props::shown_text`], over [`crate::props::written`]),
+    /// which is also why the divide is no longer written out here.
+    /// The `map_or` this line used to open with was a third
+    /// hand-written spelling of [`crate::props::shown_in`] — the one
+    /// that door's own doc warns about — and the door that renders it
+    /// is the same door with the render attached, so there is one home
+    /// for `canonical / factor` and one for what to say when it has no
+    /// answer.
     ///
     /// **This render owns no bound on the value itself, and no door
     /// upstream of it does either.** A probed bound is where the
@@ -303,10 +307,7 @@ impl Bounds {
     /// there is, is a value that has no reading in the unit asked for,
     /// and saying so is the whole of the repair.
     pub fn wording(self, unit: Option<UnitDef>) -> String {
-        let show = |value: f64| match unit {
-            Some(unit) => crate::props::written_text(value, unit),
-            None => crate::readout::number(value),
-        };
+        let show = |value: f64| crate::props::shown_text(unit, value);
         match (self.low, self.high) {
             (Bound::Open { probed: low }, Bound::Open { probed: high }) => format!(
                 "nothing new fails anywhere from {} to {} — as far as {} samples looked",

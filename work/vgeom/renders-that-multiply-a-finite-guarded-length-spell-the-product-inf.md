@@ -100,3 +100,78 @@ those rather than restate it — and a reader narrowing the guard at
 Found by AUTH-2's Q1 sweep for a second unit vocabulary in the viewer
 (`docs/AUTH-2-SPEC.md` C7): the pattern was a bare decimal scaling
 beside a length, and this was its only hit outside `props`.
+
+## Closed — the notation is asked whether it can name the value
+
+**The decision, whose bound narrows a product: none of the three, and
+that is the answer rather than a deferral.** Each member renders a
+value some other type owns, and the row is right that the render
+cannot narrow what it is handed. What a render CAN own is the
+conversion it performs itself — and all three perform one. So the
+repair is at the conversion, not at the value: `props::written` forms
+`canonical / unit.factor()` and answers `None` when the result is not
+a number, `props::no_reading` is the one spelling of that refusal, and
+`props::written_text` is the two together over
+`crate::readout::number`. `inf` is gone from all three sentences.
+
+Per member, since the row asks for that:
+
+- **`pane/view.rs`'s camera readout.** Now `camera_mm`, a named
+  function rather than a closure, reading the factor from the unit
+  table (`props::written_text(metres, MM.def())`) — which discharges
+  the AUTH-2 half of this row: the metre-to-millimetre factor had two
+  named homes and a bare `1000.0` here was a third.
+  `the_camera_readout_writes_metres_in_the_tables_millimetre` holds
+  the render to `scene::MM_PER_METRE`, the other home, so a third
+  spelling reds. **The other half of this member is not a render
+  question and is filed**: `Camera::max_distance` is
+  `scene_radius * MAX_DISTANCE_FACTOR` and `Camera::new` admits every
+  finite radius, so above `f64::MAX / 100.0` the band's top arrives
+  here already `inf` —
+  `camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite`,
+  P1/E, held out because `camera.rs` was another lane's this wave.
+- **`bounds.rs`'s `Bounds::wording`.** Through `props::written_text`,
+  which also deletes the hand-written `value / u.factor()` this file
+  carried — a second copy of `props::in_written`. The doc now says
+  that no door upstream owns a bound here either: a probed bound is
+  where a doubling search reached from a field with no `.range()`.
+  `a_bound_with_no_millimetre_value_is_not_worded_as_infinity`.
+- **`props.rs`'s `field_text`.** `written` over `render_number`, with
+  `no_reading` where there is no number. `{:?}` stays the render for
+  this one: a field's text is what an edit starts from, so it wants
+  exact round-tripping digits, and a sentence does not.
+  `a_literal_with_no_millimetre_value_does_not_show_one`.
+
+**The other end of the same question, which the row did not have.**
+The divide is a multiplication up for six of the closed table's eight
+rows, and one row's factor is ABOVE one — `pi rad`, at π. So a
+canonical angle of exactly `5e-324` rad written in `pi rad` divides to
+`0.0`, and a text reading zero is the other thing
+`readout::REL_TOLERANCE` refuses. Measured: `5e-324 / π == 0.0`,
+`1e-323 / π == 5e-324`. `written` answers `None` for both directions
+and the row pins both edges as products.
+
+**The sweep, re-derived rather than quoted, and where it moved.** The
+hit list is in the PR body. Two findings:
+
+- `pane/view.rs`'s `{:.1}°` angle pair is NOT a member, and the reason
+  is reachability rather than taste: `to_degrees` multiplies up by
+  180/π, but `Camera::yaw` answers in `[−π, π)` and `Camera::pitch`
+  inside `±(π/2 − margin)`. Stated at the site.
+- **The row's population rule, applied to `number_text`'s call sites,
+  concluded that door is not a member — and the rule applied to the
+  `number_field(` call sites finds two more.** `widgets::named_field`
+  and `widgets::value_field_ops` each bind a value that IS
+  `in_written`'s quotient, so a field can show `inf` for a value the
+  document holds. Filed as
+  `a-field-bound-to-a-written-value-shows-a-product-that-overflowed`
+  (P1/D): the repair is a door decision about what a field is when its
+  notation cannot name its value, and it is not a string a render
+  composes.
+
+**And one false universal, corrected where it stood.**
+`readout::number`'s doc said *"Nothing in the chrome hands this one"*
+of a non-finite value. It now names its three callers and what each
+guarantees, which is the sweep rule that produces that population.
+
+PR: `vgeom/render-spelling`, on `vgeom/p0-fields` (#3007) as its base.

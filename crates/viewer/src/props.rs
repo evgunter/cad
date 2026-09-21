@@ -339,6 +339,25 @@ pub fn shown_in(unit: Option<UnitDef>, canonical: f64) -> f64 {
     unit.map_or(canonical, |unit| in_written(canonical, unit))
 }
 
+/// [`written_text`] over a field that may name NO unit — one canonical
+/// value as text a person reads, in the notation such a field shows.
+///
+/// `None` means what it means in [`shown_in`]: the field is a number
+/// rather than a quantity, so there is no conversion to make and no
+/// symbol to carry, and the render is [`crate::readout::number`]
+/// alone. A value cannot fail to be nameable in no notation, which is
+/// why this answers a `String` where [`written`] answers an `Option`.
+///
+/// Spelled here rather than as a `map_or` at each caller for
+/// [`shown_in`]'s own reason: a hand-written `map_or` is the same
+/// identity written twice, free to become two.
+pub fn shown_text(unit: Option<UnitDef>, canonical: f64) -> String {
+    unit.map_or_else(
+        || crate::readout::number(canonical),
+        |unit| written_text(canonical, unit),
+    )
+}
+
 /// [`from_written`] over a field that may name no unit — one number
 /// read out of such a field, canonical. [`shown_in`]'s inverse, and
 /// `None` means what it means there.
@@ -534,11 +553,14 @@ pub fn field_text(row: &SlotRow) -> String {
             // above `f64::MAX * MILLI` metres has no millimetre value,
             // and `{:?}` spells that `inf` — a field claiming a value
             // the document does not hold. [`no_reading`] says so
-            // instead. It is safe in a field for the reason `echoed`
-            // gives: a field never commits its own render, so the
-            // marker cannot be handed back as an edit.
-            Some(unit) => written(value.as_f64(), unit)
-                .map_or_else(|| no_reading(unit), render_number),
+            // instead, and a marker is safe in a field for the reason
+            // [`echoed`] gives: every field built through
+            // `crate::widgets::number_field` refuses text equal to its
+            // own render, so the marker cannot be handed back as an
+            // edit.
+            Some(unit) => {
+                written(value.as_f64(), unit).map_or_else(|| no_reading(unit), render_number)
+            }
             // D2 addendum row 4: this arm IS the literal case, and
             // every literal names the unit it was written in
             // (`Expr::display_unit` answers `None` only for the kinds
@@ -1099,3 +1121,119 @@ impl core::fmt::Display for SlotUnitFault {
 }
 
 impl core::error::Error for SlotUnitFault {}
+
+#[cfg(test)]
+mod written_tests {
+    use super::{in_written, no_reading, written, written_text};
+    use pncad::document::{Dimension, SlotId};
+    use pncad::prelude::{M, MM, PI, RAD};
+
+    /// **A notation is a change of exponent, and an exponent can leave
+    /// the type** — in both directions, and [`written`] is the one
+    /// place that is asked.
+    ///
+    /// **The pair, because neither half says anything alone.** A door
+    /// answering `None` for everything would satisfy the first two
+    /// assertions; the values below them are the ones the chrome shows
+    /// and they have to come back. Both edges are named as the
+    /// PRODUCTS they are rather than as magnitudes somebody typed —
+    /// `f64::MAX * MILLI` is the coarsest length with a millimetre
+    /// value, two subnormals is the smallest angle `pi rad` does not
+    /// divide to zero — so a bound drawn at a round number fails the
+    /// second half of each pair.
+    #[test]
+    fn a_value_the_notation_cannot_name_has_no_written_value() {
+        let (mm, pi_rad) = (MM.def(), PI.def());
+
+        assert_eq!(
+            written(1.0e306, mm),
+            None,
+            "1e306 m has no millimetre value: the quotient is inf"
+        );
+        let coarsest = f64::MAX * 1.0e-3;
+        assert_eq!(
+            written(coarsest, mm),
+            Some(in_written(coarsest, mm)),
+            "the coarsest length whose millimetre value is a number is written in millimetres"
+        );
+
+        assert_eq!(
+            written(5.0e-324, pi_rad),
+            None,
+            "the smallest subnormal over π is 0.0, which is not this angle"
+        );
+        let two_subnormals = 1.0e-323;
+        assert_eq!(
+            written(two_subnormals, pi_rad),
+            Some(in_written(two_subnormals, pi_rad)),
+            "one step up the quotient is a subnormal again, and a subnormal is a value"
+        );
+
+        // The values the chrome actually shows, on both dimensions and
+        // on the canonical rows, which divide by one.
+        assert_eq!(written(0.025, mm), Some(25.0));
+        assert_eq!(written(1.5, M.def()), Some(1.5));
+        assert_eq!(written(1.0, RAD.def()), Some(1.0));
+        assert_eq!(
+            written(0.0, mm),
+            Some(0.0),
+            "a value that IS zero is a zero in every notation"
+        );
+    }
+
+    /// **The render says the notation cannot name it, and never spells
+    /// `inf`** — which is the whole of this class: `inf` is a text
+    /// that reads back as no value at all, offered for a value the
+    /// document holds perfectly well.
+    #[test]
+    fn a_render_of_an_unnameable_value_is_not_an_infinity() {
+        let mm = MM.def();
+        assert_eq!(no_reading(mm), "no mm reading");
+        assert_eq!(written_text(1.0e306, mm), no_reading(mm));
+        assert!(
+            !written_text(1.0e306, mm).contains("inf"),
+            "the render spelled the product instead of refusing it"
+        );
+        assert_eq!(
+            written_text(5.0e-324, PI.def()),
+            no_reading(PI.def()),
+            "and the other end is the same refusal, not a zero"
+        );
+        // The ordinary case is a number and its symbol, unchanged.
+        assert_eq!(written_text(0.025, mm), "25 mm");
+        assert_eq!(written_text(1.5, M.def()), "1.5 m");
+    }
+
+    /// **A field's text is what an edit starts from**, so the one
+    /// thing it must not be is a value the document does not hold.
+    /// `render_number` is `{:?}`, which spells an overflowed quotient
+    /// `inf`; the marker is what stands there instead.
+    ///
+    /// **The pair**: the same row a decade below the overflow shows an
+    /// ordinary number, so a `field_text` that gave up on millimetres
+    /// altogether fails the second half.
+    #[test]
+    fn a_literal_with_no_millimetre_value_does_not_show_one() {
+        let row = |canonical: f64| super::SlotRow {
+            slot: SlotId::ShellThickness,
+            dimension: Dimension::Length,
+            structural: false,
+            driver: super::SlotDriver::Literal,
+            value: Ok(super::SlotValue::Continuous(canonical)),
+            unit: Some(MM.def()),
+            source: Some("unused".to_owned()),
+        };
+        assert_eq!(
+            super::field_text(&row(1.0e306)),
+            no_reading(MM.def()),
+            "a literal whose millimetre value is not a number showed one"
+        );
+        assert_eq!(
+            super::field_text(&row(1.0e304)),
+            "9.999999999999999e306",
+            "and one decade below the overflow is an ordinary field, spelled \
+             by `{{:?}}`'s exact round-tripping digits — the quotient's, \
+             which is not `1e307`"
+        );
+    }
+}

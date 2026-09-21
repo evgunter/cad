@@ -249,10 +249,46 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::delta_field;
+    use super::{camera_mm, delta_field};
     use crate::frame;
-    use crate::scene::DisplayTolerance;
+    use crate::scene::{DisplayTolerance, MM_PER_METRE};
     use eframe::egui;
+
+    /// **The camera readout reads its factor from the unit table, and
+    /// asks whether the product exists.**
+    ///
+    /// Two claims in one row because they are one line of code. The
+    /// factor: every distance the readout shows agrees with
+    /// [`MM_PER_METRE`], the other named home of the same conversion,
+    /// so a third spelling here would red rather than drift. The
+    /// product: a camera distance above `f64::MAX * MILLI` metres has
+    /// no millimetre value, and the render says which notation could
+    /// not name it instead of spelling `inf`.
+    ///
+    /// **The pair, because neither half says anything alone.** A
+    /// render that refused everything would satisfy the second claim
+    /// and fail the first, and one that multiplied blindly satisfies
+    /// the first and fails the second.
+    #[test]
+    fn the_camera_readout_writes_metres_in_the_tables_millimetre() {
+        for metres in [1.0e-6, 0.05, 1.0, 1234.5, 1.0e300] {
+            assert_eq!(
+                camera_mm(metres),
+                format!("{} mm", crate::readout::number(metres * MM_PER_METRE)),
+                "the readout's millimetre disagrees with the crate's other one at {metres} m"
+            );
+        }
+        let unnameable = 1.0e306;
+        assert!(
+            (unnameable * MM_PER_METRE).is_infinite(),
+            "this distance is supposed to have no millimetre value"
+        );
+        assert_eq!(camera_mm(unnameable), "no mm reading");
+        assert!(
+            !camera_mm(f64::INFINITY).contains("inf"),
+            "and a band top that arrives already infinite is still not spelled as a distance"
+        );
+    }
 
     /// One δ field, one button to tab the focus onto, and the three
     /// values the field writes.
