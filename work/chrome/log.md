@@ -1164,3 +1164,90 @@ sentence, taken from the same summary, and the lane caught it by reading
 edit.
 
 Signed (DOOR orchestrator).
+
+## 2026-09-21 — track picked up; the carve-out retired, three units dispatched
+
+Orchestrator session opened on `claude/chrome-orchestrator-setup-24xn6w`
+(harness-pinned; unit branches keep the `chrome/` prefix). Program
+`ready` → `active`. Ev's instruction at the start of the session:
+**no A/B protocol** (the account is out of Fable), and the units
+should not be tricky — so this wave is three E units with no
+undecided design fork in any of them.
+
+**The 2026-09-15 VIEW carve-out is retired, and that is the session's
+largest act.** Every cession clause in it rested on *"VIEW holds an
+open row on the same ground"*. VIEW re-scoped on 2026-09-17 — 86 of
+its 94 live rows went to VNEWS, VGEOM, VSEAM, VDOC and seven other
+programs — and its own `keep_out` now reads *"this program does not
+dispatch new units; its remaining act is the exit walk."* Meanwhile
+`work/README.md` settled the general question on 2026-09-20 (Ev, in
+chat): two open programs may claim one path, and **neither owes the
+other a `keep_out`** — what is owed is awareness while a lane is LIVE,
+which is a per-branch question `work.py territory` answers.
+
+So CHROME cedes nothing. What replaces the file list is a per-wave
+read of who is actually live, carried in each dispatch with a date on
+it. A standing clause could not do that job: it would be false within
+the day, which is precisely how the 2026-09-15 clause and the one
+before it both went false.
+
+**Three rows were held by the cession alone and are now available**:
+`gpu-index-counts-substitute-u32-max` and
+`mispaired-ids-exempts-the-empty-window` (both ended on *"CHROME does
+not work it"*), and `band-refusal-still-badges-every-row`, whose
+blocker was *"a new `RowStatus` variant does not land inside CHROME's
+fence"*. Each carries a note saying so. The COST arguments inside them
+are untouched and were re-affirmed rather than waved through: the
+`RowStatus` row's 19-sites-in-9-files measurement is still the reason
+to prefer a variant over a field, and is re-taken at dispatch rather
+than trusted. For the first two the live question is now *whose slate*
+— `scene.rs` and `gpu.rs` are VGEOM's since the re-scope — and that
+call belongs to the wave that takes them.
+
+**Dispatched** (specs deleted at merge per `docs/DOC-LEDGER.md`):
+
+1. `chrome/datum-honesty` — `datums.rs`, two rows: the finiteness
+   predicate's homes and `MAX_GRID_LINES`' silent truncation.
+2. `chrome/empty-document-gate` — `frame.rs` and `pickindex.rs`: the
+   empty-document rule cited once, and a gate that can red on a new
+   `ProductError` arm. The behavioural half (`session.rs`) is held
+   out; see below.
+3. `chrome/one-number-one-home` — `bounds.rs`, `app.rs`, `scene.rs`,
+   `tests/display_budget.rs`: the panel's divide with one home, and
+   three private constants a suite copied.
+
+**Two premises falsified by reading the tree before writing the
+specs.** `max-grid-lines-…` asserts `MAX_GRID_LINES` is 96 and builds
+its whole reachability argument on that number; it is **512**. And
+`four-spellings-…` lists four `is_finite` sites in `datums.rs`; there
+are **eight** — the row predicted that growth in the sentence *"the
+next lane to touch this file will add a fifth unless there is a door
+to route through"*, and it happened. Both are in the dispatches with
+an instruction to re-take the census rather than trust the correction
+either. This check costs minutes; AUTHOR's log makes the same point
+from four falsified premises, and it is now what this program does
+before every dispatch too.
+
+**`certify-affordance-on-the-bounds-panel` re-priced E → H.** Its own
+body describes a long-running query needing progress, cancel, a
+panel-side budget, and eleven unrendered `RangeRefusal` arms, measured
+at 3.4–17 s per leaf. Nothing about the finding changed; the board was
+offering a design pass as cheap work.
+
+**Held out of this wave, deliberately.**
+`at-rest-badge-reports-an-empty-document-as-a-refusal` is unit 2's
+behavioural twin and lives in `session.rs`, which AUTHOR's live
+`author/profile-frame` (AUTH-3) has in scope this hour — a scheduling
+conflict, not a fence, and wave 2's to take.
+`a-split-circle-fixture-sits-inside-the-1e-6-escalation-band` is a
+live red at `1e-6` on `main` today and is small; it is wave 2's first
+row.
+
+**Live seams announced to this wave.** AUTHOR's `author/profile-frame`
+holds `pane/create.rs`, `tree.rs`, `blend.rs`, `session.rs`,
+`session/op.rs`, `session/author.rs`, `drafts.rs`; VGEOM's PR 3007
+(`vgeom/p0-fields`) is ~160 lines inside `pickindex.rs`. Unit 2 is
+told to merge `origin/main` before opening and to expect that file to
+move under it.
+
+Signed (CHROME orchestrator).

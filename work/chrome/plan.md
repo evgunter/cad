@@ -30,35 +30,54 @@ not by a correctness lane. A style lane that verifies claims finds
 correctness defects as a side effect of checking whether the words are
 true.
 
-## Territory — the VIEW carve-out (2026-09-15)
+## Territory — the carve-out is spent (2026-09-21)
 
-CHROME and VIEW both claim `crates/viewer/src/*` and both `keep_out`s
-name the other, so lint is quiet; but until 2026-09-15 both clauses
-were **false**. CHROME's said *"CHROME goes first"* (spent — VIEW went
-first). VIEW's said CHROME *"has been dormant since 07:00"* and treated
-the wait clause as discharged on that basis (true when written, false
-now). The programs no longer take turns; they divide the files.
+The 2026-09-15 section this replaces divided `crates/viewer` between
+CHROME and VIEW file by file, because both claimed the whole crate and
+both were live in it. **Two things have happened since, and together
+they retire it.**
 
-**CHROME works:** `datums.rs`, `bounds.rs`, `combine.rs::denotes_body`,
-`tree.rs::blamed_mates`, and
-`crates/viewer/tests/{valid_range,combine_ops,tree_badges}.rs`.
+1. **VIEW re-scoped on 2026-09-17.** Eighty-six of its ninety-four
+   live rows went to four successor programs (VNEWS, VGEOM, VSEAM,
+   VDOC) or to seven other live programs, and its own `keep_out` now
+   says plainly: *"this program does not dispatch new units — its
+   remaining act is the exit walk."* Half of every cession clause
+   below was *"VIEW holds an open row on the same ground"*. VIEW holds
+   almost none, and will open no more.
+2. **`work/README.md` ruled the general question on 2026-09-20** (Ev,
+   in chat): two open programs may claim one path, shared ground is
+   legitimate and expected, **neither side owes the other a
+   `keep_out`**, and what IS owed is awareness while a lane is LIVE —
+   a per-branch question that `work.py territory --base main` answers.
 
-**CHROME cedes**, each because VIEW holds an open row on the same
-ground: `scene.rs` and `gpu.rs`
-(`scene-mesh-carries-an-identity-index-buffer`, opened 2026-09-15,
-rewrites `SceneMesh::build_parts_focused` and swaps `draw_indexed` for
-`draw`); `theme.rs` and `pane/features.rs`
-(`tone-is-a-value-in-frame-and-a-comment-in-two-panes`); `marks.rs` and
-`blend.rs` (VIEW works these files; `edge-cost-claims-name-a-search-
-that-is-gone` is re-homed to VIEW for that reason and no other). And the spine CHROME never had a claim on in practice:
-`app.rs`, `session.rs`, `session/*`, `pane/*`, `frame.rs`,
-`pickindex.rs`, `display.rs`, `props.rs`, `forms.rs`, `sketch.rs`.
+So CHROME does not cede `scene.rs`, `gpu.rs`, `theme.rs`,
+`pane/features.rs`, `marks.rs`, `blend.rs`, `app.rs`, `session.rs`,
+`session/*`, `pane/*`, `frame.rs`, `pickindex.rs`, `display.rs`,
+`props.rs`, `forms.rs` or `sketch.rs` to anybody. It claims
+`crates/viewer/src/*`, `crates/viewer/tests/*` and
+`crates/viewer/README.md`, as `paths` has always said, alongside
+AUTHOR, VGEOM, VSEAM, VNEWS, VIEW and FIT.
 
-**`crates/editor-core` is not DOCM's any more.** DOCM exited 2026-09-14
-(`docs/DOC-LEDGER.md`, sweep 14) and its ground divided: `mate.rs` and
-`mate/*` to MSOLVE; `doc.rs`, `edit.rs`, `node.rs`, `resolve/*` and
-`REFERENCES.md` to EDIT; `crates/pncad-py` is LIB's. A CHROME row
-reaching any of them is a **hand-off, not a fence to work around**.
+**What replaces the file list is a per-wave read of who is live.** At
+dispatch the orchestrator runs `work.py territory` and the open-PR
+list, and a unit's scope names the files another lane is in RIGHT NOW
+as out-of-scope for this wave — a scheduling fact with a date on it,
+not a fence. Every dispatch carries it; no clause here can, because it
+would be false within the day.
+
+**Three rows were held only by the spent cession and are now
+available**: `gpu-index-counts-substitute-u32-max` and
+`mispaired-ids-exempts-the-empty-window` (both closed their paragraph
+with *"ground is ceded to VIEW under the carve-out, so CHROME does not
+work it"*), and `band-refusal-still-badges-every-row`, whose blocker
+was *"a new `RowStatus` variant does not land inside CHROME's fence"*
+— a fence that no longer exists. The COST arguments in those rows
+stand and are unaffected: the `RowStatus` row still measures 19 sites
+in 9 files for the field variant, which is a reason to shape the fix
+carefully, not a reason it cannot be dispatched. VGEOM now owns
+`scene.rs` and `gpu.rs` beside CHROME, so the first two are a re-home
+candidate as much as a dispatch candidate; that call waits on the
+wave that takes them.
 
 ## What the 2026-09-15 audit found
 
@@ -104,52 +123,48 @@ None open: the two rows filed here landed in PR 2856 on 2026-09-19.
 
 ## Unit order
 
-E-first, and each unit names the ground it may touch.
+**Wave 1, dispatched 2026-09-21.** Three units, all E, all on disjoint
+files, none carrying an undecided design fork that only Ev can settle.
+No A/B duals and no row in `docs/MODEL-AB-LOG.md` (Ev, in chat,
+2026-09-21: *"no AB protocol"*). Specs are
+`docs/CHROME-<NAME>-SPEC.md`, deleted at merge per
+`docs/DOC-LEDGER.md`.
 
-1. **`chrome/citation-repoint`** — repoint the four rotted rows by
-   subject and close the two reports. Tracker only, no source. *(done;
-   under style review)*
-2. **`chrome/datums-substitution-sweep`** — `datums.rs` holds four
-   members of one fail-loud class (a NaN or failed conversion floored
-   into a plausible number): `inclusive-rule-range-draws-a-line-on-a-
-   nan-count` (E, fix written in the row),
-   `metres-per-pixel-swallows-a-nan-depth` (HARDER — an `Option<f64>`
-   ripple), and two sites the audit found unfiled. No VIEW row touches
-   the file. *(dispatched)*
-3. **`bounds.rs`, two rows** — `certify-affordance-on-the-bounds-panel`
-   is live, and `bounds.rs`'s own module header still says the three
-   kernel doors it needs "are missing" when DOCM-9 built them. Fix the
-   stale header first; it is E and it currently misleads any taker.
-4. **`tree.rs::blamed_mates`** — `band-refusal-still-badges-every-row`.
-   `MateFault::Band` carries only a `BandError` and names no mate, so
-   every row in a refused cluster keeps its own badge. No test covers
-   the Band shape today.
-5. **`combine.rs::denotes_body`** — `body-seat-reads-through-the-placer-
-   chain`. **NOT dispatchable as written, and the reason is the
-   carve-out's.** The fix is a signature change (the gate needs the
-   `Doc`), and `denotes_body`'s only production caller is
-   `session/refuse.rs`, which the carve-out cedes to VIEW — so a CHROME
-   lane can write the whole fix and cannot make the crate build. Filed
-   as `work/view/the-file-level-carve-out-cannot-express-a-row-whose-
-   work-crosses-a-call-site`, which offers three ways out and
-   recommends two. The row's own design question is settled; only the
-   boundary is open. Land it aware of `work/door/node-placer-field-docs-
-   say-body-where-instances-are-accepted`, which names this row as its
-   viewer-side member.
-6. **`probe-rows-assert-in-one-direction-only`** — tests only, but its
-   fourth finding (a stale `derived.bounds` survives a refusal) lands
-   in `session.rs`, which is ceded. Take findings 2 and 3 now; finding
-   4 waits on a hand-off.
+1. **`chrome/datum-honesty`** (`docs/CHROME-DATUM-HONESTY-SPEC.md`) —
+   `datums.rs`: `four-spellings-of-one-finiteness-predicate-in-datums-
+   rs` and `max-grid-lines-truncates-a-ruling-and-calls-it-one`. One
+   file, one class (a number the module could not honestly compute,
+   returned in the shape of one it did).
+2. **`chrome/empty-document-gate`**
+   (`docs/CHROME-EMPTY-DOC-SPEC.md`) — `frame.rs` and `pickindex.rs`:
+   `viewer-states-the-empty-document-rule-in-four-places-and-the-one-
+   that-gates-cannot-red`. The structural half only.
+3. **`chrome/one-number-one-home`**
+   (`docs/CHROME-ONE-NUMBER-SPEC.md`) — `bounds.rs`, `app.rs`,
+   `scene.rs`, `tests/display_budget.rs`:
+   `bounds-reading-respells-the-panels-one-divide` and
+   `display-budget-rows-restate-three-private-constants`.
 
-**Not scheduled, and why.** `culling-is-load-bearing-with-no-pixel-
-test` and `viewer-expresses-no-gpu-adapter-preference` are both live
-and both HARDER; the first would be the first row in the crate to
-assert about a rendered image and therefore sets a convention, and the
-second has three open decisions and a fault that is by construction not
-catchable in Rust. Neither is a lane unit until someone decides the
-shape. `viewer-cannot-author-a-part-node` was already adjudicated at
-class M by DOOR and rejected: the seat and instance arguments are the
-work, not a detail.
+**Two premise corrections found by reading the tree before writing the
+specs**, and recorded because the program's own 2026-09-15 audit says
+this is where units get lost: `MAX_GRID_LINES` is **512**, not the 96
+its row asserts and builds a reachability argument on; and the
+finiteness census in `datums.rs` is **eight** sites, not the four its
+row lists — the row predicted exactly that growth and it happened.
+Both corrections are in the dispatches, with an instruction to re-take
+the census rather than trust them.
+
+**Held out of wave 1, and why.**
+`at-rest-badge-reports-an-empty-document-as-a-refusal` is the
+behavioural half of unit 2's cluster and lives in `session.rs`, which
+AUTHOR's live `author/profile-frame` lane (AUTH-3) has in scope this
+hour — a scheduling conflict, not a fence, and it goes out in wave 2.
+`a-split-circle-fixture-sits-inside-the-1e-6-escalation-band` is small
+and a live red at `1e-6` on `main` today; it is wave 2's first row.
+`certify-affordance-on-the-bounds-panel` is priced **E and is not** —
+it is a long-running query needing progress, cancel, a panel-side
+budget and eleven unrendered `RangeRefusal` arms; it wants a re-price
+and a design pass, not a lane.
 
 ## Exit shape
 
