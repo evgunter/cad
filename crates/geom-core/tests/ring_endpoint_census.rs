@@ -111,9 +111,12 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "crates/geom-brep/src/ssi/certify.rs",
         16,
         4,
-        "the remaining 12 are `T: Bounds` reads on the evaluation scalar, not ring \
-         endpoints — blind spot 1. The ring reads are the mignitude and the \
-         transversality hull window",
+        "the 4 that ask are the mignitude (`zero_free_lower_bound`). Of the other 12, \
+         ten are `T: Bounds` reads on the evaluation scalar and not ring endpoints at \
+         all — blind spot 1 — and two are the transversality span-hull window, safe by \
+         construction: `CoeffWindow::hull` folds its coefficients through \
+         `RingInterval::hull`, whose refusing guard mints NaI, so a window carrying a \
+         refused coefficient reads NaN at both ends",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",

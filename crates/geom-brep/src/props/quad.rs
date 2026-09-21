@@ -6742,14 +6742,43 @@ mod tests {
     /// piecewise constant, and E1's chart is a bilinear surface
     /// restated. A bidegree-(2,2) curved chart reaches `h`-degree 11.
     ///
-    /// The oracle is the rule's own EXACTNESS, which is a statement
-    /// about refinement: a rule of the right order integrates each
-    /// sub-chord exactly, so cutting the chord into four times as many
-    /// pieces cannot move the answer beyond ring rounding. A rule one
-    /// order short is a composite that CONVERGES instead, and its
-    /// round-0 and round-2 answers differ by orders more than their own
-    /// widths. The image is degree 1, so no lune pad rides along to
-    /// blur the comparison.
+    /// The oracle is the rule's own EXACTNESS. Two halves, and they
+    /// carry different amounts of evidence on this fixture:
+    ///
+    /// * **Refinement invariance** — a rule of the right order
+    ///   integrates each sub-chord exactly, so cutting the chord into
+    ///   four times as many pieces cannot move the answer beyond the
+    ///   arithmetic's own rounding. Asserted below as an overlap and
+    ///   as a midpoint agreement at the enclosure's own width.
+    /// * **The ANSWER** — which is where the classification actually
+    ///   lives. The shipped order and a rule two counts short do not
+    ///   answer the same integral: `3.25426260e-1` against
+    ///   `3.25424305e-1`, a relative `6e-6`, four million times the
+    ///   `1e-12` window pinned below and seven orders above the
+    ///   enclosure's own `2.5e-13` width.
+    ///
+    /// **Why the refinement half alone no longer classifies, measured.**
+    /// This row used to gate `|m₀ − m₂|` at a quarter ulp, and that
+    /// separated the shipped order (which answered the two rounds BIT
+    /// for bit) from the two-counts-short mutant (one ulp apart). Both
+    /// numbers were the arithmetic's rounding and not the rule's error:
+    /// the mutant is refinement-invariant too — its answer is wrong by
+    /// `1.96e-6` at BOTH rounds — so the old gate was separating an
+    /// exact zero from one ulp of luck. The C9 ring pads only where an
+    /// operation is inexact now, so an enclosure is no longer symmetric
+    /// about the round-to-nearest value and its midpoint carries that
+    /// asymmetry: the shipped order reads two ulps apart
+    /// (`1.11e-16` on `0.325`) and the mutant one, which ranks them
+    /// BACKWARDS. Re-derived rather than widened
+    /// (`memories/output-stability-as-justification.md`): the
+    /// classification moves onto the quantity that carries the signal,
+    /// and the refinement half stays as the consistency claim it can
+    /// support. That the refinement direction has no power against
+    /// this mutant at either arithmetic is
+    /// `work/props/q9-refinement-invariance-does-not-classify-the-rule-order`.
+    ///
+    /// The image is degree 1, so no lune pad rides along to blur the
+    /// comparison.
     #[test]
     fn q9_the_outer_rules_order_is_pinned_by_refinement() {
         let (ku, kvv, control, w) = curved_chart(2, 2);
@@ -6765,24 +6794,34 @@ mod tests {
             )
         };
         let (r0, r2) = (read(0), read(2));
-        // The exactness claim is not "the two enclosures happen to
-        // meet" — both are ring-rounding wide, so overlap is a weak
-        // test that a slightly-too-low order can pass. It is that the
-        // two ANSWER THE SAME NUMBER: an exact rule integrates each
-        // sub-chord exactly, so cutting the chord into four times as
-        // many pieces cannot move the sum at all.
-        // Measured on this fixture: the shipped order answers round 0
-        // and round 2 BIT FOR BIT (difference exactly 0, against
-        // enclosure widths of 2.5e-13 and 1.0e-12), and a rule two
-        // counts short answers them one ulp apart (5.55e-17 on 0.325).
-        // A quarter-ulp gate separates those two and leaves room for a
-        // sub-ulp summation-order wobble the head does not produce.
+        // **The classification.** The shipped order's answer, pinned
+        // at a window seven orders above the arithmetic's own width
+        // and six below the two-counts-short mutant's error (the doc
+        // above carries both measurements): a rule short of the degree
+        // integrates a DIFFERENT number, and that is the difference
+        // this row exists to see.
+        const EXACT: f64 = 3.254_262_600_197_975e-1;
+        const WINDOW: f64 = 1e-12;
         let (m0, m2) = (mid(r0.flux), mid(r2.flux));
+        for (round, m) in [(0, m0), (2, m2)] {
+            assert!(
+                (m - EXACT).abs() <= WINDOW,
+                "Q9: round {round} integrates {m:e}, which is {:e} from the exact rule's \
+                 {EXACT:e} — past the {WINDOW:e} window, so the rule is short of the \
+                 degree rather than exact",
+                (m - EXACT).abs()
+            );
+        }
+        // Refinement invariance, at the width the arithmetic supports:
+        // an enclosure is padded only where an operation was inexact,
+        // so the two rounds' midpoints sit inside each other's bracket
+        // rather than on top of each other.
+        let widths = r0.flux.width().max(r2.flux.width());
         assert!(
-            (m0 - m2).abs() <= 0.25 * f64::EPSILON * m0.abs(),
+            (m0 - m2).abs() <= widths,
             "Q9: an EXACT rule answers the same integral at every chord count — round 0 \
-             {m0:e} and round 2 {m2:e} differ by {:e}, so the rule is CONVERGING rather \
-             than exact",
+             {m0:e} and round 2 {m2:e} differ by {:e}, past the wider enclosure's own \
+             {widths:e}",
             (m0 - m2).abs()
         );
         assert!(
