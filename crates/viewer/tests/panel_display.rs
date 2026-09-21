@@ -783,9 +783,12 @@ test_utils::loud_skip_marker!(
 ///
 /// **What no value test in this crate reaches** is the widget itself:
 /// the panel's `DragValue` lives inside a private `ViewerBehavior`
-/// method over an `egui::Ui`, and this crate carries no headless egui
-/// harness, so "the field calls this" is held by the two call sites
-/// being one line each rather than by a row here.
+/// METHOD, which borrows the whole application and so cannot be
+/// driven headlessly — where a free function over the `Ui` can be, and
+/// several are (`viewer::pane::headless`, `pane::profile`,
+/// `pane::viewport`, `widgets`). So "the field calls this" is held by
+/// the two call sites being one line each rather than by a row here;
+/// giving the field a seam of its own is what would change that.
 #[cfg(feature = "app")]
 #[test]
 fn a_parameter_field_is_written_the_way_its_declaration_says() {

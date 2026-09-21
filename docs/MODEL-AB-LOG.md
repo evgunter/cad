@@ -7097,6 +7097,32 @@ SYM-7 RECORDED AT MERGE (2026-09-15, PR #2609 merged; sample #199 — prior high
 
 SYM-8 RECORDED AT MERGE (2026-09-21, PR #2616 merged; sample #226 — prior highest #225 on main at merge; block SYM-B2 slot 1 concluded; the block record stays on `sym/b2-block`). **Protocol v7 triage, recorded late (v7 is 09-19; the unit was spec'd 09-14 under v6): SYM-8 triaged IN — a rule of the atom algebra, H / NUMERIC; the dual is the v6 full dual, dispatched 09-19 22:50Z.** **The orchestrator's model, per phase:** spec, dispatch and adjudication FABLE (the local fork); fix pass, state-sync and merge FABLE (the cloud session); the unit changed hands at the fork of 09-19. Method notes applying to both arms: the dual ran on Ev's shared local box (load 26–58, four orchestrators) where NEITHER arm could run its editor-core re-takes (R1's interval test binary did not link in 2.5 h; R2's was OOM-killed twice), so both arms' numeric claims ride the hosted gate and the PR's tables; both arms were stopped by an account session limit and resumed with state intact; R2's report was written by the resumed agent from its finished rows; the reports, the union brief and the delta crossed sessions through PR #2949. R1 disclosed two glimpses (an `ls -la` of the lanes directory, one `pgrep -af` on its own path), neither carrying a finding; the pair is FLAGGED. No unilateral MAJOR. Tokens per phase: impl + fix ~614k (one agent), reviews ~245k (R1) + ~275k (R2), delta ~35k; adjudication ~1 h on the local fork.
 
+## DECIDE-3 review ordinal fixed at dispatch (2026-09-21)
+
+DECIDE-3 (the canonical root at the mint site — every `sqrt` atom keyed
+on its argument's value class, with the two certified reads behind
+every value-free fold; SYM-10's Phase 2 as Ev ruled it on #2970, shape
+1; PR #3039 open against `props/sign-hull` — frozen head
+`a200f768d8479b937a6f2ca8f4af02df9ca930d2`, run 35654982773 GREEN on
+the full matrix, twelve `test (…)` and five `k-lint (gate, …)`):
+**ordinal 8600** (DECIDE's band — 8600–8699, the first; the band as
+the 2026-09-20 roster line assigns it). Protocol v7 IN (a canonical-form
+decision over every atom the tier keys; H / NUMERIC, pre-draw on
+`decide/b1-block`). The v6 dual: draw = `/dev/urandom` byte **118**,
+parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the frozen head,
+read-side isolation (v6 item 5), briefs identical but for the lane
+name and stored with sha256 before either ran
+(`cf52ede52fd2…` / `d5a1a564df24…`). Because the PR's base is 726
+commits behind `main`, the reviewers diff against a review base
+(`decide/3-review-base` = `main` at the branch's cut merged with
+`props/sign-hull` with no unit code, `git merge-tree`, clean; 20
+files) rather than GitHub's 81-file diff. Implementer arm OPUS per
+block DECIDE-B1's draw (byte 248 ⇒ fable at slot 2). Impl phase:
+tokens and wall recorded at merge from the harness; the lane's one
+intermediate red was the pad study's `registered` count (128 → 150),
+re-baselined on the branch before the freeze. Sample number at merge.
+Row at merge.
+
 ## SYM-11 review ordinal fixed at dispatch (2026-09-21)
 
 SYM-11 (the point channel is not a proof — the theorem-vs-numeric
@@ -7329,6 +7355,54 @@ disclosed deviations the brief puts to both arms — first among them
 that the fold gives plain-name `f64` callers of the tier-3′ doors check
 2's lane, which can change a verdict off the corpora. Sample number at
 merge. Row at merge.
+
+## RING-2 review ordinal fixed at dispatch (2026-09-21)
+
+`ring-2-newtype-over-dinterval` (RING-2; SCALAR; PR #3032 open — frozen
+head `e228297d68`): **ordinal 4114** (SCALAR band; claimed after LANE-2's
+4115 because RING-2's head froze later — two red heads after the PR
+opened, both fixed by the lane). Protocol v6 dual: draw = `/dev/urandom`
+byte **8**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the
+frozen head, read-side isolation (v6 item 5), briefs identical and
+stored before either ran, with a line telling both arms that the
+branch's spec commit is the orchestrator's and that two container
+restarts split the implementing lane into three lanes on one arm. Pre-draw
+difficulty **H / numeric** (recorded branch-side in the block SCALAR-B5
+pre-draw section before the block's byte 244, which put the OPUS arm on
+slot 2; a Fable spec — it moves certified bounds). Impl phase: the PR
+opened 17:00Z (dispatched ~12:30Z; the box restarted at ~13:50Z and
+~20:45Z, the lane resumed on the same arm both times from its pushed
+commits and a saved patch); the first head red on five rows (two meter
+rows on an exactly-zero curvature bound, two interval eps-1e-12 rows,
+the test-utils reader-census ledger), the second on one (`step-export`'s
+sidecar fixtures), all re-pinned tighter with the cause named or fixed
+at the consumer; impl CI **35654662476** GREEN on the frozen head (twelve
+`test` legs, five `k-lint (gate, …)`, the python suite, `gate ok`).
+The brief leads with the newtype's three choices and the new
+`CertifiedEnclosure::crossing_bracket` member (against DL1), then the
+two red heads' dispositions. Sample number at merge. Row at merge.
+
+## LANE-2 review ordinal fixed at dispatch (2026-09-21)
+
+`lane-2-chart-region-lane-deleted` (LANE-2; SCALAR; PR #3038 open — frozen
+head `991108fbe0`): **ordinal 4115** (SCALAR band; 4114 is RING-2's,
+claimed when its head freezes). Protocol v6 dual: draw = `/dev/urandom`
+byte **126**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the
+frozen head, read-side isolation (v6 item 5), briefs identical and
+stored before either ran, with a line telling both arms that the
+branch's spec commit is the orchestrator's. Pre-draw difficulty
+**M / structural** (recorded branch-side in the block SCALAR-B6
+pre-draw section before the block's byte 153, which put the FABLE arm
+on slot 0; the sub-unit's own sentence cut on 2026-09-21 before the
+byte). Impl phase: ~1 h 57 min to the PR (dispatched 18:10Z, PR
+20:07Z), no red head; impl CI **35649109217** GREEN on the frozen head
+(twelve `test` legs, five `k-lint (gate, …)`, the python suite, `gate
+ok`). The unit landed four disclosed deviations the brief puts to both
+arms — first among them that the spec's red-first list named direct
+callers of the two doors, so the mutation reaches a different set of
+seventeen rows; and a `f64` caller of the `_structural` door now
+receives a refusal whose text blames the scalar, filed on ATREST and
+left byte-identical per the spec. Sample number at merge. Row at merge.
 
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
