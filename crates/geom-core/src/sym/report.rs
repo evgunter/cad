@@ -151,7 +151,6 @@ pub(super) fn record(
         (Some(Discharge::Theorem), _) => ShapeOutcome::Theorem,
         (Some(Discharge::SignGated), _) => ShapeOutcome::SignGated,
         (Some(Discharge::Registered), _) => ShapeOutcome::Registered,
-        (Some(Discharge::Planted), _) => ShapeOutcome::Theorem,
         (None, Ok(Sign::Zero)) => ShapeOutcome::NumericZero,
         (None, Ok(s)) => ShapeOutcome::Definite(*s),
         (None, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,
