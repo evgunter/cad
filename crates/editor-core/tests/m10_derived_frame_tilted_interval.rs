@@ -551,6 +551,12 @@ enum Base {
     /// the case `Interval::copysign` must answer `[−1, 1]` on. Rule F
     /// must decline it.
     TiltNZ,
+    /// **SYM-12 review R1's own.** A tilt about `v` with `v` FLIPPED:
+    /// `u = (1,0,0)`, `v = (0,−1,−t)`, so the face normal is
+    /// `(0, t, −1)/sqrt(1 + t²)` and `n.z` is NEGATIVE — the same
+    /// manifest shape as `FlipZ`'s but on the OTHER axis, so it is
+    /// neither the start cap nor `FlipZ`. R1's e2e row drives it.
+    FlipV,
 }
 
 fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
@@ -586,6 +592,10 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         Base::TiltNZ => (
             [scl(1.0), scl(0.0), scl(0.0)],
             [scl(0.0), t.clone(), scl(1.0)],
+        ),
+        Base::FlipV => (
+            [scl(1.0), scl(0.0), scl(0.0)],
+            [scl(0.0), scl(-1.0), Expr::neg(t.clone())],
         ),
     };
     r.insert(Node::Datum(Datum::Frame {
@@ -1534,4 +1544,53 @@ fn sym8_the_reviews_documents_the_unit_did_not_measure() {
         lost.is_empty(),
         "rule F refused what the dial-off tier certified: {lost:?}"
     );
+}
+
+/// **SYM-12 review R1's e2e row** — a `FaceFrame` document whose `n.z`
+/// is manifestly negative that is NEITHER the start cap NOR `FlipZ`:
+/// the tilt is about `v` instead of `u`, `v` is flipped, and the
+/// half-width is `3e-3` instead of `1e-3`. Driven at both lifts with
+/// rule F shut and with the shipped set, to see whether it reads the
+/// END cap's state and whether the refusal moves to the Newell
+/// straddle by name. Run with the negative arm planted OFF as well,
+/// which is the differential the unit's own gating row rests on.
+#[test]
+#[ignore = "evidence-only: SYM-12 review R1's own one-sided document"]
+fn r1_sym12_a_third_manifestly_negative_frame() {
+    use geom_core::sym::report::{start_shape_report, take_shape_report};
+    for (half, lift) in [
+        (3.0e-3, ProfileLift::Guided),
+        (1.0e-2, ProfileLift::Guided),
+        (5.0e-2, ProfileLift::Guided),
+        (3.0e-3, ProfileLift::Pinned),
+    ] {
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on ", shipped_with_rule_f()),
+        ] {
+            let doc = r2_document(half, Base::FlipV, Place::Derived(1));
+            let t0 = std::time::Instant::now();
+            let (fails, counts) = sym(&doc, lift, rules, budget());
+            let dt = t0.elapsed().as_secs_f64();
+            println!(
+                "flipV derived half={half:e} {lift:?} {label}: {counts:?} in {dt:.1}s\n  fails {} {}",
+                fails.len(),
+                head(fails.first().map_or("", String::as_str), 200)
+            );
+            // The split only where there is a refusal to name: the
+            // `Pinned` replay of a cube with the report installed is
+            // what exhausts a small box.
+            if !fails.is_empty() {
+                start_shape_report();
+                let _ = sym(&doc, lift, rules, budget());
+                let split = crate::m10_8_harness::split(&take_shape_report());
+                for pred in ["carrier_endpoint_end", "newell_plane_residual"] {
+                    println!(
+                        "  {pred:<28} {:?}",
+                        split.get(pred).copied().unwrap_or([0; 4])
+                    );
+                }
+            }
+        }
+    }
 }
