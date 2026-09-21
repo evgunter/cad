@@ -5,7 +5,7 @@ title: "The sampler's own error has three spellings and no shared home: the crat
 status: open
 opened: 2026-09-21
 priority: P3
-cost: B
+cost: D
 ---
 
 ## What

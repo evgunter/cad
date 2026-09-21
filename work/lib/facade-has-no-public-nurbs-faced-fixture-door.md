@@ -5,7 +5,7 @@ title: The façade has no public door to a NURBS-faced body, so an end-to-end in
 status: open
 opened: 2026-09-21
 priority: P3
-cost: B
+cost: D
 ---
 
 ## What

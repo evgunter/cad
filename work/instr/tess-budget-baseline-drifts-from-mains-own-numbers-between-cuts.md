@@ -5,7 +5,7 @@ title: The committed tess-budget baseline drifts from main's own numbers between
 status: open
 opened: 2026-09-21
 priority: P3
-cost: C
+cost: D
 ---
 
 ## What

@@ -5,7 +5,7 @@ title: "The mignitude and the refuse-then-read reader are spelled by hand at eve
 status: open
 opened: 2026-09-21
 priority: P3
-cost: C
+cost: D
 ---
 
 ## What
