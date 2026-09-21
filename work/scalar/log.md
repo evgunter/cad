@@ -665,3 +665,24 @@ orchestrator's instruction — recorded as an exposure with the
 spec-commit trailer. The brief tells both arms the spec commit is the
 orchestrator's.
 
+## RING-1 dual concluded (2026-09-21)
+
+PR 2971 (ordinal 4110): both arms APPROVE WITH FIXES. R2's one MAJOR —
+four excluded-root lockfiles at the frozen head without the backend
+edge, `cargo metadata --locked` exiting 101 — is R1's MINOR 1, the same
+finding, and the branch had fixed it (`30ca6a8697`) before either
+review landed: bilateral, no tally candidate. All ten claims held on
+both arms by execution (the cfg re-count, the pin under three reverse
+patches, the nextest lists at both feature sets, the 22 gate scripts,
+the wasm32 check at default, the run's per-job conclusions). Bilateral
+too: stale gate prose in files the PR edits; the build-cost doc's §9
+re-interpreting §3's cell and thin on environment. Unique R1: the root
+manifest's dev-dependency sentence; the `locate.rs` gate having no
+independent pin. Unique R2: two pin rows monotone the wrong way (probe
+rows filed by both arms); the module doc's "two roles" now separated by
+prose alone; and the e2e fact that carries forward — with
+`CertifiedBounds` unconditional, the lane-trait impls are the whole
+remaining gate on the kernel doors at `Interval`, so ruling 3's cut,
+not RING-3's feature drop, is what opens them. Fourteen fix-pass
+items adjudicated; the fix pass runs on OPUS.
+
