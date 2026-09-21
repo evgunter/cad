@@ -50,14 +50,15 @@ name: interval lane
 #      passes its answers in, so inside this file the only `needs:` left is
 #      the real one — `test-interval` on `build-interval`, for the archive.
 #
-# `permissions:` DID NOT MOVE, and that is worth saying because `renders`
-# does move it. A reusable workflow is bounded above by the caller's token
-# scope, and ci.yml declares none at the top level, so its jobs run at the
-# repository default; `renders` narrows at its call site because render.yml
-# WRITES. This lane only reads, and `test-interval` already declares its own
-# `contents: read` + `actions: read` at its key. A block on the calling job
-# would bound all five jobs by it and change the scope the other four run
-# under today — a change this move is not about.
+# `permissions:` MOVES TO THE CALLING JOB, and this was the one thing the
+# first attempt got wrong: it left the block here alone and declared nothing
+# at the call site, and the run was refused before it started (`#9275`,
+# `startup_failure`). `test-interval` below keeps its own
+# `contents: read` + `actions: read` — it reads a previous run's artifacts —
+# but a callee's block may only NARROW what the caller passed, never ask for
+# more, and a caller declaring nothing passes the repository default, which
+# has no `actions: read` in it. ci.yml's `interval:` key now grants exactly
+# those two scopes; the argument is written out there.
 #
 # WHAT A READER LOSES BY THIS SPLIT, said plainly because it is not
 # nothing: the five check names now report as `interval / <job name>`, so

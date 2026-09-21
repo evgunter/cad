@@ -3552,18 +3552,35 @@ jobs:
   # already does, so ci.yml stays the single source of truth for every
   # tool version CI installs.
   #
-  # NO `permissions:` HERE, DELIBERATELY, and it is the one place this
-  # differs from `renders`. That job narrows the token because render.yml
-  # writes; this lane only reads, and `test-interval` already declares its
-  # own `contents: read` + `actions: read` at its key. Declaring a block
-  # here would bound all five jobs by it and change the scope the other
-  # four run under today, which is a change to something this move is not
-  # about.
+  # `permissions:` IS REQUIRED HERE, and leaving it out is what made the
+  # first attempt at this move fail to start at all (run `#9275`,
+  # `startup_failure`, no jobs, one second, and no message on any REST
+  # route). `renders` says the rule at its own key: a reusable workflow
+  # gets the CALLER's token scope, and a callee's own `permissions:` block
+  # cannot grant what the calling job never had. `test-interval` asks for
+  # `actions: read` — it reads a previous run's artifacts through
+  # `scripts/base-test-listing.sh` — and as a top-level job in this file it
+  # could ask, because a job may request up to the repository maximum. As a
+  # CALLEE it may only narrow what the caller passed, and a caller that
+  # declares nothing passes the repository DEFAULT, which does not carry
+  # `actions: read`. So the callee was asking for a scope the caller never
+  # had, and the whole run was refused before any job existed.
+  #
+  # THE TWO SCOPES ARE THE UNION OF WHAT THE FIVE JOBS NEED, and nothing
+  # else: `contents: read` for the checkouts, `actions: read` for the one
+  # artifact read above. The other four jobs are bounded by this too, which
+  # is a NARROWING from the repository default they ran under while they
+  # lived in this file — safe because not one of them writes anything
+  # through the token (the artifact upload and download use the runner's
+  # own token, not this one).
   interval:
     name: interval
     needs: filter
     if: github.event_name != 'push'
     uses: ./.github/workflows/interval.yml
+    permissions:
+      contents: read
+      actions: read
     with:
       run_build: ${{ needs.filter.outputs.run_build }}
       lane: ${{ needs.filter.outputs.lane }}
