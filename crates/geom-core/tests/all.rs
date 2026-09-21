@@ -145,6 +145,8 @@ mod sym11_witness_kind_rows;
 mod sym_drive_memo;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
+#[path = "sym12_r1_probes.rs"]
+mod sym12_r1_probes;
 #[path = "sym_rule_f_interval_rows.rs"]
 mod sym_rule_f_interval_rows;
 #[path = "sym_rule_f_rows.rs"]
