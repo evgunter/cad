@@ -93,13 +93,12 @@ pub enum Polarity {
 /// with a channel nothing computed. There is no door downstream of
 /// this one: the uniform is where the crate last has a type system.
 ///
-/// So the bound is the type's, and the two ways to build one are the
-/// two the bound can be checked in. [`MixFraction::new`] answers a
-/// caller at run time and refuses what it cannot weight;
-/// [`MixFraction::literal`] is this module's own door for the
-/// registry constants and is refused **by the compiler**, because a
-/// failed `assert!` in a `const` context is a build error rather than
-/// a panic. Between them nothing else can make one.
+/// So the bound is the type's, and [`MixFraction::new`] is the one
+/// door through it: nothing else can make one. It refuses a caller at
+/// run time with `None`, and in a `const` item the `unwrap` that
+/// follows it is evaluated by the compiler, so a registry palette
+/// stating a weight outside `[0, 1]` — a `NaN` included — fails the
+/// BUILD rather than reaching the uniform.
 ///
 /// `[0, 1]` and not merely *a number*: outside that range `mix`
 /// extrapolates — a colour brighter than either input, with nothing
@@ -119,9 +118,15 @@ impl MixFraction {
     ///
     /// **`const`, so that a consumer can state a palette the way this
     /// module states one.** `Theme` and `Mark` are built as `const`
-    /// items here; without this a downstream `const Theme` could not
-    /// name a weight at all, and the private [`MixFraction::literal`]
-    /// would be a `const` door the crate kept for itself.
+    /// items here, each weight written `MixFraction::new(w).unwrap()`;
+    /// an `unwrap` in a `const` item is a build error and never a
+    /// panic, which is what makes a checked constructor affordable in
+    /// a registry. **That `unwrap` is held to a `const` item by the
+    /// lint rather than by this sentence**: the workspace denies
+    /// `clippy::unwrap_used`, and a const-evaluated call is exempt
+    /// while the same call in a running body is not — so the one
+    /// failure this design is written against, a build error turning
+    /// into a panic, reds `-D warnings` where it is written.
     #[allow(
         clippy::manual_range_contains,
         reason = "a `const fn` cannot call `RangeInclusive::contains`"
@@ -132,43 +137,6 @@ impl MixFraction {
         } else {
             None
         }
-    }
-
-    /// A mix fraction written as a literal in this module's registry.
-    ///
-    /// **Every call sits in a `const` item below**, so the assertion
-    /// is evaluated by the compiler and a palette stating a weight
-    /// outside `[0, 1]` — a `NaN` included — fails the BUILD with this
-    /// message. That is what makes a checked constructor affordable in
-    /// a `const`, where a `Result` cannot be unwrapped.
-    ///
-    /// **That reason names the wrong type, and the door it justifies may
-    /// be redundant.** `MixFraction::new` answers an `Option`, not a
-    /// `Result`, and `Option::unwrap` has been const-stable since Rust
-    /// 1.83 against a 1.97 pin — so `new(x).unwrap()` in a `const` item
-    /// is the same build error this `assert!` gives, from the one public
-    /// door. Whether that collapses the pair is not settled here, because
-    /// the workspace denies `clippy::unwrap_used` and the registry would
-    /// carry the `allow`:
-    /// `work/vgeom/mixfraction-has-two-constructors-where-one-would-do`
-    /// holds the executed evidence and the three things that could defeat
-    /// it.
-    ///
-    /// **Nothing enforces that sentence, and the failure it allows is
-    /// the one this type exists against.** A `const fn` is callable at
-    /// run time too, so a later non-`const` call inside this module
-    /// compiles and turns the advertised build error into a panic —
-    /// which is what `MixFraction::new` is for, and why this door is
-    /// private and stays private. The usual mechanical guard, a
-    /// `compile_fail` doctest, cannot reach a private item, so what
-    /// holds this is the reviewer and the fact that its only callers
-    /// are the three constants below it.
-    const fn literal(fraction: f32) -> Self {
-        assert!(
-            fraction >= 0.0 && fraction <= 1.0,
-            "a mix fraction is in [0, 1]"
-        );
-        Self(fraction)
     }
 
     /// The fraction, as the number a mix multiplies by.
@@ -405,24 +373,24 @@ const DARK_NEUTRAL: Theme = Theme {
     // A neutral machined grey, so shading reads as shape rather than
     // as colour.
     body: Rgba8::opaque(206, 209, 214),
-    ambient: MixFraction::literal(0.25),
+    ambient: MixFraction::new(0.25).unwrap(),
     // A near-black with a trace of blue in it.
     ground: Rgba8::opaque(24, 26, 30),
     selected: Mark {
         tint: Rgba8::opaque(255, 206, 111),
-        strength: MixFraction::literal(0.55),
+        strength: MixFraction::new(0.55).unwrap(),
     },
     hovered: Mark {
         tint: Rgba8::opaque(179, 221, 255),
-        strength: MixFraction::literal(0.55),
+        strength: MixFraction::new(0.55).unwrap(),
     },
     probe: Mark {
         tint: Rgba8::opaque(206, 160, 249),
-        strength: MixFraction::literal(0.65),
+        strength: MixFraction::new(0.65).unwrap(),
     },
     focus: Mark {
         tint: Rgba8::opaque(255, 229, 173),
-        strength: MixFraction::literal(0.24),
+        strength: MixFraction::new(0.24).unwrap(),
     },
     unresolved: Rgba8::opaque(210, 90, 70),
     // Construction blue, well above the near-black ground.
@@ -453,7 +421,7 @@ const LIGHT_NEUTRAL: Theme = Theme {
     name: "light-neutral",
     polarity: Polarity::Light,
     body: Rgba8::opaque(206, 209, 214),
-    ambient: MixFraction::literal(0.45),
+    ambient: MixFraction::new(0.45).unwrap(),
     // Near-white rather than the mid grey a light chrome suggests:
     // the body is itself a pale grey, so a ground anywhere near it
     // puts a lit facet on top of its own background. Above the body
@@ -461,19 +429,19 @@ const LIGHT_NEUTRAL: Theme = Theme {
     ground: LIGHT_GROUND,
     selected: Mark {
         tint: Rgba8::opaque(255, 206, 111),
-        strength: MixFraction::literal(0.55),
+        strength: MixFraction::new(0.55).unwrap(),
     },
     hovered: Mark {
         tint: Rgba8::opaque(179, 221, 255),
-        strength: MixFraction::literal(0.55),
+        strength: MixFraction::new(0.55).unwrap(),
     },
     probe: Mark {
         tint: Rgba8::opaque(206, 160, 249),
-        strength: MixFraction::literal(0.65),
+        strength: MixFraction::new(0.65).unwrap(),
     },
     focus: Mark {
         tint: Rgba8::opaque(255, 229, 173),
-        strength: MixFraction::literal(0.24),
+        strength: MixFraction::new(0.24).unwrap(),
     },
     // Darker than the dark theme's red by as much as the ground
     // moved: the same hue at the same lightness on a pale panel is
@@ -589,7 +557,7 @@ const COLORBLIND_SAFE: Theme = Theme {
     // further is what the check refuses: at sRGB 200 the worst pair
     // is 0.0583, under the bar.
     body: Rgba8::opaque(190, 190, 188),
-    ambient: MixFraction::literal(0.42),
+    ambient: MixFraction::new(0.42).unwrap(),
     // The light themes' ground: the ladder's top rung is a light
     // amber, and that is the nearest swatch to it — everything else
     // in this palette is far below.
@@ -597,14 +565,14 @@ const COLORBLIND_SAFE: Theme = Theme {
     // The top rung — a light amber.
     selected: Mark {
         tint: Rgba8::opaque(255, 221, 110),
-        strength: MixFraction::literal(0.75),
+        strength: MixFraction::new(0.75).unwrap(),
     },
     // A deep blue, a clear step DOWN from the body where the neutral
     // themes' hover is a step up. This is the pair the check binds
     // on: body against hover under tritanopia, at 0.0872.
     hovered: Mark {
         tint: Rgba8::opaque(28, 66, 158),
-        strength: MixFraction::literal(0.70),
+        strength: MixFraction::new(0.70).unwrap(),
     },
     // The bottom rung, and the darkest thing on screen. G3 asks that
     // a probed placement be unmistakable; under every vision type in
@@ -614,7 +582,7 @@ const COLORBLIND_SAFE: Theme = Theme {
     // the pair it binds against is hover, at 0.0759.
     probe: Mark {
         tint: Rgba8::opaque(16, 10, 26),
-        strength: MixFraction::literal(0.78),
+        strength: MixFraction::new(0.78).unwrap(),
     },
     // **A dimming, not a lightening** — the one place this palette
     // parts company with the neutral themes' idea of a focus, and the
@@ -627,7 +595,7 @@ const COLORBLIND_SAFE: Theme = Theme {
     // emphasis rather than something switched off.
     focus: Mark {
         tint: Rgba8::opaque(18, 20, 30),
-        strength: MixFraction::literal(0.35),
+        strength: MixFraction::new(0.35).unwrap(),
     },
     // Dark, for the reason `LIGHT_NEUTRAL`'s is: this palette's
     // chrome is pale, and a light red on a pale panel is the one

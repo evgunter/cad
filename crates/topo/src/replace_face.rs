@@ -142,7 +142,6 @@ use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::SurfaceKey;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
-use crate::props::PropsQuadLane;
 use crate::validate::{ValidationError, validate_closed};
 
 /// Typed refusal of the face-replacement door. Scalar payloads echo the
@@ -1038,7 +1037,7 @@ struct EdgePlan<T: Real> {
 /// door's, the apex-window predicate, the C5 routing boundary, the
 /// carrier lanes' scope, a re-derivation the attach layer's
 /// certification rejects, and a clone that does not validate.
-pub fn replace_face_offset<T: Decide + PropsQuadLane + crate::props::AtRestPolicy>(
+pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     d: T,
@@ -1070,7 +1069,7 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane + crate::props::AtRestPolic
 ///
 /// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
 /// gates.
-pub fn replace_faces_offset<T: Decide + PropsQuadLane + crate::props::AtRestPolicy>(
+pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,
@@ -1324,7 +1323,7 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane + crate::props::AtRestPoli
 // than the `tolerance, band` this used to end in: the raw tolerance is
 // gone and the witness takes the trailing position every door on this
 // chain gives it.
-fn mint_offset<T: Decide + PropsQuadLane>(
+fn mint_offset<T: Decide>(
     face: FaceKey,
     old: &Surface<T>,
     d: T,

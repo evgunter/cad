@@ -2,7 +2,7 @@
 id: vgeom
 kind: program
 title: VGEOM — the viewer's geometry, camera and numeric renders
-status: ready
+status: active
 opened: 2026-09-17
 area: gui
 prefix: vgeom/
@@ -22,7 +22,8 @@ arrived from `work/view/`, each by `git mv` with its body and its
 history unchanged.
 
 Charter and order: `work/vgeom/plan.md`; narrative in
-`work/vgeom/log.md`. The lane register that binds every lane dispatched
-here is `work/view/plan.md`'s, inherited by reference and not copied —
-`work/vgeom/plan.md` §The register says why and what happens to it when
-VIEW's directory goes.
+`work/vgeom/log.md`. The standing discipline every lane dispatched here is held to is
+`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md`, handed over by path —
+§The discipline a lane is held to in the plan says what became of
+the rule register that used to sit beside them.
