@@ -1076,13 +1076,12 @@ impl PickIndex {
             // geometry's box, so a camera still has a real extent to
             // frame against (the case the docs above state).
             //
-            // An index with NO PARTS is the other. A document that
-            // denotes no body is a state rather than a fault — that
-            // reading's one home is
-            // `ProductErrorKind::means_no_body`, and `SceneMesh::nothing`
-            // is the picture of it. Refusing here would instead leave
-            // the PREVIOUS picture on screen under an error line, so
-            // the document would go on showing a body it no longer has.
+            // An index with NO PARTS is the other, and whether such a
+            // document is a fault is `ProductErrorKind::means_no_body`'s
+            // to say. `SceneMesh::nothing` is the picture of one.
+            // Refusing here would instead leave the PREVIOUS picture on
+            // screen under an error line, so the document would go on
+            // showing a body it no longer has.
             if self.parts.is_empty() {
                 return Ok(SceneMesh::nothing(self.key.delta()));
             }

@@ -174,9 +174,10 @@
 //! the advisory checks ([`checks_badge`]), the δ the display budget
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
 //! store that keeps no preferences ([`prefs_badge`]), the datums this
-//! view draws nothing of ([`datums_badge`]), and the three display
-//! seams that hold a refusal — the scene ([`scene_badge`]), the pick
-//! index ([`index_badge`]) and the projection ([`projection_badge`]).
+//! view draws nothing of ([`datums_badge`]), the profiles it draws
+//! nothing of ([`profiles_badge`]), and the three display seams that
+//! hold a refusal — the scene ([`scene_badge`]), the pick index
+//! ([`index_badge`]) and the projection ([`projection_badge`]).
 //! The population is every function here returning `Option<Badge>`,
 //! which `frame_policy.rs` counts against the README rather than
 //! against this sentence.
@@ -1724,7 +1725,7 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 /// refusal at all — the whole of what this crate decides about a
 /// [`ProductError`], and the answer [`product_badge`] gates on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum BadgeSite {
+enum BadgeSite {
     /// This frame badges it: a gather-level fault no per-node badge
     /// can carry — a naming collision across roots, a graft the kernel
     /// refused, a validity verdict on the assembled product, an
@@ -1733,8 +1734,9 @@ pub(crate) enum BadgeSite {
     /// The Features pane badges it AT the node, with the typed cause,
     /// so the frame stays silent.
     FeatureTree,
-    /// Nothing is wrong to report: the document denotes no body, which
-    /// is a state rather than a failure.
+    /// No channel at all, because the class is one
+    /// [`ProductErrorKind::means_no_body`] claims. What that means
+    /// about the document is stated there and nowhere else.
     NotAFault,
 }
 
@@ -1751,7 +1753,10 @@ pub(crate) enum BadgeSite {
 /// `Failed`, `Poisoned`, `Unevaluated` — and
 /// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
 /// [`ProductError::UnknownNode`] are those same three states seen from
-/// the gather. The tree badges each AT the node and carries the typed
+/// the gather. That count is a MEASUREMENT of another module's enum,
+/// so it does not stand on this `match` being exhaustive:
+/// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
+/// is its guard, and a fourth non-`Ok` state reds there. The tree badges each AT the node and carries the typed
 /// cause with it, so a frame badge would say strictly less, in a
 /// louder colour, one row above a status line already reporting the
 /// same root's tessellation refusal. The Features pane goes further
@@ -1768,12 +1773,19 @@ pub(crate) enum BadgeSite {
 /// call rather than by being named again. The blank viewport is
 /// already the picture of such a document.
 ///
-/// The two questions are asked in that order because they are
-/// independent. [`ProductErrorKind::means_no_body`]'s contract is that
-/// `false` says the class IS a refusal, not that this consumer is the
-/// one to report it — so a class the tree already badges is the
-/// tree's, whichever way the cited rule answers it.
-pub(crate) fn badge_site(kind: ProductErrorKind) -> BadgeSite {
+/// They are asked in that order because they are independent, which
+/// is what [`ProductErrorKind::means_no_body`]'s contract says a
+/// `false` does and does not appoint: a class the tree already badges
+/// is the tree's, whichever way the cited rule answers it.
+///
+/// **What the compiler buys here is exhaustiveness over the classes,
+/// not liveness of the citation.** A new class cannot dodge this
+/// `match`. Moving [`ProductErrorKind::NoBodyRoots`] into the first
+/// arm would instead leave a call that can never answer `true` — a
+/// dead citation, which nothing reds on and only
+/// `the_gather_verdict_badges_only_the_faults_nothing_else_carries`
+/// catches.
+fn badge_site(kind: ProductErrorKind) -> BadgeSite {
     match kind {
         ProductErrorKind::RootFailed
         | ProductErrorKind::RootPoisoned
@@ -1958,7 +1970,7 @@ pub fn datums_badge(vanished: usize) -> Option<Badge> {
     (vanished > 0).then(|| {
         // The noun agrees with the count: "1 datums" is the tell that
         // a sentence was assembled rather than written, and this one
-        // is read at a glance beside eight others.
+        // is read at a glance beside the others.
         let noun = if vanished == 1 { "datum" } else { "datums" };
         Badge::read(
             Subject::Camera,
@@ -2172,6 +2184,7 @@ mod tests {
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
     use crate::display::AdmissionFault;
+    use crate::tree::RowStatus;
 
     /// A camera — any camera. Nothing here reads it: [`fold_status`]
     /// judges what a fold REFUSED, and [`Folded`] has to carry one.
@@ -2483,20 +2496,82 @@ mod tests {
         // And the classes this channel is FOR, by name rather than by
         // the one sample above — the half of the policy a badge that
         // went silent would not fail.
-        for kind in [
-            ProductErrorKind::EvaluationOfAnotherDocument,
-            ProductErrorKind::Naming,
-            ProductErrorKind::Graft,
-            ProductErrorKind::SolidInvalid,
-            ProductErrorKind::ProductInvalid,
-            ProductErrorKind::ContactLineage,
-        ] {
-            assert_eq!(
-                badge_site(kind),
-                BadgeSite::Frame,
-                "no per-node badge carries it: {kind:?}"
+        for kind in EVERY_KIND {
+            if badge_site(kind) == BadgeSite::Frame {
+                continue;
+            }
+            assert!(
+                matches!(
+                    kind,
+                    ProductErrorKind::RootFailed
+                        | ProductErrorKind::RootPoisoned
+                        | ProductErrorKind::UnknownNode
+                        | ProductErrorKind::NoBodyRoots
+                ),
+                "no per-node badge carries this one, so the frame owes it: {kind:?}"
             );
         }
+    }
+
+    /// Every [`ProductErrorKind`], written out once for the rows that
+    /// range over the whole enum.
+    ///
+    /// **A hand-maintained census, and this is the reason it can be
+    /// one** (`docs/prompts/reviewer-style-lane.md` Q6): a class
+    /// cannot be added without [`badge_site`]'s `match` refusing to
+    /// compile, so whoever adds one is already standing at the site
+    /// that sends them here. No guard can be cheaper than that, and a
+    /// scheduled re-measure would fire later than the compiler does.
+    const EVERY_KIND: [ProductErrorKind; 10] = [
+        ProductErrorKind::EvaluationOfAnotherDocument,
+        ProductErrorKind::UnknownNode,
+        ProductErrorKind::Naming,
+        ProductErrorKind::RootFailed,
+        ProductErrorKind::RootPoisoned,
+        ProductErrorKind::NoBodyRoots,
+        ProductErrorKind::Graft,
+        ProductErrorKind::SolidInvalid,
+        ProductErrorKind::ProductInvalid,
+        ProductErrorKind::ContactLineage,
+    ];
+
+    /// **The guard for the count [`badge_site`]'s doc states about
+    /// another module's enum.**
+    ///
+    /// That policy leaves a class to the Features pane because the
+    /// pane has a row status to carry it, one for one. A fourth
+    /// non-`Ok` [`RowStatus`] would be a state nothing here pairs
+    /// with, and the count in the prose would be silently wrong — so
+    /// the `match` below is exhaustive over `RowStatus` and reds on a
+    /// new variant, at the claim rather than a schedule away from it.
+    #[test]
+    fn the_tree_still_has_exactly_the_three_states_this_policy_pairs_with() {
+        let non_ok = |status: &RowStatus| match status {
+            RowStatus::Ok => 0_usize,
+            RowStatus::Failed { .. } | RowStatus::Poisoned { .. } | RowStatus::Unevaluated => 1,
+        };
+        let states: usize = [
+            RowStatus::Ok,
+            RowStatus::Failed {
+                message: String::new(),
+            },
+            RowStatus::Poisoned {
+                through: RecipeNodeId(1),
+                message: None,
+            },
+            RowStatus::Unevaluated,
+        ]
+        .iter()
+        .map(non_ok)
+        .sum();
+        let left_to_the_tree = EVERY_KIND
+            .iter()
+            .filter(|kind| badge_site(**kind) == BadgeSite::FeatureTree)
+            .count();
+        assert_eq!(
+            left_to_the_tree, states,
+            "every class this policy leaves to the Features pane is left to a row the pane draws"
+        );
     }
 
     #[test]
