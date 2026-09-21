@@ -2769,7 +2769,9 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// be failing on is the bound — `E0277`, *required by a bound in
 /// `validate_geometric`*, `CertifiedEnclosure` not implemented for
 /// `Dual<f64>`.
-pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+pub fn validate_geometric<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
@@ -2880,7 +2882,9 @@ pub fn validate_geometric_certificate<
 ///
 /// As [`validate_geometric`], less [`ValidationError::NegativeVolume`]
 /// and [`ValidationError::VolumeUncomputable`].
-pub fn validate_geometric_structural<T: crate::props::PropsQuadLane + crate::props::AtRestPolicy>(
+pub fn validate_geometric_structural<
+    T: crate::props::PropsQuadLane + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
@@ -2893,7 +2897,9 @@ pub fn validate_geometric_structural<T: crate::props::PropsQuadLane + crate::pro
 /// # Errors
 ///
 /// As [`validate_geometric_structural`].
-pub fn validate_geometric_structural_declared<T: crate::props::PropsQuadLane + crate::props::AtRestPolicy>(
+pub fn validate_geometric_structural_declared<
+    T: crate::props::PropsQuadLane + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
@@ -3049,7 +3055,9 @@ fn certificate_of_a_clean_verdict<C>(
 /// # Errors
 ///
 /// As [`validate_geometric`].
-pub fn validate_geometric_declared<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+pub fn validate_geometric_declared<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
@@ -3494,7 +3502,9 @@ pub fn contact_marks_declared<T: crate::props::PropsQuadLane + crate::props::AtR
 /// # Errors
 ///
 /// As [`contact_marks`].
-pub fn contact_marks_certified<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+pub fn contact_marks_certified<
+    T: crate::props::PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
@@ -5246,7 +5256,9 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// aggregate gate take it. This door keeps its lane so a
 /// [`Dual`](geom_core::Dual) body can still go through the tier-3′
 /// pass, which is the capability H-R3 protects.
-pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy>(
+pub fn validate_pseudomanifold<
+    T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -5286,7 +5298,9 @@ pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane + geom_core::Bound
 /// # Errors
 ///
 /// As [`validate_pseudomanifold`].
-pub fn validate_pseudomanifold_certificate<T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy>(
+pub fn validate_pseudomanifold_certificate<
+    T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -5350,7 +5364,9 @@ pub fn validate_pseudomanifold_certified<
 
 /// The tier-3′ pass with check 2's lane as an argument — the shared
 /// body of the lane-keeping door and its certified twin.
-fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy>(
+fn pseudomanifold_certificate_via<
+    T: crate::props::PropsQuadLane + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
@@ -9314,7 +9330,9 @@ mod offset_fit_door_rows {
     #[cfg(feature = "probe")]
     #[test]
     fn the_probe_seam_reaches_the_same_refusal() {
-        let (errors, face) = check1::<geom_core::Probe>(<geom_core::Probe as crate::props::AtRestPolicy>::offset_fit_lane());
+        let (errors, face) = check1::<geom_core::Probe>(
+            <geom_core::Probe as crate::props::AtRestPolicy>::offset_fit_lane(),
+        );
         assert!(
             errors.iter().any(
                 |e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)

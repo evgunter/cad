@@ -11,6 +11,8 @@
 //! first — which is recorded here as an assertion rather than left as
 //! a thing a reader would have to run the suite to learn.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use std::sync::Arc;
 
 use geom::{ApproxSurface, NurbsSurface, Surface};
@@ -68,7 +70,9 @@ fn approx_seed<T: Decide>() -> (Body<T>, FaceKey) {
 }
 
 fn nurbs_seed<T: Decide>() -> (Body<T>, FaceKey) {
-    seed_with(Surface::Nurbs(Arc::new(bowed_patch().map_scalar(T::from_f64))))
+    seed_with(Surface::Nurbs(Arc::new(
+        bowed_patch().map_scalar(T::from_f64),
+    )))
 }
 
 fn turned<T: Real>() -> Affine3<T> {
@@ -124,7 +128,10 @@ fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
             let expected = lane.unwrap_or_else(|| {
                 panic!("{label}: this scalar answers the seam, so the map must re-derive")
             });
-            assert_eq!(named, expected, "{label}: the refusal names the scalar's lane");
+            assert_eq!(
+                named, expected,
+                "{label}: the refusal names the scalar's lane"
+            );
         }
         Err(other) => panic!("{label} transform_rigid: {other:?}"),
     }
@@ -138,7 +145,10 @@ fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
                 lane.is_some(),
                 "{label}: this scalar answers the seam, so the mint must not report its absence"
             );
-            assert_eq!(f, nface, "{label}: the refusal names the face it could not mint");
+            assert_eq!(
+                f, nface,
+                "{label}: the refusal names the face it could not mint"
+            );
         }
         other => assert!(
             lane.is_none(),

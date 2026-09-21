@@ -228,7 +228,8 @@ mod wiring_rows {
                         &geom::ApproxSurface<f64>,
                         geom_core::Tol,
                         geom_core::Band,
-                    ) -> Result<geom::OffsetCertificate, crate::OffsetFitError>
+                    )
+                        -> Result<geom::OffsetCertificate, crate::OffsetFitError>
             ),
             "the recertify limb is wired to something other than `offset_fit::recertify_approx` \
              — a `_at` instrument at a fixed target answers the same limbs on any one surface, \
@@ -259,9 +260,11 @@ mod wiring_rows {
     fn remap_is_the_window_rule_body() {
         let lane = OffsetFitLane::fit();
         assert!(
-            std::ptr::fn_addr_eq(lane.remap, remap_offset_certificate as fn(_, _, _, _, _) -> _),
+            std::ptr::fn_addr_eq(
+                lane.remap,
+                remap_offset_certificate as fn(_, _, _, _, _) -> _
+            ),
             "the remap limb is wired to something other than this module's window-rule body"
         );
     }
 }
-

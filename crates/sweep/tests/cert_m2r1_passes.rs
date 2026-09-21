@@ -149,7 +149,9 @@ fn dump<T: PropsQuadLane + geom_core::Bounds + core::fmt::Debug + topo::AtRestPo
     );
 }
 
-fn dump_composed<T: PropsQuadLane + geom_core::CertifiedBounds + core::fmt::Debug + topo::AtRestPolicy>(
+fn dump_composed<
+    T: PropsQuadLane + geom_core::CertifiedBounds + core::fmt::Debug + topo::AtRestPolicy,
+>(
     scalar: &str,
     name: &str,
     body: &Body<T>,

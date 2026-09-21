@@ -1816,7 +1816,11 @@ fn anchored(
 // the descent chain the attached tokens' scope is.
 #[allow(clippy::too_many_arguments)]
 fn wire_swept<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane + topo::AtRestPolicy,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::verbs::shell::ShellLane
+        + topo::AtRestPolicy,
     A,
 >(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
@@ -1874,7 +1878,11 @@ fn wire_swept<
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
 fn wire_extrude<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane + topo::AtRestPolicy,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::verbs::shell::ShellLane
+        + topo::AtRestPolicy,
 >(
     id: RecipeNodeId,
     profile: RecipeNodeId,
@@ -1924,7 +1932,11 @@ fn written_against(
 // for the frame rule and the operand profile's own expressions.
 #[allow(clippy::too_many_arguments)]
 fn wire_revolve<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane + topo::AtRestPolicy,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::verbs::shell::ShellLane
+        + topo::AtRestPolicy,
 >(
     id: RecipeNodeId,
     profile: RecipeNodeId,
@@ -2279,7 +2291,11 @@ fn verb_refused<T: crate::verbs::shell::ShellLane>(refusal: verbs::VerbError<T>)
 // environment, read for the descent chain the token's scope is.
 #[allow(clippy::too_many_arguments)]
 fn wire_blend<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane + topo::AtRestPolicy,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::verbs::shell::ShellLane
+        + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
@@ -3070,7 +3086,11 @@ fn wire_assertion<T: Decide>(
 /// inside the kernel door and is reached through the verb door
 /// unchanged; nothing here re-derives the plane or its orientation.
 fn wire_split<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane + topo::AtRestPolicy,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::verbs::shell::ShellLane
+        + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
@@ -3232,7 +3252,11 @@ fn wire_part<T: Decide>(
 // per pair verb: the verb constructor and the naming emitter.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
 fn wire_boolean<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane + topo::AtRestPolicy,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::verbs::shell::ShellLane
+        + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
@@ -3359,7 +3383,11 @@ fn wire_boolean<
 // named input, and the declare edge is one of them.
 #[allow(clippy::too_many_arguments)]
 fn wire_union<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane + topo::AtRestPolicy,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::verbs::shell::ShellLane
+        + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
@@ -4781,7 +4809,9 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
 /// node, which may hand back the prototype verbatim for its identity
 /// instance, a placed union has no reason to special-case a map that an
 /// explicit rule need not make the identity.
-fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn wire_placed_union<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy,
+>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,

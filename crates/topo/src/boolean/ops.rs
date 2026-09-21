@@ -339,7 +339,9 @@ pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::prop
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn intersect_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -360,7 +362,9 @@ pub fn intersect_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn subtract_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -386,7 +390,9 @@ pub fn subtract_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::p
 /// # Errors
 ///
 /// [`BooleanError`] — identical to [`union`] and friends.
-pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn boolean_op_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -456,7 +462,9 @@ pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate:
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
-fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+fn boolean_op_recut<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,

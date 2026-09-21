@@ -56,7 +56,11 @@ fn glue<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtR
 /// surviving records, rest records consumed (3′ ≡ tier 3). Exact
 /// volume equality is asserted by the f64 rows (the Interval lane has
 /// no scalar equality by design — NaI ≠ NaI).
-fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>(g: &BooleanBody<T>) {
+fn assert_glued<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>(
+    g: &BooleanBody<T>,
+) {
     assert_eq!(g.kind, BooleanResultKind::Seamed);
     assert_eq!(validate_geometric(&g.body, Tol::witness()), Ok(()));
     assert_eq!(
@@ -74,8 +78,9 @@ fn assert_glued<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + t
 /// body with the contact faces gone; the declared same-oriented side
 /// planes merge in the output stage, leaving the plain brick's six
 /// faces. Undeclared, the coincidence door refuses unchanged.
-fn stacked_plates_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>()
--> BooleanBody<T> {
+fn stacked_plates_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() -> BooleanBody<T> {
     let bot = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
     let top = brick::<T>((0.0, 2.0), (0.0, 2.0), (1.0, 2.0), Tol::witness());
     let err = union(&bot, &top, Tol::witness()).unwrap_err();
@@ -132,8 +137,9 @@ fn three_plate_chain() {
 /// one interior corner (a pierce-ring vertex the seam chords consume).
 /// Declared, the union BUILDS; undeclared, the coincidence door
 /// refuses; ∖ stays operand A (no join door was ever reached).
-fn corner_flush_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>()
--> (BooleanBody<T>, BooleanBody<T>) {
+fn corner_flush_scenario<
+    T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy,
+>() -> (BooleanBody<T>, BooleanBody<T>) {
     let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
     let corner = brick::<T>((0.0, 1.0), (0.0, 1.0), (1.0, 3.0), Tol::witness());
     let err = union(&slab, &corner, Tol::witness()).unwrap_err();

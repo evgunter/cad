@@ -94,15 +94,9 @@ fn the_f64_seam_answers_every_public_door() {
     );
     let spec = m.spec();
     let geom::SurfaceDescription::Offset { base, d: dm } = &spec.description;
-    let free = geom_brep::certify_offset_over_at(
-        base,
-        &spec.fit,
-        *dm,
-        spec.window,
-        m.tolerance(),
-        band(),
-    )
-    .expect("`geom-brep`'s certifier measures the mapped pair");
+    let free =
+        geom_brep::certify_offset_over_at(base, &spec.fit, *dm, spec.window, m.tolerance(), band())
+            .expect("`geom-brep`'s certifier measures the mapped pair");
     let got = m.certificate();
     for (name, x, y) in [
         ("distance", got.distance, free.distance),
@@ -210,9 +204,9 @@ fn the_interval_seam_refuses_at_every_public_door() {
         let Err(errors) = r else {
             panic!("{door}: the interval scalar has no fit, so the Approx face must be reported");
         };
-        let found = errors.iter().find(|e| {
-            matches!(e, topo::ValidationError::ApproxLaneUnsupported { face: f } if *f == face)
-        });
+        let found = errors.iter().find(
+            |e| matches!(e, topo::ValidationError::ApproxLaneUnsupported { face: f } if *f == face),
+        );
         let found =
             found.unwrap_or_else(|| panic!("{door}: the face must be reported: {errors:?}"));
         assert!(

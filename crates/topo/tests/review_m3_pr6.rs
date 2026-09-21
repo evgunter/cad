@@ -510,7 +510,9 @@ fn r4_extended_sweep_volume_identities() {
 /// `pm_census_ve_span` (and the vv lane at delta = 0 corners). For
 /// every delta at or inside ε the validator must REFUSE (finding or
 /// typed escalation) — a silent Ok is the R5 falsification.
-fn straddle_scenario<T: Decide + topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(delta: f64) {
+fn straddle_scenario<T: Decide + topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
+    delta: f64,
+) {
     let fx = prism_z::<T>(
         &[
             (0.0, 0.0),
