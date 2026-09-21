@@ -596,12 +596,23 @@ fn the_apex_cap_measures_on_a_general_cone() {
                         (Ok(a), Ok(b)) => (a, b),
                         other => panic!("alpha={alpha} apex={apex:?} axis={n:?} v={v}: {other:?}"),
                     };
+                    // The FIXTURE's own conditioning, not a fudge. The
+                    // kernel recovers `v` from `(center − apex)·axis`,
+                    // and this row deliberately places the apex far
+                    // from the origin relative to the cap's own size:
+                    // that subtraction cancels `|apex| / (|v|·cos α)`
+                    // of its digits and the area squares what is left.
+                    // Where the apex IS the origin the factor is 1 and
+                    // the threshold is the flat `1e-12` this row was
+                    // written with.
+                    let cancel =
+                        1.0 + (apex - geom_core::Point3::origin()).norm() / (v.abs() * alpha.cos());
                     for (tag, fc) in [("+u", &fp), ("-u", &fm)] {
                         let rel = (fc.area - exact).abs() / exact;
                         assert!(
-                            rel < 1e-12,
+                            rel < 1e-12 * cancel,
                             "{tag} alpha={alpha} axis={n:?} v={v}: area {:.17e} != {exact:.17e} \
-                             (rel {rel:.3e})",
+                             (rel {rel:.3e}, conditioning {cancel:.3e})",
                             fc.area
                         );
                     }
