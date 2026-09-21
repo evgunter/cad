@@ -763,3 +763,20 @@ wrong twice. Unique R2: the census admits the instrument through the
 whole new file; the plan and item still describe the spec's shape.
 Fix pass dispatched on the OPUS arm; it also re-homes the FIX row to
 WIRE (FIX left the tracker on main between the two runs).
+
+## RING-0 in review (2026-09-21)
+
+PR 2993 froze at `146ef44906` (run 35577652630 green, 39 jobs); the
+dry run sits on `scalar/ring-0-dry-run` at `a1555ab6d0`, never merged.
+What the implementer reports: a three-class allowlist (a zero times an
+unbounded operand under `×`, unbounded over unbounded under `÷`, a
+`powi` chain spanning zero and infinity), one fact — an indeterminate
+IEEE corner the ring poisons on and the backend resolves at `Dac`;
+division agreed on ~395k refusals per lane with zero disagreements;
+the dry run 22 red of 3,771 at default, sixteen tighter pins, zero
+looser, zero division verdicts, `topo` 0; 436 tighter / 0 looser over
+the 960-row coefficient corpus (ruling 2's number); 23 endpoint reads
+over 9 production files (not the survey's 28/14), 17 unguarded, none
+reached by the dry run — RING-2's hazard list. Ordinal 4112 claimed on
+main; byte 23 parity 1 ⇒ R1 FABLE, R2 OPUS, concurrent, briefs stored
+before dispatch. Two rows filed on this slate.
