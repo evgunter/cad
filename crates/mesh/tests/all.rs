@@ -481,3 +481,5 @@ fn the_eps_inventory_is_pinned() {
 mod r2_mesh7_probes;
 #[path = "r2_sense_e2e.rs"]
 mod r2_sense_e2e;
+#[path = "tess1_r2_probes.rs"]
+mod tess1_r2_probes;
