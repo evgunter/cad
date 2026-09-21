@@ -136,6 +136,54 @@ pub enum SessionOp {
         /// The new value.
         value: SlotValue,
     },
+    /// Change how a document parameter's value is WRITTEN — its
+    /// display unit — leaving the exact value alone.
+    ///
+    /// [`SessionOp::SetSlotUnit`]'s counterpart at the other kind of
+    /// row, and a separate door from [`SessionOp::SetParam`] for that
+    /// one's reason: a parameter's value and its notation are
+    /// independent facts about the declaration, and an operation that
+    /// moved both could not move either alone.
+    ///
+    /// There is no "remember no unit" spelling here either: a
+    /// continuous declaration always names its notation, and the
+    /// canonical one is named by naming it. A `Count` names none and
+    /// refuses.
+    SetParamUnit {
+        /// The parameter.
+        name: ParamName,
+        /// The unit to write it in.
+        unit: UnitDef,
+    },
+    /// Write a document parameter from the text a person typed into
+    /// its value field — a number and, optionally, the notation to
+    /// write it in.
+    ///
+    /// **The unit-bearing half of the panel's value field**, and the
+    /// door that reads `50 mm`. A bare number needs no parse and takes
+    /// [`SessionOp::SetParam`] instead, the way a slot's bare number
+    /// takes [`SessionOp::SetSlot`].
+    ///
+    /// The text is read by `editor_core::parse::parse_expr`, the one
+    /// parser of a unit-bearing number this workspace has, and the
+    /// value and its notation are committed as ONE action — one user
+    /// action is one undo, and a document that took the value without
+    /// the notation would be a half-applied edit nobody asked for.
+    ///
+    /// **A parameter holds a number, not an expression**
+    /// (`DocParam::Continuous` holds an `f64`), so text that parses to
+    /// anything but a literal is refused with
+    /// [`Refusal::ParamNotANumber`] — there is no
+    /// `SetDocParamExpression` for it to reach, and saying so is the
+    /// affordance. Text that does not parse at all carries
+    /// `parse_expr`'s own refusal, which names the token and its
+    /// offset.
+    SetParamText {
+        /// The parameter.
+        name: ParamName,
+        /// What was typed.
+        text: String,
+    },
     /// Declare a NEW document parameter — the panel's create
     /// affordance, committing exactly one `DocEdit::SetDocParam`.
     ///
@@ -904,6 +952,8 @@ impl SessionOp {
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetParam { .. }
+            | Self::SetParamUnit { .. }
+            | Self::SetParamText { .. }
             | Self::CreateParam { .. }
             | Self::Undo
             | Self::Redo
@@ -1074,10 +1124,13 @@ impl SessionOp {
     ///   [`SessionOp::BeginFreeMove`], which is the same rule about
     ///   the other drag.
     ///
-    /// Everything else is refused, and 24 of the 25 rows move the
-    /// document, the history or the file the drag is previewing
-    /// against. [`SessionOp::ProbeBounds`] is the twenty-fifth and
-    /// moves none of them: it READS the shown document, which
+    /// Everything else is refused, and all but one of those rows move
+    /// the document, the history or the file the drag is previewing
+    /// against — stated as "all but one" rather than as a count,
+    /// because the count is a property of the enum and goes stale the
+    /// day an operation joins it. [`SessionOp::ProbeBounds`] is the
+    /// exception and moves none of them: it READS the shown document,
+    /// which
     /// mid-drag is the scratch, so a range taken there would be a
     /// statement about a picture the drag is about to replace and
     /// would outlive it by one keystroke.
@@ -1107,6 +1160,8 @@ impl SessionOp {
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetParam { .. }
+            | Self::SetParamUnit { .. }
+            | Self::SetParamText { .. }
             | Self::CreateParam { .. }
             | Self::Undo
             | Self::Redo
@@ -1219,6 +1274,8 @@ impl SessionOp {
             | Self::SetSlotUnit { .. }
             | Self::SetSlotExpression { .. }
             | Self::SetParam { .. }
+            | Self::SetParamUnit { .. }
+            | Self::SetParamText { .. }
             | Self::CreateParam { .. }
             | Self::BeginGesture { .. }
             | Self::BeginParamGesture { .. }

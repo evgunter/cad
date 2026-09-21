@@ -1666,10 +1666,9 @@ mod tests {
             )
         );
 
-        // The interval variant's wording (the variant itself is not
-        // feature-gated — it is constructed here directly; the interval
-        // scalar that produces it organically lives behind the `interval`
-        // feature and has its own tests).
+        // The interval variant's wording; it is constructed here
+        // directly, because the interval scalar that produces it
+        // organically has its own tests.
         let enclosure = Indeterminate {
             margin: MarginDiag::Enclosure {
                 lo: -2e-9,
