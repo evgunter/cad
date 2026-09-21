@@ -2,9 +2,10 @@
 id: ring-0-poison-differential
 kind: unit
 title: RING-0: the poison differential — ring poison ⇔ backend dec < Def per op, and the newtype dry run that names every dependent site
-status: open
+status: review
 opened: 2026-09-21
 branch: scalar/ring-0
+pr: 2993
 ---
 
 ## What
