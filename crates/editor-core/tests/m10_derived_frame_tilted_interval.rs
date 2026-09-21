@@ -34,6 +34,7 @@
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};
+use crate::m10_8_harness::head;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
@@ -96,11 +97,6 @@ fn sym(
             evaluate(doc, None, &CancelToken::new(), &o, Tol::witness());
         failures(&ev)
     })
-}
-
-fn head(s: &str, n: usize) -> String {
-    let cut: String = s.chars().take(n).collect();
-    cut
 }
 
 fn param_doc(name: &str, nominal: f64, half: f64, r: &mut Recorder) {

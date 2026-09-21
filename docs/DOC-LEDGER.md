@@ -2636,7 +2636,7 @@ calls a successor's opening slate rather than residue.
 | `real-margin-dependency-widening` | `work/sym/` | the numeric channel's half of E12's division of labour — what stands between the plate's 0.263 ceiling and the flip at 0.625 |
 | `plate-ceiling-is-now-the-scaffold-pushforward` | `work/sym/` | one predicate bounds all five measured documents; the fix half is a PCURVE/D3 question and `geom-brep/src/certify.rs` is in no program's paths — TRIM is PCURVE's successor |
 | `rule-d-reaches-the-unit-bulge-only` | `work/sym/` | rule D is the tier's, and this is the next ceiling class after M10-10 |
-| `interval-self-dot-straddles-before-rule-a` | `work/sym/` | rule A's reach; the FIX is `powi(2)` in PROPS' `linalg/vec.rs` and is announced there — PROPS' linalg lane may take it |
+| `interval-self-dot-straddles-before-rule-a` | `work/sym/` | rule A's reach; the FIX is `powi(2)` in PROPS' `linalg/vec.rs` and is announced there — PROPS' linalg lane may take it [the row later moved to `work/decide/` and was CLOSED on DECIDE-1's measurement (#3001) with no `linalg` change: the fix had landed at M2 PR 4 for every norm] |
 | `param-box-certification-of-implicit-quantities` | `work/sym/` | the tier's frontier: an iterated quantity has no expression in the parameters. Came to M10 from S-CERT; follows the tier |
 | `declared-tangency-needs-the-registered-identity-door` | `work/sym/` | the door's live consumer; open rather than parked, and it waits on BLEND's fillet row |
 | `the-span-identity-is-not-a-theorem-of-the-floats` | `work/sym/` | the limit of what a registration means; `register_equal` is in PROPS' `real.rs`, reached by announced seam |
@@ -4405,3 +4405,84 @@ dev-only or optional" — it does not (its subject is `test-support` /
 does not. Recorded in the PR body and the unit's `## Closed` section.
 
 - `RING-1-SPEC.md` — RING-1, `geom_core::interval` compiles unconditionally; the feature gates only the instantiation (#2971)
+
+## Per-merge deletion — LANE-0's spec (2026-09-21)
+
+Recoverable at `git show eb100e1cbc:docs/LANE-0-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the seam arms supply `Some`
+where the scalar is `f64` (`AtRestPolicy for f64`, the `ShellLane` →
+seam arm for `f64`, `verbs/shell.rs` ~`:248-258`) and `None`
+elsewhere; `f64`-concrete public callers …" — threading the door from
+those arms was measured at 18 public doors and ~1,200 call sites and
+declined by the orchestrator's ruling (recorded in the item and the PR
+body): the `Some` is read at the one per-scalar seam ruling 3 keeps,
+`topo::AtRestPolicy::offset_fit_lane`, and the passes keep the door as
+their `Option` parameter; the `verbs/shell.rs` pointer lands on the
+`Dual` arm (the `f64` arm is `:176`); "(three per trait method)" — the
+fifteen impls are five scalars × three methods; §0's
+`crates/geom-core/src/offset_fit.rs` — the file is
+`crates/geom-brep/src/offset_fit.rs`; "the fixtures the existing `f64`
+rows use" — the sweep fixture is minted through the `_at` instrument
+at a fixed target and cannot be re-derived at the run's ε, so the
+subject is a new patch with the largest bow that certifies at every
+eps row (a bow that refines at every row was measured impossible);
+and the review brief's claim 5 ("mint pointed at remap") cannot
+compile, the live mis-wiring modes being a same-signature closure and
+the `_at` twin, both pinned by pointer identity. Recorded in the PR
+body and the unit's `## Closed` section.
+
+- `LANE-0-SPEC.md` — LANE-0, the `f64`-only offset-fit absence becomes an `Option` hook, out of the lane traits (#2981)
+## Per-merge deletion — RING-0's spec (2026-09-21)
+
+Recoverable at `git show b32b98bee6:docs/RING-0-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "The survey expected
+`point(±inf)` (ring poison / backend `Com`), `inf − inf` and overflow
+shapes, and zero disagreements on division" — `point(±inf)` is NaI at
+the backend and collapses to agreement, `inf − inf` is unreachable
+from valid brackets, overflow is not a class of `÷` but IS the
+mechanism of the negative-`powi` class (backend refuses where the
+ring certifies, found unilaterally by one reviewer by execution), and
+division disagrees on one class (unbounded over unbounded) while
+agreeing on every zero-touching divisor — the survey's "division
+should show zero disagreements" is false; "pick three of the dry run's
+red rows in three different consumers (e.g. `props/quad.rs`,
+`ssi/enclose.rs`, `mesh/nurbs_cert.rs`)" — `ssi/enclose.rs` has no red
+row; "the survey's 28 over 14 files is the starting number" — the
+production count is 23 sites over 9 files (the survey counted test
+code and the `Interval` scalar's reads of its own backend value), and
+the register as merged carries 31 hazards, 2 conditional on what
+`from_certified` returns under cut (ii), and 3 safe; "the 36 test
+files … plus the certify/props/mesh suites" — 22 red rows of 3,771 at
+default, 23 under the feature, sixteen tighter pins and zero looser,
+the 960-row and 3,403-row coefficient corpora 436 and 1,590 tighter
+and none looser. Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `RING-0-SPEC.md` — RING-0, the poison differential and the newtype dry run (#2993)
+
+## Per-merge deletion — DECIDE-1's spec (2026-09-21)
+
+Recoverable at `git show 1972f8cebb:docs/DECIDE-1-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "render the refused
+residual at `explain_depth` and say whether the `Invalid` descends from
+a `sqrt`…" — there is no refused residual to render, the census
+recording ZERO clause-1 `Invalid` on all six documents at three ε and
+both scales, so what the rows name instead is the `Indeterminate` each
+blocked replay stopped at; "at the nominal and at ceiling + δ on
+`m10_8_harness::ceiling`'s instrument" read together with the item's
+brackets — those are `m10_9_pins_interval::measured_studies`, M10-9's
+tier's, and this census runs the SHIPPED one, whose ceilings are five
+to six orders away on the plate and the annulus, so the ceiling is
+MEASURED per run and a replay at the table's refusing end would have
+counted over a replay that was never blocked; "the pad is measured on
+the ceiling instrument only, as SYM-8 did" — true of the whole-box
+report and also of the NOMINAL one, which is killed for memory on a box
+this size, so the pad contributes a bracket and no `Invalid` count at
+all; "Phase 2 — only if Phase 1 finds a site" — Phase 1 found one
+production self-dot at `Sym<Interval>` (`topo::transform::check_rigid`)
+that is not on a measured path and whose consumer is a `sign_within`
+rather than a `sqrt`, so Phase 2 stayed empty and the site is a filed
+row on SHELL's slate. Recorded in the PR body and the item's
+`## CLOSED` section.
+
+- `DECIDE-1-SPEC.md` — DECIDE-1, the self-dot straddle (#3001)
