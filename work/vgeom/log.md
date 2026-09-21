@@ -795,3 +795,131 @@ Standing offer back: if CHROME would rather not carry it, say so on
 this log and VGEOM will take it in a later wave — declining on a
 charter test is not declining on capacity, and a row nobody takes is
 worse than a row in the less exact home.
+
+## 2026-09-21 — the wave lands: #3027, then #3007 reviewed, fixed and merged
+
+### `vgeom/deletions` (#3027) — three rows, and two findings worth more than them
+
+Closed `viewer-array-lowered-vector-ops-escaped-the-hand-rolled-sweep`,
+`mixfraction-has-two-constructors-where-one-would-do` and
+`headings-unit-vector-is-not-unit-at-the-bottom-of-the-range`. 39 checks,
+twelve `test (…)`, five `k-lint (gate, …)`, `gate ok` success.
+
+**A citation that never had a subject.** The array-lowered row sent the
+lane to `sketch.rs:1038`, *"`tip_mark`'s `diagonal`"*. Neither token
+exists anywhere in `crates/viewer/src` at any commit — re-checked here
+with `git grep` over `origin/main`. The lane re-derived **by subject**
+rather than repointing, landed on `datums.rs`'s `screen_metres_at`
+(clean, as the row says), and found the function above it —
+`metres_per_pixel_at` — spelling `(point - eye).norm()` by hand four
+lines from three real `.norm()` calls. That is #2783's own stated
+`sqrt()` blind spot surviving in the file that sweep was run on. Filed
+on CHROME, not fixed across the fence.
+
+**A row whose name is the weak part.** Deleting the dead `assert_ne!`
+was the brief; asking whether what remains can fail was not. Measured:
+with `datums.rs` mutated to rule a plane along its own normal — the
+exact defect the row's NAME forbids — the row stays **green while seven
+sibling `datum_draw` rows red**. The suite catches it and the row named
+for it does not, so the deliverable is a citation rather than an
+assertion (the register's `a-supersession-outlives-its-own-frame`
+rule). Filed on VDOC with the receipt.
+
+On `MixFraction`, all three of the row's stated defeaters were tried by
+compiling, including a **control run** proving `clippy::unwrap_used` is
+live in `theme.rs` and merely const-exempt — without which the green
+would have meant nothing. The deletion also turned an unenforced doc
+sentence into a mechanical guard.
+
+### `vgeom/p0-fields` (#3007) — reviewed at `e3df0d5b`, fixed at `c03a0bf8`, merged
+
+**This PR was open, green and complete before this wave was cut, and
+the wave was cut over it** (see the correction above). Two of its rows
+were dispatched to lanes that had to be stood down. The lane on
+`pickindex.rs` was re-tasked as its review lane, which is the only good
+thing to come out of the collision — and it paid for itself.
+
+**The code was right and three of its written claims were not. The one
+that mattered inverts the unit's own framing.** It recorded *no public
+door ever takes a projected pixel* and sited its rows on a private
+helper because of it. Measured false: `segment_distance_px` mints the
+`NaN` itself — `length2 = dx² + dy²` overflows past a pixel separation
+of about `1.34e154` and `inf / inf` poisons `t` — while a projected
+pixel is an NDC scaled by `ViewportSize`, which nothing bounds above.
+Through `edge_at_for` at `1.28e155 × 7.2e154`, `origin/main` answers
+`Err(the camera's cursor x is NaN)` — **the walk blaming the caller's
+cursor for a pixel it had computed** — where the branch answers the
+rim. So the unit repaired a live defect through the public API, and the
+row the lane said could not be written now exists. No user-reachable
+producer of such a viewport was found and none is claimed.
+
+This is the register's *hunt the producer, not the input* rule paying
+out: the unit's sweep was over non-finite INPUTS and closed honestly;
+the arithmetic that MINTS one from finite inputs was invisible to it.
+
+**The decision the fix pass had to take.** The width bound reached
+integer fields: `number_text(-1.0e9, 0..=0)` answered `-1.000e9`, and
+`drafts.rs`'s `pattern_count: i64` is live through that door. For a
+length `REL_TOLERANCE` is the ratified render accuracy; for a count
+every value inside that band is a **different count**. The line taken
+is principled rather than special-cased — **`MAX_CHARS` is what ENDS A
+SEARCH, and a range of `0..=0` offers one spelling, so there is no
+search to end.** Verified here rather than taken on report:
+`egui-0.36.1`'s `DragValue::new` gives an integral `Numeric`
+`max_decimals(0)` **and** `range(Num::MIN..=Num::MAX)` in the same
+expression, so the exemption is bounded by the integer type at twenty
+characters for an `i64`; a continuous field defaults to
+`auto_decimals + 2`; and this crate sets `max_decimals` nowhere, so
+`0..=0` can only arrive from that arm.
+
+Also landed: the `desired_width` census re-derived (**four** calls, one
+of them a numeric field — the register's own `desired_width` rule
+landing on the paragraph that cites it), `readout.rs`'s rotted
+commit-coupling header rewritten, the two spellings of the echo
+mechanism documented at both ends where egui's builders overwrite, and
+the pick guard re-spelled so both terms are load-bearing.
+
+**Not de-duplicated, deliberately.** The fix pass declined to compose
+the two echo spellings because doing so needs a second constructor or
+an observer argument — *"writing one would be this pass minting the
+copy it is reporting"*, which is the reviewer brief's trap named and
+avoided rather than named and walked into.
+
+**A deviation I endorsed.** The fix pass put its six corrections in a
+PR **comment** rather than the body, because the body is last-write-wins
+and the other session had edited it that afternoon. Every correction is
+also written into the item files, which is where it survives the PR.
+
+Three rows filed: `creation-form-fields-lost-two-spellings-egui-accepted`
+(VGEOM P2 — the interior-space and U+2212 parse loss, which had been
+disclosed in three places and scheduled in none),
+`pickkinds-doc-states-its-disclaimer-twice` (VDOC P4), and
+`pick-index-indexes-its-candidates-by-a-number-the-kernel-chose`
+(`work/issues/` P3 — parked there because none of the five claimants'
+charter tests covers a panic, and the row says so).
+
+### Standing discipline changed under the wave
+
+`docs/prompts/implementer-discipline.md` §5 was amended on `main` at
+`36454928` while three lanes were in flight: naming a sweep's blind
+spot is now half the duty, and a **second pass shaped at the gap** is
+owed, or a written reason the gap cannot be searched. Relayed to both
+live lanes with the specific gaps it lands on. `vgeom/deletions`
+happened to satisfy it already — its fifth pass, over iterator-shaped
+sums and variable indices, caught `camera.rs`'s 4×4 product written
+`(0..4).map(...).sum()`, which four line-shaped patterns could not see.
+
+### Operational
+
+`/` hit 100% twice and killed two lane runs with
+`LLVM ERROR: IO failure on output stream` and `No space left on
+device`; neither was reported as a result, correctly. Four private
+target dirs at 6–8G each is 27G. Freed the finished lane's 6.3G and
+told the rest to export `CARGO_INCREMENTAL=0`; one lane also used
+`CARGO_PROFILE_DEV_DEBUG=0` / `CARGO_PROFILE_TEST_DEBUG=0`, which is
+the larger win and is the thing to put in the next dispatch.
+
+**A dead branch that lint cannot see.** `vgeom/pick-distance` carries
+one commit setting two now-closed rows to `dispatched`. It has no PR
+and cannot merge, and the remote refused the delete from here; left as
+a note rather than forced.
