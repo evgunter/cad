@@ -2440,3 +2440,35 @@ exactly why the name alone cannot answer "which node stranded".
 instance-qualified name derives from is the instance).
 
 Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your file, one assertion loosened — and the repo'"'"'s own convention is
+why.** `crates/geom/tests/curves/domain_door.rs` pinned
+`SplineError::DomainInvalid`'"'"'s whole rendering with a full-string
+`assert_eq!`. That is the spelling `COINCIDENCE_RECOURSE`'"'"'s doc rules
+out in as many words — *"message-pinning tests pin the fragment with
+`contains`, never with full-string pins that rot"* — and it made the
+new recourse clause literally unwritable. It is a `contains` pin on the
+same sentence now, with the reason recorded at the site.
+
+**Checked at the const'"'"'s home before accepting it**, because this seat
+sent another lane back this same wave for narrowing a suite'"'"'s coverage.
+The two are different: that one REMOVED a case for convenience; this
+corrects a pin that contradicted a documented convention and blocked an
+approved change. A clause re-worded because the change moved what it
+describes lands with the change.
+
+Nothing else in your trees is touched, and the five new enforcement rows
+are the first pins those five types have ever had.
+
+Signed (FIX orchestrator).

@@ -7,12 +7,11 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## The slate
 
-**28.5 budget points** of dispatchable work against a ceiling of 30.
+**23.5 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P1 | `SYM-10` | H | the decision door and the floor: manifest order, a manifest bound, and rule C's read of a Select — the folds the sign-hull frame needs |
-| P1 | `SYM-8` | H | the manifest sign: abs and copysign atoms whose sign the form already shows, measured first on the tilt-U wall |
 | P1 | `SYM-9` | H | what a refused decision may retry: the wider ring and the kept atom, measured first on the six documents |
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `interval-self-dot-straddles-before-rule-a` | H | clause 1 refuses rule A on wide boxes because Vec::dot's v·v is an interval product, not a square |
@@ -23,9 +22,9 @@ Opened 2026-09-20 by SYM's priority-seam cut
 ## Order
 
 `SYM-10` first — the decision door and the floor. It is the ruled unit
-with a written spec (`docs/SYM-10-SPEC.md`), and `SYM-8` and `SYM-9`
-both describe changes to the manifest it defines, so taking it first
-means the other two are edits rather than re-designs.
+with a written spec (`docs/SYM-10-SPEC.md`), and `SYM-9` describes a
+change to the manifest it defines, so taking it first means SYM-9 is
+an edit rather than a re-design (`SYM-8`, rule F, merged 2026-09-21).
 
 Then `interval-self-dot-straddles-before-rule-a`, which is the reach
 row with the clearest reproducer, and
@@ -35,8 +34,15 @@ the PATHS fillet family is waiting on.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. SYM inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+Protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on
+triaged-in units only, opus/opus outside it. **Answered per unit at
+spec time, and recorded here:** `SYM-8` IN (a rule of the atom
+algebra; recorded late, its dual having been dispatched under v6's
+carry-over — `work/decide/log.md`, 2026-09-21); `SYM-10` IN (a
+design decision over every atom the tier keys, H / NUMERIC, pre-draw);
+`DECIDE-1` OUT (a census and a measurement whose fix class is ratified
+— opus implementer, opus reviewer, the review FULL if Phase 2 changes a
+production site and STYLE if Phase 1 closes the row; no draw, no
+ordinal, no row). `SYM-9` and the reach rows are triaged when they are
+spec'd; the default expectation is IN for a unit that changes what the
+door answers and OUT for a measurement or a census.
