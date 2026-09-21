@@ -45,9 +45,13 @@ found by the same grep and listed here so the two are taken together:
 | `camera.rs`, the bounds guard | `lo.iter().chain(hi.iter()).any(\|v\| !v.is_finite())` — `all_finite` over a slice, negated |
 | `sketch.rs`, the drawable-point test | `point[0].is_finite() && point[1].is_finite()` — `all_finite([a, b])` verbatim |
 | `sketch.rs`, the arc door | `!(radius.is_finite() && theta.is_finite() && chord.is_finite())` — the same over three |
-| `props.rs`, `display.rs`, `scene.rs` (`delta * MM_PER_METRE`) | single-value `!x.is_finite()` guards — members only if the door is worth routing one value through |
+| `props.rs`, `display.rs`, `scene.rs` (`delta * MM_PER_METRE`), `input.rs` (`scale.is_finite().then_some(scale)`), `sketch.rs` (the arc filter's `start.is_finite()`) | single-value guards — members only if the door is worth routing one value through |
+| `camera.rs`, `finite` and `op_finite` | **the typed refusal, hand-copied into two** — same body, same `CameraError::NotFinite`/`CameraOpError::NotFinite` shape, differing only in error type. `datums.rs`'s `datum_view` keeps its own `is_finite` for the reason these exist: a door that must NAME the value that failed cannot route through a yes/no predicate. Two of them in one file is a different question from the rest of this table and may want a generic over the error |
 | `bounds.rs`, the integral seed | `seed.is_finite() && seed != 0.0` — a DIFFERENT question (finite and non-zero, no sign), listed so it is not swept in as one of the above |
 | `scene.rs`, the diagonal | `if diagonal.is_finite() { diagonal } else { 0.0 }` — not this class at all: a SUBSTITUTION, and evidence on `viewer-substituted-value-class-is-crate-wide` |
+
+Re-swept against `origin/main` at the merge that landed this row's
+unit; the table above is that sweep, not the first one.
 
 A lane taking this owes a decision on the single-value guards before
 it starts: routing one value through an array door may be worse than
