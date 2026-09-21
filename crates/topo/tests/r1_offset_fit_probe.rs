@@ -71,7 +71,7 @@ fn dump_cert(tag: &str, c: &geom::OffsetCertificate) {
     );
 }
 
-fn doors<T: topo::props::PropsQuadLane + geom_core::CertifiedBounds>(
+fn doors<T: topo::props::PropsQuadLane + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     tag: &str,
     a: &geom::ApproxSurface<f64>,
     tol: Tol,

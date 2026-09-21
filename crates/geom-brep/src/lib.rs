@@ -115,7 +115,7 @@ pub use offset_fit::{
     certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
     fit_offset_at, recertify_approx, recertify_approx_at,
 };
-pub use offset_fit_lane::{OffsetFitLane, OffsetFitScalar};
+pub use offset_fit_lane::OffsetFitLane;
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };

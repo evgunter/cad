@@ -153,10 +153,8 @@ pub enum TransformError {
     /// certificate cannot be re-derived on the mapped pair, and a
     /// certificate is never carried across a geometry change.
     ///
-    /// `Some` comes from [`geom_brep::OffsetFitLane`], whose one
-    /// constructor is the `f64` fit; every other scalar's
-    /// [`geom_brep::OffsetFitScalar`] arm answers `None` and reaches
-    /// here.
+    /// Where `Some` comes from, and what its absence means:
+    /// [`crate::AtRestPolicy::offset_fit_lane`].
     ApproxLaneUnsupported {
         /// The scalar's lane name, as the lane itself reports it.
         lane: &'static str,
@@ -311,7 +309,7 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
 /// ([`crate::entity::LoopBoundary::Cycle`]'s `first`;
 /// [`crate::Body::revert`] is the map that does both). `det = +1` is
 /// enforced upstream, so there is no such branch to write here today.
-fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
+fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     map: &Affine3<T>,
     s: &Surface<T>,
     band: Band,
@@ -389,7 +387,7 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
             map,
             a,
             band,
-            <T as geom_brep::OffsetFitScalar>::offset_fit_lane(),
+            <T as crate::props::AtRestPolicy>::offset_fit_lane(),
         )?)),
     })
 }
@@ -443,12 +441,10 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
 /// the caller's tolerance. The map and the validator therefore agree
 /// about any given surface, which is the property that matters.
 /// `offset_fit` is the re-derivation door ([`geom_brep::OffsetFitLane`]),
-/// handed in rather than read off the scalar: the fit is written at
-/// `f64` and at no other scalar, so a `None` is the absence of a
-/// DERIVATION and not a statement about the surface, which is
-/// representable everywhere. A caller holding such a surface with no
-/// door refuses typed rather than carrying the certificate it already
-/// has across a geometry change.
+/// handed in as a parameter; what a `None` means is
+/// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. A caller
+/// holding such a surface with no door refuses typed rather than
+/// carrying the certificate it already has across a geometry change.
 fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
@@ -569,7 +565,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -605,7 +601,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -931,7 +927,7 @@ mod tests {
 ///
 /// [`map_approx`] is called directly because these rows are about the
 /// PARAMETER: [`map_surface`] reads the scalar's own seam
-/// (`geom_brep::OffsetFitScalar`), and a row that could only reach the
+/// (`crate::AtRestPolicy::offset_fit_lane`), and a row that could only reach the
 /// door the seam hands it could not tell an absent door from a scalar
 /// that has none.
 #[cfg(test)]

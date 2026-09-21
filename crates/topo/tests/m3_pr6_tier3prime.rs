@@ -50,7 +50,7 @@ fn run_body<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
 
 /// The green/red promotion pair: 3′ passes with the carried contacts,
 /// and withholding them yields `UndeclaredContact` (and nothing else).
-fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>(
+fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>(
     b: &BooleanBody<T>,
 ) {
     assert_eq!(
@@ -73,7 +73,7 @@ fn assert_promoted<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>
 // ---------------------------------------------------------------
 
 /// Corner kiss (v-v): the PR 5 assembly, now certified at rest.
-fn corner_kiss_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
+fn corner_kiss_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>() {
     let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
@@ -91,7 +91,7 @@ fn corner_kiss_promoted() {
 /// two shared-endpoint v-v records, and the census reconstructs the
 /// full-length coincident-edge SEGMENT from them (the D3 rule's
 /// bounded-by-declared-records lane, live end to end).
-fn tangent_edge_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
+fn tangent_edge_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>() {
     let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick::<T>((1.0, 2.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
@@ -113,7 +113,7 @@ fn tangent_edge_promoted() {
 /// that agrees — 3′ ≡ tier 3 on it. ∩: every touching sector
 /// classifies Out ⇒ the typed empty. ∖: operand A (records dropped
 /// with B absent), tier 3.
-fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
+fn skew_edges_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>() {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let b = brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
@@ -188,7 +188,7 @@ fn vertex_on_face_kiss_promoted() {
 /// (`split_other_at_point` — no vertex-on-edge record type exists,
 /// by derivation), and the census certifies the collinear overlap
 /// segment from those bounding records (D3).
-fn edge_rest_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
+fn edge_rest_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>() {
     let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let b = brick::<T>((1.0, 3.0), (-2.0, 0.0), (2.0, 4.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &a, &b);
@@ -214,7 +214,7 @@ fn edge_rest_promoted_d4_pin() {
 /// undeclared door refuses unchanged (the ladder is law). ∖ returns
 /// operand A at tier 3, as before — pure REST subtracts never reach
 /// a join door.
-fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
+fn flush_rests_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>() {
     let slab = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
     let pillar = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 3.0), Tol::witness());
     let body = run_body(union_with as BoolOp<T>, &slab, &pillar);
@@ -264,7 +264,7 @@ fn flush_rests() {
 /// D1.5's pin: on a tier-3 body with EMPTY declarations, the census
 /// must find nothing and 3′ ≡ tier 3 (plus the census actually run) —
 /// pinned on a plain prism, an L-prism, and a Seamed boolean result.
-fn tier3_equivalence_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() {
+fn tier3_equivalence_scenario<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>() {
     let plain = brick::<T>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     assert_eq!(validate_geometric(&plain, Tol::witness()), Ok(()));
     assert_eq!(
@@ -392,7 +392,7 @@ fn hand_built_self_intersection_is_undeclared() {
 // ---------------------------------------------------------------
 
 /// The corner-kiss assembly (1 v-v declaration) as the 3′ base.
-fn kiss_base<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane>() -> BooleanBody<T> {
+fn kiss_base<T: Decide + geom_core::CertifiedBounds + topo::PropsQuadLane + topo::AtRestPolicy>() -> BooleanBody<T> {
     let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     run_body(union_with as BoolOp<T>, &a, &b)

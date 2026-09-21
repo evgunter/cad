@@ -500,7 +500,7 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
 
 /// [`ball_poled_z`] at any scalar the revolve and rigid-motion doors
 /// take.
-pub fn ball_poled_z_at<T: Decide + PcurveFittedLane>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
+pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
     let ball = revolved_about_y_at(
         vec![
             ProfileVertex::new(Point2::new(T::zero(), -r), T::one()),

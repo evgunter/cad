@@ -45,7 +45,7 @@ use topo::{
 
 /// Tube: outer [1,3]², hole [1.5,2.5]², z ∈ [0.5, 3] (cutter strictly
 /// taller so the subtract pierces cleanly).
-fn tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
+fn tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane + topo::AtRestPolicy>() -> Body<T> {
     let outer = brick::<T>((1.0, 3.0), (1.0, 3.0), (0.5, 3.0), Tol::witness());
     let cutter = brick::<T>((1.5, 2.5), (1.5, 2.5), (0.25, 3.25), Tol::witness());
     let BooleanResult::Body(t) = subtract(&outer, &cutter, Tol::witness()).expect("tube") else {
@@ -56,7 +56,7 @@ fn tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
 
 /// Plate [0,4]² × [0,1] ∪ tube: exact 22.0 (plate 16 + tube walls
 /// above the plate, annulus 3 × 2).
-fn plate_with_tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
+fn plate_with_tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane + topo::AtRestPolicy>() -> Body<T> {
     let plate = brick::<T>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
     let BooleanResult::Body(u1) = union(&plate, &tube::<T>(), Tol::witness()).expect("plate|tube")
     else {
@@ -78,7 +78,7 @@ fn plate_with_tube_f64() -> Body<f64> {
 }
 
 /// The depth-2 chain's final operand: plate ∪ tube ∪ solid pillar.
-fn depth2_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
+fn depth2_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane + topo::AtRestPolicy>() -> Body<T> {
     let pillar = brick::<T>((1.75, 2.25), (1.75, 2.25), (0.75, 2.75), Tol::witness());
     let BooleanResult::Body(u2) =
         union(&plate_with_tube::<T>(), &pillar, Tol::witness()).expect("|pillar")
@@ -90,7 +90,7 @@ fn depth2_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T
 
 /// The depth-3 chain's final operand: plate ∪ tube ∪ hollow pillar ∪
 /// post.
-fn depth3_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
+fn depth3_chain<T: Decide + geom_core::Bounds + topo::PropsQuadLane + topo::AtRestPolicy>() -> Body<T> {
     let BooleanResult::Body(u2) =
         union(&plate_with_tube::<T>(), &pillar_tube::<T>(), Tol::witness()).expect("|pillar tube")
     else {
@@ -128,7 +128,7 @@ fn census<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(
     assert_eq!(bb.body.faces().count(), faces, "{label}: face count");
 }
 
-fn tiers<T: Decide + geom_core::Bounds + topo::PropsQuadLane>(bb: &BooleanBody<T>, label: &str) {
+fn tiers<T: Decide + geom_core::Bounds + topo::PropsQuadLane + topo::AtRestPolicy>(bb: &BooleanBody<T>, label: &str) {
     assert_eq!(validate(&bb.body), Ok(()), "{label}: tier 1");
     assert_eq!(validate_closed(&bb.body), Ok(()), "{label}: tier 2");
     assert_eq!(
@@ -232,7 +232,7 @@ fn depth1_nested_intersect_control_exact() {
 /// 2.75] — the depth-3 probe's middle shell. All plane values dyadic
 /// and distinct from every other plane in the chain (general
 /// position: no coincidence declarations anywhere).
-fn pillar_tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane>() -> Body<T> {
+fn pillar_tube<T: Decide + geom_core::Bounds + topo::PropsQuadLane + topo::AtRestPolicy>() -> Body<T> {
     let outer = brick::<T>((1.75, 2.25), (1.75, 2.25), (0.75, 2.75), Tol::witness());
     let cutter = brick::<T>(
         (1.875, 2.125),

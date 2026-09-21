@@ -2058,7 +2058,34 @@ where
 /// doors themselves keep their meaning at every `PropsQuadLane`
 /// scalar; this trait only decides which scalars' evaluation-service
 /// gates consult them.
+///
+/// The trait also carries the OFFSET FIT's seam
+/// ([`AtRestPolicy::offset_fit_lane`]), for the same reason it carries
+/// the gates: it is the per-scalar policy home, and the fit's absence
+/// is a per-scalar fact. The two absences are different facts, and the
+/// doc on that method says which is which.
 pub trait AtRestPolicy: PropsQuadLane {
+    /// **This scalar's offset-fit door, or `None` where the fit is not
+    /// derived here** — the ONE seam the `Some` comes from, read by
+    /// check 1's tier-3 battery, the offset mint
+    /// ([`crate::replace_face_offset`]) and the transform's surface
+    /// map ([`crate::transform_rigid`]).
+    ///
+    /// `None` is a statement about the DERIVATION and never about
+    /// which values may arrive: an `ApproxSurface<T>` is representable
+    /// at every scalar, so a face carrying one does reach those passes
+    /// at a scalar with no door, and each refuses typed rather than
+    /// passing. That makes it a different fact from
+    /// [`AtRestOutcome::NotRunAtThisScalar`] below, which is about
+    /// certification rights (DL1).
+    ///
+    /// It is a per-scalar seam and not a lane trait of its own
+    /// (`work/scalar/H5.md` §RATIFIED ruling 3, which keeps this trait
+    /// as the per-scalar policy that cut leaves standing): the door
+    /// itself is a value the passes take as a parameter, and this is
+    /// the one place each scalar's answer is written.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -2098,6 +2125,12 @@ pub enum AtRestOutcome {
 }
 
 impl AtRestPolicy for f64 {
+    /// The fit IS written here: `geom_brep::offset_fit` is an `f64`
+    /// module throughout, so this is the one arm that answers `Some`.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        Some(geom_brep::OffsetFitLane::fit())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2114,6 +2147,13 @@ impl AtRestPolicy for f64 {
 
 #[cfg(feature = "probe")]
 impl AtRestPolicy for geom_core::Probe {
+    /// The fit is derived at `f64` only. The recording scalar is `f64`
+    /// with a sink attached, and that is still not the type
+    /// `geom_brep::offset_fit` is written in.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2130,6 +2170,13 @@ impl AtRestPolicy for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl AtRestPolicy for geom_core::interval::Interval {
+    /// The fit is derived at `f64` only — a fact about the scalar the
+    /// derivation was written in, not about this scalar's
+    /// certification rights, which it has in full.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2154,6 +2201,13 @@ where
     geom_core::Sym<T>: PropsQuadLane,
     T: geom_core::CertifiedBounds,
 {
+    /// The fit is derived at `f64` only. The tier changes how a margin
+    /// DECIDES, not which derivations exist, so wrapping a scalar
+    /// cannot add one.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2178,6 +2232,13 @@ impl<T> AtRestPolicy for geom_core::Dual<T>
 where
     geom_core::Dual<T>: PropsQuadLane,
 {
+    /// The fit is derived at `f64` only — the same reason every other
+    /// arm here gives, and a separate fact from the gates below, which
+    /// are absent because a dual does not certify.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }

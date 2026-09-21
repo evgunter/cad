@@ -11,22 +11,42 @@
 //! certification right and cannot be spelled as a bound: it is the
 //! absence of a DERIVATION, and the passes carry it as an [`Option`].
 //!
-//! [`OffsetFitLane`] is that door — the three operations in one value,
-//! constructed only at `f64` ([`OffsetFitLane::fit`]) and handed to the
-//! three passes that need it. [`OffsetFitScalar`] is the per-scalar
-//! seam that answers whether a scalar has one; `None` is *"the fit is
-//! not written here"*, never *"a value of this scalar may not
-//! certify"* — that one is the missing [`geom_core::CertifiedEnclosure`]
-//! impl (`docs/DUAL-DESIGN.md` DL1), and the two stopped sharing a
-//! `None` when this module was written.
+//! [`OffsetFitLane`] is that door: the three operations in one value,
+//! with one constructor ([`OffsetFitLane::fit`]) which exists at `f64`
+//! alone. Holding one IS the statement that the fit is derivable at
+//! the scalar it is parameterised by, and a pass holding `None`
+//! refuses typed.
+//!
+//! **Where the `Some` comes from.** One seam answers it —
+//! `topo::AtRestPolicy::offset_fit_lane`, DL3's per-scalar policy home
+//! (`docs/DUAL-DESIGN.md`) — and five sites read that seam: check 1's
+//! tier-3 battery, the two certified validation doors it serves, the
+//! offset mint (`topo::replace_face`) and the transform's surface map
+//! (`topo::transform`). `f64` answers `Some`, every other scalar
+//! answers `None`, and `None` means *"the fit is derived at `f64`
+//! only"* — never *"a value of this scalar may not certify"*, which is
+//! the missing [`geom_core::CertifiedEnclosure`] impl (DL1) and a
+//! different fact about a different thing.
 //!
 //! The shape is the injected plane × NURBS lane's ([`crate::NurbsLane`]),
 //! for the same reason and with the same discipline: a caller that can
 //! derive hands the door in, a caller that cannot hands `None` and gets
-//! the typed refusal its pass already had. It is the first instance of
-//! `work/scalar/H5.md` §RATIFIED ruling 3 — every certified
-//! sub-operation a plain function, the mixed passes taking their door
-//! as a parameter.
+//! the typed refusal its pass already had. Under `work/scalar/H5.md`
+//! §RATIFIED ruling 3 the door is the parameter a mixed pass takes;
+//! the scalar seam that produces it is the per-scalar policy that cut
+//! leaves standing, folded into `topo::AtRestPolicy` rather than
+//! carried on a trait of its own.
+//!
+//! # This file is on the shell's offset chain
+//!
+//! [`OffsetFitLane::remap`] and its `f64` body take a
+//! `tolerance: f64`, and the SHELL-TOLERANCE-CHAIN census
+//! (`crates/topo/tests/shell_tolerance_chain.rs`) carries this file
+//! with those two parameters declared: they are the surface's own
+//! stored claim, the datum the mapped surface must be shown to honour,
+//! and never the run's ε — which travels as [`Tol`] through the other
+//! two doors. A THIRD such parameter, or an `.eps()` read here, reds
+//! that census and has to be said what it is for.
 
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::{Band, Real, Tol};
@@ -175,68 +195,4 @@ fn remap_offset_certificate(
 ) -> Result<geom::OffsetCertificate, OffsetFitError> {
     let geom::SurfaceDescription::Offset { base, d } = description;
     crate::offset_fit::certify_offset_over_at(base, fit, *d, window, tolerance, band)
-}
-
-/// **Whether this scalar has an offset fit** — the per-scalar seam
-/// behind [`OffsetFitLane`], and the one place each scalar's answer is
-/// written.
-///
-/// `Some` is `f64`'s alone, because [`crate::offset_fit`] is written at
-/// `f64`. `None` is a statement about the DERIVATION and never about
-/// which values can arrive: an `ApproxSurface<T>` is representable at
-/// every scalar, so a face carrying one does reach the passes at a
-/// scalar with no lane, and each of them refuses typed rather than
-/// passing.
-///
-/// It is a seam of its own rather than a method on a lane trait
-/// (`work/scalar/H5.md` §RATIFIED ruling 3): the absence it carries is
-/// *"not derived here"*, which is a different fact from a lane trait's
-/// *"this scalar does not certify"*.
-pub trait OffsetFitScalar: Real {
-    /// This scalar's offset-fit door, or `None` where the fit is not
-    /// derived.
-    fn offset_fit_lane() -> Option<OffsetFitLane<Self>>;
-}
-
-impl OffsetFitScalar for f64 {
-    fn offset_fit_lane() -> Option<OffsetFitLane<Self>> {
-        Some(OffsetFitLane::fit())
-    }
-}
-
-#[cfg(feature = "probe")]
-impl OffsetFitScalar for geom_core::Probe {
-    fn offset_fit_lane() -> Option<OffsetFitLane<Self>> {
-        None
-    }
-}
-
-#[cfg(feature = "interval")]
-impl OffsetFitScalar for geom_core::interval::Interval {
-    fn offset_fit_lane() -> Option<OffsetFitLane<Self>> {
-        None
-    }
-}
-
-/// **The symbolic tier over a base scalar**: no fit lane, for the BASE
-/// scalar's reason. The tier changes how a margin DECIDES, not which
-/// derivations exist, so wrapping a scalar cannot add one.
-impl<T> OffsetFitScalar for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: Real,
-{
-    fn offset_fit_lane() -> Option<OffsetFitLane<Self>> {
-        None
-    }
-}
-
-/// The dual tier: no fit lane, for the same reason as every other
-/// non-`f64` scalar — the fit is not written here.
-impl<T> OffsetFitScalar for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: Real,
-{
-    fn offset_fit_lane() -> Option<OffsetFitLane<Self>> {
-        None
-    }
 }

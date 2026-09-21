@@ -1137,18 +1137,17 @@ pub struct PcurveCertificate<T: Real> {
 /// ([`crate::offset_fit`]) is written at `f64` throughout — the
 /// interpolation stack, the span schedule and the patch-bound meters
 /// all are — so that split is not about which scalars may certify but
-/// about which scalar the derivation was written in. It is
-/// [`crate::OffsetFitScalar`]'s, carried as a door the passes take
-/// ([`crate::OffsetFitLane`]) rather than as a method here; the
-/// supertrait is what keeps a `T: PcurveFittedLane` consumer able to
-/// name it, the probe and interval arms being the ones that make the
-/// difference visible — they delegate the pcurve derivations through
-/// the C9 ring and still have no fit to offer.
+/// about which scalar the derivation was written in. It travels as a
+/// door the passes take ([`crate::OffsetFitLane`]), answered by the
+/// per-scalar policy seam `topo::AtRestPolicy::offset_fit_lane`. The
+/// probe and interval arms here are what make the difference visible:
+/// they delegate the pcurve derivations through the C9 ring and still
+/// have no fit to offer.
 ///
 /// The trait is also what keeps `Bounds` out of `topo`'s signatures:
 /// consumers write `T: PcurveFittedLane` and get the lane, exactly as
 /// they write `T: PropsQuadLane` for the quadrature one.
-pub trait PcurveFittedLane: Decide + crate::OffsetFitScalar {
+pub trait PcurveFittedLane: Decide {
     /// The full C2 certificate of a fitted chart image against its
     /// operand pair, or `None` when this scalar has no certified lane.
     ///

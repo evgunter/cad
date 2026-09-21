@@ -115,7 +115,7 @@ fn dump_validation(label: &str, r: &Result<(), Vec<topo::ValidationError>>) {
 
 /// The public doors at one scalar. `structural_only` says whether the
 /// scalar may form the certified doors at all (a dual may not).
-fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds>(label: &str) {
+fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(label: &str) {
     let (body, face) = approx_seed::<T>();
     println!("{label}: approx face {face:?}");
     dump_approx_bits(&format!("{label} seed"), &body);
@@ -144,7 +144,7 @@ fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds>(label: &str) {
     }
 }
 
-fn certified_doors_at<T: topo::PropsQuadLane + geom_core::CertifiedBounds>(label: &str) {
+fn certified_doors_at<T: topo::PropsQuadLane + geom_core::CertifiedBounds + topo::AtRestPolicy>(label: &str) {
     let (body, _) = approx_seed::<T>();
     dump_validation(
         &format!("{label} validate_geometric"),

@@ -180,10 +180,8 @@ pub enum ReplaceFaceError<T: Real> {
     /// fit door, so the offset cannot be minted at all. Not a pass —
     /// the same posture tier 3 takes on an unre-derivable certificate.
     ///
-    /// `Some` comes from [`geom_brep::OffsetFitLane`], whose one
-    /// constructor is the `f64` fit; every other scalar's
-    /// [`geom_brep::OffsetFitScalar`] arm answers `None` and reaches
-    /// here.
+    /// Where `Some` comes from, and what its absence means:
+    /// [`crate::AtRestPolicy::offset_fit_lane`].
     ApproxLaneUnsupported {
         /// The face whose kind needs the (`f64`-only) fit door.
         face: FaceKey,
@@ -1040,7 +1038,7 @@ struct EdgePlan<T: Real> {
 /// door's, the apex-window predicate, the C5 routing boundary, the
 /// carrier lanes' scope, a re-derivation the attach layer's
 /// certification rejects, and a clone that does not validate.
-pub fn replace_face_offset<T: Decide + PropsQuadLane>(
+pub fn replace_face_offset<T: Decide + PropsQuadLane + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     d: T,
@@ -1072,7 +1070,7 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
 ///
 /// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
 /// gates.
-pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
+pub fn replace_faces_offset<T: Decide + PropsQuadLane + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,
@@ -1144,7 +1142,7 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
         d,
         band,
         tol,
-        <T as geom_brep::OffsetFitScalar>::offset_fit_lane(),
+        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     )?;
 
     // ---- Decide: the apex window (cones only). ----
@@ -1318,11 +1316,9 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
 /// certified `Approx` where the kind is not closed under offset.
 ///
 /// `offset_fit` is that door ([`geom_brep::OffsetFitLane`]), handed in
-/// rather than read off the scalar: the fit is written at `f64` and at
-/// no other scalar, so a `None` here is the absence of a DERIVATION
-/// and not a statement about the operand, which is representable
-/// everywhere. `None` is not a pass — a caller that cannot mint the
-/// offset refuses with
+/// as a parameter; what a `None` means is
+/// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. `None` is not a
+/// pass — a caller that cannot mint the offset refuses with
 /// [`ReplaceFaceError::ApproxLaneUnsupported`].
 // `band, tol` in that order, matching the public doors above rather
 // than the `tolerance, band` this used to end in: the raw tolerance is
@@ -2217,7 +2213,7 @@ pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(Face
 ///
 /// [`mint_offset`] is called directly because these rows are about the
 /// PARAMETER: the public doors read the scalar's own seam
-/// (`geom_brep::OffsetFitScalar`), and a row that could only reach the
+/// (`crate::AtRestPolicy::offset_fit_lane`), and a row that could only reach the
 /// door the seam hands it could not tell an absent door from a scalar
 /// that has none.
 #[cfg(test)]
