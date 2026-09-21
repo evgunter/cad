@@ -2,10 +2,11 @@
 id: sym-f64-far-placement-trips-the-theorem-vs-numeric-assert
 kind: issue
 title: Sym<f64>/Sym<Probe> at a far placement panic in Decide's theorem-vs-numeric debug_assert: the point channel is not a proof
-status: review
+status: closed
 opened: 2026-09-14
 priority: P0
 cost: H
+closed: 2026-09-21
 ---
 
 
@@ -105,3 +106,8 @@ blocked — one that drives `Sym<f64>` far from the origin — is
 unblocked: the far-placement rows are exactly that, and they run.
 
 No decision at `Sym<Interval>` moved and every pin is bit-identical.
+
+The one narrowing SYM-11 left is filed as
+`work/sym/a-dispute-names-no-predicate-on-the-receipt.md`: a dispute is
+counted on the receipt and names no predicate (a new `ShapeOutcome`
+row would carry it); cited from `SymCounts::theorems_disputed`'s doc.

@@ -937,10 +937,12 @@ mod tests {
 
         // A definite sign: the decision path builds no form; the
         // contradiction check does — here at `f64`, an INEXACT witness,
-        // where it is the dispute count and runs in every profile, and
-        // this row reads it under `cfg!(debug_assertions)` because the
-        // EXACT arm is the one that stops asking without them. The
-        // profile charges every walk it asks to `Assertion`.
+        // where it is the dispute count and runs in every profile, so
+        // the `cfg!(debug_assertions)` guard below is looser than this
+        // arm needs (it is the EXACT arm that stops asking without
+        // them); kept so the row reads the same in every profile the
+        // workspace builds. The profile charges every walk it asks to
+        // `Assertion`.
         let out = profiled(budget(4096, 128), || {
             let (x, y) = (p("x", 1.0), p("y", 2.0));
             ask(x * y + y * x);
