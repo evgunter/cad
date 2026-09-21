@@ -112,3 +112,20 @@ all of the above at the code: the header's claim that *"every
 arm and one comment, which is what let the live carve-out read as
 settled. They have an arm each now, because one reaches rows and one
 cannot.
+
+## The fence is gone; the cost argument stands (2026-09-21, orchestrator)
+
+The section above closes on *"a new `RowStatus` variant does not land
+inside CHROME's fence … both VIEW's files while VIEW is live in this
+crate"*. **That fence is retired** (`work/chrome/plan.md`, *Territory
+— the carve-out is spent*): VIEW re-scoped on 2026-09-17 and
+dispatches no new units, and `work/README.md`'s 2026-09-20 ruling
+makes `pane/features.rs` and `frame.rs` ordinary shared ground. The
+row's own sentence — *"this wants a VIEW handoff or a unit whose fence
+spans `pane/`"* — is answered: a unit whose scope spans `pane/` is now
+an ordinary CHROME dispatch.
+
+**What does NOT change is the measurement.** The row's count of
+`Failed { message }` sites is the reason to add a VARIANT rather than
+a FIELD, and it is re-taken by the command the row writes out, not
+trusted from its prose. Re-take it at dispatch.

@@ -2,10 +2,11 @@
 id: max-grid-lines-truncates-a-ruling-and-calls-it-one
 kind: issue
 title: MAX_GRID_LINES returns a truncated ruling in the shape of a complete one
-status: open
+status: dispatched
 opened: 2026-09-15
 priority: P3
 cost: E
+branch: chrome/datum-honesty
 ---
 
 
