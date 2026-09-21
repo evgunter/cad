@@ -879,3 +879,49 @@ adjudication arrives as a list of things to do.
 **Next in the order**: `add-profile-mints-no-frame`, which now carries
 three label sites rather than two, and behind it the two node-kind
 gaps. The slate reads 8 open rows.
+
+## 2026-09-21 — AUTH-3 dispatched, and `paths` was wrong a SECOND time
+
+`add-profile-mints-no-frame` goes out as AUTH-3
+(`docs/AUTH-3-SPEC.md`, branch `author/profile-frame`), both halves in
+one unit — not because they are one problem, but because both live in
+`add_profile_ui`'s ComboBox and splitting them would put two lanes in
+the same widget.
+
+**The territory list failed again at the one job it has.** I widened
+it on 2026-09-20 after finding that none of its three opening files
+was where either dispatched unit worked. That widening was still
+short: AUTH-1 and AUTH-2 between them changed THIRTEEN files under
+`crates/viewer/src/`, and `paths` named eight, six overlapping.
+`blend.rs`, `datums.rs`, `session.rs`, `session/op.rs` and
+`widgets.rs` were each edited by a merged AUTHOR unit while unclaimed.
+
+Rebuilt from `git diff --name-only` over the two merged units plus the
+files the eight open rows name in their own bodies — evidence rather
+than estimate, which is what it should have been both times.
+`lib.rs` left out deliberately though both units touched it: the edits
+are one-line module declarations, and a program that appears in every
+viewer lane's warning makes the warning worth less. **Over-claiming
+has a cost too**, and the reason to be accurate is the same in both
+directions.
+
+**One stale premise caught before it reached the lane.** The row says
+the third label site is a hand-rolled `format!` in `add_datum_ui`.
+AUTH-1's own fix pass had already routed it through
+`BlendTarget::of_face(…)`, so the node-number spelling now lives in
+`Display for BlendTarget` — the defect unchanged, the fix cheaper,
+and the row's text wrong about the tree it describes. Found by
+grepping the three sites before writing the spec rather than copying
+the row into it. **That check is now what I do before every
+dispatch**, and it is the direct answer to four falsified premises:
+the cost of verifying a claim is minutes, and the cost of a lane
+inheriting it is a round trip.
+
+The spec asks two design calls and says plainly that I have not made
+them: how the form expresses "a new XY frame" (a distinct `SessionOp`,
+an enum on `AddProfile`'s plane, or something else), and what a frame
+LABEL is allowed to read — a `Datum::Frame`'s pose is `Expr`s on the
+node but can be parameter-driven, and a `FaceFrame`'s is known only
+after evaluation, so a label that always tells the truth either reads
+the landed evaluation and says something honest when there is none, or
+restricts itself to what the node alone can say.
