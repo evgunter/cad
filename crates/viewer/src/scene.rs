@@ -919,7 +919,11 @@ pub const TRIANGLE_BUDGET: usize = 1_000_000;
 /// coarsen by more than this factor is a request whose probe costs
 /// more than the answer's whole picture ([`fit_delta`] says what
 /// replaced that).
-const PROBE_FACTOR: f64 = 8.0;
+///
+/// Public because it is a *contract* the ladder's shape is read
+/// against, and a row that restates it as a literal is a hand-synced
+/// copy of a private constant. One home; read it.
+pub const PROBE_FACTOR: f64 = 8.0;
 
 /// The δ the scale probe runs at: coarser than any body this viewer
 /// opens, so nothing subdivides and the tessellation is the body's
@@ -931,7 +935,24 @@ const PROBE_FACTOR: f64 = 8.0;
 /// (the count is non-increasing in δ); all that is lost is the
 /// floor's tightness, and the ladder in [`fit_delta`] walks down from
 /// wherever it starts.
-const SCALE_PROBE_DELTA: f64 = 1.0e9;
+///
+/// Public for the same reason as [`PROBE_FACTOR`]: it is the δ a row
+/// about the ladder's first rung has to run at, and a literal copy of
+/// it in a suite goes stale without the build noticing.
+pub const SCALE_PROBE_DELTA: f64 = 1.0e9;
+
+/// The display tolerance a session opens on: 0.1 mm, fine enough that
+/// a 24 mm hole reads as a circle and coarse enough to redraw
+/// instantly.
+///
+/// It lives beside the δ vocabulary rather than in the application
+/// that starts at it, because the application module is `cfg`-gated
+/// behind the `app` feature and this number is not: what a document
+/// COSTS at the opening δ is a fact about [`fit_delta`] and the
+/// budget, asserted by builds that link no toolkit. A copy of it on
+/// the far side of that gate would be a hand-synced constant whose
+/// drift the build cannot see.
+pub const INITIAL_DELTA: f64 = 1.0e-4;
 
 /// What [`fit_delta`] decided, and why — a value, so the chrome can
 /// say it and a row can assert it.

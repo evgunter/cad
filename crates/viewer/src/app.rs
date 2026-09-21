@@ -175,10 +175,6 @@ const FEATURES_SHARE_CAP: f32 = 0.5;
 /// what sizes the tile.
 const FEATURES_SLACK: f32 = 8.0;
 
-/// The starting display tolerance: 0.1 mm, fine enough that a 24 mm
-/// hole reads as a circle and coarse enough to redraw instantly.
-const INITIAL_DELTA: f64 = 1.0e-4;
-
 /// The document file extension the dialog filters on.
 ///
 /// `cfg`-ed with the dialogs it filters for: the browser build links
@@ -732,7 +728,8 @@ impl ViewerApp {
     /// Every arm of [`StartupError`] except
     /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
     fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
-        let delta = DisplayTolerance::new(INITIAL_DELTA).map_err(StartupError::Scene)?;
+        let delta =
+            DisplayTolerance::new(crate::scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
         // A provisional camera at a square aspect, because no pane has

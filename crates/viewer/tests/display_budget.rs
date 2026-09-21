@@ -24,22 +24,13 @@
 use editor_core::{DocEdit, ProfileDoc};
 use pncad::geom_core::Tol;
 use viewer::readout;
-use viewer::scene::{self, DisplayTolerance, ProbeStop, TRIANGLE_BUDGET};
+use viewer::scene::{
+    self, DisplayTolerance, INITIAL_DELTA, PROBE_FACTOR, ProbeStop, SCALE_PROBE_DELTA,
+    TRIANGLE_BUDGET,
+};
 use viewer::session::DocSession;
 
 use crate::corpus;
-
-/// The δ the application starts on (`app::INITIAL_DELTA`, which is
-/// `cfg`-gated behind the `app` feature and so is restated here; the
-/// rows below say what the gallery ring and the startup plate cost AT
-/// this δ, so a change to the number that matters moves them).
-const INITIAL_DELTA: f64 = 1.0e-4;
-
-/// How much coarser than the δ it prices a rung of the fit's ladder
-/// runs (`scene`'s `PROBE_FACTOR`, which is private to it and so is
-/// restated here; the rung bound below is read against this number, so
-/// a change to it moves what this row asserts).
-const PROBE_FACTOR: f64 = 8.0;
 
 /// A request the gallery ring exceeds the budget at: a decade finer
 /// than the starting δ, where the ring's ~1.6·10⁵ triangles at 0.1 mm
@@ -260,6 +251,10 @@ const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 /// twenty-two characters.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
     let text = d.render_mm();
+    // The metres-to-millimetres factor is spelled here DELIBERATELY
+    // rather than read from `scene::MM_PER_METRE`: what this row
+    // checks is that `render_mm` applies that conversion, and reading
+    // the render's own constant would make it agree by construction.
     let mm = d.get() * 1.0e3;
     let read: f64 = text.parse().unwrap_or_else(|error| {
         panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
@@ -1247,9 +1242,10 @@ fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
         let body = session
             .landed_body()
             .unwrap_or_else(|| panic!("{document} gathers"));
-        // The δ the scale probe runs at (`scene`'s SCALE_PROBE_DELTA,
-        // which is private; the row states the number it depends on).
-        let scale = 1.0e9;
+        // The δ the scale probe runs at, read from the ladder rather
+        // than restated: the rows below are about the first rung's
+        // count, which is the count AT this δ whatever it is.
+        let scale = SCALE_PROBE_DELTA;
         let extent = extent_of(body, scale, tol);
         assert!(
             extent > 0.0 && extent.is_finite(),
