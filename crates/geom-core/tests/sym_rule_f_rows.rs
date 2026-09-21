@@ -24,62 +24,26 @@ use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::sym::with_session_rules;
 use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules};
 
-fn budget() -> SymBudget {
+pub(crate) fn budget() -> SymBudget {
     SymBudget {
         max_terms: 4096,
         max_degree: 128,
     }
 }
 
-fn band() -> Band {
+pub(crate) fn band() -> Band {
     Band::new(1.0e-9, 1.0e-8).unwrap()
 }
 
-fn p(name: &str, v: f64) -> Sym<f64> {
+pub(crate) fn p(name: &str, v: f64) -> Sym<f64> {
     Sym::param(ParamSymbol::of(name), v)
 }
 
-fn one() -> Sym<f64> {
+pub(crate) fn one() -> Sym<f64> {
     Sym::from_f64(1.0)
 }
 
-#[cfg(feature = "interval")]
-fn one_i() -> Sym<geom_core::Interval> {
-    Sym::from_f64(1.0)
-}
-
-/// A bracketed parameter at the INTERVAL lift, for the rows that need a
-/// box rather than a point (clause 1 answers on a box).
-#[cfg(feature = "interval")]
-fn over(name: &str, lo: f64, hi: f64) -> Sym<geom_core::Interval> {
-    Sym::param_over(
-        ParamSymbol::of(name),
-        geom_core::Interval::from_bounds(lo, hi),
-        lo,
-        hi,
-    )
-}
-
-/// [`how`] at the interval lift: the answer, and the margin's
-/// enclosure.
-#[cfg(feature = "interval")]
-fn how_i(
-    rules: SymRules,
-    build: impl FnOnce() -> Sym<geom_core::Interval>,
-) -> (String, geom_core::Interval) {
-    let band = geom_core::predicate::Band::linear(geom_core::Tol::witness())
-        .expect("the witness tolerance has a linear band");
-    let ((out, value), counts) = with_session_rules(budget(), rules, || {
-        let m = build();
-        (
-            geom_core::k_stats::decide("sym_rule_f_row", Margin::of(m), band),
-            m.value,
-        )
-    });
-    (label(out, counts), value)
-}
-
-fn label(
+pub(crate) fn label(
     out: Result<Sign, geom_core::predicate::Indeterminate>,
     counts: geom_core::SymCounts,
 ) -> String {
@@ -97,7 +61,7 @@ fn label(
 }
 
 /// How the tier answered, and the margin's value at the point.
-fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
+pub(crate) fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
     let ((out, value), counts) = with_session_rules(budget(), rules, || {
         let m = build();
         (
@@ -120,7 +84,7 @@ fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String, f64) {
 /// form that is plainly non-zero, not a proof of the identity;
 /// `work/sym/sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`
 /// carries the class.
-fn sound(what: &str, (l, v): (String, f64)) -> String {
+pub(crate) fn sound(what: &str, (l, v): (String, f64)) -> String {
     println!("  {what}: {l} value {v:e}");
     assert!(
         l != "theorem" || v.abs() <= 1.0e-12,
@@ -459,77 +423,6 @@ fn the_earlier_tier_differentials_shut_rule_f() {
     );
 }
 
-/// **THE `D = 0` EDGE (R2, addendum 1).** `abs(1/sqrt(t²)) − 1/sqrt(t²)`
-/// — the argument's numerator is a positive constant and its
-/// denominator a `sqrt` atom, which is non-negative and NOT positive
-/// (`t² = 0` at `t = 0`). The predicate calls the FORM positive anyway,
-/// on the strength of `quotient`'s side condition: `D ≠ 0` at every
-/// point of a box clause 1 admits. This row is that condition's pin —
-/// the fold at a point clear of zero, and no theorem over a box that
-/// holds `t = 0`, where the value channel divided by an interval
-/// containing zero.
-#[test]
-#[cfg(feature = "interval")]
-fn the_denominator_that_vanishes_is_refused_by_clause_1_not_folded() {
-    assert_eq!(
-        sound(
-            "abs(1/sqrt(t²)) − 1/sqrt(t²) at t = 0.25",
-            how(SymRules::shipped(), || {
-                let x = one() / p("t", 0.25).powi(2).sqrt();
-                x.abs() - x
-            })
-        ),
-        "theorem"
-    );
-    let over_box = |lo: f64, hi: f64| {
-        how_i(SymRules::shipped(), move || {
-            let x = one_i() / over("t", lo, hi).powi(2).sqrt();
-            x.abs() - x
-        })
-    };
-    let (holds_zero, _) = over_box(-0.1, 0.4);
-    println!("  … over t ∈ [−0.1, 0.4] (D = 0 inside): {holds_zero}");
-    assert_ne!(
-        holds_zero, "theorem",
-        "a box the value channel divided by zero on is clause 1's, not the fold's"
-    );
-    let (clear, _) = over_box(0.2, 0.3);
-    println!("  … over t ∈ [0.2, 0.3]: {clear}");
-    assert_eq!(clear, "theorem");
-}
-
-/// **A MANIFESTLY POSITIVE FORM UNDEFINED INSIDE THE BOX (R1, item G).**
-/// `1/(t − 1)²` is a positive constant over a PERFECT SQUARE, which the
-/// predicate accepts for a DENOMINATOR, so `manifest::positive` says
-/// yes — and at `t = 1` the form has no value at all. The header says
-/// clause 1 refuses there first; this row drives a box that contains
-/// the pole and one clear of it, under both arms.
-#[test]
-#[cfg(feature = "interval")]
-fn a_manifestly_positive_form_undefined_inside_the_box() {
-    for (name, lo, hi, want_theorem) in [
-        ("straddles the pole", 0.9, 1.1, false),
-        ("clear of it", 0.2, 0.4, true),
-    ] {
-        for what in ["abs", "copysign"] {
-            let (l, v) = how_i(SymRules::shipped(), || {
-                let x = one_i() / (over("t", lo, hi) - one_i()).powi(2);
-                if what == "abs" {
-                    x.abs() - x
-                } else {
-                    one_i().copysign(x) - one_i()
-                }
-            });
-            println!("  [{name}] {what}: {l} enclosure {v:?}");
-            assert_eq!(
-                l == "theorem",
-                want_theorem,
-                "[{name}] {what}: a box holding the pole must be clause 1's"
-            );
-        }
-    }
-}
-
 /// **THE ONE REACHABLE ZERO OF A POSITIVE FORM SPELLS ITSELF `+0.0`
 /// (R1, addendum 2).** The header's signed-zero paragraph says a
 /// manifestly positive form whose value channel yields `−0.0` would be
@@ -554,27 +447,6 @@ fn the_underflowed_positive_form_spells_its_zero_positive() {
         "copysign(1, X) − 1 at the underflow",
         how(SymRules::shipped(), || one().copysign(x()) - one()),
     );
-}
-
-/// **THE HAND-MINTED MAGNITUDE IS THE ATOM AN `abs` NODE MINTS (R1,
-/// addendum 3).** `magnitude` folds `copysign(Y, X)` to the `Abs` ATOM
-/// over `Y` when `Y` is neither constant nor manifestly non-negative,
-/// and the whole value of doing so is that the atom is the SAME
-/// indeterminate an `abs(Y)` node elsewhere in the DAG mints. With a
-/// compound `Y` that claim is what makes this residual the zero form,
-/// and it is the pin of the `mint_atom` door the fold now goes through.
-#[test]
-#[cfg(feature = "interval")]
-fn the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints() {
-    let resid = || {
-        let y = over("x", -0.6, 0.6) - over("z", 0.1, 0.2);
-        y.copysign(one_i()) - y.abs()
-    };
-    let (on, _) = how_i(SymRules::shipped(), resid);
-    let (off, _) = how_i(SymRules::without_rule_f(), resid);
-    println!("  copysign(x − z, 1) − |x − z|: F-on {on} | F-off {off}");
-    assert_eq!(on, "theorem", "the minted atom must be the abs node's atom");
-    assert_ne!(off, "theorem", "rule F is what takes it");
 }
 
 /// **THE PREDICATE'S POSITIVE BOUNDARY (R2, addendum 4).** Four shapes
@@ -722,23 +594,4 @@ fn the_adversary_a_positive_form_whose_f64_channel_reads_negative() {
         contradicted + flipped > 0,
         "the adversary is meant to make the f64 channel disagree at least once"
     );
-}
-
-/// The same adversary at the INTERVAL lift, which is the certified
-/// lane: `E`'s enclosure over a box around `x = 1e8` straddles zero,
-/// the value channel cannot decide, and the tier answers `theorem` —
-/// the identity, correctly. Gating, because nothing here panics.
-#[test]
-#[cfg(feature = "interval")]
-fn the_adversary_at_the_interval_lift_is_a_plain_theorem() {
-    let tiny = 1.0e-30;
-    let (l, v) = how_i(SymRules::shipped(), || {
-        let x = over("x", 1.0e8 - 1.0, 1.0e8 + 1.0);
-        let y = over("y", 0.4, 0.6);
-        let e = (x + one_i()).powi(2) - x.powi(2) - Sym::from_f64(2.0) * x - one_i()
-            + Sym::from_f64(tiny) * (one_i() + y.powi(2));
-        one_i().copysign(e) - one_i()
-    });
-    println!("  interval lift over x ∈ [1e8 ∓ 1]: {l} enclosure {v:?}");
-    assert_eq!(l, "theorem");
 }
