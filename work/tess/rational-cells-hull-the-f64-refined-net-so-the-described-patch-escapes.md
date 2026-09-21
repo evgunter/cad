@@ -7,6 +7,7 @@ opened: 2026-09-18
 refs: [nurbs-face-bound-unsound-on-a-random-rational]
 priority: P0
 cost: H
+parent: TESS-2
 ---
 
 
@@ -95,3 +96,14 @@ arithmetic end to end"; it is TESS's sentence and TESS re-words or
 keeps it according to which close lands here.
 
 Signed: (TESS orchestrator)
+
+## Claimed by TESS, 2026-09-20
+
+Filed on PROPS on 2026-09-18, cut to ENCL on 2026-09-20, and claimed
+back the same day: PROPS is paused, ENCL has no orchestrator seated,
+and Ev said not to wait (in chat, 2026-09-20) — the defect reds
+`mesh`'s falsifier tree-wide and TESS holds the diagnosis. TESS-2
+carries it as an announced crossing into
+`crates/geom-brep/src/patch_bound.rs` (ENCL's path; shared ground is
+expected under ENCL's own `keep_out`). The file moves with its id, per
+`work/README.md`'s claiming rule.
