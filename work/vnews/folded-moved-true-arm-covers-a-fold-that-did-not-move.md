@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-19
 priority: P1
 cost: E
+rides_with: frame-rs-says-the-per-subject-line-is-a-question-for-ev
 ---
 
 Found by the sweep `is-instance-collapses-absent-and-wrong-kind`
@@ -78,19 +79,79 @@ names are `crates/viewer/src/frame.rs:2353` (*"a refusal is a camera
 event too"*) and `crates/viewer/tests/frame_policy.rs`'s `folded_moved`
 row.
 
-### The rename is declined, on this program's own charter
+### The rename: struck on 2026-09-20, RESTORED the same day
 
-The row leaves the rename to the lane. The charter's test settles it:
-*"a row belongs here only if a reader would see the difference; a
-rename nobody reads is not news."* `folded_moved` is a crate-internal
-predicate with one production caller; renaming it changes nothing a
-reader of the GUI sees, and `work/vnews/plan.md` requires that test at
-SPEC time rather than at review. **So the deliverable is the first doc
-line and nothing else** — which is what the row already recommends and
-what makes it a rider rather than a lane.
+This section first declined the rename, citing the Charter's *"a rename
+nobody reads is not news"*. **That was a misreading and the decline is
+withdrawn.** `work/vnews/plan.md` says of that clause, three sections
+from where it is stated, that it *"is a scoping test — does this row
+belong to a NEWS program at all"* and that *"the consequence is about
+ORDER, not merit"*. Using it to delete work is the one thing it does
+not do. Recorded rather than silently reversed, because an
+adjudication that strikes a deliverable with a rule that does not
+license striking is exactly the shape this unit was convened to catch.
 
-### Disposition
+**On the merits, re-derived.** The two questions are different and both
+are real:
 
-A rider on the `frame.rs` prose pass. No Ev gate: `folded_moved` is not
-named in `crates/viewer/GUI-DESIGN.md`, and the sentence being repaired
-is a doc comment in this program's own file.
+- *Does an end user see it?* No. `folded_moved` is crate-internal with
+  one production caller.
+- *Does a reader of the code pay?* **Yes**, and that is the cost the
+  row is about. The name asserts *moved*; the `true` arm includes a
+  fold that moved nothing. `pane/viewport.rs:439-442` guards `land` on
+  it under a comment saying `land` is *"the one place a camera MOVE
+  becomes application state"* — so the next person building on that
+  guard gets a weaker guarantee than the name states, and the doc-line
+  repair alone leaves the name still saying it. A false name is read
+  more often than the doc line under it.
+
+**The churn, re-derived — the row's own figure is short.** It says
+*"three production sites plus two test files"*. The actual population
+is **nine sites in four files**:
+
+| site | what |
+|---|---|
+| `crates/viewer/src/frame.rs:2096` | the declaration |
+| `crates/viewer/src/frame.rs:25` | the module header naming it |
+| `crates/viewer/src/pane/viewport.rs:442` | the one production call |
+| `crates/viewer/src/pane/viewport.rs:439` | the comment naming it |
+| `crates/viewer/src/frame.rs:2163`, `:2353` | the module's own rows |
+| `crates/viewer/tests/frame_policy.rs:1379`, `:1390` | the policy rows |
+| `crates/viewer/README.md:674` | the `frame` charter row names it |
+
+**That last one is the cost the row did not price.** `README.md` is
+VDOC's by `work/vnews/program.md`'s `keep_out`, which says a defect
+there *"is filed on vdoc and never fixed across that fence"* — and a
+rename does not falsify that sentence by accident, it is the lane's own
+diff doing it. `work/vnews/plan.md`'s dispatch rules already adjudicate
+this exact collision and give the carve-out the win: the named
+`keep_out` beats the general *your-own-diff-falsified-it* rule. So a
+rename **files a VDOC row for `README.md:674` and announces**.
+
+### Disposition: a rider for the doc line, a judgement for the name
+
+The two halves separate cleanly and should not be forced together:
+
+1. **The doc line** (`frame.rs:2082`) — a rider on group A's carrier,
+   `work/vnews/frame-rs-says-the-per-subject-line-is-a-question-for-ev`.
+   `frame.rs` only, no other file touched. This is what `rides_with:`
+   names.
+2. **The rename** — restored to the deliverable and left to the lane,
+   as the row always said. It widens past `frame.rs` to
+   `pane/viewport.rs` (VNEWS's and VGEOM's and VSEAM's: announce) and
+   to a VDOC row for `README.md:674`. **If the lane takes it, this row
+   stops being a pure rider** and group A's shape changes; that is a
+   consequence to weigh, not a reason to strike it.
+
+A candidate the row does not name, since the first doc line has to be
+rewritten either way: `folded_is_a_camera_event`, which is the question
+`frame.rs:25`'s module header already asks (*"what a folded event
+stream amounts to"*).
+
+### No Ev gate
+
+`folded_moved` is not named in `crates/viewer/GUI-DESIGN.md`, and the
+sentence being repaired is a doc comment in this program's own file.
+The ruling and its searches are in
+`work/vnews/rank-one-discards-the-frames-other-news`, the canonical
+home; it is cited here rather than restated.

@@ -100,4 +100,7 @@ both edit `crates/viewer/src/frame.rs`, which is serialized.
 `crates/viewer/GUI-DESIGN.md` carries no clause about either enum;
 `docs/DESIGN.md:33` calls `crates/viewer/README.md` the implementation
 record the program maintains itself, and `README.md:368` is the only
-ratifying sentence the row cites. The fork is this program's.
+ratifying sentence the row cites. The fork is this program's. The
+general finding lives once, in
+`work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
+section.

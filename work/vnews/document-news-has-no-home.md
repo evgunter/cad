@@ -32,7 +32,13 @@ else's, so nothing stops a future site handing it a camera refusal.
 value with a `Display` — the shape `frame::Withdrawal` took in the same
 unit and the shape `prefs::Notice` already has — and `tool_news` takes
 that type instead of a `String`. Then the door is type-pinned like its
-six siblings and the twelve sites hand over a value rather than text.
+six siblings and every site hands over a value rather than text.
+(**This sentence said *"the twelve sites"*.** It was twelve when the
+row was filed and is fourteen today — the enumeration and the two sites
+the row's census never saw are in the adjudication section below. The
+number is removed rather than updated, for the reason
+`work/vnews/hand-maintained-counts-in-frame-rs-prose-have-no-guard`
+gives: nothing reds when the next one lands.)
 
 `ToolKind::says` returning `String` (`crates/viewer/src/tools.rs:118`)
 is the thing in the way: it is a wording function over `impl Display`,
@@ -94,4 +100,7 @@ not blockers.
 Nothing about the door is in `crates/viewer/GUI-DESIGN.md`; the
 vocabulary is stated in `frame.rs`'s doc comments and in
 `crates/viewer/README.md`, which `docs/DESIGN.md:33` calls the
-implementation record the program maintains itself.
+implementation record the program maintains itself. The general
+finding lives once, in
+`work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
+section.

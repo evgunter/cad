@@ -63,3 +63,16 @@ compositions stop compiling and the clause has one live instance
 instead of two. The rule is still worth stating — the shape recurs
 whenever a door is added beside an existing one — but re-derive the
 instances against the tree before writing it.
+
+## The other half, and where it went
+
+The parent row closed 2026-09-20 as a negative result. Its second
+residue — the one row that uses the dead composition and does NOT
+disclose it, `a_clean_fold_retires_the_camera_refusal_it_did_write` at
+`crates/viewer/src/frame.rs:2182` — is
+`work/vnews/a-dead-composition-sets-up-a-fixture-without-saying-so`, on
+VNEWS's slate because the sentence lands in `frame.rs`. **The two are
+not the same work**: that one adds a disclosure at a site, this one
+states the rule that decides when a disclosure is enough. Either can
+land first; this one is the better instruction for the next reader and
+that one is the cheaper edit.

@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-19
 priority: P4
 cost: E
+rides_with: frame-rs-says-the-per-subject-line-is-a-question-for-ev
 ---
 
 
@@ -93,10 +94,31 @@ row says. `theme.rs` is one of the eleven files
 no re-scope successor, so it cannot ride a VNEWS lane. The `frame.rs`
 half does not wait on it.
 
-### Disposition
+### Disposition: two of four members ride; the row does NOT close with them
 
-A rider on the `frame.rs` prose pass — two doc sentences, no value
-change, no Ev gate. `crates/viewer/GUI-DESIGN.md` G4's tree clause
-(`:96-99`) states the POISONED-draws-quiet rule itself and is
-untouched by either repair: what moves is only WHO the doc says states
-it, which is a fact about this crate's code and not a design choice.
+The row's population is four sentences and they have three different
+owners, so the rider disposes of half of it and no more:
+
+| member | disposition |
+|---|---|
+| `crates/viewer/src/frame.rs:1166-1171` | rides group A's carrier |
+| `crates/viewer/src/frame.rs:1764-1768` | rides group A's carrier |
+| `crates/viewer/src/theme.rs:201-205` | **stays open on this row** — `theme.rs` is claimed by no dispatching program |
+| `crates/viewer/README.md` (~`:835`) | already filed on VDOC as `viewer-readme-attributes-the-tone-rule-to-the-pane`; not this row's |
+
+So **this row stays open after group A lands**, carrying the `theme.rs`
+member alone, and its `rides_with:` names the carrier for the half that
+rides rather than for the row. The `theme.rs` half is not blocked on
+anything group A does; it is blocked on the same territory question as
+`environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
+(`work/view/viewer-src-files-no-successor-claims`), and it is the
+cheaper half of that question — one citation replacing a
+re-derivation, on a sentence that is TRUE today.
+
+No Ev gate on either half. `crates/viewer/GUI-DESIGN.md` G4's tree
+clause (`:97-99`) states the POISONED-draws-quiet rule itself and is
+untouched by any of the four repairs: what moves is only WHO the doc
+says states it, which is a fact about this crate's code and not a
+design choice. The general finding lives once, in
+`work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
+section.

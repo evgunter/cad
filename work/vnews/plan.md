@@ -210,24 +210,41 @@ parallel elsewhere.
 
 ### 7. The frame.rs cluster, adjudicated (2026-09-20)
 
-Groups 3, 4, part of 5 and four rows the order never placed all edit
-`crates/viewer/src/frame.rs`, which is serialized. This section is the
-order for that file, derived against the tree on 2026-09-20 rather
-than from the rows. It supersedes groups 3 and 4 for the rows it
-names. Every claim below is a claim; the evidence is in each row's own
-`## Adjudicated 2026-09-20` section.
+Groups 3 and 4, two of group 5's three, and two rows the order never
+placed all edit `crates/viewer/src/frame.rs`, which is serialized. This
+section is the order for that file, derived against the tree on
+2026-09-20 rather than from the rows. It supersedes groups 3 and 4 for
+the rows it names. Every claim below is a claim; the evidence is in
+each row's own `## Adjudicated 2026-09-20` section.
 
-**The population is eight, and the enumeration rule is: an OPEN row on
-this slate whose fix edits `crates/viewer/src/frame.rs`.** Re-derived
-by grepping `frame.rs` across `work/vnews/*.md` and reading each hit's
-`status:` and its fix site. Two hits are closed rows
+**The enumeration rule: an OPEN row on this slate whose fix edits
+`crates/viewer/src/frame.rs`.** The table below is the population of
+record and its size is not restated here — the register's own rule
+about a tabulated population, which it says its own count got wrong
+twice.
+
+**The instrument, and the member it cannot see.** The first pass was a
+grep for the literal `frame.rs` across `work/vnews/*.md`, sixteen hits:
+three are `plan.md`, `program.md` and `log.md`; **four are closed rows**
 (`is-instance-collapses-absent-and-wrong-kind`,
-`seat-line-spells-the-list-mark-as-a-literal`), and two open rows
-mention the file without editing it:
+`seat-line-spells-the-list-mark-as-a-literal`,
+`tone-is-a-value-in-frame-and-a-comment-in-two-panes`,
+`tone-to-chrome-mapping-is-spelled-twice`); two are open rows that name
+the file without editing it —
 `seat-lines-item-mark-has-no-name` says so itself (*"`frame.rs` is not
-in scope"*), and
+in scope"*) and
 `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words`
 cites it only as evidence about reachability, its home being `app.rs`.
+
+**That leaves seven, and the population is the table below.** The
+eighth, `document-news-has-no-home`, **contains no occurrence of the
+string `frame.rs`** — it names `frame::tool_news`, whose declaration is
+in that file. It was found by reading every open row's cited fix SITES
+and resolving each symbol to its file, not by the grep; the grep was
+only how the other seven were found. So **the rule and the instrument
+do not agree, and the rule is the one to re-run**: a row can edit this
+file while naming only `frame::` types. A later session re-deriving
+from the grep alone gets seven.
 
 #### What each row is
 
@@ -237,89 +254,135 @@ cites it only as evidence about reachability, its home being `app.rs`.
 | `outstanding-and-progress-are-two-three-state-enums-one-hop-apart` | **a decision this program makes**, then a build | no clause in `GUI-DESIGN.md`; its only cited ratification is `crates/viewer/README.md:368`, the implementation record |
 | `rank-one-discards-the-frames-other-news` | **a decision this program makes** | rank 1 is NOT ratified — see below |
 | `one-line-one-subject-loses-a-mixed-frames-expiry` | **a decision this program makes** | same finding; arm 1 is the status quo and not a design change at all |
-| `a-fold-row-composes-a-producer-with-a-dead-door` | **a negative result**, plus a rider | the tree already answers its question at `frame.rs:2337-2349` |
+| `a-fold-row-composes-a-producer-with-a-dead-door` | **CLOSED 2026-09-20**, a negative result | its question is applied in the tree at `frame.rs:2337-2349` and stated nowhere; both residues re-homed as files |
 | `document-news-has-no-home` | **a build**, not dispatchable yet | its fourteen sites include `pane/profile.rs`, which no dispatching program claims |
-| `folded-moved-true-arm-covers-a-fold-that-did-not-move` | **a rider** (one doc line) | the rename is declined on the charter's own reader test |
-| `tone-doc-argues-from-a-site-that-now-reads-the-value` | **a rider** (two doc sentences) | both members verified false at `frame.rs:1166-1171` and `:1764-1768` |
+| `folded-moved-true-arm-covers-a-fold-that-did-not-move` | **a rider** (one doc line) **plus a rename the lane judges** | doc line verified at `frame.rs:2082`; the rename's churn is nine sites in four files, one across VDOC's fence |
+| `tone-doc-argues-from-a-site-that-now-reads-the-value` | **two of its four members ride**; the row stays open | both `frame.rs` members verified false at `:1166-1171` and `:1764-1768`; its `theme.rs` member is in an unclaimed file |
 
 **Nothing in this cluster is a decision for Ev.** Nothing here is
 `needs_ev`, and none of it should become so.
 
 #### The finding that decides the two ranking rows
 
-`rank-one-discards-the-frames-other-news` called rank 1 *"the ratified
-ranking"* and `one-line-one-subject-…` argued its arm 2 against *"rank
-1's ratified 'a refusal wins, alone'"*. **There is no ratification.**
-`crates/viewer/GUI-DESIGN.md` — the Ev-gated document, the one
-`docs/DESIGN.md:33` marks *Ratified* — carries no clause about the
-status line at all; none of `docs/DESIGN.md`'s Q1–Q9 is the status
-line; no `[ev]` commit has ever touched `crates/viewer/src/frame.rs`;
-and the rule's only normative statement is `frame_status`'s doc comment
-(`crates/viewer/src/frame.rs:610-623`), written by an agent in
-`66d7fe11f` on 2026-08-31 and called ratified by another agent in
-`3ef3f9df7` on 2026-09-04. The full search log is in
-`rank-one-discards-the-frames-other-news`'s adjudication section.
+Rank 1's *"a refusal wins, alone"* was called ratified by two rows and
+**is not**: no clause in `crates/viewer/GUI-DESIGN.md`, none of
+`docs/DESIGN.md`'s Q1–Q9, no `[ev]` commit ever on
+`crates/viewer/src/frame.rs`, and one agent-written doc comment as its
+only normative statement.
 
-`crates/viewer/README.md` is not a gate either: the companion row says
-it is *"the implementation record, which the program maintains
-itself"*, and it has no row of its own in that table.
+**The finding, the searches and their corrections live once**, in
+`work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
+section. Five sibling rows and this section cite it and do not restate
+it, for the reason §The register gives about the lane register: a claim
+fixed in one place and stale in another contradicts itself, and six
+copies of one search guarantee divergence the first time a line moves.
 
-**One sentence in the source asserts the gate anyway.**
+**It is an instance of a wider class, and the class is now a row.**
+`crates/viewer/src` carries thirty-five `ratif*` assertions and at
+least two more in this file alone have the same provenance —
+`frame.rs:1191-1192` (*"the ratified argument the checks badge
+carries"*) and `frame.rs:2040` (*"The ratified pattern is
+refuse-then-offer"*, already spread to four sites) — while
+`frame.rs:565`'s *"ratified expression-driven affordance"* is genuine
+(`crates/viewer/GUI-DESIGN.md:93-94`, G4). Mixed, so it needs a census:
+`work/vnews/ratified-is-asserted-across-viewer-src-and-some-was-never-ratified`.
+
+**One sentence in the source asserts the gate, and it now has an item.**
 `crates/viewer/src/frame.rs:656-658` says the per-subject line *"is a
-design question for Ev"*. It is not, and the same sentence also cites
-`work/view/one-line-one-subject-…`, a path the re-scope moved. The
-stale-path half is already filed as
-`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`; the
-false-gate half is this program's and rides the prose pass.
+design question for Ev"*. That is
+`work/vnews/frame-rs-says-the-per-subject-line-is-a-question-for-ev`,
+group A's carrier — an item rather than a plan paragraph, because a
+sentence that tells every reader a wall exists is the thing this
+adjudication is about, and it needs an id for the riders to name.
 
 #### Three claims the order and the brief carried that do not hold
 
-1. **Groups 3's *"the second's fork decides what the first collapses
-   INTO"* is false.** `Outstanding`/`Progress` feed the badge channel
-   and `StatusUpdate` feeds the status line; no value of either family
-   is convertible to the other. They share a SHAPE, not a dependency,
-   and are independently decidable.
-2. **Group 4's *"one conversation"* is false.** A refusal and a
-   supersession are both `Subject::Document`
+1. **Group 3's *"the second's fork decides what the first collapses
+   INTO, so they are one conversation"* is false.**
+   `Outstanding`/`Progress` feed the badge channel and `StatusUpdate`
+   feeds the status line; no value of either family is convertible to
+   the other. They share a SHAPE, not a dependency, and are
+   independently decidable. (Both halves of that sentence — the
+   collapse and the *"one conversation"* — are group 3's. Group 4 says
+   only *"Both are about news the ranking throws away rather than
+   spells"*, which is true, and argues `rank-one-discards-…` first,
+   which the order below agrees with.)
+2. **Group 4's rows are adjacent, not the same question**, and that is
+   a correction to how the cluster reads rather than to a sentence it
+   wrote. A refusal and a supersession are both `Subject::Document`
    (`crates/viewer/src/frame.rs:583-585` and `:2502-2507`), so
-   `one-line-one-subject-…`'s arm 2 leaves
-   `rank-one-discards-…`'s case exactly as it is. The interlock runs
-   one way only: taking `rank-one-discards-…` first makes arm 2
-   cheaper, and not the reverse.
-3. **`a-fold-row-…`'s *"nothing states it anywhere"* is false**, and
-   `ranked-and-unranked-…`'s fix would make its two instances stop
-   compiling. It is not a lane and must not go first.
+   `one-line-one-subject-…`'s arm 2 leaves `rank-one-discards-…`'s case
+   exactly as it is — the per-subject line still holds one message for
+   that pair. The interlock runs one way only, and it is group 4's own
+   order: `rank-one-discards-…` first makes arm 2 cheaper, not the
+   reverse.
+3. **`a-fold-row-…`'s *"nothing states it anywhere"* is nearly right
+   and was over-corrected.** `frame.rs:2337-2349` APPLIES the rule at
+   one site and never states it; the row's sentence is right about the
+   rule's homelessness and wrong only in implying the tree offers
+   nothing to read. The row is closed either way, its residues filed.
+   And `ranked-and-unranked-…` may delete the instances outright, on
+   one of its two arms — see the order below.
 
 #### The order
 
-**A. The prose pass — one lane, and it can be the cheapest thing on the
-slate.** `folded-moved-true-arm-covers-a-fold-that-did-not-move` (one
-doc line, `frame.rs:2082`), `tone-doc-argues-from-a-site-that-now-
-reads-the-value`'s two `frame.rs` members (`:1166-1171`, `:1764-1768`),
-`a-fold-row-…`'s disclosure paragraph on `:2182`, the false-gate clause
-at `:656-658`, and `document-news-has-no-home`'s stale *"twelve sites"*
-at `:1345`. **Six sentences in one file, no value changes, one
-serialized slot instead of five.** Under §Review posture's third tier
-this is the orchestrator's-read tier: no correctness is at risk and
-every member is verified in its row.
+**A. The prose pass — one lane.** Its carrier is
+`work/vnews/frame-rs-says-the-per-subject-line-is-a-question-for-ev`
+(the false Ev gate at `frame.rs:656-658`). Every other member is a row
+of its own with `rides_with:` naming that carrier, so the dispositions
+are on the board and visible to `lint` rather than living in this
+paragraph:
 
-Two caveats a lane taking it owes. `:656-658` and `:704` are also in
+| member | site | row |
+|---|---|---|
+| the false Ev gate | `frame.rs:656-658` | the carrier itself |
+| *"actually moved the camera"* | `frame.rs:2082` | `folded-moved-true-arm-…` (doc-line half) |
+| the two tone attributions | `frame.rs:1166-1171`, `:1764-1768` | `tone-doc-argues-…` (two of its four members) |
+| the undisclosed dead composition | `frame.rs:2182` | `a-dead-composition-sets-up-a-fixture-without-saying-so` |
+| the hand-maintained counts | `frame.rs:1345` and four siblings | `hand-maintained-counts-in-frame-rs-prose-have-no-guard` |
+
+One file, no value change, one serialized slot instead of five.
+
+**The tier is a style review, not the orchestrator's read.** An earlier
+draft claimed the third tier by quoting half its definition; §Review
+posture says *"neither correctness NOR STYLE is meaningfully at
+risk"*, and six prose edits in a serialized file — one of them
+retracting a sentence that told readers a design gate existed, one
+deciding whether to remove a count or restate it — are a style
+judgement in exactly the sense that tier excludes. Correctness is not
+at risk, so no correctness arm.
+
+Three things a lane taking it owes. **`frame.rs:1345` loses its number
+rather than gaining a new one** — the rider says why. **`:656-658` and
+`:704` are also in
 `work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
-table — the crossing is announced and that row's two lines struck, or
-the lane leaves the path alone and repairs only the Ev claim. And
-`theme.rs` is out of fence and stays out.
+table**, so either the crossing is announced and those two lines
+struck, or the lane leaves the path alone and repairs only the gate
+claim; not both. And **`theme.rs` is out of fence and stays out**, so
+`tone-doc-…` does not close with this lane.
 
 **B. `ranked-and-unranked-verdicts-are-one-type`.** First of the
-builds, because it is the only row whose fix removes another row's
-subject: `apply` taking a ranked verdict makes `a-fold-row-…`'s two
-dead compositions compile errors. It also decides the type every later
-row in this file writes against.
+builds, because on its live arm it deletes other rows' subjects
+outright: `apply` taking a ranked verdict makes **seven** sites stop
+compiling — `frame.rs:2172`, `:2188`, `:2191`, `:2231`, `:2239`,
+`:2370` and the production call at `pane/viewport.rs:473`. (On its
+other stated arm, `apply` made private to `frame`, none of them moves;
+that arm is not available while `apply` has two production callers
+outside the module, which is the argument, not a certainty.) It also
+decides the type every later row in this file writes against.
+**Announce**: `pane/viewport.rs` is VGEOM's and VSEAM's too, and the
+`frame::apply` call sites at `crates/viewer/tests/frame_policy.rs:826`,
+`:904` and `:929` put it in VDOC's, S-TCOST's, S-TINT's and Track W's
+ground.
 
 **C. `rank-one-discards-the-frames-other-news`.** P0, and a decision
 this program now knows it may make. Ahead of `one-line-one-subject-…`
 because a rank-2 list that must already carry a second message beside a
-refusal is the shape that row's arm 2 wants. (The band is worth a
-look: `work/README.md` P0 is *a live wrong answer* or *a defect Ev
+refusal is the shape that row's arm 2 wants. **Announce**: the ranking
+is pinned by `crates/viewer/tests/frame_policy.rs`, which is VDOC's,
+S-TCOST's, S-TINT's and Track W's, and the row's own *"where to look"*
+names `crates/viewer/src/app.rs`, which is VSEAM's. (The band is worth
+a look: `work/README.md` P0 is *a live wrong answer* or *a defect Ev
 reported*, and this is a silence about a lost hand-placed pose. Left
 as filed; the re-band is the orchestrator's call, not an
 adjudication's.)
@@ -341,11 +404,21 @@ blocker this plan already applies to
 `environmental-facts-answer-usable-as-a-bool-with-the-reason-
 elsewhere`. Left `open` rather than `parked`, matching that row.
 
-**And `a-fold-row-composes-a-producer-with-a-dead-door` is never a
-lane.** Its question is answered, its rider is in group A, and its
-crate-wide half is filed as
-`work/vdoc/a-fixture-may-compose-a-dead-door-and-nothing-says-when`. It
-stays open only until the rider lands.
+**And `a-fold-row-composes-a-producer-with-a-dead-door` is CLOSED**
+(2026-09-20), a negative result: its question is applied in the tree
+and stated nowhere, and neither half is a decision this slate has to
+make. Both residues are files, filed in the commit that closed it —
+`work/vnews/a-dead-composition-sets-up-a-fixture-without-saying-so`
+(group A) and
+`work/vdoc/a-fixture-may-compose-a-dead-door-and-nothing-says-when`.
+
+**Filed alongside, and not in this cluster's order:**
+`work/vnews/ratified-is-asserted-across-viewer-src-and-some-was-never-ratified`
+(the class behind the headline finding — a census before any fix, and
+it reaches files this program does not claim) and
+`work/view/tier-rule-says-twenty-one-jobs-and-a-docs-run-shows-twenty-two`
+(the register's docs-tier marker, measured stale by this lane's own
+receipt).
 
 #### One cross-program hazard on this file
 
@@ -375,10 +448,17 @@ section records the work as done with the inner-level residue filed as
 `withdrawal-causes-join-on-a-mark-a-fault-may-contain`. So the row
 reads as an in-flight `frame.rs` lane on the board and is not one —
 which matters here, because the serialization clause above is read off
-exactly that. It is VIEW's file and this adjudication does not move it:
-the disposition (close it where it is, or `git mv` it here and close
-it) is the orchestrator's, and either way **no `frame.rs` lane is in
-flight today.**
+exactly that. **The VNEWS orchestrator is moving and closing it**; this
+section re-points when that lands. Either way **no `frame.rs` lane is
+in flight today**, which is what group A's slot depends on.
+
+(The first draft of this paragraph declined to act because the file is
+VIEW's. That was wrong on `work/README.md`'s own terms — *"a lane does
+not need the owner's permission to put a finding where it belongs"* —
+and it is recorded rather than overwritten because declining to cross a
+fence that the contract says is open is the mirror image of the
+false-Ev-gate defect this cluster is about: a wall read where none was
+written.)
 
 ## Dispatch rules this program pays for
 

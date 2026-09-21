@@ -169,7 +169,7 @@ The doors, the type and the ranking they feed are stated in
 `frame.rs`'s doc comments and in `crates/viewer/README.md`, which the
 `docs/DESIGN.md:33` companion row calls *"the implementation record,
 which the program maintains itself"*. `crates/viewer/GUI-DESIGN.md`
-says nothing about either door. See
-`rank-one-discards-the-frames-other-news`'s adjudication section for
-the searches.
+says nothing about either door. The finding and its searches live once,
+in `work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
+section; this row cites it rather than restating it.
 

@@ -103,14 +103,12 @@ thing at the code, and points here.
 ### Nothing here waits on Ev, and one sentence in the source says otherwise
 
 This row's arm 2 was argued against *"rank 1's ratified 'a refusal
-wins, alone'"*. **Rank 1 is not ratified.** The searches are written
-out in `rank-one-discards-the-frames-other-news`'s adjudication
-section; in short, `crates/viewer/GUI-DESIGN.md` — the only Ev-gated
-document on this ground, `docs/DESIGN.md:33` — carries no clause about
-the status line at all, none of `docs/DESIGN.md`'s Q1–Q9 is the status
-line, no `[ev]` commit has ever touched `crates/viewer/src/frame.rs`,
-and the rule's sole normative statement is `frame_status`'s doc comment
-written by an agent on 2026-08-31.
+wins, alone'"*. **Rank 1 is not ratified.** The finding, and every
+search that establishes it, is in
+`work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
+section, which is its canonical home — cited, not restated, because a
+search copied into six rows is six places to re-derive when one of them
+moves.
 
 So **every arm of this fork is this program's to decide.** Two further
 corrections to how the fork is framed:

@@ -76,6 +76,14 @@ where the loss is irreversible.
 
 ### The ranking has no ratification, so this row is this program's to decide
 
+**This section is the canonical home for the finding.** Five sibling
+rows and `work/vnews/plan.md` §Order 7 reached the same conclusion in
+the same adjudication; they cite this section rather than restating it,
+for the reason `work/vnews/plan.md` §The register gives about the lane
+register itself — *a claim fixed in one place and stale in another
+contradicts itself*, and six copies of one search guarantee divergence
+the first time anything moves.
+
 This row called rank 1 *"the ratified ranking"*, and
 `one-line-one-subject-loses-a-mixed-frames-expiry` inherited the word
 from it. Run against the tree, the word does not hold. What was
@@ -84,14 +92,20 @@ searched and what each search returned:
 - `crates/viewer/GUI-DESIGN.md` — the Ev-gated document, the one
   `docs/DESIGN.md`'s companion table (`docs/DESIGN.md:33`) marks
   *Ratified* — **contains no clause about the status line at all.**
-  Grepped for `rank`, `ranking`, `alone`, `status`, `notice`, `news`
-  and `frame_status`: the hits are `:4` (the clause list), `:159`
-  (GQ7, selection mechanics), `:176`, `:206` and `:234`, none of them
-  about what the line shows. G3 (`:78`) is what v1 is; G4's
-  presentation clause (`:91-99`) says *"Presentation is decided case by
-  case"*; G5 is colour; GQ1–GQ7 (`:130-167`) are the solver boundary,
-  partial builds, persistence, document scope, typed quantities, the
-  toolkit posture and selection mechanics.
+  Grepped for `rank|ranking|alone|status|notice|news|frame_status`:
+  **three hits, `:176`, `:206` and `:234`, all of them the word
+  `alone`** — *"bevy is … left alone"*, *"generation alone"*, *"left
+  alone because it is an observation"*. None is about the status line.
+  (A first pass of this row listed `:4` and `:159` among the hits.
+  They are not hits for any of the seven patterns; the correction
+  strengthens the conclusion, which is exactly why it is made —
+  `work/view/plan.md`'s rule is that *a receipt offered as evidence and
+  wrong about its own file is worse than no receipt*.)
+  Read rather than grepped: G3 (`:78`) is what v1 is; G4's
+  presentation clause (`:93-99`) says *"Presentation is decided case by
+  case"*; G5 (`:104`) is colour; GQ1–GQ7 (`:130-167`) are the solver
+  boundary, partial builds, persistence, document scope, typed
+  quantities, the toolkit posture and selection mechanics.
 - `docs/DESIGN.md`'s own open questions Q1–Q9 (`docs/DESIGN.md:1302`
   to `:1402`) — none of the nine is the status line.
 - A pickaxe search for the rule's own words in its own file returned
@@ -108,11 +122,23 @@ searched and what each search returned:
   status line"*, 2026-09-04, author **Claude**) — the commit that wrote
   that sentence in THIS file. The phrase occurs nowhere else in the
   tree.
-- `crates/viewer/README.md` mentions the ranking (`:674`, `:737`,
-  `:743`, `:755`, `:867`) and nowhere states rank 1's alone-ness. It is
-  not an Ev gate either way: the companion table's GUI-DESIGN row says
-  that page *"beside it is the implementation record, which the program
-  maintains itself"*, and it has no row of its own in that table.
+- `crates/viewer/README.md` mentions the ranking and nowhere states
+  rank 1's alone-ness. Grepping `ranking` gives **five hits — `:674`,
+  `:737`, `:743`, `:755`, `:1192` — of which four are about
+  `frame_status`'s ranking**; `:1192` is a different subject (layer 3's
+  refusal ranking, *"Layer 3 adds nothing but the ranking, so it stores
+  the payload and forwards the text"*). A first pass of this row listed
+  `:867` instead of `:1192`: `:867` is not a `ranking` hit at all — the
+  sentence at `:866-867` says *"joined into rank 2 by `frame_status`"*,
+  which is `rank`. It is still evidence for the conclusion, just not
+  evidence of the kind the sentence claimed, and the correction is made
+  here rather than absorbed because `work/view/plan.md`'s rule is that
+  *a receipt offered as evidence and wrong about its own file is worse
+  than no receipt*.
+  It is not an Ev gate either way: the companion table's GUI-DESIGN row
+  says that page *"beside it is the implementation record, which the
+  program maintains itself"*, and it has no row of its own in that
+  table.
 
 So the chain is: an agent wrote the rule as a doc comment on
 2026-08-31; an agent called it ratified on 2026-09-04; this row and
@@ -126,7 +152,7 @@ an `[ev]` gate.**
 
 It does not make the change free. The rule is asserted in
 `crates/viewer/tests/frame_policy.rs` and in `frame.rs`'s own test
-module, `crates/viewer/README.md` describes the ranking in five places,
+module, `crates/viewer/README.md` describes it at the four sites above,
 and `frame_status`'s doc comment is where the rule is stated — a lane
 changing rank 1 re-states it there, re-baselines the rows it moves, and
 says what moved. What the finding removes is the belief that a question
