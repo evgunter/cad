@@ -7285,6 +7285,27 @@ GREEN on the head (twelve `test` jobs, five `k-lint (gate, …)`, the
 python suite, `gate ok`; no `src` change on the merged branch, no
 predicate-count change). Sample number at merge. Row at merge.
 
+## LANE-1 review ordinal fixed at dispatch (2026-09-21)
+
+`lane-1-props-quad-lane-deleted` (LANE-1; SCALAR; PR #3010 open — frozen
+head `e6e66d99f3`): **ordinal 4113** (SCALAR band). Protocol v6 dual:
+draw = `/dev/urandom` byte **0**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**,
+concurrent on the frozen head, read-side isolation (v6 item 5), briefs
+identical and stored before either ran, with a line telling both arms
+that the branch's spec commit is the orchestrator's. Pre-draw
+difficulty **M / structural** (recorded branch-side in the block
+SCALAR-B5 pre-draw section before the block's byte 244, which put the
+FABLE arm on slot 1; the sub-unit's own sentence cut on 2026-09-21 with
+the arm known). Impl phase: ~1 h 35 min to the PR (dispatched 11:40Z,
+PR 13:15Z), the first head red on two reader-census rows that still
+ledgered the deleted identity test, fixed by the lane; impl CI
+**35605853860** GREEN on the frozen head (twelve `test` jobs, five
+`k-lint (gate, …)`, the python suite, `gate ok`). The unit landed six
+disclosed deviations the brief puts to both arms — first among them
+that the fold gives plain-name `f64` callers of the tier-3′ doors check
+2's lane, which can change a verdict off the corpora. Sample number at
+merge. Row at merge.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;

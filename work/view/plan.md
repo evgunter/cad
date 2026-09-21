@@ -1414,10 +1414,42 @@ a status recorded somewhere nothing checks — and it compounds the same
 way: an orchestrator that mis-reads the board dispatches a unit that is
 already done, or declines one that is not.
 
-**So a board read is `git show origin/main:<path>`, never `cat <path>`,
-unless the tree was fetched and merged in this turn.** The same holds
+**So a board read is `git fetch origin main` and then
+`git show origin/main:<path>`, never `cat <path>`.** Both halves, and
+the rule bit twice more within a day of being written for want of
+each. Once for the first half: the row list was re-derived from
+`origin/main` and the PLAN beside it read from the working tree, which
+was two days stale, so a dispatch quoted an Order and a shape
+precedent a re-scope had deleted. Once for the second: `origin/main`
+is only as fresh as the last fetch, and a lookup for a row filed
+twenty minutes earlier came back absent because the ref was two merges
+behind. **A ref is not a read of the remote.** The same holds
 for `git grep`: pass `origin/main` as the tree. It costs one word per
 read and it is the only form whose answer names its own commit.
+
+**Second instance, from a different cut, the same day.** The
+2026-09-20 priority-seam cut rewrote `work/vgeom/plan.md` and applied
+the **newly-opened-program template** to VGEOM, which is that cut's
+parent and not its child: §Charter and §The register were deleted
+outright — `work/vgeom/program.md` went on pointing every lane at a
+§The register that had not existed for a day — and §Review posture was
+replaced with *"OPEN, for this program's first dispatch … the first
+orchestrator answers it here rather than inheriting an answer."*
+
+That reopened a question Ev had answered twice. `docs/MODEL-AB-LOG.md`'s
+entry for that same cut names the programs the v7 triage question is
+open for — EMIT, GATHER and FIT, the three it opened — in the sentence
+that says *"WIRE and VGEOM are NOT closed and keep their bands"*; and
+its 2026-09-17 clause says the four successors *"inherit VIEW's posture
+verbatim … no duals and no row recorded"*.
+
+So the corollary widens: **a cut's output is a first draft of the
+programs it touches, including the ones it does not open.** What a cut
+writes about territory, posture or status is re-derived before a lane
+is dispatched under it, the same way a count is. The check is cheap in
+both instances found so far — the companion table for a sign-off claim,
+the roster for a posture claim — and both claims were checkable against
+a document the cut itself cited.
 
 **A receipt that was never run in the form it was written down in.**
 Three of this program's defects in one day are one shape. #2994's
@@ -1442,8 +1474,8 @@ fixing the pattern so it could be run admitted a qualified path, and
 the population moved 22 → 24 — two `egui::` binds at the chrome
 boundary that the old spelling could not see.
 
-**A fence written in the same commit as the program it fences has no
-independent authority.** The four-track cut (`f8a822e8c1`) wrote
+**A fence, a posture or a status written by a CUT has no independent
+authority.** The four-track cut (`f8a822e8c1`) wrote
 eighty-six rows' new homes and four `keep_out` clauses in one pass, and
 nothing re-derived the clauses afterwards. One of them told every VDOC
 lane that `crates/viewer/README.md` "is ratified design beside the code

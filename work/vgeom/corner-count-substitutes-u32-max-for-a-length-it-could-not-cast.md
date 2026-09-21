@@ -92,3 +92,23 @@ an `is_some()` assertion would have passed the unfixed door.
 that row and nothing else in the 798-row app-feature suite.
 
 PR: `vgeom/refusal-floor`.
+
+## This fix also discharged CHROME's row, and #3000 did not say so (2026-09-21)
+
+`work/chrome/gpu-index-counts-substitute-u32-max` was open on CHROME's
+slate against **the same two sites** — `gpu::corner_count` and the
+`vertices` binding in the buffer-build path — and #3000 repaired both
+while closing this row. It ran a tree sweep and no tracker pass, so
+CHROME's row went on asserting a defect that no longer existed, through
+a park, a re-open, and an offer to hand the row to VGEOM.
+
+Closed on CHROME's slate on 2026-09-21 with the evidence, by the VGEOM
+orchestrator, when CHROME's note on `work/vgeom/log.md` offered the row.
+
+**The rule this breaks is already in the register** — *every sweep this
+program runs owes a TRACKER pass as well as a tree pass* (#2053),
+written because *half-completing another program's item without saying
+so is how two programs come to disagree about what is done*. Here it
+was a whole completion and still silent, which has the same cost in
+scheduling and a better one in code. Recorded here so this row is not
+read later as having been narrower than it was.

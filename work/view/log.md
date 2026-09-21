@@ -14089,3 +14089,75 @@ asks for a warning count nobody can produce teaches a lane to invent
 one.
 
 Signed (VIEW implementer lane `view/cut-residue`).
+
+## 2026-09-21 — the refusal-floor unit, the cut's residue, and a posture a cut reopened
+
+**#3000 merged** — VGEOM's four refusal-floor doors, the P0 among them.
+`SlotValue::of` now answers `Result` and raises
+`DimensionError::NonFiniteLiteral` — *the same refusal, by name*, that
+`Expr::literal` raises for the continuous half, which makes
+`props.rs`'s standing promise true rather than merely patching it.
+`world_per_px` asks `is_finite` before reading its bound as one, and
+guards the quotient too. `camera::sphere` asks `finite` of the PRODUCT,
+where the overflow is. `gpu.rs`'s two saturating casts became one
+`draw_range` door that refuses. Five mutations, one row red each.
+
+Verified the receipt myself rather than reading it: run 35583567062 is
+39 jobs, **twelve `test (…)` and five `k-lint (gate, …)` all green**,
+`gate ok` green and posted last (09:57:19, after `release-default`'s
+09:57:08). Counted from the check list, not read off `docs-only ok`.
+
+**#3003 merged** — the cut's residue. Nine of `crates/viewer/src`'s
+fifty-two files had no successor claiming them while VIEW is NOT
+DISPATCHING; each now has one whose charter sentence decides it, every
+split written on both sides. Re-derived: 52 files, exactly
+`drafts.rs` left outside the four, and it is AUTHOR's and AUTHOR
+dispatches. The tier rule lost its totals and kept the two counts that
+carry an enumeration rule.
+
+**Four dispatch premises wrong, all four caught by lanes.** I wrote a
+receipt line (`work.py territory` with no argument) that exits 1; asked
+for a lint warning count the tool does not produce; said "the four
+§Charter sections" when there are three; and quoted `work/vgeom/plan.md`
+as naming #2644 as its shape precedent when that file says no such
+thing.
+
+**The fourth is the stale-board rule failing on its second day.** I
+re-derived VGEOM's ROW LIST from `origin/main` and read its PLAN from
+the working tree, which was pinned at `0c530f67ef`. The rule as written
+covers both; I applied it to the artefact I had just been burned on and
+not to the one beside it. And a third variant bit an hour later:
+`git show origin/main:<path>` is only as fresh as the last `git fetch`,
+and mine was two merges behind. **The rule wants both halves: fetch,
+then read the ref.**
+
+## The posture a cut reopened
+
+The 2026-09-20 priority-seam cut (`fb899b019c`) rewrote
+`work/vgeom/plan.md` and took §Charter and §The register with it —
+`work/vgeom/program.md` went on pointing lanes at a §The register that
+had not existed for a day — and it overwrote §Review posture with the
+template for a **newly opened** program: *"OPEN, for this program's
+first dispatch … the first orchestrator answers it here rather than
+inheriting an answer."*
+
+VGEOM is a parent of that cut, not a child of it. The roster entry for
+the cut itself says which programs the v7 triage question is open for —
+EMIT, GATHER and FIT, the three it opened — in the same sentence that
+says *"WIRE and VGEOM are NOT closed and keep their bands 3700-3799 and
+5300-5399"*. And the 2026-09-17 clause is explicit: *"All four inherit
+VIEW's posture verbatim (Ev, in-chat, 2026-09-04, reaffirmed that
+evening) … no duals and no row recorded … Each program's `plan.md`
+§Review posture states it."* Ev reaffirmed it at this session's
+hand-over.
+
+So a template silently reopened a question Ev had answered twice, on a
+program that was mid-wave. All three sections restored, quoting the
+roster rather than re-asserting anything, and the stale *"Nothing
+dispatched"* head line re-pointed at the log.
+
+**This is the morning's `keep_out` finding again with a different
+subject**, and the register rule generalises to cover it: a fence, a
+posture or a status **written by a cut** has no independent authority,
+because nothing re-derives what a cut writes. Two instances in one day,
+from two different cuts, one of them mine.

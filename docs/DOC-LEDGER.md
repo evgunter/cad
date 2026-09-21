@@ -4486,3 +4486,28 @@ row on SHELL's slate. Recorded in the PR body and the item's
 `## CLOSED` section.
 
 - `DECIDE-1-SPEC.md` — DECIDE-1, the self-dot straddle (#3001)
+
+## Per-merge deletion — DECIDE-2's spec (2026-09-21)
+
+Recoverable at `git show 8badd98d03:docs/DECIDE-2-SPEC.md` (the commit
+before the deleting one). Its sentences that did not survive: "the
+item's table gains a SIXTH column, `pinned by`" — the item's table has
+three columns and gained a fourth; "the three new rows (under
+`crates/geom-core/tests/` or `crates/geom-core/src/...`'s test modules
+where the seam is private)" read together with "expose what the pin
+needs at `pub(crate)`/test-support level" — two of the three rows are
+library rows (`sym::discharge_pins`) and the third could not be one at
+any visibility, because `k_stats::SampleOutcome` exists only under
+`probe` and no hosted job runs a library's unit tests under that
+feature, so the third row is an integration row in the rostered
+`k_stats_doors` suite reading a new `probe`-only door
+(`sym::discharge_sample_outcomes`), and the CI gap is filed as
+`work/guard/feature-gated-lib-unit-tests-are-compiled-and-never-run`;
+"adding a `Discharge` variant without a `SymCounts` column ... compiles"
+(the item's premise, carried into the spec's framing) — it does not,
+since every `match` on the enum is exhaustive; what compiles and
+passes is an ARM that folds the new kind into an existing column, row
+or token, so what the three rows assert is injectivity rather than
+totality. Recorded in the PR body and the item's `## CLOSED` section.
+
+- `DECIDE-2-SPEC.md` — DECIDE-2, one pin per seam for the discharge vocabulary (#3011)

@@ -662,3 +662,93 @@ that the rows stay in DOOR — *FIX is a grab bag of small things and DOOR
 is the more coherent home* — and this sweep does not reopen it. FIX's
 `plan.md` was corrected in the same commit: it had raised the overlap as
 a handoff question, which is re-litigating a decision already made.
+
+## The wave that empties the slate (2026-09-21)
+
+Four rows, four PRs, four merges: **2984** (`axis_datum`'s `expected:`
+comes from `phrase::DATUM_AXIS`), **2985** (the placer docs say what the
+placers accept and yield), **2986** (`PartFault::PartProduct` carries
+the class beside the sentence), **2989** (`VectorSlot::slots` deleted).
+Every one on its own green hosted head, full matrix, no narrowing. The
+slate is empty.
+
+### The lanes corrected the dispatching seat twice
+
+Both times the brief passed on a summary and the lane read the code:
+
+- **2985.** The brief said both placers are *"shape-preserving over
+  `Instances`"*, taken from the row and from ruling 2137's own summary.
+  `wire_pattern` returns `ValuePayload::Instances` **unconditionally** —
+  N bodies for a one-body master. Shape-preserving is true of
+  `Transform` and false of `Pattern`, and writing it twice would have
+  put a false sentence in a declaration `node_value_kind` reasons from.
+  CHROME's `body-seat-reads-through-the-placer-chain` carries the same
+  imprecise parenthetical (its TITLE gets it right) and has been told.
+- **2989.** The brief said to delete the method *"and the re-export"*.
+  There is no separate re-export; the enum's is load-bearing and the
+  lane proved it with a revert-after-probe (`E0432` from the viewer).
+
+That is instruction 1 — *read the clause, not the row's summary* —
+working in the direction nobody plans for: catching the orchestrator.
+
+### What the units measured rather than inherited
+
+Every row's numbers were stale and every lane re-derived them.
+`vectorslot`'s `.slots()` count drifted 36 → 41; `datum-axis`'s "third
+and last copy" became a measurement (four patterns, including the
+rustfmt-wrapped spelling, plus a read of every `WrongOperand`
+construction in `editor-core/src`); `node-placer` found a **third**
+rotted sentence in fence and three more outside it.
+
+**The deletion sweep is the technique worth keeping** (2989): rather
+than grepping for readers of the sibling members, the lane deleted each
+one and read the compiler — `slot` 2 errors, `label` 3, `dimension` 2.
+A negative result by grep is a claim about the pattern; a negative
+result by deletion is a fact about the tree.
+
+### Instruction 3 went two for four, and the misses are the interesting half
+
+`part-fault`: nothing in the tree had ever constructed or asserted
+`PartFault::PartProduct`, so the arm could have carried anything — the
+new pin instantiates two documents refusing the gather differently and
+mutation-checks that the classes discriminate.
+
+`datum-axis`: the answer was **yes** for the first time in two waves,
+measured by mutation (drifting the literal reds 4 of 8 rows) — and the
+unit then *closes* that discrimination, because both sides become the
+same const. What still pins the user-visible sentence is two literals in
+`crates/editor-core/tests/`, and they must stay literals: a test naming
+the const could never catch a change to the const's expansion.
+
+The other two changed no behaviour, so they owe no pin, and both said so
+plainly instead of inventing one — an assertion over a compile-time fact
+is the §2 defect, not a deliverable.
+
+### A lint collision worth knowing about
+
+2989's first run failed one job: `work tracker lint`, on a rule a
+parallel session added — *"program is ready but none of its 4 live rows
+is dispatchable"*. Green on the branch alone, green on main alone, red
+only on the merge, because two DOOR PRs each moved a row to `review`.
+**Whichever landed second would have hit it**, and every review PR on a
+one-orchestrator program will. The lane set `status: active`, which is
+the program's own word and the orchestrator's to set — it flagged the
+overreach loudly rather than doing it quietly, and the value it chose is
+the true one, so it stands.
+
+### Where this leaves DOOR
+
+Empty, and `active` only because an orchestrator is on it writing this.
+Neither of the other two statuses is TRUE of an empty track — `ready`
+means "something to pick up" and `blocked` means "every live row is in
+flight" — though lint accepts both, since it checks only the half of
+each claim the tree can see. Tested, not assumed.
+
+Ev closed FIX on 2026-09-21 for a reason that reads across:
+*"most of those were either mis-filed or should've been done as drive-by
+fixes."* **It reads harder here.** DOOR claims no paths at all, so every
+row it ever held was on another program's ground by construction; this
+wave's four were two doc sentences, one field, one literal and one
+deletion, all in files EDIT or MSOLVE own. The recommendation is to
+close DOOR on the same ruling — but that is Ev's call, not this seat's,
+and it is recorded here as a recommendation rather than taken.
