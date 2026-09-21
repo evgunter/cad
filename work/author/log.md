@@ -167,3 +167,96 @@ Shape 2 is in force here as the orchestrator convention it always was:
 every AUTHOR lane gets a lane-private scratch path at dispatch. AUTH-2
 was told mid-flight and asked to re-verify its own green against its
 head SHA rather than against a file it wrote earlier.
+
+## 2026-09-21 — AUTH-1's style lane, adjudicated
+
+Nineteen findings, none rising to a MAJOR on correctness in the
+reviewer's reading. The correctness lane is still out; the fix pass
+waits for it so it answers both reports at once.
+
+**The three the fix pass takes first, and why they are one argument.**
+All three are the same defect wearing different clothes — *the unit
+computed a thing twice and used one copy*:
+
+- `face_frame_seat` returns `Ok((at, face))` and `Drafts::datum_spec`
+  independently re-derives the identical pair, so **the button is
+  gated by one computation and commits the other**; in `src/` the `Ok`
+  half is dead and only tests consume it.
+- `FaceFrameFault::NoFace`'s `Display` and
+  `DatumKindChoice::unmet_seat`'s `FaceFrame` arm are the same string
+  literal byte for byte in two modules, and the form deliberately
+  suppresses the first — so the `refuse.rs` copy is **prose the only
+  renderer never draws**, which is the drift shape with nothing that
+  can catch it.
+- a bare `format!("feature {} body {}", …)` re-mints
+  `Display for BlendTarget`, whose doc argues at length for one home —
+  in a file that **already imports `BlendTarget`**.
+
+**This is the fresh-instance trap, and it landed exactly where the
+brief says it lands.** AUTH-1's subject was replacing a hardcoded
+per-kind sentence with a roster; the same diff added a hardcoded
+per-kind sentence twelve lines away and two hand-maintained
+derivations. `docs/prompts/reviewer-style-lane.md`: *"Naming the trap
+in the PR body does not prevent it — only a reader who did not write
+the fix has ever caught it."* The PR did not name it; the reviewer
+caught it anyway. The lesson for this program's next dispatch is to
+put the trap in the SPEC, not to hope.
+
+**Two prose falsifications land with this change, not later**
+(CLAUDE.md: a clause re-worded because an approved code change moved
+what it describes is not a second decision): `crates/viewer/src/datums.rs`'s
+*"The two differ by exactly `AxisInPlane`"* — now also `FaceFrame` —
+and `add_datum_ui`'s own header, *"Every kind but one is numbers
+alone"*, when two kinds now need picks.
+
+**The sweep receipt is not accurate as written**, and the fix pass
+re-does it. Its consumer row missed `datums.rs`'s `DatumKindChoice`
+mention, which is one of the two sentences above; and its own
+blind-spot paragraph names `ui.label` as unmatched and then nobody
+sweeps it, which is where the third per-kind sentence was hiding. A
+disclosed blind spot never swept is the sweep claiming less than it
+needs to.
+
+**Held for the correctness lane**: the latch's doc asserts *"nothing
+else clears it"* and *"the arm writes it whenever the live selection
+is a face"*, both true only while that arm is being RENDERED — inside
+a collapsible section. That is item 3 of what I asked the correctness
+lane to push on, and whether it is taste or a defect is that lane's to
+say.
+
+**Filed outside the fence, four rows** (none AUTHOR's to take):
+three on CHROME — `a-fifth-spelling-of-this-seat-is-empty` (P1),
+`four-pick-state-vocabularies-in-one-create-module` (P1),
+`a-per-kind-sentence-lives-in-the-widget-not-on-the-choice` (P4) —
+and one on VDOC,
+`viewer-readme-recourse-count-does-not-say-what-it-counts` (P4).
+Seams announced on both programs' logs.
+
+**One row DISCHARGED outside the fence.** VDOC's
+`add-profile-ui-doc-comment-states-a-premise-the-tree-falsified` asked
+for exactly the rewrite AUTH-1 made, down to its last sentence about
+what the deferral note should point at. Set to `review` on PR 2955 and
+announced on VDOC's log; it closes when 2955 merges. Worth noting that
+neither the spec nor the lane found that row — the style review did,
+by reading the comment rather than the diff.
+
+## 2026-09-21 — AUTHOR's territory was wrong, and is fixed
+
+The opening `paths` named `forms.rs`, `props.rs` and `sketch.rs`, and
+**not one of them is where either of the first two units did its
+work**. Every row on this slate is a creation or property FORM, which
+live in `pane/create.rs` and `pane/properties.rs`. So
+`work.py territory --base main` could not have warned either lane
+about the ground it was on — the one thing that list exists for.
+
+Widened (not swapped) to add `drafts.rs`, `pane/create.rs`,
+`pane/properties.rs`, `session/author.rs`, `session/refuse.rs`. All
+five are shared with CHROME and, per file, with VIEW, VNEWS, VSEAM or
+VGEOM; shared ground is legitimate and what is owed is awareness while
+a lane is live (`work/README.md`, 2026-09-20). Seam announced on
+CHROME's log with both live AUTHOR branches named. No `keep_out`
+written, because nothing about the overlap needs explaining.
+
+A file-list correction with no design implication is not an `[ev]`
+question (Ev, PR 1916: *"you don't need to ask me about moving things
+around"*); it is logged instead.
