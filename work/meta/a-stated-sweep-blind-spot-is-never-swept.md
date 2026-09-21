@@ -2,11 +2,12 @@
 id: a-stated-sweep-blind-spot-is-never-swept
 kind: issue
 title: Discipline SS5 asks a lane to STATE what its sweep could not match and never to cover it, and the stated gap is where the finding is
-status: open
+status: closed
 opened: 2026-09-21
 priority: P2
 cost: E
-needs_ev: true
+closed: 2026-09-21
+pr: 2975
 ---
 
 
@@ -86,3 +87,29 @@ receipts re-derived. **Not verified**: whether this holds outside these
 two units, or whether the sweeps' quality here is representative — two
 instances in one sitting on one program is a narrow base, and the
 sample is the two units I dispatched.
+
+## Closed 2026-09-21 — Ev answered, and asked for it smaller
+
+Ev's ruling on PR 2975: *"can you instead make a small edit to the
+previous paragraph to the effect of 'and try to check that blind
+spot'"*.
+
+Taken, and the shape of the correction is the part worth keeping. I
+proposed an eleven-line paragraph of its own carrying the two
+instances as evidence. What landed is a clause inside §5's existing
+opening paragraph, because **`docs/prompts/` is read in full by every
+lane on every dispatch**, and a standing instruction pays its length
+on every read while evidence pays once. The evidence belongs here, in
+the row, which is where it now is.
+
+The rule as landed: state what your pattern could not match, **then
+try to check that blind spot**, with a second pass shaped at the gap
+you just named, and report that one too — and where a gap genuinely
+cannot be searched, say that and say why, so an unsearchable gap stays
+a legitimate answer.
+
+The two instances that motivated it are recorded above and are
+unchanged by the smaller wording: both lanes wrote honest, specific
+blind-spot paragraphs, in both the finding was sitting in the named
+gap and had been put there by that unit's own diff, and in both a
+reviewer found what one command would have.
