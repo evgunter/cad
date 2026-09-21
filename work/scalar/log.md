@@ -624,6 +624,16 @@ orchestrator commits carry none since), the item files naming the arm
 until LANE-0's freeze, the PR bodies' auto-appended vendor footer, two
 sample-number collisions with other programs' branch-side records
 (the META row).
+## RING-0 merged (2026-09-21)
+
+PR 2993, block SCALAR-B5 slot 0, ordinal 4112. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's one unilateral
+MAJOR (the allowlist sampled six exponents; `powi(-1)` disagrees the
+other way) is recorded as the block's first tally candidate, on the
+OPUS reviewing arm. Three facts carried into RING-2's spec: what
+`from_certified` returns under cut (ii) decides whether two register
+sites are hazards; the dry run's red set is conditional on the `hull`
+and `clamped_to` guards; the register wants to be executable.
 ## Block SCALAR-B4 drawn; CURVE3-JET dispatched (2026-09-15)
 
 The Curve3 jet door opens block SCALAR-B4 as slot 0 (byte 75 ⇒ slot 0
