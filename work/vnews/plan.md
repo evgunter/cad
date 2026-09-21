@@ -486,13 +486,36 @@ document — so the sentence would have been a second spelling of news
 already on screen, minting the node-side twin of
 `three-spellings-say-a-parameter-is-not-declared`, which is open on
 this slate against the parameter half of the same function. Two further
-grounds I had not weighed: `session::Standing`'s doc makes the section
-not drawing the SECOND CLAUSE of its own rule (*"the affordances that
-need a live entity switch off"*), and that clause is **GQ7's recorded
-constraint** — ratified design in `crates/viewer/GUI-DESIGN.md`, so the
-shape I recommended would have needed an `[ev]` PR to implement. An
-orchestrator's fix shape is a claim like any other and gets checked
-against the tree before it is issued.
+further ground I had not weighed: `session::Standing`'s doc makes the
+section not drawing the SECOND CLAUSE of its own rule (*"the
+affordances that need a live entity switch off"*). An orchestrator's
+fix shape is a claim like any other and gets checked against the tree
+before it is issued.
+
+**CORRECTED 2026-09-20, and the correction is worse than the error.**
+This paragraph said that clause is *"GQ7's recorded constraint —
+ratified design in `crates/viewer/GUI-DESIGN.md`, so the shape I
+recommended would have needed an `[ev]` PR"*. **It is not.** The
+sentence occurs in exactly one place in the tree —
+`crates/viewer/src/session/select.rs`'s `Standing` doc, which CALLS it
+GQ7's recorded constraint. `GUI-DESIGN.md` contains it zero times and
+its GQ7 is selection mechanics, deferring vanishing-entity semantics
+elsewhere; `docs/SELECT-DESIGN.md` contains it zero times too. Found by
+the properties-pane lane, verified here by grep over all three files.
+
+**So I asserted an Ev gate that does not exist, from a source comment
+that asserts one, two hours after ruling that the status line's
+*"ratified"* ranking was an agent's word nobody had checked — and while
+that very census was being filed.** The ruling it supported survives on
+its other grounds, which is the only reason this is a correction rather
+than a retraction; the lane had given four and the decisive one was the
+duplicate-news argument above. But the claim was load-bearing in how I
+issued it, it reached a merged PR body (#2942) and two lanes, and it is
+a tracker-side member of
+`ratified-is-asserted-across-viewer-src-and-some-was-never-ratified`'s
+class. **A gate is checked at the document that would carry it, not at
+the comment that cites it** — which is the rule three sections down,
+applied to prose instead of to a row.
 
 **Read a row's STATUS before you build on its premise — a citation
 check is not a premise check.** Three rows on this slate had premises

@@ -2,7 +2,7 @@
 id: vdoc
 kind: program
 title: VDOC — the viewer's prose, citations and censuses
-status: open
+status: ready
 opened: 2026-09-17
 area: gui
 prefix: vdoc/

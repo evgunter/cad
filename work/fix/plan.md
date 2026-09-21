@@ -77,35 +77,10 @@ it over. That is the trade: less review, more disclosed uncertainty.
 
 ## Unit order
 
-Five rows, every one of them a written fix. Order is free; nothing here
-blocks anything else here.
-
-- `subject-refused-accepts-the-one-refusal-that-must-not-go-through-it`
-  — **ruled (a)**: `Subject::refused` returns `Subject::NoBodyRoots`
-  for the no-body arm, routing on
-  `product::ProductErrorKind::means_no_body`, and the hand-routing
-  comes out of both production callers. FIX's own file; the ruling and
-  what the lane still establishes are on the item.
-- `remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites` —
-  **ruled: carry the id** at the six `map_err(|_| …)` sites. FIX's own
-  file. The open question is whether any of the three error kinds
-  crosses to Python, which is a disclosure, not a quiet absorption.
-- `quantity-fmt-error-display-row-is-a-verbatim-copy-of-assert-f6` —
-  **ruled: fold** onto `test_utils::f6::assert_f6`, `test-utils` into
-  `[dev-dependencies]`. Plant the sibling-arm leak and show it red
-  first; announce the edge to S-TCOST and S-TINT.
-- `fillet-leg-carrier-renders-raw-float-noise` — route
-  `FilletLegCarrier::Arc`'s two `f64` fields through `path::num`, the
-  one unit-bearing scalar rendering in `crates/profile/src/` that does
-  not. PATHS's ground, by announcement.
-- `recourse-chain-stops-at-the-second-hop-carriers` — the five
-  second-hop carriers (`PcurveCertifyError`, `MeterError`,
-  `PatchBoundError`, `FitError`, `SplineError`). The method is the
-  parent unit's and is established: ground each repair in the module's
-  or the variant's own docs, assert the DELEGATION where the carrier
-  below has no enforcement row of its own, and leave the arms that are
-  already right alone. Counts are read-by-eye at the row's merge base —
-  re-derive. Crosses CHART, ENCL and PROPS by announcement.
+**The slate is empty as of 2026-09-21.** Wave 4 closed all five rows it
+opened with; `python3 scripts/work.py status --program fix` is the live
+view and this section is kept for the shape a future row takes, not as
+a list of work.
 
 ## Exit shape
 

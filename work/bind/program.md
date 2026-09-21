@@ -2,7 +2,7 @@
 id: bind
 kind: program
 title: BIND — the bindings' own housekeeping: the stubs, the tag pins, the censuses and the prose beside them
-status: open
+status: ready
 opened: 2026-09-20
 area: api
 prefix: bind/

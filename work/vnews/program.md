@@ -2,7 +2,7 @@
 id: vnews
 kind: program
 title: VNEWS — the viewer's news vocabulary
-status: open
+status: active
 opened: 2026-09-17
 area: gui
 prefix: vnews/

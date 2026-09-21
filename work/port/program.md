@@ -2,7 +2,7 @@
 id: port
 kind: program
 title: PORT — the crate-boundary doors: Python, exchange and the façade refusals
-status: open
+status: active
 opened: 2026-09-11
 area: api
 prefix: port/

@@ -2,7 +2,7 @@
 id: strut
 kind: program
 title: STRUT — one sweep rule with several homes: the strut rule, the chain model and the walks beside them
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: strut/
