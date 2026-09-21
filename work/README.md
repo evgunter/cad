@@ -118,9 +118,14 @@ and nothing dispatched yet looks exactly like an abandoned one:
   row is in flight, parked or deferred. Lint checks the half of that
   claim the tree can see (no dispatchable row, and at least one live
   one).
-- `closed` — the exit walk is ratified, or Ev ruled it needs none, and
-  the sweep that deletes the directory has not run yet. A closed
-  program may hold only closed items.
+
+**There is no `closed`, because a program that closes is deleted**
+(the closing rules below): a closed program is an ABSENT one, and a
+status saying so would only ever describe the gap between the exit
+walk being ratified and the sweep that removes the directory. A track
+in that gap is still `active` — its orchestrator is writing the walk —
+and it holds no dispatchable row, which is why nothing here requires
+one of an `active` track.
 
 **A blocked track never has an orchestrator, by construction.** An
 orchestrator that has run out of non-blocked units does not sit on the

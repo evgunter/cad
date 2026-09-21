@@ -63,14 +63,16 @@ ITEM_STATUS = ("open", "spec", "dispatched", "review", "closed", "parked", "defe
 # ratified not-now whose reason is prose in the body (see work/README.md).
 RULING_STATUS = ("open", "closed")
 # A PROGRAM's status is about the track, not about a row. Two facts tell the
-# four apart: whether an orchestrator holds the track, and whether anything on
+# three apart: whether an orchestrator holds the track, and whether anything on
 # it can be picked up (`DISPATCHABLE`, below). Only the second is in the tree,
 # so it is the only one lint checks; `active` is the program's own word.
 # `blocked` never has an orchestrator BY CONSTRUCTION: an orchestrator that has
 # run out of non-blocked units cuts the blocked rows into a new program and
 # closes what it finishes, rather than holding a whole track hostage to its
 # slowest blocker (Ev, in chat, 2026-09-21; work/README.md).
-PROGRAM_STATUS = ("ready", "active", "blocked", "closed")
+# There is no `closed`: a program that closes is DELETED in the sweep that
+# closes it, so a closed program is an ABSENT one and no status has to say so.
+PROGRAM_STATUS = ("ready", "active", "blocked")
 AREAS = ("kernel", "api", "gui", "infra")
 
 # The priority bands (work/README.md, "Priority"). P0 is most urgent. A band
@@ -603,10 +605,7 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
         if it.kind == "program":
             live = [o for o in owned.get(it.id, []) if o.status != "closed"]
             disp = [o.id for o in live if o.status in DISPATCHABLE]
-            if it.status == "closed":
-                if live:
-                    errors.append(f"{it.path}: program is closed but {[o.id for o in live]} are not")
-            elif it.status == "blocked":
+            if it.status == "blocked":
                 # What `blocked` claims about an orchestrator is unfalsifiable
                 # here; what it claims about the slate is not.
                 if disp:
@@ -754,10 +753,6 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         if meta:
             out.append("; ".join(meta) + ".")
             out.append("")
-        if p.status == "closed":
-            out.append("Closed; every item is closed.")
-            out.append("")
-            continue
         if p.status == "blocked":
             out.append("Blocked: no orchestrator, and no row that can be picked up.")
             out.append("")
@@ -946,8 +941,8 @@ def territory(root: str, base: str | None, branch: str | None, files: list[str] 
         files = r.stdout.decode().split("\n")
     lines = []
     for path in sorted(p.strip() for p in files if p.strip()):
-        owners = sorted(p.id for p in programs if p.status != "closed"
-                        and any(fnmatch.fnmatchcase(path, g) for g in _listed(p, "paths") if isinstance(g, str)))
+        owners = sorted(p.id for p in programs
+                        if any(fnmatch.fnmatchcase(path, g) for g in _listed(p, "paths") if isinstance(g, str)))
         others = [o for o in owners if o != mine]
         if not others:
             continue
@@ -995,8 +990,8 @@ def _fixture(root: str) -> None:
     _write(root, "work/mesh/MESH-2.md",
            "---\nid: MESH-2\nkind: issue\ntitle: second\nstatus: open\nopened: 2026-09-01\nneeds_ev: true\n---\n")
     _write(root, "work/topo/program.md",
-           "---\nid: topo\nkind: program\ntitle: closed one\nstatus: closed\nopened: 2026-08-01\n"
-           "closed: 2026-08-20\narea: kernel\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
+           "---\nid: topo\nkind: program\ntitle: swept clean\nstatus: ready\nopened: 2026-08-01\n"
+           "area: kernel\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
     _write(root, "work/topo/T-1.md",
            "---\nid: T-1\nkind: unit\ntitle: done\nstatus: closed\nopened: 2026-08-01\nclosed: 2026-08-19\n---\n")
     _write(root, "work/issues/stray-thing.md",
@@ -1075,7 +1070,6 @@ def selftest() -> int:
             ("bad status", "work/mesh/MESH-1.md", "status: review", "status: landed"),
             ("closed needs date", "work/mesh/MESH-1.md", "status: review", "status: closed"),
             ("parked needs blocker", "work/mesh/MESH-2.md", "status: open", "status: parked"),
-            ("closed program with live item", "work/topo/T-1.md", "status: closed\nopened: 2026-08-01\nclosed: 2026-08-19", "status: open\nopened: 2026-08-01"),
             ("glob matches nothing", "work/mesh/program.md", "paths: [crates/mesh/*]", "paths: [crates/nope/*]"),
             ("prefix shape", "work/mesh/program.md", "prefix: mesh/", "prefix: mesh"),
             ("program field on a unit", "work/mesh/MESH-1.md", "pr: 1605", "prefix: x/"),
@@ -1091,7 +1085,7 @@ def selftest() -> int:
              "status: review", "status: deferred"),
         ]
         expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
-                        "needs a `closed:` date", "non-empty `blocked_on`", "program is closed but",
+                        "needs a `closed:` date", "non-empty `blocked_on`",
                         "matches no tracked path", "must end in `/`", "not a field of kind unit",
                         "indented line", "only kind issue lives under",
                         "nothing else gates this row", "so prune the fired entry",
@@ -1128,7 +1122,7 @@ def selftest() -> int:
         _write(root, "work/mesh/MESH-2.md", o2)
         _write(root, "work/topo/program.md",
                open(os.path.join(root, "work/topo/program.md"), encoding="utf-8").read()
-               .replace("status: closed\nopened: 2026-08-01\nclosed: 2026-08-20", "status: blocked\nopened: 2026-08-01"))
+               .replace("status: ready", "status: blocked"))
         expect("blocked with no live row at all", lint(root), "waiting on nothing is finished")
         subprocess.run(["git", "-C", root, "checkout", "-q", "--", "work/topo/program.md"], check=True)
         _write(root, "work/mesh/program.md", mp0)
@@ -1250,7 +1244,7 @@ def selftest() -> int:
         expect("a double claim is not an error", lint(root, warns))
         if any("shares" in w and "verbs" in w for w in warns):
             failures.append("shared ground must not warn on lint: it is legitimate (Ev, 2026-09-20)")
-        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        progs = [it for it in load_tree(root)[0] if it.kind == "program"]
         rep = " ".join(_double_claims(root, progs))
         for want in ("shares", "verbs", "recorded by neither"):
             if want not in rep:
@@ -1260,14 +1254,14 @@ def selftest() -> int:
                "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
         warns = []
         expect("a one-sided record is not an error", lint(root, warns))
-        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        progs = [it for it in load_tree(root)[0] if it.kind == "program"]
         if "recorded by `verbs` only" not in " ".join(_double_claims(root, progs)):
             failures.append("the report should say which side recorded a one-sided overlap")
         _write(root, "work/mesh/program.md",
                mp.replace("paths: [crates/mesh/*]", "paths: [crates/mesh/*]\nkeep_out: [verbs holds the verb seat inside this crate]"))
         warns = []
         expect("an overlap both keep_outs name is silent", lint(root, warns))
-        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        progs = [it for it in load_tree(root)[0] if it.kind == "program"]
         if any("verbs" in line for line in _double_claims(root, progs)):
             failures.append("an overlap both keep_outs name should leave the report too")
         _write(root, "work/mesh/program.md", mp)
@@ -1279,7 +1273,7 @@ def selftest() -> int:
         # rides-along on a closed carrier
         _write(root, "work/topo/T-2.md",
                "---\nid: T-2\nkind: issue\ntitle: passenger\nstatus: open\nopened: 2026-08-02\nrides_with: T-1\n---\n")
-        expect("passenger on struck row", lint(root), "re-home it", "program is closed but")
+        expect("passenger on struck row", lint(root), "re-home it")
         os.remove(os.path.join(root, "work/topo/T-2.md"))
 
         # a plan left in docs/
@@ -1295,12 +1289,14 @@ def selftest() -> int:
         _write(root, "crates/topo/src/other.rs", "")
         subprocess.run(["git", "-C", root, "add", "-A"], check=True)
         subprocess.run(["git", "-C", root, "commit", "-q", "-m", "x"], check=True)
+        crossing = "crates/topo/src/other.rs"
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "mesh/y")
-        if mine != "mesh" or lines:
-            failures.append(f"territory (own program): {mine} {lines}")
+        if mine != "mesh" or [ln for ln in lines if crossing not in ln] or len(lines) != 1:
+            failures.append(f"territory (own program is silent, the crossing is not): {mine} {lines}")
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "verbs/z")
-        if mine is not None or len(lines) != 1 or "crates/mesh/src/other.rs" not in lines[0]:
-            failures.append(f"territory (foreign branch, closed program ignored): {mine} {lines}")
+        if mine is not None or len(lines) != 2 or not all(
+                any(f"crates/{c}/src/other.rs" in ln for ln in lines) for c in ("mesh", "topo")):
+            failures.append(f"territory (foreign branch, every program's claim counts): {mine} {lines}")
         # THE BLIND SPOT: a path the branch's OWN program claims and another
         # program claims too was reported by nothing until 2026-09-11.
         mp2 = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
@@ -1316,7 +1312,7 @@ def selftest() -> int:
             os.remove(os.path.join(root, "work/verbs2", name))
         os.rmdir(os.path.join(root, "work/verbs2"))
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "mesh/y")
-        if lines:
+        if any("crates/mesh" in ln for ln in lines) or len(lines) != 1:
             failures.append(f"territory (own program, sole claimant): {lines}")
         _write(root, "work/mesh/program.md", mp2)
 
@@ -1409,7 +1405,7 @@ def main(argv: list[str]) -> int:
             return 0
         if args.cmd == "territory":
             if args.overlaps:
-                progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+                progs = [it for it in load_tree(root)[0] if it.kind == "program"]
                 lines = _double_claims(root, progs)
                 for line in lines:
                     print(f"overlap: {line}")
