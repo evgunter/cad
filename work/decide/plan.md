@@ -34,8 +34,15 @@ the PATHS fillet family is waiting on.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. SYM inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+Protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on
+triaged-in units only, opus/opus outside it. **Answered per unit at
+spec time, and recorded here:** `SYM-8` IN (a rule of the atom
+algebra; recorded late, its dual having been dispatched under v6's
+carry-over — `work/decide/log.md`, 2026-09-21); `SYM-10` IN (a
+design decision over every atom the tier keys, H / NUMERIC, pre-draw);
+`DECIDE-1` OUT (a census and a measurement whose fix class is ratified
+— opus implementer, opus reviewer, the review FULL if Phase 2 changes a
+production site and STYLE if Phase 1 closes the row; no draw, no
+ordinal, no row). `SYM-9` and the reach rows are triaged when they are
+spec'd; the default expectation is IN for a unit that changes what the
+door answers and OUT for a measurement or a census.
