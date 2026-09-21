@@ -109,3 +109,43 @@ Two NOTEs are recorded here:
 - the cap path's apply loop is a second copy of `commit_action`'s.
 
 The shape lock waits on Ev (EDIT's whole-program-edit row).
+
+## 2026-09-21 — the gesture concept gets a type
+
+`vseam/gesture-naming` closed two rows on `session/op.rs`:
+`the-two-drags-name-their-gestures-in-two-shapes` (P1, D) and
+`op-rs-calls-the-panels-admission-test-its-own-copy` (P1, E).
+
+The six driving operations kept their three payload spellings; what
+they are spellings OF became `GestureName`, in the op vocabulary they
+all belong to, with `ValueGestureName` and `FreeMoveName` as its two
+halves. `SessionOp::names_gesture` is the one place an operation
+becomes a name and is exhaustive over the enum, so an operation that
+joins a drag cannot skip the question. The session's private
+`GestureName` is gone; the value drag's two doors compare the public
+`ValueGestureName` and keep their two-arm exactness.
+
+The chrome half is where a convention became a type:
+`GestureVocabulary`'s four fields are private to `widgets.rs`, and
+`value_gesture` / `free_move_gesture` are the only way to build one, so
+a panel spells its target ONCE and writes no operation. The three
+`pane/properties.rs` sites are each one call now.
+
+Order item 7 said this row waits on
+`two-hand-written-copies-of-the-g1-gesture-machine`; that trigger had
+fired — `crates/viewer/src/g1.rs` is on `main` at `d0bc79735f` — while
+the row's own file still read `status: review`. Read `git log` before
+believing a status, which is the register's own standing hazard.
+
+Three rows landed with it, and one gap was filed. The gap is a
+mutation that stays green: shifting the instance a free-move
+vocabulary names, uniformly, passes the whole viewer suite, because
+nothing reaches `ViewerBehavior`'s panel methods from a test. Filed as
+`the-chrome-vocabulary-is-not-held-to-the-target-the-panel-draws`. The
+hole predates the unit — `properties.rs` spelled `instance: node` four
+times inline — so the unit narrowed it rather than opening it.
+
+The prose row was a word: the Properties pane holds no copy of the
+admission test, it calls `display::instance_check`, the same function
+`drawn_targets` runs. The bullet's real claim — which document each of
+the three asks — is untouched.
