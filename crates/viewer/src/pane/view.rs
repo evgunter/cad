@@ -3,6 +3,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
+use pncad::prelude::MM;
 
 use crate::app::ViewerBehavior;
 use crate::frame;
@@ -44,18 +45,25 @@ impl ViewerBehavior<'_> {
         // `scene_radius * 0.05`, so `{:.1}` read `band 0.0–…` for every
         // part under about a millimetre — a distance the camera refuses,
         // stated as one it is at. The lengths go through the crate's
-        // render (`readout::number`); the angles stay a format.
+        // render (`props::written_text`, over `readout::number`); the
+        // angles stay a format.
+        //
+        // **The angles are not the class below either**, and that is
+        // the reachability half rather than a taste: `to_degrees` is a
+        // multiplication up by 180/π, but `Camera::yaw` answers inside
+        // `[−π, π)` and `Camera::pitch` inside `±(π/2 − margin)`, so
+        // neither product can leave the type. A multiplication up is
+        // only the defect when nothing bounds what it multiplies.
         ui.label(format!(
             "camera yaw {:.1}°, pitch {:.1}°",
             self.camera.yaw().to_degrees(),
             self.camera.pitch().to_degrees()
         ));
-        let mm = |metres: f64| crate::readout::number(metres * 1000.0);
         ui.label(format!(
-            "distance {} mm (band {}–{})",
-            mm(self.camera.distance()),
-            mm(self.camera.min_distance()),
-            mm(self.camera.max_distance())
+            "distance {} (band {}–{})",
+            camera_mm(self.camera.distance()),
+            camera_mm(self.camera.min_distance()),
+            camera_mm(self.camera.max_distance())
         ));
         ui.separator();
         ui.label(format!("history: {} states", self.session.history().len()));
@@ -80,6 +88,36 @@ impl ViewerBehavior<'_> {
             self.delta_request,
         );
     }
+}
+
+/// One camera distance, in millimetres, as text a person reads.
+///
+/// **The millimetre is the unit table's, not a literal.** The
+/// metre-to-millimetre factor has two named homes in this crate —
+/// [`crate::scene::MM_PER_METRE`] and the `mm` row of the closed unit
+/// table, which [`crate::props::in_written`] divides by — and a third
+/// spelling here would be a conversion nothing holds to either. This
+/// reads the table's, through [`crate::props::written_text`], which
+/// also carries the symbol, so the unit is said once per number
+/// rather than once per sentence.
+///
+/// **And it ASKS for the millimetre value rather than forming it.** A
+/// camera distance above `f64::MAX * MILLI` metres has no millimetre
+/// value at all, and `inf` names no distance;
+/// [`crate::props::written`] is the question and
+/// [`crate::props::no_reading`] is the answer.
+///
+/// **That is the half of this render owns, and there is another it
+/// does not.** `Camera::max_distance` is
+/// `scene_radius * MAX_DISTANCE_FACTOR`, and `Camera::new` admits
+/// every finite `scene_radius`, so from about `1.798e306` m up the
+/// band's top arrives here ALREADY infinite — a value this function
+/// can only report, since no bound inside a render reaches a product
+/// formed above it. The bound belongs at `Camera::new`, beside the
+/// finiteness check it already runs on that argument, and is filed as
+/// `camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite`.
+fn camera_mm(metres: f64) -> String {
+    crate::props::written_text(metres, MM.def())
 }
 
 /// How wide the δ field is, in points.

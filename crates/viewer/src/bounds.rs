@@ -281,13 +281,31 @@ impl Bounds {
     /// magnitude). This is what stops the rule being
     /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
+    ///
+    /// **And a bound may be one the NOTATION cannot name**, which is
+    /// the one thing this sentence must not spell `inf`. Writing a
+    /// canonical value in millimetres multiplies it up by a thousand,
+    /// so a bound above `f64::MAX * MILLI` has no millimetre value and
+    /// `inf mm` would read as a search that reached infinity — the
+    /// overclaim this whole doc comment exists to refuse, at the one
+    /// end where nothing the probe did is wrong. The conversion is
+    /// asked rather than performed
+    /// ([`crate::props::written_text`] over [`crate::props::written`]),
+    /// which is also why the divide is no longer written out here: one
+    /// home for `canonical / factor`, in the module whose subject it
+    /// is.
+    ///
+    /// **This render owns no bound on the value itself, and no door
+    /// upstream of it does either.** A probed bound is where the
+    /// doubling search reached from the field's own value, and the
+    /// chrome's `f64` fields carry no `.range()`, so the origin is
+    /// whatever a user typed. There is nothing here to narrow; what
+    /// there is, is a value that has no reading in the unit asked for,
+    /// and saying so is the whole of the repair.
     pub fn wording(self, unit: Option<UnitDef>) -> String {
-        let show = |value: f64| {
-            let written = crate::readout::number(unit.map_or(value, |u| value / u.factor()));
-            match unit {
-                Some(unit) => format!("{written} {}", unit.symbol()),
-                None => written,
-            }
+        let show = |value: f64| match unit {
+            Some(unit) => crate::props::written_text(value, unit),
+            None => crate::readout::number(value),
         };
         match (self.low, self.high) {
             (Bound::Open { probed: low }, Bound::Open { probed: high }) => format!(

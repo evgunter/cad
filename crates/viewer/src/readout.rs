@@ -108,9 +108,22 @@ pub const MAX_CHARS: usize = 10;
 ///
 /// **A non-finite value has no reading and gets the fallback.** No
 /// spelling of `NaN` reads back as `NaN` — nothing does — so the search
-/// exhausts and the scientific arm prints `NaN` or `inf`. Nothing in
-/// the chrome hands this one; the behaviour is stated because it is
-/// what the rule produces rather than a case it handles.
+/// exhausts and the scientific arm prints `NaN` or `inf`. The
+/// behaviour is stated because it is what the rule produces rather
+/// than a case it handles.
+///
+/// **Whether the chrome can hand one is the callers' question, and it
+/// is answered at each of them rather than here.** The sweep is every
+/// call to this function under `crates/viewer/src`, read for what its
+/// argument's producer guarantees, and there are three:
+/// [`crate::scene::DisplayTolerance::render_mm`], whose door refuses a
+/// δ whose millimetre value is not an `f64`;
+/// [`crate::props::written_text`], which asks
+/// [`crate::props::written`] whether the notation can name the value
+/// and says so when it cannot; and `crate::widgets::number_text`'s
+/// fallback, whose argument is whatever the widget was bound to. The
+/// first two cannot reach here with a non-finite value. The third can,
+/// and `number_text` owns that.
 ///
 /// **The rule holds at the top of the type, and [`MAX_CHARS`] is what
 /// gives way there.** Four significant figures round, and from

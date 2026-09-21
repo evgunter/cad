@@ -248,6 +248,77 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
     canonical / unit.factor()
 }
 
+/// [`in_written`] where that value IS a number, and `None` where the
+/// notation cannot name this value at all.
+///
+/// **A notation is a change of exponent, and an exponent can leave the
+/// type.** The divide is by a factor below one for six of the closed
+/// table's eight rows, so it is a multiplication UP by up to three
+/// decades, and a canonical length above `f64::MAX * MILLI`
+/// (`1.7976931348623156e305` m) has no millimetre value — the quotient
+/// is `inf`, which [`render_number`] spells `inf` and
+/// [`crate::readout::number`] spells `inf` too. A text reading
+/// infinity names no value, and the value it was asked about is one
+/// the document holds perfectly well.
+///
+/// **The other end is the same question and is not symmetric.** One
+/// row's factor is above one — `pi rad`, at π — so a canonical angle
+/// of exactly `5e-324` rad divides to `0.0`, and a text reading zero
+/// is a hundred percent away from the value it claims to be, which is
+/// the first thing [`crate::readout::REL_TOLERANCE`] refuses. It is
+/// one value rather than a band because π is barely above one: two
+/// subnormals up, the quotient is a subnormal again. Measured, not
+/// reasoned: `5e-324 / π == 0.0` and `1e-323 / π == 5e-324`.
+///
+/// The sweep behind both sentences is `quantity::UNITS` read for its
+/// `factor`, every row: `mm` `1e-3`, `cm` `1e-2`, `in` `0.0254` and
+/// `deg` `π/180` are below one, `m`, `rad` and the dimensionless row
+/// are exactly one, and `pi rad` is π. So the overflow arm is live for
+/// four rows and the flush-to-zero arm for one, and a row added to the
+/// table is covered the day it lands rather than the day this sentence
+/// is updated.
+///
+/// `None` is a fact about the PAIR and not about either half: the
+/// value is a number and the unit is a unit, and the value written in
+/// that unit is neither.
+pub fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
+    let written = in_written(canonical, unit);
+    let names_the_value = written.is_finite() && (written != 0.0 || canonical == 0.0);
+    names_the_value.then_some(written)
+}
+
+/// What a render says where [`written`] answers `None` — the one
+/// spelling of that refusal, so the three renders that can meet it
+/// say the same thing.
+///
+/// It names the unit because the unit is half of what failed: the
+/// reader's next move is to write the row in a coarser notation, and
+/// a marker that did not say which notation could not name the value
+/// would not tell them that.
+pub fn no_reading(unit: UnitDef) -> String {
+    format!("no {} reading", unit.symbol())
+}
+
+/// A canonical value as text a person reads, written in `unit` and
+/// carrying its symbol.
+///
+/// **The crate's render ([`crate::readout::number`]) over
+/// [`written`]**, which is the pairing every chrome sentence that
+/// writes a canonical value in a display unit wants: the shortest
+/// spelling that reads back, of a value that exists. Where the value
+/// does not exist it is [`no_reading`], never `inf`.
+///
+/// `render_number` is deliberately not the render here. That one is a
+/// FIELD's — `{:?}`'s exact round-tripping digits, because the text a
+/// field shows is the text an edit starts from — and a sentence is not
+/// a commit path.
+pub fn written_text(canonical: f64, unit: UnitDef) -> String {
+    match written(canonical, unit) {
+        Some(value) => format!("{} {}", crate::readout::number(value), unit.symbol()),
+        None => no_reading(unit),
+    }
+}
+
 /// A written value back to canonical — `n * factor`, which is exactly
 /// the literal semantics `parse_expr` applies to `n <symbol>`, so a
 /// number typed into a panel field and the same number typed into the
@@ -451,10 +522,23 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
 /// it, which is both the honest reading of a computed value and the
 /// text an edit to it revises. A slot whose value did not evaluate is
 /// the same case — the source is what there is to fix.
+///
+/// **A literal whose value the notation cannot name shows
+/// [`no_reading`]** rather than a number, because there is no number
+/// to show ([`written`]).
 pub fn field_text(row: &SlotRow) -> String {
     match (&row.driver, &row.value) {
         (SlotDriver::Literal, Ok(value)) => match row.unit {
-            Some(unit) => render_number(in_written(value.as_f64(), unit)),
+            // **And the notation may not be able to name it**, which
+            // is [`written`]'s question and not this one's: a literal
+            // above `f64::MAX * MILLI` metres has no millimetre value,
+            // and `{:?}` spells that `inf` — a field claiming a value
+            // the document does not hold. [`no_reading`] says so
+            // instead. It is safe in a field for the reason `echoed`
+            // gives: a field never commits its own render, so the
+            // marker cannot be handed back as an edit.
+            Some(unit) => written(value.as_f64(), unit)
+                .map_or_else(|| no_reading(unit), render_number),
             // D2 addendum row 4: this arm IS the literal case, and
             // every literal names the unit it was written in
             // (`Expr::display_unit` answers `None` only for the kinds
