@@ -8,10 +8,11 @@
 //! # The two buildable rules are one rewrite
 //!
 //! Both replace an EVEN power of an atom by a power of a form the atom
-//! squared is equal to: **A** `sqrt(X)² → X` and `abs(X)² → X²` — one
-//! rule, because the canonical root spells one root as the other
-//! (`super::root`) — and **B** `sin(θ)² → 1 − cos(θ)²`. `reduce` applies that rewrite to the residual until no
-//! such power remains. It terminates because every substituted form was
+//! squared is equal to: **A** `sqrt(X)² → X`, with `abs(X)² → X²`
+//! beside it behind rule G's dial (the canonical root is what spells
+//! one root as the other — `super::root`), and **B**
+//! `sin(θ)² → 1 − cos(θ)²`. `reduce` applies that rewrite to the
+//! residual until no such power remains. It terminates because every substituted form was
 //! built strictly before the atom it replaces — the argument of a
 //! `sqrt` is a descendant of the `sqrt` node — so each step trades a
 //! square for squares of strictly older atoms, and the DAG is finite; a
@@ -97,11 +98,25 @@ fn find_square(
                     // that USED to reduce through `sqrt(R²)² → R²`
                     // stops reducing the moment it is spelled `|R|`,
                     // and the residual keeps a square it can cancel.
-                    SymOp::Abs if rules.sqrt_square => {
-                        return Some(Square {
-                            id,
-                            x: arg.mul(arg, budget)?,
-                        });
+                    //
+                    // **Behind rule G's dial, not rule A's**, and that
+                    // is the whole of why the arm exists: nothing mints
+                    // an `Abs` where a root used to stand until rule G
+                    // does, so a tier with `canonical_root` off that
+                    // carried this arm would be a tier that never
+                    // existed — and every differential taken against
+                    // it would measure two rules at once.
+                    SymOp::Abs if rules.sqrt_square && rules.canonical_root => {
+                        // A budget refusal on the squared argument is
+                        // not an answer about the FORM: skip this atom
+                        // and keep looking, the way a rule that can
+                        // only fail to find a cancellation must. The
+                        // `Sqrt` arm cannot refuse, so there is nothing
+                        // to make consistent there.
+                        let Some(x) = arg.mul(arg, budget) else {
+                            continue;
+                        };
+                        return Some(Square { id, x });
                     }
                     SymOp::Sin if rules.pythagoras => {
                         return Some(Square {

@@ -312,7 +312,7 @@ fn sqrt_atom(arg: Form, sess: &mut Session) -> Form {
     // root this rule builds by hand and one the walk mints over the
     // same argument have to be one atom, and the door is what makes
     // that structural. `early = true` is this rule's own contract.
-    super::root::mint(arg, sess, true)
+    super::root::mint(arg, sess)
 }
 
 /// `c · p` for a small integer `c` — [`Poly::scaled`](super::form::Poly::scaled)
@@ -392,6 +392,7 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
     // φ = atan X, X = N / Dx: cos φ = Dx / (Dx·S), sin φ = N / (Dx·S)
     // with S = sqrt(1 + X²).
     let s = sqrt_atom(one.add(&x.mul(&x, budget)?, budget)?, sess);
+    let mut gated = x.gated || s.gated;
     // The shared denominator stays ONE polynomial even when the root
     // is a quotient: `C/(D·S)` with `S = Sn/Sd` is `C·Sd/(D·Sn)`, so a
     // root with a denominator multiplies the numerators instead of
@@ -406,6 +407,7 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
     for _ in 0..m {
         let lifted = den.add(&cn)?;
         let c2 = sqrt_atom(Form::quotient(lifted.clone(), scaled(&den, 2)?), sess);
+        gated |= c2.gated;
         cn = lifted.mul(&c2.den, budget)?;
         sn = sn.mul(&c2.den, budget)?;
         den = scaled(&den.mul(&c2.num, budget)?, 2)?;
@@ -427,7 +429,12 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
         cos: ck,
         sin: sk,
         den: dk,
-        gated: x.gated,
+        // Every form consumed, not only the argument's: rule G can
+        // return a GATED root (its side condition's certified source),
+        // and a closed form built over one is conditional on that read
+        // exactly as the root is. Inert while rule C's dial is off,
+        // and one dial from laundering a read into a theorem.
+        gated,
     })
 }
 

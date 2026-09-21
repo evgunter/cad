@@ -1,8 +1,14 @@
-//! **Rule C — the clause-3 fold** behind [`SymRules::signed_root`]:
+//! **The value reads, and the one door the value comes through.**
+//! Rule C — the clause-3 fold behind [`SymRules::signed_root`]:
 //! `sqrt(X) → R` where `X = R²` as forms and `R` has a CERTIFIED sign
-//! over the leaf's box, and `abs(R) → ±R` likewise. This is the one
-//! rule of the atom algebra that reads a value, and this module is the
-//! whole of how it reads one.
+//! over the leaf's box, and `abs(R) → ±R` likewise. Beside it, behind
+//! its own dial ([`SymRules::decision_read`]), the DECISION READ: the
+//! arm a `Select` takes where its decision's sign is certified over
+//! the box, and the arm `min`/`max` takes, which is the same read
+//! (`max(A, B)` IS `select(B − A, A, B)`). Rule G's side condition
+//! asks for a third ([`enclose_poly`]), under rule C's dial. Three
+//! reads; ONE enclosure, and this module is the whole of how a value
+//! is read.
 //!
 //! # What is read, and through which door
 //!
@@ -239,24 +245,13 @@ fn rat_enclosure(c: &Rat) -> RingInterval {
     }
 }
 
-/// The enclosure of `p` over the parameter brackets, or `None` where
-/// `p` carries an indeterminate no bracket is known for.
+/// The enclosure of `p` over the parameter brackets alone — no atom
+/// entered, which is rule C's own reach ([`fold`] declines an argument
+/// carrying anything else). ONE walker with the others: the depth cap
+/// is what distinguishes the two reaches, so a shallow read is the
+/// deep one asked at its floor.
 fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<RingInterval> {
-    let mut acc = RingInterval::zero();
-    for (m, c) in p.terms() {
-        let mut term = rat_enclosure(c);
-        for &(id, e) in m {
-            let x = if id == INDET_PI {
-                RingInterval::from_bounds(PI.next_down(), PI.next_up())
-            } else {
-                let &(lo, hi) = params.get(&id)?;
-                RingInterval::from_bounds(lo, hi)
-            };
-            term = term * x.powi(i32::try_from(e).ok()?);
-        }
-        acc = acc + term;
-    }
-    Some(acc)
+    enclose_deep(p, params, &IndetMap::default(), ENCLOSE_DEPTH)
 }
 
 /// The certified sign of the quotient `num / den` over the brackets:
@@ -330,6 +325,12 @@ pub(super) fn fold(
 // `sqrt`/`abs` to the decision door and to `min`/`max`.
 // ------------------------------------------------------------------
 
+/// π to the ring's own rounding — the one spelling, read by every
+/// enclosure this module builds.
+fn pi_bracket() -> RingInterval {
+    RingInterval::from_bounds(PI.next_down(), PI.next_up())
+}
+
 /// How many atom levels the deep enclosure descends before it declines.
 /// A frame's conditioning floor nests a `min` over a `max` over an
 /// `abs` over a `sqrt` over the normal's own root — four — and the
@@ -387,7 +388,7 @@ fn enclose_indet(
     depth: usize,
 ) -> Option<RingInterval> {
     if id == INDET_PI {
-        return Some(RingInterval::from_bounds(PI.next_down(), PI.next_up()));
+        return Some(pi_bracket());
     }
     if let Some(&(lo, hi)) = params.get(&id) {
         return Some(RingInterval::from_bounds(lo, hi));
@@ -489,7 +490,18 @@ fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
 /// **The decision read** for `Select(d, when_le, when_gt)`:
 /// `Some(true)` where `d ≤ 0` is CERTIFIED at every point of the box,
 /// `Some(false)` where `d > 0` is, `None` otherwise (straddling,
-/// poisoned, or not enclosable). Manifestly positive factors are
+/// poisoned, or not enclosable).
+///
+/// **`d ≤ 0` is read as `d < 0` in practice, and that is a property of
+/// the instrument, not of the rule.** The enclosure is outwardly
+/// rounded and a rational coefficient is padded to an `f64` bracket
+/// ([`rat_enclosure`]), so an exact `d = 0` at the tie comes back as a
+/// bracket that touches zero from both sides and the read declines.
+/// The door's own comparison is `≤`, and a tie the read declined is
+/// answered by the numeric channel exactly as it was before the read
+/// existed: a missed discharge, never a wrong arm. Sharpening it would
+/// take an exact rational enclosure at the tie, which is a different
+/// instrument. Manifestly positive factors are
 /// stripped from both halves first: the sign of `P/Q` with `Q > 0` is
 /// the sign of `P`, and so is its zero set.
 ///
@@ -498,7 +510,18 @@ fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
 /// the caller marks the form `gated` and the discharge is counted
 /// `sign_gated`.
 pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
-    if d.poisoned || sess.params.is_empty() {
+    if d.poisoned {
+        return None;
+    }
+    // **A comparison of two rational CONSTANTS is not a read.** Its
+    // answer is an exact fact about the form — A0's to fold — and
+    // returning it here would report a theorem-shaped fact as one
+    // conditional on the leaf's box, and make which of the two it is
+    // depend on whether the session happens to hold a parameter.
+    // `work/decide/a0-leaves-max-and-min-of-constants-opaque` is the
+    // fold that should answer these; until it does, the honest answer
+    // is the numeric channel's.
+    if d.num.as_constant().is_some() && d.den.as_constant().is_some() {
         return None;
     }
     let enclose = |p: &Poly| {

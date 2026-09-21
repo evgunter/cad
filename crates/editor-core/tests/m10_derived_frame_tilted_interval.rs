@@ -996,8 +996,11 @@ fn sym8_phase1_the_tilt_u_ladder() {
 ///   (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`) is
 ///   proved once the frame is no longer opaque.
 ///
-/// The F-off refusal is asserted by name, so the day it moves this
-/// reds and says which.
+/// The F-off half now measures THREE rules off, not one:
+/// `SymRules::without_rule_f` shuts rule G and the decision read with
+/// rule F, because SYM-5's tier — the tier that constructor names —
+/// had none of the three. Its refusal is asserted by name, so the day
+/// any of them moves it this reds and says which.
 ///
 /// Cost: two evaluations of a small document, well under a second each
 /// in release and about four seconds in the test profile — the split

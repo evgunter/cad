@@ -50,16 +50,18 @@ fn m10_8_the_a0_set_is_a0_alone() {
         !s.signed_root,
         "rule C is built and dial-selectable, and does not ship (inert)"
     );
-    assert!(
-        !s.early_ab
-            && !s.trig_of_atan
-            && !s.sqrt_square
-            && !s.pythagoras
-            && !s.common_factor
-            && !s.manifest_sign
-            && !s.canonical_root
-            && !s.decision_read
-            && !s.registered,
+    // BY CONSTRUCTION, not by a list: a dial this row forgot to name
+    // would be one A0-alone silently carried. `SymRules::none()` is
+    // every dial off, so A0 alone IS `none()` with the two A0 needs
+    // turned on — and a ninth dial reds here the day it is added
+    // rather than the day someone re-reads this assertion.
+    assert_eq!(
+        s,
+        SymRules {
+            const_fold: true,
+            early: true,
+            ..SymRules::none()
+        },
         "nothing else: {s:?}"
     );
     assert_eq!(SymRules::default(), SymRules::shipped(), "one default");
@@ -85,10 +87,11 @@ fn m10_8_the_a0_set_is_a0_alone() {
 }
 
 /// **M10-8's set (A0 alone) is exactly the tier with the algebra off
-/// and the door shut.** "The algebra" is the six early-walk dials
-/// `without_the_algebra` names — rules A/B per node, rule D, rule E and
-/// rule F — and the census above asserts each of them off by name, so a
-/// seventh rule added to the early walk without a line here reds.
+/// and the door shut.** "The algebra" is the early-walk dials
+/// `without_the_algebra` names — rules A/B per node, rule D, rule E,
+/// rule F, rule G and the decision read — and the census above asserts
+/// the WHOLE dial set by construction, so a ninth rule added to the
+/// early walk without a line here reds.
 fn a0_alone() -> SymRules {
     SymRules {
         registered: false,

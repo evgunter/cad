@@ -28,6 +28,14 @@ use super::Hash128;
 #[cfg(feature = "sym-profile-testing")]
 use super::profile;
 
+/// The primes the square-part search divides by — enough to take the
+/// square factors a kernel's coefficients actually carry (dimensions,
+/// small integer ratios, the squares a norm leaves) without a
+/// factorisation at every mint.
+const SMALL_PRIMES: &[u32] = &[
+    3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+];
+
 /// **The coefficient integer: an `i128` inline, a `BigInt` only past
 /// it.** The ring is arbitrary-precision under [`COEFF_BITS`], but the
 /// overwhelming majority of a document's coefficients fit a machine
@@ -189,6 +197,50 @@ impl Int {
                 (Self::from_big((**b).clone() >> k), k)
             }
         }
+    }
+
+    /// **`self = q² · f` for a positive integer**: the square part `q`
+    /// taken out and the rest left. Exact where `self` is a square;
+    /// otherwise the square divisors among the small primes, and the
+    /// remainder's own exact root where it has one. A square divisor
+    /// whose prime is past the bound is left in `f` — a missed
+    /// cancellation, never a wrong one, and the same one on every
+    /// spelling because the answer is a function of `self`.
+    fn square_part(&self) -> (Self, Self) {
+        if self.is_zero() || self.is_negative() {
+            return (Self::one(), self.clone());
+        }
+        if let Some(r) = self.isqrt_exact() {
+            return (r, Self::one());
+        }
+        // Small primes first, including two through `strip_twos`.
+        let (odd, twos) = self.strip_twos();
+        let mut q = Self::one();
+        let mut rest = odd;
+        if twos >= 2 {
+            let half = usize::try_from(twos / 2).unwrap_or(0);
+            q = q.shl(half);
+            if twos % 2 == 1 {
+                rest = rest.shl(1);
+            }
+        } else if twos == 1 {
+            rest = rest.shl(1);
+        }
+        for p in SMALL_PRIMES {
+            let sq = Self::Small(i128::from(*p) * i128::from(*p));
+            loop {
+                let g = rest.gcd(&sq);
+                if g != sq {
+                    break;
+                }
+                rest = rest.div_exact(&sq);
+                q = q.mul(&Self::Small(i128::from(*p)));
+            }
+        }
+        if let Some(r) = rest.isqrt_exact() {
+            return (q.mul(&r), Self::one());
+        }
+        (q, rest)
     }
 
     /// `Some(r)` iff `r·r == self` exactly, for `self >= 0`.
@@ -539,22 +591,49 @@ impl Rat {
         Self::from_parts(g, l, a.exp2.min(b.exp2))
     }
 
-    /// **`self = s² · f` for a positive rational**: `s` carries the
-    /// even part of the power of two and the exact roots of the odd
-    /// numerator and denominator wherever each is a perfect square, `f`
-    /// is what is left. A function of the VALUE, so two spellings of
-    /// one rational split the same way and their square roots key one
-    /// atom. `None` at zero and below it, where there is no such split
-    /// over the positives.
+    /// **`self = s² · f` for a positive rational, with `f` a positive
+    /// INTEGER**: the denominator rationalised into the root and the
+    /// square part taken out exactly.
+    ///
+    /// **Why the integer, and not the rational the first cut left.**
+    /// `sqrt(1/17)` and `sqrt(17)` are `sqrt(17)/17` and `sqrt(17)` —
+    /// one atom apart, not two — but a split that leaves `f = 1/17` on
+    /// one side and `f = 17` on the other keys them as two
+    /// indeterminates and the tier can never meet them. Writing
+    /// `n/d = (n·d)/d²` puts the whole content under one integer root:
+    /// `sqrt(n/d) = sqrt(n·d)/d`, and `n·d` is a function of the VALUE
+    /// (the pair is in lowest terms with the power of two folded in),
+    /// so every spelling of one rational reaches the same `f`.
+    ///
+    /// The square part is the exact root where the integer is a square,
+    /// and otherwise the small-prime square divisors this ring can
+    /// afford to look for: `sqrt(12x)` becomes `2·sqrt(3x)`. A large
+    /// prime square left under the root costs a cancellation and never
+    /// a wrong answer, and it costs the same one on BOTH spellings —
+    /// the split is a function of `n·d`, so canonicity does not rest on
+    /// how far the search got.
     pub(super) fn split_square(&self) -> Option<(Self, Self)> {
         if self.is_negative() || self.is_zero() {
             return None;
         }
-        let sn = self.num.isqrt_exact().unwrap_or_else(Int::one);
-        let sd = self.den.isqrt_exact().unwrap_or_else(Int::one);
-        let s = Self::from_parts(sn, sd, self.exp2.div_euclid(2))?;
-        let f = self.mul(&s.mul(&s)?.recip()?)?;
-        Some((s, f))
+        // The power of two folded in, so two spellings of one value
+        // (`2` as `2/1·2⁰` and as `1/1·2¹`) reach the same pair.
+        let (mut n, mut d) = (self.num.clone(), self.den.clone());
+        let k = usize::try_from(self.exp2.unsigned_abs()).ok()?;
+        if self.exp2 >= 0 {
+            n = n.shl(k);
+        } else {
+            d = d.shl(k);
+        }
+        let g = n.gcd(&d);
+        if !g.is_one() {
+            n = n.div_exact(&g);
+            d = d.div_exact(&g);
+        }
+        let m = n.mul(&d);
+        let (q, f) = m.square_part();
+        let s = Self::from_parts(q, d, 0)?;
+        Some((s, Self::from_parts(f, Int::one(), 0)?))
     }
 
     /// A conservative `f64` bracket of the value — the two rounded

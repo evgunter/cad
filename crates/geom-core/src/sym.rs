@@ -537,58 +537,28 @@
 //! documents — it removes indeterminates and mints none.
 //! [`SymRules::without_rule_f`] is SYM-5's tier bit for bit.
 //!
-//! # Rule G — the canonical square root (DECIDE-3)
+//! # Rule G and the decision read (DECIDE-3)
 //!
-//! **Two spellings of one real that the tier keys as two
-//! indeterminates cannot cancel, and an atom has no way back.** A
-//! candidate norm on a tilted frame is made of exactly that: the
-//! normal's own root `S = sqrt(P)` beside `‖v‖ = sqrt(1/S²)`, which
-//! rule A turns into `sqrt(1/X)` and rule E's scale step spells as
-//! `sqrt((16/17)/(1 + 8t/17 + 16t²/17))` — a root over a QUOTIENT,
-//! keyed on a form nothing else is keyed on, so the number one
-//! `S · sqrt(1/X)` stands in every denominator of the residual for
-//! ever.
+//! **Rule G — the canonical square root** ([`SymRules::canonical_root`]):
+//! a `Sqrt` atom's key is a function of its argument's VALUE CLASS, so
+//! the normal's own root `S = sqrt(P)` and a candidate norm's
+//! `sqrt(1/S²)` are ONE indeterminate and cancel, where the first cut
+//! of this tier kept them as two and left the number one standing in
+//! every denominator of a refused residual. [`root`] owns the whole of
+//! it: the quotient split, the side condition it rests on and the
+//! adversary that decided what may not be a source. Its companion
+//! rewrite `|X|² = X²` lives in [`algebra`] beside rule A and behind
+//! rule G's dial, because nothing mints an `Abs` where a root used to
+//! stand until rule G does.
 //!
-//! [`SymRules::canonical_root`] makes a `Sqrt` atom's key a function
-//! of its argument's VALUE CLASS instead: the quotient split
-//! `sqrt(N/D) = sqrt(N)/sqrt(D)` under the `D ≥ 0` side condition
-//! [`root`] argues once, each half's rational content taken out
-//! (`p = c·p'`, `c = s²·f`, `s` exactly and `sqrt(f)` a constant atom)
-//! over a primitive integer polynomial, and `sqrt(R²) = |R|` through
-//! rule F's own magnitude door. Every identity is one of reals
-//! wherever the value exists, and none of them reads a value — the
-//! side condition's fourth source does, and rides rule C's dial.
-//!
-//! **It lives at the ONE mint site** ([`root::mint`]): the walk's
-//! `Sqrt` arm and rule D's hand-built roots ([`trig`]) both go through
-//! it, and the registered-identity door consults the same early walk,
-//! so a registrant's `‖q − c‖` and the walk's meet by construction
-//! rather than by coincidence. Rule A is extended with `|X|² = X²`
-//! for the same reason: a root that reduced through `sqrt(R²)² → R²`
-//! must keep reducing once it is spelled `|R|`.
-//!
-//! # The decision read (DECIDE-3)
-//!
-//! **`max(A, B)` IS `select(B − A, A, B)`**, and the frames the
-//! sign-hull construction builds are full of both: a decision whose
-//! arms are candidate axes, and a conditioning floor `max(‖v‖, k·s)`
-//! whose candidates are NOT unit (`‖e_k × n‖ = sqrt(1 − n_k²)`), so no
-//! manifest bound reaches it. [`SymRules::decision_read`] answers both
-//! with rule C's shape at the ops rule C never reached: where the
-//! decision's sign is CERTIFIED over the leaf's box the arm is
-//! determined there, and the form the door takes is that arm's, gated.
-//! [`signed`] carries the deep enclosure (through `sqrt`/`abs`/`min`/
-//! `max` atoms over parameters and π) and the manifestly-positive
-//! content stripping that makes a dressed-up decision readable.
-//!
-//! **Ordered behind every value-free fold** — after A0, after rule F,
-//! over kids whose roots rule G has already minted — because a read
-//! that runs before an atom is minted re-labels as a READ anything the
-//! atom would have cancelled against. What it takes on straight
-//! geometry is the measure of that: the M10-3 slab's `symbolic_zero`
-//! is unmoved at 482 and the eight decisions the read answers come out
-//! of `numeric`, not out of the theorems
-//! (`m10_8_pins_interval`).
+//! **The decision read** ([`SymRules::decision_read`]): a `Select`
+//! whose decision is certified one-signed over the leaf's box takes
+//! that arm, and so does a `min`/`max` whose comparison is — `max(A,
+//! B)` IS `select(B − A, A, B)`. It is rule C's shape at the ops rule
+//! C never reached, counted the same way, and it is ordered BEHIND
+//! every value-free fold, because a read that runs before an atom is
+//! minted re-labels as a read anything the atom would have cancelled
+//! against. [`signed`] owns the enclosure and the argument.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -1504,6 +1474,13 @@ pub struct SymRules {
     /// it changes is the identity of the indeterminate, so two
     /// spellings of one real — the walk's `sqrt(1/S²)` and the
     /// normal's own `S` — are one atom and can cancel. Needs `early`.
+    ///
+    /// **It carries one companion rewrite**, rule A's `abs(X)² = X²`
+    /// ([`algebra`]): nothing mints an `Abs` where a root used to stand
+    /// until this rule does, and a root that reduced through
+    /// `sqrt(R²)² → R²` has to keep reducing once it is spelled `|R|`.
+    /// The companion is behind THIS dial and not rule A's, so
+    /// [`Self::without_canonical_root`] is the tier as it stood.
     pub canonical_root: bool,
     /// **The DECISION READ** ([`signed::decision`], [`signed::order`]):
     /// in the early walk a `Select` whose decision is certified
@@ -1577,6 +1554,8 @@ impl SymRules {
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
     /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | free to the measurement's noise and cheaper on most — the six leaf numbers live once, in the module header's rule-F section | **yes**, with the pad's four `symbolic_zero` → `registered` ratified as a spec deviation |
+    /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
+    /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where it fires and never `symbolic_zero` | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -1832,7 +1811,9 @@ struct Session {
     forms_door: IdMap<Arc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
-    /// by [`Sym::param_over`], read only by rule C ([`signed`]).
+    /// by [`Sym::param_over`], read by rule C, by the decision read and
+    /// by rule G's certified side-condition source — the three value
+    /// reads [`signed`] owns, and nothing else.
     params: IndetMap<(f64, f64)>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
@@ -2354,11 +2335,22 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             // hand-built roots and the registrant's forms reach the
             // same door ([`root::mint`]), which is what makes the
             // keying uniform rather than per-site.
-            if g_root
-                && node.op == SymOp::Sqrt
-                && let Some(f) = root::canonical(a, sess, early)
-            {
-                return Some(gate(f));
+            if g_root {
+                if node.op == SymOp::Sqrt
+                    && let Some(f) = root::canonical(a, sess)
+                {
+                    return Some(gate(f));
+                }
+                // An `abs` NODE goes through rule G's magnitude door
+                // too, and for the same reason: `|Y|` and `|−Y|` are
+                // one real, so the atom is keyed on the sign-normalised
+                // argument and a root of a perfect square meets the
+                // node whichever way round the document spelled it.
+                if node.op == SymOp::Abs
+                    && let Some(f) = root::magnitude(a, sess)
+                {
+                    return Some(gate(f));
+                }
             }
             atom1(node.op, sess)
         }

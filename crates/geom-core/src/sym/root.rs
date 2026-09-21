@@ -119,12 +119,14 @@ fn content_split(p: &Poly) -> Option<(Rat, Poly)> {
     Some((content, primitive))
 }
 
-/// The opaque `Sqrt` atom over `arg` — the indeterminate every site
-/// mints when the rule declines, keyed on the argument form's digest
-/// exactly as `combine` keys a unary atom.
-fn atom(op: SymOp, arg: Form, sess: &mut Session, early: bool) -> Form {
+/// The opaque atom over `arg` — the indeterminate every site mints
+/// when the rule declines, keyed on the argument form's digest exactly
+/// as `combine` keys a unary atom. **Always the EARLY walk**: rule G
+/// runs in no other, so `mint_atom`'s plain-walk bookkeeping has
+/// nothing to record here.
+fn atom(op: SymOp, arg: Form, sess: &mut Session) -> Form {
     let id = indet_atom(op.tag(), 0, &[arg.digest()]);
-    mint_atom(sess, id, early, || AtomInfo {
+    mint_atom(sess, id, true, || AtomInfo {
         op,
         payload: 0,
         args: [Some(Arc::new(arg)), None, None],
@@ -135,48 +137,77 @@ fn atom(op: SymOp, arg: Form, sess: &mut Session, early: bool) -> Form {
 /// `sqrt(c)` for a rational `c ≥ 0`: exact where the rational is a
 /// square, else `s · sqrt(f)` for the square-part split `c = s²·f`,
 /// with `sqrt(f)` a CONSTANT atom two spellings of `c` share.
-fn sqrt_rational(c: &Rat, sess: &mut Session, early: bool) -> Option<Form> {
+fn sqrt_rational(c: &Rat, sess: &mut Session) -> Option<Form> {
     if let Some(r) = c.sqrt_exact() {
         return Some(Form::poly(Poly::constant(r)));
     }
     let (s, f) = c.split_square()?;
-    let k = atom(SymOp::Sqrt, Form::poly(Poly::constant(f)), sess, early);
+    let k = atom(SymOp::Sqrt, Form::poly(Poly::constant(f)), sess);
     k.mul(&Form::poly(Poly::constant(s)), sess.budget)
 }
 
-/// `|R|` for the exact polynomial root `R` of a perfect square.
+/// The sign of a polynomial's LEADING term — the last in the monomial
+/// order the form stores its terms in. `None` for the zero polynomial,
+/// which has no leading term and needs no normalisation.
+fn leading_is_negative(p: &Poly) -> Option<bool> {
+    p.terms().last().map(|(_, c)| c.is_negative())
+}
+
+/// **`|Y|` and `|−Y|` are one real, so they are one atom.** The
+/// representative is the form whose numerator's leading coefficient is
+/// positive; a magnitude minted over `1 − 2x` and one minted over
+/// `2x − 1` then key the same indeterminate, and a root of a perfect
+/// square meets the `abs` NODE the document spelled whichever way
+/// round `poly_sqrt` happened to return its root.
+fn sign_normalised(f: &Form) -> Option<Form> {
+    if leading_is_negative(&f.num)? {
+        let mut out = f.neg()?;
+        out.gated = f.gated;
+        return Some(out);
+    }
+    Some(f.clone())
+}
+
+/// **The magnitude door**: `|Y|` for any form, sign-normalised so two
+/// spellings of one magnitude are one atom.
 ///
-/// Through [`manifest::magnitude`] — rule F's own door — so that `|R|`
-/// is `R` itself wherever the FORM already shows `R` non-negative, and
-/// the `Abs` ATOM it mints otherwise is the same indeterminate an
-/// `abs(R)` node elsewhere in the DAG mints. **Non-negativity, not
-/// strict positivity**, is the right test here: `abs` reads a value,
-/// not a sign bit, so `|R| = R` holds at `R = 0` too — and it is
-/// load-bearing, because `sqrt(|X|²)` must come back as `|X|` and not
-/// as a second `abs` wrapped around the first.
+/// Rule F's own predicate answers first ([`manifest::magnitude`]), so
+/// `|Y|` is `Y` itself wherever the FORM already shows `Y`
+/// non-negative. **Non-negativity, not strict positivity**, is the
+/// right test: `abs` reads a value, not a sign bit, so `|Y| = Y` holds
+/// at `Y = 0` too — and it is load-bearing, because `sqrt(|X|²)` must
+/// come back as `|X|` and not as a second `abs` wrapped around the
+/// first. Rule C's certified fold is asked only after it, under rule
+/// C's own dial, which is `combine`'s documented order: the value-free
+/// rule first, so a discharge that can be a theorem is never counted
+/// `sign_gated`.
 ///
 /// The predicate is read whatever rule F's own dial says: it is a fact
 /// about the form, and what the dial governs is rule F's folds at
 /// `copysign` and `abs` NODES, not whether the fact is true.
-fn magnitude_of_root(r: Poly, sess: &mut Session, early: bool) -> Form {
-    let f = Form::poly(r);
+pub(super) fn magnitude(arg: &Form, sess: &mut Session) -> Option<Form> {
+    let f = sign_normalised(arg)?;
+    if let Some(m) = manifest::magnitude(&f, sess) {
+        return Some(m);
+    }
     if sess.rules.signed_root
-        && !manifest::nonneg(&f, sess)
         && let Some(g) = signed::fold(SymOp::Abs, &f, &sess.params, sess.budget)
     {
-        return g;
+        return Some(g);
     }
-    match manifest::magnitude(&f, sess) {
-        Some(m) => m,
-        None => atom(SymOp::Abs, f, sess, early),
-    }
+    Some(atom(SymOp::Abs, f, sess))
+}
+
+/// `|R|` for the exact polynomial root `R` of a perfect square.
+fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
+    magnitude(&Form::poly(r), sess)
 }
 
 /// `sqrt(p)` in canonical form — the content split of the module
 /// header's step 2 with step 3 on the primitive part. `None` where the
 /// polynomial is a negative constant (no real root) or the ring
 /// refuses a product.
-fn sqrt_poly(p: &Poly, sess: &mut Session, early: bool) -> Option<Form> {
+fn sqrt_poly(p: &Poly, sess: &mut Session) -> Option<Form> {
     if p.is_zero() {
         return Some(Form::zero());
     }
@@ -184,17 +215,17 @@ fn sqrt_poly(p: &Poly, sess: &mut Session, early: bool) -> Option<Form> {
         if c.is_negative() {
             return None;
         }
-        return sqrt_rational(&c, sess, early);
+        return sqrt_rational(&c, sess);
     }
     let (content, primitive) = content_split(p)?;
     let (s, f) = content.split_square()?;
     let base = match signed::poly_sqrt(&primitive, sess.budget) {
-        Some(r) => magnitude_of_root(r, sess, early),
-        None => atom(SymOp::Sqrt, Form::poly(primitive), sess, early),
+        Some(r) => magnitude_of_root(r, sess)?,
+        None => atom(SymOp::Sqrt, Form::poly(primitive), sess),
     };
     let mut out = base.mul(&Form::poly(Poly::constant(s)), sess.budget)?;
     if f != Rat::one() {
-        let k = atom(SymOp::Sqrt, Form::poly(Poly::constant(f)), sess, early);
+        let k = atom(SymOp::Sqrt, Form::poly(Poly::constant(f)), sess);
         out = out.mul(&k, sess.budget)?;
     }
     Some(out)
@@ -252,12 +283,12 @@ fn denominator_sign(d: &Poly, sess: &Session) -> Option<Sign> {
 
 /// The canonical form of `sqrt(arg)`, or `None` where the rule
 /// declines and the caller keeps the opaque atom.
-pub(super) fn canonical(arg: &Form, sess: &mut Session, early: bool) -> Option<Form> {
+pub(super) fn canonical(arg: &Form, sess: &mut Session) -> Option<Form> {
     if arg.poisoned || arg.is_zero() {
         return None;
     }
     if arg.den.as_constant().is_some_and(|c| c == Rat::one()) {
-        let mut out = sqrt_poly(&arg.num, sess, early)?;
+        let mut out = sqrt_poly(&arg.num, sess)?;
         out.gated |= arg.gated;
         return Some(out);
     }
@@ -267,8 +298,8 @@ pub(super) fn canonical(arg: &Form, sess: &mut Session, early: bool) -> Option<F
     } else {
         (arg.num.clone(), arg.den.clone())
     };
-    let num = sqrt_poly(&n, sess, early)?;
-    let den = sqrt_poly(&d, sess, early)?;
+    let num = sqrt_poly(&n, sess)?;
+    let den = sqrt_poly(&d, sess)?;
     let mut out = num.mul(&den.recip()?, sess.budget)?;
     out.gated |= arg.gated || sign.read;
     Some(out)
@@ -276,17 +307,16 @@ pub(super) fn canonical(arg: &Form, sess: &mut Session, early: bool) -> Option<F
 
 /// **The one door every `Sqrt` atom is minted through**: the canonical
 /// form under [`super::SymRules::canonical_root`], the opaque atom
-/// otherwise. `early` is the walk the caller is in, which decides
-/// whether the mint is noted for the drive memo ([`mint_atom`]).
-pub(super) fn mint(arg: Form, sess: &mut Session, early: bool) -> Form {
-    if early
-        && sess.rules.canonical_root
-        && let Some(f) = canonical(&arg, sess, early)
+/// otherwise. Early-walk only, like every rule of the algebra — the
+/// plain form stays M10-7's and no theorem is ever re-labelled.
+pub(super) fn mint(arg: Form, sess: &mut Session) -> Form {
+    if sess.rules.canonical_root
+        && let Some(f) = canonical(&arg, sess)
     {
         return f;
     }
     let gated = arg.gated;
-    let mut out = atom(SymOp::Sqrt, arg, sess, early);
+    let mut out = atom(SymOp::Sqrt, arg, sess);
     out.gated |= gated;
     out
 }
