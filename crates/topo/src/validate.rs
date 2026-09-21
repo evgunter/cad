@@ -233,9 +233,10 @@
 //!
 //! **Tier 3′ is not this**, and the difference is visible from
 //! outside: [`validate_pseudomanifold`] and [`contact_marks`] run
-//! their check 7 through the scalar's own lane at the reporting
-//! target, so a body tier 3 admits on a definite sign can still be
-//! refused there on quadrature budget.
+//! their check 7 through the certified quadrature at the reporting
+//! target (their `_structural` twins through the closed form alone),
+//! so a body tier 3 admits on a definite sign can still be refused
+//! there on quadrature budget.
 //!
 //! # All failures, not the first
 //!
@@ -2881,6 +2882,17 @@ pub fn validate_geometric_certificate<
 /// `the_structural_half_does_not_judge_orientation_at_any_scalar` is the
 /// three verdicts side by side.
 ///
+/// **So the `_structural` suffix means two things across the six doors
+/// that carry it**, and a caller reads which at the door: here (and at
+/// [`validate_geometric_structural_declared`]) check 7 is NOT MADE —
+/// `Ok` on a body whose volume the closed form cannot compute — while
+/// at [`validate_pseudomanifold_structural`], [`contact_marks_structural`],
+/// [`crate::mass_properties_structural`] and
+/// [`crate::classify_shells_structural`] it is made through the closed
+/// form and refuses typed (`VolumeUncomputable`) on the same body. One
+/// suffix, two shapes; the row that asks whether they should be one is
+/// `work/atrest/structural-suffix-means-two-things-across-the-six-doors.md`.
+///
 /// # Errors
 ///
 /// As [`validate_geometric`], less [`ValidationError::NegativeVolume`]
@@ -5273,8 +5285,10 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// exactly as it did at attach time, the invariant this pass has always
 /// been the home of. It is the door a certifying caller wants, and the
 /// callers in the tree take it: [`crate::AtRestPolicy`]'s `f64`,
-/// `Probe`, `Interval` and `Sym` arms, and `step-import`'s aggregate
-/// gate. [`validate_pseudomanifold_structural`] is the same pass holding
+/// `Probe`, `Interval` and `Sym` arms, `step-import`'s aggregate gate,
+/// the `pncad` prelude's re-export and through it `pncad-py`'s
+/// `Body.validate_pseudomanifold` (monomorphic at `f64`) and the tour's
+/// scenes. [`validate_pseudomanifold_structural`] is the same pass holding
 /// neither lane, and is the door a [`Dual`](geom_core::Dual) body goes
 /// through the tier-3′ pass by.
 pub fn validate_pseudomanifold<
@@ -5304,6 +5318,11 @@ pub fn validate_pseudomanifold<
 /// door does not hold, and check 2 is a whole-edge check, so what goes
 /// unmade is every check-2 verdict on such an edge rather than only its
 /// plane × NURBS limbs.
+///
+/// Note the suffix's other meaning one door over:
+/// [`validate_geometric_structural`] does not make check 7 at all (`Ok`
+/// on the body this door refuses with `VolumeUncomputable`); the two
+/// shapes are stated side by side at that door.
 ///
 /// # Errors
 ///

@@ -1168,9 +1168,11 @@ pub mod bounds_allowlist {
     //! the call, and the refusal variant is retired with the impl that raised
     //! it. **What a mixed pass does instead** is take the lane as an
     //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
-    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` the composed
-    //! certified entry fills and the structural half and the two lane-keeping
-    //! at-rest passes leave empty — the M7-8 class is then not re-derived
+    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` every door
+    //! bounded on the certification right fills (`validate_geometric`,
+    //! `validate_pseudomanifold`, `contact_marks` and their certificate and
+    //! declared forms) and every `_structural` door leaves empty — the M7-8
+    //! class is then not re-derived
     //! and, being outside those doors' rights, not reported either
     //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
     //! **The symbolic tier needs no arm of its own and gains none**:
@@ -1226,7 +1228,7 @@ pub mod bounds_allowlist {
     //! which any deciding scalar answers and one of which — the +V global
     //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE. The
     //! battery is therefore two functions, `validate_geometric_structural`
-    //! at `T: AtRestPolicy` and a private certified half at
+    //! at `T: Decide + Bounds + AtRestPolicy` and a private certified half at
     //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds), and the public entry is their
     //! composition, so its bound is the union and IS the compound one this
     //! file ratifies. `shell`/`shell_open` take the same bound because their
@@ -1245,9 +1247,16 @@ pub mod bounds_allowlist {
     //! value never crosses into a certificate. It takes no `k_stats` name and
     //! no band precisely because it meters nothing — the chamfer's
     //! `NonpositiveSize` precedent — and the geometric question beside it
-    //! (`R - r`) does go through `decide`. This is `S88`'s named blind spot
-    //! (a bracket read that decides nothing) with its one in-fence instance
-    //! written down. The weakest bound that works is this one, checked
+    //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a
+    //! bracket read behind a renamed accessor) has no instance here any
+    //! more: the accessor is gone and the read is spelled `Bounds::lo`
+    //! where a grep sees it. What this entry discloses is a different
+    //! shape — a bracket read that DECIDES NOTHING — with its one in-fence
+    //! instance written down, and the count is not left to prose:
+    //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
+    //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
+    //! counts the file's bracket reads over the code view against the
+    //! one disclosed here and reds on a second. The weakest bound that works is this one, checked
     //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! alone does NOT compile, because the certified quadrature reads
     //! [`Bounds`](super::Bounds) as well.

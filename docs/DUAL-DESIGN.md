@@ -83,9 +83,9 @@ exists: `evaluate(doc, prior, …)`, `eval/mod.rs:1002`).
 
 **The measured problem**: if `evaluate::<Dual64>` compiled today, a
 corpus document with an ellipse-trimmed or spline face would FAIL
-the product gather's tier-3 (+V through
-`validate_pseudomanifold_structural`'s closed-form check 7, the door
-that holds no quadrature lane at a `Dual`) with `VolumeUncomputable`;
+the product gather's tier-3 (+V through the quadrature door
+`topo::QuadLane`, which a `Dual` cannot construct, so the walk holds
+none and check 7's closed form refuses) with `VolumeUncomputable`;
 `Approx` faces
 report `ApproxLaneUnsupported`; curved coincident pairs
 `CensusUnsupported`. Those refusals are the system correctly
