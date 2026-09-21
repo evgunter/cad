@@ -279,6 +279,15 @@ impl Neg for Interval {
 /// deterministic per D9 (bit-identical enclosures across platforms at
 /// pinned dependency versions).
 impl Real for Interval {
+    /// **EXACT**: the value channel is a CERTIFIED enclosure of the
+    /// real, so a comparison here is a proof — two enclosures that do
+    /// not meet prove the reals differ
+    /// ([`crate::sym::SymRegistration::Contradicted`], this impl's
+    /// [`Real::register_equal`]), and one that excludes zero proves
+    /// the margin non-zero. This is the scalar the
+    /// theorem-vs-numeric contradiction is ASSERTED at.
+    const WITNESS: crate::real::Witness = crate::real::Witness::Exact;
+
     /// The point enclosure `[x, x]` with decoration `Com` — an exact
     /// embedding for every *finite* `f64`. NaN and ±∞ are not real
     /// numbers and have no enclosure: they map to NaI, explicitly —
@@ -335,7 +344,9 @@ impl Real for Interval {
     /// ([`crate::real::CertifiedEnclosure`], and clause 1 of the
     /// symbolic tier's own theorem).
     ///
-    /// **This witness is EXACT, so its refusal is
+    /// **This witness is EXACT** — [`Real::WITNESS`] is
+    /// [`crate::Witness::Exact`] at this scalar, and this arm is that
+    /// const spelled as a refusal — **so its refusal is
     /// [`crate::sym::SymRegistration::Contradicted`] and never
     /// [`crate::sym::SymRegistration::Disputed`]**: two certified
     /// enclosures that do not meet PROVE the two reals differ (or that
@@ -351,7 +362,9 @@ impl Real for Interval {
     ///
     /// Nothing is recorded here: an `Interval` carries no expression.
     /// The recording half is [`crate::Sym::register_equal`], which asks
-    /// this first.
+    /// this first. The same const is what makes a theorem this channel
+    /// contradicts an ASSERTION rather than a counted dispute
+    /// (`Sym<T>::sign_within`); a row pins the two together.
     fn register_equal(self, other: Self, _tol: Tol) -> crate::sym::SymRegistration {
         use crate::real::CertifiedEnclosure as _;
         use crate::sym::SymRegistration;

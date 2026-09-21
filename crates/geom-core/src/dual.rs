@@ -429,6 +429,14 @@ impl<T: Real> Neg for Dual<T> {
 /// poisons alongside through its arithmetic (division by a poisoned or
 /// zero denominator, multiplication by a poisoned factor).
 impl<T: KinkJacobian> Real for Dual<T> {
+    /// **`T`'s.** The dual's value channel is bit-identical to the
+    /// plain-`T` computation of the same recipe (the module-level
+    /// contract), so what a comparison here proves is exactly what one
+    /// at `T` proves — the same reason [`Real::register_equal`] below
+    /// is `T`'s verbatim. The derivative channel is not a witness of
+    /// anything and is not consulted.
+    const WITNESS: crate::real::Witness = T::WITNESS;
+
     /// A constant embed: `(T::from_f64(x), 0)`. Exact because `T`'s
     /// embedding is; the derivative of a constant is exactly zero.
     fn from_f64(x: f64) -> Self {
@@ -452,7 +460,8 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// Nothing is recorded — a `Dual` tracks no expression
     /// ([`Real::register_equal`]). Which refusal arm it can answer is
     /// `T`'s: over `f64` it is `Disputed` and never `Contradicted`,
-    /// over `Interval` the reverse.
+    /// over `Interval` the reverse — which is [`Real::WITNESS`] above,
+    /// forwarded from the same `T` for the same reason.
     fn register_equal(self, other: Self, tol: Tol) -> crate::sym::SymRegistration {
         self.value.register_equal(other.value, tol)
     }

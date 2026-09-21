@@ -139,6 +139,10 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym11_witness_kind_interval_rows.rs"]
+mod sym11_witness_kind_interval_rows;
+#[path = "sym11_witness_kind_rows.rs"]
+mod sym11_witness_kind_rows;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
 #[path = "sym_rule_e_rows.rs"]

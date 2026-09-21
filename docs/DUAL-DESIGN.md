@@ -83,8 +83,10 @@ exists: `evaluate(doc, prior, …)`, `eval/mod.rs:1002`).
 
 **The measured problem**: if `evaluate::<Dual64>` compiled today, a
 corpus document with an ellipse-trimmed or spline face would FAIL
-the product gather's tier-3 (+V through `PropsQuadLane`, whose
-`Dual` arm refuses) with `VolumeUncomputable`; `Approx` faces
+the product gather's tier-3 (+V through the quadrature door
+`topo::QuadLane`, which a `Dual` cannot construct, so the walk holds
+none and check 7's closed form refuses) with `VolumeUncomputable`;
+`Approx` faces
 report `ApproxLaneUnsupported`; curved coincident pairs
 `CensusUnsupported`. Those refusals are the system correctly
 saying *a dual may not certify* — asking a dual evaluation to

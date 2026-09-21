@@ -384,8 +384,9 @@ Shape of the change, for anyone doing something similar:
 
 * It is a cargo feature like `interval`, **not** a `cfg(test)` — `Probe`
   is wired into production `src` through sealed lane traits in six crates
-  (`Sealed`, `EdgeNurbsLane`, `PcurveFittedLane`, `PropsQuadLane`,
-  `ContentBits`, plus `bit_identity.rs`'s downcast).
+  (`Sealed`, `PcurveFittedLane`, `ContentBits`, plus `bit_identity.rs`'s
+  downcast; the quadrature lane is a `topo::QuadLane` value and the
+  plane × NURBS lane a bound, neither a trait).
 * **`k_stats::decide` and the `CURRENT` thread-local stay ungated.** That
   funnel is the path every shipped decision takes, and it must be
   byte-identical with the feature on and off (D9). A `cfg` there would

@@ -6,12 +6,14 @@
 #
 # The SAME gate, over the compound bound's NAME (ASM-2A review
 # MINOR-4). `editor_core::EvalScalar` is the evaluation-service
-# bound — ten supertraits at `editor-core/src/eval/mod.rs`, of which
+# bound — eleven supertraits at `editor-core/src/eval/mod.rs`, of which
 # `geom_core::Bounds` is the bracket door: `Decide + ContentBits +
-# geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (which carries
-# `topo::PropsQuadLane` as its own supertrait) `+
+# geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (whose own
+# supertraits are `Decide` and the two lane traits, `PcurveFittedLane`
+# and `ChartRegionLane` — it hands out no bracket door) `+
 # crate::analysis::AxisScalar + crate::analysis::SeedScalar +
-# crate::measure::MinClearanceLane + SectionScalar` — declared once at
+# crate::measure::MinClearanceLane + SectionScalar +
+# crate::verbs::shell::ShellLane` — declared once at
 # the seam the rule above already ratifies, so `eval/parts.rs` names
 # the requirement instead of restating `+ Bounds`. THE LIST IS READ FROM
 # THAT DECLARATION AND IS NOT CHECKED HERE: what this gate checks is

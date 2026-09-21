@@ -583,7 +583,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::A
 /// check 2 does: `None` certifies through
 /// [`EdgeCurve::certify`] and `Some` through
 /// [`EdgeCurve::certify_nurbs_lane`], the same two doors
-/// `topo::validate`'s lane-keeping and certified arms take. **This
+/// `topo::validate`'s `_structural` and certified doors take. **This
 /// grants no certification capability the at-rest validator does not
 /// already have** — the lane is `geom_brep::plane_nurbs_limbs`, the
 /// one function both sides inject, and the checks and their order are

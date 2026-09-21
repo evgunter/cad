@@ -66,6 +66,7 @@ pub mod idpass;
 pub mod input;
 pub mod marks;
 pub mod matetool;
+pub mod narrowing;
 pub mod parts;
 pub mod pickcache;
 pub mod pickindex;
@@ -151,6 +152,7 @@ pub use matetool::{
     MateAdmission, MateChoice, MateProposal, MateTool, MateToolError, MateToolEvent, MateToolState,
     admitted_classes,
 };
+pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};
 pub use pickcache::{NotIndexed, unindexed};
 pub use pickindex::{

@@ -47,11 +47,22 @@
 //! **It is reached from a commit path and is not one.** An
 //! `egui::DragValue` seeds its keyboard edit with the text it last
 //! showed and writes the parse back when it loses focus, so what a
-//! field renders is what clicking into it and away again commits —
-//! which is why `crate::widgets::number_text` exists and why
-//! [`REL_TOLERANCE`] bounds that commit as well as that render. The
-//! number a value moves to on purpose is one a user types, never one
-//! the chrome echoed at them.
+//! field renders is what clicking into it and away again USED to
+//! commit — which is why `crate::widgets::number_text` exists. That
+//! coupling is cut: `crate::widgets::number_field` compares the
+//! parsed text against the text its own formatter returned
+//! (`crate::props::echoed`) and a field's own render commits
+//! nothing, so [`REL_TOLERANCE`] bounds the render alone and the
+//! question of what accuracy a RENDER owes no longer has a commit
+//! riding on its answer. The number a value moves to on purpose is
+//! one a user types, never one the chrome echoed at them — now
+//! enforced rather than bounded.
+//!
+//! The one field where the old sentence still holds is a bare
+//! `egui::DragValue`, which takes this render from the context and
+//! has no parser to take the veto from
+//! (`crate::widgets::install_number_formatter`, and
+//! `work/vgeom/a-bare-field-still-commits-its-own-render.md`).
 
 /// How far [`number`]'s text may read from the value it renders, as a
 /// fraction of that value.

@@ -379,12 +379,16 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
-        path: "crates/topo/tests/readback_sense_kind.rs",
-        disposition: Shared, // the query seat's body, code view
+        path: "crates/topo/tests/r1_lane1_bracket_read_census.rs",
+        disposition: Shared, // validate.rs's bracket reads, code view
     },
     Entry {
-        path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
-        disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
+        path: "crates/topo/tests/certified_enclosure_impl_census.rs",
+        disposition: Shared, // CertifiedEnclosure impls vs wiring rows, code view
+    },
+    Entry {
+        path: "crates/topo/tests/readback_sense_kind.rs",
+        disposition: Shared, // the query seat's body, code view
     },
     Entry {
         path: "crates/topo/tests/shell_tolerance_chain.rs",
