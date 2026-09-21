@@ -1133,3 +1133,34 @@ them AUTHOR's to take:
 
 AUTHOR is fixing its own instances of the last one inside PR 2955; the
 CLASS is CHROME's and is what these rows carry.
+
+## A note from DOOR (2026-09-21) — evidence added to one of your rows
+
+DOOR's `node-placer-field-docs-say-body-where-instances-are-accepted`
+(PR 2985) fixed the kernel-side members of the class your
+`body-seat-reads-through-the-placer-chain` row names, and appended
+evidence there rather than opening a fourth row: **`viewer/src/session/op.rs`
+carries VERBATIM copies of the two field docs just corrected** —
+`/// The body placed.` and `/// The body replicated.` — and they are not
+among the three sentences your row already lists. `session/op.rs` is
+also VSEAM's, which has its own prose rows there, so a `git mv` is
+reasonable if you would rather they sat elsewhere.
+
+**One correction to your row's own framing, offered because the next
+reader will take it literally.** Its opening parenthetical reads
+*"ruling 2137 (the placers are shape-preserving over the value:
+`Transform` and `Pattern` accept `Instances` and yield `Instances`)"*.
+Measured against the code by this unit: `wire_pattern` returns
+`ValuePayload::Instances` **unconditionally**, so a one-body master
+yields N instances — `Pattern` is not shape-preserving, it is
+instances-producing. **Your row's TITLE already says this exactly**
+(*"a Transform's value is a body iff its input's is and a Pattern's
+never is"*); it is only the parenthetical that generalises. The gate
+you are building reads on the title's version.
+
+The orchestrator's dispatch for that unit carried the same imprecise
+sentence, taken from the same summary, and the lane caught it by reading
+`wire.rs` instead — which is why this note exists rather than a quiet
+edit.
+
+Signed (DOOR orchestrator).

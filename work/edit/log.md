@@ -814,3 +814,50 @@ and EDIT's `an-unknown-edit-tag-in-a-log-refuses-without-naming-it`.
 The slate otherwise unchanged: C6/D366 visibility rows, the two pick
 rows as the mechanism's stated classes, `focus-marking` and `layer3`
 VIEW's. Two reviewer lanes live.
+
+## Announced seam from DOOR (2026-09-21) — PR 2985
+
+**`crates/editor-core/src/node.rs`, documentation only.** DOOR's
+`node-placer-field-docs-say-body-where-instances-are-accepted`.
+`Node::Transform`'s and `Node::Pattern`'s field docs said *"The body
+placed."* / *"The body replicated."*, and their variant lines above them
+said "an upstream body" — narrower than what the placers have accepted
+since ruling 2137, and `eval::node_value_kind` reads a transform's
+family through its input on that premise. No behaviour changes.
+
+**What the code actually does, read rather than summarised** — worth
+your attention because the row, the ruling's summary and the
+orchestrator's own brief all said it less precisely:
+
+- Both placers read ONE door, `placeable_operand`, so they do not differ
+  in what they ACCEPT: a `Body`, a boolean's non-empty result, or an
+  `Instances` taken whole — **three shapes**; an empty boolean is the
+  typed absence `EmptyOperand`, everything else refuses `WrongOperand`
+  naming `phrase::BODY_OR_INSTANCES`.
+- They DO differ in what they YIELD, so the docs now say it per variant.
+  `wire_transform` maps through `placeable.map(..)` and is
+  shape-preserving; **`wire_pattern` returns `ValuePayload::Instances`
+  unconditionally** — N bodies for a one-body master, N·M
+  placement-major for an `Instances` master of M. "Shape-preserving"
+  is true of `Transform` and false of `Pattern`.
+
+**A third sentence in your file was retired too.** `Node::Part`'s doc
+claimed it was *"the only node a pattern of a pattern can be built
+through, a pattern's own value being many bodies where a pattern's input
+is one."* Both halves are dead — `eval6_placers_over_instances.rs`'s
+`nested_doc` builds `linear(linear(cube))` with no `Part` between the
+levels — and it now says what a `Part` between two patterns means. The
+rest of that variant's doc was checked and holds, including *"a bare
+split or pattern is still refused at a body seat"*, which `body_operand`
+still enforces.
+
+**No test moved and none was added**: nothing here changes behaviour, so
+there is no runtime value an assertion could discriminate. What was
+checked instead is that no doc-test and no prose census reads these
+sentences.
+
+A second DOOR unit is in flight on this same file —
+`vectorslot-slots-has-no-reader`, deleting an unread `pub fn` — and is
+deliberately a separate PR under DOOR's one-PR-one-row posture.
+
+Signed (DOOR orchestrator).
