@@ -16,7 +16,7 @@ workspace = true
 # therefore no longer drags a C toolchain or the LGPL `gmp-mpfr-sys` build
 # (it did while the backend was `inari/gmp`), and no longer needs an
 # AVX+FMA floor of its own on x86-64.
-interval = ["dep:interval-transcendentals"]
+interval = []
 # K-telemetry recording scalar (`k_stats::Probe`), opt-in. Probe is a
 # `Real` instantiation like `Interval`, so every generic-over-`Real` body
 # monomorphizes at it — measured 2026-08-12 at 20.0% of geom-brep's LLVM
@@ -83,7 +83,7 @@ libm = { workspace = true }
 num-bigint = { workspace = true }
 num-integer = { workspace = true }
 num-traits = { workspace = true }
-interval-transcendentals = { workspace = true, optional = true }
+interval-transcendentals = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
