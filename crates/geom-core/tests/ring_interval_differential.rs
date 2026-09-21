@@ -190,6 +190,15 @@ fn moderate(rng: &mut fuzz::Rng) -> f64 {
 /// built. Signed zeros and infinities (the `0 · inf` and `inf / inf`
 /// corners), both subnormal extremes and `MIN_POSITIVE` (whose squares
 /// underflow to zero), and magnitudes whose squares and cubes overflow.
+///
+/// Two sibling lists of this shape exist and are deliberately not
+/// shared: `ring_interval_fuzz.rs`'s `edges` (signed zeros and exact
+/// dyadics, for an exactness comparison that has no use for an
+/// infinity) and `interval-transcendentals`' `review_fuzz_exact.rs`
+/// `EDGE_MAGNITUDES` (which adds the 2Prod witness floor, and sits in
+/// another workspace). Each is chosen for the property its lane
+/// asserts; adding a value here is a reason to read the other two, not
+/// a reason to assume they follow.
 const CORNERS: [f64; 16] = [
     f64::NEG_INFINITY,
     -f64::MAX,
