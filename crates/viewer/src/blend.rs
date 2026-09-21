@@ -68,7 +68,7 @@ use std::collections::BTreeSet;
 use pncad::document::{Doc, Evaluation, Expr, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
 
-use crate::session::{EdgeSelection, Selection, SessionOp};
+use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
 use crate::vocab::vocabulary;
 
 /// **What the tool's panel says about the freeze**, so the ratified
@@ -104,6 +104,21 @@ impl BlendTarget {
         }
     }
 
+    /// The target a face pick is about — [`Self::of`]'s twin, for the
+    /// other selection that names a drawn body.
+    ///
+    /// A door of its own rather than a destructure inside
+    /// [`Self::of_selection`], because a face pick reaches this scope
+    /// from more than that one place: the add-datum form's
+    /// frame-on-face row holds a [`FaceSelection`] and names the same
+    /// scope in the same sentence.
+    pub fn of_face(face: &FaceSelection) -> Self {
+        Self {
+            node: face.node,
+            body: face.body,
+        }
+    }
+
     /// **The drawn body a selection is a pick on**, when it is one.
     ///
     /// A face pick and an edge pick both carry `(node, body)` — they
@@ -116,10 +131,7 @@ impl BlendTarget {
     pub fn of_selection(selection: &Selection) -> Option<Self> {
         match selection {
             Selection::Edge(edge) => Some(Self::of(edge)),
-            Selection::Face(face) => Some(Self {
-                node: face.node,
-                body: face.body,
-            }),
+            Selection::Face(face) => Some(Self::of_face(face)),
             Selection::None | Selection::Node(_) | Selection::Param(_) => None,
         }
     }
