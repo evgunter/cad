@@ -2314,7 +2314,7 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which carries the two lane traits as its supertraits — the part
+/// which carries the fitted-pcurve lane trait as its supertrait — the part
 /// seam gathers a referenced document's product, so evaluation owns a
 /// gate policy per scalar), the two per-scalar analysis capabilities
 /// (`crate::analysis::AxisScalar` for the parameter box,
