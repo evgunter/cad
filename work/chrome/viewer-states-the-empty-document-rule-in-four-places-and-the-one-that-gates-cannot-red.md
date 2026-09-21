@@ -90,3 +90,61 @@ directory is the claim.
 
 Filed by the WIRE orchestrator under
 `docs/prompts/implementer-discipline.md` §6, from PR 2629's style review.
+
+## What was measured, taking it
+
+Taken on `chrome/empty-document-gate`.
+
+**The name in this file is stale and the shape is not.** WIRE renamed
+`is_empty_document` to `means_no_body` before this row was written
+(its own log records the rename and the argument for it: a kind is not
+a document). Every citation above should be read as `means_no_body`.
+The filter's shape, the ten classes and the three-arm policy were all
+as described.
+
+**The gate.** `frame::badge_site`, a `match` exhaustive over
+`ProductErrorKind` returning `frame::BadgeSite` — `Frame`,
+`FeatureTree`, `NotAFault`. An enum rather than a `bool` because three
+answers are in play and the two silences are silent for unrelated
+reasons; a `bool` collapses them and is precisely the assertion the
+in-module test could already make and which could not tell them apart.
+The three tree-owned classes are answered by the local policy; every
+other class reaches `NotAFault` or `Frame` through a call to
+`ProductErrorKind::means_no_body`, so the cited rule is load-bearing
+rather than re-named. Asked in that order because `means_no_body`'s
+own contract says `false` does not appoint the reporter.
+
+**Proof the gate reds.** An eleventh `ProductErrorKind` added locally
+(not committed) gives `error[E0004]: non-exhaustive patterns:
+ProductErrorKind::Eleventh not covered` at `frame::badge_site`, and
+`cargo check -p viewer` fails. What it still does NOT buy, unchanged
+from `means_no_body`'s own disclosure: a new `ProductError` VARIANT
+under an existing class inherits that class's answer silently.
+
+**The three restatements.** `product_badge`'s doc keeps its badge
+argument and its silent-arms section is four lines citing
+`badge_site`; the policy prose moved there rather than being copied.
+The in-module test comment now pairs each quiet arm with the silence
+it gets instead of restating why. `pickindex.rs` cites
+`means_no_body` in both `scene_for`'s `# Errors` doc and the
+`parts.is_empty()` comment, and the comment's account of what the code
+used to do went with it (implementer-discipline §4).
+
+**Rows pinned, and the mutations that redded them.** Extended
+`frame::tests::the_gather_verdict_badges_only_the_faults_nothing_else_carries`
+rather than adding a second test. `RootFailed` moved to the frame
+group reds *which channel reports it ... left: Frame right:
+FeatureTree*; `Graft` moved to the tree group reds *no per-node badge
+carries it: Graft*; `NoBodyRoots` answered `FeatureTree` instead of
+through `means_no_body` reds *left: FeatureTree right: NotAFault* —
+that last one is the row the old test could not have: `product_badge`
+is `None` either way.
+
+**Found outside the fence**:
+`two-more-viewer-sites-restate-the-empty-document-rule` (app.rs's
+badge-column comment and `SceneMesh::nothing`'s doc), filed on this
+slate in the same PR.
+
+The behavioural half, `at-rest-badge-reports-an-empty-document-as-a-
+refusal`, is untouched: `session.rs` was out of this wave.
+
