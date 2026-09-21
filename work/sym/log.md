@@ -1064,3 +1064,22 @@ and is read-only here. Spec `docs/SYM-12-SPEC.md`; unit
 `work/sym/SYM-12.md`; branch `sym/12-negative-arm`. Triaged IN under v7
 by the program's default for a unit that changes what the tier decides
 on a document (the block record says so; re-asked here: IN).
+
+## SYM-12 at its PR (2026-09-21): the negative arm earned and taken
+
+Phase 1 first, all three tables committed before Phase 2. `tiltUV`
+rendered: the fold never fires — that document's `n.z` is not
+`1/sqrt(P)` in the DAG but a degree-20/22 quotient in the parameter's
+offset carrying odd powers beside three `sqrt` atoms (one over a frozen
+node), and a size-frozen `Sub` refuses it at both dials; not the
+budget. The `copysign` census: no mint site other than the orthonormal
+basis reaches a decision on any takeable measured document, rule F on
+or shut. The negative arm, hand-planted: the tilt-`u` START cap and
+`FlipZ` read the END cap's rule-F-on numbers to the digit at both
+lifts, nothing else moves, the eight documents' splits and ceilings and
+the walk ledger are bit-identical — the ring item's acceptance met
+without a second payment of its class. Phase 2 taken:
+`manifest::negative` as `positive` of the negated numerator, both arms
+under `manifest_sign`, the rows and the ordering pin, the gating
+document row. Sample and ordinal at the dual's dispatch.
+

@@ -45,3 +45,14 @@ dual. Spec: `docs/SYM-12-SPEC.md`.
   tilt-`v`, and leaves the eight documents' splits and ceilings and the
   walk ledger bit-identical. Phase 2 earned.
 
+## Phase 2, taken (2026-09-21)
+
+`manifest::negative` as the reflection of `positive`, both folds under
+`SymRules::manifest_sign` (one rule, two arms, one dial — they are one
+predicate read on `N` and on `−N`, and the census tells them apart by
+the argument's leading sign); the header reflected with the
+signed-zero edge closed by strict negativity; the scalar-door rows and
+the ordering pin that reds under C-before-F; the gating document row
+on the start cap and `FlipZ`. Every pin that did not move is
+bit-identical.
+

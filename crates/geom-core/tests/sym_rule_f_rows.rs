@@ -3,13 +3,15 @@
 //! shape it must never fold.
 //!
 //! The rule is `copysign(Y, X) → abs(Y)` and `abs(X) → X` wherever the
-//! FORM of `X` is manifestly POSITIVE, so the rows that matter are the
-//! ones at the boundary of that predicate: a quantity the form shows
-//! positive (folds), and a quantity the form shows only NON-negative —
+//! FORM of `X` is manifestly POSITIVE, and `−abs(Y)`, `−X` wherever it
+//! is manifestly NEGATIVE, so the rows that matter are the ones at the
+//! boundary of those predicates: a quantity the form shows positive or
+//! negative (folds), and a quantity the form shows only NON-negative —
 //! a sum of squares, a perfect square, a `sqrt` atom of a bare square —
-//! which may be a real zero and must not (`copysign(1, +0.0)` and
-//! `copysign(1, −0.0)` are different numbers, so a fold there would be
-//! a claim about a spelling).
+//! or only non-positive (the same shapes negated), which may be a real
+//! zero and must not (`copysign(1, +0.0)` and `copysign(1, −0.0)` are
+//! different numbers, so a fold there would be a claim about a
+//! spelling).
 //!
 //! **Rule F's ADVERSARY is not here.** `copysign(1, E) − 1` for
 //! `E = (x + 1)² − x² − 2x − 1 + 1e-30·(1 + y²)` — the form rule F
@@ -507,31 +509,188 @@ fn the_positive_boundary_folds_and_every_fold_is_zero_at_the_point() {
     }
 }
 
-/// **THE REACH IS ONE-SIDED (R2, addendum 5).** The START cap of the
+/// **THE NEGATIVE ARM'S THEOREM ROWS (SYM-12).** The START cap of the
 /// tilt-`u` cube carries `n.z = −1/sqrt(P(t))`, and `abs(−X) = X` and
 /// `copysign(1, −X) = −1` are identities of reals for a manifestly
-/// positive `X` exactly as the folded ones are — the predicate declines
-/// them, because a negative coefficient is refused outright. Not a
-/// soundness question, a document-class one: a `FaceFrame` on the start
-/// cap of that body is NOT reached by rule F, and a manifest-NEGATIVE
-/// arm is the next shape rather than one this unit took.
+/// positive `X` exactly as the folded ones are. SYM-8's positive arm
+/// declined them (a negative coefficient was refused outright) and this
+/// row, written by its review R2, used to pin that decline; the arm
+/// SYM-12 measured and took folds them, and the row now says which
+/// rule does: a theorem under the shipped set, not reached with rule F
+/// shut.
 #[test]
-fn a_manifestly_negative_argument_is_declined_by_both_arms() {
+fn the_negative_arm_folds_the_start_caps_atoms() {
     let neg = || -(one() / (one() + p("t", 0.25).powi(2)).sqrt());
+    println!("=== abs(−1/sqrt(1 + t²)) + 1/sqrt(1 + t²)");
+    let abs_resid = || neg().abs() + neg();
+    assert_eq!(
+        sound("shipped", how(SymRules::shipped(), abs_resid)),
+        "theorem",
+        "abs(X) = −X for a manifestly negative X"
+    );
     assert_ne!(
+        sound("without_rule_f", how(SymRules::without_rule_f(), abs_resid)),
+        "theorem",
+        "with rule F shut the abs stays an opaque atom"
+    );
+    println!("=== copysign(1, −1/sqrt(1 + t²)) + 1");
+    let cs_resid = || one().copysign(neg()) + one();
+    assert_eq!(
+        sound("shipped", how(SymRules::shipped(), cs_resid)),
+        "theorem",
+        "copysign(1, X) = −1 for a manifestly negative X"
+    );
+    assert_ne!(
+        sound("without_rule_f", how(SymRules::without_rule_f(), cs_resid)),
+        "theorem",
+        "with rule F shut the copysign stays an opaque atom"
+    );
+    // And a NON-constant magnitude: `copysign(Y, X) = −|Y|` mints the
+    // `Abs` atom over `Y` negated, the same indeterminate `abs(Y)`
+    // mints, so `copysign(t, X) + abs(t)` is a theorem too.
+    println!("=== copysign(t, −1/sqrt(1 + t²)) + abs(t)");
+    assert_eq!(
         sound(
-            "abs(−1/sqrt(1 + t²)) + 1/sqrt(1 + t²)",
-            how(SymRules::shipped(), || { neg().abs() + neg() })
+            "shipped",
+            how(SymRules::shipped(), || {
+                p("t", 0.25).copysign(neg()) + p("t", 0.25).abs()
+            })
         ),
         "theorem",
-        "if this folds now, the predicate grew a negative branch"
+        "the negated magnitude is the same Abs atom an abs node mints"
+    );
+}
+
+/// **The shapes the NEGATIVE arm must NOT fold** — the positive arm's
+/// negatives reflected: each is non-positive by its syntax and can be a
+/// real ZERO, or carries a term whose sign the syntax cannot read, and
+/// the arm must decline it exactly as the positive arm declines its
+/// mirror image.
+#[test]
+fn the_shapes_the_negative_arm_must_not_fold() {
+    println!("=== shapes the negative arm must not fold, shipped set");
+    let s = SymRules::shipped();
+
+    // A NEGATED SUM OF SQUARES is zero at the origin.
+    assert_ne!(
+        sound(
+            "copysign(1, −(x² + y²)) + 1 at (3, 4)",
+            how(s, || one()
+                .copysign(-(p("x", 3.0).powi(2) + p("y", 4.0).powi(2)))
+                + one())
+        ),
+        "theorem",
+        "a negated sum of squares can be zero"
     );
     assert_ne!(
         sound(
-            "copysign(1, −1/sqrt(1 + t²)) + 1",
-            how(SymRules::shipped(), || { one().copysign(neg()) + one() })
+            "abs(−(x² + y²)) − (x² + y²) at (3, 4)",
+            how(s, || {
+                let q = p("x", 3.0).powi(2) + p("y", 4.0).powi(2);
+                (-q).abs() - q
+            })
         ),
         "theorem",
-        "if this folds now, the predicate grew a negative branch"
+        "the abs arm is held to the same predicate"
+    );
+
+    // A NEGATED PERFECT SQUARE `−(t − 1)²` is zero at `t = 1`.
+    assert_ne!(
+        sound(
+            "copysign(1, −(t − 1)²) + 1 at t = 0.25",
+            how(s, || {
+                let d = p("t", 0.25) - one();
+                one().copysign(-d.powi(2)) + one()
+            })
+        ),
+        "theorem",
+        "a negated perfect square vanishes at the root of its root"
+    );
+
+    // A NON-NEGATIVE TERM beside the negative ones: `t² − 1/sqrt(1 + t²)`
+    // is negative at the point and has no sign the syntax can read.
+    assert_ne!(
+        sound(
+            "copysign(1, t² − 1/sqrt(1 + t²)) + 1 at t = 0.25",
+            how(s, || {
+                let x = p("t", 0.25).powi(2) - inv_sqrt_positive();
+                one().copysign(x) + one()
+            })
+        ),
+        "theorem",
+        "a form with a non-negative term beside its negative ones has no manifest sign"
+    );
+
+    // A NEGATED PARAMETER of unknown sign.
+    assert_ne!(
+        sound(
+            "abs(−t) − t at t = 0.25",
+            how(s, || (-p("t", 0.25)).abs() - p("t", 0.25))
+        ),
+        "theorem",
+        "a negated parameter has no sign the form can read"
+    );
+    assert_ne!(
+        sound(
+            "copysign(1, −t) + 1 at t = 0.25",
+            how(s, || one().copysign(-p("t", 0.25)) + one())
+        ),
+        "theorem",
+        "a negated parameter has no sign the form can read"
+    );
+
+    // A NEGATED `sqrt` atom of a bare square — the ring row's atom,
+    // reflected.
+    assert_ne!(
+        sound(
+            "abs(−sqrt(t²)) − sqrt(t²) at t = 0.25",
+            how(s, || {
+                let r = p("t", 0.25).powi(2).sqrt();
+                (-r).abs() - r
+            })
+        ),
+        "theorem",
+        "a negated sqrt of a bare square is zero wherever its argument is"
+    );
+}
+
+/// **THE NEGATIVE ARM'S ORDER AGAINST RULE C is pinned the same way**
+/// as the positive arm's, by residuals BOTH rules take: `abs(−(1 + t²))`
+/// and `abs(−2/t²)` over brackets that exclude zero. Rule F folds each
+/// because the argument is manifestly negative (a negative constant
+/// times an even power, or over one); rule C would fold each because
+/// the argument is enclosable with a certified NEGATIVE sign (`abs(R) →
+/// −R`). Shipped order, a THEOREM; with rule F shut, rule C's
+/// `sign_gated`; so planting C before F reds both, as it reds the
+/// positive arm's two rows above.
+#[test]
+fn the_negative_arms_order_against_rule_c_is_pinned_the_same_way() {
+    let resid_a = || {
+        let x = -(one() + p_over("t", 0.25, 0.2, 0.3).powi(2));
+        x.abs() + x
+    };
+    assert_eq!(
+        sound("abs(−(1 + t²)) − (1 + t²), C+F", how(with_c(), resid_a)),
+        "theorem",
+        "F before C: the value-free rule answers first"
+    );
+    assert_eq!(
+        sound("… F shut, C on", how(c_not_f(), resid_a)),
+        "sign_gated",
+        "rule C alone takes this residual, and gates it"
+    );
+    let resid_b = || {
+        let x = -(Sym::from_f64(2.0) / p_over("t", 0.4, 0.3, 0.5).powi(2));
+        x.abs() + x
+    };
+    assert_eq!(
+        sound("abs(−2/t²) − 2/t², C+F", how(with_c(), resid_b)),
+        "theorem",
+        "with both on the value-free rule must be asked first"
+    );
+    assert_eq!(
+        sound("abs(−2/t²) − 2/t², C only", how(c_not_f(), resid_b)),
+        "sign_gated",
+        "rule C takes it by reading the bracket"
     );
 }

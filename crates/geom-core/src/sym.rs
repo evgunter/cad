@@ -434,10 +434,12 @@
 //! downstream cancels and the squares freeze.
 //! [`SymRules::manifest_sign`] folds both in the early walk:
 //! `copysign(Y, X) → abs(Y)` and `abs(X) → X` wherever the FORM shows
-//! `X` positive. [`manifest`] carries the predicate, the two
-//! identities as equalities of reals under clause 1, and the
-//! SIGNED-ZERO edge that makes the predicate strict rather than
-//! `manifest::nonneg`'s non-negativity.
+//! `X` positive, and `copysign(Y, X) → −abs(Y)`, `abs(X) → −X`
+//! wherever it shows `X` NEGATIVE — the START cap of that same body,
+//! whose `n.z` is `−1/sqrt(P(t))`. [`manifest`] carries the predicate
+//! and its reflection, the four identities as equalities of reals
+//! under clause 1, and the SIGNED-ZERO edge that makes both predicates
+//! strict rather than `manifest::nonneg`'s non-negativity.
 //!
 //! **Where it sits against A/B/C/D/E.** At the node, in `combine`,
 //! early walk only: A0's exact constant fold first, then this rule,
@@ -477,19 +479,38 @@
 //! (754 → 876) at a sixth of the cost (2.6 → 0.4 s at `1e-3`,
 //! 2.3 → 0.3 s at `5e-2`). The authored twin is untouched.
 //!
-//! **And the reach is ONE-SIDED, measured.** The predicate refuses a
-//! negative coefficient outright, so the START cap of that same cube —
-//! whose normal is the negation, `n.z = −1/sqrt(P(t))` — is NOT
-//! reached: its replay reads the tilt-`u` document's rule-F-OFF numbers
-//! to the digit. A manifest-NEGATIVE arm (`abs(−X) = X`,
-//! `copysign(1, −X) = −1` for a manifestly positive `X`, identities of
-//! reals exactly as the folded ones are) is the next shape and is not
-//! taken here. So are a frame whose `n.z` is a bare parameter over a
-//! `sqrt` atom, and — unexplained, and the reviews predicted otherwise
-//! — a tilt about `u` AND `v`, on which the rule moves no count at
-//! all (`editor-core/tests/m10_derived_frame_tilted_interval`'s
-//! `sym8_the_reviews_documents_the_unit_did_not_measure` carries the
-//! table).
+//! **The reach is TWO-SIDED since SYM-12, and measured on both
+//! sides.** The positive arm alone refused a negative coefficient
+//! outright, so the START cap of that same cube — whose normal is the
+//! negation, `n.z = −1/sqrt(P(t))` — and the same frame with `v`
+//! flipped (`FlipZ`) read the tilt-`u` document's rule-F-OFF numbers
+//! to the digit. The negative arm takes them to the END cap's rule-F-ON
+//! numbers to the digit: under `Guided` at `half = 1e-3` the refused
+//! `carrier_endpoint_end` (28/0/0/1 on the start cap, 24/0/0/1 on
+//! `FlipZ`) is every decision a theorem and the refusal moves on to
+//! the same `newell_plane_residual` straddle 32/0/0/1; under `Pinned`
+//! both certify at both dials and the arm moves 122 decisions out of
+//! `numeric` (754 → 876 `symbolic_zero`) at a sixth of the cost
+//! (`m10_derived_frame_tilted_interval`'s
+//! `m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm`
+//! is the gating pin; `sym12_phase1_the_one_sided_documents_ladder`
+//! the ladder). The end cap itself is bit-identical under the arm.
+//!
+//! **What neither arm reaches, and why.** A tilt about `u` AND `v`
+//! (`tiltUV`), which both SYM-8 reviews predicted as the shape rule F
+//! folds, moves no count at either lift, and SYM-12 rendered why
+//! (`sym12_phase1_the_tilt_uv_document_rendered`): on that document
+//! the DAG's `n.z` is not `1/sqrt(P)` but a quotient of two
+//! polynomials in the parameter's offset (degrees 20 and 22, every
+//! coefficient positive) whose terms carry the parameter at ODD powers
+//! beside three `sqrt` atoms, one over a frozen node — no term is
+//! signed by syntax, so the `copysign(1, n.z)` atom STANDS in the
+//! rule-F-on render and what refuses the document at both dials is a
+//! `Sub` the early walk freezes on its kids' size. Not the budget's:
+//! the atom is never removed, so no budget reaches it. A frame whose
+//! `n.z` is a bare parameter over a `sqrt` atom (`tiltNZ`) is declined
+//! by both arms, as it must be: its sign is a fact of the box, not of
+//! the form.
 //!
 //! **What it moves on the measured documents: nothing, with one
 //! exception.** Every per-predicate split at the nominal is
@@ -1473,9 +1494,15 @@ pub struct SymRules {
     /// becomes `X` wherever the FORM of `X` is manifestly POSITIVE —
     /// a positive numerator over a non-negative denominator, with
     /// `sqrt`/`abs` atoms of manifestly positive arguments the only
-    /// indeterminates a positive term may carry. Both are equalities
-    /// of reals at every point clause 1 admits and neither reads a
-    /// value, so a zero reached through this rule is a THEOREM.
+    /// indeterminates a positive term may carry — and `−abs(Y)`, `−X`
+    /// wherever the form is manifestly NEGATIVE (the same predicate of
+    /// the negated numerator). All four are equalities of reals at
+    /// every point clause 1 admits and none reads a value, so a zero
+    /// reached through this rule is a THEOREM. One dial for both arms:
+    /// they are one predicate read on `N` and on `−N`, no measured
+    /// document reaches one without the construction that reaches the
+    /// other (a body's two caps), and the census tells them apart by
+    /// the argument's leading sign rather than by a second bit.
     ///
     /// It is rule C's shape without rule C's value read: where C folds
     /// `abs(R)` on a bracket of `R` the session holds, this folds it on
@@ -1543,6 +1570,7 @@ impl SymRules {
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
     /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | free to the measurement's noise and cheaper on most — the six leaf numbers live once, in the module header's rule-F section | **yes**, with the pad's four `symbolic_zero` → `registered` ratified as a spec deviation |
+    /// | F's NEGATIVE arm (the same dial, SYM-12) | none, on all EIGHT measured documents, to the digit, splits and ceilings both, and the walk ledger unmoved; the tilt-`u` cube's START cap and its `FlipZ` twin read the end cap's rule-F-on numbers to the digit (`carrier_endpoint_end` every decision a theorem, `Pinned` 122 decisions out of `numeric`) | free: the arm fires on none of the eight (no `copysign` atom reaches a decision there, and no `abs` atom's argument is manifestly signed), so its cost is one negation and one predicate read per declined atom | **yes** |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -2235,8 +2263,9 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             }
         }
         // A0: a sqrt/abs of a CONSTANT form folds exactly; then rule F
-        // (early walk): `abs(X) = X` where the FORM shows `X` positive,
-        // which reads no value; then rule C (early walk): a sqrt of a
+        // (early walk): `abs(X) = X` where the FORM shows `X` positive
+        // and `−X` where it shows `X` negative, which reads no value;
+        // then rule C (early walk): a sqrt of a
         // perfect square, or an abs, of a form with a CERTIFIED sign
         // folds to the signed root. The value-free rule is asked
         // before the one that reads a value, so a discharge that can
@@ -2304,6 +2333,18 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 && f_sign
                 && manifest::positive(b, sess)
                 && let Some(mut m) = manifest::magnitude(a, sess)
+            {
+                m.gated = a.gated || b.gated;
+                return Some(m);
+            }
+            // The same rule's NEGATIVE arm: `copysign(Y, X) = −|Y|`
+            // wherever the form of `X` is manifestly NEGATIVE (the
+            // predicate of `−X`; `manifest` carries the reflection).
+            if node.op == SymOp::Copysign
+                && f_sign
+                && manifest::negative(b, sess)
+                && let Some(m) = manifest::magnitude(a, sess)
+                && let Some(mut m) = m.neg()
             {
                 m.gated = a.gated || b.gated;
                 return Some(m);

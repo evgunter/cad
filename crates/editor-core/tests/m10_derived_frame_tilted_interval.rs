@@ -540,9 +540,9 @@ enum Base {
     /// **SYM-8's review R1.** The tilt-`u` frame with `v` FLIPPED:
     /// `u = (1,0,t)`, `v = (0,−1,0)`, so the face normal is
     /// `(t, 0, −1)/sqrt(1 + t²)` and `n.z` is NEGATIVE — a `−1` over a
-    /// `sqrt` atom. Rule F's predicate must DECLINE it (a negative
-    /// coefficient on the only term) and the document must read the
-    /// same at both dials.
+    /// `sqrt` atom. Rule F's POSITIVE arm declines it (a negative
+    /// coefficient on the only term); its NEGATIVE arm (SYM-12) folds
+    /// it, and the document reads the tilt-`u` END cap's numbers.
     FlipZ,
     /// **SYM-8's reviews (R1, and R2's `z-touches-zero`).**
     /// `u = (1,0,0)`, `v = (0,t,1)`: the face normal is
@@ -619,8 +619,8 @@ fn stacked(r: &mut Recorder, base: RecipeNodeId, n: usize) -> RecipeNodeId {
 
 /// One cube extruded from `base`, and the `FaceFrame` on its START
 /// cap — the cap whose normal is the negation of the end cap's, so
-/// `n.z` carries a negative coefficient and rule F declines it
-/// (SYM-8's review R2).
+/// `n.z` carries a negative coefficient: rule F's positive arm declines
+/// it and its negative arm folds it (SYM-8's review R2; SYM-12).
 fn start_cap_frame(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
     let p = r.insert(Node::Profile(fixture::desc(
         base,
@@ -677,9 +677,11 @@ enum Place {
     Revolved,
     /// **SYM-8's review R2 (`start-cap`).** One derived frame, on the
     /// cube's START cap instead of its end: the normal is the negation,
-    /// `n.z = −1/sqrt(P(t))`, which rule F's predicate declines (a
-    /// negative coefficient). The document class the current predicate
-    /// does NOT reach, named rather than left to inference.
+    /// `n.z = −1/sqrt(P(t))`, which rule F's positive arm declines (a
+    /// negative coefficient) and its negative arm (SYM-12) folds — the
+    /// document class the positive arm alone did not reach, named
+    /// rather than left to inference, and now pinned to read the end
+    /// cap's numbers.
     DerivedStartCap,
 }
 
@@ -1299,6 +1301,113 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
     }
 }
 
+/// **SYM-12's GATING rows — the start cap and `FlipZ` read the end cap
+/// under the negative arm, by name.** Rule F's positive arm alone left
+/// both documents at the tilt-`u` document's rule-F-OFF numbers; the
+/// negative arm (SYM-12, the same dial) takes them to its rule-F-ON
+/// numbers, and this row pins that on the `Guided` lift where a
+/// refusal names the wall:
+///
+/// - rule F SHUT: the boss refuses `carrier_endpoint_end`, whose split
+///   is 28/0/0/1 on the start cap and 24/0/0/1 on `FlipZ`;
+/// - rule F ON: `carrier_endpoint_end` is 33/0/0/0 — every decision a
+///   THEOREM, the end cap's count to the digit — and the refusal moves
+///   to the `newell_plane_residual` straddle 32/0/0/1, the wall the end
+///   cap stops at
+///   (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`).
+///
+/// Both refusals are asserted by name, so the day either moves this
+/// reds and says which; when the Newell wall is answered, the second
+/// half fails and the two join the parity list. The `Pinned` lift is
+/// the ladder's (`sym12_phase1_the_one_sided_documents_ladder`): it
+/// certifies at both dials, and what the arm buys there is 122
+/// decisions out of `numeric` at a sixth of the cost, which is a
+/// reading and not a pin.
+///
+/// Cost: four evaluations of two small documents with the shape report
+/// installed, a few seconds each in the test profile.
+#[test]
+fn m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm() {
+    use geom_core::sym::report::{start_shape_report, take_shape_report};
+    for (name, base, place, off_split) in [
+        (
+            "tiltU start-cap",
+            Base::TiltU,
+            Place::DerivedStartCap,
+            [28, 0, 0, 1],
+        ),
+        (
+            "flipZ derived",
+            Base::FlipZ,
+            Place::Derived(1),
+            [24, 0, 0, 1],
+        ),
+    ] {
+        let doc = r2_document(1.0e-3, base, place);
+        let mut seen = Vec::new();
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on", shipped_with_rule_f()),
+        ] {
+            start_shape_report();
+            let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+            let shapes = take_shape_report();
+            let split = crate::m10_8_harness::split(&shapes);
+            let row = |p: &str| split.get(p).copied().unwrap_or([0; 4]);
+            println!(
+                "{name} Guided 1e-3 {label}: {counts:?}\n  carrier_endpoint_end {:?} \
+                 newell_plane_residual {:?}\n  fails {} {}",
+                row("carrier_endpoint_end"),
+                row("newell_plane_residual"),
+                fails.len(),
+                head(fails.first().map_or("", String::as_str), 200)
+            );
+            seen.push((
+                row("carrier_endpoint_end"),
+                row("newell_plane_residual"),
+                fails,
+            ));
+        }
+        let (off_endpoint, _, off_fails) = &seen[0];
+        let (on_endpoint, on_newell, on_fails) = &seen[1];
+        assert_eq!(
+            *off_endpoint, off_split,
+            "{name}: with rule F shut the carrier endpoint is one decision short of the theorem"
+        );
+        assert_eq!(
+            off_fails.len(),
+            1,
+            "{name}: and the document refuses: {off_fails:?}"
+        );
+        assert!(
+            off_fails[0].contains("carrier_endpoint_end"),
+            "{name}: the wall the negative arm is measured against is the carrier endpoint: \
+             {off_fails:?}"
+        );
+        assert_eq!(
+            *on_endpoint,
+            [33, 0, 0, 0],
+            "{name}: the negative arm takes the whole predicate — every decision a theorem, \
+             and the end cap's count to the digit: {off_endpoint:?} -> {on_endpoint:?}"
+        );
+        assert_eq!(
+            *on_newell,
+            [32, 0, 0, 1],
+            "{name}: the wall it stops at now is the end cap's newell straddle, to the digit"
+        );
+        assert_eq!(
+            on_fails.len(),
+            1,
+            "{name}: the document still refuses: {on_fails:?}"
+        );
+        assert!(
+            on_fails[0].contains("newell_plane_residual"),
+            "{name}: and by name (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`): \
+             {on_fails:?}"
+        );
+    }
+}
+
 /// **The documents the two reviews built and could not run** (R1's
 /// `r1_sym8_three_documents_the_unit_did_not_measure`, R2's `tilt-uv`,
 /// `start-cap` and `z-touches-zero`), adopted here as one ladder
@@ -1308,8 +1417,8 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 ///   shape rule F folds, on a document whose `n.x` and `n.y` carry the
 ///   parameter too.
 /// - `FlipZ` — the same tilt with `v` flipped, so `n.z` is NEGATIVE;
-///   the predicate must decline and the document read the same at both
-///   dials.
+///   the positive arm declines it, and since SYM-12 the negative arm
+///   folds it.
 /// - `TiltNZ` — `n.z` a bare parameter over a `sqrt` atom, whose
 ///   enclosure straddles zero at the wide box; the predicate must
 ///   decline.
@@ -1321,9 +1430,10 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 /// asserts the one thing that must hold everywhere — rule F never
 /// REFUSES what the dial-off tier certifies — and prints the rest.
 ///
-/// **What it showed, 2026-09-21, dev build** (`SymCounts` as
-/// `sym0 / numeric / frozen`, F off → on): rule F moves NOT ONE COUNT
-/// on any of the four, at either lift.
+/// **What it showed at SYM-8's fix pass, 2026-09-21, dev build**
+/// (`SymCounts` as `sym0 / numeric / frozen`, F off → on): the
+/// positive arm alone moved NOT ONE COUNT on any of the four, at
+/// either lift.
 ///
 /// | document | `Pinned` | `Guided` |
 /// | --- | --- | --- |
@@ -1333,21 +1443,32 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 /// | tiltNZ derived, `half = 3e-1` | 876/446/1269 both, certifies | 142/56/0 both, four refusals, the first a clause-1 INVALID newell margin |
 /// | tiltU start-cap | 768/554/1270 both dials, certifies | 573/316/398 both dials, refuses `carrier_endpoint_end` |
 ///
-/// Three of those are the reviews' own predictions confirmed by
+/// Three of those were the reviews' own predictions confirmed by
 /// execution: `flipZ`, `tiltNZ` and the START cap carry an `n.z` the
-/// predicate DECLINES (a negative coefficient, or a bare parameter at
-/// an odd power), and `flipZ`'s `Pinned` reading is the tilt-`u`
+/// positive arm DECLINES (a negative coefficient, or a bare parameter
+/// at an odd power), and `flipZ`'s `Pinned` reading is the tilt-`u`
 /// document's F-OFF reading to the digit — the same document with the
-/// fold declined, which is what "the reach is one-sided" means at the
-/// document scale.
+/// fold declined, which is what "the reach is one-sided" meant at the
+/// document scale. **SYM-12's negative arm takes two of the three**:
+/// with it, `flipZ` and the start cap read `876/446/1270` under
+/// `Pinned` and `631/320/720` under `Guided` with the refusal moved to
+/// `newell_plane_residual` — the END cap's rule-F-on numbers to the
+/// digit — and
+/// [`m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm`]
+/// gates that. `tiltNZ` is declined by both arms, as it must be.
 ///
-/// **`tiltUV` is NOT one of them, and that is a finding.** Both reviews
-/// predicted it as the shape rule F folds (`n.z = 1/sqrt(1 + 2t²)`, an
-/// `Inv` of a `sqrt` atom). Measured, rule F moves nothing there at
-/// either lift. Why is NOT measured here — the fold either never fires
-/// on that document's `n.z` form or fires without reaching a decision —
-/// and saying which needs the render this row does not take. Recorded
-/// rather than explained.
+/// **`tiltUV` is not one of them, and SYM-12 rendered why**
+/// ([`sym12_phase1_the_tilt_uv_document_rendered`]): both reviews
+/// predicted it as the shape rule F folds (`n.z = 1/sqrt(1 + 2t²)`,
+/// an `Inv` of a `sqrt` atom), but that is the geometry's closed form
+/// and not the DAG's — the form the walk builds for that document's
+/// `n.z` is a quotient of two polynomials in the parameter's offset
+/// (degrees 20 and 22, every coefficient positive) whose terms carry
+/// the parameter at odd powers beside three `sqrt` atoms, one over a
+/// frozen node, so no arm's predicate can read a sign in it, the
+/// `copysign(1, n.z)` atom stands in the rule-F-on render, and what
+/// refuses the `Guided` document at both dials is a `Sub` the early
+/// walk freezes on its kids' size.
 #[test]
 #[ignore = "evidence-only: the reviews' e2e ladder, four documents x two lifts x two dials"]
 fn sym8_the_reviews_documents_the_unit_did_not_measure() {
