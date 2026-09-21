@@ -140,3 +140,21 @@ Residues filed:
 `check-10-refuses-two-outer-shells-and-is-exempt-on-the-rest-of-the-role-claim`,
 and `check-10-is-not-made-by-the-mixed-tier-3-passes`, which rides with
 `tier3-prime-still-couples-plus-v-to-the-reporting-target`.
+
+## 2026-09-20 — check 10 as specced does not hold on this tree
+
+CI run 35565008331 on `464244c93`: check 7's per-solid subject is
+green everywhere, and check 10 as D-C states it reds **36 distinct
+pinned rows**, every one of them a body a kernel verb produces on
+purpose — `graft onto` ("fuses into one solid"), the boolean coplanar
+split, `subtract`'s two-shell complement, the editor's placed union,
+and two shell doors, one of which deliberately mints a solid with no
+outer shell at all. The tree already answers "how many material
+components" one layer up, as `editor-core`'s `CheckId::Connectedness`
+finding against a per-document expectation, and pins a deliberate
+disjoint union as VALID.
+
+Reported to the orchestrator rather than worked around: D-C and the
+ratified behaviour of five doors cannot both stand, and which one moves
+is not a lane's call. Measured, filed and reproducible on PR #2977:
+`one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
