@@ -68,6 +68,8 @@
 //! crate can see the others. `geom-core` owns the type, and this suite
 //! is gated to the ring's own sources.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 test_utils::gated_to![
     "crates/geom-core/src/ring_interval.rs",
     "crates/geom-brep/src/",
