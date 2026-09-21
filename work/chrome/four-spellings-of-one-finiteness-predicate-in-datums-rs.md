@@ -2,11 +2,13 @@
 id: four-spellings-of-one-finiteness-predicate-in-datums-rs
 kind: issue
 title: datums.rs hand-spells one finiteness predicate four times, past a named home
-status: dispatched
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: E
 branch: chrome/datum-honesty
+pr: 3018
+closed: 2026-09-21
 ---
 
 

@@ -39,7 +39,9 @@ site may close with an argued citation.
 - `work/chrome/degenerate-triangle-normal-is-substituted` — the
   accepted-substitution end of the same class. Open.
 - `work/chrome/max-grid-lines-truncates-a-ruling-and-calls-it-one` —
-  the one `datums.rs` member the sweep left standing.
+  the one `datums.rs` member the sweep left standing. **Closed** by PR
+  3018; what it cost, and the lesson that is not about grids, is the
+  section below.
 
 **Not on any slate, found by the greps below:**
 
