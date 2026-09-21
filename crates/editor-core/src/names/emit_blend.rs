@@ -153,7 +153,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
         let tied = v.tied || e.tied;
         put(
             EntityKey::Edge(*a),
-            RoleSeg::CornerArc {
+            RoleSeg::EndArc {
                 vertex: v.name,
                 edge: e.name,
             },

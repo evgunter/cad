@@ -4,6 +4,8 @@ kind: issue
 title: DimensionError.op carries twelve words minted as literals at call sites of two &'static str door parameters, in two vocabularies the stub documents as one
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

@@ -8,8 +8,10 @@
 //!   hand does not keep a second copy of the comparator that way too.
 //! - [`f6`], the ratified `Display` contract's predicate — a refusal
 //!   renders as a sentence and never as its own `Debug` dump — with the
-//!   variant identifier and the field punctuation read off the value
-//!   rather than written down beside the assertion.
+//!   variant identifier read off the value rather than written down
+//!   beside the assertion. The field punctuation is NOT: it is the
+//!   caller's hand-written roster, and [`f6`]'s own module docs argue
+//!   why deriving it was tried and refused.
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
 //! - [`mod@roster`], the weld between a file's `//!` roster of its own

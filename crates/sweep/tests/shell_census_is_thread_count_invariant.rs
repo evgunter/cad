@@ -272,21 +272,24 @@ fn the_roster_records_the_censuss_own_verdicts() {
 /// row pins each `(predicate, sign)` with its count, order-free, so
 /// the two are told apart when the golden moves.
 ///
-/// Two of the thirteen predicates are ANCHOR-RELATIVE by
-/// construction, and their signs are facts about cycle order rather
-/// than about the body: `props_rim_side` is the sign of
-/// `lo + hi − 2·level` on whichever rim the loop walk from
-/// `Cycle::first` meets FIRST (`geom_brep`'s `props/curved.rs`,
-/// `linear_rim_side`'s `side`), and `props_rim_dir_group` compares
-/// each rim's traversal direction against that same first rim's
-/// (`du_of_rims`). The flux compensates (`Positive ⇒ d_u_sign`,
-/// `Negative ⇒ flip`), so the readings do not depend on the anchor
-/// while those two signs do — the void shell here is the rod
-/// REVERTED, and `Body::revert` moves every loop's anchor to its
-/// source predecessor, which is why both read `Positive` on this
-/// tree and `Negative` on one whose reversal kept the anchor. The
-/// other eleven are per-rim, per-meridian or per-face facts and
-/// count the same whichever rim comes first.
+/// ONE of the twelve predicates is ANCHOR-RELATIVE by construction,
+/// and its sign is a fact about cycle order rather than about the
+/// body: `props_rim_side` is the sign of `lo + hi − 2·level` on
+/// whichever rim the loop walk from `Cycle::first` meets FIRST
+/// (`geom_brep`'s `props/curved.rs`, `linear_rim_side`'s `side`). The
+/// flux compensates (`Positive ⇒ d_u_sign`, `Negative ⇒ flip`), so
+/// the readings do not depend on the anchor while that sign does —
+/// the void shell here is the rod REVERTED, and `Body::revert` moves
+/// every loop's anchor to its source predecessor, which is why it
+/// reads `Positive` on this tree and `Negative` on one whose reversal
+/// kept the anchor. The other eleven are per-rim, per-meridian or
+/// per-face facts and count the same whichever rim comes first.
+///
+/// It was two. `props_rim_dir_group` compared each rim's traversal
+/// direction against that same first rim's, through a `Margin` over
+/// two values that are `±1` by construction; the direction is a
+/// discrete sign now and is compared as one, so that predicate
+/// records nothing and the multiset below is one row shorter.
 #[test]
 fn voided_rods_verdicts_as_a_sorted_multiset() {
     let body = voided_rod();
@@ -312,7 +315,6 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("props_meridian_on_surface Zero", 4),
         ("props_rim_axis_parallel Zero", 4),
         ("props_rim_center_on_axis Zero", 4),
-        ("props_rim_dir_group Positive", 2),
         ("props_rim_fit Zero", 4),
         ("props_rim_level Zero", 4),
         ("props_rim_level_group Positive", 2),

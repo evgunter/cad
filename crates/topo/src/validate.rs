@@ -1320,14 +1320,21 @@ pub enum ValidationError {
     /// a cross-solid candidate pair the census can neither examine
     /// nor definitely clear — refused loudly as UNDECIDABLE instead
     /// of silently not looked at (A5's letter: decide or refuse,
-    /// never silently not-examine). Two classes fire it today: a
+    /// never silently not-examine). Two arms fire it: arm 1, on a
     /// cross-solid curved face pair within reach of each other (the
     /// C9-ring conformal-rest/proximity class — the exclusion ring
-    /// is the certified excluder this backstop stands in for), and
-    /// one instance's vertex hull inside another's REACH box (C6's
-    /// interference class — representable only through recorded
-    /// gate-skips, which do not exist yet; the containing side must be
-    /// a superset of its locus or a nested body clears silently).
+    /// is the certified excluder this backstop stands in for); and
+    /// arm 2, the instance-containment arm, on what its MATERIAL test
+    /// could not answer. Arm 2's box test is the gate, not the
+    /// verdict: a pair no extent margin definitely separates goes to
+    /// the material test (the contained instance's vertices against
+    /// the container's material through the per-solid point-in-solid
+    /// door), and this variant carries only its residue — a standing
+    /// crossing or unexamined finding on the pair, a witness the door
+    /// refused, a container whose extent no sound box claims, or an
+    /// instance whose every vertex lies on the container's boundary.
+    /// A decided interference is
+    /// [`ValidationError::InstanceInterference`], never this.
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,
@@ -1335,6 +1342,27 @@ pub enum ValidationError {
         b: EntityId,
         /// The not-yet-supported class, named.
         what: &'static str,
+    },
+    /// Tier 3′ (the census's instance-containment arm): one instance's
+    /// material contains a vertex of another's — an interference fit,
+    /// DECIDED by the material test and not undecidable. A vertex
+    /// strictly inside another instance's material is an overlap of
+    /// the two materials by itself (`census.rs` arm 2 states what the
+    /// arm probes and why). Recorded gate-skips — the declaration that
+    /// would admit a deliberate interference — do not exist, so no
+    /// record can answer for this finding.
+    InstanceInterference {
+        /// The instance whose material holds the witness. Nothing about
+        /// size or nesting is implied: the arm probes both instances'
+        /// vertices against the other's material, and a container's
+        /// own vertex inside the part it surrounds is reported with the
+        /// part as `outer`.
+        outer: SolidKey,
+        /// The instance that owns the witness.
+        inner: SolidKey,
+        /// `inner`'s first vertex in arena order found strictly inside
+        /// `outer`'s material.
+        witness: VertexKey,
     },
     /// An entity holds a topology key that does not resolve in its arena.
     /// Reported once per occurrence (a parent listing the same dangling
@@ -2078,6 +2106,19 @@ impl fmt::Display for ValidationError {
                  than silently not looked at; separate the bodies, or wait for the \
                  named lane (the exclusion ring for curved proximity; the \
                  recorded gate-skips for declared interference)"
+            ),
+            Self::InstanceInterference {
+                outer,
+                inner,
+                witness,
+            } => write!(
+                f,
+                "tier-3′ census: solid {outer:?}'s material contains vertex {witness:?} of \
+                 solid {inner:?} — an interference fit, decided by the material test (the two \
+                 instances' boundaries do not cross, so one vertex strictly inside places the \
+                 contained instance's whole interior inside); recorded gate-skips do not \
+                 exist, so no declaration admits an interference — separate the instances, \
+                 or make the overlap a boolean's working state"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
@@ -5317,7 +5358,7 @@ fn pseudomanifold_certificate_via<T: crate::props::PropsQuadLane + geom_core::Bo
         .collect();
     let (mut errors, certificate) = tier3_local_checks(body, &declarations, band, tol, nurbs_lane);
     if errors.is_empty() {
-        errors.extend(crate::census::census_and_certify(body, contacts, band));
+        errors.extend(crate::census::census_and_certify(body, contacts, band, tol));
     }
     if errors.is_empty() {
         Ok(certificate_of_a_clean_verdict(certificate))
@@ -6216,9 +6257,10 @@ mod tests {
     use crate::entity::{Face, Loop, Shell, Solid, Vertex};
     use crate::euler::{MefSite, MevSite};
     use crate::fixtures::{
-        mvfs_state, ngon_pillow, ops_cube, ops_genus2, ops_holed_box, pillow, prism, prov,
+        mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, pillow, prov, raw_prism,
     };
     use crate::seqgen;
+    use crate::test_support_fixtures::declined_cube;
 
     fn anchor() -> Point3<f64> {
         Point3::origin()
@@ -6301,7 +6343,7 @@ mod tests {
 
     #[test]
     fn prism_validates_cleanly() {
-        let t = prism(4, Tol::witness());
+        let t = raw_prism(4, Tol::witness());
         assert_eq!(validate(&t.body), Ok(()));
         // v = 2n, e = 3n, f = n + 2: v − e + f = 8 − 12 + 6 = 2.
         assert_eq!(t.body.vertices().count(), 8);
@@ -6324,7 +6366,7 @@ mod tests {
         // that is exactly the next(mate(·)) order. (GWB states its orbit
         // idiom for the mirrored clockwise-loop convention; this test is
         // the transcription guard.)
-        let t = prism(4, Tol::witness());
+        let t = raw_prism(4, Tol::witness());
         let i = 1;
         assert_eq!(
             t.body.vertex_orbit(t.ht[i]),
@@ -6347,7 +6389,7 @@ mod tests {
 
     #[test]
     fn orbit_steps_are_mutual_inverses_and_preserve_start() {
-        let t = prism(3, Tol::witness());
+        let t = raw_prism(3, Tol::witness());
         for (he_key, he) in t.body.half_edges() {
             // cw(he) = next(mate(he)) starts at the same vertex...
             let mate = t.body.mate(he_key).unwrap();
@@ -7219,6 +7261,11 @@ mod tests {
                 b: EntityId::Face(t.face_a),
                 what: "what",
             },
+            ValidationError::InstanceInterference {
+                outer: t.solid,
+                inner: t.solid,
+                witness: crate::entity::VertexKey::default(),
+            },
             ValidationError::NullScaffoldShared {
                 curve: CurveKey::default(),
                 edges: 2,
@@ -7373,7 +7420,7 @@ mod tests {
         // vertices and all 12 edges (each moved edge still has its
         // other face here), χ = 8 − 12 + 5 = 1; the lone face has
         // χ = 4 − 4 + 1 = 1.
-        let t = ops_cube(Tol::witness());
+        let t = declined_cube::<f64>(Tol::witness());
         let mut body = t.body;
         let front = t.mefs[1].face;
         let old_shell = body.get_face(front).unwrap().shell;
@@ -7553,9 +7600,12 @@ mod tests {
             validate_closed(&ngon_pillow(1, Tol::witness()).body),
             Ok(())
         );
-        assert_eq!(validate_closed(&prism(4, Tol::witness()).body), Ok(()));
+        assert_eq!(validate_closed(&raw_prism(4, Tol::witness()).body), Ok(()));
         // …and the operator-built acceptance bodies, genus 0 through 2.
-        assert_eq!(validate_closed(&ops_cube(Tol::witness()).body), Ok(()));
+        assert_eq!(
+            validate_closed(&declined_cube::<f64>(Tol::witness()).body),
+            Ok(())
+        );
         assert_eq!(validate_closed(&ops_holed_box(Tol::witness()).body), Ok(()));
         assert_eq!(validate_closed(&ops_genus2(Tol::witness())), Ok(()));
     }
@@ -7775,7 +7825,11 @@ mod tests {
         // plane per face, which needs three vertices on a loop, and
         // the raw pillow/prism fixtures carry two-vertex loops. They
         // carry no rings either, so the arm would be vacuous on them.
-        for mut body in [ops_cube(tol).body, ops_holed_box(tol).body, ops_genus2(tol)] {
+        for mut body in [
+            declined_cube::<f64>(tol).body,
+            ops_holed_box(tol).body,
+            ops_genus2(tol),
+        ] {
             plane_every_face(&mut body);
             let gated: Vec<(FaceKey, LoopKey, LoopKey)> = body
                 .faces
@@ -8380,7 +8434,7 @@ mod tests {
     }
 
     /// Gives every face of `body` the Newell plane of its outer loop —
-    /// the minimum needed to reach check 6 from [`ops_cube`], whose
+    /// the minimum needed to reach check 6 from [`crate::test_support_fixtures::declined_cube`], whose
     /// faces are raw `Nurbs` placeholders (check 6 only inspects
     /// `Surface::Plane` faces, so on the raw fixture it is vacuous).
     /// The loop order is the stored one, so the minted normal is the
@@ -8430,7 +8484,7 @@ mod tests {
     /// threading (planar sweeps mint `sense: true` throughout — S11
     /// reverses only material-against-chart walls, none here — so the
     /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
-    /// before the flip". The fixture is [`ops_cube`] with real planes
+    /// before the flip". The fixture is [`crate::test_support_fixtures::declined_cube`] with real planes
     /// grafted on; its twelve chords stay conventional, so the honest
     /// report is about those chords and nothing else. (The all-green
     /// variant of this row, on the fully certified cube, lives in
@@ -8448,7 +8502,7 @@ mod tests {
     /// one and thirteen of the other through.
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
-        let mut cube = ops_cube(Tol::witness()).body;
+        let mut cube = declined_cube::<f64>(Tol::witness()).body;
         plane_every_face(&mut cube);
         let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
         let edges: Vec<EdgeKey> = cube.edges().map(|(k, _)| k).collect();
@@ -8835,7 +8889,7 @@ mod tests {
 
         #[test]
         fn prisms_validate_cleanly(n in 2usize..=8) {
-            let t = prism(n, Tol::witness());
+            let t = raw_prism(n, Tol::witness());
             prop_assert_eq!(validate(&t.body), Ok(()));
             prop_assert_eq!(validate_closed(&t.body), Ok(()));
             prop_assert_eq!(t.body.vertices().count(), 2 * n);

@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-11
 branch: scalar/curve3-jet
 pr: 2708
+priority: P1
+cost: E
 ---
 
 ## What

@@ -152,7 +152,18 @@ the qualifier-delta rung (a `PredicateFlip` recovered from `SideOf` verdicts
 stored in the names), then `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
 NodeChanged(minting node) }`, a site rather than a claim that an edit happened —
 reached in particular when the evidence lived on a pair the boolean's BVH sweep
-pruned; results are unaffected, only diagnosis richness degrades. `Tombstone`
+pruned; results are unaffected, only diagnosis richness degrades. Between the
+flip diff and the qualifier-delta rung sits the SHADOW-EXECUTION rung
+(`resolve::shadow_exec_flip`): when a run recorded no `name_frag_side_of`
+verdict at the minting node at all, it re-runs the vanished name's own
+discriminator pairs against both contexts — the partner read at the boolean's
+operand, the per-vertex stream aggregated through this module's own
+`aggregate_side`, and the answer calibrated against the verdict the qualifier
+records — and reports the first partner whose side changed, marked
+`FlipSource::ShadowExec` so no reader mistakes it for a line of a log. It
+recovers the pruned half of the `SideOf` vanish only: a group that merely
+stops being multi-fragment has no changed side to find, and an `OrderAlong`
+rank records no partner to re-probe. `Tombstone`
 carries the last-good entry for ghost rendering; selection tools hold name plus
 tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
@@ -179,5 +190,4 @@ device; everywhere else the name table carries resolution.
 
 - Out-of-family detection: a failure says the name broke, not that the edit
   left the design family; no membership predicate exists.
-- Shadow re-execution of a pruned pair to mint missing verdicts at diagnosis
-  time (`work/` item `vdiff-pruned-pair-shadow-exec-rung`).
+

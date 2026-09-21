@@ -148,7 +148,11 @@ fn wired() -> (
                node: Node<ProfileProgram>,
                input: RecipeNodeId|
      -> ProfileDoc {
-        match d.apply(&DocEdit::InsertNode { node }, Tol::witness()) {
+        match d.apply(
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        ) {
             Ok(applied) => {
                 rows.push(Row {
                     what,

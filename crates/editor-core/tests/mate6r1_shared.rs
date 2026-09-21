@@ -16,7 +16,7 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
     DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedRef, StableName, assemble, product_recorded, run_checks,
+    RoleSeg, StableName, assemble, product_recorded, run_checks,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -90,8 +90,8 @@ fn mate_of(
     class: ContactClass,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),

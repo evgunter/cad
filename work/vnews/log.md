@@ -1,0 +1,347 @@
+# VNEWS — log
+
+Newest entries at the bottom; the tail is the program's live status.
+Plan: `work/vnews/plan.md`. A/B band 5200–5299
+(`docs/MODEL-AB-LOG.md` owns every live experiment number).
+
+## Opening state (2026-09-17) — opened in VIEW's re-scope
+
+Opened by VIEW's orchestrator as one of four successors on VIEW's
+ground, per `work/README.md`: *residue is re-homed before the sweep …
+to a new program opened for it when the residue coheres into a track of
+its own (a dozen items on one territory are a successor's opening
+slate, and the closing program opens it)* (Ev, 2026-09-06).
+
+**VIEW is not closed by that act and is not closed by this one.** Its
+`Order`'s six units are done, deferred or handed off; its ninety-four
+live rows were review accretion on one crate, and four of them cohere
+into tracks. VIEW stays open with eight rows, its exit walk is a
+separate ratified step, and `docs/DOC-LEDGER.md` records the sweep when
+it happens.
+
+14 rows arrived from `work/view/`, each by `git mv` with its body,
+its id and its history unchanged — no row's prose was edited on the way
+past, and the item schema carries no `program:` field, so a re-home is
+the move and nothing else:
+
+- `a-disabled-control-says-why-in-four-shapes`
+- `a-fold-row-composes-a-producer-with-a-dead-door`
+- `converged-recourse-has-no-home`
+- `document-news-has-no-home`
+- `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
+- `is-instance-collapses-absent-and-wrong-kind`
+- `one-line-one-subject-loses-a-mixed-frames-expiry`
+- `outstanding-and-progress-are-two-three-state-enums-one-hop-apart`
+- `rank-one-discards-the-frames-other-news`
+- `ranked-and-unranked-verdicts-are-one-type`
+- `seat-line-spells-the-list-mark-as-a-literal`
+- `the-new-document-button-states-its-refusal-twice`
+- `tone-is-a-value-in-frame-and-a-comment-in-two-panes`
+- `viewer-preview-names-a-verb-by-its-variant-identifier`
+
+The charter that makes these one program, and the sentence that is true
+of them and false of the other three tracks' rows, is `plan.md`
+§Charter. The band 5200–5299 is claimed in `docs/MODEL-AB-LOG.md` in the
+commit that opens this program, per that entry's own rule.
+
+No unit is cut and no branch exists yet. The first dispatch claims its
+ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`
+if the posture ever changes; under the inherited posture it records no
+row.
+
+## 2026-09-19 — opened for work; wave 1 dispatched (four lanes)
+
+First dispatch. The session read `work/README.md`,
+`docs/prompts/implementer-discipline.md`,
+`docs/prompts/reviewer-style-lane.md` and `work/view/plan.md`'s
+register in full before writing a brief, and re-derived every wave-1
+row's premise and fix site against the tree rather than against the
+row. Four of the fourteen rows moved as a result; `plan.md` §Order's
+new subsection records which and why.
+
+**Review tier per unit, with its reason** (protocol v7 item 5, and
+`plan.md` §Review posture as amended in this commit). This program runs
+no duals, so no unit draws an ordinal and the band 5200–5299 stays
+empty:
+
+| unit | tier | why |
+|---|---|---|
+| `seat-line-spells-the-list-mark-as-a-literal` | style | one constant substituted for its own value; the two halves of each item cannot contain the mark, so there is no wrong answer available |
+| `is-instance-collapses-absent-and-wrong-kind` | style | the door's shape is the defect and its one caller early-returns for both states, so nothing observable changes; the sweep is adjudication, not a claim about behaviour |
+| `tone-is-a-value-in-frame-and-a-comment-in-two-panes` | style | a rule stated in a comment becomes a value read from one; the rendering is asserted where it matters and a wrong tone reads as a wrong colour, not a wrong fact |
+| `a-disabled-control-says-why-in-four-shapes` | **style + correctness arm** | a census whose failure mode is a population that looks complete and is not — a confident wrong answer, which is this program's stated trigger — and its rule decides three other rows |
+
+**Wave 1 is file-disjoint by construction.** `seats.rs` ·
+`display.rs` + `pane/properties.rs` · `tree.rs` + `pane/features.rs` ·
+no source file at all. **No lane touches `frame.rs`**, which is
+deliberate: six of the remaining rows edit it and serializing them is
+cheaper than conflicting.
+
+**Filed by this sitting:**
+
+- `work/view/viewer-src-files-no-successor-claims` — eleven
+  `crates/viewer/src` files are claimed by none of the four re-scope
+  successors, three of them live sites for rows the split handed out.
+  Filed on VIEW's slate because the allocation was VIEW's act and
+  finishing it is a precondition of its exit walk, the shape
+  `the-lane-register-has-no-home-after-views-directory-goes` already
+  has.
+- `crates/viewer/src/tree.rs` claimed into this program's `paths` in
+  this commit, because `tone-…`'s fix lands there and it was in
+  nobody's territory. The other ten unclaimed files are left for that
+  row to sort rather than swept up here.
+
+**Two rows are not this program's to land, and the order said they
+were.** `converged-recourse-has-no-home` needs an `editor-core`
+authorisation wider than the `Display` wording Ev granted, so it is
+EDIT's or an `[ev]` question; `viewer-preview-names-a-verb-by-its-
+variant-identifier` needs `impl Display for Verb` in `crates/profile`,
+which is PATHS'. Both stay `open` here rather than `parked`: neither
+waits on a trigger the tracker can see fire, and saying so in the plan
+is the honest record.
+
+## 2026-09-19 — the disabled-control census, and the rule it lands on
+
+`a-disabled-control-says-why-in-four-shapes` run as a census at merge
+base `2654cc111417da806d9786c40136106469096fec`. No file under
+`crates/` touched; tier docs. Tiered style review plus a correctness
+arm, per the plan's posture — a census's failure mode is a population
+that looks complete and is not.
+
+**The rule.** *A control a reader cannot use owes the sentence a click
+would have been answered with — when there is such a sentence.* The
+test is one question at the control: if the reader got past this gate
+and the operation ran, what sentence would come back? One would → the
+pre-click sentence and the refusal are one sentence and get one
+composition. None would → the control gates a draft, and a literal at
+the control is correct. **And a third arm the tree forced**: the
+operation would be formed and would SUCCEED, and the chrome declines it
+anyway — a chrome-policy gate, which has no refusal to read.
+`pane/create.rs`'s bore/radius arm is the one instance, and its own
+literal says the door *"would swap the roles rather than refuse"*.
+
+**Attribution.** The rule's FIRST limb is the tree's and is stated nine
+times in five files — `session/refuse.rs` (three helpers),
+`session/op.rs` (`CancelDoor`), `pane/create.rs` (the parts catalogue),
+`parts.rs` (`PartEntry::open_document`) and `pane/properties.rs`
+(three sites). **None of them states the second limb**, and the
+qualifier is what does the classification work, so it is defended as
+this lane's rather than attributed.
+
+**The population is two populations, of different epistemic status,
+and they are not added.** P1 is `add_enabled` / `add_enabled_ui` — 30
+sites, one grep and one stated exclusion, mechanical. P2 is a branch
+drawing a sentence where a control would be — 11 sites, a judgement,
+and therefore **enumerated by site in the item** rather than counted.
+`on_disabled_hover_text` has 11 call sites, every one attached to a P1
+site; that measures `on_disabled_hover_text ⊆ add_enabled`, which is
+the narrow half of the proxy table's eighth row and not its wide
+disposition claim. The row's filing counts (18 and 10, on 2026-09-11)
+are superseded, as are all fourteen of its citations.
+
+**Both of the row's predicted genuine hits are not hits.**
+`platform::NO_CHOOSER_BACKEND` sits on buttons that reach no door at
+all, so it is a first composition. `pane/create.rs`'s `blocked` gates a
+draft in three of its four arms — and the fourth is the chrome-policy
+gate above, not a draft gate, which is the census finding a case its
+own rule did not cover. The genuine hits are elsewhere: the
+New-document Create button (`Refusal::EmptyName`), Undo and Redo
+(`Refusal::NothingToDo`, shown as nothing), the slot range button (a
+third spelling of the ratified affordance), and two P2 sites that say
+in the chrome's words what `Refusal::NoSuchParam` says in the
+session's.
+
+**Filed.** `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-
+has-words`, `the-range-button-re-mints-the-ratified-affordance` and
+`three-spellings-say-a-parameter-is-not-declared` (genuine hits);
+`clear-picks-hover-text-is-invisible-while-disabled` (six gated
+controls whose only words ride on `on_hover_text`);
+`two-pickers-spell-one-not-well-typed-sentence-twice` (found in
+passing — `pane/profile.rs` hand-rolls the sentence of
+`widgets.rs::offer`, which is module-private and so is not a helper the
+site could have called). Across fences:
+`work/vdoc/a-disabled-controls-reason-has-one-home` — the README clause
+this program's exit shape names, re-written as a request to GENERALISE
+two clauses the page already carries rather than to state the rule for
+the first time; `work/edit/no-door-refuses-a-blank-parameter-name`;
+`work/guard/viewer-disabled-control-population-has-no-gate`;
+`work/vseam/op-rs-cites-environmental-facts-at-its-old-path`; and
+`work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`, the
+class that last one turned out to be — 26 stale `work/view/` citations
+under `crates/`, in 13 files across 5 crates.
+
+**Dispositions handed down.**
+`the-new-document-button-states-its-refusal-twice` gets answer 1, read
+the refusal — its stated cost is the objection `Refusal::exists_wording`
+already answers. `environmental-facts-answer-usable-as-a-bool-with-the-
+reason-elsewhere` is **not decided** by this rule and is untouched by
+it; the two classes are disjoint at `NO_CHOOSER_BACKEND`, and that row
+stands on its own argument. Evidence appended to both rows rather than
+left in a PR body.
+
+## 2026-09-19 (later) — two rows leave the slate, one of them already dead
+
+Ev, in-chat: `converged-recourse-has-no-home` may move to another
+track, **and in general this orchestrator may re-home a unit between
+tracks without asking.** Recorded here because it is a standing grant
+of authority, not a ruling on one row.
+
+- **`converged-recourse-has-no-home` → `work/edit/`.** `EditError` is
+  declared in `crates/editor-core/src/edit.rs` and that file is EDIT's
+  territory; EDIT is DOCM's successor for the surface the row needs
+  widened, and the row's own closing line names EDIT's slate by
+  description. The viewer arm — one forward in `session/refuse.rs` —
+  stays this program's and lands with whichever EDIT unit exposes the
+  recourse, as an announced crossing.
+- **`viewer-preview-names-a-verb-by-its-variant-identifier` → CLOSED,
+  and this program never should have carried it.** Checking the tree
+  before routing it: `profile::path::Verb` has a `Display`
+  (`crates/profile/src/path/program.rs`, in the macro beside
+  `Verb::ALL`) and `PreviewError`'s arm in `crates/viewer/src/sketch.rs`
+  reads `{verb}`, not `{verb:?}`. `work/fix/verb-and-dimension-render-
+  through-debug` (FIX, PR 2347) closed both halves on 2026-09-11 and
+  its closing note even records deleting the `prose_census` `UNDECIDED`
+  entry for this exact site. The row travelled through VIEW's re-scope
+  eight days dead.
+
+**The orchestrator's own miss, recorded because the register says to.**
+This morning's §Order subsection re-derived this row's CITATION —
+correctly; the `PreviewError` render really had moved out of
+`pane/create.rs` — and concluded it needed `impl Display for Verb` in
+`crates/profile`. It did not re-derive the row's PREMISE, which had
+been false for eight days. That is the register's own rule
+(*"a row's premise ages against the tree exactly like a citation
+does"*, from #2388's dispatch) missed by the session that quoted it to
+four lanes the same hour. The cheap instrument that would have caught
+it is the one the lanes were told to run and the orchestrator did not:
+a TRACKER pass beside the tree pass — `grep -rl` the defect's subject
+across `work/` and read what the hits say, which here was a closed FIX
+row naming the site.
+
+**Slate after this sitting: twelve rows**, four of them wave-1 lanes in
+flight.
+
+## 2026-09-19 — the census adjudicated, and what it cost to get right
+
+`a-disabled-control-says-why-in-four-shapes` ran as this program's
+first unit under the tier its posture names: a **style review and a
+correctness arm**, two independent lanes on the frozen head
+`0dbbc95f8`, neither with access to the other's report, and a fix pass
+against the orchestrator-adjudicated UNION. No dual, no ordinal, no row
+in `docs/MODEL-AB-LOG.md`.
+
+**The correctness arm earned its dispatch.** It returned a MAJOR that
+the style lane reached from a different direction and neither could have
+been talked out of: the population was not re-derivable. It also
+verified, rather than assumed, two things the item asserted — that the
+`refuse.rs` doc comments say what the item quotes, and that no keyboard
+or AccessKit route pushes `Undo`/`Redo`, so the buttons really are the
+only hand.
+
+**The two findings worth keeping:**
+
+- **The rule as first written is a dichotomy and the tree has three
+  cases.** `pane/create.rs`'s bore-against-radius arm forms a valid
+  `SessionOp::AddProfile` — its own literal says *"a larger bore would
+  swap the roles rather than refuse"* — so the chrome declines
+  something the door would ACCEPT. That is a chrome-policy gate, and it
+  owes a true sentence and a disclosure that it is a policy rather than
+  a refusal it cannot read. The census found a case its own rule did
+  not cover, which is worth more than the count it got wrong.
+- **Enumerating the judgement pass produced hits nobody had.** Three
+  spellings of *a parameter is not declared*, across two panes and
+  `Refusal::NoSuchParam`.
+
+**Two corrections to the orchestrator's own adjudication**, recorded
+because this program's register says the orchestrator's misses are the
+ones that propagate:
+
+1. I ruled that *"the six classification buckets are all P1 sites"* and
+   offered it as the sharpest form of the MAJOR. **It is false.** Three
+   buckets already held judgement-pass members. The ruling survived —
+   the population was not reconstructible and the buckets did not sum —
+   but the diagnosis was wrong, and the evidence was on screen when I
+   wrote it: the draft-gate bucket cites `pane/create.rs:52`, which is
+   one of them. The fix pass caught it and said so.
+2. The class row filed out of S17 said the repair *"touches five
+   crates"*; its own table lists four. Corrected here. Re-deriving its
+   headline independently: **36 citation sites under `crates/`, 26 of
+   them naming a `work/view/` row that the re-scope moved** — that
+   figure holds exactly, which is why the crate count mattered enough
+   to fix rather than shrug at. A row whose thesis is that citations rot
+   cannot carry a count its own receipt contradicts.
+
+**Filed out of this unit: six rows** — three on this slate's
+neighbours (`work/edit/`, `work/vseam/`, `work/guard/`), two here, one
+on VDOC. The VDOC clause request was rewritten mid-fix from *state this
+for the first time* to *generalise what is already stated*, after
+`crates/viewer/README.md` turned out to carry the rule for two families
+and to name the test that holds it.
+
+**Tier note for the next unit.** The correctness arm cost one extra
+lane and returned a MAJOR, two upheld MINORs and a rule change. On this
+program's posture that is the trigger working as written: a census's
+failure mode is a population that looks complete and is not, which is a
+confident wrong answer and not a refusal.
+
+## 2026-09-20 — wave 1 closed: four units, two negative results, 23 rows open
+
+All four wave-1 units are on `main`. The slate went from 14 rows to 23,
+which is the wave's largest single output and the thing to read it by.
+
+| unit | outcome | PR |
+|---|---|---|
+| `a-disabled-control-says-why-in-four-shapes` | the rule, the population, four rows filed | #2908 |
+| `seat-line-spells-the-list-mark-as-a-literal` | **negative result** — no code change | #2917 |
+| `is-instance-collapses-absent-and-wrong-kind` | `instance_check -> Result<(), AdmissionFault>` | #2916 |
+| `tone-is-a-value-in-frame-and-a-comment-in-two-panes` | `RowStatus::tone()`, and `app::toned` | #2915 |
+
+**Both rows closed at this entry were merged and still read `review`.**
+A row whose unit is on `main` and whose board entry says otherwise is
+the same defect as a stale citation, one level up; the census row closes
+too, because its deliverable — the rule and the classified population —
+landed, and each control that owes the rule is its own scheduled row.
+
+**Two of four units changed no behaviour a reader can see, and one
+changed no code at all.** That is the wave's real finding and it is
+about SPEC time, not about the lanes:
+
+- `seat_line` closed as a negative result. Its central argument rested
+  on a consumer `LIST_SEPARATOR` had lost the day after the row was
+  filed, and its subject fails the same two-part test that removed that
+  consumer. The argument is written into the row so the next sweep does
+  not re-mint it.
+- `is_instance` is a better door with no reader-visible difference, and
+  nothing said so until a reviewer read the Charter back at it.
+
+`plan.md` §Dispatch rules now carries what both cost: read a row's
+STATUS before its premise; apply the Charter's reader test at spec
+time; an orchestrator's fix shape is a claim and gets checked before it
+is issued; a `keep_out` carve-out beats a general fence ruling; fixing a
+sentence and adding a function are different acts.
+
+**Three lanes falsified something the orchestrator told them**, and in
+every case the lane was right: the two sibling rows were closed and not
+open; the `pane/create.rs` citation was stale in its number and exact
+in its subject, and the third copy was real; the absent-node sentence I
+recommended would have minted the node-side twin of a row open on this
+slate, and the shape I proposed would have needed an `[ev]` PR because
+`Standing`'s second clause is GQ7's ratified constraint.
+
+**The review tiers held.** The one unit given a correctness arm — the
+census — returned a MAJOR that a style lane alone would have recorded
+as taste. Both style reviews caught defects that would otherwise have
+merged: `seat_line`'s whole premise, and `tone`'s silent loss of
+compile-time exhaustiveness.
+
+**Operationally**: four concurrent code lanes saturated the box (load
+37, 0 GB free of 9), one lane's broad `pkill` damaged another's build,
+and GitHub Actions was billing-locked repo-wide for roughly five hours
+mid-wave. #2937 withdrew the local workspace-test instruction that
+caused most of it. Wave 2 mixes at most two code lanes with reading
+work.
+
+**Wave 2's order is `plan.md` §Order group 6**, which the census
+produced: the three controls that owe the rule, in the order that
+section states. Every one of them changes what a reader is told, which
+is the test this wave learned to apply first.

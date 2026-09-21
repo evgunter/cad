@@ -322,7 +322,8 @@ mod tests {
 
     use super::*;
     use crate::euler::{MefSite, MevSite};
-    use crate::fixtures::{deep_snapshot, ops_cube};
+    use crate::fixtures::deep_snapshot;
+    use crate::test_support_fixtures::declined_cube;
     use crate::validate::{ValidationError, validate, validate_closed};
 
     fn p(x: f64) -> Point3<f64> {
@@ -411,7 +412,7 @@ mod tests {
     /// A connected shell is a deterministic no-op.
     #[test]
     fn movefac_connected_shell_is_a_noop() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let before = deep_snapshot(&body);
         let shells = body.movefac(cube.seed.shell).unwrap();
@@ -422,7 +423,7 @@ mod tests {
     /// Stale shell: typed error, body untouched.
     #[test]
     fn movefac_stale_shell_is_typed() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let before = deep_snapshot(&body);
         let err = body.movefac(ShellKey::default()).unwrap_err();
@@ -504,7 +505,7 @@ mod tests {
     /// solids, and a list that is every shell of its solid.
     #[test]
     fn move_shells_to_new_solid_refuses_typed_at_each_precondition() {
-        let cube = ops_cube(Tol::witness());
+        let cube = declined_cube::<f64>(Tol::witness());
         let mut body = cube.body;
         let only = cube.seed.shell;
         let other = body.mvfs(p(9.0)).unwrap().shell;

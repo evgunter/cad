@@ -17,10 +17,19 @@ use pncad::document::{
 };
 use pncad::workspace::WorkspaceError;
 
+// The recourse this module's `NoSuchParam` arm ends on, read from its
+// one home beside the error whose door raises the other half of the
+// pair. A direct edge on the owning crate rather than a new re-export
+// added to `pncad`'s root — the ruling `pncad`'s own crate docs state
+// for a name the facade does not carry, and the same one this crate's
+// `bvh` and `Rgba8` edges cite.
+use editor_core::edit::UNDECLARED_PARAM_RECOURSE;
+
 use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::props::{self, SlotValue};
+use crate::sketch::Restructure;
 
 /// The node kind a creation op's seat requires — the payload of
 /// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
@@ -135,8 +144,9 @@ pub enum Refusal {
     /// goes to the edit door; dragging its row comes here. The two
     /// cannot be made one refusal without putting back the pre-check
     /// the door already refuses — so what is converged is what the
-    /// user must DO: this arm names the same recourse the door names
-    /// ("declare it first"), over the same fact. What stays apart is
+    /// user must DO: this arm renders the same recourse the door
+    /// renders — [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`], its
+    /// one home — over the same fact. What stays apart is
     /// the frame, and it has to: the door's sentence is about an edit
     /// that was refused, and a drag has no edit behind it, so a
     /// gesture that borrowed the door's frame would report a
@@ -202,13 +212,14 @@ pub enum Refusal {
     /// one being dragged.
     ///
     /// **Separate from [`Refusal::GestureInFlight`] because it answers
-    /// a different question.** That one is the table's — whether an
-    /// operation is available at all while a drag is open
-    /// ([`super::SessionOp::permitted_during_value_gesture`]) — and
-    /// the driving operations are all available. This one is about
-    /// this operation's own payload against this session's own
-    /// gesture, and folding the two into one refusal would make the
-    /// table's answer unreadable from the outcome.
+    /// a different question.** That one says a drag is open at all —
+    /// either because the operation is unavailable while one is
+    /// ([`super::SessionOp::permitted_during_value_gesture`]) or
+    /// because it would open a second ([`crate::g1::Slot::begin`]) —
+    /// and the driving operations are neither. This one is about this
+    /// operation's own payload against this session's own gesture, and
+    /// folding the two into one refusal would make the table's answer
+    /// unreadable from the outcome.
     ///
     /// It carries no payload and ranks with the bookkeeping refusals
     /// for one reason: it arrives in a batch behind the
@@ -259,6 +270,54 @@ pub enum Refusal {
         /// asked for.
         id: DocumentId,
     },
+    /// The path editor's program does not have the committed
+    /// profile's shape ([`crate::sketch::program_edits`]'s refusal):
+    /// the document's edit vocabulary writes a program's numbers and
+    /// has no door that changes its verbs, arc forms, targets or loop
+    /// count. The editor locks those controls on a committed node;
+    /// this is the door behind them.
+    ProfileRestructure {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// Where the shapes differ.
+        why: Restructure,
+    },
+    /// The editor's numbers are a valid profile TOGETHER — the whole
+    /// program was checked before any slot was written — and no order
+    /// of the one-slot writes that reach them keeps every intermediate
+    /// program valid: each write re-validates the whole program, and
+    /// every order was searched (`session::accepted_order`, exact up
+    /// to [`super::ORDER_SEARCH_CAP`] writes). The refusal carried is
+    /// the last intermediate state the search met; what the variant
+    /// names is the cost of the whole-program edit the vocabulary
+    /// lacks.
+    ProfileEditOrder {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// The edit door's refusal of the intermediate state.
+        error: Box<EditError>,
+    },
+    /// [`Self::ProfileEditOrder`]'s question left unanswered: the
+    /// edit moves more arguments than the order search covers
+    /// ([`super::ORDER_SEARCH_CAP`]), and writing them in slot order
+    /// passes through a state the door refuses. Another order may
+    /// land; the search for one was not run.
+    ProfileEditOrderCapped {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// How many arguments the edit moves.
+        writes: usize,
+        /// The most the order search covers.
+        cap: usize,
+    },
+    /// The path editor's numbers were loaded from a program the
+    /// document no longer holds (an undo, or an edit from elsewhere,
+    /// landed in between): they are an edit of something that is not
+    /// there any more, and are not written over what is.
+    ProfileEditStale {
+        /// The profile node.
+        node: RecipeNodeId,
+    },
 }
 
 impl Refusal {
@@ -292,6 +351,10 @@ impl Refusal {
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
+            | Self::ProfileRestructure { .. }
+            | Self::ProfileEditOrder { .. }
+            | Self::ProfileEditOrderCapped { .. }
+            | Self::ProfileEditStale { .. }
             | Self::Io(_) => 1,
             // The ONE arm whose rank is a per-payload decision, so it
             // is matched exhaustively rather than defaulted: the
@@ -424,7 +487,7 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchParam(name) => {
                 write!(
                     f,
-                    "no document parameter named {} — declare it first",
+                    "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
                     name.0
                 )
             }
@@ -468,6 +531,30 @@ impl core::fmt::Display for Refusal {
                 f,
                 "document {id} is the open document — a document cannot be an instance of \
                  itself; pick another part"
+            ),
+            Self::ProfileRestructure { node, why } => {
+                write!(f, "feature {} was not edited: {why}", node.0)
+            }
+            Self::ProfileEditOrder { node, error } => write!(
+                f,
+                "feature {}'s new numbers make a valid profile together, but every order of \
+                 one-argument writes passes through a state the door refuses ({error}); the \
+                 document has no edit that writes a whole program at once",
+                node.0
+            ),
+            Self::ProfileEditOrderCapped { node, writes, cap } => write!(
+                f,
+                "feature {}'s new numbers make a valid profile together, but writing their {writes} \
+                 arguments one at a time in order passes through a state the door refuses, and \
+                 the search for another order was not run: it is capped at {cap} arguments — \
+                 apply the edit in smaller steps",
+                node.0
+            ),
+            Self::ProfileEditStale { node } => write!(
+                f,
+                "feature {}'s profile changed since the editor loaded it; its numbers were not \
+                 written — the editor now shows the profile as it is",
+                node.0
             ),
         }
     }

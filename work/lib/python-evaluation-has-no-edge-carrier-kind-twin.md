@@ -4,6 +4,8 @@ kind: issue
 title: pncad-py's Evaluation has no edge twin of face_carrier_kind
 status: open
 opened: 2026-09-14
+priority: P3
+cost: D
 ---
 
 

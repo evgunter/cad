@@ -475,7 +475,7 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
         // Deliberately not `shared::tol::band()`: the zero threshold is
         // the fixed 1e-6 the PR names for this escalation, not the run's
         // ε, so this row must not follow the matrix point it drew.
-        Band::new(1e-6, 1e-6 * Tol::witness().get().k).unwrap(),
+        Band::linear_at(Tol::witness(), 1e-6).unwrap(),
     )
     .expect("a chord of a plane is an image of that plane's chart");
     let residual = edge.certificate().max_residual;

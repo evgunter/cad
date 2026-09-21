@@ -26,7 +26,7 @@
 
 use editor_core::{
     BooleanOp, Dimension, DocEdit, DocParam, EntityKind, Expr, Node, ParamName, PartSelect,
-    PatternKind, RecipeNodeId, RoleSeg, SlotId, SplitHalf, StableName, UnitSym,
+    PatternKind, RecipeNodeId, RoleSeg, SitedRef, SlotId, SplitHalf, StableName, UnitSym,
 };
 
 use crate::fixture::{ang, desc, len, scl, xy_frame};
@@ -106,8 +106,8 @@ pub fn document() -> CorpusDoc {
     // declared contact, named through the split's own vocabulary
     // because each Part carries the split's names verbatim.
     let rest = r.insert(Node::declare_rest(vec![(
-        section_face(split, SplitHalf::Above),
-        section_face(split, SplitHalf::Below),
+        SitedRef::new(above, section_face(split, SplitHalf::Above)),
+        SitedRef::new(below, section_face(split, SplitHalf::Below)),
     )]));
     let whole = r.insert(Node::Boolean {
         op: BooleanOp::Union,

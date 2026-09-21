@@ -21,7 +21,7 @@ use crate::fixture;
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CapEnd, ContactClass, DocEdit, DocRef,
     DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, MintRefusal, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, SitedRef, StableName, assemble, product_recorded,
+    RecipeNodeId, RoleSeg, StableName, assemble, product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -105,8 +105,8 @@ fn classed_mate(
     class: ContactClass,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),

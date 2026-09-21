@@ -9,11 +9,11 @@
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
-    resolve, resolve_with_prior,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SitedRef, SlotId, StableName,
+    evaluate, resolve, resolve_with_prior,
 };
 
-use super::{ang, insert, len, on_frame, scl, step};
+use super::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
@@ -24,7 +24,8 @@ use geom_core::Tol;
 /// semantics: the disjoint run's pair space is pruned, the flip
 /// evidence is never computed, and the row diagnoses to the
 /// documented evidence-free minting-node fallback (NAMING-DESIGN N5
-/// as amended; recovery rung banked as #134). Engine-behavior tests
+/// as amended). The shadow-execution rung leaves this row where it is
+/// — `resolve::shadow_exec_flip`'s docs say why. Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.
@@ -64,14 +65,6 @@ fn block(
     )
 }
 
-fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node,
-        path: vec![seg],
-    }
-}
-
 /// Runs the whole diagnosis corpus at scalar `T`, producing labeled
 /// `Resolution` outputs in a fixed order. Every scenario is
 /// margin-fat at all CI ε rows (1e-6 … 1e-12): the verdicts — and
@@ -97,8 +90,10 @@ where
         },
     );
     // M4 PR 5: the sliding overlap's flush planes are DECLARED (the
-    // recipe intent; the retired bit rung no longer infers them).
-    let (doc, decl) = super::declare_x_offset_flush(doc, a, b0);
+    // recipe intent; the retired bit rung no longer infers them). The
+    // B side is read at the TRANSFORM, which is the boolean's operand
+    // and carries `b0`'s names verbatim (N1).
+    let (doc, decl) = super::declare_x_offset_flush_at(doc, (a, a), (tr, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
@@ -137,7 +132,7 @@ where
             (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
         .expect("ranked rim fragment exists");
-    let inst = name1(
+    let inst = minted(
         EntityKind::Edge,
         pat,
         RoleSeg::Instance {
@@ -162,8 +157,14 @@ where
         doc: &doc,
         eval: &ev1,
     };
-    out.push(("flip-vanish", resolve_with_prior(new, prior, &ranked)));
-    out.push(("cascade", resolve_with_prior(new, prior, &inst)));
+    out.push((
+        "flip-vanish",
+        resolve_with_prior(new, prior, &ranked, Tol::witness()),
+    ));
+    out.push((
+        "cascade",
+        resolve_with_prior(new, prior, &inst, Tol::witness()),
+    ));
 
     // ---- Scenario B: pattern count shrink (StructuralParam). ----
     let (doc3, _) = step(
@@ -184,6 +185,7 @@ where
             },
             prior,
             &inst,
+            Tol::witness(),
         ),
     ));
 
@@ -191,12 +193,12 @@ where
     let docd = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
+    let cap_b = minted(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
     let (docd, _) = insert(
         docd,
         Node::declare_rest(vec![(
-            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End)),
-            cap_b.clone(),
+            SitedRef::new(da, minted(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(db, cap_b.clone()),
         )]),
     );
     let (docd, _) = step(docd, DocEdit::DeleteNode { id: db });

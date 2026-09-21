@@ -31,6 +31,8 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, SplitError, SplitFinishError, SplitReduceError};
 
+use crate::common;
+
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
@@ -251,7 +253,7 @@ fn near_flush_regimes_pin_per_band() {
     // escalate = K·ε.
     let dy_flush = eps / 16.0; // vertex ON, residual ε/2: certifies
     let dy_resid = eps * (0.125 + 1.0_f64.min(k / 8.0)) / 2.0; // vertex ON, residual in band
-    let dy_sliver = eps * (1.0 + k) / 2.0; // vertex in the escalation band
+    let dy_sliver = common::band_midpoint(Tol::witness()); // vertex in the escalation band
     let dy_clear = eps * k * 8.0; // definitely off: the generic split
     for sign in [1.0, -1.0] {
         for (dy, want) in [

@@ -7,6 +7,8 @@ opened: 2026-09-05
 refs: [the-news-vocabulary-has-no-expiry, status-line-writers-bypass-the-ranking, 1886]
 branch: view/joined-notices
 pr: 2665
+priority: P1
+cost: E
 ---
 
 

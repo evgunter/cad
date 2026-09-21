@@ -21,7 +21,12 @@ use topo::{MefSite, MevSite, validate_closed};
 /// carrying an interior vertex; `on_segment` places that vertex on the
 /// chord (collinear) or off it (bent).
 fn split_top(on_segment: bool) -> topo::Body<f64> {
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     let tol = Tol::witness();
     let he_at = |b: &topo::Body<f64>, x: f64, y: f64| {

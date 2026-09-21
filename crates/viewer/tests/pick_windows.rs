@@ -140,7 +140,10 @@ impl HandWalked {
     fn of(parts: &[NodePick], eval: &Evaluation<f64>) -> Self {
         let mut names: Vec<Result<StableName, HitTestError>> = Vec::new();
         for part in parts {
-            names.extend(part.patch_names(eval));
+            names.extend(
+                part.patch_names(eval)
+                    .expect("the parts are of this evaluation"),
+            );
         }
         let mut by_name: BTreeMap<StableName, Vec<u32>> = BTreeMap::new();
         for (index, name) in names.iter().enumerate() {
@@ -164,7 +167,12 @@ impl HandWalked {
         let mut edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)> = BTreeMap::new();
         for part in parts {
             let start = edges.len();
-            for (boundary, name) in part.boundary_names(eval).into_iter().enumerate() {
+            for (boundary, name) in part
+                .boundary_names(eval)
+                .expect("the parts are of this evaluation")
+                .into_iter()
+                .enumerate()
+            {
                 edges.push(EdgeId {
                     node: part.node(),
                     body: part.body(),
@@ -245,7 +253,7 @@ impl HandWalked {
         }
         match self.edge_names.get(start + id.boundary) {
             Some(Ok(name)) => Ok(name),
-            Some(Err(error)) => Err(EdgeNameFault::Unnamed(*error)),
+            Some(Err(error)) => Err(EdgeNameFault::Unnamed(error.clone())),
             None => Err(EdgeNameFault::OutOfRange {
                 node: id.node,
                 body: id.body,

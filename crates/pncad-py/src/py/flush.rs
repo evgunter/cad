@@ -67,7 +67,13 @@ pub(crate) enum FlushRung {
 /// cosurface on a plane, a sphere, a cylinder or a torus.
 ///
 /// `a` and `b` are the pair's names as opaque text (`a` from the
-/// query's first node, `b` from its second); `relation` is the verify
+/// query's first node, `b` from its second). Each side also carries
+/// the NODE it was read at, which is what makes a finding declarable
+/// straight back through `Doc.declare` / `Node.declare` — the site is
+/// the side, so nothing downstream has to recover it. That site is
+/// not exposed as an attribute: a name here is opaque text, and a
+/// node id beside it would be the one part a caller could act on
+/// wrongly. `relation` is the verify
 /// door's own verdict (`SameOpposite` = resting contact, opposed
 /// material sides; `SameOriented` = flush walls, the merge-stage
 /// flavor); `class_` names the contact class (trailing underscore:
@@ -169,13 +175,13 @@ impl FlushFinding {
     /// opaque name text.
     #[getter]
     fn a(&self, py: Python<'_>) -> PyResult<String> {
-        name_text(py, &self.0.pair.0)
+        name_text(py, &self.0.pair.0.name)
     }
 
     /// The pair's second name (the query's `b` node side).
     #[getter]
     fn b(&self, py: Python<'_>) -> PyResult<String> {
-        name_text(py, &self.0.pair.1)
+        name_text(py, &self.0.pair.1.name)
     }
 
     /// The verify door's relation verdict.

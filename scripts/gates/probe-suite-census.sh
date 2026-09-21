@@ -206,10 +206,13 @@ RUN_FLOOR=(
   plain:profile:review_s2_probe:1
   plain:profile:scalar_channels_probe:4
   plain:profile:validate_ok_probe:1
+  plain:sweep:contact_edge_must_carry:6
   plain:sweep:k_report:0
   plain:sweep:mass_props_are_thread_count_invariant:4
   plain:sweep:must_carry_rule:10
   plain:sweep:review_chamfer_r1_probes:7
+  plain:sweep:review_contact_edge_must_carry_r1_probes:5
+  plain:sweep:review_contact_edge_must_carry_r2_probes:6
   plain:sweep:review_must_carry_rule_r1_probes:4
   plain:sweep:review_fillet_e1_probes:4
   plain:sweep:review_ring_clearance_r1_probes:7

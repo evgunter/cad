@@ -46,7 +46,9 @@ fn angle(v: f64) -> Expr {
 }
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(d, e, Tol::witness()).expect("edit applies").doc
+    apply(d, e, Tol::witness(), &editor_core::RefusingReach)
+        .expect("edit applies")
+        .doc
 }
 
 fn axis_doc() -> (ProfileDoc, RecipeNodeId) {
@@ -166,15 +168,13 @@ fn identical_tubes_in_one_document_mint_disjoint_total_name_tables() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
 
-    let table = |id| {
-        ev.value(id)
-            .expect("a value")
-            .name_table
+    let names = |id| {
+        fixture::table(&ev, id)
             .iter()
             .map(|(name, _)| name.clone())
             .collect::<std::collections::BTreeSet<_>>()
     };
-    let (a, b) = (table(first), table(second));
+    let (a, b) = (names(first), names(second));
     // Total over each body...
     for (id, t) in [(first, &a), (second, &b)] {
         let body = body_of(&ev, id);

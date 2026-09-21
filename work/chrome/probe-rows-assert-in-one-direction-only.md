@@ -5,6 +5,8 @@ title: The probe's new rows go red on reach growing and on nothing else, and enc
 status: open
 opened: 2026-09-04
 refs: [1746, display-budget-rows-restate-three-private-constants, a-negative-extrude-distance-probes-as-valid]
+priority: P3
+cost: E
 ---
 
 Four findings from CHROME's style lane on PR 1746, all about the rows

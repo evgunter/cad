@@ -340,7 +340,55 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
         Err(e) => panic!("the recorded program refused at replay: {e}"),
     };
     assert_bit_identical(&closed.loop_, &replayed);
+    assert_spans_partition(&closed);
     closed.loop_
+}
+
+/// **The per-step segment span partitions the loop**: one span per
+/// authored step, in program order, the spans meeting end-to-start and
+/// covering every segment exactly once.
+///
+/// Rides the same blanket funnel as the differential above, so it holds
+/// over every typed chain the suites author rather than a sampled few.
+///
+/// **What it can and cannot catch, measured.** On a CHAIN the three
+/// clauses are what `Core::step_spans` makes true by construction: it
+/// derives every boundary from one non-decreasing `step_starts` vector
+/// and ends the last span at the closed chain's own length, so
+/// contiguity, the cover and the count hold however wrong the
+/// boundaries themselves are. A mutant that shifts every boundary one
+/// step later — a step credited with its NEIGHBOUR's segments — passes
+/// all three, and the row that reds on it is
+/// `editor-core/tests/edit_step_segments.rs`'s attribution section,
+/// which reads each step's own authored endpoint. What this DOES catch
+/// is a span minted outside that arithmetic against a loop it does not
+/// describe: `ReplayStructure::carrier(n)` is built from the carrier
+/// kernel's own vertex count at a different site from the loop this
+/// compares against, and a re-shaped `step_spans` that broke the
+/// partition would land here on the whole corpus rather than on
+/// whichever suite noticed.
+pub fn assert_spans_partition(closed: &ClosedLoop<f64>) {
+    let spans = &closed.structure.steps;
+    assert_eq!(
+        spans.len(),
+        closed.program.len(),
+        "one span per authored step"
+    );
+    let n = closed.loop_.vertices().len();
+    let mut next = 0;
+    for (j, span) in spans.iter().enumerate() {
+        assert_eq!(
+            span.start(),
+            next,
+            "step {j}'s span starts where step {} left off",
+            j.wrapping_sub(1)
+        );
+        next = span.end();
+    }
+    assert_eq!(
+        next, n,
+        "the spans cover every segment of the {n}-segment loop"
+    );
 }
 
 /// Bit-level loop identity: vertex count, every coordinate and bulge by
@@ -514,7 +562,9 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .line_to(Start, Tol::witness())
         .unwrap();
 
-    // 6. The declared-subdivision step on an arc carrier.
+    // 6. Two quarter arcs on one carrier — the half-disc equator —
+    //    the second through the lattice's own declared-joint
+    //    spelling, `.tangent().tangent_arc_to(p)`.
     let subdivided = Open
         .at(p2(0.0, -0.5))
         .arc_to(
@@ -525,7 +575,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
             Tol::witness(),
         )
         .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
+        .tangent()
+        .tangent_arc_to(p2(0.0, 0.5), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness())
         .unwrap();
@@ -697,6 +748,43 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .tangent_arc_to(Start.arrives_tangent(), Tol::witness())
         .unwrap();
 
+    // 16. The fused verb with a RADIUS ARRIVAL: the one chain here
+    //     whose three radius arguments each draw a segment of their
+    //     own — the incoming `Sweep` carrier, the fillet, and the
+    //     arrival `Radius` carrier. It is the only shape that reaches
+    //     the `Carrier2` emission role at all (`Sweep` and `ArcLen`
+    //     are not admissible arrival specs, and `Via` and `Center`
+    //     carry no radius), so without it the guided fence replays
+    //     every verb and two of the three roles.
+    let radius_arrival = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(4.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .arc_fillet_arc(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            0.25,
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(2.0, 6.0))
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
     // 10/11. The complete-loop program forms.
     let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
@@ -715,6 +803,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         subdivided_square,
         d_shape,
         stadium,
+        radius_arrival,
         circle,
         split,
     ]

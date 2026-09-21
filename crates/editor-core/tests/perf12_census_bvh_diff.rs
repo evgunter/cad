@@ -68,7 +68,7 @@ fn run(name: &str, doc: &ProfileDoc, strategy: CensusStrategy) -> Run {
     );
     let product = product_recorded(doc, &ev, tol)
         .unwrap_or_else(|e| panic!("{name}: the product gathers: {e:?}"));
-    let (errors, trace) = census_traces(&product.body, &product.contacts, band(), strategy);
+    let (errors, trace) = census_traces(&product.body, &product.contacts, band(), tol, strategy);
     Run {
         errors: errors.iter().map(|e| format!("{e:?}")).collect(),
         trace,
@@ -315,6 +315,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
             value: DocParam::Count { value: fins },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
     .doc
@@ -338,6 +339,7 @@ fn planted_degradation_is_caught() {
         &product.body,
         &product.contacts,
         band(),
+        tol,
         CensusStrategy::Idealized,
     );
     let &(_, EntityId::Face(face)) = ideal
@@ -352,6 +354,7 @@ fn planted_degradation_is_caught() {
         &product.body,
         &product.contacts,
         band(),
+        tol,
         CensusStrategy::Realized,
         PlantedDegradation { face },
     );

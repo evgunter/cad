@@ -5,6 +5,8 @@ title: The torus rim mint bails with Ok(()) after `split_at_midpoint` has alread
 status: open
 opened: 2026-09-11
 refs: [step-adopt-let-ok-iso-discards]
+priority: P0
+cost: H
 ---
 
 

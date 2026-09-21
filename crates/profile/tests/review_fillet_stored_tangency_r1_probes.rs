@@ -581,6 +581,7 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
             candidate: 1 - d.candidate,
             ..d.clone()
         }],
+        ..structure.clone()
     };
     for (name, st) in [("recorded", &structure), ("other", &other)] {
         match replay_guided(&lifted, st, tol()) {

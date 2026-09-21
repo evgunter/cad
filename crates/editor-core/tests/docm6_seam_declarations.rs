@@ -32,8 +32,8 @@ use crate::fixture;
 use editor_core::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CapEnd, CarriedRefusal,
     ContactClass, DocEdit, DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, MateFrame,
-    MatePrimitive, Node, ProfileDoc, RecipeNodeId, Relation, RoleSeg, SitedRef, StableName,
-    assemble, product_recorded,
+    MatePrimitive, Node, ProfileDoc, RecipeNodeId, Relation, RoleSeg, StableName, assemble,
+    product_recorded,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, run, step};
@@ -91,8 +91,8 @@ fn mate_node(
     a_frame: MateFrame,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class,
         alignment: Alignment {
             a: a_frame,
@@ -587,9 +587,10 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
 /// mate is between two members of the document that authored it, and
 /// instantiating that document places all of it through one node). So
 /// an outer mate naming those same two faces names two faces of one
-/// instance, and A11's solve door refuses it `SelfMate` before any
-/// record is minted. Two different instances are two different
-/// aggregate face pairs, so no other spelling reaches it either.
+/// instance, and the edit door refuses it with A11's own `SelfMate`
+/// before it enters the document, let alone before any record is
+/// minted. Two different instances are two different aggregate face
+/// pairs, so no other spelling reaches it either.
 ///
 /// The day `SelfMate` admits something — or a second declaring node
 /// kind mints into `Product::minted` — this row goes red and the
@@ -609,28 +610,33 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
     // The SAME two faces the inner mate declared, named from out here:
     // the stand's own two cube caps, each seen through this instance.
-    let (doc, outer_mate) = insert(
-        doc,
-        mate_node(
-            wrap(instance, in_part(inner_instances[0], CapEnd::End)),
-            wrap(instance, in_part(inner_instances[1], CapEnd::Start)),
-            ContactClass::Rest,
-            frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
-        ),
-    );
-
-    let ev = run(&doc, &with_resolver(store));
-    let failure = ev
-        .node_error(outer_mate)
-        .expect("the outer mate does not evaluate");
+    let err = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: mate_node(
+                    wrap(instance, in_part(inner_instances[0], CapEnd::End)),
+                    wrap(instance, in_part(inner_instances[1], CapEnd::Start)),
+                    ContactClass::Rest,
+                    frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
+                ),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("the outer mate never enters the document");
     assert!(
-        format!("{:?}", failure.kind).contains("SelfMate"),
-        "both references are members of one instance: {:?}",
-        failure.kind
+        matches!(
+            &err,
+            editor_core::EditError::MateRefused { fault, .. }
+                if matches!(**fault, editor_core::MateFault::SelfMate { instance: i, .. } if i == instance)
+        ),
+        "both references are members of one instance: {err:?}"
     );
-    // And the document does not gather at all, so no product holds two
-    // rows for one pair.
-    assert!(product_recorded(&doc, &ev, Tol::witness()).is_err());
+    // So the product holds exactly the carried rows, and no second
+    // declaration for the pair: the document gathers as it did
+    // without the attempt.
+    let ev = run(&doc, &with_resolver(store));
+    assert!(product_recorded(&doc, &ev, Tol::witness()).is_ok());
     assert_ne!(inner_id, doc.id());
 }
 

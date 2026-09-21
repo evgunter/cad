@@ -19,7 +19,10 @@ fn band() -> Band {
 }
 
 fn cube_scaled_at(s: f64, dx: f64, dy: f64, dz: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(s * x + dx, s * y + dy, s * z + dz))
+    common::mapped_cube(
+        |x, y, z| Point3::new(s * x + dx, s * y + dy, s * z + dz),
+        Tol::witness(),
+    )
 }
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
@@ -40,17 +43,16 @@ fn probe_nested_instance_overlap_at_three_prime() {
     let inner = cube_scaled_at(1.0, 1.5, 1.5, 1.5);
     let body = assembly(&outer, &inner);
     let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
-    // The union fix (F1): the containment arm of the loudness
-    // backstop refuses the nested instance pair as UNDECIDABLE —
-    // C6's interference class, named — instead of validating
-    // silently. (Pre-fix this probe pinned the silent Ok(()) the R2
-    // review found.)
+    // The containment arm DECIDES the nested pair: the box gate cannot
+    // separate the extents, and the material test finds an inner
+    // vertex strictly inside the outer's material — the typed
+    // interference, not an undecidable refusal.
     println!("nested overlap verdict: {verdict:?}");
     let errs = verdict.expect_err("nested instance extents refuse loudly");
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
-        "the backstop names the contained pair: {errs:?}"
+            .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+        "the containment arm decides the nested pair as an interference: {errs:?}"
     );
 }
 
@@ -190,7 +192,10 @@ fn probe_tangent_locus_rows_are_metre_dimensioned() {
 /// geometry alone (the gate's band is the ambient metre band) leaves
 /// the DEFINITE verdicts standing at mm and km scale: a nested pair
 /// refuses undecidable, a far-separated pair stays clean, at every
-/// scale. A scale-invariant (dimensionless) margin would flip one.
+/// scale, where the nested pair is the DECIDED interference (the box
+/// gate cannot separate it; the material test finds an inner vertex
+/// strictly inside). A scale-invariant (dimensionless) margin would
+/// flip one.
 #[test]
 fn the_backstop_rows_are_metre_dimensioned() {
     for s in [1e-3, 1.0, 1e3] {
@@ -201,7 +206,7 @@ fn the_backstop_rows_are_metre_dimensioned() {
             .expect_err("nested refuses at every scale");
         assert!(
             errs.iter()
-                .any(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
             "scale {s}: {errs:?}"
         );
         let far = cube_scaled_at(s, 10.0 * s, 0.0, 0.0);

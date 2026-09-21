@@ -1,9 +1,10 @@
 ---
 id: the-value-drags-in-flight-refusal-has-two-spellings
 kind: issue
-title: "the value drag's in-flight refusal is spelled twice: the mid-gesture table's row and g1::Slot's floor"
-status: open
+title: the value drag's in-flight refusal is spelled twice: the mid-gesture table's row and g1::Slot's floor
+status: closed
 opened: 2026-09-15
+closed: 2026-09-16
 ---
 
 
@@ -56,3 +57,29 @@ which — which is what this row is for.
 
 VIEW's: `crates/viewer/src/session.rs`,
 `crates/viewer/src/session/op.rs`, `crates/viewer/src/g1.rs`.
+
+## Answered: the answer moves down (2026-09-16)
+
+The two rows are `true` now, and `g1::Slot::begin` is the door a second
+`BeginGesture` meets. The two doors' own target checks — the driven-slot
+guard and the parameter lookup — moved inside `DocSession::start`'s
+closure, so rule 1 still answers before either of them and every
+user-visible refusal is the one it was.
+
+**Which site a user reached before**: the table's. `perform` consults
+`permitted_during_value_gesture` before dispatch, so `begin_gesture`
+never ran under an open drag and `g1::Slot::begin`'s arm was
+unreachable through the only door that calls it.
+
+**Why not the floor.** The alternative asked for a sentence saying which
+row is POLICY and which is SAFETY, and there is no input on which the
+two differ: the table's row fires on `self.gesture.held().is_some()`,
+the slot's arm on the same state, and both raise
+`Refusal::GestureInFlight`. A policy extensionally identical to the
+safety floor is not a second decision the table records. The table's own
+certifying sentence did not cover the rows either — *"everything else
+moves the document, the history or the file the drag is previewing
+against"* is false of both begins, which move none of the three.
+
+`session/op.rs`'s `BeginFreeMove` argument survives and is now general:
+it is one rule about rule 1 rather than one table's exception.

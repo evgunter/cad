@@ -482,7 +482,15 @@ fn reference<T: Decide>(c: &Carrier<T>) -> (Point3<T>, T) {
 /// no bound this module can state — a refusal, never a guess, because
 /// an under-estimate here would price a tilt too low and certify a
 /// parallelism that does not hold.
-fn reach_of<T: Decide>(body: &Body<T>, k: topo::entity::FaceKey, origin: Point3<T>) -> Option<T> {
+///
+/// Crate-visible because the mate solve's lever reads the same walk
+/// for a part body's faces (`mate::reach`): one boundary walk, one
+/// bound, read at both lever sites.
+pub(crate) fn reach_of<T: Decide>(
+    body: &Body<T>,
+    k: topo::entity::FaceKey,
+    origin: Point3<T>,
+) -> Option<T> {
     let face = body.get_face(k)?;
     let mut reach = T::zero();
     for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
@@ -508,6 +516,14 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
         Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
         Curve3::Ellipse { center, major, .. } => Some(from(*center) + *major),
+        // Every point of the spiric lies on its torus, within `R + r` of
+        // the torus centre.
+        Curve3::Spiric {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(from(*center) + *major_radius + *minor_radius),
         Curve3::Nurbs(n) => n.control().iter().map(|p| from(*p)).reduce(|a, b| a.max(b)),
     }
 }

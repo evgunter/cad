@@ -16,10 +16,10 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{Alignment, Frame, RecipeNodeId, SitedRef, product};
+use pncad::document::{Alignment, Frame, RecipeNodeId, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
-use viewer::display::{AdmissionFault, DisplayFault};
+use viewer::display::{self, AdmissionFault, DisplayFault};
 use viewer::frame;
 use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
@@ -49,8 +49,8 @@ fn seat_alignment() -> Alignment {
 /// the session's one committed-edit door.
 fn add_seat_mate(session: &mut DocSession, bench: &asm::Bench, a_instance: RecipeNodeId) {
     let outcome = session.perform(SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(a_instance, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(a_instance, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });
@@ -259,23 +259,17 @@ fn fused_geometry_refuses_both_display_ops_typed() {
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the store opens");
     let mut doc =
         pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive("gui4-fused"), tol);
-    let insert = |doc: &mut pncad::document::ProfileDoc,
-                  node: pncad::document::Node<pncad::document::ProfileProgram>| {
-        let applied =
-            pncad::document::apply(doc, &pncad::document::DocEdit::InsertNode { node }, tol)
-                .expect("the insert applies");
-        *doc = applied.doc;
-        applied.record.minted.expect("an id")
-    };
-    let a = insert(
+    let a = common::insert_into(
         &mut doc,
         pncad::document::Node::instantiate_part(bench.post),
+        tol,
     );
-    let b = insert(
+    let b = common::insert_into(
         &mut doc,
         pncad::document::Node::instantiate_part(bench.post),
+        tol,
     );
-    let weld = insert(
+    let weld = common::insert_into(
         &mut doc,
         pncad::document::Node::Boolean {
             op: pncad::document::BooleanOp::Union,
@@ -283,6 +277,7 @@ fn fused_geometry_refuses_both_display_ops_typed() {
             b,
             declare: None,
         },
+        tol,
     );
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
@@ -339,8 +334,8 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         "disjoint instances certify outright (A5's disjoint half)"
     );
     session.perform(SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Tangent,
         alignment: seat_alignment(),
     });
@@ -386,6 +381,76 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
          the two are spelled apart because a user holding display state on \
          the id reads a different sentence for each: {:?}",
         outcome.refusal
+    );
+}
+
+/// **The admission test's kind half answers the two states apart**,
+/// which is the whole of its signature: an absent id and a node of
+/// another kind are different news, and a door that answered `bool`
+/// could not say which it had met. Asserted at `instance_check`
+/// itself rather than only through the ops above, because the door is
+/// `pub` and the next caller is the one that will need them apart.
+#[test]
+fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
+    let tol = Tol::witness();
+    let bench = asm::bench("instcheck", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // One node of another kind, authored through the ordinary door so
+    // the wrong-kind arm is driven by a node a user can really select.
+    session.perform(SessionOp::AddMate {
+        a: common::head(asm::in_part(bench.post_a, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        class: ContactClass::Tangent,
+        alignment: seat_alignment(),
+    });
+    session.pump();
+    let mate = mate_nodes(&session)[0];
+    let doc = session.doc();
+
+    assert_eq!(
+        display::instance_check(doc, bench.post_b),
+        Ok(()),
+        "a live InstantiatePart is admitted"
+    );
+    assert_eq!(
+        display::instance_check(doc, mate),
+        Err(AdmissionFault::NotAnInstance { node: mate }),
+        "a node that IS in the document and is not an instance is the \
+         wrong-kind refusal, naming itself"
+    );
+    let absent = RecipeNodeId(9_999);
+    assert_eq!(
+        display::instance_check(doc, absent),
+        Err(AdmissionFault::NoSuchNode { node: absent }),
+        "an id the document does not hold is the ABSENT refusal, not \
+         the wrong-kind one — the two are the sentences a person reads"
+    );
+
+    // **The point of the split, asserted as the thing a person reads.**
+    // Two arms of one enum prove nothing on their own; what the door
+    // exists to buy is that the two states reach an operation's reader
+    // as DIFFERENT sentences, so the renderings are pinned here and not
+    // only the variants.
+    let absent_says = display::instance_check(doc, absent)
+        .expect_err("absent refuses")
+        .to_string();
+    let wrong_kind_says = display::instance_check(doc, mate)
+        .expect_err("a mate is not an instance")
+        .to_string();
+    assert_eq!(
+        absent_says, "node 9999 is not in the document",
+        "the absent id's sentence says the id denotes nothing"
+    );
+    assert_eq!(
+        wrong_kind_says,
+        format!("node {} is not a part instance", mate.0),
+        "the wrong-kind sentence says something IS there and is the \
+         wrong thing"
+    );
+    assert_ne!(
+        absent_says, wrong_kind_says,
+        "a door that collapsed these two would render one sentence for \
+         both, which is the whole defect this signature closes"
     );
 }
 
@@ -651,8 +716,8 @@ fn a_landing_mate_discards_the_probe_value() {
     // The mate lands on post_b: ONE committed edit, and the probe is
     // superseded IN THE SAME OUTCOME.
     let outcome = session.perform(SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: seat_alignment(),
     });

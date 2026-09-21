@@ -2,9 +2,12 @@
 id: startup-notices-join-on-a-mark-a-prefs-notice-contains
 kind: issue
 title: startup_notices joins the preferences notices with LIST_SEPARATOR and three Notice sentences contain it
-status: open
+status: closed
 opened: 2026-09-15
 refs: [withdrawal-causes-join-on-a-mark-a-fault-may-contain, startup-notices-need-holding-to-badge]
+closed: 2026-09-16
+branch: view/startup-notices
+pr: 2710
 ---
 
 
@@ -64,3 +67,62 @@ the two would be answered together if the door gets a type.
 ## Home
 
 VIEW's: `crates/viewer/src/frame.rs`, `crates/viewer/src/prefs.rs`.
+
+## Closed (`view/startup-notices`, 2026-09-16)
+
+**The startup notices are several notices, not one notice's list** —
+so the boundary between them is `NOTICE_SEPARATOR`, and the hold is the
+one the outer level already has. `startup_notices` builds one
+`Message` per element through `Message::new` and joins them with
+`Message::joined`; the door keeps `&[String]`.
+
+Not one of the three the item named, and the reason is that none of
+them can hold this level:
+
+- **Pinning the door to a type** gives a closed population to make a
+  claim over, which is what `withdrawal-causes-…` bought — but the
+  claim is FALSE over this population. Three of `Notice`'s four arms
+  write the mark, so the type pin would have to be paired with the
+  re-wording, and even then two arms (`UnknownKey`, `WrongType`) echo a
+  TOML key out of the user's own file and no type bounds what that
+  string holds.
+- **A second two-half treatment** needs a mark that is never legitimate
+  in band. `withdrawal-causes-…` rejected its own option 2 on that
+  ground and the objection is STRONGER here, not weaker: there the
+  in-band marks were punctuation four authored sentences were entitled
+  to, here the payload is arbitrary user text, so every mark is in
+  band. A rewriting door has nowhere to demote to either —
+  `Message::new` can rewrite a bullet to a semicolon because there is a
+  level below; at the bottom there is not.
+- **Re-wording the three arms** is the weakest for the reason the item
+  gives, and it does not even reach: it cannot touch the echoed key.
+
+What was actually wrong was the classification. A `Withdrawal`'s causes
+are the items a counted preamble introduces; these have no preamble and
+nothing counts them, so `LIST_SEPARATOR` was never the right mark for
+them.
+
+### What this item claimed, checked
+
+- Three of four `Notice` arms write a `"; "`: **true**
+  (`UnknownKey` is the one that does not).
+- Reachable with no error path: **true, and reproduced.** A file
+  naming a theme and a preset the registries do not hold renders
+  ``preferences: no theme called `aurora`; using `dark-neutral`;
+  preferences: no input preset called `modal`; using the default`` —
+  four `"; "`-delimited pieces for two notices. Red on the base tree at
+  `4d3ff671c0`.
+- *"the notices arrive already rendered, from three sources with three
+  types (`prefs::Notice`, `prefs::PrefsError`, and the theme and preset
+  resolutions)"*: **the count is right and the membership is wrong.**
+  `resolve_theme` and `resolve_keys` return `Option<Notice>` — the same
+  type `from_toml` yields. The unnamed third is `prefs::StoreError`,
+  from `store.load()`'s `Err` arm. Corrected at the door and in the
+  README.
+- *"the two would be answered together if the door gets a type"*
+  (`startup-notices-need-holding-to-badge`): **the door did not get a
+  type, so they were not.** That row is untouched and still open. The
+  bearing is smaller and real: the startup line is now composed exactly
+  the way `frame_status` composes one, so holding the notices as a
+  `Vec<Message>` and letting the ranking join them is a shorter step
+  than it was.

@@ -1498,10 +1498,14 @@ impl Evaluation {
     /// triangle position)`, so a ray down a shared edge answers the
     /// same face every time.
     ///
-    /// Raises `HitTestError`, typed: the standing ladder up front for
-    /// a target whose node this evaluation has no value for
-    /// (`node_not_evaluated`, `node_failed`, `node_poisoned`), and the
-    /// loud `unnamed` bug arm if the winning face inverts to no name.
+    /// Raises `HitTestError`, typed: the pairing refusal
+    /// (`evaluation_of_another_document`) for a target built from an
+    /// evaluation of another document, checked before any target's
+    /// standing because a twin recipe mints the same node ids; then
+    /// the standing ladder for a target whose node this evaluation has
+    /// no value for (`node_not_evaluated`, `node_failed`,
+    /// `node_poisoned`); then the loud `unnamed` bug arm if the
+    /// winning face inverts to no name.
     fn pick_face(
         &self,
         py: Python<'_>,
@@ -2046,6 +2050,15 @@ pub(crate) fn import_step(
     let options = pncad::step_import::ImportOptions {
         eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
         declared_contacts: defaults.declared_contacts,
+        // This door asks for no chart-coherence examination, because
+        // `ImportReport` has no field to report one on: asking would
+        // measure the body and drop the measurement. Written as the
+        // literal rather than read off `defaults`, so this line
+        // ENFORCES the sentence above it — a kernel-side default that
+        // flipped one crate away would otherwise turn the examination
+        // on here silently, and the comment would go quietly false.
+        // The surface census carries the decision as a `NotBound` row.
+        examine_chart_coherence: false,
     };
     match pncad::step_import::import_step(text, &options, tol) {
         Ok(pncad::step_import::StepImport::Solid {
@@ -2055,6 +2068,10 @@ pub(crate) fn import_step(
             normalizations,
             curve_promotions,
             instances,
+            // `None` by construction: the options above ask for no
+            // examination, and `None` means NOT ASKED — which is the
+            // one thing an empty report would not say.
+            coherence: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
             enclosure: MassProperties {

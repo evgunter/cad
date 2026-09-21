@@ -77,6 +77,8 @@ use pncad::document::{
     RecipeNodeId,
 };
 
+use crate::frame::Tone;
+
 /// A node's status, as the tree draws it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RowStatus {
@@ -121,6 +123,33 @@ impl RowStatus {
             Self::Failed { .. } => "FAILED",
             Self::Poisoned { .. } => "POISONED",
             Self::Unevaluated => "—",
+        }
+    }
+
+    /// **Whether this row is one a reader may need to act on** — the
+    /// module header's *which row a failure sends the eye to*, as a
+    /// value.
+    ///
+    /// Only a node whose OWN operation refused is
+    /// [`Tone::Actionable`]. A row that was never run has nothing to
+    /// act on yet, and a poisoned row shows someone else's failure and
+    /// points at the row that owns it, so both stay
+    /// [`Tone::Advisory`] and the eye goes to the one row a reader can
+    /// do something about — a document with six rows downstream of one
+    /// broken feature has one loud row, not seven. There can be more
+    /// than one: a `MateFault::Contradictory` naming two different
+    /// mates blames both, and both are actionable ([`blamed_mates`]).
+    ///
+    /// **Total, where [`RowStatus::message`] is not**, because an `Ok`
+    /// row still has a [`badge`](RowStatus::badge) — a report, nothing
+    /// to act on. Whether a given surface DRAWS that badge is the
+    /// surface's own decision and not this axis: the Features pane
+    /// stays silent on a healthy row, and the end-to-end walk prints
+    /// every row's badge including `ok`.
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::Ok | Self::Unevaluated | Self::Poisoned { .. } => Tone::Advisory,
+            Self::Failed { .. } => Tone::Actionable,
         }
     }
 
@@ -343,20 +372,11 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. } => vec![*mate],
-        // **The arm that reaches rows and blames none.** No band, no
-        // decisions, so no mate is more at fault than any other — and
-        // the refusal is the run's, reaching every mate and every
-        // instance in the document rather than one cluster's.
+        // Names no mate and reaches EVERY row of the document — the
+        // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),
-        // A solve read against the wrong document blames the pairing,
-        // not a node — and it is the mispairing itself, so there is no
-        // node to name. `SolvedPoses::placement` raises it before it
-        // reads the fault map, and `eval` maps that refusal onto the
-        // instance's own `Failed`, so the fault-map route is not what
-        // keeps it off a row. **DI3 is**: the evaluation solves and
-        // evaluates the SAME document, so the pairing this arm reports
-        // never holds and the empty answer here is unreachable rather
-        // than a reading a user meets.
+        // Names no mate and reaches NO row (`MateFault`'s doc says
+        // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
