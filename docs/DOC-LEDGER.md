@@ -4432,6 +4432,33 @@ the `_at` twin, both pinned by pointer identity. Recorded in the PR
 body and the unit's `## Closed` section.
 
 - `LANE-0-SPEC.md` — LANE-0, the `f64`-only offset-fit absence becomes an `Option` hook, out of the lane traits (#2981)
+## Per-merge deletion — RING-0's spec (2026-09-21)
+
+Recoverable at `git show b32b98bee6:docs/RING-0-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "The survey expected
+`point(±inf)` (ring poison / backend `Com`), `inf − inf` and overflow
+shapes, and zero disagreements on division" — `point(±inf)` is NaI at
+the backend and collapses to agreement, `inf − inf` is unreachable
+from valid brackets, overflow is not a class of `÷` but IS the
+mechanism of the negative-`powi` class (backend refuses where the
+ring certifies, found unilaterally by one reviewer by execution), and
+division disagrees on one class (unbounded over unbounded) while
+agreeing on every zero-touching divisor — the survey's "division
+should show zero disagreements" is false; "pick three of the dry run's
+red rows in three different consumers (e.g. `props/quad.rs`,
+`ssi/enclose.rs`, `mesh/nurbs_cert.rs`)" — `ssi/enclose.rs` has no red
+row; "the survey's 28 over 14 files is the starting number" — the
+production count is 23 sites over 9 files (the survey counted test
+code and the `Interval` scalar's reads of its own backend value), and
+the register as merged carries 31 hazards, 2 conditional on what
+`from_certified` returns under cut (ii), and 3 safe; "the 36 test
+files … plus the certify/props/mesh suites" — 22 red rows of 3,771 at
+default, 23 under the feature, sixteen tighter pins and zero looser,
+the 960-row and 3,403-row coefficient corpora 436 and 1,590 tighter
+and none looser. Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `RING-0-SPEC.md` — RING-0, the poison differential and the newtype dry run (#2993)
 
 ## Per-merge deletion — DECIDE-1's spec (2026-09-21)
 
