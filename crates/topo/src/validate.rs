@@ -5289,8 +5289,9 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// the `pncad` prelude's re-export and through it `pncad-py`'s
 /// `Body.validate_pseudomanifold` (monomorphic at `f64`) and the tour's
 /// scenes. [`validate_pseudomanifold_structural`] is the same pass holding
-/// neither lane, and is the door a [`Dual`](geom_core::Dual) body goes
-/// through the tier-3′ pass by.
+/// none of the three lanes this door holds (the plane × NURBS lane, the
+/// quadrature lane and the chart-region door), and is the door a
+/// [`Dual`](geom_core::Dual) body goes through the tier-3′ pass by.
 pub fn validate_pseudomanifold<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
@@ -5301,23 +5302,38 @@ pub fn validate_pseudomanifold<
     validate_pseudomanifold_certificate(body, contacts, tol).map(|_| ())
 }
 
-/// **[`validate_pseudomanifold`] holding NO lane** — the tier-3′ pass
-/// at every [`crate::AtRestPolicy`] scalar with a bracket, a
+/// **[`validate_pseudomanifold`] holding none of its three lanes** — no
+/// plane × NURBS lane, no quadrature lane
+/// ([`crate::QuadLane`]) and no chart-region door
+/// ([`crate::RegionLane`]) — the tier-3′ pass at every
+/// [`crate::AtRestPolicy`] scalar with a bracket, a
 /// [`Dual`](geom_core::Dual) included. This door is what keeps the
 /// tier-3′ pass callable at a scalar that may not certify, which is the
 /// capability H-R3 protects.
 ///
-/// Two things this door does not do, each a statement about the DOOR
-/// and never about the scalar it is called at. **Check 7 runs through
-/// the closed form alone**: a face that needs the certified quadrature
-/// refuses typed ([`ValidationError::VolumeUncomputable`]) rather than
-/// passing unbounded, and on a closed-form body the verdict is the
-/// certified door's, with pads of `0`. **Check 2 makes no claim about
-/// an M7-8 edge**, at any scalar, this one's `f64` included: that class
-/// re-derives only through the certified plane × NURBS lane, which this
-/// door does not hold, and check 2 is a whole-edge check, so what goes
-/// unmade is every check-2 verdict on such an edge rather than only its
-/// plane × NURBS limbs.
+/// Three things this door does not do, each a statement about the DOOR
+/// and never about the scalar it is called at — the `f64` caller of
+/// this door gets exactly what the dual caller gets. **Check 7 runs
+/// through the closed form alone**: a face that needs the certified
+/// quadrature refuses typed ([`ValidationError::VolumeUncomputable`])
+/// rather than passing unbounded, and on a closed-form body the verdict
+/// is the certified door's, with pads of `0`. **Check 2 makes no claim
+/// about an M7-8 edge**, at any scalar, this one's `f64` included: that
+/// class re-derives only through the certified plane × NURBS lane,
+/// which this door does not hold, and check 2 is a whole-edge check, so
+/// what goes unmade is every check-2 verdict on such an edge rather
+/// than only its plane × NURBS limbs. **The census examines no
+/// chart-region candidate and backs no crossing by a declared pair**:
+/// the pass hands the census no region door, so its two chart-region
+/// arms refuse rather than examine — the conformal face-pair arm on
+/// every same-key opposed-sense curved pair, and the declared-record
+/// confirm arm on every patch record whose pair passes Door 1 — each
+/// as [`ValidationError::CensusLaneUnsupported`] naming the pair; and
+/// the crossing rung's backing consult answers `false`, so an in-plane
+/// `EdgeEdgeCross` at a declared seat that [`validate_pseudomanifold`]
+/// reports backed is reported here as
+/// [`ValidationError::UndeclaredContact`], with the declaration in
+/// hand. The declaration is not found wrong; it is not read.
 ///
 /// Note the suffix's other meaning one door over:
 /// [`validate_geometric_structural`] does not make check 7 at all (`Ok`
@@ -5326,8 +5342,11 @@ pub fn validate_pseudomanifold<
 ///
 /// # Errors
 ///
-/// As [`validate_pseudomanifold`], less the check-2 verdicts above and
-/// plus the closed form's typed refusal.
+/// As [`validate_pseudomanifold`], less the check-2 verdicts above,
+/// plus the closed form's typed refusal at check 7, plus the census's
+/// `CensusLaneUnsupported` on every conformal candidate and every
+/// Door-1-verified patch record, and an `UndeclaredContact` on every
+/// crossing a declared pair would have backed.
 pub fn validate_pseudomanifold_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
@@ -5377,10 +5396,14 @@ pub fn validate_pseudomanifold_certificate<
 /// **At a [`Dual`](geom_core::Dual) this is where the difference from
 /// [`validate_geometric_certificate`] shows.** The certified door is
 /// bounded on `CertifiedBounds`, so a dual cannot form it at all (the
-/// `compile_fail` guarantee); this one holds no quadrature lane, the
-/// closed form answers, and a face that needs the quadrature refuses
-/// TYPED rather than passing unbounded. So a certificate handed back at
-/// a dual is a closed-form body's, and its pads are `0`.
+/// `compile_fail` guarantee); this one holds none of the three lanes
+/// [`validate_pseudomanifold_structural`] names — the quadrature's
+/// absence is the one the certificate shows: the closed form answers,
+/// and a face that needs the quadrature refuses TYPED rather than
+/// passing unbounded. So a certificate handed back at a dual is a
+/// closed-form body's, and its pads are `0`. The region door's absence
+/// shows in the error vector, at every scalar, exactly as at the
+/// `()`-returning twin.
 ///
 /// # Errors
 ///
@@ -9024,7 +9047,7 @@ mod tests {
     /// A census decline says WHICH lane declined and why, so two
     /// declines with opposite recourses do not read as one refusal.
     ///
-    /// The pair here is the sharpest one the chart-region lane has. A
+    /// The pair here is the sharpest one the chart-region doors have. A
     /// `TouchingBoundary` decline is a statement about the GEOMETRY —
     /// the trims touch, the area is not decidable at this ε — and a
     /// `WitnessBudgetExhausted` decline is a statement about the

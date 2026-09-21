@@ -84,6 +84,25 @@
 //! [`CensusUnsupportedCause::Containment`]). Five recourses, one
 //! variant, and the cause is which.
 //!
+//! **The chart-region door is a parameter of the pass, not a bound on
+//! its scalar.** Every pass here takes
+//! `region: Option<`[`RegionLane<T>`]`>` — the two chart-region doors
+//! as one `Copy` value, constructible only at a scalar holding
+//! `CertifiedBounds` — and the `pub` doors carry it to their callers:
+//! [`census_and_certify`] and, under `sweep-testing`, [`census_traces`]
+//! / [`census_traces_planted`]. It is read at three sites, and `None`
+//! is the same typed non-answer at each, at whatever scalar the pass
+//! runs: the conformal face-pair arm ([`sweep_conformal_patches`]) and
+//! the declared-record confirm arm ([`confirm_curve_and_patch_records`],
+//! its Door 2) each push [`ValidationError::CensusLaneUnsupported`]
+//! naming the pair instead of examining it, and the crossing rung's
+//! backing consult ([`pair_region_verified`]) answers `false`, so a
+//! crossing the pair would have backed stays an
+//! [`ValidationError::UndeclaredContact`]. `validate_pseudomanifold`
+//! hands `Some(RegionLane::certified())`; its `_structural` twin hands
+//! `None` at every scalar it is called at — a dual's only route, and
+//! an `f64` caller's when it chooses that door.
+//!
 //! **Sense-invariant** (M5 S10 audit), with ONE named exception.
 //! Every use of a face's plane `normal` in the COINCIDENCE sweeps is
 //! either an on-plane residual compared against `Sign::Zero` (does
@@ -934,8 +953,8 @@ fn pair_holds_edges<T: Decide>(
 /// itself answers through the SAME two doors the confirm pass runs —
 /// Door 1 (`contact_pair_verdict`, class `Rest`: carrier identity
 /// through the kind ladder, senses opposed) and Door 2 (the
-/// chart-region overlap through the per-scalar lane, the verdict
-/// carried between them, `interior_witness`'s rescue included) — and
+/// chart-region overlap through the [`RegionLane`] the pass holds, the
+/// verdict carried between them, `interior_witness`'s rescue included) — and
 /// the overlap region is definitely positive. Anything else is a
 /// non-answer HERE, deliberately unreported — a door ERROR included,
 /// and that asymmetry (loud doors at the confirm pass, a silent
@@ -951,14 +970,16 @@ fn pair_holds_edges<T: Decide>(
 /// loud). The doors are also RE-RUN per consult, unmemoised: a
 /// crossing-heavy seat pays the two doors once per (crossing ×
 /// opposite-sided candidate pair) — correctness first, the cache is
-/// PERF-PLAN's if it ever shows up in a profile. A scalar with no
-/// certified region lane (dual) answers `None` at Door 2 and lands in
-/// the same non-answer — and that half of the swallow is the one with a
+/// PERF-PLAN's if it ever shows up in a profile. A pass holding no
+/// region door (`None` — the `_structural` twin's value at every
+/// scalar, a dual's only one) has no Door 2 to ask and lands in the
+/// same non-answer — and that half of the swallow is the one with a
 /// loud twin of its own: the confirm pass reports it as
 /// [`ValidationError::CensusLaneUnsupported`], distinct from the
-/// geometry refusals, so a reader of the vector can tell *replay this
-/// at a certifying scalar* from *this pair's geometry is outside the
-/// lane* without knowing which arm swallowed what.
+/// geometry refusals, so a reader of the vector can tell *this pass
+/// held no region door; replay through the certified door* from *this
+/// pair's geometry is outside the lane* without knowing which arm
+/// swallowed what.
 fn pair_region_verified<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
@@ -2245,21 +2266,22 @@ fn sweep_conformal_patches<T: Decide>(
                 match region.map(|lane| lane.chart_overlap(body, fa, body, fb, band)) {
                     None => {
                         // The pass holds no CERTIFIED region door (the
-                        // `_structural` twin, a dual's only route), so
-                        // the pair cannot be decided here — typed,
-                        // never silent. (A dual DOES carry a bracket;
-                        // the refusal is the door's absence, not a
-                        // missing `Bounds` impl.)
+                        // `_structural` twin's value at every scalar,
+                        // a dual's only route), so the pair cannot be
+                        // decided here — typed, never silent. (A dual
+                        // DOES carry a bracket; the refusal is the
+                        // door's absence, not a missing `Bounds` impl.)
                         //
                         // Its own variant, and not the one the typed
                         // predicate refusals below raise: this absence
-                        // is a fact about the RUN's scalar and the same
-                        // candidate is examined at every certifying
-                        // one, while those are facts about THIS pair's
-                        // geometry that no replay changes. One variant
-                        // for both made a run-wide condition read as a
-                        // per-pair geometric refusal, and the two
-                        // recourses are opposite.
+                        // is a fact about the RUN — which door it came
+                        // through — and the same candidate is examined
+                        // through the certified door at any certifying
+                        // scalar, while those are facts about THIS
+                        // pair's geometry that no replay changes. One
+                        // variant for both made a run-wide condition
+                        // read as a per-pair geometric refusal, and the
+                        // two recourses are opposite.
                         errors.push(ValidationError::CensusLaneUnsupported {
                             subject: CensusSubject::FacePair(fa, fb),
                         });
@@ -3980,18 +4002,19 @@ fn confirm_curve_and_patch_records<T: Decide>(
             }
         };
         // Door 2 — region overlap in the pair's chart, definitely
-        // positive (the PR-1 predicate through the per-scalar lane),
-        // the chart being either the structural one or the declared
-        // pair's shared world carrier.
+        // positive (the PR-1 predicate through the region door the
+        // pass holds), the chart being either the structural one or
+        // the declared pair's shared world carrier.
         match region
             .map(|lane| lane.declared_overlap(body, c.face_a, body, c.face_b, door_one, band))
         {
             // The pass holds no certified region door, exactly as at
             // the sweep arm and split from the geometry refusals below
             // for the same reason: this absence is a fact about the
-            // RUN, the same record is confirmed at every certifying
-            // scalar, and the recourse is a replay rather than a change
-            // to the geometry.
+            // RUN — the door it came through, at whatever scalar — the
+            // same record is confirmed through the certified door at
+            // any certifying scalar, and the recourse is a replay
+            // through that door rather than a change to the geometry.
             None => {
                 errors.push(ValidationError::CensusLaneUnsupported {
                     subject: CensusSubject::FacePair(c.face_a, c.face_b),
@@ -4619,22 +4642,14 @@ mod tests {
         );
     }
 
-    /// R2 LANE-2 probe (deviation 1): what `Some` answers at the consult
-    /// on the mate9 Door-2 isolator pair (kitty-corner, zero-area
-    /// overlap) — `false` with the door in hand too, so that body could
-    /// not carry the `true`/`false` pin — beside the straddle seat's
-    /// declared pair, where `Some` answers `true`.
+    /// **The consult on the mate9 Door-2 isolator pair** (kitty-corner,
+    /// zero-area overlap) answers `false` with the door in hand too:
+    /// Door 2 never answers `PositiveArea` on it, so that body cannot
+    /// carry the `true`/`false` pin the row above takes on the straddle
+    /// seat's declared pair, and the `None` fold is invisible on it.
     #[test]
-    fn r2_lane2_the_isolator_pair_answers_false_with_the_door_in_hand_too() {
+    fn the_isolator_pair_answers_false_with_the_door_in_hand_too() {
         let tol = Tol::witness();
-        let seat = crate::test_support_fixtures::straddle_seat(tol);
-        assert!(pair_region_verified(
-            &seat.body,
-            seat.post_top,
-            seat.shelf_bottom,
-            band(),
-            Some(RegionLane::certified()),
-        ));
         let post: crate::test_support_fixtures::Prism<f64> = crate::test_support_fixtures::prism_z(
             &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
             0.0,

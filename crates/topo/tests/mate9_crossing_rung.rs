@@ -483,7 +483,7 @@ fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_cr
     assert_eq!(
         crossings(&found),
         bare_crossings,
-        "the declared pair backs nothing through a door that holds no region lane: {found:?}"
+        "the declared pair backs nothing through a door that holds no region door: {found:?}"
     );
 
     // The same door at `f64`, on the same seat, keyed the same way:

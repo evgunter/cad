@@ -383,11 +383,15 @@ accurate to 0.2%; that is worth knowing, because it means the census in
 Shape of the change, for anyone doing something similar:
 
 * It is a cargo feature like `interval`, **not** a `cfg(test)` — `Probe`
-  is wired into production `src` through sealed lane traits in six crates
-  (`Sealed`, `PcurveFittedLane`, `ContentBits`, plus `bit_identity.rs`'s
-  downcast; the quadrature lane is a `topo::QuadLane` value, the
-  chart-region lane a `topo::RegionLane` value and the plane × NURBS
-  lane a bound, none a trait).
+  is wired into production `src` through the four crates that carry a
+  `cfg(feature = "probe")` arm (`grep -rl 'cfg(feature = "probe")'
+  crates/*/src`): `geom-core` (the scalar impls, the span-locate
+  `Sealed` marker and `bit_identity.rs`'s downcast), `geom-brep`
+  (`PcurveFittedLane`), `topo` (`AtRestPolicy`) and `editor-core`
+  (`ContentBits` and its own lane traits). The quadrature lane is a
+  `topo::QuadLane` value, the chart-region lane a `topo::RegionLane`
+  value and the plane × NURBS lane a bound, none a trait, so none of
+  the three adds a crate to that list.
 * **`k_stats::decide` and the `CURRENT` thread-local stay ungated.** That
   funnel is the path every shipped decision takes, and it must be
   byte-identical with the feature on and off (D9). A `cfg` there would

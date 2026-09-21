@@ -580,21 +580,31 @@ impl<T: Decide> RegionLane<T> {
 mod wiring_rows {
     use super::{RegionLane, chart_region_overlap, declared_pair_overlap};
 
-    fn holds_the_certified_region_doors<T: super::Decide + geom_core::CertifiedBounds>() -> bool {
+    /// `Ok(())` when both fields hold their door; otherwise the name of
+    /// the first field that does not, so a red says which pointer moved.
+    fn holds_the_certified_region_doors<T: super::Decide + geom_core::CertifiedBounds>()
+    -> Result<(), &'static str> {
         let lane = RegionLane::<T>::certified();
-        std::ptr::fn_addr_eq(
+        if !std::ptr::fn_addr_eq(
             lane.chart_overlap,
             chart_region_overlap::<T> as fn(_, _, _, _, _) -> _,
-        ) && std::ptr::fn_addr_eq(
+        ) {
+            return Err("chart_overlap is not `chart_region_overlap`");
+        }
+        if !std::ptr::fn_addr_eq(
             lane.declared_overlap,
             declared_pair_overlap::<T> as fn(_, _, _, _, _, _) -> _,
-        )
+        ) {
+            return Err("declared_overlap is not `declared_pair_overlap`");
+        }
+        Ok(())
     }
 
     #[test]
     fn f64_is_wired_to_the_certified_region_doors() {
-        assert!(
+        assert_eq!(
             holds_the_certified_region_doors::<f64>(),
+            Ok(()),
             "`RegionLane::<f64>::certified()` holds something other than the two doors"
         );
     }
@@ -603,8 +613,9 @@ mod wiring_rows {
     /// pointers, instantiated at `Sym<f64>`.
     #[test]
     fn sym_over_f64_is_wired_to_the_certified_region_doors() {
-        assert!(
+        assert_eq!(
             holds_the_certified_region_doors::<geom_core::Sym<f64>>(),
+            Ok(()),
             "`RegionLane::<Sym<f64>>::certified()` holds something other than the two doors"
         );
     }
@@ -612,8 +623,9 @@ mod wiring_rows {
     #[cfg(feature = "probe")]
     #[test]
     fn probe_is_wired_to_the_certified_region_doors() {
-        assert!(
+        assert_eq!(
             holds_the_certified_region_doors::<geom_core::Probe>(),
+            Ok(()),
             "`RegionLane::<Probe>::certified()` holds something other than the two doors"
         );
     }
@@ -621,8 +633,9 @@ mod wiring_rows {
     #[cfg(feature = "interval")]
     #[test]
     fn interval_is_wired_to_the_certified_region_doors() {
-        assert!(
+        assert_eq!(
             holds_the_certified_region_doors::<geom_core::interval::Interval>(),
+            Ok(()),
             "`RegionLane::<Interval>::certified()` holds something other than the two doors"
         );
     }
@@ -1988,7 +2001,7 @@ pub struct WitnessBudget {
 /// guaranteed to cover every component — so the rung can DECLINE where
 /// an exact arrangement would have certified. It cannot certify
 /// anything false, because no candidate is believed until `contfp`
-/// certifies it on the lane's own arithmetic.
+/// certifies it on the scalar's own arithmetic.
 ///
 /// # What the argument does NOT claim
 ///
@@ -2000,10 +2013,10 @@ pub struct WitnessBudget {
 ///   overlap is not certifiable at this ε — and it is the same posture
 ///   [`overlap_of_regions`] takes on a thin region.
 /// - **The hint is nominal.** Candidates are built from each
-///   coordinate's bracket midpoint, so on an enclosure lane the
+///   coordinate's bracket midpoint, so at an enclosure scalar the
 ///   decomposition describes the nominal trims rather than every member
 ///   of the enclosure. It cannot mislead: the certificate is `contfp`'s
-///   and is taken on the lane's own arithmetic.
+///   and is taken on the scalar's own arithmetic.
 /// - **The frame still rotates.** The decomposition is a function of
 ///   the unordered PAIR of trims — swapping the arguments permutes
 ///   nothing in `X` — but not of the pair alone: it is taken along the

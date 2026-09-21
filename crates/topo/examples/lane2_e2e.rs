@@ -1,5 +1,9 @@
-//! R1 end-to-end exercise: a straddling declared face pair through the
-//! public tier-3' doors at f64 and at Dual64.
+//! A straddling declared face pair through the public tier-3′ doors at
+//! `f64` and at `Dual64`, each door's verdict printed as `Debug` and as
+//! `Display`: the certified door certifies the declared seat; the
+//! `_structural` door, holding no region door at either scalar, refuses
+//! the declared pair typed and reports the two crossings it backs as
+//! undeclared. `cargo run -p topo --example lane2_e2e`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout)]
 
 use geom_core::{Dual64, Tol};

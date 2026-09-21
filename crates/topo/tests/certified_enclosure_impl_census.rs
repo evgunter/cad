@@ -54,6 +54,21 @@ fn head(ty: &str) -> String {
     ty.rsplit("::").next().unwrap_or(ty).trim().to_string()
 }
 
+/// The type an impl header names after `for `: everything up to the
+/// body's `{` or a `where` clause, `where` read as a token rather than
+/// as a letter — a type whose path holds a `w` (`wrapper::Sym<T>`) is
+/// one type, not a truncated one.
+fn impl_target(rest: &str) -> &str {
+    let rest = rest.split('{').next().unwrap_or(rest);
+    let is_boundary = |c: Option<char>| c.is_none_or(|c| !(c.is_alphanumeric() || c == '_'));
+    rest.match_indices("where")
+        .find(|(i, m)| {
+            is_boundary(rest[..*i].chars().next_back())
+                && is_boundary(rest[i + m.len()..].chars().next())
+        })
+        .map_or(rest, |(i, _)| &rest[..i])
+}
+
 /// Every `impl … CertifiedEnclosure for X` in the tree's crate sources,
 /// as the head of `X`.
 fn impls() -> BTreeSet<String> {
@@ -76,8 +91,7 @@ fn impls() -> BTreeSet<String> {
                     "{}: `CertifiedEnclosure for` outside an impl header: {line}",
                     file.display()
                 );
-                let ty = rest.split(['{', 'w']).next().unwrap_or(rest);
-                out.insert(head(ty));
+                out.insert(head(impl_target(rest)));
             }
         }
     }
@@ -101,6 +115,21 @@ fn wired(wiring: &str, needle: &str) -> BTreeSet<String> {
         "{wiring} instantiates no `{needle}…>()` — the roster this census reads is gone"
     );
     out
+}
+
+/// The header reader stops at the body or at a `where` TOKEN, and at
+/// nothing else: a `w` inside the type's path is part of the type.
+#[test]
+fn the_impl_target_ends_at_the_body_or_a_where_token() {
+    assert_eq!(impl_target("f64 {").trim(), "f64");
+    assert_eq!(
+        impl_target("wrapper::Sym<T> where T: CertifiedEnclosure {").trim(),
+        "wrapper::Sym<T>"
+    );
+    assert_eq!(
+        impl_target("somewhere::Wide<T>").trim(),
+        "somewhere::Wide<T>"
+    );
 }
 
 #[test]
