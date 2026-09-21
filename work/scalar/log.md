@@ -917,3 +917,16 @@ without `Bounds` as a supertrait (the allowlist gate), `connectedness`
 certified (not callable at `Dual`), the fold's rename reaching six
 unlisted files, three allowlist counts moved, the tour's `Scalar`
 trait gaining `CertifiedBounds`.
+
+## The box restarted mid-RING-2 (2026-09-21, ~13:50Z)
+
+The container restarted while RING-2's implementer was between its
+mesh commit and the geom-brep leg. Its worktree survived: five commits
+past the spec (the newtype, the census and the collapsed allowlist,
+three corpora re-pinned, geom's and mesh's dominance rows) were pushed
+by the orchestrator as they stood, its 71-line uncommitted diff saved
+beside the briefs, and a fresh lane on the same arm resumed from that
+branch with instructions to re-verify everything before trusting it.
+LANE-1's implementer had already reported (its file) and its frozen
+head was already green; its dual dispatched on schedule. The restart
+also killed every watcher; re-armed.
