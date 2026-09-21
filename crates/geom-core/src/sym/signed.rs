@@ -510,9 +510,7 @@ pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
         )
     };
     let den = enclose(&d.den)?;
-    let den_positive = if manifest::positive(&Form::poly(d.den.clone()), sess) {
-        true
-    } else if den.lo() > 0.0 {
+    let den_positive = if manifest::positive(&Form::poly(d.den.clone()), sess) || den.lo() > 0.0 {
         true
     } else if den.hi() < 0.0 {
         false

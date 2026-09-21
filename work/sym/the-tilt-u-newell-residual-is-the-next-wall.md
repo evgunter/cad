@@ -68,3 +68,24 @@ next one, not the one it was drawn for.
 ## Home
 
 SYM. Filed by SYM-8 at its PR (2026-09-15).
+
+## ANSWERED by DECIDE-3 (2026-09-21)
+
+The wall is gone. With rule G (the canonical square root at the one
+mint site) and the decision read shipped, the tilt-`u` derived boss at
+`half = 1e-3` under `Guided` CERTIFIES: `carrier_endpoint_end` is
+32/16/0/0 (nothing numeric) and no refusal is left, where the row
+`m10_the_tilt_u_derived_boss_stops_on_the_newell_residual_and_names_it`
+used to assert a `newell_plane_residual` straddle. The row is renamed
+`m10_the_tilt_u_derived_boss_certifies_once_the_read_settles_its_frame`
+and asserts the certification; the F-off half is unchanged, so the day
+rule F's own wall moves it still reds and says which.
+
+Why the straddle went: the residual was over a frame whose candidate
+norms the tier keyed as unrelated atoms. Rule G keys every root on its
+argument's value class, so `S` and `sqrt(1/S²)` are one quantity again
+and the sum cancels; the sixteen comparisons that are left are the
+frame's conditioning floors, which no form settles and the read
+certifies over the box.
+
+This row closes with DECIDE-3's merge.

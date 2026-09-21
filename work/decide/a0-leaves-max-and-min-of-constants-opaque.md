@@ -47,3 +47,30 @@ lands first.
 ## Home
 
 `crates/geom-core/src/sym.rs` (`combine`). Filed by SYM-10's lane.
+
+## More evidence (DECIDE-3, 2026-09-21)
+
+The gap is now visible in three more places, and in each one a
+THEOREM is being reported as a READ because A0 leaves the comparison
+opaque and the decision read then answers it over the box:
+
+- the M10-3 **slab**: eight `numeric` decisions become `sign_gated`
+  under the shipped set (`m10_8_pins_interval::m10_8_the_shipped_set_is_inert_on_straight_geometry`,
+  `symbolic_zero` unmoved at 482, `numeric` 263 → 255). On straight
+  geometry every one of those comparisons is between two CONSTANTS;
+  with this row answered they would be theorems and the slab would be
+  inert again.
+- the **plate**'s `line_span`, `[0, 0, 0, 8] → [0, 8, 0, 0]`
+  (`m10_10_pins_interval`), and the segment boss's, `[0, 0, 0, 2] →
+  [0, 2, 0, 0]` (`m10_bulge_interval`).
+- the derived-frame row's **A0 rung**: A0 alone still freezes ten on
+  the height document — the products under `1/max(1, min(1, max(0,
+  1))/4)` — and stops at the gate's `carrier_endpoint_start` one step
+  before the plain tier's clause-1 margin
+  (`m10_derived_frame_interval::m10_the_derived_frames_refusal_is_not_a_freeze`,
+  re-aimed by DECIDE-3 with this row as the reason).
+
+So the fold is worth its own unit: it is value-free, it belongs in
+A0's own class (an exact comparison of two rationals), and it converts
+reads back into theorems, which is the one direction the receipt is
+allowed to move in.

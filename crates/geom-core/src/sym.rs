@@ -537,6 +537,59 @@
 //! documents — it removes indeterminates and mints none.
 //! [`SymRules::without_rule_f`] is SYM-5's tier bit for bit.
 //!
+//! # Rule G — the canonical square root (DECIDE-3)
+//!
+//! **Two spellings of one real that the tier keys as two
+//! indeterminates cannot cancel, and an atom has no way back.** A
+//! candidate norm on a tilted frame is made of exactly that: the
+//! normal's own root `S = sqrt(P)` beside `‖v‖ = sqrt(1/S²)`, which
+//! rule A turns into `sqrt(1/X)` and rule E's scale step spells as
+//! `sqrt((16/17)/(1 + 8t/17 + 16t²/17))` — a root over a QUOTIENT,
+//! keyed on a form nothing else is keyed on, so the number one
+//! `S · sqrt(1/X)` stands in every denominator of the residual for
+//! ever.
+//!
+//! [`SymRules::canonical_root`] makes a `Sqrt` atom's key a function
+//! of its argument's VALUE CLASS instead: the quotient split
+//! `sqrt(N/D) = sqrt(N)/sqrt(D)` under the `D ≥ 0` side condition
+//! [`root`] argues once, each half's rational content taken out
+//! (`p = c·p'`, `c = s²·f`, `s` exactly and `sqrt(f)` a constant atom)
+//! over a primitive integer polynomial, and `sqrt(R²) = |R|` through
+//! rule F's own magnitude door. Every identity is one of reals
+//! wherever the value exists, and none of them reads a value — the
+//! side condition's fourth source does, and rides rule C's dial.
+//!
+//! **It lives at the ONE mint site** ([`root::mint`]): the walk's
+//! `Sqrt` arm and rule D's hand-built roots ([`trig`]) both go through
+//! it, and the registered-identity door consults the same early walk,
+//! so a registrant's `‖q − c‖` and the walk's meet by construction
+//! rather than by coincidence. Rule A is extended with `|X|² = X²`
+//! for the same reason: a root that reduced through `sqrt(R²)² → R²`
+//! must keep reducing once it is spelled `|R|`.
+//!
+//! # The decision read (DECIDE-3)
+//!
+//! **`max(A, B)` IS `select(B − A, A, B)`**, and the frames the
+//! sign-hull construction builds are full of both: a decision whose
+//! arms are candidate axes, and a conditioning floor `max(‖v‖, k·s)`
+//! whose candidates are NOT unit (`‖e_k × n‖ = sqrt(1 − n_k²)`), so no
+//! manifest bound reaches it. [`SymRules::decision_read`] answers both
+//! with rule C's shape at the ops rule C never reached: where the
+//! decision's sign is CERTIFIED over the leaf's box the arm is
+//! determined there, and the form the door takes is that arm's, gated.
+//! [`signed`] carries the deep enclosure (through `sqrt`/`abs`/`min`/
+//! `max` atoms over parameters and π) and the manifestly-positive
+//! content stripping that makes a dressed-up decision readable.
+//!
+//! **Ordered behind every value-free fold** — after A0, after rule F,
+//! over kids whose roots rule G has already minted — because a read
+//! that runs before an atom is minted re-labels as a READ anything the
+//! atom would have cancelled against. What it takes on straight
+//! geometry is the measure of that: the M10-3 slab's `symbolic_zero`
+//! is unmoved at 482 and the eight decisions the read answers come out
+//! of `numeric`, not out of the theorems
+//! (`m10_8_pins_interval`).
+//!
 //! # Node ids are CONTENT HASHES (D9)
 //!
 //! A node's id is a 128-bit structural hash of `(op, children ids,
