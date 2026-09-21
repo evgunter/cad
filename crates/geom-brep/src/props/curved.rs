@@ -2533,9 +2533,11 @@ fn sphere_meridian_span_levels<T: Decide>(
 /// `from_chart`'s own arm.
 ///
 /// **This is a per-rim, per-face fact and must stay one.** Every
-/// factor is this rim's stored direction or the face's own bit: no
-/// other rim is read, so the same body under two loop anchorings
-/// yields the same σ on the same rim, and the verdict
+/// factor is a rim's stored direction or the face's own bit — and the
+/// signature says so: it takes the DIRECTION, not a rim, so no other
+/// field and no other rim is reachable from here. The same body under
+/// two loop anchorings yields the same σ on the same rim, and the
+/// verdict
 /// [`require_rim_interior_sides`] records with it is a fact about the
 /// face rather than about where a cycle happens to start. The two
 /// predicates that are NOT — `props_rim_side` (whichever rim
@@ -2556,9 +2558,9 @@ fn sphere_meridian_span_levels<T: Decide>(
 /// bit at tier 3's check 6. A cylinder reaches neither: its rim-only
 /// face has no extent to name at all
 /// (`a_cylinder_rim_only_face_is_extent_less`).
-fn rim_interior_side<T: Real>(rim: &Rim<T>, sense: bool) -> Sign {
+fn rim_interior_side(d_u_sign: Sign, sense: bool) -> Sign {
     sign_mul(
-        rim.d_u_sign,
+        d_u_sign,
         if sense {
             Sign::Positive
         } else {
@@ -2614,7 +2616,7 @@ fn require_rim_interior_sides<T: Decide>(
 ) -> Result<(), PropsError> {
     let mut refusal = None;
     for rim in &b.rims {
-        let sigma = rim_interior_side(rim, sense);
+        let sigma = rim_interior_side(rim.d_u_sign, sense);
         let out = match classify(
             "props_rim_interior_side",
             rim_offset_margin(rim.level, lo, hi, b.arms, sigma),
@@ -2677,10 +2679,10 @@ fn sphere_rim_only_pole_level<T: Decide>(
     {
         return Ok(());
     }
-    if unanimous_rim_dir(&b.rims).is_none() {
+    let Some(dir) = unanimous_rim_dir(&b.rims) else {
         return Ok(());
-    }
-    let sigma = rim_interior_side(&b.rims[0], sense);
+    };
+    let sigma = rim_interior_side(dir, sense);
     require_rim_only_closed(edges, span_sum(&b.rims), b.arms.azimuth, band)?;
     b.levels.push(t_sign::<T>(sigma));
     Ok(())
