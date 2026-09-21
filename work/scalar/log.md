@@ -816,3 +816,12 @@ RING-2's spec: what `from_certified` returns under cut (ii) decides
 half the hazard list; the red set is conditional on the `hull` /
 `clamped_to` guards; the register wants to be executable. Fix pass
 dispatched on the OPUS arm.
+
+## LANE-0's bound cascade, announced (2026-09-21)
+
+The fix pass's ruling reached ground the spec's fence did not name: the
+`AtRestPolicy` bound propagated to REACH's `crates/topo/src/boolean/ops.rs`
+(nine doors), WIRE's `crates/editor-core/src/eval/wire.rs` (eleven
+helpers) and `crates/verbs/src/run.rs` (two `impl` blocks), plus
+`shell.rs` — 47 bound edits, zero call-site edits, disclosed at that
+width in the PR body. Announced here to REACH and WIRE.
