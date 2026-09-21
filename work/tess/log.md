@@ -321,3 +321,32 @@ run and killed before the outage took the target dir. No A/B row
   `mesh-message-less-ordering-asserts-have-no-unit`). TINT holds the
   unswept-asserts row and the two-helpers-opposite-operand-orders row.
 - The NURBS bound row stays open on TESS-2. Lane clone reclaimed.
+
+## TESS-1 frozen and in dual review (2026-09-20)
+
+PR 2852 at `7a5fe831e`, hosted full matrix green (run 35550649883).
+`TessellateError::MeridianFreeCurvedFace { face, surface }`, raised in
+`walk::loop_polygon` by `require_a_meridian` right after `traversals`.
+Ordinal **5100** claimed on main (PR 2962); the R1/R2 draw, the stored
+briefs' hashes and the implementer-phase gap are on `tess/b1-block`.
+Both reviewers dispatched concurrently on the frozen head with
+identical briefs (modulo the lane label) served from neutral paths, so
+neither reads the block branch.
+
+- **The lane treated my post-outage RESUME message as untrusted**
+  because the harness delivered it inside a tool result; it re-derived
+  the state itself (target dir gone, main moved) and carried on per the
+  brief. Correct behaviour, and worth knowing: a resume message may not
+  arrive looking like the orchestrator's.
+- Lane findings with homes already: the all-meridians torus meshes as
+  a hole (`rim-free-loop-on-a-poleless-chart-meshes-as-a-hole`); the
+  trimmed and planar lanes can answer `Ok` on an empty patch, by
+  reading only (`trimmed-and-planar-lanes-answer-ok-on-an-empty-patch`);
+  LIB's guide and `.pyi` lag the refusal list; TINT's poleguard prose.
+- Not yet homed, mine to check at adjudication: `geom-brep/README.md`
+  item (6) cites `UnsupportedCurvedShape` for general trimmed faces
+  (looks stale); slot-2's build lock carries a dead holder record
+  (pid 142349, "exclusive" since 09-14) that the wrapper reads as stale.
+- **TESS-2 is held** until the reviews return: three concurrent
+  targets do not fit in 16 G, and the protocol prefers less concurrency
+  to a narrowed method.
