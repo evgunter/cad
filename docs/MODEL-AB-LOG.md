@@ -7268,6 +7268,23 @@ its first claim: the `Some` read at a new per-scalar seam trait
 (`OffsetFitScalar`) rather than threaded from the `f64` seam arms.
 Sample number at merge. Row at merge.
 
+## RING-0 review ordinal fixed at dispatch (2026-09-21)
+
+`ring-0-poison-differential` (RING-0; SCALAR; PR #2993 open — frozen
+head `146ef44906`; dry-run branch `scalar/ring-0-dry-run` at
+`a1555ab6d0`, never merged): **ordinal 4112** (SCALAR band). Protocol
+v6 dual: draw = `/dev/urandom` byte **23**, parity 1 ⇒ **R1 = FABLE,
+R2 = OPUS**, concurrent on the frozen head, read-side isolation (v6
+item 5), briefs identical and stored before either ran, with a line
+telling both arms that the branch's spec commit is the orchestrator's.
+Pre-draw difficulty **M / test lane** (recorded branch-side in the
+block SCALAR-B5 pre-draw section on 2026-09-21 before the block's byte
+244, which put the OPUS arm on slot 0). Impl phase: ~1 h 50 min wall
+(dispatched 07:03Z, PR and green run 08:52Z); impl CI **35577652630**
+GREEN on the head (twelve `test` jobs, five `k-lint (gate, …)`, the
+python suite, `gate ok`; no `src` change on the merged branch, no
+predicate-count change). Sample number at merge. Row at merge.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
