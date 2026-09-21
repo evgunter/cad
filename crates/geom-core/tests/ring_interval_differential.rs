@@ -83,22 +83,48 @@
 //!
 //! So, per operation and **before** the endpoint comparison, each lane
 //! asserts `ring.is_poison() == oracle refuses`, over
-//! `+ − × ÷ neg sqr powi`. Every disagreement must fall in
+//! `+ − × ÷ neg sqr powi` — `powi` at eleven exponents covering both
+//! signs and both chain shapes ([`EXPONENTS`]: the powers of two whose
+//! chain only squares, the mixed-bit ones whose chain also multiplies,
+//! and negative exponents of each). Every disagreement must fall in
 //! [`ALLOWLIST`], a closed list of characterised classes, each
-//! recognised by a predicate on the operation's **inputs** and each
-//! counted and printed. A disagreement matching no class fails the lane
-//! and prints `fuzz::replay()`.
+//! recognised by a predicate on the operation's **inputs**, each
+//! naming the DIRECTION it runs in, and each counted and printed beside
+//! the number of comparisons its predicate holds of. A disagreement
+//! matching no class — or matching one that runs the other way — fails
+//! the lane and prints `fuzz::replay()`.
 //!
-//! All three live classes are one fact: the ring poisons on an
-//! indeterminate IEEE corner (`0 · ±inf` in `×`, `±inf / ±inf` in `÷`)
-//! that reaches its NaN-propagating corner reduction, where the backend
-//! resolves the same corner by convention — `mul_lo`/`mul_hi` answer `0`
-//! for a zero operand, and the `f64::min`/`f64::max` fold drops a NaN
-//! corner — and keeps a decoration of `Dac`. The disagreement is
-//! one-directional: no class has the backend refusing where the ring
-//! does not.
+//! **Two mechanisms, four classes.** Classes 1–3 are one fact: the ring
+//! poisons on an indeterminate IEEE corner (`0 · ±inf` in `×`,
+//! `±inf / ±inf` in `÷`, and `0 · ±inf` once more at a multiply inside
+//! `powi`'s chain) that reaches its NaN-propagating corner reduction,
+//! where the backend resolves the same corner by convention —
+//! `mul_lo`/`mul_hi` answer `0` for a zero operand, and the
+//! `f64::min`/`f64::max` fold drops a NaN corner — and keeps a
+//! decoration of `Dac`.
 //!
-//! Three shapes a reader expects here and will not find:
+//! Class 4 runs the other way, and is a pad count rather than a corner.
+//! For a NEGATIVE exponent both types divide by the positive power, and
+//! the backend's `pow_pos` seeds its accumulator at `[1, 1]` and
+//! multiplies where the ring seeds at the first set bit — one outward
+//! pad more. Below the normal floor a pad is an absolute `5e-324`
+//! rather than a relative step, so that extra pad is the whole
+//! difference between a positive power that touches zero (the backend:
+//! the reciprocal divides by a zero-touching bracket and is `Trv`) and
+//! one that does not (the ring: a one-signed divisor, and the quotient
+//! certifies). `[5e-324, 1].powi(-1)` is the smallest witness — ring
+//! `[0.999…, inf]`, backend `[1, inf]` at `Trv`.
+//!
+//! So the direction is a per-class fact rather than a property of the
+//! whole allowlist: classes 1–3 are the ring poisoning where the
+//! backend certifies, class 4 the backend refusing where the ring
+//! certifies, and [`Class::direction`] makes each of those executable.
+//! **No production call site reaches class 4**: every ring exponent in
+//! `crates/*/src` is positive — `2`…`5`, in `props/quad.rs`'s
+//! quadrature weights and `offset_fit.rs`'s `w.powi(3)`.
+//!
+//! Two shapes a reader expects here and will not find, each with its
+//! own row in `crates/geom-core/tests/ring0_review_probes.rs`:
 //!
 //! - **`point(±inf)`** is not a class. Both types refuse it —
 //!   `RingInterval::point` is poison and `DInterval::point` is NaI — so
@@ -108,8 +134,12 @@
 //!   hold of every operand, and the ring's `finish` and the backend's
 //!   `make` preserve both; no sum or difference of two valid brackets
 //!   forms the indeterminate difference.
-//! - **Overflow** is not a class. An overflowed corner saturates to
-//!   `±inf` in both types and both report the honest unbounded side.
+//!
+//! **Overflow is a third such shape for `+ − × ÷`** — an overflowed
+//! corner saturates to `±inf` in both types and both report the honest
+//! unbounded side — **and is not one for `powi`**, where an overflow
+//! inside the chain supplies the `inf` of class 3 and an underflow to
+//! the subnormal floor is class 4.
 //!
 //! **Division agrees wherever it refuses for the reason the ring was
 //! specified to refuse**: a divisor that straddles or touches zero is
@@ -251,8 +281,21 @@ impl Ends {
         Self { lo, hi }
     }
 
+    /// This pair as the ring builds it. The chain model reads the ring
+    /// through its own public ops rather than restating its pads.
+    fn ring(self) -> RingInterval {
+        RingInterval::from_bounds(self.lo, self.hi)
+    }
+
+    /// The endpoints of a ring value, or `None` for poison.
+    fn of(r: RingInterval) -> Option<Self> {
+        (!r.is_poison()).then(|| Self::new(r.lo(), r.hi()))
+    }
+
     /// The exact zero enclosure, which both `Mul` rules answer with
-    /// `[0,0]` before any corner is formed.
+    /// `[0,0]` before any corner is formed. Pinned against the ring's
+    /// own annihilator by
+    /// [`the_exact_zero_annihilator_is_the_rings_own`].
     fn is_exact_zero(self) -> bool {
         self.lo == 0.0 && self.hi == 0.0
     }
@@ -273,34 +316,40 @@ impl Ends {
         self.lo <= 0.0 && self.hi >= 0.0
     }
 
-    /// Whether `powi(n)`'s repeated-squaring accumulator reaches BOTH an
-    /// exactly-zero endpoint and an infinite one — the two factors of
-    /// the `0 · inf` corner the chain's multiply then forms.
+    /// The `0 · ±inf` corner, asked of a pair the ring is about to
+    /// multiply: an exactly-zero endpoint on one side, an infinite one
+    /// on the other, and neither side the exact zero the annihilator
+    /// answers first. Class 1 asks it of the operands; class 3 asks it
+    /// of [`powi_chain`]'s multiply, one level in.
+    fn times_forms_an_indeterminate_corner(self, other: Self) -> bool {
+        !self.is_exact_zero()
+            && !other.is_exact_zero()
+            && ((self.has_zero_endpoint() && other.is_unbounded())
+                || (other.has_zero_endpoint() && self.is_unbounded()))
+    }
+
+    /// Whether `self^|n|`, as the RING computes it, is one-signed but
+    /// sits within the chain's pad count of zero — class 4's input
+    /// predicate.
     ///
-    /// The chain squares the base `floor(log2 |n|)` times, so this walks
-    /// the same depth over the bracket's smallest and largest
-    /// magnitudes, reproducing the ring's pads (`next_down` clamped at
-    /// `0.0` below, `next_up` above). A bracket straddling zero — which
-    /// an exactly-zero endpoint of either sign already implies — starts
-    /// at zero, and an unbounded one starts at infinity, so neither
-    /// needs a squaring to qualify.
-    fn chain_spans_zero_and_infinity(self, n: i32) -> bool {
-        let mut small = if self.spans_zero() {
-            0.0
-        } else {
-            self.lo.abs().min(self.hi.abs())
-        };
-        let mut large = self.lo.abs().max(self.hi.abs());
-        let mut reaches_zero = small == 0.0;
-        let mut reaches_infinity = large.is_infinite();
-        let squarings = (i32::BITS - 1) - (n.unsigned_abs() | 1).leading_zeros();
-        for _ in 0..squarings {
-            small = (small * small).next_down().max(0.0);
-            large = (large * large).next_up();
-            reaches_zero |= small == 0.0;
-            reaches_infinity |= large.is_infinite();
+    /// The backend reaches the same power through `pow_pos`, which
+    /// seeds its accumulator at `[1, 1]` and multiplies where the ring
+    /// seeds at the first set bit: one outward pad more, and the rest
+    /// of the two chains pad step for step. Below the normal floor a
+    /// pad is an absolute `5e-324`, so the two powers' smaller
+    /// endpoints can differ by at most one step per chain operation —
+    /// which is the bound here, and is what separates a backend power
+    /// that touches zero (reciprocal `Trv`) from a ring power that
+    /// does not (reciprocal certified).
+    fn positive_power_is_within_a_pad_of_zero(self, n: i32) -> bool {
+        let (power, corner) = powi_chain(self, n);
+        let Some(p) = power else { return false };
+        if corner || !p.strictly_one_signed() {
+            return false;
         }
-        reaches_zero && reaches_infinity
+        let squarings = (i32::BITS - 1) - (n.unsigned_abs() | 1).leading_zeros();
+        let pads = f64::from(squarings + n.unsigned_abs().count_ones() + 1);
+        p.lo.abs().min(p.hi.abs()) <= pads * f64::from_bits(1)
     }
 
     fn strictly_one_signed(self) -> bool {
@@ -316,15 +365,62 @@ impl Ends {
     }
 }
 
+/// [`RingInterval::powi`]'s chain for `|n|`, walked with the ring's OWN
+/// `sqr` and `Mul`: ascending bit order, the accumulator squared after
+/// each bit, the first set bit seeding the result directly. Returns the
+/// positive power and whether any MULTIPLY in the chain formed the
+/// `0 · ±inf` corner.
+///
+/// That multiply is the ring's only way to poison a power: `sqr` pairs
+/// a bracket with itself, whose four corners are two squares, so it
+/// cannot form the indeterminate product.
+///
+/// No pad rule is restated here — only the association is, and
+/// [`the_chain_model_reproduces_powi`] reds if the ring changes it.
+fn powi_chain(base: Ends, n: i32) -> (Option<Ends>, bool) {
+    let b = base.ring();
+    let mut result = b;
+    let mut seeded = false;
+    let mut acc = b;
+    let mut e = n.unsigned_abs();
+    let mut corner = false;
+    while e > 0 {
+        if e & 1 == 1 {
+            if seeded {
+                if let (Some(x), Some(y)) = (Ends::of(result), Ends::of(acc)) {
+                    corner |= x.times_forms_an_indeterminate_corner(y);
+                }
+                result = result * acc;
+            } else {
+                result = acc;
+                seeded = true;
+            }
+        }
+        e >>= 1;
+        if e > 0 {
+            acc = acc.sqr();
+        }
+    }
+    (Ends::of(result), corner)
+}
+
 impl core::fmt::Display for Ends {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "[{:e}, {:e}]", self.lo, self.hi)
     }
 }
 
+/// The exponents every `powi` comparison runs at. Both signs, and both
+/// chain shapes at each: a power of two only squares (`2`, and `-2`),
+/// a mixed-bit exponent also multiplies (`3 5 6 7 31`, and `-3`), `±1`
+/// is the bare base and its bare reciprocal, and `0` is the constant.
+/// Classes 3 and 4 live on opposite signs of this list, so sampling one
+/// sign hides one of them.
+const EXPONENTS: [i32; 11] = [-3, -2, -1, 0, 1, 2, 3, 5, 6, 7, 31];
+
 /// The operations both types share. `Sqr` is the ring's `sqr` against
 /// the oracle's `powi(2)`; `Powi` carries its exponent because the
-/// allowlist's third class reads it.
+/// allowlist's `powi` classes read it.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Op {
     Add,
@@ -380,17 +476,45 @@ impl core::fmt::Display for Op {
 
 // ------------------------------------------------------- the allowlist
 
+/// Which way a verdict disagreement runs.
+///
+/// The module's claim about direction is a per-class fact, and this is
+/// what makes it executable: a class excuses a disagreement only in
+/// the direction it names, so a backend that started refusing where
+/// class 1, 2 or 3 holds would fail the lane rather than be waved
+/// through by a predicate that happens to hold of its inputs.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Direction {
+    /// The ring poisons where the backend certifies.
+    RingPoisons,
+    /// The backend refuses where the ring certifies.
+    BackendRefuses,
+}
+
+impl Direction {
+    fn of(ring_poisons: bool) -> Self {
+        if ring_poisons {
+            Self::RingPoisons
+        } else {
+            Self::BackendRefuses
+        }
+    }
+}
+
 /// One characterised class of verdict disagreement, recognised by a
-/// predicate over the operation and its input brackets.
+/// predicate over the operation and its input brackets and running in
+/// one named direction.
 struct Class {
     name: &'static str,
+    direction: Direction,
     holds: fn(Op, Ends, Ends) -> bool,
 }
 
-/// The closed allowlist. A verdict disagreement outside it fails the
-/// lane; see the module docs for why these three are one fact and for
-/// the classes that are NOT here.
-const CLASSES: usize = 3;
+/// The closed allowlist. A verdict disagreement outside it — or inside
+/// a class but running the other way — fails the lane; see the module
+/// docs for the two mechanisms behind the four, and for the classes
+/// that are NOT here.
+const CLASSES: usize = 4;
 const ALLOWLIST: [Class; CLASSES] = [
     // `a · b` where one bracket has an exactly-zero endpoint and the
     // other an infinite one, and neither is the exact zero the
@@ -400,13 +524,8 @@ const ALLOWLIST: [Class; CLASSES] = [
     // `Dac` bracket.
     Class {
         name: "mul-zero-times-infinite",
-        holds: |op, a, b| {
-            op == Op::Mul
-                && !a.is_exact_zero()
-                && !b.is_exact_zero()
-                && ((a.has_zero_endpoint() && b.is_unbounded())
-                    || (b.has_zero_endpoint() && a.is_unbounded()))
-        },
+        direction: Direction::RingPoisons,
+        holds: |op, a, b| op == Op::Mul && a.times_forms_an_indeterminate_corner(b),
     },
     // `a / b` with both brackets unbounded and the divisor proven
     // one-signed (a divisor touching zero is refused by both): the
@@ -415,27 +534,39 @@ const ALLOWLIST: [Class; CLASSES] = [
     // sound `Dac` bracket built from the remaining corners.
     Class {
         name: "div-infinite-over-infinite",
+        direction: Direction::RingPoisons,
         holds: |op, a, b| {
             op == Op::Div && a.is_unbounded() && b.is_unbounded() && b.strictly_one_signed()
         },
     },
-    // `a.powi(n)` for `n >= 3` with more than one set bit — the
-    // exponents whose repeated-squaring chain performs a MULTIPLY rather
-    // than only squaring, so powers of two are not in the class — on a
-    // base whose chain reaches both an exactly-zero endpoint and an
-    // infinite one. That multiply is then the `0 · inf` corner above,
-    // one level in; the base need not itself be unbounded, because a
-    // finite magnitude that overflows under squaring supplies the `inf`
+    // `a.powi(n)`, `n > 0`, whose chain performs a MULTIPLY on a pair
+    // that forms the `0 · ±inf` corner above — class 1 one level in.
+    // The chain is walked with the ring's own ops, so this holds of
+    // exactly the inputs whose positive power the ring poisons: the
+    // exponents that only square (`1`, `2`, and every other power of
+    // two) never reach it, and a finite magnitude that overflows under
+    // squaring supplies the `inf` without the base being unbounded
     // (`[-MAX, -0.0].powi(3)` is the smallest witness).
-    //
-    // Negative exponents are NOT in the class: the ring reaches the same
-    // corner and poisons, and the backend agrees, because a chain that
-    // reaches zero makes the positive power's bracket touch zero and the
-    // reciprocal is then `Trv`.
     Class {
-        name: "powi-chain-spans-zero-and-infinity",
+        name: "powi-chain-forms-the-zero-times-infinite-corner",
+        direction: Direction::RingPoisons,
         holds: |op, a, _b| match op {
-            Op::Powi(n) => n >= 3 && n.count_ones() >= 2 && a.chain_spans_zero_and_infinity(n),
+            Op::Powi(n) => n > 0 && powi_chain(a, n).1,
+            _ => false,
+        },
+    },
+    // `a.powi(n)`, `n < 0`, on a base whose positive power the ring
+    // keeps one-signed but within the chain's pad count of zero. The
+    // backend's `pow_pos` carries one outward pad more, which below the
+    // normal floor is the whole value: its positive power touches zero,
+    // its reciprocal divides by a zero-touching bracket and is `Trv`,
+    // and the ring's reciprocal certifies. The one class that runs
+    // backend-refuses; `[5e-324, 1].powi(-1)` is the smallest witness.
+    Class {
+        name: "powi-negative-reciprocal-of-a-power-a-pad-from-zero",
+        direction: Direction::BackendRefuses,
+        holds: |op, a, _b| match op {
+            Op::Powi(n) => n < 0 && a.positive_power_is_within_a_pad_of_zero(n),
             _ => false,
         },
     },
@@ -570,6 +701,13 @@ struct Tally {
     verdicts_agreed: u64,
     /// Verdict disagreements per [`ALLOWLIST`] class.
     allowed: [u64; CLASSES],
+    /// Verdict comparisons whose INPUTS each class's predicate holds
+    /// of, disagreeing or not. Printed beside `allowed`, because the
+    /// gap between them is the slack in the predicate — the region
+    /// where a second mechanism could hide behind a class that already
+    /// excuses this direction, and the only place the lane measures
+    /// it.
+    holds: [u64; CLASSES],
     /// Divisions both types refuse because the divisor is not proven
     /// away from zero — the agreement the ring's `Div` doc claims.
     div_touching_zero_agreed: u64,
@@ -585,6 +723,10 @@ impl Tally {
     /// about the two arithmetics and fails here.
     fn verdict(&mut self, op: Op, a: Ends, b: Ends, ring: RingInterval, oracle_refuses: bool) {
         self.verdicts[op.slot()] += 1;
+        let holds: [bool; CLASSES] = core::array::from_fn(|i| (ALLOWLIST[i].holds)(op, a, b));
+        for (slot, held) in self.holds.iter_mut().zip(holds) {
+            *slot += u64::from(held);
+        }
         if ring.is_poison() == oracle_refuses {
             self.verdicts_agreed += 1;
             if op == Op::Div
@@ -597,11 +739,12 @@ impl Tally {
             }
             return;
         }
-        let class = ALLOWLIST.iter().position(|c| (c.holds)(op, a, b));
+        let observed = Direction::of(ring.is_poison());
+        let class = (0..CLASSES).find(|&i| holds[i] && ALLOWLIST[i].direction == observed);
         assert!(
             class.is_some(),
-            "{op}: ring {} but backend {} on a = {a}{} — no allowlist class holds of these \
-             inputs, so this is a new disagreement between the two arithmetics — {}",
+            "{op}: ring {} but backend {} on a = {a}{} — no allowlist class {} — so this is a \
+             new disagreement between the two arithmetics — {}",
             if ring.is_poison() {
                 "poisons"
             } else {
@@ -616,6 +759,13 @@ impl Tally {
                 format!(", b = {b}")
             } else {
                 String::new()
+            },
+            match (0..CLASSES).find(|&i| holds[i]) {
+                Some(i) => format!(
+                    "runs {observed:?} on these inputs ({} holds, but it runs {:?})",
+                    ALLOWLIST[i].name, ALLOWLIST[i].direction
+                ),
+                None => "holds of these inputs".to_string(),
             },
             fuzz::replay()
         );
@@ -731,7 +881,8 @@ impl Tally {
         let per_class: Vec<String> = ALLOWLIST
             .iter()
             .zip(self.allowed)
-            .map(|(c, n)| format!("{} {n}", c.name))
+            .zip(self.holds)
+            .map(|((c, n), h)| format!("{} {n} allowed / {h} holds", c.name))
             .collect();
         println!(
             "[{label}] verdicts by op: {}; {} agreed; allowlisted disagreements: {}; \
@@ -776,7 +927,7 @@ fn compare_ops<O: Oracle>(t: &mut Tally, a: Ends, b: Ends) {
             None => t.skipped += 1,
         }
     }
-    for n in [-3i32, 0, 1, 2, 3, 5] {
+    for n in EXPONENTS {
         let op = Op::Powi(n);
         let ring = r.powi(n);
         let oracle = d.powi(n);
@@ -800,12 +951,15 @@ fn fuzz_lane<O: Oracle>() {
         compare_ops::<O>(&mut t, a, b);
     }
     t.report(O::LABEL);
-    // COVERAGE FLOOR, kept proportional to the round count: each round
-    // offers 12 comparisons and historically ~30% survived the skip
-    // filters (1M verdicts from 300k rounds). Three per round is that
-    // ratio with headroom; below it the lane is not comparing anything.
+    // COVERAGE FLOOR, kept proportional to the round count. Each round
+    // offers 17 endpoint comparisons (six shared ops and eleven
+    // exponents) and the skip filters take about a fifth of them, so
+    // the lane lands near 13 per round; a third of that is the floor.
+    // It is a not-comparing-anything guard, not a coverage target —
+    // the closure claim is the allowlist's, and the deterministic
+    // corner sweep is where it cannot be starved.
     assert!(
-        t.endpoint_comparisons() > 3 * n as u64,
+        t.endpoint_comparisons() > 4 * n as u64,
         "lane ran too thin: {} endpoint comparisons over {n} rounds — {}",
         t.endpoint_comparisons(),
         fuzz::replay()
@@ -874,30 +1028,102 @@ fn corner_sweep<O: Oracle>() -> Tally {
 /// — and it is written down rather than hunted for: the corner corpus is
 /// small enough to sweep exhaustively, so every class count below is a
 /// fact about the two arithmetics rather than a draw.
-#[test]
-fn verdict_allowlist_is_closed_over_the_corner_corpus() {
-    let t = corner_sweep::<DInterval>();
+///
+/// One body for both oracles: a second copy is how one of them ends up
+/// with the weaker message.
+fn assert_the_allowlist_is_closed_over_the_corner_corpus<O: Oracle>() {
+    let t = corner_sweep::<O>();
     for (class, n) in ALLOWLIST.iter().zip(t.allowed) {
         assert!(
             n > 0,
-            "{} matched nothing in the corner corpus: either the class is dead and the \
+            "[{}] {} matched nothing in the corner corpus: either the class is dead and the \
              allowlist should lose it, or the corpus no longer reaches it",
+            O::LABEL,
             class.name
         );
     }
     assert!(
         t.div_touching_zero_agreed > 0,
-        "the corner corpus formed no division by a zero-touching divisor, so the \
-         agreement the ring's Div doc claims is untested here"
+        "[{}] the corner corpus formed no division by a zero-touching divisor, so the \
+         agreement the ring's Div doc claims is untested here",
+        O::LABEL
     );
+}
+
+#[test]
+fn verdict_allowlist_is_closed_over_the_corner_corpus() {
+    assert_the_allowlist_is_closed_over_the_corner_corpus::<DInterval>();
 }
 
 #[cfg(feature = "interval")]
 #[test]
 fn verdict_allowlist_is_closed_over_the_corner_corpus_at_the_interval_scalar() {
-    let t = corner_sweep::<geom_core::Interval>();
-    for (class, n) in ALLOWLIST.iter().zip(t.allowed) {
-        assert!(n > 0, "{} matched nothing in the corner corpus", class.name);
+    assert_the_allowlist_is_closed_over_the_corner_corpus::<geom_core::Interval>();
+}
+
+// ------------------------------------- the ring rules the file copies
+
+/// Pins the one ring rule [`powi_chain`] restates — `powi`'s
+/// association — against the ring's own `powi`, over the corner corpus
+/// at every exponent the lanes run.
+///
+/// The chain model exists so classes 3 and 4 can read the multiply
+/// step, which `powi` does not expose; nothing else ties the two
+/// together, so a change to the association or to the seeding rule
+/// would silently move the classes. It reds here instead.
+#[test]
+fn the_chain_model_reproduces_powi() {
+    for a in corner_brackets() {
+        for n in EXPONENTS {
+            if n == 0 {
+                continue;
+            }
+            let m = n.unsigned_abs() as i32;
+            let (modelled, corner) = powi_chain(a, n);
+            let actual = a.ring().powi(m);
+            let observed = Ends::of(actual);
+            assert_eq!(
+                modelled.is_some(),
+                observed.is_some(),
+                "powi({m}) on {a}: the chain model and the ring disagree on whether the \
+                 power poisons"
+            );
+            if let (Some(x), Some(y)) = (modelled, observed) {
+                assert!(
+                    x.lo.to_bits() == y.lo.to_bits() && x.hi.to_bits() == y.hi.to_bits(),
+                    "powi({m}) on {a}: the chain model gives {x}, the ring gives {y}"
+                );
+            }
+            assert_eq!(
+                corner,
+                actual.is_poison() && !a.ring().is_poison(),
+                "powi({m}) on {a}: the chain model's corner flag and the ring's poison disagree"
+            );
+        }
     }
-    assert!(t.div_touching_zero_agreed > 0);
+}
+
+/// Pins the annihilator [`Ends::is_exact_zero`] names: the ring answers
+/// `[0,0] · x` with `[0,0]` before any corner is formed, which is why
+/// class 1 excludes an exactly-zero operand rather than counting it as
+/// half a `0 · inf` pair.
+#[test]
+fn the_exact_zero_annihilator_is_the_rings_own() {
+    let zero = Ends::new(0.0, 0.0);
+    assert!(zero.is_exact_zero());
+    for b in corner_brackets() {
+        if !b.is_a_bracket() {
+            continue;
+        }
+        let p = zero.ring() * b.ring();
+        assert!(
+            !p.is_poison() && p.lo() == 0.0 && p.hi() == 0.0,
+            "[0,0] * {b} is {} — the annihilator class 1 excludes is gone",
+            if p.is_poison() {
+                "poison".to_string()
+            } else {
+                format!("[{:e}, {:e}]", p.lo(), p.hi())
+            }
+        );
+    }
 }

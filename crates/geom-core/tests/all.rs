@@ -123,10 +123,8 @@ mod review_m5_pr7_svd;
 mod review_m5_pr7b_tensor;
 #[path = "review_margin_probe.rs"]
 mod review_margin_probe;
-#[path = "ring0_r1_probes.rs"]
-mod ring0_r1_probes;
-#[path = "ring0_r2_probe.rs"]
-mod ring0_r2_probe;
+#[path = "ring0_review_probes.rs"]
+mod ring0_review_probes;
 #[path = "ring_interval_differential.rs"]
 mod ring_interval_differential;
 #[path = "ring_interval_fuzz.rs"]
