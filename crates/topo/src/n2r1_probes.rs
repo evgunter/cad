@@ -133,6 +133,10 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
             // lane as well: this probe measures check 1, and the mvfs
             // fixture carries no M7-8 edge for the lane to re-derive.
             None,
+            // This probe is concrete at `f64`, so it names the offset
+            // fit door by hand; the surfaces it runs are a placeholder
+            // and a masquerading net, neither of which reaches it.
+            Some(geom_brep::OffsetFitLane::fit()),
         )
         .0
     };
