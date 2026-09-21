@@ -102,8 +102,15 @@ pub(crate) fn ceiling(
 
 /// **THE PER-PREDICATE SPLIT of one replay**: `predicate -> [theorem,
 /// sign-gated, registered, numeric]`, every predicate that decided at
-/// all. The one spelling of the table the pins, the evidence rows and
-/// the probes read; a pin asserts it whole (`assert_split`).
+/// all. The spelling of the DISCHARGE table that the pins, the
+/// evidence rows and the probes read; a pin asserts it whole
+/// (`assert_split`).
+///
+/// It collapses everything the numeric channel answered into one
+/// column, which is the right shape for a claim about what the TIER
+/// discharged and the wrong shape for a claim about what BLOCKED:
+/// [`blocked`] is that table, and the two are siblings over the same
+/// `shapes` rather than one table with a column nobody reads.
 pub(crate) fn split(shapes: &[DecisionShape]) -> BTreeMap<&'static str, [u64; 4]> {
     let mut table: BTreeMap<&'static str, [u64; 4]> = BTreeMap::new();
     for s in shapes {
@@ -116,6 +123,44 @@ pub(crate) fn split(shapes: &[DecisionShape]) -> BTreeMap<&'static str, [u64; 4]
         }] += 1;
     }
     table
+}
+
+/// **THE PER-PREDICATE BLOCKED TABLE of one replay**: for every
+/// predicate the numeric channel could not decide at least once,
+/// `(invalid, indeterminate, all)` — a clause-1 domain violation
+/// (`Decide for Sym<T>`'s `Invalid` arm, where the tier is never
+/// asked), an enclosure the band could not classify, and how many
+/// decisions that predicate made in all.
+///
+/// The `all` column is what keeps a zero honest: a replay escalates at
+/// its first blocked predicate and STOPS, so an `invalid` of zero is
+/// zero over the decisions that were seen, not over the document.
+pub(crate) fn blocked(shapes: &[DecisionShape]) -> BTreeMap<&'static str, (usize, usize, usize)> {
+    let mut table: BTreeMap<&'static str, (usize, usize, usize)> = BTreeMap::new();
+    for s in shapes {
+        let row = table.entry(s.predicate).or_default();
+        row.2 += 1;
+        match s.outcome {
+            ShapeOutcome::Invalid => row.0 += 1,
+            ShapeOutcome::Indeterminate => row.1 += 1,
+            _ => {}
+        }
+    }
+    table.retain(|_, (invalid, indeterminate, _)| *invalid > 0 || *indeterminate > 0);
+    table
+}
+
+/// The first `n` CHARACTERS of a rendering, with the full length said:
+/// a form that reaches the budget renders to megabytes, and what a
+/// reader needs is its head. Counted in characters at both ends — a
+/// residual carries `·`, `√` and `−`, so a byte length beside a
+/// character cut is two different numbers.
+pub(crate) fn head(s: &str, n: usize) -> String {
+    if s.chars().count() <= n {
+        return s.to_owned();
+    }
+    let cut: String = s.chars().take(n).collect();
+    format!("{cut}… [{} chars]", s.chars().count())
 }
 
 /// The split of `doc`'s NOMINAL replay under `rules` ([`split`] over
