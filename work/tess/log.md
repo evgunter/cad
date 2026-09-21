@@ -199,3 +199,29 @@ ask (a domination row for the new sups that goes red when the sup
 degrades; E2's vertex count cannot see a sup that is too small) and a
 note of what TESS has in flight on the same files (PR 2848's test
 modules; TESS-1's new `TessellateError` arm).
+
+## Usage-limit outage and resume (2026-09-19 → 2026-09-20)
+
+Both lanes (TESS-1's implementer, PR 2848's fix pass) died mid-turn on
+the account's Fable limit, 2026-09-19; resumed 2026-09-20 with their
+transcripts, each told what changed under it. Annotate both rows'
+wall-clock with the gap.
+
+- **TESS-1**: PR 2852 open at `02121bbda`, item in review, one
+  uncommitted edit (`step-import/tests/tier_gate.rs`) in the clone — the
+  lane was told to identify it before building on it.
+- **PR 2848**: fix-pass commit `fa48d6eee` pushed; the lane died with a
+  mutant run in flight and was told to verify no mutant is applied.
+- **Disk**: CURVED's orchestrator deleted TESS' four idle target dirs
+  under pressure (courtesy note on PR 2564); I reclaimed the two
+  finished diag clones (evidence is on their pushed branches). 18 G
+  free — lanes told to prefer hosted CI.
+- **Monitors are not armed** (Ev, 2026-09-18): Claude Code kills every
+  Monitor watch at 30 minutes. `local-scripts/monitors/README.md`
+  carries the temporary note (PR 2854). The away channel is read by
+  hand when a lane reports.
+- **My miss, recorded**: I merged PR 2854 at Ev's "right away" without
+  reading its checks — two were red (`check-ci-mirror-parity` reads a
+  version literal under `local-scripts/` as a tool pin). Another lane
+  fixed main forward (`a8018fb0c`). "Right away" does not skip the
+  conclusion filter; it took one more line of shell.
