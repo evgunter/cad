@@ -167,6 +167,6 @@ pub use session::{
     NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection, SessionOp,
     Standing,
 };
-pub use theme::{Mark, Polarity, Safety, Theme};
+pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};
 pub use tree::{RowStatus, TreeRow};

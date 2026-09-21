@@ -138,6 +138,7 @@ use geom_core::{
     Vec2,
 };
 
+use crate::path::num;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
@@ -254,6 +255,13 @@ pub enum FilletLegCarrier {
 }
 
 impl fmt::Display for FilletLegCarrier {
+    /// Both scalars render through `path::num`, the one grid
+    /// this crate's refusal sentences are spelled on: this sentence is
+    /// interpolated into
+    /// [`crate::path::CornerReason::AnchorOutsideTrimmedExtent`]'s,
+    /// whose own scalars are already shortened, so a raw `f64` here
+    /// would put the arithmetic's noise inside a sentence otherwise
+    /// free of it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Line => f.write_str("straight"),
@@ -262,7 +270,9 @@ impl fmt::Display for FilletLegCarrier {
                 angular_margin,
             } => write!(
                 f,
-                "circular (carrier radius {radius} m, angular margin {angular_margin} rad)"
+                "circular (carrier radius {radius} m, angular margin {angular_margin} rad)",
+                radius = num(radius),
+                angular_margin = num(angular_margin)
             ),
         }
     }
