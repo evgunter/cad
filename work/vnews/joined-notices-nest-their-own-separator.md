@@ -2,13 +2,14 @@
 id: joined-notices-nest-their-own-separator
 kind: issue
 title: A frame's joined notices nest NOTICE_SEPARATOR and the em-dash inside themselves, so the line is ambiguous at two notices
-status: review
+status: closed
 opened: 2026-09-05
 refs: [the-news-vocabulary-has-no-expiry, status-line-writers-bypass-the-ranking, 1886]
 branch: view/joined-notices
 pr: 2665
 priority: P1
 cost: E
+closed: 2026-09-15
 ---
 
 
@@ -142,3 +143,34 @@ notices that went in. Three rows in `crates/viewer/tests/frame_policy.rs`.
   structure inside one notice, which is the inner item's ground.
 - `crates/viewer/src/frame.rs:1186` as "the assertion": already
   disclosed as stale by the 2026-09-11 note; unchanged here.
+
+## Claimed by VNEWS and closed, 2026-09-20 — five days late
+
+`work/vnews/plan.md` §Inbound has said since this program opened that
+this row *"arrives here when that PR merges, or with VIEW's exit walk,
+whichever is first."* **PR #2665 merged 2026-09-15T15:28:37Z** and
+nothing moved, so the row sat on VIEW's slate reading `status: review`
+for five days while its fix was on `main`.
+
+Verified on `main` before closing: `frame::NOTICE_SEPARATOR` exists
+with `LIST_SEPARATOR` beside it, and the rank-2 join goes through it
+(`crates/viewer/src/frame.rs`, `frame_status`'s notice join). The two
+levels are two marks, which is what the row asked for.
+
+**Why this mattered beyond one stale field.** `work/vnews/plan.md`
+serializes `crates/viewer/src/frame.rs` to one lane at a time, and the
+board showed a `frame.rs` lane in flight that had not existed since
+2026-09-15. The frame.rs-cluster adjudication of 2026-09-20 found it
+while ordering eight rows against that clause. **A stale `status:` is
+not a cosmetic defect where a plan reads the board to decide what may
+be dispatched** — it is the serialization clause reading a lie.
+
+Claimed rather than closed in place, per `work/README.md`: *"a program
+claiming another's item MOVES the file into its own directory in the PR
+that claims it, keeping the id"*. The claim is VNEWS's by §Inbound and
+needed no permission — *"a lane does not need the owner's permission to
+put a finding where it belongs"* — which is the clause the adjudication
+declined to act on and was wrong to.
+
+`closed:` is the date the work landed, not the date the tracker caught
+up.
