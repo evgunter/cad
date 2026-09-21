@@ -1951,3 +1951,29 @@ confidence vocabulary was used honestly — the guard defect `sure` and
 executed, the gate's reachability `unsure` and said so, and its own
 unread coverage declared rather than glossed (the topo battery went
 unrun because the build mutex was held and disk fell to 15 GB).
+
+## HOLD IN FORCE — no A/B dispatches until Ev lifts it (2026-09-20)
+
+**Ev, in chat:** do not dispatch anything that needs the A/B protocol,
+and do not record *any* implementation under the A/B protocol, until Ev
+says the fable limit has reset. This is a standing constraint, not a
+note — it is written here because this log is what an orchestrator
+re-reads after a context compaction, and a temporary hold is exactly the
+kind of thing that gets lost.
+
+**What it stops.** Every PROPS kernel implementer unit: they all take a
+block slot and record a row, so all of them are blocked. No ordinal
+claims, no parity draws, no block-slot assignments, no rows. And no
+off-protocol implementer dispatch as a way around it — dispatching an
+implementer without a slot is the exact error disclosed at ordinal 2407,
+and doing it deliberately would be worse than doing it by accident.
+
+**What continues.** The curved-residues fix pass, already in flight:
+Ev retired ordinal 2408 without a row, so that unit is no longer an A/B
+item and finishing it records nothing under the protocol. It merges with
+a single review of record and no row. Orchestrator work that is not a
+dispatch — adjudication, filing, verification, tracker hygiene — is
+unaffected.
+
+**Lift condition:** Ev says the fable limit has reset. Until then, if a
+unit looks ready to dispatch, it waits.
