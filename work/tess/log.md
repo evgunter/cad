@@ -303,3 +303,21 @@ with the rational-cells row landed on ENCL (no orchestrator seated).
   loop; the tess-budget baseline is not re-cut by the lane.
 - Dispatch waits for TESS-1's head to freeze — one kernel unit on a
   mutex-width-1, 18-G-free box at a time.
+
+## PR 2848 merged (2026-09-20)
+
+Domination asserts in `crates/mesh` fail through one helper: sides
+labelled, `{:.17e}`, the escaping component named; what is asserted is
+unchanged. Merged at `9f30cef5f` on a green full matrix (12 test jobs,
+5 k-lint). Fix pass: all eight items done; ten mutants of the helper
+run and killed before the outage took the target dir. No A/B row
+(middle tier). Wall-clock is contaminated by the usage-limit gap.
+
+- The lane's two calls at the merge of main, both upheld: a new
+  message-less domination assert main brought into `chords.rs` was
+  converted (compiled by hosted CI only); and the rows I told it to file
+  on TESS went to CHORD, which owns that ground since the cut
+  (`r2-probe-whole-net-digits-asserts-nothing`,
+  `mesh-message-less-ordering-asserts-have-no-unit`). TINT holds the
+  unswept-asserts row and the two-helpers-opposite-operand-orders row.
+- The NURBS bound row stays open on TESS-2. Lane clone reclaimed.
