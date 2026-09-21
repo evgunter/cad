@@ -587,7 +587,15 @@ folded the one pair the spec had excused and wrote the located-span
 walk once. Two protocol exposures recorded on the row.
 ## RING-1 merged (2026-09-21)
 
-<<<<<<< HEAD
+PR 2971, block SCALAR-B4 slot 2, ordinal 4110. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual concluded with no
+tally candidate (the one MAJOR bilateral and pre-fixed); the fix pass
+took thirteen items and declined one. Both reviews' end-to-end programs
+established that the lane-trait impls, not the feature, are what keeps a
+default-build caller out of the kernel doors at `Interval` — RING-3 and
+LANE-1..4 specs carry it. One exposure: the PR body's auto-appended
+footer names a vendor and re-appends on every body update; the row
+records it.
 ## Block SCALAR-B4 drawn; CURVE3-JET dispatched (2026-09-15)
 
 The Curve3 jet door opens block SCALAR-B4 as slot 0 (byte 75 ⇒ slot 0
@@ -729,14 +737,3 @@ M / test lane; LANE-1 M; RING-2 H, Fable spec) were recorded before the
 byte: **244** ⇒ fable position 1 (slot 0 RING-0 = OPUS, slot 1 LANE-1 =
 FABLE, slot 2 RING-2 = OPUS). RING-0 dispatches when a lane slot frees
 (three are taken: LANE-0's implementer closing out, its two reviewers).
-=======
-PR 2971, block SCALAR-B4 slot 2, ordinal 4110. What landed: the item's
-§Closed. The spec is deleted per the ledger. The dual concluded with no
-tally candidate (the one MAJOR bilateral and pre-fixed); the fix pass
-took thirteen items and declined one. Both reviews' end-to-end programs
-established that the lane-trait impls, not the feature, are what keeps a
-default-build caller out of the kernel doors at `Interval` — RING-3 and
-LANE-1..4 specs carry it. One exposure: the PR body's auto-appended
-footer names a vendor and re-appends on every body update; the row
-records it.
->>>>>>> origin/main
