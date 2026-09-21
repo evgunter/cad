@@ -68,7 +68,7 @@ From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the
 
 **The mechanism does not reach the certification path.** Measured, not
 assumed, in both halves (`docs/DECIDE-1-SPEC.md`; the two tables are the
-PR body's, and the PR is this row's record):
+PR body's, and PR #3001 is this row's record).
 
 - **The static census.** No site in `crates/*/src` multiplies an
   enclosure by ITSELF at `Interval` or `Sym<Interval>` on a
@@ -85,25 +85,47 @@ PR body's, and the PR is this row's record):
   gate structurally cannot see — turned up one production site at
   `Sym<Interval>`, `topo::transform::check_rigid`'s three unit-column
   residuals, whose consumer is a `sign_within` and not a `sqrt` and
-  which no measured document decides. It is filed on SHELL's slate
+  which no measured document decides (the probe prints the
+  `transform_rigid_*` rows that DECIDED on each replay; it is `none`
+  on every one). It is filed on SHELL's slate
   (`check-rigid-squares-a-column-by-multiplying-two-copies-of-it`), and
   the gate's own blind spot on that spelling is filed on GUARD's
   (`self-dot-has-no-gate-the-interval-square-one-cannot-see-it`).
-- **The dynamic measurement.** Zero clause-1 `Invalid` refusals on the
-  six documents at ε = default, `1e-6` and `1e-12`, at the nominal and
-  at ceiling + δ. Every replay that was blocked at all was blocked by
-  exactly one predicate, and every one of those was `Indeterminate` —
-  a real margin the band could not classify (`assert_bound`'s
-  dependency-widened enclosure on the plate, `arc_diameter_clearance`
-  and `dihedral_wedge` on the annulus, `carrier_matches_mapped_source`
-  on the link and the bracket) — never a domain violation. The
-  instrument is `crates/editor-core/tests/decide_1_self_dot_interval.rs`
-  and its ceilings reproduce `m10_10_pins_interval`'s pinned table at
-  every ε.
+- **The dynamic measurement, stated as what was measured.** A replay
+  escalates at its FIRST blocked predicate and stops, so the count is
+  over the decisions SEEN. **Every replay that was blocked stopped at
+  its first blocked predicate, and that predicate was `Indeterminate`;
+  `Invalid` is zero over the decisions seen** — at ε = default, `1e-6`
+  and `1e-12`, at the nominal and at ceiling + δ. The stopping
+  predicates are `arc_diameter_clearance` (annulus, 352 of 677 seen),
+  `dihedral_wedge` (annulus at `1e-6`, 562 of 677) and
+  `carrier_matches_mapped_source` (link 465 of 1102; bracket 910 of
+  2021, 1104 at `1e-6`); the plate's replay is NOT truncated — it runs
+  to the end at all 1413 decisions with one indeterminate
+  `assert_bound`. The zero also holds at scales the ceiling never
+  reaches: R1's review probe, adopted into the suite, re-takes it on
+  the plate at `s = 0.5, 1.0, 2.0` and the annulus at `s = 1.0, 2.0`
+  over the whole box — `s = 1.0` IS the real study — and every row is
+  `Invalid 0`.
+- **The instrument agrees with the pins.** Its measured brackets lie
+  INSIDE `m10_10_pins_interval`'s outward-rounded pinned brackets at
+  every ε: the plate at `1e-9` measures `0.2630626…/0.2631643…` inside
+  the pinned `0.2630/0.2632`, at `1e-6` `0.2368043…/0.2368709…` inside
+  `0.2368/0.2369`; the annulus at `1e-9` `0.8416080…/0.8419333…` inside
+  `0.8416/0.8420` and at `1e-6` `0.6962631…/0.6964589…` inside
+  `0.6962/0.6965`. That is what says this census measured the documents
+  the pins measure.
+- **The pad** is measured on the ceiling instrument only — the shape
+  report over that document does not fit in the memory of the box this
+  lane ran on, at the nominal as well as over the whole box. Its
+  bracket is `[2.3714e3, 2.5483e3] · ε` at all three ε; its `Invalid`
+  count is not taken, and the row says NOT REPLAYED rather than
+  reporting a zero.
 
 **The pins that stand** for the SOUND outcome on a hand-spelled
 product are R1's, unchanged:
 `r1_rule_a_never_fires_on_a_straddling_argument` and
 `r1_rule_a_decides_zero_at_every_width_and_off_it_widens`
 (`crates/geom-core/tests/m10_8_r1_sym_probes.rs`). `Vec::dot`'s
-association is untouched, as the row's own D9 note requires.
+association is untouched, as the row's own D9 note requires, and so are
+`powi` and the allowlist gate's logic.

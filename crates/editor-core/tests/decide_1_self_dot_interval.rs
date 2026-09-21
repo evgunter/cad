@@ -10,25 +10,33 @@
 //! `norm_squared` is not, because it squares component-wise through the
 //! tight `Real::powi(2)`.
 //!
-//! Every row here is an `#[ignore]`d evidence probe that prints and
-//! asserts nothing a gate could read ([[test-suite-cost]]); the
-//! standing pins for the SOUND outcome on a hand-spelled product are
-//! `geom-core`'s `m10_8_r1_sym_probes` rows. Run them:
+//! **THIS SUITE ASSERTS NOTHING AND CANNOT RED, BY DESIGN.** Its rows
+//! are `#[ignore]`d evidence probes that print. A census that found
+//! nothing has no state to gate, and an assertion that no runtime value
+//! could make false is documentation rather than a check — so the
+//! standing pins for the SOUND outcome on a hand-spelled product stay
+//! where they are, in `geom-core`'s `m10_8_r1_sym_probes`
+//! (`r1_rule_a_never_fires_on_a_straddling_argument` and
+//! `r1_rule_a_decides_zero_at_every_width_and_off_it_widens`). What
+//! nothing re-takes is the STATIC half, and that gap is a filed row
+//! (`work/guard/self-dot-has-no-gate-the-interval-square-one-cannot-see-it`),
+//! not a row here. Run these:
 //!
 //! ```sh
 //! cargo test -p editor-core --features interval --test all -- \
 //!   decide_1_self_dot_interval:: --ignored --nocapture --test-threads 1
 //! ```
 //!
-//! The pad is measured on the CEILING instrument only: the shape
-//! report renders the plain normal form of every blocked residual of a
-//! replay, and over that document it does not fit in the memory of a
-//! box the size of this lane's. Its bracket is measured; its `Invalid`
-//! count is not taken, and the row says so.
+//! **A REPLAY ESCALATES AT ITS FIRST BLOCKED PREDICATE AND STOPS**, so
+//! every count here is over the decisions SEEN, which the rows print
+//! beside the count along with the refusal that ended them. The pad is
+//! measured on the CEILING instrument only: the shape report renders
+//! the plain normal form of every blocked residual, and over that
+//! document it does not fit in the memory of a box the size of this
+//! lane's. Its bracket is measured; its `Invalid` count is not taken,
+//! and the row says so.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-
-use std::collections::BTreeMap;
 
 use editor_core::ProfileDoc;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -36,7 +44,7 @@ use geom_core::sym::report::{DecisionShape, ShapeOutcome, explain_depth};
 use geom_core::{SymRules, Tol};
 
 use crate::m10_8_arc_family_interval::replay;
-use crate::m10_8_harness::{ceiling, nominal_box};
+use crate::m10_8_harness::{blocked, ceiling, head, nominal_box, split};
 use crate::m10_9_pins_interval::measured_studies;
 
 /// How many DAG levels below a blocked residual the report explains,
@@ -55,16 +63,24 @@ fn explain_levels() -> usize {
         .unwrap_or(0)
 }
 
-/// The ceiling search's bracket and step count, as multiples of ε for
-/// the two ends: `CAD_DECIDE_1_LO`, `CAD_DECIDE_1_HI`,
-/// `CAD_DECIDE_1_STEPS`. The defaults are M10-10's evidence bench's —
-/// `[1e-1 · ε, 1e1]` in sixteen steps — which is a search over eleven
-/// decades and is what a document whose ceiling is not already known
+/// The ceiling search's bracket and step count:
+/// `CAD_DECIDE_1_LO`, `CAD_DECIDE_1_HI`, `CAD_DECIDE_1_STEPS`.
+///
+/// **BOTH ENDS ARE IN ONE UNIT — MULTIPLES OF THE DOCUMENT'S REAL
+/// STUDY**, which is the unit `Study::at` consumes and the unit every
+/// ceiling this suite prints is in (`certifies x2.63e-1` is 0.263 of
+/// the study a user would ask for). The ε-relative view is printed
+/// beside it and is derived, never entered.
+///
+/// The defaults are M10-10's evidence bench's — `1e-1 · ε` up to `1e1`,
+/// ten times the real study, in sixteen steps — a search over eleven
+/// decades, which is what a document whose ceiling is not already known
 /// needs. It is not what the PAD needs: eighteen whole-box drives of
-/// that document do not finish in an hour and a half on a box this
-/// size, and its bracket is pinned to four digits already
-/// (`m10_9_pins_interval::measured_studies`), so the pad is measured
-/// over a bracket around that number instead.
+/// that document did not finish in an hour and a half on a box this
+/// size at 46 s a probe, and its bracket is pinned to four digits
+/// already (`m10_9_pins_interval::measured_studies`), so the pad's own
+/// default is a five-step search of `[1e3 · ε, 1e4 · ε]` around that
+/// number.
 fn search(eps: f64, name: &str) -> (f64, f64, usize) {
     let num = |k: &str, d: f64| {
         std::env::var(k)
@@ -73,13 +89,13 @@ fn search(eps: f64, name: &str) -> (f64, f64, usize) {
             .unwrap_or(d)
     };
     let (lo, hi, steps) = if name == "r2_rounded_pad" {
-        (1.0e3, 1.0e4, 5.0)
+        (1.0e3 * eps, 1.0e4 * eps, 5.0)
     } else {
-        (1.0e-1, 1.0e1 / eps, 16.0)
+        (1.0e-1 * eps, 1.0e1, 16.0)
     };
     (
-        num("CAD_DECIDE_1_LO", lo) * eps,
-        num("CAD_DECIDE_1_HI", hi) * eps,
+        num("CAD_DECIDE_1_LO", lo),
+        num("CAD_DECIDE_1_HI", hi),
         num("CAD_DECIDE_1_STEPS", steps) as usize,
     )
 }
@@ -92,40 +108,54 @@ fn only_doc() -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-/// `predicate -> (invalid, indeterminate, all)` over one replay, kept
-/// for every predicate that was BLOCKED at all — the indeterminate
-/// column is there so a row of zero `Invalid`s still says whether the
-/// replay was stressed or simply decided everything.
-fn invalid_census(shapes: &[DecisionShape]) -> BTreeMap<&'static str, (usize, usize, usize)> {
-    let mut table: BTreeMap<&'static str, (usize, usize, usize)> = BTreeMap::new();
-    for s in shapes {
-        let row = table.entry(s.predicate).or_default();
-        row.2 += 1;
-        match s.outcome {
-            ShapeOutcome::Invalid => row.0 += 1,
-            ShapeOutcome::Indeterminate => row.1 += 1,
-            _ => {}
-        }
-    }
-    table.retain(|_, (invalid, indeterminate, _)| *invalid > 0 || *indeterminate > 0);
-    table
+/// The PREDICATE a refusal names, out of the refusal's own message —
+/// the quoted name after `predicate `. The whole message is a
+/// paragraph of recourse; what a census row wants is which predicate
+/// ended the replay.
+fn refusal_predicate(refusal: &str) -> String {
+    refusal
+        .split_once("predicate '")
+        .and_then(|(_, rest)| rest.split_once('\''))
+        .map_or_else(|| head(refusal, 60), |(name, _)| name.to_owned())
 }
 
-/// The census of one replay, printed: one line per predicate with a
-/// clause-1 refusal, then the FIRST such refusal's enclosure, its
-/// rendered residual and the DAG below it — the three things that say
-/// whether the spurious lower bound is a self-product.
-fn report_one(label: &str, shapes: &[DecisionShape]) -> usize {
-    let table = invalid_census(shapes);
+/// The census of one replay, printed: the counts, one line per blocked
+/// predicate, the `transform_rigid_*` rows if any of them DECIDED
+/// here, and — for a predicate that did refuse clause 1 — the first
+/// such refusal's enclosure, its rendered residual and the DAG below
+/// it, the three things that say whether the spurious lower bound is a
+/// self-product.
+///
+/// The `transform_rigid_*` readout is R1's (the review's probe branch,
+/// `r1_decide_1_review_probe.rs`): the blocked table keeps only what
+/// the numeric channel could NOT decide, so it cannot show that a
+/// predicate never ran — only a filter over [`split`], which keeps
+/// every predicate that decided at all, can.
+fn report_one(label: &str, shapes: &[DecisionShape], refusal: Option<&str>) {
+    let table = blocked(shapes);
     let invalid: usize = table.values().map(|r| r.0).sum();
     println!(
-        "{label:<42} INVALID {invalid:>4} of {} decisions, blocked predicates: {}",
+        "{label:<42} decisions seen {:>5}  INVALID {invalid:>4}  blocked predicates {}  \
+         stopped at {}",
         shapes.len(),
-        table.len()
+        table.len(),
+        refusal.map_or_else(|| "nothing (ran to the end)".to_owned(), refusal_predicate)
     );
     for (pred, (invalid, indeterminate, all)) in &table {
         println!("    invalid {invalid:>4}  indeterminate {indeterminate:>4}  of {all:<5} {pred}");
     }
+    let rigid: Vec<_> = split(shapes)
+        .into_iter()
+        .filter(|(p, _)| p.starts_with("transform_rigid"))
+        .collect();
+    println!(
+        "    transform_rigid_* rows that DECIDED here: {}",
+        if rigid.is_empty() {
+            "none".to_owned()
+        } else {
+            format!("{rigid:?}")
+        }
+    );
     for pred in table.iter().filter(|(_, r)| r.0 > 0).map(|(p, _)| p) {
         let Some(s) = shapes
             .iter()
@@ -135,32 +165,20 @@ fn report_one(label: &str, shapes: &[DecisionShape]) -> usize {
         };
         println!("  --- {pred}: enclosure {:?}", s.enclosure);
         if let Some(form) = &s.form {
-            println!("  plain form: {}", truncate(form));
+            println!("  plain form: {}", head(form, 600));
         }
         if let Some(early) = &s.early_form {
-            println!("  early form: {}", truncate(early));
+            println!("  early form: {}", head(early, 600));
         }
         if let Some(explain) = &s.explain {
             println!("  dag:\n{explain}");
         }
     }
-    table.len()
-}
-
-/// A rendered residual is a page-long rational function; the census
-/// wants its head, not its text.
-fn truncate(s: &str) -> String {
-    let head: String = s.chars().take(600).collect();
-    if head.len() < s.len() {
-        format!("{head} …[{} chars]", s.len())
-    } else {
-        head
-    }
 }
 
 /// One document at one scale and one box, replayed under the shipped
 /// tier with the shape report installed.
-fn census_at(label: &str, doc: &ProfileDoc, whole: bool, rules: SymRules, tol: Tol) -> usize {
+fn census_at(label: &str, doc: &ProfileDoc, whole: bool, rules: SymRules, tol: Tol) {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let box_ = if whole {
         ParamBox::of(&analyzed)
@@ -168,13 +186,13 @@ fn census_at(label: &str, doc: &ProfileDoc, whole: bool, rules: SymRules, tol: T
         nominal_box(&analyzed)
     };
     let (shapes, refusal, counts) = replay(doc, &box_, rules, tol);
-    println!("{label:<46} {counts:?} -> {refusal:?}");
-    report_one(label, &shapes)
+    println!("{label:<46} {counts:?}");
+    report_one(label, &shapes, refusal.as_deref());
 }
 
 /// **THE CLAUSE-1 `Invalid` CENSUS** on the six documents, at the
 /// nominal (a degenerate box) and at ceiling + δ (the refusing end of
-/// each study's pinned bisection bracket, `measured_studies`), under
+/// the bracket this run MEASURES, never one read off a table), under
 /// the shipped tier. ε is the run's own (`CAD_TOLERANCE_EPS`), so the
 /// three ε rows of the spec are three runs of this one probe.
 #[test]
@@ -232,32 +250,87 @@ fn decide_1_the_clause_1_invalid_census_on_the_six_documents() {
             );
             continue;
         }
-        let nominal = (study.at)(if lo.is_finite() {
-            lo
+        // **A BRACKET WITH NO CERTIFYING END IS NOT A CEILING.**
+        // `ceiling` answers `(NaN, hi, _)` when even `lo` refuses, and
+        // `hi` is then the top of the search bracket UNBISECTED — a
+        // scale nothing measured. Replaying there is still worth doing
+        // (it is the widest box in hand), but calling it "ceiling + δ"
+        // would name it something it is not.
+        let (nominal_scale, wide_scale, wide_label) = if lo.is_finite() {
+            (lo, hi, "ceiling + delta")
         } else {
-            study.certifies_at * eps
-        });
+            println!(
+                "{:<42} NO CERTIFYING END: even x{s_lo:e} refuses, so no ceiling was bisected \
+                 and the rows below are at the search bracket's own ends",
+                study.name
+            );
+            (s_lo, s_hi, "top of the search bracket (unbisected)")
+        };
         census_at(
             &format!("{} / nominal", study.name),
-            &nominal,
+            &(study.at)(nominal_scale),
             false,
             rules,
             tol,
         );
-        if !hi.is_finite() {
+        if !wide_scale.is_finite() {
             println!(
-                "{:<42} SKIPPED — no finite refusing end in the search bracket",
-                format!("{} / ceiling + delta", study.name)
+                "{:<42} SKIPPED — no finite wide end in the search bracket",
+                format!("{} / {wide_label}", study.name)
             );
             continue;
         }
         census_at(
-            &format!("{} / ceiling + delta", study.name),
-            &(study.at)(hi),
+            &format!("{} / {wide_label}", study.name),
+            &(study.at)(wide_scale),
             true,
             rules,
             tol,
         );
     }
     explain_depth(0);
+}
+
+/// **THE SAME COUNT AT WIDER SCALES, up to and past the real study** —
+/// adopted from R1's review probe (`decide/1-review-r1`,
+/// `r1_decide_1_review_probe.rs`), which asked the question the census
+/// above does not: is the zero `Invalid` an artefact of replaying at
+/// ceiling + δ, the NARROWEST refusing box? The item's mechanism (a
+/// spurious negative lower bound from a product of one enclosure with
+/// itself) GROWS with width, so a zero at the narrowest refusing box
+/// is the weakest place to find one.
+///
+/// `s = 1.0` IS the real study — the widths a user would actually ask
+/// for — and `s = 2.0` is twice it, so these rows carry the verdict
+/// past the ceiling rather than only up to it.
+#[test]
+#[ignore = "evidence probe: the clause-1 Invalid count at wider scales (R1's question)"]
+fn decide_1_the_invalid_count_at_wider_scales() {
+    let tol = Tol::witness();
+    let rules = SymRules::shipped();
+    explain_depth(0);
+    println!(
+        "=== DECIDE-1 Invalid at wider scales, eps = {:e} ===",
+        tol.eps()
+    );
+    for s in [0.5_f64, 1.0, 2.0] {
+        let doc = crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0;
+        census_at(
+            &format!("two_hole_plate / whole box / s={s}"),
+            &doc,
+            true,
+            rules,
+            tol,
+        );
+    }
+    for s in [1.0_f64, 2.0] {
+        let doc = crate::m10_8_r1_probes_interval::annulus(s, tol).0;
+        census_at(
+            &format!("r1_annulus / whole box / s={s}"),
+            &doc,
+            true,
+            rules,
+            tol,
+        );
+    }
 }

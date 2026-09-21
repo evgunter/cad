@@ -44,6 +44,12 @@ bit-identity across it pinned the way
 `scripts/gates/interval-square-allowlist.sh` gates that class
 (`x * x` and `powi(2)` are bit-identical at f64 where `powi` is one
 multiplication), and a row that exercises the three residuals at
-`Sym<Interval>` on a placed body — DECIDE-1's six documents produced NO
-decision of any of the three rows, so nothing in the measured corpus
-covers them today.
+`Sym<Interval>` on a placed body — **nothing in the measured corpus
+covers them today**, and that is reproducible rather than asserted:
+`crates/editor-core/tests/decide_1_self_dot_interval.rs` prints, per
+replay, the `transform_rigid_*` rows that DECIDED there (a filter over
+`m10_8_harness::split`, which keeps every predicate that decided at
+all — the blocked table cannot show a predicate that never ran). It
+reads `none` on every row of the census, at all three ε and at every
+scale up to twice the real study. The readout is R1's, from DECIDE-1's
+review probe.

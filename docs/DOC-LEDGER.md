@@ -2636,7 +2636,7 @@ calls a successor's opening slate rather than residue.
 | `real-margin-dependency-widening` | `work/sym/` | the numeric channel's half of E12's division of labour — what stands between the plate's 0.263 ceiling and the flip at 0.625 |
 | `plate-ceiling-is-now-the-scaffold-pushforward` | `work/sym/` | one predicate bounds all five measured documents; the fix half is a PCURVE/D3 question and `geom-brep/src/certify.rs` is in no program's paths — TRIM is PCURVE's successor |
 | `rule-d-reaches-the-unit-bulge-only` | `work/sym/` | rule D is the tier's, and this is the next ceiling class after M10-10 |
-| `interval-self-dot-straddles-before-rule-a` | `work/sym/` | rule A's reach; the FIX is `powi(2)` in PROPS' `linalg/vec.rs` and is announced there — PROPS' linalg lane may take it |
+| `interval-self-dot-straddles-before-rule-a` | `work/sym/` | rule A's reach; the FIX is `powi(2)` in PROPS' `linalg/vec.rs` and is announced there — PROPS' linalg lane may take it [the row later moved to `work/decide/` and was CLOSED on DECIDE-1's measurement (#3001) with no `linalg` change: the fix had landed at M2 PR 4 for every norm] |
 | `param-box-certification-of-implicit-quantities` | `work/sym/` | the tier's frontier: an iterated quantity has no expression in the parameters. Came to M10 from S-CERT; follows the tier |
 | `declared-tangency-needs-the-registered-identity-door` | `work/sym/` | the door's live consumer; open rather than parked, and it waits on BLEND's fillet row |
 | `the-span-identity-is-not-a-theorem-of-the-floats` | `work/sym/` | the limit of what a registration means; `register_equal` is in PROPS' `real.rs`, reached by announced seam |
