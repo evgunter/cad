@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-21
 priority: P1
 cost: H
-needs_ev: true
+needs_ev: false
 ---
 
 
@@ -132,3 +132,27 @@ with the tables this row summarises):
    in hand.
 3. **Stop after Phase 1** — the row stays red, #2468 holds, and the
    fork stays with Ev.
+
+## Ruled (Ev, 2026-09-21, on PR #2970): shape 1 — the full canonical root, at the mint site
+
+Ev's ruling, with the orchestrator's recommendation that preceded it
+(the narrow form withdrawn as re-baseline avoidance; "having to
+re-baseline is never a reason to skip a code change for the better"):
+a `Sqrt` atom's key becomes a function of its argument's value class —
+`sqrt(N/D)` minted as `sqrt(N)/sqrt(D)` where `D ≥ 0` is known, the
+rational content split out (`s` exactly, `sqrt(f)` a constant atom), a
+primitive integer polynomial under the root, `sqrt(R²)` read as `|R|`
+— in `mint_atom`'s `Sqrt` arm, the one door the walk, `trig::sqrt_atom`
+and the registry mint through, so uniformity is structural. Dialed like
+every rule, shipped on. With it the two reads (the `Select` read and
+the same read at `min`/`max`, behind every value-free fold); fold 1
+only as the theorem upgrade it measured; fold 2 dropped (its premise
+is false — the candidates are not unit). Acceptance: no decision LOST
+on the six measured documents once everything mints through the one
+door — the plate's eight registered decisions in particular meet again
+by construction, and if they do not that is a defect the unit finds
+and fixes, or stops on and says why; every ledger digest, freeze
+count, ceiling and split that moves is re-baselined with what moved
+said. Taken by unit `DECIDE-3` (`docs/DECIDE-3-SPEC.md`), cut from
+`sym/10-decision-door`'s head; this row stays open until DECIDE-3
+lands or stops.

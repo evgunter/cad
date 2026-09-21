@@ -2,12 +2,13 @@
 id: SYM-10
 kind: unit
 title: the decision door and the floor: manifest order, a manifest bound, and rule C's read of a Select — the folds the sign-hull frame needs
-status: review
+status: closed
 opened: 2026-09-19
 branch: sym/10-decision-door
 refs: [the-decision-door-is-opaque-to-the-tier, 2468, 2728]
 priority: P1
 cost: H
+closed: 2026-09-21
 ---
 
 
@@ -48,3 +49,15 @@ ledger moved in digests only (every count identical on the plate; the
 slab unmoved). No rule was written; the plants live in the branch's
 history (`2a479c267`, `2d4c986bd`) and the three probe rows stay as
 evidence.
+
+## Closed on Phase 1 (2026-09-21)
+
+Ev ruled on #2970 (shape 1, the full canonical root at the mint site —
+`the-candidate-norm-needs-a-canonical-square-root`, "Ruled"). This unit
+closes on its Phase 1 measurement, PR #2970 the record, merged to
+`props/sign-hull` per the spec; no rule was written here. Phase 2 is
+`DECIDE-3` (`docs/DECIDE-3-SPEC.md`), which carries the two reads this
+spec's Phase 2 named and the canonical root in place of folds 1 and 2.
+The spec is deleted at this merge with its ledger entry. Block SYM-B2
+slot 2 concludes with no dual run: the unit stopped at its stop clause
+before a frozen head existed, and the dual is DECIDE-3's.
