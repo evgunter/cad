@@ -165,6 +165,7 @@
 use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly};
+use super::rational::Rat;
 use super::{AtomInfo, Session, SymOp, indet_atom, signed};
 
 /// How many atom arguments deep `positive` looks before it declines.
@@ -201,10 +202,69 @@ fn termwise_nonneg(p: &Poly, sess: &Session) -> bool {
         .all(|(m, c)| !c.is_negative() && nonneg_mono(m, sess))
 }
 
-/// **A manifestly non-negative POLYNOMIAL** — the term-wise test, or a
-/// perfect square.
+/// **A DEFINITE quadratic in one indeterminate**: `a·X² + b·X + c` with
+/// `a > 0` and `b² ≤ 4ac` is non-negative at every real `X`, so it is
+/// non-negative wherever `X` has a value at all, whatever `X` stands
+/// for. `false` for anything that is not a quadratic in exactly one
+/// indeterminate over rational coefficients.
+///
+/// **This is the source that carries a candidate norm's denominator.**
+/// A frame's normal over a tilted axis has `S = sqrt(t² + t/2 + 17/16)`
+/// and its candidates divide by `1 + 8t/17 + 16t²/17` — sums whose
+/// term-wise test fails on the ODD power of `t` and which are not
+/// perfect squares, but which complete the square with room to spare
+/// (`(t + 1/4)² + 1`). The discriminant is that completion, done in the
+/// coefficient ring rather than in the polynomial.
+fn definite_quadratic(p: &Poly, sess: &Session) -> bool {
+    let _ = sess;
+    let (mut a, mut b, mut c) = (None, None, Rat::zero());
+    let mut var: Option<u128> = None;
+    for (mono, coeff) in p.terms() {
+        let (id, e) = match mono.as_slice() {
+            [] => {
+                c = coeff.clone();
+                continue;
+            }
+            [(id, e)] => (*id, *e),
+            _ => return false,
+        };
+        if *var.get_or_insert(id) != id || e > 2 {
+            return false;
+        }
+        if e == 2 { &mut a } else { &mut b }.replace(coeff.clone());
+    }
+    let Some(a) = a else { return false };
+    if a.is_negative() || a.is_zero() {
+        return false;
+    }
+    let Some(b) = b else {
+        // No linear term: `a·X² + c` with `a > 0` needs only `c ≥ 0`,
+        // which the term-wise test already reaches. Decline rather
+        // than answer a second time.
+        return false;
+    };
+    // `b² ≤ 4ac`, in the exact ring: no root, so no sign change.
+    let Some(four_ac) = Rat::new(4, 1, 0)
+        .and_then(|f| f.mul(&a))
+        .and_then(|f| f.mul(&c))
+    else {
+        return false;
+    };
+    let Some(disc) = b
+        .mul(&b)
+        .and_then(|bb| four_ac.neg().and_then(|n| bb.add(&n)))
+    else {
+        return false;
+    };
+    disc.is_negative() || disc.is_zero()
+}
+
+/// **A manifestly non-negative POLYNOMIAL** — the term-wise test, a
+/// perfect square, or a definite quadratic in one indeterminate.
 fn nonneg_poly(p: &Poly, sess: &Session) -> bool {
-    termwise_nonneg(p, sess) || signed::poly_sqrt(p, sess.budget).is_some()
+    termwise_nonneg(p, sess)
+        || signed::poly_sqrt(p, sess.budget).is_some()
+        || definite_quadratic(p, sess)
 }
 
 /// **A manifestly non-negative FORM**: both halves manifestly

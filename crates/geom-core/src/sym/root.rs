@@ -36,29 +36,30 @@
 //! holds by construction (the content is a gcd of magnitudes), so
 //! `p ≥ 0` and `p' ≥ 0` are the same statement and no sign is read.
 //!
-//! # The side condition, argued once: `D ≥ 0`
+//! # The side condition, argued once: `D > 0`, PROVED
 //!
 //! `sqrt(N/D) = sqrt(N)/sqrt(D)` needs `D > 0` where it is used, not
 //! merely `N/D ≥ 0`: at `N ≤ 0, D < 0` the left side is real and
 //! neither root on the right is. `D ≠ 0` is rule E's four-source
 //! denominator argument ([`quotient`]) — a denominator the form carries
 //! has a value, so it is non-zero wherever the expression has one.
-//! Non-negativity comes from exactly these, in this order:
+//! What is left is a SIGN for `D`, and it is PROVED from the form,
+//! never inferred from what else the session happens to hold:
 //!
-//! 1. **`D` is a positive rational constant.** Read off the form; no
-//!    value of any parameter is involved. This is the case rule E's
-//!    scale step leaves behind most often.
+//! 1. **`D` is a rational constant.** Its sign is read off the form; no
+//!    value of any parameter is involved. A positive constant splits
+//!    as it stands, a negative one through source 3.
 //! 2. **`D` is manifestly non-negative** ([`manifest::nonneg`]): rule
 //!    F's own predicate — non-negative coefficients over monomials that
-//!    are even powers or `Sqrt`/`Abs` atoms, or a perfect square. A
-//!    fact about the FORM; it reads no value.
-//! 3. **The walk has already minted `sqrt(D')` for `D`'s primitive
-//!    part `D'`.** A `Sqrt` atom exists only because some node of this
-//!    session's DAG computes that root, and a real square root has a
-//!    value only where its argument is non-negative; `D` and `D'` differ
-//!    by the positive content, so `D ≥ 0` exactly where `D' ≥ 0`. The
-//!    claim is therefore "wherever both nodes have values", which is
-//!    the scope every clause of the tier already speaks in.
+//!    are even powers or `Sqrt`/`Abs` atoms, a perfect square, or a
+//!    quadratic in one indeterminate with a positive leading
+//!    coefficient and no real root. A fact about the FORM; it reads no
+//!    value.
+//! 3. **`D` is manifestly non-POSITIVE**, i.e. `manifest::nonneg(−D)`:
+//!    then `N/D = (−N)/(−D)` and the split is taken over the negated
+//!    pair, so `sqrt(x/(−1−y²))` and `sqrt(−x/(1+y²))` key ONE atom
+//!    instead of two. Value-free like source 2, because it IS source 2
+//!    on the negated denominator.
 //! 4. **A certified read** — [`signed`]'s bracket over the leaf's box
 //!    says `D > 0`. This reads a VALUE, so it is rule C's shape and
 //!    rides rule C's dial ([`super::SymRules::signed_root`]); the form
@@ -67,18 +68,23 @@
 //!
 //! `N ≥ 0` then follows from `N/D ≥ 0` and `D > 0` and is never tested
 //! on its own; a numerator that is a NEGATIVE constant declines
-//! instead, because `N/D ≥ 0` would make `D` negative and source 1
-//! has already refused that.
+//! instead, because `N/D ≥ 0` would make `D` negative and the sources
+//! above have already settled `D`'s sign.
 //!
-//! **Source 3 depends on minting order, and that is stated rather than
-//! hidden.** Whether `sqrt(D')` is in the session when this root is
-//! minted is a fact about the walk's traversal, which is deterministic
-//! for a given DAG but not a property of the argument alone. What is a
-//! property of the argument alone is the KEY: an atom this module mints
-//! is keyed on the primitive polynomial and nothing else, so two sites
-//! that both split mint one atom whichever went first. What order can
-//! change is whether a given root splits at all — never which atom it
-//! splits into.
+//! **What is NOT a source, and why it cannot be.** "The session
+//! already holds `sqrt(D')` for `D`'s primitive part, so `D ≥ 0`
+//! wherever that node has a value" is FALSE of the DAG this tier
+//! walks. The decision door records BOTH arms of every `Select`, and
+//! the value of a residual does not depend on the arm the door did not
+//! take — so a `sqrt(x)` on a dead arm would license
+//! `sqrt(N/x) → sqrt(N)/sqrt(x)` over a box where `x < 0` throughout,
+//! and [`manifest`]'s `nonneg` would then read the product of two
+//! `Sqrt` atoms as non-negative: a FALSE THEOREM, on a construction
+//! (the sign-hull frame) that is made of such arms. The adversary is
+//! pinned as a gating row (`sym_root_rows`), and the rule declines
+//! rather than asking the atom table. With it goes the old
+//! order-dependence disclosure: a proof from the form does not depend
+//! on what the walk minted first.
 //!
 //! # One door
 //!
@@ -194,28 +200,52 @@ fn sqrt_poly(p: &Poly, sess: &mut Session, early: bool) -> Option<Form> {
     Some(out)
 }
 
-/// Whether the session already holds `sqrt` of `d`'s primitive part —
-/// the module header's side-condition source 3.
-fn primitive_root_is_an_atom(d: &Poly, sess: &Session) -> bool {
-    content_split(d).is_some_and(|(_, primitive)| {
-        let id = indet_atom(SymOp::Sqrt.tag(), 0, &[Form::poly(primitive).digest()]);
-        sess.atoms.contains_key(&id)
-    })
+/// What a denominator's proved sign lets the split do: take the pair
+/// as it stands, take it NEGATED (the module header's source 3, which
+/// is source 2 on `−D`), and whether saying so READ a value.
+struct Sign {
+    negate: bool,
+    read: bool,
 }
 
-/// Whether the denominator `d` is non-negative wherever the root has a
-/// value, and whether saying so read a value (the second half is the
-/// `gated` bit the caller must carry). `None` where no source reaches
-/// it and the split may not be taken.
-fn denominator_nonneg(d: &Poly, sess: &Session) -> Option<bool> {
+/// The proof that `D > 0` where the root has a value, by the module
+/// header's sources — or `None`, and then the rule declines and the
+/// caller keeps the opaque atom. **No source consults the session's
+/// atom table**; the header says why that cannot be one.
+fn denominator_sign(d: &Poly, sess: &Session) -> Option<Sign> {
     if let Some(c) = d.as_constant() {
-        return (!c.is_negative()).then_some(false);
+        return (!c.is_zero()).then_some(Sign {
+            negate: c.is_negative(),
+            read: false,
+        });
     }
-    if manifest::nonneg(&Form::poly(d.clone()), sess) || primitive_root_is_an_atom(d, sess) {
-        return Some(false);
+    if manifest::nonneg(&Form::poly(d.clone()), sess) {
+        return Some(Sign {
+            negate: false,
+            read: false,
+        });
     }
-    if sess.rules.signed_root && signed::enclose_poly(d, sess).is_some_and(|r| r.lo() > 0.0) {
-        return Some(true);
+    if manifest::nonneg(&Form::poly(d.neg()?), sess) {
+        return Some(Sign {
+            negate: true,
+            read: false,
+        });
+    }
+    if sess.rules.signed_root
+        && let Some(r) = signed::enclose_poly(d, sess)
+    {
+        if r.lo() > 0.0 {
+            return Some(Sign {
+                negate: false,
+                read: true,
+            });
+        }
+        if r.hi() < 0.0 {
+            return Some(Sign {
+                negate: true,
+                read: true,
+            });
+        }
     }
     None
 }
@@ -231,11 +261,16 @@ pub(super) fn canonical(arg: &Form, sess: &mut Session, early: bool) -> Option<F
         out.gated |= arg.gated;
         return Some(out);
     }
-    let read = denominator_nonneg(&arg.den, sess)?;
-    let num = sqrt_poly(&arg.num, sess, early)?;
-    let den = sqrt_poly(&arg.den, sess, early)?;
+    let sign = denominator_sign(&arg.den, sess)?;
+    let (n, d) = if sign.negate {
+        (arg.num.neg()?, arg.den.neg()?)
+    } else {
+        (arg.num.clone(), arg.den.clone())
+    };
+    let num = sqrt_poly(&n, sess, early)?;
+    let den = sqrt_poly(&d, sess, early)?;
     let mut out = num.mul(&den.recip()?, sess.budget)?;
-    out.gated |= arg.gated || read;
+    out.gated |= arg.gated || sign.read;
     Some(out)
 }
 

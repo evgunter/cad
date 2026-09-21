@@ -139,6 +139,8 @@ mod span_newtype;
 mod spline_hull;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
+#[path = "sym_root_rows.rs"]
+mod sym_root_rows;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
 #[path = "sym_rule_f_interval_rows.rs"]
