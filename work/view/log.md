@@ -14259,3 +14259,56 @@ shipped producer, and the `Dying*` fakes mirroring a machine they no
 longer agree with. If either survives that lane open it goes to VSEAM
 on the same test; `evalseam.rs` and `pickcache.rs` are its ground.
 Then VIEW's slate is empty and the exit walk is the only step left.
+
+## 2026-09-21 — the seam residue of the panic ruling (`view/seam-residue`)
+
+The two rows the 2026-09-17 ruling left behind, taken together because
+the second exists to exercise what the first says is unreachable.
+
+**`PickCache::indexing` is one read again.** The `&& self.seam.busy()`
+conjunct had exactly one producer — a worker that had gone quiet — and
+that producer was deleted by the ruling that makes a crashed worker
+panic. The argument is an invariant and not a grep: an attempt is
+recorded `Asked(k)` in the same step that submits `k`, the seam holds
+that request until it answers, and `pump` takes the answer straight to
+`land`, so `Asked` implies `busy` for both shipped implementations.
+The three places a job leaves the seam unanswered are `poll`'s
+non-superseding arm — same key, landed in the same statement — and
+`close`/`forget_worker`, which only three `fn drop` bodies reach.
+
+**The row's first question was posed on an incomplete census, and the
+answer is no.** `IndexService::busy` does not leave the trait: it is
+read directly by `tests/eval_seam.rs` and through the `Drainable`
+adapter every threaded row in that file spins on. It is the seam's own
+observable for *at most one outstanding*; the consumer that stopped
+reading it is one reader of several.
+
+**`Coalescing::forget_worker` stays, with its two arms.** Unreachable
+on a running application, and the function already says so. Answering
+a closed channel with `crashed()` would be a false statement about an
+orderly shutdown and would restore the conflation #2762 removed — the
+same reasoning the module already applies to
+`a_send_that_fails_with_the_channel_still_ours_is_a_crash_too`.
+
+**Both `Dying*` fakes are gone**, and they were two different cases.
+`DyingIndexer` modelled a dead state and had no unique assertion left.
+`DyingEvaluator` modelled a LIVE state (`Outstanding::Canceled`) by a
+route no implementation may take, and the live route — a real cancel
+through the shipped seam — is already driven, with the `Reevaluate`
+recovery the fake could not reach. `dying_worker` went with them: the
+hand-written mirror class is out of `frame_policy.rs` entirely, and
+what drives `Coalescing`'s two endings is `evalseam`'s own `mod tests`
+over the shipped type.
+
+`crates/viewer/README.md`'s *Every "is work outstanding" answer
+consults the seam it asked* is rewritten rather than repaired around.
+It was written by a lane at `030d5021d8` (#2637), not ratified by Ev,
+and `docs/DESIGN.md`'s companion table names that README the
+implementation record the program maintains itself — so this is not an
+[ev] PR. The rule it states now is that the answer comes from whichever
+record can be wrong about it, and the index seam's is the cache's.
+
+Both rows closed. 714 rows green; five mutations recorded on the PR,
+one of which is a receipt for a weak guard rather than a strong one —
+`NotIndexed::Absent`'s sentence is held only by *differs from
+`Building`* and *contains "index"*.
