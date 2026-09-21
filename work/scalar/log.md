@@ -1067,3 +1067,19 @@ set is seventeen rows the spec did not name (the spec's five call the
 doors directly); the impl census generalised to both rosters; the
 `Dual64` public-door row built. Three lanes live: RING-2's
 implementer, LANE-2's R1 and R2.
+
+## The box restarted again: three lanes killed, three resumed (2026-09-21, ~20:45Z)
+
+A container restart killed RING-2's implementer (mid-fix on the
+sidecar row: four `step-export` fixture re-pins uncommitted, saved as
+`ring2-uncommitted-at-restart-2.patch`), and both LANE-2 reviewers
+(no hand-back from either; R1 had an uncommitted `validate.rs` edit
+and an end-to-end example, R2 an uncommitted `chart_region.rs`
+mutant — each saved into its own scratch, never read by the other).
+All three resumed at ~20:50Z on the same arms, each from its own
+material and its own already-built target; the lanes' isolation is
+intact (the orchestrator moved each lane's files only within that
+lane's directories). Wall-clock and token counts for LANE-2's dual and
+RING-2's fix will be the sum of the killed and resumed lanes, with the
+restart noted in the row. Disk 12 G free after the orphan worktrees
+were removed.
