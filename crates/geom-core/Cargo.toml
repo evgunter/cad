@@ -94,8 +94,8 @@ num-traits = { workspace = true }
 # libm error pads, pure Rust over the same `libm` this crate already
 # carries, and a separate workspace root so its own gmp-backed
 # certification oracle never enters this graph. A NORMAL dependency: the
-# `interval` feature gates the kernel's instantiation at the type, not
-# the edge to the type's backend. It is also the differential oracle the
+# `interval` feature gates the lane impls at the type, not the edge to
+# the type's backend. It is also the differential oracle the
 # ring's default-lane tests read (`tests/ring_interval_differential.rs`).
 interval-transcendentals = { workspace = true }
 

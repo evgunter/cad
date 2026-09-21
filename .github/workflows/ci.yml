@@ -2723,8 +2723,9 @@ jobs:
       # `interval-transcendentals` was in both because geom-core carried
       # it as a dev-dependency; it is in both today because geom-core
       # carries it as a dependency). What differs is feature flags on
-      # WORKSPACE crates, which rust-cache strips before saving. So these two entries
-      # hold near-identical bytes and could in principle be one — they are
+      # WORKSPACE crates, which rust-cache strips before saving. So these
+      # two entries hold near-identical bytes and could in principle be
+      # one — they are
       # kept apart because the CACHE SEPARATION note on `build-interval`
       # argues the separation on the graphs rather than on this
       # measurement, and one job-night is not worth re-opening it.

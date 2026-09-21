@@ -98,7 +98,7 @@ findings below more surprising, not less.
 |---|---|---|
 | `f64` | `real.rs:593` | yes |
 | `Probe` | `k_stats.rs:325` | **yes — always compiled** |
-| `Interval` | `interval.rs:234` | **yes — the impls compile in every build; the `interval` feature gates the kernel's instantiation at the type** |
+| `Interval` | `interval.rs:234` | **yes — the impls compile in every build; what the `interval` feature gates is the lane-trait impls above this crate and the interval test files** |
 | `Dual<T>` | `dual.rs:410` | only via tests |
 
 `Dual<T: KinkJacobian>` has two inhabitants: `Dual<f64>` and

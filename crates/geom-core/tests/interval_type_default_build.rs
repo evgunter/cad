@@ -1,8 +1,8 @@
 //! The certified [`Interval`] scalar is nameable, constructible and
 //! **decides** in a DEFAULT build: `geom_core::interval` compiles with
-//! the `interval` cargo feature OFF, which gates the kernel's
-//! instantiation at the scalar (the lane impls above this crate and the
-//! interval test files) and not the scalar itself.
+//! the `interval` cargo feature OFF, which gates the lane-trait impls
+//! above this crate and the interval test files — not the scalar, and
+//! not the generic bodies that take it.
 //!
 //! Deliberately carries no crate-level interval gate: a gated file would
 //! say nothing about the build this suite is a claim about. Deliberately
@@ -139,8 +139,8 @@ fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
 }
 
 /// Containment gets EASIER as an enclosure degrades — `[0, 1]`
-/// contains 1e-6 — so the enclosing row above can catch a lost bracket
-/// and never a lost one's TIGHTNESS. This row bounds the width of the
+/// contains 1e-6 — so the enclosing assertion in the first row can
+/// catch a lost bracket and never a lost TIGHTNESS. This row bounds the width of the
 /// square from above instead. It squares through [`Real::powi`], the
 /// idiom `scripts/gates/interval-square-allowlist.sh` requires of a
 /// square (the operator treats the two factors as independent, which
