@@ -238,6 +238,44 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_interval() {
     assert!(checked > 400, "probe corpus shrank: {checked}");
 }
 
+/// Totality and poison for the new door, which `curves.rs`'s own
+/// `poison_parameter_poisons_the_point`,
+/// `extreme_parameters_do_not_panic` and
+/// `nurbs_placeholder_evaluates_to_poison` rows enumerate for
+/// `eval`/`deriv`/`deriv2` by hand and do not enumerate for `ders1`.
+#[test]
+fn probe_ders1_is_total_and_poisons_like_its_evaluators() {
+    let axis = Vec3::new(0.0, 0.0, 1.0);
+    let u_ref = Vec3::new(1.0, 0.0, 0.0);
+    let circle = Curve3::Circle {
+        center: Point3::origin(),
+        axis,
+        radius: 2.0,
+        u_ref,
+    };
+    let (p, d) = circle.ders1(f64::NAN);
+    assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "point {p:?}");
+    assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan(), "tangent {d:?}");
+    for t in [f64::INFINITY, f64::NEG_INFINITY, 1e300, -1e300, f64::MAX] {
+        let _ = circle.ders1(t);
+    }
+    let (p, d) = circle.ders1(f64::INFINITY);
+    assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "point {p:?}");
+    assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan(), "tangent {d:?}");
+
+    let line = Curve3::Line {
+        origin: Point3::origin(),
+        dir: Vec3::new(1.0, 0.0, 0.0),
+    };
+    // The line's tangent is data: a poison parameter does not reach it.
+    assert!((line.ders1(f64::NAN).1.x - 1.0).abs() < f64::EPSILON);
+
+    let n: Curve3<f64> = Curve3::nurbs_placeholder();
+    let (p, d) = n.ders1(0.5);
+    assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "point {p:?}");
+    assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan(), "tangent {d:?}");
+}
+
 /// The enum's analytic arms at parameters the unit's row does not
 /// reach: very large and very small magnitudes, exact multiples of
 /// the trig period, subnormals, and negative zero.
