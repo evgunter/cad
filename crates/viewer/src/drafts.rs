@@ -398,6 +398,7 @@ impl Default for Drafts {
     /// rectangle, a 10 mm extrude, a full-turn revolve. Everything
     /// else starts empty.
     fn default() -> Self {
+        let (_, xy_u, xy_v) = ProfilePlane::xy_numbers();
         Self {
             delta_mm: None,
             expr_target: None,
@@ -414,8 +415,13 @@ impl Default for Drafts {
             datum_kind: DatumKindChoice::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
-            datum_u: [1.0, 0.0, 0.0],
-            datum_v: [0.0, 1.0, 0.0],
+            // The frame form opens on the world xy frame — the SAME
+            // one the add-profile form's `NewXy` mints, taken from
+            // that choice rather than re-typed here, so the form a
+            // person edits and the frame the other door commits
+            // cannot drift apart.
+            datum_u: xy_u,
+            datum_v: xy_v,
             datum_frame: None,
             datum_in_frame_origin: Point2::origin(),
             datum_in_frame_direction: [0.0, 1.0],
@@ -941,15 +947,14 @@ mod tests {
     }
 
     /// **The add-datum FRAME form opens on the frame the add-profile
-    /// form MINTS**, and they are one frame rather than two agreeing
-    /// numbers.
+    /// form MINTS**, through the lowering rather than past it.
     ///
-    /// Both spell the world xy frame — the form as the `[f64; 3]`
-    /// fields a person then edits, `ProfilePlane::world_xy` as the
-    /// literals its two-insert action commits — and the two currencies
-    /// cannot be the same expression. This is what holds them
-    /// together: a lane that moved either would have to move both or
-    /// come here.
+    /// Both now read `ProfilePlane::xy_numbers`, so the NUMBERS cannot
+    /// disagree. What this row still holds is the step between them:
+    /// `world_xy` lowers those triples into the slots
+    /// `Datum::Frame` takes, and a lowering that put the origin where
+    /// an axis goes would satisfy the shared constant and still author
+    /// a different frame.
     #[test]
     fn the_frame_forms_default_is_the_frame_the_profile_form_mints() {
         let drafts = Drafts {

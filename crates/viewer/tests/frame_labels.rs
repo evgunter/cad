@@ -30,15 +30,22 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
+use viewer::session::ProfilePlane;
 use viewer::tree;
 
 /// A `Datum::Frame` node with world axes and the given origin, in
 /// canonical metres.
+///
+/// The axes come from `ProfilePlane::xy_numbers` rather than being
+/// typed here: this suite asserts that the world xy frame is LABELLED
+/// `xy`, so it has to be drawing the frame the tree actually calls
+/// that one.
 fn frame_at(origin: [f64; 3]) -> Node<ProfileProgram> {
+    let (_, u, v) = ProfilePlane::xy_numbers();
     Node::Datum(Datum::Frame {
         origin: common::len3(origin),
-        u: common::scl3([1.0, 0.0, 0.0]),
-        v: common::scl3([0.0, 1.0, 0.0]),
+        u: common::scl3(u),
+        v: common::scl3(v),
     })
 }
 
@@ -86,8 +93,8 @@ fn a_frames_origin_is_written_in_its_own_notation() {
             Expr::literal_with_unit(0.010, Dimension::Length, MM.def())
                 .expect("a millimetre literal"),
         ],
-        u: common::scl3([1.0, 0.0, 0.0]),
-        v: common::scl3([0.0, 1.0, 0.0]),
+        u: common::scl3(ProfilePlane::xy_numbers().1),
+        v: common::scl3(ProfilePlane::xy_numbers().2),
     });
     let shown = label(&node, 5);
     assert!(
@@ -110,8 +117,8 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
             Expr::literal(0.0, Dimension::Length).expect("a literal"),
             Expr::param(ParamName::new("height"), Dimension::Length),
         ],
-        u: common::scl3([1.0, 0.0, 0.0]),
-        v: common::scl3([0.0, 1.0, 0.0]),
+        u: common::scl3(ProfilePlane::xy_numbers().1),
+        v: common::scl3(ProfilePlane::xy_numbers().2),
     });
     let shown = label(&node, 2);
     assert!(shown.contains("driven"), "{shown}");

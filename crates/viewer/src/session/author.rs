@@ -132,13 +132,45 @@ pub enum ProfilePlane {
 }
 
 impl ProfilePlane {
-    /// The world XY frame's own numbers, as [`Self::NewXy`] authors
-    /// them.
+    /// **The one statement of which plane [`Self::NewXy`] means**: the
+    /// placement the chrome previews on, and the frame whose numbers
+    /// the same submit commits.
+    ///
+    /// The kernel's own mint ([`SketchPlane::xy`]), read back through
+    /// its four accessors — which that type's docs say project the
+    /// stored frame bitwise rather than recomputing it. So the preview
+    /// and the node are not two agreeing statements of the world xy
+    /// frame; they are one, and [`Self::world_xy`] below is a
+    /// transcription of it into `Expr`s rather than a second copy of
+    /// the numbers.
+    pub fn xy_placement() -> SketchPlane<f64> {
+        SketchPlane::xy()
+    }
+
+    /// The same plane as the `[f64; 3]` triples a FORM edits — the
+    /// add-datum frame form opens on these
+    /// (`Drafts::default`), and `world_xy` lowers them.
+    ///
+    /// Three triples rather than a `SketchPlane` because a form's
+    /// fields are numbers a person drags, and because the add-datum
+    /// form authors `u` and `v` and never a normal.
+    pub fn xy_numbers() -> ([f64; 3], [f64; 3], [f64; 3]) {
+        let plane = Self::xy_placement();
+        let (origin, u, v) = (plane.origin(), plane.u(), plane.v());
+        (
+            [origin.x, origin.y, origin.z],
+            [u.x, u.y, u.z],
+            [v.x, v.y, v.z],
+        )
+    }
+
+    /// The world XY frame as [`Self::NewXy`] commits it: the numbers
+    /// above, lowered to the literals [`Datum::Frame`]'s slots take.
     ///
     /// Spelled here rather than at the form, for [`DatumSpec`]'s
     /// reason: the numbers a form authors are the vocabulary's, and
     /// the session mints the literals. `Length` origin, `Scalar`
-    /// axes — the dimensions [`Datum::Frame`]'s own slots take.
+    /// axes — the dimensions the node's own slots take.
     ///
     /// # Errors
     ///
@@ -147,27 +179,26 @@ impl ProfilePlane {
     /// `Result` so that "is this number authorable" keeps ONE home,
     /// the expression door, rather than an `unwrap` here.
     pub fn world_xy() -> Result<DatumSpec, DimensionError> {
-        let length = |value: f64| Expr::literal(value, Dimension::Length);
-        let scalar = |value: f64| Expr::literal(value, Dimension::Scalar);
+        let (origin, u, v) = Self::xy_numbers();
+        let lengths = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+            Ok([
+                Expr::literal(v[0], Dimension::Length)?,
+                Expr::literal(v[1], Dimension::Length)?,
+                Expr::literal(v[2], Dimension::Length)?,
+            ])
+        };
+        let scalars = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+            Ok([
+                Expr::literal(v[0], Dimension::Scalar)?,
+                Expr::literal(v[1], Dimension::Scalar)?,
+                Expr::literal(v[2], Dimension::Scalar)?,
+            ])
+        };
         Ok(DatumSpec::Frame {
-            origin: [length(0.0)?, length(0.0)?, length(0.0)?],
-            u: [scalar(1.0)?, scalar(0.0)?, scalar(0.0)?],
-            v: [scalar(0.0)?, scalar(1.0)?, scalar(0.0)?],
+            origin: lengths(origin)?,
+            u: scalars(u)?,
+            v: scalars(v)?,
         })
-    }
-
-    /// **The placement the chrome draws [`Self::NewXy`] on before its
-    /// node exists.**
-    ///
-    /// A preview needs a plane and there is nothing evaluated to read
-    /// one off, so this is the one place the choice's geometry is
-    /// stated twice — once as the node's numbers above, once as the
-    /// placement here. The kernel's own mint, not a hand-built affine,
-    /// and `creation_ops`'s `a_new_xy_frame_lands_where_its_preview_drew`
-    /// evaluates [`Self::world_xy`]'s node and holds the two together,
-    /// so the pair cannot drift in silence.
-    pub fn xy_placement() -> SketchPlane<f64> {
-        SketchPlane::xy()
     }
 }
 
