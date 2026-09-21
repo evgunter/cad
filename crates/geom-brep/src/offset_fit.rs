@@ -184,7 +184,7 @@
 //! The **production** door takes [`Tol`] — [`fit_offset`],
 //! [`certify_offset`], [`certify_offset_over`],
 //! [`approx_offset_surface`], [`recertify_approx`]. That is the whole
-//! surface the kernel reaches: `topo::props`'s lane doors call the last
+//! surface the kernel reaches: [`crate::OffsetFitLane`] calls the last
 //! two, and the mint calls down to the first three. A caller has no
 //! number to pass, so two callers cannot fit against two epsilons, and
 //! the value is read once (`precision_target`, private — the doors
@@ -202,7 +202,7 @@
 //! `crates/sweep/tests/` are the whole population.
 //!
 //! **One production caller reaches an `_at` routine**, named at its own
-//! door: the transform lane's `PcurveFittedLane::remap_certificate`
+//! door: the transform door's [`crate::OffsetFitLane::remap`]
 //! classifies a MAPPED pair against the tolerance the surface's own
 //! claim was made at, which is a stored datum and deliberately not the
 //! run's ε. Nothing else does, and
@@ -704,8 +704,8 @@ impl std::error::Error for OffsetFitError {}
 // module never runs at. It arrives there as provenance and never as
 // authority: at `f64` the validator re-derives against the
 // description and never consults the stored copy, and at a scalar
-// with no re-derivation lane — `PropsQuadLane::recertify_approx` in
-// `topo::props` answering `None` — tier 3 REFUSES the face with
+// with no re-derivation lane — `crate::OffsetFitScalar` answering
+// `None` — tier 3 REFUSES the face with
 // `ValidationError::ApproxLaneUnsupported` rather than accepting the
 // carried record. That refusal is about the derivation missing at
 // that scalar, never about a value that could not arrive.
@@ -1053,9 +1053,9 @@ pub fn certify_offset_at(
 /// **The window rule and the certification behind it, one home.**
 /// Every door that certifies an offset fit against a described base
 /// goes through here: the storage mint ([`approx_offset_surface`]),
-/// the validator's re-derivation ([`recertify_approx`], which tier 3
-/// reaches through `topo::props::PropsQuadLane`) and the transform
-/// door's lane (`crate::PcurveFittedLane::remap_certificate`).
+/// the validator's re-derivation ([`recertify_approx`]) and the
+/// transform door's remap ([`crate::OffsetFitLane::remap`]) — all
+/// three reached through [`crate::OffsetFitLane`].
 ///
 /// The rule: [`certify_offset`] derives over the base's WHOLE chart
 /// rectangle, so a `window` is honoured exactly when it IS that
@@ -1083,7 +1083,7 @@ pub fn certify_offset_over(
 /// ε — the engine as an instrument (module docs).
 ///
 /// **It has one production caller**, and that is not a leak: the
-/// transform door's lane (`crate::PcurveFittedLane::remap_certificate`)
+/// transform door's remap ([`crate::OffsetFitLane::remap`])
 /// re-derives a MAPPED pair against the tolerance the surface's own
 /// claim was made at, which is the property that keeps the map and the
 /// validator agreeing about a given surface (`topo::transform`'s

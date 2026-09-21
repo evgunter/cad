@@ -176,11 +176,16 @@ pub enum ReplaceFaceError<T: Real> {
         /// The fit door's typed refusal, verbatim.
         error: geom_brep::OffsetFitError,
     },
-    /// The face carries a NURBS surface but this scalar has no fit
-    /// lane, so the offset cannot be minted at all. Not a pass — the
-    /// same posture tier 3 takes on an unre-derivable certificate.
+    /// The face carries a NURBS surface and the mint was handed no
+    /// fit door, so the offset cannot be minted at all. Not a pass —
+    /// the same posture tier 3 takes on an unre-derivable certificate.
+    ///
+    /// `Some` comes from [`geom_brep::OffsetFitLane`], whose one
+    /// constructor is the `f64` fit; every other scalar's
+    /// [`geom_brep::OffsetFitScalar`] arm answers `None` and reaches
+    /// here.
     ApproxLaneUnsupported {
-        /// The face whose kind needs the (`f64`-only) fit lane.
+        /// The face whose kind needs the (`f64`-only) fit door.
         face: FaceKey,
     },
     /// **The operand's surface key is SHARED.** Another face carries
@@ -1133,7 +1138,14 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
         _ => Nappe::Opening,
     };
     let d = nappe.turn(d);
-    let new_surface = mint_offset(face, &old_surface, d, band, tol)?;
+    let new_surface = mint_offset(
+        face,
+        &old_surface,
+        d,
+        band,
+        tol,
+        <T as geom_brep::OffsetFitScalar>::offset_fit_lane(),
+    )?;
 
     // ---- Decide: the apex window (cones only). ----
     let shift = apex_shift(&old_surface, d);
@@ -1302,8 +1314,16 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     Ok(())
 }
 
-/// The offset surface for `old`: the analytic mint, or the fit lane's
+/// The offset surface for `old`: the analytic mint, or the fit door's
 /// certified `Approx` where the kind is not closed under offset.
+///
+/// `offset_fit` is that door ([`geom_brep::OffsetFitLane`]), handed in
+/// rather than read off the scalar: the fit is written at `f64` and at
+/// no other scalar, so a `None` here is the absence of a DERIVATION
+/// and not a statement about the operand, which is representable
+/// everywhere. `None` is not a pass — a caller that cannot mint the
+/// offset refuses with
+/// [`ReplaceFaceError::ApproxLaneUnsupported`].
 // `band, tol` in that order, matching the public doors above rather
 // than the `tolerance, band` this used to end in: the raw tolerance is
 // gone and the witness takes the trailing position every door on this
@@ -1314,15 +1334,17 @@ fn mint_offset<T: Decide + PropsQuadLane>(
     d: T,
     band: Band,
     tol: Tol,
+    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
         if base.is_placeholder() {
             return Err(ReplaceFaceError::PlaceholderSurface { face });
         }
-        return match T::approx_offset_surface(Arc::clone(base), d, tol, band) {
+        return match offset_fit {
             None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
-            Some(Ok(s)) => Ok(s),
-            Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),
+            Some(lane) => lane
+                .mint(Arc::clone(base), d, tol, band)
+                .map_err(|error| ReplaceFaceError::Fit { face, error }),
         };
     }
     // `d` is `geom_brep::offset_surface`'s own convention here, turned

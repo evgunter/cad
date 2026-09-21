@@ -66,6 +66,7 @@ pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;
 pub mod offset_fit;
+pub mod offset_fit_lane;
 pub mod offset_meters;
 pub mod patch_bound;
 pub mod pcurve;
@@ -114,6 +115,7 @@ pub use offset_fit::{
     certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
     fit_offset_at, recertify_approx, recertify_approx_at,
 };
+pub use offset_fit_lane::{OffsetFitLane, OffsetFitScalar};
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };

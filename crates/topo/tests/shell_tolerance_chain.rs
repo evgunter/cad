@@ -285,10 +285,10 @@ fn the_chain_reads_epsilon_at_one_site() {
 /// `geom-brep`'s `_at` routines take a chosen target and exist so the
 /// fit engine's own suite can measure it. A production file reaching one
 /// is a caller choosing an epsilon, which is the thing the witness rule
-/// removes — except at the transform lane, which classifies a mapped
-/// pair against the tolerance the SURFACE's claim was made at (a stored
-/// datum, argued at `topo::transform::map_approx`). That exception is
-/// listed here by file, so a second one reds.
+/// removes — except at the offset-fit door's remap, which classifies a
+/// mapped pair against the tolerance the SURFACE's claim was made at (a
+/// stored datum, argued at `topo::transform::map_approx`). That
+/// exception is listed here by file, so a second one reds.
 #[test]
 fn only_the_transform_lane_reaches_the_numeric_target_routines() {
     const AT_ROUTINES: [&str; 5] = [
@@ -302,7 +302,7 @@ fn only_the_transform_lane_reaches_the_numeric_target_routines() {
     // one ratified exception.
     const ALLOWED: [&str; 2] = [
         "crates/geom-brep/src/offset_fit.rs",
-        "crates/geom-brep/src/pcurve_cache.rs",
+        "crates/geom-brep/src/offset_fit_lane.rs",
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -357,7 +357,7 @@ fn only_the_transform_lane_reaches_the_numeric_target_routines() {
     );
     assert!(
         seen_exception,
-        "the transform lane no longer reaches the numeric-target routine — either it moved (this \
+        "the offset-fit door no longer reaches the numeric-target routine — either it moved (this \
          census is now measuring the wrong set) or the exception is gone and should be deleted"
     );
 }

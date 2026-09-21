@@ -67,9 +67,9 @@
 //!   FIT net both by the full affine map (weights and knots are
 //!   invariants of it — [`geom::NurbsSurface::map_points`]), `d`, the
 //!   window and the tolerance unchanged, and the two-limb certificate
-//!   **re-derived** on the mapped pair through the scalar's own fit
-//!   lane ([`geom_brep::PcurveFittedLane::remap_certificate`]) — never
-//!   the stored one, which is a claim about a different geometry. The
+//!   **re-derived** on the mapped pair through the injected fit door
+//!   ([`geom_brep::OffsetFitLane::remap`]) — never the stored one,
+//!   which is a claim about a different geometry. The
 //!   composition law is what makes the mapped pair a pair at all: a
 //!   rigid map carries unit normals to unit normals, so
 //!   `M(S + d·n) = M(S) + d·n_M`. A scalar with no fit lane refuses
@@ -149,9 +149,14 @@ pub enum TransformError {
     /// it would launder poison as geometry. A DESCRIBED net is not
     /// this arm: it maps, by its control points.
     NurbsPlaceholder,
-    /// An approximating surface at a scalar with no fit lane: its
+    /// An approximating surface with no fit door in hand: its
     /// certificate cannot be re-derived on the mapped pair, and a
     /// certificate is never carried across a geometry change.
+    ///
+    /// `Some` comes from [`geom_brep::OffsetFitLane`], whose one
+    /// constructor is the `f64` fit; every other scalar's
+    /// [`geom_brep::OffsetFitScalar`] arm answers `None` and reaches
+    /// here.
     ApproxLaneUnsupported {
         /// The scalar's lane name, as the lane itself reports it.
         lane: &'static str,
@@ -380,7 +385,12 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
             }
             Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
         }
-        Surface::Approx(ref a) => Surface::Approx(std::sync::Arc::new(map_approx(map, a, band)?)),
+        Surface::Approx(ref a) => Surface::Approx(std::sync::Arc::new(map_approx(
+            map,
+            a,
+            band,
+            <T as geom_brep::OffsetFitScalar>::offset_fit_lane(),
+        )?)),
     })
 }
 
@@ -427,14 +437,23 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
 /// collapse reach); the two limbs are classified against `tolerance`
 /// directly. So a tighter run band can make this door refuse a surface
 /// its mint accepted, which is the fail-loud direction, and the shape
-/// is exactly `geom_brep::recertify_approx`'s — the door tier 3 reaches
+/// is exactly [`geom_brep::OffsetFitLane::recertify`]'s — the door
+/// tier 3 reaches
 /// per face, which likewise meters at the run's band and classifies at
 /// the caller's tolerance. The map and the validator therefore agree
 /// about any given surface, which is the property that matters.
+/// `offset_fit` is the re-derivation door ([`geom_brep::OffsetFitLane`]),
+/// handed in rather than read off the scalar: the fit is written at
+/// `f64` and at no other scalar, so a `None` is the absence of a
+/// DERIVATION and not a statement about the surface, which is
+/// representable everywhere. A caller holding such a surface with no
+/// door refuses typed rather than carrying the certificate it already
+/// has across a geometry change.
 fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
     band: Band,
+    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> Result<geom::ApproxSurface<T>, TransformError> {
     let old = a.spec();
     let geom::SurfaceDescription::Offset { ref base, d } = old.description;
@@ -448,18 +467,21 @@ fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
         tolerance: old.tolerance,
     };
     let rounds = a.certificate().rounds;
-    geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
-        match T::remap_certificate(description, fit, window, tolerance, band) {
+    geom::ApproxSurface::certify(
+        spec,
+        |description, fit, window, tolerance| match offset_fit {
             None => Err(TransformError::ApproxLaneUnsupported {
                 lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
             }),
-            Some(Err(source)) => Err(TransformError::ApproxRecertify { source }),
-            Some(Ok(certificate)) => Ok(geom::OffsetCertificate {
-                rounds,
-                ..certificate
-            }),
-        }
-    })
+            Some(lane) => match lane.remap(description, fit, window, tolerance, band) {
+                Err(source) => Err(TransformError::ApproxRecertify { source }),
+                Ok(certificate) => Ok(geom::OffsetCertificate {
+                    rounds,
+                    ..certificate
+                }),
+            },
+        },
+    )
 }
 
 fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {

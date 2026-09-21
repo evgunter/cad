@@ -714,9 +714,13 @@ pub enum ValidationError {
         /// The fit door's typed refusal.
         error: geom_brep::OffsetFitError,
     },
-    /// Tier 3: a face carries an approximating surface and this scalar
-    /// has no re-derivation lane ([`crate::props::PropsQuadLane`]'s
-    /// `recertify_approx` answering `None`).
+    /// Tier 3: a face carries an approximating surface and the pass
+    /// was handed no re-derivation door.
+    ///
+    /// `Some` comes from [`geom_brep::OffsetFitLane`], whose one
+    /// constructor is the `f64` fit; every other scalar's
+    /// [`geom_brep::OffsetFitScalar`] arm answers `None` and reaches
+    /// here.
     ///
     /// Reported rather than skipped: a surface certificate is the one
     /// claim this kernel refuses to leave unchecked, and passing a
@@ -2931,6 +2935,7 @@ fn structural_declared_via<T: crate::props::PropsQuadLane>(
         tol,
         &|_, _, _| None,
         nurbs_lane,
+        <T as geom_brep::OffsetFitScalar>::offset_fit_lane(),
     );
     if errors.is_empty() {
         Ok(())
@@ -3140,6 +3145,7 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
         tol,
         &lane_certificate,
         nurbs_lane,
+        <T as geom_brep::OffsetFitScalar>::offset_fit_lane(),
     )
 }
 
@@ -3545,6 +3551,7 @@ fn contact_marks_declared_via<T: crate::props::PropsQuadLane>(
         tol,
         &lane_certificate,
         nurbs_lane,
+        <T as geom_brep::OffsetFitScalar>::offset_fit_lane(),
     );
     if errors.is_empty() {
         Ok(marks)
@@ -3589,6 +3596,15 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Check7Certificate<T>
 /// ([`geom_brep::EdgeCurve::needs_nurbs_lane`] asks the question
 /// before the claim is made). Every other carrier class is
 /// re-certified identically either way.
+///
+/// `offset_fit` is check 1's re-derivation door for an `Approx` face
+/// ([`geom_brep::OffsetFitLane`]), handed in for a THIRD reason: the
+/// fit is written at `f64` and at no other scalar, so its absence is
+/// about the derivation and not about this caller's rights. `None` is
+/// not a skip — the face is reported
+/// [`ValidationError::ApproxLaneUnsupported`], because a surface
+/// certificate is the one claim this kernel refuses to leave
+/// unchecked.
 pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
@@ -3597,6 +3613,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     tol: Tol,
     plus_v: PlusVCheck<'_, T>,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
+    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> (Vec<ValidationError>, Check7Certificate<T>) {
     let mut errors = Vec::new();
     let mut certificate: Check7Certificate<T> = None;
@@ -3642,18 +3659,19 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             // carrier is** — never against the surface's own stored
             // tolerance. O3's ratified claim is `≤ ε_precision`, and a
             // mint's parameter is not that claim; see
-            // `PropsQuadLane::recertify_approx` for the argument, and
-            // for why ε-tightening turning a loosely-minted surface red
-            // is D4's blessed behaviour rather than a regression. The
-            // witness travels; the value is read once, inside the
-            // lane, so this site cannot hand it a number of its own.
-            Some(Surface::Approx(approx)) => match T::recertify_approx(approx, tol, band) {
-                Some(Ok(_)) => {}
-                Some(Err(error)) => {
-                    errors.push(ValidationError::ApproxCertification {
-                        face: face_key,
-                        error,
-                    });
+            // `geom_brep::OffsetFitLane::recertify` for the argument,
+            // and for why ε-tightening turning a loosely-minted surface
+            // red is D4's blessed behaviour rather than a regression.
+            // The witness travels; the value is read once, inside the
+            // door, so this site cannot hand it a number of its own.
+            Some(Surface::Approx(approx)) => match offset_fit {
+                Some(lane) => {
+                    if let Err(error) = lane.recertify(approx, tol, band) {
+                        errors.push(ValidationError::ApproxCertification {
+                            face: face_key,
+                            error,
+                        });
+                    }
                 }
                 None => {
                     errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
