@@ -494,6 +494,12 @@ pub(crate) struct CellBound {
 /// structurally-exact zero of a degree-1 direction must not leave here
 /// as subnormal dust.
 fn cell_component(sq: RingInterval) -> f64 {
+    // The refusal is asked by name: the ring keeps it in the
+    // decoration, so a refused enclosure carries an ordinary `hi` and
+    // the NaN the contract above promises has to be spelled here.
+    if sq.is_poison() {
+        return f64::NAN;
+    }
     let hi = sq.hi();
     if hi == 0.0 { 0.0 } else { hi.sqrt().next_up() }
 }

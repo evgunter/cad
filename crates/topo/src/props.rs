@@ -2386,7 +2386,18 @@ mod quad_lane {
 
     /// Enclosure midpoint and half-width (the [`super::MassProperties`]
     /// pad decomposition).
+    ///
+    /// A refused enclosure has no midpoint and no width, and answers
+    /// `NaN` for both — which is what every consumer of this pair
+    /// already carries through `T::from_f64`. The refusal is asked by
+    /// name: the ring keeps it in the decoration, so a refused
+    /// enclosure's two endpoints are ordinary numbers and their
+    /// average would be a plausible mass property with nothing behind
+    /// it.
     pub(super) fn mid_pad(x: RingInterval) -> (f64, f64) {
+        if x.is_poison() {
+            return (f64::NAN, f64::NAN);
+        }
         ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
     }
 
@@ -2400,7 +2411,13 @@ mod quad_lane {
         eps: f64,
     ) -> Result<(RingInterval, RingInterval), PropsError> {
         let full = RingInterval::from_bounds(-1.0, 1.0);
+        // `from_bounds` mints a fresh bracket out of whatever
+        // endpoints it is handed, so a refused operand would come back
+        // clean. The refusal is carried across by hand.
         let clamp = |x: RingInterval, pad: f64| {
+            if x.is_poison() {
+                return RingInterval::poison();
+            }
             RingInterval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
         };
         match carrier {
@@ -2627,7 +2644,10 @@ mod quad_lane {
         let eps = tol.eps();
         // Exact-structure read of a T scalar (point bracket required).
         let exact = |x: RingInterval| -> Result<f64, PropsError> {
-            if x.lo() == x.hi() && x.lo().is_finite() {
+            // The refusal first: a refused crossing carries the
+            // scalar's own endpoints, so a point bracket that may not
+            // certify passes both tests below.
+            if !x.is_poison() && x.lo() == x.hi() && x.lo().is_finite() {
                 Ok(x.lo())
             } else {
                 Err(PropsError::QuadratureUnsupported {
@@ -2862,7 +2882,14 @@ mod quad_lane {
                     // future producer that stored a sub-range would get
                     // a certified number for chart the face does not
                     // bound rather than a refusal.
-                    if !(r0.lo() == r0.hi() && r1.lo() == r1.hi() && r0.lo() == d0 && r1.hi() == d1)
+                    // The refusal first, for the reason the
+                    // `exact` closure above gives.
+                    if r0.is_poison()
+                        || r1.is_poison()
+                        || !(r0.lo() == r0.hi()
+                            && r1.lo() == r1.hi()
+                            && r0.lo() == d0
+                            && r1.hi() == d1)
                     {
                         return Err(PropsError::QuadratureUnsupported {
                             what: "a General trim image whose carrier interval is not its \

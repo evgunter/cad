@@ -180,19 +180,36 @@ impl Box3 {
     }
 
     /// The center as an f64 point (a marcher seed, never a claim).
+    ///
+    /// A poisoned axis has no center, and this says so with `NaN`
+    /// rather than with the midpoint of a bracket that stands for
+    /// nothing: the refusal is asked by name because the ring keeps
+    /// its refusal in the decoration and a refused axis carries
+    /// ordinary endpoints.
     pub(crate) fn center(self) -> Point3<f64> {
-        Point3::new(
-            0.5 * (self.x.lo() + self.x.hi()),
-            0.5 * (self.y.lo() + self.y.hi()),
-            0.5 * (self.z.lo() + self.z.hi()),
-        )
+        let mid = |i: RingInterval| {
+            if i.is_poison() {
+                f64::NAN
+            } else {
+                0.5 * (i.lo() + i.hi())
+            }
+        };
+        Point3::new(mid(self.x), mid(self.y), mid(self.z))
     }
 
     /// Split along the widest axis (fixed tie-break: x, then y, then z
     /// — D9), returning the two halves in ascending order.
     pub(crate) fn split(self) -> (Self, Self) {
         let (wx, wy, wz) = (self.x.width(), self.y.width(), self.z.width());
+        // A half of a poisoned axis is poisoned. `from_bounds` mints
+        // a fresh `Com` out of whatever endpoints it is handed, so
+        // re-minting a refused axis through it would launder the
+        // refusal away — which is what the certified door exists to
+        // prevent.
         let half = |i: RingInterval| {
+            if i.is_poison() {
+                return (RingInterval::poison(), RingInterval::poison());
+            }
             let m = 0.5 * (i.lo() + i.hi());
             (
                 RingInterval::from_bounds(i.lo(), m),
