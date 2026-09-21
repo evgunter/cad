@@ -1304,6 +1304,15 @@ infrastructure.** #2808 went red three times with: every job dead in
 placeholders** (`test (eps = ${{ matrix.eps }}, …)`), and `gate ok`
 red. Nothing ran, and nothing in the logs said why — they 404.
 
+**Three of those four are also true of a HEALTHY docs tier**, and that
+is what makes the signature treacherous. A `work/`-only PR legitimately
+gets ~22 jobs, the code rows skipped, and those same placeholder names,
+because an unexpanded matrix is how a skipped matrix job is named. This
+was checked rather than assumed: #2952, a `plan.md`-only change, shows
+exactly that shape with `gate ok` **success**. So the discriminator is
+the pair — **`gate ok` RED on a diff that touches `crates/`** — never
+the placeholders or the job count alone.
+
 That signature reads as a runner fault, and the orchestrator called it
 one out loud after checking three things that all pointed away from the
 diff: `main` green on its last six runs, `ci-filter.py --base
