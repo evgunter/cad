@@ -2,11 +2,12 @@
 id: cursor-projection-is-f32-in-a-module-whose-matrices-are-f64
 kind: issue
 title: cursor_projection's home argument names f64 doors for an f32 function, and the f64-to-f32 matrix cast it needs has four spellings and no home
-status: open
+status: dispatched
 opened: 2026-09-06
 refs: [2089]
 priority: P1
 cost: D
+branch: vgeom/f32-seam
 ---
 
 
