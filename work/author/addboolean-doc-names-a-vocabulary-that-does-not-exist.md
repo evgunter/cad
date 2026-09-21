@@ -80,3 +80,48 @@ door exists. That sweep has not been run and this row does not claim
 its result.
 
 Signed: (CHROME orchestrator)
+
+## What the gap COSTS, measured (2026-09-21, AUTH-1's fix pass)
+
+This row has said since it was filed that no `DocEdit` writes
+`declare`. What it has not carried until now is an ordinary gesture
+the gap blocks, driven and failing.
+
+AUTH-1's fix pass tried to make a test row discriminate by unioning a
+boss into the block it sits on — the block, a profile on the boss's
+face frame, an extrude, then a union. **The union refuses**, because a
+boss drawn on a face frame is FLUSH with the block at that face **by
+construction**, and the kernel refuses an undeclared coincident
+contact:
+
+```
+SessionOp::AddBoolean { op: Union, a: block, b: boss }
+  → UndeclaredContact { finding: FlushFinding {
+      pair: (block's Cap(End), boss's Cap(Start)), class: Rest, … } }
+```
+
+The declaration that would resolve it is a `Declare` node
+(`Node::Boolean::declare`), and `SessionOp::AddBoolean` has no seat
+for one — which is this row.
+
+**So the gap is not only a doc promising a vocabulary that does not
+exist; it is a door the GUI cannot author at all.** "Draw a boss on a
+face and add it to the body" is about as ordinary as CAD gets, and it
+is exactly the class this program was cut to carry (`work/author/program.md`:
+what the GUI cannot author). A face frame makes the flush case the
+COMMON case rather than a corner: every boss authored on a picked face
+lands coincident with what it was drawn on, so AUTH-1 shipping makes
+this row's sharpness worse rather than better.
+
+Recorded here rather than as a new row, per
+`docs/prompts/implementer-discipline.md` §6 — one file per item, and
+this row already owns the declaration vocabulary. What is added is the
+evidence and the cost, not a second finding.
+
+**A consequence for whoever specs this**: the boss-on-a-face gesture
+cannot be asserted end to end by volume through the op vocabulary
+today. AUTH-1 asserts the frame's landed POSE instead (origin, normal
+and sketch +x, verified by mutation), which discriminates strictly
+more than the volume would have. A spec that asks for a sum-of-volumes
+acceptance row on this path is asking for something unreachable until
+this row closes.

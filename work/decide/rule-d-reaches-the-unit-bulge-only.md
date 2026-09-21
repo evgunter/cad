@@ -172,7 +172,8 @@ NON-constant argument (`L` carries `chord_half`), and rule A squares
 only `sqrt`. The plate carries the same atom and closes because there
 it appears on both sides of its residuals. Measured (two local patches,
 reverted, each at 256 bits): `abs(X) = X` for an `X` non-negative by
-syntax (`trig::manifestly_nonneg`, the atan2 fold's own test — `(5/8)·
+syntax (`manifest::nonneg`, the atan2 fold's own test, moved there by
+SYM-8 — `(5/8)·
 sqrt(L²)` qualifies) and `abs(X)² = X²` in rule A's walk give the SAME
 numbers: `carrier_on_surface_2` 27 → 18, `carrier_on_surface_1` 9 → 0,
 `witness_on_surface_2` 3 → 2, `witness_on_surface_1` 1 → 0 (20 of 40),
@@ -337,6 +338,13 @@ only: `a0 = const_fold && (early || !rules.early)`):
 +                }
                  None if c => match signed::fold(node.op, a, &sess.params, budget) {
 ```
+
+That patch is quoted as it was written and both of its symbols have
+since moved: the predicate is `manifest::nonneg` (SYM-8 moved it out of
+`trig`) and the arm it patches is where SYM-8's rule F now folds an
+`abs` — on strict POSITIVITY rather than the non-negativity this patch
+read, which is the narrowing that keeps the boss's
+`abs((5/8)·sqrt(L²))` opaque and this row's ten decisions intact.
 
 Measured: A, B and C alone; A + B; C + B. The parameter D-tab's
 ceiling under each pair is on the ring issue

@@ -137,6 +137,10 @@ mod spline_hull;
 mod sym_drive_memo;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
+#[path = "sym_rule_f_interval_rows.rs"]
+mod sym_rule_f_interval_rows;
+#[path = "sym_rule_f_rows.rs"]
+mod sym_rule_f_rows;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 

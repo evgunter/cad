@@ -2,7 +2,7 @@
 id: zip
 kind: program
 title: ZIP — the join, rest and merge lane: what the boolean hands back once the sections are found
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: zip/

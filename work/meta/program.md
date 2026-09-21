@@ -2,7 +2,7 @@
 id: meta
 kind: program
 title: META — the tracker and the process instruments
-status: open
+status: ready
 opened: 2026-09-04
 area: infra
 prefix: meta/

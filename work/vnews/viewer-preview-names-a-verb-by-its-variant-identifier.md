@@ -4,7 +4,7 @@ kind: issue
 title: the profile preview names a Verb by its variant identifier, the class PR 2053 enforced
 status: closed
 opened: 2026-09-06
-refs: [verb-and-dimension-render-through-debug, 2347, 2053]
+refs: [2347, 2053]
 closed: 2026-09-19
 ---
 
@@ -127,3 +127,7 @@ which is PATHS' territory" and routed it accordingly. That was wrong:
 the orchestrator re-derived the row's citation and not its premise,
 which is the half of the register's rule that matters more, and is the
 same rule handed to every lane dispatched this morning.
+
+## Reference note (FIX's sweep, 2026-09-21)
+
+`verb-and-dimension-render-through-debug` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/verb-and-dimension-render-through-debug.md`.

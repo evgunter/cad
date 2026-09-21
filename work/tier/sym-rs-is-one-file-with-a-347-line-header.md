@@ -130,3 +130,31 @@ sibling module rather than inside `sym.rs`, which is the split's own
 shape — so the growth here is the `# Cost` section's new numbers, the
 D9 section's correction, and the memo's door and publication plumbing,
 not a new mechanism that could have gone in a file of its own.
+
+## The atom mint is spelled three times (SYM-8's reviews, 2026-09-21)
+
+A class, not this row's own subject, but it lands on the same ground
+and both SYM-8 reviewers found it independently (R1 S2, R2 Q1). An
+opaque atom enters a form through `indet_atom` plus a record in
+`Session::atoms`, and the tree spells that three ways:
+
+- `mint_atom` (`sym.rs`), the door — it also pushes the id onto
+  `plain_atoms` when the PLAIN walk is the one minting, which the
+  drive-scoped memo's publication needs;
+- `trig::sqrt_atom` and `trig`'s halving loop, which build the
+  `sqrt(1 + X²)` and half-angle atoms by hand;
+- `manifest::magnitude` (SYM-8), which built its `Abs` atom by hand
+  too, with a hard-coded payload.
+
+They agree today only because the two hand spellings run in the EARLY
+walk, where `plain_atoms` is not collected — so the bookkeeping they
+skip is the bookkeeping that does not apply. The day a rule of that
+shape runs anywhere else, a hand mint drops a publication silently.
+SYM-8's fix pass routed `manifest::magnitude` through `mint_atom`
+(`geom-core`'s `sym_rule_f_rows`,
+`the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints`, is
+the pin that the minted id really is the `abs` node's); `trig`'s two
+remain, and are what a sweep would take.
+
+Cost class: two call sites and no behaviour change at the current
+dials, which is why it is recorded here rather than dispatched.

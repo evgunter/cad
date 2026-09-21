@@ -1001,6 +1001,7 @@ that lands here resolves without opening the walk:
 | `S-MATE-EXIT-WALK.md` | 2026-09-04 | PR #1528, merged by Ev 2026-09-01; ratification confirmed in-chat 2026-09-04 | this row; design at `crates/editor-core/ASSEMBLY.md`; sweep 6 below |
 | `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, ratified in-chat 2026-09-06 | this row; sweep 7 below; vocabulary and bands at `crates/sweep/README.md` |
 | `DOCM-EXIT-WALK.md` | 2026-09-14 | ratified in advance in chat 2026-09-13 ("write it as ready to merge"); merged with sweep 14 | this row; sweep 14 below; design at `crates/editor-core/REFERENCES.md` (DM1–DM6) and `crates/editor-core/IDENTITY.md` (DI1–DI5) |
+| `FIX-EXIT-WALK.md` | 2026-09-21 | ratified in advance in chat 2026-09-21 ("please do close fix; most of those were either mis-filed or should've been done as drive-by fixes"); merged with sweep 18 | this row; sweep 18 below; the program claimed A/B band 1700–1799 and never drew an ordinal |
 | `S-CERT-EXIT-WALK.md` | 2026-09-06 | PR #1924, merged by Ev 2026-09-06 (the merge is the ratification, per the S-MATE convention) | this row; A/B record ordinals 700–714 in `docs/MODEL-AB-LOG.md`; sweep 7 above |
 
 
@@ -2002,6 +2003,72 @@ the radius). Both are recorded in the PR body and the unit's log entry;
 the residue is `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-radius-reduction.md`.
 
 - `BLEND-11-SPEC.md` — BLEND-11, the overrun refusal reports the nearest fit (#2495)
+
+## Sweep 18 — 2026-09-21: FIX leaves the tracker
+
+Sweep SHA: `6f0e04ce1534f1c7d25e5dfbe09751b992f8492e` — the commit
+immediately before the deletion (on the closing PR's branch, reachable
+from `main` through that PR's merge commit; it is the state in which
+FIX's directory is complete and every row in it is closed), so every
+path below is recoverable at `git show 6f0e04ce1534:work/fix/<FILE>`
+and `git show 6f0e04ce1534:docs/FIX-EXIT-WALK.md`.
+
+FIX — kernel and façade doors with the fix written — opened 2026-09-03
+in the tracker-wide cut of that day (`docs/WORK-TRACKS-2026-09.md`
+§FIX) and closed 2026-09-21 on Ev's in-chat ruling, quoted in the walk.
+**Forty-eight rows closed, forty-four carrying a PR**, none larger than
+class E and none reviewed adversarially. The last wave merged five on
+their own green hosted heads: #2943 (`Subject::refused` routes the
+no-body refusal), #2944 (quantity's F6 row folded onto the census
+weld), #2945 (the missed node id carried at ten `refactor.rs` sites),
+#2946 (`FilletLegCarrier`'s scalars through `path::num`), #2948 (four
+second-hop carriers name their repairs). Band **1700–1799** was claimed
+at the joint opening and **never drew an ordinal** — the A/B exemption
+(Ev, 2026-09-04) held for the program's life, so the band is claimed
+and empty in `docs/MODEL-AB-LOG.md` as VIEW's is. The directory leaves
+whole, with no row re-homed at the sweep: the slate was emptied first.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `fix` | FIX — kernel and façade doors with the fix written | 2026-09-21 | this entry; the walk at the sweep SHA; the code it left — `checks::Subject::refused` routing on `ProductErrorKind::means_no_body`, `refactor.rs`'s three name-shaped refusals carrying the node the rewrite stopped at, `path::num` as `crates/profile`'s one rounding grid, `quantity`'s display row on `test_utils::f6`'s census weld, and enforcement rows at `SplineError`, `KnotVectorIssue`, `MeterError`, `PatchBoundError` and `FitError` |
+
+### What survived, and where
+
+The program's output is the tree and three practices, not its directory.
+
+- **The ruling that closed it, which is the durable finding.** Ev,
+  2026-09-21: *"most of those were either mis-filed or should've been
+  done as drive-by fixes."* Measured: **thirty-eight rows left this
+  directory** across its life, re-homed to the track owning their
+  ground, against forty-eight that closed from it. A one-line fix on
+  another program's file is cheapest taken by whoever is next in that
+  file; routing it through a separate program's slate, dispatch, lane,
+  PR and seam announcement costs more than the fix. **The successor
+  practice is not a successor program**: file the row on the slate of
+  the program whose ground it lands on the day it is found, take it in
+  passing when you are already in the file, and let `work/issues/` be
+  the last resort `work/README.md` says it is.
+- **The pin question**, carried as instruction 3 of every dispatch: a
+  unit that changes what a refusal carries or how it renders owes an
+  answer to *"does any existing pin discriminate the old behaviour from
+  the new one?"*, where **no** means the missing pin is part of the
+  defect. It went **five for five** in the program's last wave. The
+  sharpest statement is #2946's: nothing was re-baselined, because
+  nothing had ever pinned that sentence.
+- **Route from the instrument, never from a fence read in prose.**
+  `scripts/work.py territory` was right every time the seat ran it and
+  wrong every time the seat inferred an owner instead — eight recorded
+  corrections, two of which had been the stated reason a row was homed
+  here at all (`topo/src/census.rs` recorded as CURVED's, actually
+  REACH's; `editor-core/src/mc.rs` recorded as unowned, actually
+  PROPS'). A program that spans fences by construction lives or dies on
+  this.
+- **A program with no ground can never rule.** The design-free sweep of
+  2026-09-20 (Ev: *"kick all the design decisions back to the track they
+  actually belong to"*) moved fourteen rows out of FIX and four out of
+  DOOR in one sitting. FIX owns three files, so a decision about those
+  was its own to take; DOOR claims none, so every decision it holds
+  leaves. Both charters now say so.
 
 ## Sweep 17 — 2026-09-17: BLEND leaves the tracker
 
@@ -3216,6 +3283,29 @@ against a ≥ 10 % wall gate, not taken). Recorded in the PR body and
 the unit's log entry.
 
 - `SYM-7-SPEC.md` — SYM-7, the plain form outlives the leaf (#2609)
+
+## Per-merge deletion — SYM-8's spec (2026-09-21)
+
+Recoverable at `git show 7edff5e97:docs/SYM-8-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: Phase 1.3's stop clause
+("if a split moves DOWN or a ceiling falls under the fold ... the
+rule's predicate is narrowed until it does not") — literally tripped
+on R2's rounded pad (`symbolic_zero` 858 → 854, `registered`
+104 → 128, `numeric` 991 → 971; no decision lost, no ceiling moved),
+and RULED a ratified spec deviation by the SYM orchestrator on
+2026-09-21 with `symbolic_zero` pinned on all five pad documents
+(`work/decide/SYM-8.md`; Ev may overrule); the predicate as first
+written over `trig::manifestly_nonneg` (the shipped predicate is
+manifest POSITIVITY, `manifest::positive`, strict at the signed-zero
+edge, and `manifestly_nonneg` is retired); the denominator side
+condition argued from a retired sentence (it rides `quotient`'s
+four-source argument; rule F mints no new denominator); "M10-8's tier
+exactly" for `shipped_without_the_door()` (already false before rule
+F — the constructor is a door differential and keeps rule F;
+`a0_alone()` is M10-8's tier). Recorded in the PR body and the unit's
+log entry.
+
+- `SYM-8-SPEC.md` — SYM-8, the manifest sign (#2616)
 
 ## Per-merge deletion — CURVED-TORUS's spec (2026-09-15)
 

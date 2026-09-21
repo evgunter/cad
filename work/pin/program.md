@@ -2,7 +2,7 @@
 id: pin
 kind: program
 title: PIN — the boolean lane's preconditions, probes and census premises that nothing holds to account
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: pin/

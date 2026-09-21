@@ -2,7 +2,7 @@
 id: verdict
 kind: program
 title: VERDICT — the gates props answers through: the size and coincidence bands, the epsilon vocabularies, the door identity checks
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: verdict/

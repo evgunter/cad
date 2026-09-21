@@ -5,7 +5,7 @@ title: `PathError`'s Display arms render scalars with `{:?}`, so refusal sentenc
 status: open
 opened: 2026-08-30
 github: 1282
-refs: [1267, num-relative-tolerance-collides-above-a-decimetre]
+refs: [1267]
 priority: P1
 cost: E
 ---
@@ -180,3 +180,7 @@ Two facts this row can now use:
   `StructureRefusal`, `ReplayError` and the vocabulary enums render
   only indices, counts and words — no scalars. What is left of this row
   is entirely outside `crates/profile/`.
+
+## Reference note (FIX's sweep, 2026-09-21)
+
+`num-relative-tolerance-collides-above-a-decimetre` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/num-relative-tolerance-collides-above-a-decimetre.md`.

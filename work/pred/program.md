@@ -2,7 +2,7 @@
 id: pred
 kind: program
 title: PRED — one numeric fact, decided in several places
-status: open
+status: ready
 opened: 2026-09-11
 area: kernel
 prefix: pred/
