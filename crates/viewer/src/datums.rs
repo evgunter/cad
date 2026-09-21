@@ -92,6 +92,49 @@ use pncad::geom_core::{Point3, UnitVec3, Vec3};
 use crate::camera::{Camera, CameraError};
 use crate::input::ViewportSize;
 
+/// **Are all of these numbers?** — the module's one finiteness
+/// question, asked wherever a value that is not a number would be
+/// carried into a drawing rather than stopping one.
+///
+/// Every quantity here is a plain `f64` a caller wrote or this module
+/// derived from one: a height off a plane, a crossing's plane
+/// coordinate, a region bound, a lattice index. None of them is a
+/// decided length with a norm witness, so **`geom_core`'s
+/// `is_finite_length` is not the home for them** even though it
+/// decides the same fact for `f64`. That predicate is generic over
+/// `Real` and asks through the scalar's poison channel because its
+/// callers may be carrying an interval or a dual; its rustdoc's roster
+/// is a hand-kept claim about doors that DECIDE a length, and the
+/// recourse it names — rescale the geometry — is not a recourse a
+/// display module can offer. Routing display code through it would
+/// widen that roster with sites it is not about and would still leave
+/// the positivity half below hand-spelled.
+///
+/// Taken by array rather than by slice so a call site names its
+/// quantities and nothing can be appended to the list by accident.
+fn all_finite<const N: usize>(values: [f64; N]) -> bool {
+    values.iter().all(|value| value.is_finite())
+}
+
+/// **The module's other finiteness question: is this a POSITIVE
+/// length?** — a scale, a span or a pitch, handed back when it is one
+/// and refused when it is not.
+///
+/// The two questions are separate because their subjects are: a
+/// coordinate and a lattice bound are numbers that may legitimately be
+/// negative or zero, and asking them for a sign would refuse half the
+/// plane. This one is asked of quantities every consumer MULTIPLIES a
+/// pixel count by, where zero and negative are as undrawable as `NaN`
+/// — so it answers with the value, and a caller that gets one is
+/// holding a length rather than a permission to re-read the number it
+/// just asked about.
+///
+/// Built ON [`all_finite`] rather than beside it, so the finiteness
+/// half has exactly one spelling in this module.
+fn positive_length(value: f64) -> Option<f64> {
+    (all_finite([value]) && value > 0.0).then_some(value)
+}
+
 /// **Where the eye is and how much world a pixel spans** — everything
 /// this module needs to size a drawing against the window rather than
 /// against the model.
@@ -173,7 +216,7 @@ impl View {
             + (point.z - self.eye.z).powi(2))
         .sqrt();
         let scale = depth * self.metres_per_pixel_at_one_metre;
-        (scale.is_finite() && scale > 0.0).then_some(scale)
+        positive_length(scale)
     }
 
     /// **What a span of `px` PIXELS measures at `point`**, in world
@@ -202,7 +245,7 @@ impl View {
     /// or it is sized against the model.
     pub fn screen_metres_at(&self, point: Point3<f64>, px: f64) -> Option<f64> {
         let span = self.metres_per_pixel_at(point)? * px;
-        (span.is_finite() && span > 0.0).then_some(span)
+        positive_length(span)
     }
 
     /// What HALF a patch of `cover` windows measures at `point`.
@@ -294,10 +337,7 @@ impl View {
 /// legitimate value. This function is public and takes a bare `f64`,
 /// though, so it owes the check on its own account.
 pub fn grid_pitch(metres_per_pixel: f64) -> Option<f64> {
-    let wanted = metres_per_pixel * TARGET_PITCH_PX;
-    if !wanted.is_finite() || wanted <= 0.0 {
-        return None;
-    }
+    let wanted = positive_length(metres_per_pixel * TARGET_PITCH_PX)?;
     // The decade below `wanted`, then the mantissa on the ladder that
     // lands closest to it in RATIO — a grid is read logarithmically,
     // so 1.0 and 2.0 are equally far from 1.41 and the linear midpoint
@@ -384,7 +424,44 @@ const fn ladder_step() -> f64 {
 /// arithmetic going wrong at an extreme — an eye inside the plane, a
 /// pathological viewport — where an uncapped loop would spend the
 /// frame drawing lines nobody asked for.
+///
+/// **It is a bound on the PATCH, not on the line list** — see
+/// [`capped_span`], which is what makes a capped drawing a true
+/// statement rather than a truncated one.
 const MAX_GRID_LINES: usize = 512;
+
+/// **The patch shrunk to what [`MAX_GRID_LINES`] rules**, as index
+/// bounds on multiples of the pitch.
+///
+/// A region needing more lines than the cap allows is not ruled as
+/// far as the cap reaches and then abandoned: that hands the caller a
+/// ruling of part of the region wearing the shape of a ruling of all
+/// of it, with no count, no flag and the loss all at one end. What
+/// comes back instead is a SMALLER region, ruled completely — a true
+/// statement about a patch the caller can see the edges of, and still
+/// a grid, which is what the reader the ruling is for came for.
+///
+/// Centred on the region, because the region is centred on what the
+/// camera is pointed at ([`seen_region`] boxes the plane against the
+/// window, and [`grid`] takes the pitch at the looked-at point): the
+/// lines that survive are the ones under the reader's eye.
+///
+/// **Half each rather than half the difference**: a region spanning
+/// the exponent range has a difference that overflows to infinity and
+/// a midpoint that does not, and an infinite midpoint would put the
+/// shrunk patch nowhere.
+fn capped_span(first: f64, last: f64) -> [f64; 2] {
+    let cap = MAX_GRID_LINES as f64;
+    // `last - first` is one less than the line count, so this is the
+    // count fitting — and it reads false for a difference that
+    // overflowed, which is a region that needs shrinking most.
+    if last - first < cap {
+        return [first, last];
+    }
+    let centre = first * 0.5 + last * 0.5;
+    let shrunk = (centre - (cap - 1.0) * 0.5).floor();
+    [shrunk, shrunk + cap - 1.0]
+}
 
 /// How long a plane's normal tick is, in PIXELS — the one mark that
 /// says which way the plane faces, screen-sized because it is an
@@ -813,7 +890,7 @@ fn seen_region(
     let mut crossings: Vec<Vec3<f64>> = Vec::new();
     for (a, b) in edges {
         let (ha, hb) = (height(a), height(b));
-        if !(ha.is_finite() && hb.is_finite()) {
+        if !all_finite([ha, hb]) {
             return None;
         }
         // An endpoint ON the plane is a crossing of its own, counted
@@ -837,7 +914,7 @@ fn seen_region(
     ];
     for at in crossings {
         let (a, b) = (at.dot(u), at.dot(v));
-        if !(a.is_finite() && b.is_finite()) {
+        if !all_finite([a, b]) {
             return None;
         }
         bounds = [
@@ -849,10 +926,7 @@ fn seen_region(
     }
     // No crossing leaves the infinities standing: the plane misses
     // what the window sees.
-    bounds
-        .iter()
-        .all(|bound| bound.is_finite())
-        .then_some(bounds)
+    all_finite(bounds).then_some(bounds)
 }
 
 /// The ruled lines of one patch, appended to `out`.
@@ -875,42 +949,41 @@ fn rule_patch(
         ]
     };
     // The ruled range in each direction, as index bounds on multiples
-    // of the pitch from the origin, rounded OUTWARD — and each line
-    // runs between the other direction's outward-rounded bounds — so
-    // the region is covered by whole cells. Rounded inward, the last
-    // line of each family could fall a cell short of the window's
-    // edge, with the other family's lines running on past it as
-    // stubs.
-    let mut rule = |along_u: bool, from: f64, to: f64, lo: f64, hi: f64| {
-        let first = (from / pitch).floor();
-        let last = (to / pitch).ceil();
-        let (lo, hi) = ((lo / pitch).floor() * pitch, (hi / pitch).ceil() * pitch);
-        // **The bounds are asked whether they are bounds**, because
-        // the cast below cannot ask: a float→int cast saturates, so
-        // `NaN`, a negative difference and a span holding one line
-        // all arrive as the integer zero and only the third of them
-        // means a line. `from` and `to` are the region's bounds in
-        // the plane's own coordinates, finite by `seen_region`'s
-        // refusal but not so once divided by a pitch near the bottom
-        // of the exponent range; `lo` and `hi` carry the OTHER
-        // direction's, so a bound that is not a number stops both
-        // rulings rather than drawing one of them between `NaN`
-        // endpoints.
-        if ![first, last, lo, hi].iter().all(|b| b.is_finite()) {
-            return;
-        }
-        // Rounded outward, `last < first` is a region whose bounds
-        // are the wrong way round, which rules NONE; `last == first`
-        // is a region that is one lattice line exactly and rules it;
-        // wider rules the lines between, capped. The cast is a cast
-        // only here, where the difference is known finite and
-        // non-negative.
-        if last < first {
-            return;
-        }
-        let count = ((last - first) as usize)
-            .saturating_add(1)
-            .min(MAX_GRID_LINES);
+    // of the pitch from the origin, rounded OUTWARD — so the region
+    // is covered by whole cells. Rounded inward, the last line of
+    // each family could fall a cell short of the window's edge, with
+    // the other family's lines running on past it as stubs.
+    //
+    // **Both directions are bounded here, once, and each family is
+    // ruled between the OTHER's bounds** — so the two families close
+    // into one rectangle, and a patch shrunk to the cap
+    // ([`capped_span`]) is shrunk for both.
+    //
+    // **The bounds are asked whether they are bounds**, because the
+    // cast below cannot ask: a float→int cast saturates, so `NaN`, a
+    // negative difference and a span holding one line all arrive as
+    // the integer zero and only the third of them means a line. The
+    // region's bounds are finite by [`seen_region`]'s refusal, but
+    // not so once divided by a pitch near the bottom of the exponent
+    // range — and a bound that is not one stops the WHOLE patch
+    // rather than leaving one family ruled between `NaN` endpoints.
+    let span = |lo: f64, hi: f64| {
+        let (first, last) = ((lo / pitch).floor(), (hi / pitch).ceil());
+        // Rounded outward, `last < first` is a region whose bounds are
+        // the wrong way round, which rules NONE; `last == first` is a
+        // region that is one lattice line exactly and rules it; wider
+        // rules the lines between.
+        (all_finite([first, last]) && last >= first).then_some(capped_span(first, last))
+    };
+    let (Some(along_u), Some(along_v)) = (span(u_lo, u_hi), span(v_lo, v_hi)) else {
+        return;
+    };
+    let mut rule = |is_u: bool, [first, last]: [f64; 2], [lo, hi]: [f64; 2]| {
+        // Bounded by [`MAX_GRID_LINES`] at [`capped_span`], so the
+        // cast is a cast only here, over a difference known finite,
+        // non-negative and small.
+        let count = ((last - first) as usize).saturating_add(1);
+        let (lo, hi) = (lo * pitch, hi * pitch);
         // **A ruled line has to come out a line**, and being finite
         // is not enough to make one. The region's bounds are offsets
         // from the datum's origin; at an origin near the end of the
@@ -930,7 +1003,7 @@ fn rule_patch(
         let mut lines = Vec::with_capacity(count * 2);
         for i in 0..count {
             let t = (first + i as f64) * pitch;
-            let (a, b) = if along_u {
+            let (a, b) = if is_u {
                 (at(t, lo), at(t, hi))
             } else {
                 (at(lo, t), at(hi, t))
@@ -947,8 +1020,8 @@ fn rule_patch(
         }
         out.append(&mut lines);
     };
-    rule(true, u_lo, u_hi, v_lo, v_hi);
-    rule(false, v_lo, v_hi, u_lo, u_hi);
+    rule(true, along_u, along_v);
+    rule(false, along_v, along_u);
 }
 
 /// **One segment along the axis, reaching past the window**, with a
@@ -1088,7 +1161,9 @@ pub fn datum_view(camera: &Camera, viewport: ViewportSize) -> Result<View, Camer
     let (width, height) = (viewport.width_px, viewport.height_px);
     // Named one at a time, so the message says WHICH side was not a
     // number of pixels — the fact a caller needs and the one a single
-    // "the viewport is unusable" would spend.
+    // "the viewport is unusable" would spend. That is also why this
+    // does not route through `all_finite`: that door answers yes or
+    // no ABOUT A SET, and the answer owed here names the member.
     for (what, value) in [("viewport width", width), ("viewport height", height)] {
         if !value.is_finite() {
             return Err(CameraError::NotFinite { what, value });
