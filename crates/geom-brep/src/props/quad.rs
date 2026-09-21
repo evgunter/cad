@@ -6734,53 +6734,64 @@ mod tests {
         }
     }
 
-    /// **Q9 — the outer rule's ORDER, pinned.**
+    /// **Q9 — the chord rules' ORDERS, pinned by the ANSWER.**
     ///
-    /// `3p_u + 3p_v − 1` survived every earlier row because every
-    /// fixture's chord integrand had degree ≤ 2 against a rule of order
-    /// 5 or 11: Q1–Q3 are flat (`f ≡ c`, so `h` is affine), Q7's `f` is
-    /// piecewise constant, and E1's chart is a bilinear surface
-    /// restated. A bidegree-(2,2) curved chart reaches `h`-degree 11.
+    /// The trimmed lane runs two closed Newton–Cotes rules: the OUTER
+    /// one along the chord at order `3p_u + 3p_v − 1`, and the INNER
+    /// one across the patch at `3p_v − 1`. Both survived every earlier
+    /// row because every fixture's chord integrand had degree ≤ 2
+    /// (Q1–Q3 are flat, so `h` is affine; Q7's `f` is piecewise
+    /// constant; E1's chart is a bilinear surface restated).
     ///
-    /// The oracle is the rule's own EXACTNESS. Two halves, and they
-    /// carry different amounts of evidence on this fixture:
+    /// **Which order this fixture pins, and at what cut** — measured
+    /// on `curved_chart(2, 2)` with the three-chord loop below, taking
+    /// round 0's midpoint against the `1e-12` window asserted here:
     ///
-    /// * **Refinement invariance** — a rule of the right order
-    ///   integrates each sub-chord exactly, so cutting the chord into
-    ///   four times as many pieces cannot move the answer beyond the
-    ///   arithmetic's own rounding. Asserted below as an overlap and
-    ///   as a midpoint agreement at the enclosure's own width.
-    /// * **The ANSWER** — which is where the classification actually
-    ///   lives. The shipped order and a rule two counts short do not
-    ///   answer the same integral: `3.25426260e-1` against
-    ///   `3.25424305e-1`, a relative `6e-6`, four million times the
-    ///   `1e-12` window pinned below and seven orders above the
-    ///   enclosure's own `2.5e-13` width.
+    /// | rule cut | round-0 midpoint | from `EXACT` | this row |
+    /// | --- | --- | --- | --- |
+    /// | none (shipped) | `3.2542626001979752e-1` | `2.3e-17` | passes |
+    /// | OUTER, 2 short | `3.2542626001979757e-1` | `0`, and round 2 bit-identical | **passes** |
+    /// | INNER, 2 short | `3.2542430502718228e-1` | `1.95e-6` | reds |
+    /// | OUTER, 4 short | `3.2542626002142860e-1` | `1.63e-12` | reds |
+    /// | OUTER, 6 short | `3.2542623695793438e-1` | `2.31e-8` | reds |
     ///
-    /// **Why the refinement half alone no longer classifies, measured.**
+    /// So what this fixture classifies at two counts short is the
+    /// **inner** order; the outer one it catches only from four, and
+    /// there by `1.63e-12` against a `1e-12` window — a hair, not a
+    /// classification. The chord integrand's `u`-degree is what decides
+    /// that, and this chart's image is degree 1. Reaching `h`-degree 11
+    /// takes a chart whose image is not, which brings a lune pad along
+    /// to blur the comparison: a different fixture rather than a wider
+    /// one, and it is scheduled with the rest at
+    /// `work/quad/q9-refinement-invariance-does-not-classify-the-rule-order`.
+    ///
+    /// **The oracle is a golden plus a consistency check, not a
+    /// structural instrument**, and that is the residue the filed row
+    /// carries. `EXACT` is the shipped rule's own output; what keeps it
+    /// from being purely circular is that a genuinely different
+    /// quadrature reproduces it — the outer-two-short rule to
+    /// `5.5e-17`, and the outer-four-short rule exactly, at round 2.
+    ///
+    /// **Why the refinement half cannot classify on its own, measured.**
     /// This row used to gate `|m₀ − m₂|` at a quarter ulp, and that
     /// separated the shipped order (which answered the two rounds BIT
-    /// for bit) from the two-counts-short mutant (one ulp apart). Both
+    /// for bit) from the inner-two-short mutant (one ulp apart). Both
     /// numbers were the arithmetic's rounding and not the rule's error:
-    /// the mutant is refinement-invariant too — its answer is wrong by
-    /// `1.96e-6` at BOTH rounds — so the old gate was separating an
+    /// that mutant is refinement-invariant too — its answer is wrong by
+    /// `1.95e-6` at BOTH rounds — so the old gate was separating an
     /// exact zero from one ulp of luck. The C9 ring pads only where an
     /// operation is inexact now, so an enclosure is no longer symmetric
     /// about the round-to-nearest value and its midpoint carries that
-    /// asymmetry: the shipped order reads two ulps apart
-    /// (`1.11e-16` on `0.325`) and the mutant one, which ranks them
-    /// BACKWARDS. Re-derived rather than widened
+    /// asymmetry: the shipped order reads two ulps apart (`1.11e-16` on
+    /// `0.325`) and the mutant one, which ranks them BACKWARDS.
+    /// Re-derived rather than widened
     /// (`memories/output-stability-as-justification.md`): the
     /// classification moves onto the quantity that carries the signal,
     /// and the refinement half stays as the consistency claim it can
-    /// support. That the refinement direction has no power against
-    /// this mutant at either arithmetic is
-    /// `work/props/q9-refinement-invariance-does-not-classify-the-rule-order`.
-    ///
-    /// The image is degree 1, so no lune pad rides along to blur the
-    /// comparison.
+    /// support — which is not nothing, since the outer-four-short
+    /// mutant reds on it as well as on the answer.
     #[test]
-    fn q9_the_outer_rules_order_is_pinned_by_refinement() {
+    fn q9_the_inner_rules_order_is_pinned_at_two_short_and_the_outer_at_four() {
         let (ku, kvv, control, w) = curved_chart(2, 2);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
@@ -6834,10 +6845,12 @@ mod tests {
         // composite short of the degree would agree only to its own
         // error. **Short of the degree, not short of the order**: a
         // closed Newton–Cotes rule on an EVEN interval count is exact
-        // one degree past its order, so `mu − 1` (even here) still
-        // integrates this integrand exactly and reds nothing — `mu − 2`
-        // is the mutant this row kills, and the spec's `mu` is the
-        // first count that is exact for every parity.
+        // one degree past its order, so a single count off either rule
+        // still integrates this integrand exactly and reds nothing.
+        // `mv − 2` is the mutant this row kills outright; `mu` has to
+        // lose four before this fixture sees it at all (the doc's
+        // table). The spec's counts are the first that are exact for
+        // every parity.
         assert!(
             r0.flux.width() < 1e-9 * r0.flux.mag().max(1.0),
             "Q9: the exact lane's width is the nodes' and weights' ring rounding, got {:e}",
