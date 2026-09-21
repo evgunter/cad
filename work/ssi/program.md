@@ -2,7 +2,7 @@
 id: ssi
 kind: program
 title: SSI — the plane×NURBS surface intersection: its bounds, its tubes and the diagnoses that survive a bad one
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: ssi/
