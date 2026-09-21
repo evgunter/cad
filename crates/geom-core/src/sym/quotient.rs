@@ -322,7 +322,7 @@ pub(super) fn cancel(f: &Form) -> Form {
     // `(½S + ½)/S` are the same real function and now the same FORM,
     // which is what lets an atom keyed on one meet an atom keyed on
     // the other. The magnitude, not the signed value: flipping the
-    // signs would cost `trig::manifestly_nonneg` the syntactic
+    // signs would cost `manifest::nonneg` the syntactic
     // non-negativity rule D's A1 fold reads.
     let (num, den) = match den_pivot(&den) {
         Some(s) => match s.abs().recip().and_then(|k| {

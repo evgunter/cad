@@ -29,7 +29,8 @@ A `Form` is a quotient `N/D` of polynomials over the session's
 indeterminates (parameter symbols, π, opaque reals, and the atoms).
 A poisoned form is refused outright.
 
-**Manifestly non-negative polynomial** — `trig::manifestly_nonneg`'s
+**Manifestly non-negative polynomial** — `manifest::nonneg`'s (then
+`trig::manifestly_nonneg`'s)
 per-polynomial half, unchanged: every term has a non-negative
 coefficient and a monomial each of whose indeterminates is raised to an
 EVEN power or is a `Sqrt`/`Abs` atom (any power), so every term is a

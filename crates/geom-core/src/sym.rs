@@ -207,7 +207,7 @@
 //! addition; and, under the same dial (amendment A1), `atan2(Z, N)` of
 //! the zero form over a form non-negative BY SYNTAX (`sqrt`/`abs`
 //! atoms, even powers, positive coefficients, perfect squares, and
-//! their products, quotients and sums — `trig::manifestly_nonneg`) is
+//! their products, quotients and sums — `manifest::nonneg`) is
 //! the zero form, and `sin`/`cos` at an exact half-multiple of π is
 //! its constant. Nothing folds at any other argument shape. The two
 //! spellings of an arc — the pushforward's `sin(s·θ)`, `−2·sin²(s·θ/2)`
@@ -437,7 +437,7 @@
 //! `X` positive. [`manifest`] carries the predicate, the two
 //! identities as equalities of reals under clause 1, and the
 //! SIGNED-ZERO edge that makes the predicate strict rather than
-//! `manifestly_nonneg`'s non-negativity.
+//! `manifest::nonneg`'s non-negativity.
 //!
 //! **Where it sits against A/B/C/D/E.** At the node, in `combine`,
 //! early walk only: A0's exact constant fold first, then this rule,
@@ -2193,7 +2193,7 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
             // fold below is taken ONLY where the sign is a fact of the
             // form: atan2(0, N) with N non-negative BY SYNTAX is 0 —
             // rule D's second fold (amendment A1), early walk only
-            // (`trig::manifestly_nonneg` carries the argument); a plain
+            // (`manifest::nonneg` carries the argument); a plain
             // parameter, a non-zero first argument, or a value-only
             // zero never folds, and every other atan2 stays an atom.
             let folds = match node.op {
