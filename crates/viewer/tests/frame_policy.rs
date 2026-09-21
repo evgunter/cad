@@ -549,9 +549,10 @@ fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back
 /// The reason this row exists: a subject chosen inside an `app`-gated
 /// draw path is unfalsifiable — the reviewer of this unit changed the
 /// projection writer's subject from `Camera` to `Preferences` and the
-/// whole suite stayed green, because no headless row executes a pane's
-/// paint. The doors moved that decision into `frame`; this is what
-/// makes moving it worth anything.
+/// whole suite stayed green, because the paint in question is a
+/// `ViewerBehavior` method and nothing headless can execute one. The
+/// doors moved that decision into `frame`; this is what makes moving
+/// it worth anything.
 ///
 /// One assertion per door, so a flipped subject reds exactly the line
 /// that names it.

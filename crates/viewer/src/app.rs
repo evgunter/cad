@@ -73,7 +73,7 @@ use crate::pickindex::{PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, Refusal, Selection, SessionOp};
+use crate::session::{DocSession, ProfilePlane, Refusal, Selection, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -1118,7 +1118,7 @@ impl ViewerApp {
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
-            let outcome = self.session.perform(op);
+            let mut outcome = self.session.perform(op);
             // **Where a withdrawal reaches the user**: everything
             // this operation's document transition took out of the
             // display state, onto the frame's notices like every other
@@ -1134,6 +1134,10 @@ impl ViewerApp {
             notices.extend(
                 frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
             );
+            // Read before the match below moves the refusal out: a
+            // form that just committed a node it will go on referring
+            // to learns its id here and nowhere else.
+            let minted = core::mem::take(&mut outcome.minted);
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -1156,11 +1160,11 @@ impl ViewerApp {
                 // op came from which panel.
                 None if tool_edit => {
                     self.tools.close();
-                    self.drafts.accepted(&accepted_op);
+                    self.drafts.accepted(&accepted_op, &minted);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
-                None => self.drafts.accepted(&accepted_op),
+                None => self.drafts.accepted(&accepted_op, &minted),
             }
         }
         let update = frame::frame_status(&notices, &performed, refusal.as_ref());
@@ -1378,7 +1382,7 @@ impl ViewerApp {
                     for finding in &report.findings {
                         ui.horizontal_top(|ui| {
                             if ui
-                                .button(format!("feature {}", finding.root.0))
+                                .button(crate::tree::node_number(finding.root))
                                 .on_hover_text("select the root this finding is about")
                                 .clicked()
                             {
@@ -1766,22 +1770,30 @@ impl eframe::App for ViewerApp {
             self.session.selection().node(),
         );
         let held = self.drafts.door_loops();
-        // **No frame picked, no preview.** The form draws on a frame
-        // the document holds, so with none picked there is no plane to
-        // place the loops on and nothing honest to show — the form
-        // says what it is waiting for instead, exactly as it does for
-        // a shape nobody chose. The edit door's frame is the
-        // committed profile's own.
+        // **No frame picked, no preview.** The form draws on a frame,
+        // so with none picked there is no plane to place the loops on
+        // and nothing honest to show — the form says what it is
+        // waiting for instead, exactly as it does for a shape nobody
+        // chose. The edit door's frame is the committed profile's own.
         let (tol, delta) = (self.session.tol(), self.delta.get());
         let profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
-            held.as_ref()
-                .filter(|_| drawn)
-                .and_then(|held| held.frame.zip(self.session.landed_pair()))
-                .and_then(|(frame, (doc, evaluation))| {
-                    sketch::frame_placement(doc, evaluation, frame)
-                })
-                .zip(held.as_ref())
-                .map(|(plane, held)| sketch::preview(plane, &held.loops, tol, delta))
+            held.as_ref().filter(|_| drawn).and_then(|held| {
+                let placement = match held.plane? {
+                    // **The frame that is not there yet.** Its
+                    // node does not exist until the submit, so
+                    // there is no landed value to read and the
+                    // placement comes from the choice's own
+                    // constant — the plane `ProfilePlane::NewXy`'s
+                    // numbers evaluate to, which a row in the
+                    // creation suite holds the two ends of.
+                    ProfilePlane::NewXy => ProfilePlane::xy_placement(),
+                    ProfilePlane::Existing(frame) => {
+                        let (doc, evaluation) = self.session.landed_pair()?;
+                        sketch::frame_placement(doc, evaluation, frame)?
+                    }
+                };
+                Some(sketch::preview(placement, &held.loops, tol, delta))
+            })
         });
         // The committed node the edit door is previewing in its place,
         // which the committed-profile pass leaves out.

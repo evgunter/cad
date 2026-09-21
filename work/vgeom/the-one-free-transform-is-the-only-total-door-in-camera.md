@@ -2,13 +2,14 @@
 id: the-one-free-transform-is-the-only-total-door-in-camera
 kind: issue
 title: camera's header promises typed refusal and the transform it just adopted is total, and the placement prose is the same length it replaced
-status: review
+status: closed
 opened: 2026-09-06
 refs: [2089]
 priority: P4
 cost: E
 branch: vgeom/f32-seam
 pr: 3030
+closed: 2026-09-21
 ---
 
 

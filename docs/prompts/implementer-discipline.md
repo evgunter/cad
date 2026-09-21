@@ -15,63 +15,51 @@ Final report ≤150 lines.
 **Hosted CI is the verification of record.** Push and let it run. It runs on
 hardware not shared with any other lane and its result is a durable artifact.
 
-**It covers the full configuration matrix again, and you are expected to know
-that** (2026-09-04, Ev's two authorisations). A code-tier run gates EVERY point
-of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
-`test (…)` jobs, each naming its lane, its eps row and its shard — and all five
-`k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
-The gates, the discipline and parity rows and the render lanes are unchanged and
-still run on every code-tier run. **The python suite runs whenever a seed is a
-crate a build of the wheel compiles** — `pncad-py`'s non-dev dependency closure,
-which on this tree is every workspace member except two: `viewer`, which sits
-above the wheel, and `test-utils`, which reaches the bindings along a
-dev-dependency edge `maturin build` does not follow. A closure seeded only in
-one of those two skips it; everything else buys it. The `change filter` job's
-log prints both the seed set and `RUN_PNCAD_PY`, so a run says which way it
-went. Three things follow for you:
+**A code-tier run gates the whole configuration matrix** (Ev, 2026-09-04):
+every point of {default features, `interval`} x {default eps, 1e-6, 1e-12},
+and every `k-lint (gate, <row>)` feature unification.
+The gates, the discipline and parity rows and the render lanes run on every
+code-tier run too. **The python suite runs whenever a seed is a crate a build
+of the wheel compiles** — `pncad-py`'s non-dev dependency closure, which on this
+tree is every workspace member except two: `viewer`, which sits above the wheel,
+and `test-utils`, which reaches the bindings along a dev-dependency edge
+`maturin build` does not follow. A closure seeded only in one of those two skips
+it; everything else buys it. The `change filter` job's log prints both the seed
+set and `RUN_PNCAD_PY`, so a run says which way it went. Three things follow for
+you:
 
-- **A green run means green at all six lane/eps points and all five k-lint
-  unifications.** That is what the job list shows: if you cannot see twelve
-  test jobs and five `k-lint (gate, …)` jobs on a code-tier run, something
-  narrowed it and you should find out what.
-- **A commit trailer cannot configure a run, and nothing in CI reads one.**
-  Between 2026-08-22 and 2026-09-04 the run drew one point per dimension and a
-  `CI-Config:` trailer on the head commit was how you ASKED for the one your
-  change was about. Nothing is drawn now, so that spelling was deleted on
-  2026-09-04 — the flag, the workflow plumbing and the parser are gone, and a
-  trailer line in a commit message is inert text. Several specs and older
-  briefs still instruct it; the run is the authority, not the spec, and the fix
-  is to delete the line and, if the spec really wanted one configuration
-  proved, dispatch the workflow instead. **To narrow deliberately, dispatch the
-  workflow** with the `lane` / `eps` / `klint` inputs — and say in the PR that
-  you narrowed it, because a reader counting six test jobs where there should
-  be twelve cannot tell a narrowing from a broken matrix.
-- **The k-lint row is not drawn either, since 2026-09-04.** `k-lint (gate)`'s
-  five feature unifications run as five jobs — `k-lint (gate, dev-default)`,
-  `(release-default)`, `(release-budget)`, `(dev-budget)`, `(dev-probe)` — on
-  every code-tier run, so **a green k-lint means green at all five** and a
-  green over a skipped step is no longer the thing to check for there. Until
-  that day one row was drawn from your head SHA and the other four did not
-  execute under a single green `k-lint (gate)`; `#1756` -> `#1775` is what that
-  cost, and any brief telling you to name one row on the head commit predates
-  the change and names a spelling that no longer exists.
+- **A green run means green at every lane/eps point and every k-lint
+  unification — and you establish that from the `change filter` log, not by
+  counting job names.** That job prints `LANE`, `EPS` and `KLINT_ROW`, which
+  answers narrowed-or-not directly. **A job's NAME is CI's to change**: a lane
+  that moves into a called workflow has its jobs prefixed with the caller's key,
+  so a reader matching the start of a name sees a fraction of a full matrix and
+  reads it as a narrowing. The roster is declared in `scripts/ci-filter.py`
+  (`EPS_ROWS`, `KLINT_ROWS`) and its `--selftest` re-derives `ci.yml`'s matrix
+  literals against them, so the count is held executably and does not need
+  restating here.
+- **Nothing in CI reads a commit trailer.** A `CI-Config:` line in a commit
+  message is inert text: the flag, the workflow plumbing and the parser do not
+  exist. Some specs and older briefs still instruct one — the run is the
+  authority, not the spec, so delete the line, and if the spec wanted one
+  configuration proved, dispatch the workflow instead. **To narrow
+  deliberately, dispatch the workflow** with the `lane` / `eps` / `klint`
+  inputs — and say in the PR that you narrowed it: a reader cannot tell a
+  deliberate narrowing from a broken matrix except by being told.
+- **A green `k-lint` means green at every row `KLINT_ROWS` declares**, each
+  running as its own job, so a green sitting over a skipped step is not the
+  thing to check for there. A brief telling you to name one k-lint row on your
+  head commit names a spelling that does not exist; delete it.
 
-  A filename decides nothing (Ev's ruling, 2026-08-29, on #1122).
-  `scripts/ci-filter.py` used to pin `LANE=interval` whenever any changed
-  file's basename contained `interval`; that arm was removed because it could
-  not tell a rename from a semantic edit and gated a whole branch on the wrong
-  axis for its entire life after a type migration touched
-  `extrude_interval.rs`. The exact pin that survived it — a change under
-  `interval-transcendentals/` — is gone too, with the draw it pre-empted:
-  nothing needs to pin a lane a run already gates. What is left is an advisory
-  on one case, a run YOU narrowed to `lane=default` over a diff of
-  interval-named files.
+  **A filename decides nothing** (Ev's ruling, 2026-08-29, on #1122). Nothing
+  pins a lane from a path — not a basename containing `interval`, not a change
+  under `interval-transcendentals/` — because nothing needs to pin a lane the
+  run already gates. The one case left to think about is a run YOU narrowed to
+  `lane=default` over a diff of interval-named files.
 
-**When the hosted gate is not enough**, run `local-scripts/ci-local.sh`. It is
-no longer the only lane that runs every lane, eps row and k-lint unification on
-one tree — hosted does all three now — and what it still adds is its opt-in
-`--nightly` row. Reach for it before a merge that would be expensive to get
-wrong, not routinely.
+**When the hosted gate is not enough**, run `local-scripts/ci-local.sh`. What it
+adds over hosted is its opt-in `--nightly` row. Reach for it before a merge that
+would be expensive to get wrong, not routinely.
 
 **A row you DEMOTE to the nightly is verified AT the demotion.** Moving a
 check out of the per-PR gate into `.github/workflows/nightly.yml` costs it the

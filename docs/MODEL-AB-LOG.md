@@ -7330,6 +7330,28 @@ that the fold gives plain-name `f64` callers of the tier-3′ doors check
 2's lane, which can change a verdict off the corpora. Sample number at
 merge. Row at merge.
 
+## LANE-2 review ordinal fixed at dispatch (2026-09-21)
+
+`lane-2-chart-region-lane-deleted` (LANE-2; SCALAR; PR #3038 open — frozen
+head `991108fbe0`): **ordinal 4115** (SCALAR band; 4114 is RING-2's,
+claimed when its head freezes). Protocol v6 dual: draw = `/dev/urandom`
+byte **126**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the
+frozen head, read-side isolation (v6 item 5), briefs identical and
+stored before either ran, with a line telling both arms that the
+branch's spec commit is the orchestrator's. Pre-draw difficulty
+**M / structural** (recorded branch-side in the block SCALAR-B6
+pre-draw section before the block's byte 153, which put the FABLE arm
+on slot 0; the sub-unit's own sentence cut on 2026-09-21 before the
+byte). Impl phase: ~1 h 57 min to the PR (dispatched 18:10Z, PR
+20:07Z), no red head; impl CI **35649109217** GREEN on the frozen head
+(twelve `test` legs, five `k-lint (gate, …)`, the python suite, `gate
+ok`). The unit landed four disclosed deviations the brief puts to both
+arms — first among them that the spec's red-first list named direct
+callers of the two doors, so the mutation reaches a different set of
+seventeen rows; and a `f64` caller of the `_structural` door now
+receives a refusal whose text blames the scalar, filed on ATREST and
+left byte-identical per the spec. Sample number at merge. Row at merge.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
