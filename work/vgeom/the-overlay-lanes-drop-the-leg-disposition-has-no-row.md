@@ -32,7 +32,8 @@ neither, and a later unit can delete it and stay green.
 ## Why the unit did not write the row
 
 Because the rule that says how to write it forbids the cheap version.
-`work/view/plan.md`'s register: *drive a guard through the PUBLIC
+`work/view/plan.md`'s rule register (deleted 2026-09-21 by Ev's ruling;
+recoverable at `66d7357417`): *drive a guard through the PUBLIC
 door* — a row against a private helper proves the arithmetic and
 nothing about reachability, and reachability is the whole question
 here. `marks::segments_of` is private and its public door
@@ -52,9 +53,10 @@ The honest options, for whoever takes this:
    `viewport_ui` merely appends, so the rule has a headless door of
    its own. That is a shape change and wants an argument.
 3. Decide the drop is not worth holding and delete the documentation
-   that says it happens. `work/view/plan.md`'s register has the
-   precedent both ways: *before writing an item's suggested row,
-   mutate the code the row would guard and read which rows red* — here
+   that says it happens. That register has the
+   precedent both ways (same register, same sha): *before writing an
+   item's suggested row, mutate the code the row would guard and read
+   which rows red* — here
    nothing does, which is the argument FOR a row rather than against
    one.
 

@@ -12,13 +12,14 @@ cost: D
 
 Filed by `vgeom/f32-seam`, which added `crates/viewer/src/narrowing.rs`
 and edited `camera.rs`, `scene.rs`, `marks.rs`, `pane/viewport.rs`,
-`app.rs` and `lib.rs`. `work/view/plan.md`'s register: **a diff that
+`app.rs` and `lib.rs`. `work/view/plan.md`'s rule register (deleted
+2026-09-21 by Ev's ruling; recoverable at `66d7357417`): **a diff that
 shifts a file owns the census of the bands it moved, not a sample**;
 `docs/prompts/implementer-discipline.md` §6: a lane REPORTS another
 program's shifted citations rather than editing them. This is that
 census, filed rather than left in a PR body because the same report
 has reached `work/` through §6 twice with nothing a later reader could
-find (the register, *"A §6 report is not a durable artifact"*).
+find (the same register, *"A §6 report is not a durable artifact"*).
 
 ## The method, as the thing that produces the number
 
@@ -48,6 +49,11 @@ either, so this diff did not break it.
 
 ## Where the 84 are
 
+Re-derived on the merged tree, after `origin/main`
+came in: **12** of them are on rows this branch itself closes or files,
+whose bodies describe the tree BEFORE the fix, leaving **72** out of
+fence.
+
 - work/chrome/display-budget-rows-restate-three-private-constants.md &mdash; **2**
 - work/chrome/viewer-substituted-value-class-is-crate-wide.md &mdash; **1**
 - work/vdoc/cfg-test-bare-spans-have-no-stated-disposition.md &mdash; **4**
@@ -56,10 +62,11 @@ either, so this diff did not break it.
 - work/vdoc/session-shims-and-test-imports.md &mdash; **1**
 - work/vdoc/stale-file-citations-after-the-split.md &mdash; **1**
 - work/vdoc/the-citation-receipts-summary-numbers-are-not-re-derivable.md &mdash; **1**
+- work/vdoc/the-f32-seam-diff-shifted-84-cited-lines-in-seven-programs.md &mdash; **1**  (this branch's own)
 - work/vdoc/viewer-readme-cross-crate-link-list-cites-display-rs-at-a-line-that-never-held-it.md &mdash; **1**
-- work/vgeom/cursor-projection-is-f32-in-a-module-whose-matrices-are-f64.md &mdash; **7**
-- work/vgeom/the-one-free-transform-is-the-only-total-door-in-camera.md &mdash; **1**
-- work/vgeom/the-point3-to-gpu-corner-cast-is-at-three-sites.md &mdash; **2**
+- work/vgeom/cursor-projection-is-f32-in-a-module-whose-matrices-are-f64.md &mdash; **8**  (this branch's own)
+- work/vgeom/the-one-free-transform-is-the-only-total-door-in-camera.md &mdash; **1**  (this branch's own)
+- work/vgeom/the-point3-to-gpu-corner-cast-is-at-three-sites.md &mdash; **2**  (this branch's own)
 - work/vgeom/viewer-array-lowered-vector-ops-escaped-the-hand-rolled-sweep.md &mdash; **1**
 - work/view/citation-repoint-shifted-a-number-the-lane-knew-was-wrong.md &mdash; **1**
 - work/view/cursor-projection-landed-in-marks-for-want-of-a-home.md &mdash; **3**
@@ -72,7 +79,6 @@ either, so this diff did not break it.
 - work/view/marks-header-asserts-universals-its-own-module-breaks.md &mdash; **1**
 - work/view/named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites.md &mdash; **1**
 - work/view/pick-index-built-on-ui-thread.md &mdash; **4**
-- work/view/plan.md &mdash; **2**
 - work/view/possessive-code-spans-are-invisible-to-the-path-shaped-sweep-rule.md &mdash; **1**
 - work/view/rustdoc-posture-test-names-one-axis-of-three.md &mdash; **1**
 - work/view/seeded-draft-is-the-commit-path-and-does-not-round-trip.md &mdash; **1**
@@ -93,7 +99,7 @@ either, so this diff did not break it.
 has more than one `lib.rs`, `app.rs` and `scene.rs`, and the census
 resolves `scene.rs:857` to `crates/viewer/src/scene.rs` because the
 owning row belongs to a viewer program — a classifier standing in for
-the thing, which is the register's own proxy class. Restricting to
+the thing, which is that register's own proxy class. Restricting to
 viewer-program rows bounds it; it does not eliminate it, and a row
 citing another crate's `lib.rs` by basename is counted here wrongly.
 
