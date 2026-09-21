@@ -175,4 +175,48 @@ hit list is in the PR body. Two findings:
 of a non-finite value. It now names its three callers and what each
 guarantees, which is the sweep rule that produces that population.
 
+## The second pass, shaped at the stated gap
+
+`docs/prompts/implementer-discipline.md` §5 asks that a named blind
+spot be looked into rather than only named. The sharpest one here is
+this row's own: *no grep finds the reachability half.* Two passes
+were shaped at it, from the two ends, and **neither found a fourth
+member of the render class.**
+
+**Backwards, from the arithmetic.** Every multiplication UP in
+`crates/viewer/src` — a named screaming-snake factor, a literal
+factor, a squaring (`powi(2)`, `x * x`), a `.sqrt()` over a sum of
+squares, and `to_degrees` — read for whether anything bounds its
+operand and whether its product reaches a text. Hits and disposition:
+
+| producer | disposition |
+|---|---|
+| `scene.rs`'s `delta * MM_PER_METRE` (twice) | guarded at `DisplayTolerance::new`, on the product |
+| `scene.rs`'s `PROBE_FACTOR * constant / budget` | goes through `DisplayTolerance::new` |
+| `camera.rs`'s `scene_radius * MAX_DISTANCE_FACTOR` | the member filed as `camera-new-…-not-finite` |
+| `camera.rs`'s `radius * FRAMING_MARGIN / half.sin()` | can be `inf` for a fov near zero, and `clamp_distance` clamps it back into `[r·0.05, r·100]` before anything reads it — bounded downstream, not a member |
+| `camera.rs`'s `scene_radius * MIN_DISTANCE_FACTOR`, `distance * NEAR_FACTOR` | multiply DOWN; cannot overflow |
+| `camera.rs`'s `sphere` radius | closed by `finite-bounds-yield-an-infinite-scene-radius` |
+| `datums.rs`'s depth norm and `metres_per_pixel * TARGET_PITCH_PX`; `scene.rs`'s normal norm; `pane/viewport.rs`'s `at_offset`; `pickindex.rs`'s distances | all feed the PICTURE, never a text — outside this class by its own subject. `pane/viewport.rs`'s `at_offset` is the site `vgeom/deletions` disposed of as *"not a member"*, and this pass agrees, for the same reason from the other direction. `datums.rs`'s norm is `work/chrome/metres-per-pixel-at-hand-rolls-a-norm-the-file-already-calls` |
+| `sketch.rs`'s two `hypot` calls | `hypot` is overflow-safe by construction; not the shape |
+| `pane/features.rs`'s `depth.min(INDENT_MAX_DEPTH) as f32 * INDENT_STEP` | bounded by the `min` |
+| `pane/view.rs`'s `to_degrees` pair | `yaw` is in `[−π, π)` and `pitch` inside `±(π/2 − margin)`; the product cannot leave the type |
+
+**Forwards, from every text.** 98 production sites in
+`crates/viewer/src` write a number into a text a person reads
+(`ui.label`/`ui.weak`/`format!` with an interpolation). Filtered for
+an argument that is ARITHMETIC rather than a value read as held,
+exactly one remains: `frame.rs`'s `δ {} mm chosen`, which is
+`DisplayTolerance::render_mm` — the guarded door. Every other
+rendered number is a count, a name, or a value handed through one of
+the three renders this unit bounded.
+
+**What the second pass still could not reach.** A product formed in
+another crate and handed here as an ordinary value: the forward pass
+sees the render and the backward pass sees only this crate's
+arithmetic, so a `pncad` door that multiplies up and returns a
+plausible number is invisible to both. Nothing was found, and nothing
+was looked for outside `crates/viewer/src` — that is other programs'
+ground, and it is a gap rather than a negative result.
+
 PR: `vgeom/render-spelling`, on `vgeom/p0-fields` (#3007) as its base.
