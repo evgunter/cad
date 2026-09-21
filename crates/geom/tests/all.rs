@@ -94,6 +94,8 @@ mod curves_n1r1_c24_dump;
 // without a `#[path]` line.
 #[path = "cert_n2r2_probes.rs"]
 mod cert_n2r2_probes;
+#[path = "curves/curve3_r1_probes.rs"]
+mod curves_curve3_r1_probes;
 #[path = "curves/ders1_meter.rs"]
 mod curves_ders1_meter;
 #[path = "curves/n1r1_c24_meter.rs"]
