@@ -2,12 +2,13 @@
 id: recourse-chain-stops-at-the-second-hop-carriers
 kind: issue
 title: five second-hop carriers stop at the condition, so the recourse chain is unproved one delegation past the ValidationError arms
-status: review
+status: closed
 opened: 2026-09-12
 branch: fix/recourse-second-hop
 pr: 2948
 priority: P4
 cost: E
+closed: 2026-09-21
 ---
 
 
@@ -146,3 +147,63 @@ rendering at any of the five carriers**, so the enforcement rows are
 the first pins those types have had. The first sweep for pins here was
 too narrow — it read the crates' `--lib` rows and a fragment grep that
 did not cover every sentence — and CI found the one it missed.
+
+## Closed (2026-09-21) — PR 2948, four carriers of five, and a sixth nobody had counted
+
+`SplineError`, `MeterError`, `PatchBoundError` and `FitError` name their
+repairs, each grounded in the module's or the variant's own docs — the
+`KnotVector` invariant list, the convex-hull licence, `OFFSET_METER_LADDER`'s
+own sentence, the fit doors' contracts. Five enforcement rows carry the
+claim, **proved red by mutation** (run 35548044980: all twelve `test (…)`
+jobs red, the failure surface exactly the six intended rows).
+
+**A sixth carrier this row never named.** `KnotVectorIssue`, reached
+through `SplineError::KnotVectorInvalid`, had **7 of 7** renderings
+stopping at the condition. Without it `SplineError`'s one delegating arm
+could not be asserted transitively and the chain would be false at one
+remove — the same discovery the first parent PR made at `PropsError`.
+Two of this row's counts were wrong and the lane corrected them by
+reading, which is the third time in this class that a count nobody
+re-derived was wrong.
+
+**Transitivity stayed conditional, as the parent established.** The four
+`OffsetFitError` arms and `SplineError::KnotVectorInvalid` became
+transitive because their carriers now hold enforcement rows;
+`FitError::Lsq` and `::KnotAlgebra` stayed delegation-only and say why
+at the site, because a recourse assertion over a carrier with no row is
+a claim about the payload the test happened to build.
+
+**The one pre-existing pin, and the repo's own convention.**
+`crates/geom/tests/curves/domain_door.rs` pinned
+`SplineError::DomainInvalid`'s whole rendering with `assert_eq!` — the
+full-string spelling `COINCIDENCE_RECOURSE`'s doc explicitly rules out
+(*"message-pinning tests pin the fragment with `contains`, never with
+full-string pins that rot"*) — and it made the recourse clause
+unwritable. It is a fragment pin now. **Verified at the const's home
+before accepting**: this is a test corrected because an approved change
+moved what it describes, which lands with the change; it is NOT the
+coverage-narrowing that sent PR 2945 back for a round.
+
+**The cut, and it is by shape.** `PcurveCertifyError` is re-homed rather
+than carried: two of its seven stopping arms render a `&'static str`
+minted at the refusal SITE — fourteen distinct literals for the iso lane
+alone, across two crates — so the repairs belong at the sites and one
+clause at the arm would be the blanket tail PR 2354 removed. The lane
+was given leave to cut at a carrier seam and used it correctly.
+
+**Filed by the lane:** `work/props/fit-error-delegates-to-two-carriers-that-name-no-recourse`
+and `work/encl/offset-fit-reuses-derivedknots-for-a-degree-elevation-failure`
+(a failed degree ELEVATION reported as `DerivedKnots`, so the message
+names an operation that never ran — found by reading what the variant
+means at every minting site).
+
+**A finding the mutation run could not catch, adjudicated from the
+diff:** the five new rows each carry
+`assert_eq!(arms.len(), N, "an arm was added without a row here")` over
+a fixed-size array literal. `arms.len()` is a compile-time constant, so
+the assertion cannot fail and the message claims something it cannot
+check — adding a variant leaves the array at N and every row green. Not
+this lane's invention (eleven of them across ten files in four crates,
+most predating this PR) and not a reason to hold the unit, whose
+substance is sound. Evidence filed on CENSUS's
+`all-census-idiom-forces-the-visit-not-the-update`.
