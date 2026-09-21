@@ -12,13 +12,20 @@ use geom_core::sym::{SymCounts, with_session_rules};
 use geom_core::{Decide, ParamSymbol, Sym, SymBudget, SymRules, Tol};
 
 fn budget() -> SymBudget {
-    SymBudget { max_terms: 4096, max_degree: 128 }
+    SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    }
 }
-fn band() -> Band { Band::linear(Tol::witness()).unwrap() }
+fn band() -> Band {
+    Band::linear(Tol::witness()).unwrap()
+}
 fn pb(n: &str, lo: f64, hi: f64) -> Sym<Interval> {
     Sym::param_over(ParamSymbol::of(n), Interval::from_bounds(lo, hi), lo, hi)
 }
-fn k(v: f64) -> Sym<Interval> { Sym::from_f64(v) }
+fn k(v: f64) -> Sym<Interval> {
+    Sym::from_f64(v)
+}
 fn probe(rules: SymRules, f: impl FnOnce() -> Sym<Interval>) -> (Result<Sign, String>, SymCounts) {
     let (s, c) = with_session_rules(budget(), rules, || {
         f().sign_within(band()).map_err(|e| format!("{e:?}"))
@@ -26,9 +33,14 @@ fn probe(rules: SymRules, f: impl FnOnce() -> Sym<Interval>) -> (Result<Sign, St
     (s, c)
 }
 fn line(name: &str, r: &(Result<Sign, String>, SymCounts)) {
-    let v = match &r.0 { Ok(s) => format!("{s:?}"), Err(_) => "REFUSED".into() };
-    println!("  {name:<50} {v:<8} sym0={} gated={} numeric={}",
-        r.1.symbolic_zero, r.1.sign_gated, r.1.numeric);
+    let v = match &r.0 {
+        Ok(s) => format!("{s:?}"),
+        Err(_) => "REFUSED".into(),
+    };
+    println!(
+        "  {name:<50} {v:<8} sym0={} gated={} numeric={}",
+        r.1.symbolic_zero, r.1.sign_gated, r.1.numeric
+    );
 }
 
 #[test]
@@ -68,7 +80,11 @@ fn r1_the_tie_side_and_the_constant_comparison() {
         }),
     ];
     println!("shipped:");
-    for (n, f) in &rows { line(n, &probe(SymRules::shipped(), *f)); }
+    for (n, f) in &rows {
+        line(n, &probe(SymRules::shipped(), *f));
+    }
     println!("without_the_reads:");
-    for (n, f) in &rows { line(n, &probe(SymRules::without_the_reads(), *f)); }
+    for (n, f) in &rows {
+        line(n, &probe(SymRules::without_the_reads(), *f));
+    }
 }

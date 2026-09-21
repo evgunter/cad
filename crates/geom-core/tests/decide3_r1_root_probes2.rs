@@ -12,7 +12,10 @@ use geom_core::sym::{SymCounts, SymRegistration, with_session_rules};
 use geom_core::{Decide, ParamSymbol, Sym, SymBudget, SymRules, Tol};
 
 fn budget() -> SymBudget {
-    SymBudget { max_terms: 4096, max_degree: 128 }
+    SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    }
 }
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -87,11 +90,15 @@ fn r1_the_registrant_and_the_walk_mint_one_atom() {
         let lhs = (k(4.0) * x).sqrt();
         let rhs = k(2.0) * x.sqrt();
         let reg = lhs.register_equal(rhs, Tol::witness());
-        let s = (lhs - rhs).sign_within(band()).map_err(|e| format!("{e:?}"));
+        let s = (lhs - rhs)
+            .sign_within(band())
+            .map_err(|e| format!("{e:?}"));
         (reg, s)
     });
-    println!("  registration {:?} residual {:?} counts sym0={} reg={}",
-        out.0, out.1, counts.symbolic_zero, counts.registered);
+    println!(
+        "  registration {:?} residual {:?} counts sym0={} reg={}",
+        out.0, out.1, counts.symbolic_zero, counts.registered
+    );
     assert_eq!(out.0, SymRegistration::Recorded);
 }
 

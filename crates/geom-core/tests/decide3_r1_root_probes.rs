@@ -32,10 +32,7 @@ fn k(v: f64) -> Sym<Interval> {
 
 /// Runs `f` under `rules` and reports the sign of the residual it
 /// returns with the counts the session took.
-fn probe(
-    rules: SymRules,
-    f: impl FnOnce() -> Sym<Interval>,
-) -> (Result<Sign, String>, SymCounts) {
+fn probe(rules: SymRules, f: impl FnOnce() -> Sym<Interval>) -> (Result<Sign, String>, SymCounts) {
     let (s, c) = with_session_rules(budget(), rules, || {
         let m = f();
         m.sign_within(band()).map_err(|e| format!("{e:?}"))
@@ -135,11 +132,11 @@ fn r1_the_split_depends_on_minting_order() {
         q * s - p.abs()
     });
     line("sqrt(P^2/X)*sqrt(X)-|P|  root minted first", &root_first);
-    line("sqrt(P^2/X)*sqrt(X)-|P|  quotient first   ", &quotient_first);
-    println!(
-        "ORDER-DEPENDENT: {}",
-        root_first.0 != quotient_first.0
+    line(
+        "sqrt(P^2/X)*sqrt(X)-|P|  quotient first   ",
+        &quotient_first,
     );
+    println!("ORDER-DEPENDENT: {}", root_first.0 != quotient_first.0);
 }
 
 /// **The adversary against the side condition's source 3**: the root
@@ -159,8 +156,16 @@ fn r1_source_three_on_a_straddling_denominator() {
     // What the two sides are as reals at an interior point of the box
     // where D < 0: the left side is not a real number at all.
     let at = |xv: f64, pv: f64| ((pv * pv / xv).sqrt() * xv.sqrt(), pv.abs());
-    println!("  at x=-0.5, p=1.5: lhs={:?} rhs={:?}", at(-0.5, 1.5).0, at(-0.5, 1.5).1);
-    println!("  at x= 0.5, p=1.5: lhs={:?} rhs={:?}", at(0.5, 1.5).0, at(0.5, 1.5).1);
+    println!(
+        "  at x=-0.5, p=1.5: lhs={:?} rhs={:?}",
+        at(-0.5, 1.5).0,
+        at(-0.5, 1.5).1
+    );
+    println!(
+        "  at x= 0.5, p=1.5: lhs={:?} rhs={:?}",
+        at(0.5, 1.5).0,
+        at(0.5, 1.5).1
+    );
 }
 
 /// **The two reads.** What `max` of two CONSTANTS is counted as, and
@@ -193,7 +198,10 @@ fn r1_the_reads_at_min_max_and_select() {
         s - k(7.0)
     });
     line("max(1, 1/4) - 1          shipped         ", &consts);
-    line("max(1, 1/4) - 1          without_the_reads", &consts_no_read);
+    line(
+        "max(1, 1/4) - 1          without_the_reads",
+        &consts_no_read,
+    );
     line("max(X,1) - X   X in [3,4]                ", &certified);
     line("select(X,7,9) - 9   X in [3,4]           ", &sel);
     line("select(X,7,9) - 7   X in [-1,0] (tie)    ", &tie);
