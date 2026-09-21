@@ -712,3 +712,62 @@ me.**
 Remaining on the slate: AUTH-2 in fix (PR 2957),
 `add-profile-mints-no-frame` next in the order, and eight rows behind
 it.
+
+## 2026-09-21 — AUTH-2's fix pass: the text guard worked, and found a toolkit quirk
+
+Green at 39 jobs on head `4db2d821e` (twelve `test (…)`, five
+`k-lint (gate, …)`), and the lane read the STEP rather than the job
+name for the rows its new tests live in. **No fallback to a
+tolerance**: `props::typed_edit` and `readout::reads_as` are deleted
+and `readout.rs` is claimed byte-identical to `origin/main`, so the
+widening that made the previous review NOT-MERGEABLE is reverted
+rather than tuned.
+
+**The lane found what neither review caught, and it explains the
+reviewer's measurement.** `egui` parses the buffered text on TWO
+consecutive frames — the kb-editing branch on `lost_focus`, then the
+next frame's `mem.lost_focus(id)` arm on the copy it re-inserted — and
+`Response::lost_focus()` is true on both, so it cannot separate them.
+`1002` over a field showing `1000.0` emits `SetParam` twice,
+identically. **The old numeric guard was accidentally masking it**
+(frame 2's number reads as the new value); a text guard cannot,
+because by frame 2 the document has moved and the render is no longer
+what is in the box. That is the correctness reviewer's "+3 history
+states" fully explained, and it is why "one user action is one undo"
+needed a rule at the door and not only at the field. Filed as
+`work/vgeom/a-typed-field-hands-its-text-over-on-two-frames.md`.
+
+**Why I am NOT merging on my own read.** The fix pass replaced the
+design the two reviews examined. Those lanes reviewed one numeric
+guard at the field; what exists now is two rules — `props::echoed` at
+the field over TEXT, and `DocSession::writes_nothing` at the session
+door over the `DocEdit`, read by `set_slot`, `set_param`,
+`set_param_unit` and `set_param_text`. **No reviewer has seen the
+second one**, and it is a session-level change on a door outside this
+unit's subject: the chrome guard it replaces lived in the panel, so
+the door never saw a no-op, and now it sees one and discards it. That
+is reachable from replay and from the Python bindings, not just the
+panel.
+
+The lane flagged it itself and offered to narrow it, which is the
+right instinct and is why I am not simply accepting it: **the reason
+to keep it at the session — that "would this move the document" is the
+document layer's question — is the same reason it needs checking,
+because a door that answers that question for every caller can drop an
+edit a caller meant.** One targeted correctness lane is out on exactly
+that, plus the two-frame claim (is the door the right place to fix a
+toolkit quirk, or is the second emission separable at the field?), the
+trim in `echoed`, whether the new rows can go red, and an
+`unreachable!` the fix pass added where this codebase might want a
+typed refusal.
+
+Scoped narrow and deep, not broad: C1–C8, the create door, the parse
+routing and the sweep were settled by the previous two lanes and are
+not re-opened.
+
+**A process note worth keeping.** This is the case the review posture
+exists for and it nearly slipped: two green reviews plus a green CI
+run is not coverage of a design those reviews did not examine. A fix
+pass that REPLACES rather than repairs earns a look, and the signal
+that it did is not the diff size — it is that the claims the reviewers
+falsified no longer describe the code.
