@@ -414,7 +414,7 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             // The feature that MADE the entity, so the button deletes
             // what the label names.
-            ui.label(format!("{noun} of feature {}", feature.0));
+            ui.label(format!("{noun} of {}", crate::tree::node_number(feature)));
             if live && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }

@@ -7,9 +7,16 @@
 //! failure is a typed value the GUI renders, never a string invented
 //! at the interaction layer. So a failing row's message is
 //! `NodeError`'s own `Display`, and nothing here composes a sentence
-//! about what went wrong. The one sentence this module does write is
-//! a DOWNSTREAM row's ([`downstream_wording`]), and it says only
-//! WHERE the failure is.
+//! about what went wrong. The one sentence this module writes ABOUT A
+//! FAILURE is a downstream row's ([`downstream_wording`]), and it says
+//! only WHERE the failure is.
+//!
+//! What it does write, and what the rule above does not reach, is what
+//! a node IS: [`node_kind`]'s vocabulary spelling, [`node_number`]'s
+//! `feature 3`, and [`frame_pose`]'s statement of which frame a datum
+//! frame is. Those are readings of the node, not verdicts about a run,
+//! and they are sited here because the tree and the creation forms'
+//! pickers have to name a node the same way.
 //!
 //! Because that is the other thing this module owns: the *shape* —
 //! which rows exist, in which order, at what indentation, which of

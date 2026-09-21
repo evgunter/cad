@@ -609,10 +609,12 @@ impl ViewerBehavior<'_> {
     /// **How a picker names one frame node**: [`tree::node_label`],
     /// against the same landed document [`Self::frames`] listed.
     ///
-    /// One reading for the list and for the closed text, and the SAME
-    /// sentence the feature tree draws on that node's own row — so a
-    /// person matching a combo entry to a tree row is matching two
-    /// copies of one string rather than two descriptions.
+    /// One reading for the list and for the closed text. A combo
+    /// entry and that node's tree row do not read alike — the row
+    /// leads with the node's KIND and this leads with its number —
+    /// but the half that says WHICH frame is the same string from the
+    /// same function ([`tree::frame_pose`]), so the two agree about
+    /// the thing they are both trying to tell apart.
     ///
     /// Total, and that is what it is for: a held pick outlives the
     /// frame it names, and an id the landed document does not hold is
@@ -645,13 +647,17 @@ impl ViewerBehavior<'_> {
     /// The circle's optional bore is what lets this template author
     /// the hollow ring's annulus (one profile node, two loops).
     ///
-    /// **The plane is a PICK of a frame that exists**, and the picker
-    /// lists both frame kinds, so drawing on a picked FACE is minting
-    /// that face's frame in the add-datum form
-    /// ([`DatumKindChoice::FaceFrame`]) and choosing it here. Doing
-    /// both in one gesture, and naming a frame in this picker by the
-    /// face it sits on rather than by its feature number, is the
-    /// residue `work/author/add-profile-mints-no-frame.md` carries.
+    /// **The plane is a PICK**, and the picker offers the world xy
+    /// frame this form would MINT beside every frame the document
+    /// already holds ([`ProfilePlane`]) — so an empty document can
+    /// author a sketch without a trip to the add-datum form, in one
+    /// submit and one undo.
+    ///
+    /// Drawing on a picked FACE is still two gestures: minting that
+    /// face's frame in the add-datum form
+    /// ([`DatumKindChoice::FaceFrame`]) and choosing it here.
+    /// `work/author/add-profile-placement-on-picked-face-frame.md`
+    /// carries that residue.
     ///
     /// The bore field is guarded IN THE FORM: loop roles come from
     /// the profile layer's containment forest, not from list order,
@@ -669,10 +675,12 @@ impl ViewerBehavior<'_> {
                 ui.radio_value(&mut self.drafts.profile_shape, Some(shape), label);
             }
         });
-        // **The frame it is drawn on**, picked from the ones the
-        // document holds. A profile's plane is a node, so the form names
-        // one — and a document with no frame in it says so rather than
-        // conjuring one.
+        // **The frame it is drawn on.** A profile's plane is a node,
+        // so what this picks is always a node — either one the
+        // document holds, or the world xy frame the same submit
+        // inserts and the profile then names. Nothing is conjured:
+        // the minted frame is an ordinary feature, in the tree and in
+        // the property panel.
         profile_plane_row(
             ui,
             &self.frames(),
@@ -842,7 +850,10 @@ impl ViewerBehavior<'_> {
         });
         match self.session.selection().node() {
             Some(node) => {
-                if ui.button(format!("Extrude feature {}", node.0)).clicked() {
+                if ui
+                    .button(format!("Extrude {}", tree::node_number(node)))
+                    .clicked()
+                {
                     match self.drafts.length(self.drafts.extrude_distance) {
                         Ok(distance) => self.ops.push(SessionOp::AddExtrude {
                             profile: node,

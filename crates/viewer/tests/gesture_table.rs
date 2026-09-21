@@ -105,8 +105,8 @@ use pncad::select::ContactClass;
 use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, FreeMoveName, GestureName,
-    Hovered, PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
+    BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
+    PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -263,11 +263,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             name: "view1b-fresh".to_owned(),
         },
         SessionOp::AddDatum {
-            datum: DatumSpec::Frame {
-                origin: len3([0.0; 3]),
-                u: scl3([1.0, 0.0, 0.0]),
-                v: scl3([0.0, 1.0, 0.0]),
-            },
+            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
         },
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(node),
@@ -1251,9 +1247,11 @@ fn strand_the_distance_drag(session: &mut DocSession, extrude: RecipeNodeId) {
 /// with no row to report it — the session half, end to end, through the
 /// ops the widget emits. The last link, *a group that is not in the
 /// list is not drawn and so reports no release*, is
-/// `pane::properties_ui`'s `for group in &groups` and this crate has no
-/// headless egui harness to execute it (`panel_display.rs` says the
-/// same of the field's own wiring). It is read, not run.
+/// `pane::properties_ui`'s `for group in &groups`, which is a
+/// `ViewerBehavior` METHOD: it borrows the whole application, so no
+/// headless drive reaches it (`panel_display.rs` says the same of the
+/// field's own wiring, and `viewer::pane::headless` says what a drive
+/// can reach instead). It is read, not run.
 ///
 /// Where it goes red: give `CancelGesture` back to the no-op it would
 /// be if `perform` stopped taking the gesture, or take the door out of
@@ -1377,8 +1375,9 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
 /// so a name-shaped sweep finds only `perform`'s arms and reports the
 /// defect as still open. One read, in the toolbar.
 ///
-/// What it cannot see is whether that read is REACHED — the toolbar is
-/// an `egui` closure and this crate has no headless harness for one.
+/// What it cannot see is whether that read is REACHED — the toolbar
+/// draws inside a `ViewerBehavior` method, which borrows the whole
+/// application and so is out of a headless drive's reach.
 /// This row holds the emitter count against going back to zero, which
 /// is the state the item describes; the call site being three lines of
 /// a panel drawn on every frame is the rest of it.

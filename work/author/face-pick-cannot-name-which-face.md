@@ -74,13 +74,19 @@ change and a decision about what a pick readout may read, which is
 the same question AUTH-3 answered for NODE labels and deliberately
 did not answer for PICK readouts.
 
-## The other half of NOTE-6
+## The other half of NOTE-6 is a separate row
 
 The reviewer also noted the pick "stays on screen after the selection
 is cleared, so an author can commit against a pick nothing in the
-viewport is showing". The latch is deliberate and documented
-(`datum_face_frame_rows`: it is what lets an author pick a face, type
-a spin and click the tree without losing the pick), so the fix is not
-to drop it — it is to make the held pick VISIBLE, which is viewport
-marks rather than form text. Recorded here so it is not lost with the
-half above.
+viewport is showing". That is a different defect with a different fix
+on different ground — a mark in the viewport, not a sentence in the
+form — so it has its own file:
+`work/author/held-face-pick-is-invisible-in-the-viewport`.
+
+## Both answers here land outside AUTHOR's ground
+
+Worth knowing before this row is dispatched: neither candidate above
+is a change AUTHOR can make alone. The first reverses a ruling written
+into `crates/editor-core/src/names/role.rs`; the second needs a
+re-export on the `pncad` facade. Either way the unit that takes this
+row opens with a question for whoever owns that ground.

@@ -467,11 +467,10 @@ pub enum SessionOp {
         /// field, and [`ProfilePlane`] says which of the two ways it
         /// was picked.
         ///
-        /// It was a `SketchPlane<f64>` the form filled in from a
-        /// world-XY constant. A profile's plane is a document node
-        /// now, so the form names one rather than carrying a plane on
-        /// the side: the frame a person drew on is the frame they can
-        /// see in the viewport and edit afterwards.
+        /// A profile's plane is a document node, so the form names
+        /// one rather than carrying a plane on the side: the frame a
+        /// person drew on is the frame they can see in the viewport
+        /// and edit afterwards.
         ///
         /// [`ProfilePlane::Existing`] names a node that is already
         /// there; a reference that does not name a `Datum::Frame`
