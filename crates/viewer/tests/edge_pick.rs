@@ -930,10 +930,9 @@ fn a_viewport_no_pixel_distance_can_be_measured_in_picks_no_edge() {
             )
             .expect("a pixel the walk could not measure is not the caller's cursor");
         assert!(
-            answer
-                .as_ref()
-                .is_none_or(|pick| pick.distance_px.is_finite()
-                    && pick.distance_px <= EDGE_PICK_RADIUS_PX),
+            answer.as_ref().is_none_or(
+                |pick| pick.distance_px.is_finite() && pick.distance_px <= EDGE_PICK_RADIUS_PX
+            ),
             "whatever is answered at {scale:e} is within the radius by construction"
         );
     }
