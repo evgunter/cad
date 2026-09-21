@@ -5,7 +5,7 @@ title: the decision read's deep enclosure runs at every select and min/max node,
 status: open
 opened: 2026-09-21
 priority: P2
-cost: M
+cost: D
 ---
 
 
