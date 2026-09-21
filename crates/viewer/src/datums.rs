@@ -98,17 +98,13 @@ use crate::input::ViewportSize;
 ///
 /// Every quantity here is a plain `f64` a caller wrote or this module
 /// derived from one: a height off a plane, a crossing's plane
-/// coordinate, a region bound, a lattice index. None of them is a
-/// decided length with a norm witness, so **`geom_core`'s
-/// `is_finite_length` is not the home for them** even though it
-/// decides the same fact for `f64`. That predicate is generic over
-/// `Real` and asks through the scalar's poison channel because its
-/// callers may be carrying an interval or a dual; its rustdoc's roster
-/// is a hand-kept claim about doors that DECIDE a length, and the
-/// recourse it names — rescale the geometry — is not a recourse a
-/// display module can offer. Routing display code through it would
-/// widen that roster with sites it is not about and would still leave
-/// the positivity half below hand-spelled.
+/// coordinate, a region bound, a lattice index. **Not one of them is
+/// a decided length, which is why `geom_core`'s `is_finite_length`
+/// is not the home for them** — it decides the same fact for `f64`,
+/// but its subject is a length paired with a norm witness and the
+/// recourse it offers is to rescale the geometry, which is not a
+/// recourse a display module has. It would also close only the half
+/// of the question below.
 ///
 /// Taken by array rather than by slice so a call site names its
 /// quantities and nothing can be appended to the list by accident.
@@ -262,6 +258,14 @@ impl View {
 
     /// The window's larger side, in pixels, or `NaN` when either side
     /// is not a number (`f64::max` would quietly answer the other).
+    ///
+    /// **The test is `is_nan` and not `is_finite` deliberately.** An
+    /// INFINITE side is a side, and it must reach
+    /// [`View::screen_metres_at`], which refuses it and draws
+    /// nothing; answering `NaN` for it here would refuse the same
+    /// mark by a different route and make this a second door on a
+    /// question that already has one. `NaN` is the case `f64::max`
+    /// alone gets wrong, so `NaN` is the case this asks about.
     fn viewport_px(&self) -> f64 {
         let [width, height] = self.window_px;
         if width.is_nan() || height.is_nan() {
@@ -656,8 +660,8 @@ impl DatumDraws {
     /// - a mark's own point lends it no length, so
     ///   [`View::screen_metres_at`] or [`grid_pitch`] declines it;
     /// - a ruling's index bounds overflow, so `rule_patch`'s
-    ///   finiteness guard declines a direction whose `coordinate /
-    ///   pitch` is no longer a number;
+    ///   finiteness guard declines the whole patch because one
+    ///   direction's `coordinate / pitch` is no longer a number;
     /// - a ruling keeps its scale and loses its EXTENT, so
     ///   `rule_patch` declines a direction whose two endpoints round
     ///   onto the same point.

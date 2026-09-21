@@ -1481,12 +1481,12 @@ fn how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed() {
 ///   spacing of representable numbers around `1e100` of about
 ///   `2e84` — so both ends round onto `cv`.
 ///
-/// **The same plane at `f64::MAX` is empty for three reasons at
-/// once**, which is what makes it the wrong witness for any one of
-/// them: the tick's depth overflows to `inf` and it refuses for want
-/// of a scale, one ruled direction's `cv / pitch` overflows and it
-/// refuses on the finiteness guard, and the other loses its extent as
-/// here. At `1e100` only the third is live.
+/// **The same plane at `f64::MAX` is empty for two reasons at once**,
+/// which is what makes it the wrong witness for either: the tick's
+/// depth overflows to `inf` and it refuses for want of a scale, and
+/// one direction's `cv / pitch` overflows, which refuses the whole
+/// patch on the finiteness guard before any extent is asked about.
+/// At `1e100` the extent loss below is what is live.
 ///
 /// **What makes this falsifiable**: if `rule_patch` emitted the
 /// zero-length segments instead of refusing them, the drawing here
@@ -1956,6 +1956,27 @@ fn a_patch_past_the_grid_backstop_is_shrunk_rather_than_truncated() {
             a[1],
             a[2],
             a[3],
+        );
+        // **And it is plane the window can SEE.** A shrunk patch that
+        // is free to sit anywhere rules the aim's neighbourhood
+        // whether or not the window reaches it, which is the same
+        // untrue drawing pointed the other way. The eye looks along
+        // +y from `eye`, so nothing the window sees is behind it in
+        // y — give or take the one whole cell the region's bounds are
+        // rounded outward by, which is read off the drawing rather
+        // than assumed.
+        let mut held: Vec<f64> = held_y.iter().map(|line| line[0][1]).collect();
+        held.sort_by(f64::total_cmp);
+        let pitch = held
+            .windows(2)
+            .map(|pair| pair[1] - pair[0])
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            a[2] >= eye[1] - pitch,
+            "at {window} the ruling reaches y {:.3}, behind an eye at y {:.3} by more \
+             than the {pitch:.3} m cell the bounds are rounded out by",
+            a[2],
+            eye[1],
         );
         a
     };
