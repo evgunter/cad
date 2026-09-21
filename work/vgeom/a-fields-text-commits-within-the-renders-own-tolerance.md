@@ -66,29 +66,43 @@ The generalisation this row's last paragraph names — *"not committing
 an untouched field at all, which is
 `parameter-row-field-has-no-text-door`'s no-op-guard half generalised
 to every field"* — landed for the two fields of the property panel.
-`crate::props::typed_edit` is the rule's one home: it judges a typed
-number against what the field is SHOWING, by
-`crate::readout::reads_as` — the renderer's own predicate over
-`REL_TOLERANCE` — so a text the chrome echoed is not an edit and emits
-no operation. `pane::properties`' `slot_value_ui` and the
-`Selection::Param` arm both call it; before AUTH-2 the slot's guard
-compared canonical values exactly and therefore called every echoed
-render an edit, which is the band this row measures.
 
-**What is left here, stated rather than assumed.** This row's own
-question — whether the bound belongs to a RENDER or to a COMMIT — is
-not settled by that guard, and three things still sit inside it:
+**The guard is over TEXT, and it has no tolerance.** `crate::props::
+echoed` is the rule's one home: the field's own formatter is the one
+that produced the text an `egui::DragValue` seeds its keyboard edit
+with, so `crate::widgets::value_field_ops` keeps what the formatter
+returned and the parser compares the typed text against it. Equal is
+the field talking to itself and emits nothing; different is the user's
+and takes its door. `pane::properties`' `slot_value_ui` and the
+`Selection::Param` arm are one call to that function.
+
+**That answers this row's own question in one direction.** The bound
+on a COMMIT is now zero — no keystroke, no change — without touching
+the RENDER, which still spells a text naming its value only to
+`REL_TOLERANCE`. The two questions came apart because the echo is
+identifiable as text, which needs no bound at all.
+
+**What is left here, stated rather than assumed.**
 
 - every OTHER field in the crate, which is most of them: the creation
   forms' `widgets::unit_field` / `named_field` write back on
-  `response.changed()` and have no such guard, and neither does the δ
-  field;
-- the render itself, which still spells a text naming its value only to
-  `REL_TOLERANCE`;
-- the cost the guard pays, which is the honest half of it: the chrome
-  cannot tell an echoed text from a re-typed one, so a user who types a
-  number within the render's own accuracy of what the field displays is
-  told nothing and gets no edit. AUTH-2 took that trade on the reading
-  that a field showing `40` and a user typing `40` agree; a fix that
-  distinguished the two would need egui to say whether the text was
-  edited, which it does not.
+  `response.changed()` and have no such guard. The δ field is the
+  exception and guards itself (`pane::view`'s
+  `a_draft_typed_back_to_the_render_commits_nothing`), which is a
+  second spelling of the same rule and a candidate for the same home;
+- the render itself, which still spells a text naming its value only
+  to `REL_TOLERANCE` — so a field can go on SHOWING a number it does
+  not hold, which is a display fault even where nothing commits it;
+- the sibling this shape turned up:
+  `a-typed-field-hands-its-text-over-on-two-frames`, which is why the
+  field's guard is not the only thing standing between one typed
+  number and two undo steps.
+
+**Corrected.** An earlier entry here recorded AUTH-2 as taking a
+numeric guard over `readout::reads_as` and named its cost as *"the
+chrome cannot tell an echoed text from a re-typed one"*. That was
+wrong in both halves and was replaced before AUTH-2 merged: the
+numeric shape discarded real edits — a field reading `1000` in
+millimetres and a user typing `1000.4` got nothing, no edit and no
+refusal — and the echo IS distinguishable, as text, which is what the
+landed guard does.

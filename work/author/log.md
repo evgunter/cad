@@ -102,3 +102,37 @@ lane and now says so.
 `work/chrome/…` paths on rows that moved to `work/author/` at the cut,
 and one `work/issues/doc-param-unit-edit-has-no-door.md` that was
 claimed by EDIT and has since closed.
+
+## AUTH-2 fix pass — the guard is over TEXT (2026-09-21)
+
+The correctness review returned NOT-MERGEABLE with two MAJORs, both
+settled by running a production-faithful egui harness. Both were about
+the same decision, taken the wrong way round.
+
+**The guard compares TEXT, not numbers.** The implementation judged a
+typed number against the number the field displays, by the renderer's
+own tolerance — which is relative and unbounded in absolute terms, so
+a field reading `1000` in millimetres discarded a typed `1000.4`
+silently: no edit, no refusal, the field reverting. The echo is
+identifiable exactly as text: `egui::DragValue` seeds its keyboard
+edit with the text its formatter returned, so the field keeps that
+text and the parser compares against it (`props::echoed`). No
+tolerance, one rule, both fields, and a row showing SOURCE rather than
+a number is answered by the same comparison.
+
+**Two rules, not three spellings of one.** What a field's guard
+decides ("did this text come out of the field?") and what a document
+door decides ("would this edit move anything?") are different
+questions with different answers, and the implementation's doc claimed
+they were the same rule. They are now two functions with one home
+each: `props::echoed` at the field, `DocSession::writes_nothing` at
+the door. The second is what makes one typed number one undo step,
+because `egui` hands a buffered text over on two consecutive frames —
+filed as `work/vgeom/a-typed-field-hands-its-text-over-on-two-frames`.
+
+**The panel's op emission has a row now.** The crate said it carried
+no headless egui harness; it does, in `widgets.rs`, over a real
+`egui::Context` and a real `DocSession`. Both MAJORs were reproduced
+there before they were fixed — the click-in/click-away emitted
+`SetParam(0.04)` over a field holding 0.040000019, and the typed
+`1000.4` emitted nothing.

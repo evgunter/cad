@@ -878,10 +878,13 @@ impl SessionOp {
     ///   [`SessionOp::BeginFreeMove`], which is the same rule about
     ///   the other drag.
     ///
-    /// Everything else is refused, and 24 of the 25 rows move the
-    /// document, the history or the file the drag is previewing
-    /// against. [`SessionOp::ProbeBounds`] is the twenty-fifth and
-    /// moves none of them: it READS the shown document, which
+    /// Everything else is refused, and all but one of those rows move
+    /// the document, the history or the file the drag is previewing
+    /// against — stated as "all but one" rather than as a count,
+    /// because the count is a property of the enum and goes stale the
+    /// day an operation joins it. [`SessionOp::ProbeBounds`] is the
+    /// exception and moves none of them: it READS the shown document,
+    /// which
     /// mid-drag is the scratch, so a range taken there would be a
     /// statement about a picture the drag is about to replace and
     /// would outlive it by one keystroke.

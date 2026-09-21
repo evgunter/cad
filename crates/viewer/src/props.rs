@@ -91,33 +91,39 @@
 //!
 //! # One field for numbers and expressions
 //!
-//! **A SLOT's field.** A parameter row's field reads the same two
-//! shapes through the same [`field_edit`] and differs in one: there is
-//! no expression a document parameter can be SET to — a
-//! `DocParam::Continuous` holds an `f64`, not an `Expr` — so its
-//! second door carries a number and its notation (`50 mm`) and refuses
-//! everything else. Both fields share the no-op guard below
-//! ([`typed_edit`]).
+//! **Both panel value fields have this shape**, and one function draws
+//! them (`crate::widgets::value_field_ops`): the slot row's and the
+//! document parameter's. What a user types decides which of the
+//! field's two doors the edit takes, and [`field_edit`] is the one
+//! reading of the text that decides it:
 //!
-//! A slot has ONE value field, and what a user types into it decides
-//! which door the edit takes ([`field_edit`]):
+//! * Bare digits mean a number in the field's WRITTEN unit, through
+//!   [`from_written`] — `SessionOp::SetSlot` at a slot,
+//!   `SessionOp::SetParam` at a parameter — leaving the stored display
+//!   unit alone.
+//! * **Anything else is text for the field's other door**, including a
+//!   number with a unit on it. That is the unit-authoring rule, and it
+//!   is one rule rather than two: `25 in` is read by the one parser a
+//!   unit-bearing number has, and the literal it yields REMEMBERS `in`
+//!   — so the field and the unit picker agree afterwards without
+//!   either being told about the other.
 //!
-//! * Bare digits mean exactly what they have always meant — a number
-//!   in the slot's WRITTEN unit, through [`from_written`] and
-//!   `SessionOp::SetSlot`, leaving the stored display unit alone.
-//! * **Anything else is expression source**, including a number with
-//!   a unit on it. That is the unit-authoring rule, and it is one
-//!   rule rather than two: `25 in` is the expression `25 in`, whose
-//!   literal REMEMBERS `in` because that is what the text door does
-//!   with a suffix — so the field and the unit picker agree
-//!   afterwards without either being told about the other.
+//! **The two doors differ in WHERE that text may land, and only
+//! there.** A slot can be driven by an expression, so its text door is
+//! `SessionOp::SetSlotExpression` and `w * 2` is an edit. A document
+//! parameter holds an `f64` and nothing else — there is no
+//! `SetDocParamExpression` — so its text door is
+//! `SessionOp::SetParamText`, which takes a number and its notation
+//! (`50 mm`) and refuses every other expression by name.
 //!
-//! What the field SHOWS is [`field_text`]: a bare literal shows its
+//! What a slot field SHOWS is [`field_text`]: a bare literal shows its
 //! number alone (the unit is the picker's to say, not the field's),
-//! and everything else shows its source.
+//! and everything else shows its source. A parameter's always shows
+//! its number, because a parameter is never driven by anything.
 //!
-//! **Text that says what the field already says is not an edit**, at
-//! either field — [`typed_edit`], one function because it is one rule.
+//! **Text the field itself produced is not an edit**, at either field
+//! — [`echoed`], one function because it is one rule, asked of the
+//! render the field actually made.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -457,12 +463,20 @@ fn render_number(value: f64) -> String {
 #[derive(Clone, Debug, PartialEq)]
 pub enum FieldEdit {
     /// A bare number, in the unit the field is written in — the
-    /// numeric door (`SessionOp::SetSlot`), which re-attaches the
-    /// slot's stored display unit and so leaves the notation alone.
+    /// numeric door, `SessionOp::SetSlot` at a slot and
+    /// `SessionOp::SetParam` at a document parameter. Both leave the
+    /// notation alone: one re-attaches the slot's stored display unit
+    /// and the other carries the declaration forward.
     Number(f64),
-    /// Anything else: source for the expression door
-    /// (`SessionOp::SetSlotExpression`), which is also where a number
-    /// carrying a UNIT goes — see the module docs' authoring rule.
+    /// Anything else: the text door's, which is `SessionOp::
+    /// SetSlotExpression` at a slot and `SessionOp::SetParamText` at a
+    /// document parameter. A number carrying a UNIT is this variant at
+    /// both — see the module docs' authoring rule — and so is every
+    /// expression, which is an edit at one field and a refusal by name
+    /// at the other.
+    ///
+    /// Named for the slot's reading of it because that is the wider
+    /// one: a parameter's door accepts a strict subset.
     Expression(String),
     /// Nothing was typed. Not an edit, and not a refusal either.
     Empty,
@@ -489,15 +503,12 @@ pub fn field_edit(text: &str) -> FieldEdit {
     }
 }
 
-/// **Text that says what a field already says is not an edit** — the
-/// one home of that rule, for both of the panel's value fields.
+/// **Text the field itself produced is not an edit** — the one home
+/// of that rule, for both of the panel's value fields.
 ///
-/// `unit` is the notation the field is written in ([`shown_in`]'s
-/// argument, `crate::forms::FieldWriting::unit`); `showing` is the
-/// number the field is displaying right now, in that notation; and
-/// `typed` is the number its parser just read.
-/// The answer is the value to author, or `None` when the field would
-/// go on showing what it already shows.
+/// `typed` is what the field's parser was handed; `rendered` is what
+/// the field's own formatter returned for the value it holds, on the
+/// frame the parse ran. The answer is whether the one is the other.
 ///
 /// # Why a field commits anything it was not typed into
 ///
@@ -511,35 +522,28 @@ pub fn field_edit(text: &str) -> FieldEdit {
 /// meant as one. `readout`'s own words: the number a value moves to on
 /// purpose is one a user types, never one the chrome echoed at them.
 ///
-/// # Judged on what the field would SHOW
+/// # Judged as TEXT, which is what the question is about
 ///
-/// Not on the canonical value, and the difference is the whole of it:
-/// the text came out of the render, so the render's own predicate
-/// ([`crate::readout::reads_as`]) is the one that answers whether it
-/// names the number behind it. Comparing canonical values instead
-/// would call every echoed render an edit, which is the case this
-/// guard exists for. Taking the comparison through
-/// [`SlotValue::of`] and back is what makes a `Count` field answer on
-/// the count it would hold rather than on the fraction a parser read.
+/// An echo is a text the field produced and a re-type is a text the
+/// user produced, and the render is the thing that tells them apart —
+/// exactly, with no tolerance to choose and no band for a real edit to
+/// fall into. A numeric comparison cannot do it: the render is lossy
+/// by construction, so any number-shaped test has to accept a band
+/// around the value, and every edit inside that band is then discarded
+/// — ±0.5 mm on a field showing `1000` in millimetres, which is an
+/// edit a person can plainly mean and plainly type.
 ///
-/// `None` for `showing` is a field displaying no number at all — a
-/// slot driven by an expression, a slot whose value did not evaluate —
-/// where every typed number is an edit because there is no number it
-/// could be echoing. A driven slot is owed that even when the number
-/// happens to match: writing a number over a computation is the
-/// refusal's own case, and it is owed its affordance.
-pub fn typed_edit(
-    unit: Option<UnitDef>,
-    dimension: Dimension,
-    showing: Option<f64>,
-    typed: f64,
-) -> Option<SlotValue> {
-    let value = SlotValue::of(dimension, authored_in(unit, typed));
-    let would_show = shown_in(unit, value.as_f64());
-    match showing {
-        Some(now) if crate::readout::reads_as(would_show, now) => None,
-        _ => Some(value),
-    }
+/// It also asks one question of both of a field's doors. A row showing
+/// SOURCE rather than a number (a slot driven by an expression, a slot
+/// whose value did not evaluate) echoes that source, and the same
+/// comparison answers for it; a number typed over it is no echo of
+/// anything and takes its door, which is what makes a driven slot's
+/// refusal reachable.
+///
+/// Whitespace is not part of what a field says: the parser trims
+/// before reading ([`field_edit`]), so this does too.
+pub fn echoed(typed: &str, rendered: &str) -> bool {
+    typed.trim() == rendered.trim()
 }
 
 /// The display unit a slot's expression currently REMEMBERS — the
@@ -657,11 +661,21 @@ pub fn slot_edit(
 /// **Minted through `DocParam::written_length` /
 /// `written_angle`, which are TOTAL**: each takes a typed view that is
 /// an index into a row of its own quantity, so the unit measures the
-/// dimension by construction and there is no pairing left for this
-/// function to check or for a caller to get wrong. A unit that does
-/// not measure `dimension` therefore cannot be passed through them —
-/// `UnitDef::as_length`/`as_angle` answer `None` for it, and the
-/// canonical declaration is what a caller who did that gets.
+/// dimension by construction and there is no pairing left for the
+/// declaration to get wrong.
+///
+/// **A unit that does not measure `dimension` is a caller's mistake
+/// and says so.** `UnitDef::as_length`/`as_angle` answer `None` for
+/// it, and the two readings of that `None` — "there is no notation to
+/// name here" and "a notation was offered that this dimension cannot
+/// be written in" — are not the same fact. Quietly minting the
+/// canonical declaration for the second would store a notation nobody
+/// asked for and report success, which is the confident wrong answer
+/// this codebase refuses; the pairing has no run-time recourse at this
+/// seat, so it is `unreachable!` rather than a `Result` nobody could
+/// act on. The one caller reaches it through
+/// `ViewerBehavior::new_param_unit`, which answers off the same
+/// dimension.
 ///
 /// **No multiply.** `WrittenLength::canonical_in` attaches the
 /// notation to an already-canonical value, which is the form's shape:
@@ -673,16 +687,31 @@ pub fn doc_param(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) 
         SlotValue::Count(value) => return DocParam::Count { value },
         SlotValue::Continuous(value) => value,
     };
+    // No notation offered at all: the canonical declaration is the
+    // whole of what there is to mint.
+    let Some(unit) = unit else {
+        return DocParam::continuous(dimension, value);
+    };
     let written = match dimension {
         Dimension::Length => unit
-            .and_then(|unit| unit.as_length())
+            .as_length()
             .map(|unit| DocParam::written_length(WrittenLength::canonical_in(value, unit))),
         Dimension::Angle => unit
-            .and_then(|unit| unit.as_angle())
+            .as_angle()
             .map(|unit| DocParam::written_angle(WrittenAngle::canonical_in(value, unit))),
-        Dimension::Scalar | Dimension::Count => None,
+        // A dimension with no written door — a bare `Scalar` — has one
+        // unit and the canonical declaration already names it, so
+        // being handed it is no mistake and nothing to refuse.
+        Dimension::Scalar | Dimension::Count => {
+            return DocParam::continuous(dimension, value);
+        }
     };
-    written.unwrap_or_else(|| DocParam::continuous(dimension, value))
+    written.unwrap_or_else(|| {
+        unreachable!(
+            "a {dimension} parameter was offered {}, which does not measure it",
+            unit.symbol()
+        )
+    })
 }
 
 /// The edit that changes how a standing parameter's value is WRITTEN,

@@ -866,7 +866,7 @@ fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
     let tol = Tol::witness();
     let name = ParamName::new("base_r");
     let mut session = DocSession::inline(
-        declared(
+        common::declared(
             "auth2-written",
             &name,
             DocParam::written_length(WrittenLength::in_unit(20.0, MM)),
@@ -915,7 +915,7 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
     let tol = Tol::witness();
     let name = ParamName::new("base_r");
     let mut session = DocSession::inline(
-        declared(
+        common::declared(
             "auth2-noop",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
@@ -961,7 +961,7 @@ fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
     let tol = Tol::witness();
     let name = ParamName::new("base_r");
     let mut session = DocSession::inline(
-        declared(
+        common::declared(
             "auth2-expression",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
@@ -1009,7 +1009,7 @@ fn an_unknown_unit_carries_the_parsers_own_wording() {
     let tol = Tol::witness();
     let name = ParamName::new("base_r");
     let mut session = DocSession::inline(
-        declared(
+        common::declared(
             "auth2-unknown-unit",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
@@ -1045,7 +1045,7 @@ fn a_wrong_dimension_unit_refuses_the_whole_action() {
     let tol = Tol::witness();
     let name = ParamName::new("sweep");
     let mut session = DocSession::inline(
-        declared(
+        common::declared(
             "auth2-mismatch",
             &name,
             DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
@@ -1083,7 +1083,7 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     let tol = Tol::witness();
     let name = ParamName::new("base_r");
     let mut session = DocSession::inline(
-        declared(
+        common::declared(
             "auth2-picker",
             &name,
             DocParam::continuous(pncad::document::Dimension::Length, 0.05),
@@ -1107,7 +1107,7 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     // this one guessing.
     let holes = ParamName::new("holes");
     let mut counted = DocSession::inline(
-        declared("auth2-picker-count", &holes, DocParam::Count { value: 6 }),
+        common::declared("auth2-picker-count", &holes, DocParam::Count { value: 6 }),
         tol,
     );
     let refusal = counted
@@ -1123,24 +1123,43 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     );
 }
 
-/// A session over a document holding one declared parameter.
-fn declared(
-    label: &str,
-    name: &ParamName,
-    value: DocParam,
-) -> pncad::document::Doc<pncad::document::ProfileProgram> {
+/// **A refusal names the half the user was editing.**
+///
+/// `8 mm` typed into a COUNT parameter's field is a value edit with a
+/// notation on it. The notation half has nothing to say about a count
+/// — a count is an integer and names no unit under any declaration —
+/// so the door submits the value edit alone and what the user reads
+/// is the refusal of the thing they did: a count declared where a
+/// continuous value was typed. Answering it in the notation's words
+/// ("it has no display unit to change") would describe a change
+/// nobody asked for.
+#[test]
+fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
     let tol = Tol::witness();
-    let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
-        pncad::document::Doc::empty_derived(label, tol);
-    common::edited(
-        &doc,
-        DocEdit::SetDocParam {
-            name: name.clone(),
-            value,
-        },
+    let holes = ParamName::new("holes");
+    let mut session = DocSession::inline(
+        common::declared("auth2-count-text", &holes, DocParam::Count { value: 6 }),
         tol,
-    )
-    .0
+    );
+    let before = session.history().len();
+    let refusal = session
+        .perform(SessionOp::SetParamText {
+            name: holes.clone(),
+            text: "8 mm".to_owned(),
+        })
+        .refusal
+        .expect("a count takes no continuous value");
+    let shown = refusal.to_string();
+    assert!(
+        shown.contains("declared count") && shown.contains("value edit"),
+        "the sentence names the value half: {shown}"
+    );
+    assert!(
+        !shown.contains("display unit"),
+        "and not a notation change nobody asked for: {shown}"
+    );
+    assert_eq!(session.history().len(), before, "and nothing moved");
+    assert_eq!(param_row(&session, &holes).value, SlotValue::Count(6));
 }
 
 /// The panel row for `name`, as the panel reads it.

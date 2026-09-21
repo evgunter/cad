@@ -874,17 +874,16 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     assert_eq!(canonical(Dimension::Count), 1.0);
 }
 
-/// **A field's own render, typed back, is not an edit** — the whole of
-/// the no-op guard, over the band where it has something to refuse.
+/// **A field's own render, typed back, is not an edit** — the guard,
+/// over the band where it has something to refuse.
 ///
 /// The band is the render's, not the parser's: `readout::number`
 /// spells the shortest text that reads back within
 /// `readout::REL_TOLERANCE` of the value, so a field can be showing a
 /// text that names its value only to 5·10⁻⁴. That text is also what an
-/// `egui::DragValue` commits when focus leaves it, so an exact
-/// comparison against the stored value would call every click-in and
-/// click-away an edit — and move the value by up to that much while
-/// costing an undo step.
+/// `egui::DragValue` commits when focus leaves it, so a field that
+/// took its own render for an edit would move the value by up to that
+/// much and charge an undo step for a click nobody meant as one.
 ///
 /// **Each row is built on a value whose render is NOT exact**, which
 /// is what lets it go red: the `assert_ne!` below is the fixture's own
@@ -911,52 +910,80 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
             "{dimension}: {showing} renders as {text}, which reads back exactly — this row \
              would pass on an exact comparison and holds nothing"
         );
-        assert_eq!(
-            props::typed_edit(unit, dimension, Some(showing), read),
-            None,
+        assert!(
+            props::echoed(&text, &text),
             "{dimension}: the chrome's own render, handed back, is not an edit"
         );
         // And a number the user actually moved still is.
-        assert_eq!(
-            props::typed_edit(unit, dimension, Some(showing), showing * 2.0),
-            Some(SlotValue::of(
-                dimension,
-                props::authored_in(unit, showing * 2.0)
-            )),
+        assert!(
+            !props::echoed(&viewer::readout::number(showing * 2.0), &text),
             "{dimension}: a number nobody echoed is an edit"
         );
     }
 }
 
-/// **A count field answers on the count it would hold.** The parser
-/// reads whatever `f64` the text spells, and `SlotValue::of` truncates
-/// it; the guard compares what the field would SHOW afterwards, so a
-/// fraction that truncates back to the standing count is not an edit.
+/// **The guard has no band, and this row is what says so.**
+///
+/// The deltas shrink geometrically from one a person would plainly
+/// type down to the last one an `f64` at this magnitude can hold, so a
+/// guard shaped as a tolerance is red here at WHATEVER tolerance it is
+/// set to: widening or narrowing a band only moves which of these rows
+/// fails, never whether one does. That is what a fixture inside a
+/// chosen band plus one far outside it cannot do — it goes green at
+/// every tolerance but the one it was written against.
+///
+/// `1000` in millimetres is the case the residue is about: a metre
+/// written in the notation a person works in, where 5·10⁻⁴ of the
+/// value is half a millimetre.
 #[test]
-fn a_count_field_is_not_edited_by_a_fraction_that_truncates_back() {
-    assert_eq!(
-        props::typed_edit(None, Dimension::Count, Some(5.0), 5.4),
-        None
+fn no_delta_from_the_render_is_small_enough_to_be_an_echo() {
+    let showing = 1000.0_f64;
+    let rendered = viewer::readout::number(showing);
+    assert!(
+        props::echoed(&rendered, &rendered),
+        "the render itself is the echo"
     );
-    assert_eq!(
-        props::typed_edit(None, Dimension::Count, Some(5.0), 6.0),
-        Some(SlotValue::Count(6))
+    let mut delta = 0.5_f64;
+    let mut rows = 0_u32;
+    // Down to the last delta this magnitude can still hold: below it
+    // the sum IS the value and there is no other number to type.
+    while showing + delta > showing {
+        let typed = format!("{}", showing + delta);
+        assert!(
+            !props::echoed(&typed, &rendered),
+            "a field showing {rendered} was typed {typed} and called it an echo"
+        );
+        delta /= 2.0;
+        rows += 1;
+    }
+    assert!(
+        rows > 40,
+        "only {rows} deltas: the sweep must reach the bottom of the type, \
+         or it is one fixture again"
     );
 }
 
-/// **A field showing no number at all has nothing to echo.** A slot
-/// driven by an expression, and a slot whose value did not evaluate,
-/// show their SOURCE — so every typed number is an edit there, which
-/// is also what the driven refusal is owed: it is raised at the door,
-/// and a guard that swallowed the write would leave the user with no
-/// sentence at all.
+/// **Whitespace is not part of what a field says.** The parser trims
+/// before reading, so the guard does too — a user who selects the
+/// text and retypes it with a space has still typed the render.
 #[test]
-fn a_field_with_no_number_on_it_takes_every_typed_number() {
-    let unit = rendering_unit(Dimension::Length, None);
-    assert_eq!(
-        props::typed_edit(unit, Dimension::Length, None, 0.04),
-        Some(SlotValue::Continuous(0.04))
-    );
+fn the_guard_trims_the_way_the_parser_does() {
+    assert!(props::echoed("  40.0 ", "40.0"));
+    assert!(!props::echoed("40", "40.0"));
+}
+
+/// **A field showing SOURCE is compared against its source.** A slot
+/// driven by an expression, and a slot whose value did not evaluate,
+/// show text rather than a number — the same guard answers for them,
+/// so re-typing the source is not an edit and a number typed over it
+/// is, which is what the driven refusal is owed: it is raised at the
+/// door, and a guard that swallowed the write would leave the user
+/// with no sentence at all.
+#[test]
+fn a_field_showing_source_echoes_its_source_and_nothing_else() {
+    assert!(props::echoed("w * 2", "w * 2"));
+    assert!(!props::echoed("40", "w * 2"));
+    assert!(!props::echoed("w * 3", "w * 2"));
 }
 
 /// **The create form mints the notation it was authoring in**, through
@@ -974,9 +1001,13 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
         minted,
         DocParam::written_length(WrittenLength::canonical_in(0.05, pncad::prelude::MM))
     );
-    let row = props::param_rows(&declared("mint-mm", "base_r", minted))
-        .pop()
-        .expect("the declared parameter");
+    let row = props::param_rows(&common::declared(
+        "mint-mm",
+        &ParamName::new("base_r"),
+        minted,
+    ))
+    .pop()
+    .expect("the declared parameter");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
     assert_eq!(row.value, SlotValue::Continuous(0.05), "and not rescaled");
     assert_eq!(in_written(row.value.as_f64(), MM.def()), 50.0);
@@ -989,10 +1020,14 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
         Some(DEG.def()),
     );
     assert_eq!(
-        props::param_rows(&declared("mint-deg", "sweep", angle))
-            .pop()
-            .and_then(|row| row.unit)
-            .map(|u| u.symbol()),
+        props::param_rows(&common::declared(
+            "mint-deg",
+            &ParamName::new("sweep"),
+            angle
+        ))
+        .pop()
+        .and_then(|row| row.unit)
+        .map(|u| u.symbol()),
         Some("deg")
     );
     assert_eq!(
@@ -1003,19 +1038,4 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
         props::doc_param(Dimension::Count, SlotValue::Count(6), None),
         DocParam::Count { value: 6 }
     );
-}
-
-/// A document holding one declared parameter.
-fn declared(label: &str, name: &str, value: DocParam) -> Doc<ProfileProgram> {
-    let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
-    common::edited(
-        &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new(name),
-            value,
-        },
-        tol,
-    )
-    .0
 }

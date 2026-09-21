@@ -274,6 +274,151 @@ pub(crate) fn drag_gesture_ops<Value>(
     false
 }
 
+/// **The two doors one panel value field has**, as the operations to
+/// emit through each.
+///
+/// [`GestureVocabulary`]'s companion for the half of a field that is
+/// not a drag. A slot's number door is `SessionOp::SetSlot` and its
+/// text door `SessionOp::SetSlotExpression`; a parameter's are
+/// `SessionOp::SetParam` and `SessionOp::SetParamText`. The SHAPE is
+/// the same at both rows, which is why it is a parameter rather than
+/// a branch: what differs between the two fields is only which
+/// operation each door spells.
+pub(crate) struct FieldVocabulary<Number, Text> {
+    /// A bare number, already read out of the field's notation and
+    /// into the value it authors.
+    pub(crate) number: Number,
+    /// Everything the field's parser could not read as a number, as
+    /// the trimmed text the user left in it.
+    pub(crate) text: Text,
+}
+
+/// **What one panel value field is SHOWING**, as the row it is drawn
+/// for answers it.
+///
+/// Four facts about one field rather than four arguments, because
+/// they are one answer: what the field is written in decides both the
+/// number it displays and the tick it scrubs at, and the dimension
+/// decides what a number read out of it becomes.
+pub(crate) struct FieldShowing {
+    /// The notation the field shows and authors in, and its tick.
+    pub(crate) writing: crate::forms::FieldWriting,
+    /// What the value IS — [`crate::props::SlotValue::of`]'s argument,
+    /// so a count field holds a count.
+    pub(crate) dimension: Dimension,
+    /// The number it holds, in `writing`'s notation.
+    pub(crate) number: f64,
+    /// A text it shows INSTEAD of that number — a slot's source, for
+    /// a row that has source rather than a number to show. `None` is
+    /// a field showing its number, which is every parameter row and
+    /// every literal slot that evaluated.
+    pub(crate) text: Option<String>,
+}
+
+/// **A panel value field: one number, two doors and a gesture** — the
+/// whole of what `pane::properties`' slot row and parameter row draw,
+/// spelled once.
+///
+/// `writing` is how the field is written (`crate::forms::FieldWriting`
+/// — the notation it shows and authors in, and the tick it scrubs at),
+/// `showing` is the number it holds IN that notation, and `fixed` is a
+/// text it shows instead of a number (a slot's source, when the row
+/// has source rather than a number to show). `dimension` is what turns
+/// a typed number into the value the vocabulary's number door carries.
+///
+/// # Text the field itself produced is not an edit
+///
+/// An `egui::DragValue` seeds its keyboard edit with the text it last
+/// rendered and writes the parse back when focus leaves, so clicking
+/// into a field and clicking away again hands the chrome's own render
+/// straight back at it — a value nobody typed, committed as an edit
+/// and charged an undo step. The render is not exact
+/// ([`crate::readout::REL_TOLERANCE`] bounds it), so that round trip
+/// can also MOVE the value.
+///
+/// **The echo is identifiable as text, exactly**, which is why this
+/// is where the rule lives. The formatter below is the one that
+/// produced what the keyboard edit was seeded with, so the text it
+/// returned is kept and the parser compares against it
+/// ([`crate::props::echoed`]): text equal to the field's own render is
+/// the field talking to itself and emits nothing, and text that
+/// differs is the user's and takes its door. No tolerance, no second
+/// opinion about what a number means, and the same rule for a field
+/// showing a number and a field showing an expression.
+///
+/// **Whether the edit CHANGES anything is not this question.** A user
+/// who re-types a number the document already holds has still typed
+/// it, and what the document does with an edit that writes what
+/// stands is the document's answer, at the door that applies it.
+pub(crate) fn value_field_ops(
+    ui: &mut egui::Ui,
+    showing: FieldShowing,
+    gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
+    doors: FieldVocabulary<impl Fn(props::SlotValue) -> SessionOp, impl Fn(String) -> SessionOp>,
+    ops: &mut Vec<SessionOp>,
+) {
+    let FieldShowing {
+        writing,
+        dimension,
+        mut number,
+        text: fixed,
+    } = showing;
+    // The text this frame's field rendered, taken from the formatter
+    // that rendered it rather than re-derived: `egui` chooses the
+    // decimal range from the drag speed and the display scaling, so a
+    // second call here could disagree with the one the field used.
+    let rendered = core::cell::RefCell::new(String::new());
+    // The parser runs inside `ui.add`, so what it read comes back out
+    // through a cell rather than a return value.
+    let typed: core::cell::RefCell<Option<props::FieldEdit>> = core::cell::RefCell::new(None);
+    let widget = ui.add(
+        number_field(&mut number, writing.tick)
+            .update_while_editing(false)
+            // `number_field`'s own formatter, plus the two things this
+            // field needs from it: the fixed text a row with source
+            // rather than a number shows, and a copy of whatever it
+            // returned.
+            .custom_formatter(|value, decimals| {
+                let text = fixed
+                    .clone()
+                    .unwrap_or_else(|| number_text(value, decimals));
+                rendered.replace(text.clone());
+                text
+            })
+            .custom_parser(|text| {
+                let edit = props::field_edit(text);
+                let number = match edit {
+                    props::FieldEdit::Number(number) => Some(number),
+                    // Rejected as a number, which routes it to the
+                    // text door and leaves the field where it was
+                    // until the document answers.
+                    _ => None,
+                };
+                if !props::echoed(text, &rendered.borrow()) {
+                    typed.replace(Some(edit));
+                }
+                number
+            }),
+    );
+    // The drag half only. A typed value is dispatched below, by the
+    // match that knows which door the text takes — [`drag_ops`]'s
+    // typed arm would emit the number door's operation before that
+    // match ran and for every text the widget marked changed,
+    // including the echo this field is built to swallow.
+    drag_gesture_ops(&widget, writing.authored(number), gesture, ops);
+    match typed.into_inner() {
+        Some(props::FieldEdit::Number(written)) => {
+            let value = props::SlotValue::of(dimension, writing.authored(written));
+            ops.push((doors.number)(value));
+        }
+        Some(props::FieldEdit::Expression(text)) => ops.push((doors.text)(text)),
+        // An emptied field is not an edit: there is no value it could
+        // mean, and blanking a field is not a way to delete anything
+        // in this vocabulary.
+        Some(props::FieldEdit::Empty) | None => {}
+    }
+}
+
 /// **Three boxes, ONE gesture**: a row of draggable components over a
 /// single value, mapped through [`drag_ops`] exactly once.
 ///
@@ -806,7 +951,7 @@ pub(crate) fn path_step_fields(
 /// would close the gap and put the unit above the number it is the
 /// unit of, which is the worse trade for a lag nobody can see.
 pub(crate) fn length_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut LengthUnit) {
-    if let Some(row) = pick_unit(ui, salt, Dimension::Length, chosen.def())
+    if let Some(row) = pick_unit(ui, "creation_unit", salt, Dimension::Length, chosen.def())
         && let Some(unit) = row.as_length()
     {
         *chosen = unit;
@@ -819,17 +964,34 @@ pub(crate) fn length_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut LengthUn
 /// unrepresentable — the pairing is checked by the compiler here, not
 /// by a branch.
 pub(crate) fn angle_picker(ui: &mut egui::Ui, salt: &str, chosen: &mut AngleUnit) {
-    if let Some(row) = pick_unit(ui, salt, Dimension::Angle, chosen.def())
+    if let Some(row) = pick_unit(ui, "creation_unit", salt, Dimension::Angle, chosen.def())
         && let Some(unit) = row.as_angle()
     {
         *chosen = unit;
     }
 }
 
+/// **How wide a written-unit combo is drawn**, in points.
+///
+/// Wide enough for the longest symbol the table carries (`pi rad`)
+/// plus the combo's arrow. One constant rather than a number at each
+/// combo: every picker in the chrome offers rows off the SAME table
+/// ([`crate::props::unit_options`]), so the width they need is one
+/// property of that table and a second spelling of it is free to be
+/// narrower than the symbol it has to show.
+pub(crate) const UNIT_PICKER_WIDTH: f32 = 72.0;
+
 /// The combo itself: the rows `dimension` admits, with `shown`
 /// selected; `Some(row)` when this frame's click chose one.
+///
+/// `prefix` and `salt` are the two halves of the combo's id — the
+/// FAMILY of picker and which one of it. Two families that shared a
+/// prefix would collide the day two of their salts agreed, and egui
+/// identifies a popup by its id, so a collision opens one picker over
+/// two fields rather than failing.
 pub(crate) fn pick_unit(
     ui: &mut egui::Ui,
+    prefix: &str,
     salt: &str,
     dimension: Dimension,
     shown: UnitDef,
@@ -839,12 +1001,9 @@ pub(crate) fn pick_unit(
         return None;
     }
     let mut picked = None;
-    egui::ComboBox::from_id_salt(("creation_unit", salt))
+    egui::ComboBox::from_id_salt((prefix, salt))
         .selected_text(shown.symbol())
-        // Wide enough for the longest symbol the table carries
-        // (`pi rad`) plus the combo's arrow — the panel's width, for
-        // the panel's reason.
-        .width(72.0)
+        .width(UNIT_PICKER_WIDTH)
         .show_ui(ui, |ui| {
             for option in options {
                 if ui
@@ -1564,5 +1723,362 @@ mod field_tests {
                 );
             }
         }
+    }
+}
+
+/// **What the panel's value field EMITS**, read off the real widget
+/// over a real session.
+///
+/// The rows above are about one field's text. These are about the row
+/// a person edits: [`super::value_field_ops`] laid out on an
+/// `egui::Context`, driven by pointer and key events, with everything
+/// it emits performed against a `DocSession` the way the frame entry
+/// point performs a frame's operations. Nothing here stands in for
+/// anything — the field is the panel's own call, the session is the
+/// document's own door, and what the assertions read is the history
+/// the user would undo.
+///
+/// It exists because both of this field's defects lived exactly here:
+/// an operation emitted by a path no value test could see, and a guard
+/// that discarded edits no value test was asked about.
+#[cfg(test)]
+mod value_field_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::{FieldVocabulary, GestureVocabulary, number_text, value_field_ops};
+    use crate::forms::FieldWriting;
+    use crate::props;
+    use crate::session::{DocSession, SessionOp};
+    use eframe::egui;
+    use pncad::document::{Doc, DocParam, ParamName, ProfileProgram};
+    use pncad::geom_core::Tol;
+    use pncad::prelude::MM;
+    use pncad::quantity::WrittenLength;
+
+    /// A document parameter's row: the field, the session behind it,
+    /// and what the gesture emitted.
+    struct Row {
+        ctx: egui::Context,
+        session: DocSession,
+        name: ParamName,
+        rect: egui::Rect,
+        /// Every operation the frames of this gesture emitted, in
+        /// order.
+        emitted: Vec<SessionOp>,
+        /// The subset of those that CHANGED the document — what the
+        /// user would undo.
+        landed: Vec<SessionOp>,
+    }
+
+    impl Row {
+        /// One length parameter, declared in millimetres and holding
+        /// `canonical` metres.
+        fn millimetres(label: &str, canonical: f64) -> Self {
+            let tol = Tol::witness();
+            let name = ParamName::new("base_r");
+            let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
+            let mut session = DocSession::inline(doc, tol);
+            let outcome = session.perform(SessionOp::CreateParam {
+                name: name.clone(),
+                value: DocParam::written_length(WrittenLength::canonical_in(canonical, MM)),
+            });
+            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+            Self {
+                ctx: egui::Context::default(),
+                session,
+                name,
+                rect: egui::Rect::NOTHING,
+                emitted: Vec::new(),
+                landed: Vec::new(),
+            }
+        }
+
+        /// What the row's field is showing, in the notation it is
+        /// written in — the number, and the text the field renders for
+        /// it.
+        fn showing(&self) -> (f64, String) {
+            let row = self.row();
+            let field = FieldWriting::of(row.dimension, row.unit);
+            let shown = field.shown(row.value.as_f64());
+            (shown, number_text(shown, 1..=3))
+        }
+
+        fn row(&self) -> props::ParamRow {
+            props::param_rows(self.session.doc())
+                .into_iter()
+                .find(|row| row.name == self.name)
+                .expect("the parameter is declared")
+        }
+
+        /// One frame: lay the field out, collect what it emitted, and
+        /// perform it — the frame entry point's own order.
+        fn frame(&mut self, events: Vec<egui::Event>) {
+            let ctx = self.ctx.clone();
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let row = self.row();
+            let field = FieldWriting::of(row.dimension, row.unit);
+            let name = self.name.clone();
+            let mut ops = Vec::new();
+            let rect = &mut self.rect;
+            let mut output = ctx.run_ui(input, |ui| {
+                value_field_ops(
+                    ui,
+                    super::FieldShowing {
+                        writing: field,
+                        dimension: row.dimension,
+                        number: field.shown(row.value.as_f64()),
+                        text: None,
+                    },
+                    GestureVocabulary {
+                        begin: SessionOp::BeginParamGesture { name: name.clone() },
+                        preview: |value| SessionOp::PreviewParamGesture {
+                            name: name.clone(),
+                            value,
+                        },
+                        commit: SessionOp::CommitParamGesture { name: name.clone() },
+                        cancel: SessionOp::CancelGesture,
+                    },
+                    FieldVocabulary {
+                        number: |value| SessionOp::SetParam {
+                            name: name.clone(),
+                            value,
+                        },
+                        text: |text| SessionOp::SetParamText {
+                            name: name.clone(),
+                            text,
+                        },
+                    },
+                    &mut ops,
+                );
+                *rect = ui.min_rect();
+            });
+            output.textures_delta.clear();
+            for op in ops {
+                self.emitted.push(op.clone());
+                let outcome = self.session.perform(op.clone());
+                assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+                if !outcome.committed.is_empty() {
+                    self.landed.push(op);
+                }
+            }
+        }
+
+        fn click(&mut self, at: egui::Pos2) {
+            self.frame(vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: true,
+                    modifiers: egui::Modifiers::NONE,
+                },
+                egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed: false,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ]);
+        }
+
+        /// Settle the layout, then click into the field. Two frames
+        /// first because egui interacts against the PREVIOUS frame's
+        /// widget rects.
+        fn click_in(&mut self) {
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+            let target = self.rect.center();
+            self.click(target);
+            // The frame the keyboard edit opens on: the text box takes
+            // focus and selects what it was seeded with.
+            self.frame(Vec::new());
+        }
+
+        /// Click somewhere else and settle — the gesture that makes a
+        /// field's render its commit path.
+        fn click_away(&mut self) {
+            self.click(egui::pos2(700.0, 500.0));
+            self.frame(Vec::new());
+            self.frame(Vec::new());
+        }
+
+        /// Everything the gesture emitted since the last reading.
+        fn taken(&mut self) -> Vec<SessionOp> {
+            core::mem::take(&mut self.emitted)
+        }
+
+        /// The ones that moved the document.
+        fn landed(&mut self) -> Vec<SessionOp> {
+            core::mem::take(&mut self.landed)
+        }
+    }
+
+    /// **Clicking into a parameter field and away again emits
+    /// nothing** — C5 at the panel, over the case the claim is
+    /// actually about.
+    ///
+    /// The value is chosen so the field's render is NOT exact: 40.000019
+    /// millimetres renders `40`, and `40` read back is a different
+    /// number. A row over a value that renders exactly would pass on any
+    /// guard at all, including none.
+    #[test]
+    fn clicking_into_a_parameter_field_and_away_emits_no_operation() {
+        let mut row = Row::millimetres("auth2-echo", 0.040_000_019);
+        let (shown, text) = row.showing();
+        assert_eq!(text, "40.0", "the fixture is a value whose render is short");
+        assert_ne!(
+            text.parse::<f64>().expect("a number"),
+            shown,
+            "the render must MISREAD the value, or this row holds nothing"
+        );
+        let before = row.session.history().len();
+        row.click_in();
+        row.click_away();
+        let emitted = row.taken();
+        assert!(
+            emitted.is_empty(),
+            "a click in and away is not an edit: {emitted:?}"
+        );
+        assert_eq!(
+            row.session.history().len(),
+            before,
+            "and costs no undo step"
+        );
+        assert_eq!(row.showing().0, shown, "and moves the value nowhere");
+    }
+
+    /// **One typed number is one operation and one undo step.**
+    ///
+    /// Held over the whole gesture rather than one frame: the defect
+    /// this replaces emitted the value door's operation from two
+    /// places, so a row reading only the last frame saw one of them.
+    #[test]
+    fn one_typed_number_is_one_undo_step() {
+        let mut row = Row::millimetres("auth2-typed", 1.0);
+        assert_eq!(row.showing().1, "1000.0");
+        let before = row.session.history().len();
+        row.click_in();
+        row.frame(vec![egui::Event::Text("1002".to_owned())]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            "one number typed, one edit: {landed:?}"
+        );
+        assert_eq!(
+            row.session.history().len(),
+            before + 1,
+            "one number typed, one undo step"
+        );
+        assert_eq!(row.showing().0, 1002.0);
+        row.session.perform(SessionOp::Undo);
+        assert_eq!(
+            row.showing().0,
+            1000.0,
+            "and one undo takes the whole of it back"
+        );
+    }
+
+    /// **`egui` hands one typed text over on TWO frames**, and this
+    /// row is what says the second costs nothing.
+    ///
+    /// `DragValue` parses the text it buffered both on the frame the
+    /// keyboard edit ends and again on the next, so a field that
+    /// turned every parse into an undo step would charge two for one
+    /// number. The field's own guard cannot see it — by the second
+    /// frame the document has moved and the field's render is no
+    /// longer the text the user left in it — so what answers it is
+    /// `DocSession::writes_nothing`, the document's own rule, and
+    /// this row is where the two are held together.
+    #[test]
+    fn the_second_hand_over_of_one_typed_text_changes_nothing() {
+        let mut row = Row::millimetres("auth2-twice", 1.0);
+        row.click_in();
+        row.frame(vec![egui::Event::Text("1002".to_owned())]);
+        row.click_away();
+        let emitted = row.taken();
+        assert_eq!(
+            emitted.len(),
+            2,
+            "the widget hands the text over twice; if it stops, this row              and the guard behind it are answering a question nobody asks:              {emitted:?}"
+        );
+        assert_eq!(
+            format!("{:?}", emitted[0]),
+            format!("{:?}", emitted[1]),
+            "and the same operation both times"
+        );
+        assert_eq!(row.landed().len(), 1, "one of them moves the document");
+    }
+
+    /// **A number the render cannot distinguish from what the field
+    /// shows is still an edit.**
+    ///
+    /// A field showing `1000` millimetres and a user typing `1000.4`:
+    /// four tenths of a millimetre is inside the render's own relative
+    /// accuracy at this magnitude, and a guard that judged the two
+    /// numbers rather than the two TEXTS would discard it — silently,
+    /// with the field reverting and no refusal to read.
+    #[test]
+    fn a_number_inside_the_renders_accuracy_is_still_an_edit() {
+        let mut row = Row::millimetres("auth2-near", 1.0);
+        let (shown, text) = row.showing();
+        assert_eq!(text, "1000.0");
+        assert!(
+            (1000.4 - shown).abs() <= crate::readout::REL_TOLERANCE * shown.abs(),
+            "the fixture must sit INSIDE the render's accuracy, or this row \
+             is not about the guard"
+        );
+        let before = row.session.history().len();
+        row.click_in();
+        row.frame(vec![egui::Event::Text("1000.4".to_owned())]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(landed.as_slice(), [SessionOp::SetParam { .. }]),
+            "the edit the user typed: {landed:?}"
+        );
+        assert_eq!(row.session.history().len(), before + 1);
+        assert_eq!(
+            row.showing().0,
+            1000.4,
+            "and the field says what they typed"
+        );
+    }
+
+    /// **A unit-bearing text takes the OTHER door**, from the same
+    /// field and the same gesture.
+    #[test]
+    fn a_unit_bearing_text_takes_the_text_door() {
+        let mut row = Row::millimetres("auth2-unit-text", 1.0);
+        row.click_in();
+        row.frame(vec![egui::Event::Text("2 m".to_owned())]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(landed.as_slice(), [SessionOp::SetParamText { .. }]),
+            "{landed:?}"
+        );
+        let after = row.row();
+        assert_eq!(after.value, props::SlotValue::Continuous(2.0));
+        assert_eq!(after.unit.map(|unit| unit.symbol()), Some("m"));
+    }
+
+    /// The doc-parameter fixture, read back: a declaration minted at
+    /// `canonical` metres really is written in millimetres, so the
+    /// rows above are about a field whose render and whose value are
+    /// in different notations.
+    #[test]
+    fn the_fixture_is_written_in_millimetres() {
+        let row = Row::millimetres("auth2-fixture", 0.05);
+        assert_eq!(row.row().unit.map(|unit| unit.symbol()), Some("mm"));
+        assert_eq!(row.showing().0, 50.0);
     }
 }
