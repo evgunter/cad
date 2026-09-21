@@ -771,3 +771,111 @@ run is not coverage of a design those reviews did not examine. A fix
 pass that REPLACES rather than repairs earns a look, and the signal
 that it did is not the diff size — it is that the claims the reviewers
 falsified no longer describe the code.
+
+## AUTH-2 fix pass — the guard is over TEXT (2026-09-21)
+
+The correctness review returned NOT-MERGEABLE with two MAJORs, both
+settled by running a production-faithful egui harness. Both were about
+the same decision, taken the wrong way round.
+
+**The guard compares TEXT, not numbers.** The implementation judged a
+typed number against the number the field displays, by the renderer's
+own tolerance — which is relative and unbounded in absolute terms, so
+a field reading `1000` in millimetres discarded a typed `1000.4`
+silently: no edit, no refusal, the field reverting. The echo is
+identifiable exactly as text: `egui::DragValue` seeds its keyboard
+edit with the text its formatter returned, so the field keeps that
+text and the parser compares against it (`props::echoed`). No
+tolerance, one rule, both fields, and a row showing SOURCE rather than
+a number is answered by the same comparison.
+
+**Two rules, not three spellings of one.** What a field's guard
+decides ("did this text come out of the field?") and what a document
+door decides ("would this edit move anything?") are different
+questions with different answers, and the implementation's doc claimed
+they were the same rule. They are now two functions with one home
+each: `props::echoed` at the field, `DocSession::writes_nothing` at
+the door. The second is what makes one typed number one undo step,
+because `egui` hands a buffered text over on two consecutive frames —
+filed as `work/vgeom/a-typed-field-hands-its-text-over-on-two-frames`.
+
+**The panel's op emission has a row now.** The crate said it carried
+no headless egui harness; it does, in `widgets.rs`, over a real
+`egui::Context` and a real `DocSession`. Both MAJORs were reproduced
+there before they were fixed — the click-in/click-away emitted
+`SetParam(0.04)` over a field holding 0.040000019, and the typed
+`1000.4` emitted nothing.
+
+## 2026-09-21 — correcting an earlier entry in this log (append, not rewrite)
+
+The 2026-09-21 entry above, "AUTH-2's fix pass: the text guard worked,
+and found a toolkit quirk", explains the two-frame duplicate this way:
+
+> a text guard cannot, because by frame 2 the document has moved and
+> the render is no longer what is in the box
+
+**That is wrong, and the truth is narrower.** `egui`'s formatter runs
+before BOTH parse sites, so `rendered` is populated on both frames.
+The second hand-over escapes `props::echoed` because the formatter
+spells at least one decimal (`widgets::number_text(_, 1..=3)`) while
+the user typed none — `"1002"` against `"1002.0"`. Where the render
+round-trips exactly, the field guard already swallows the second one,
+which AUTH-2's `the_field_swallows_the_second_hand_over_when_its_render_round_trips`
+now pins: typing `1000.4` emits ONE operation where `1002` emits two.
+
+Found by the targeted correctness arm and confirmed empirically by the
+second fix pass, against the vendored `egui-0.36.1` source.
+
+**Appended rather than edited, deliberately.** `work/README.md` calls
+this file an append-only narrative, and the entry above is an honest
+record of what was believed at that hour. What binds a future reader
+is the claim, not the paragraph, so the claim is corrected here and
+the original stands as what it was. The fix-pass lane raised this and
+declined to rewrite the entry itself, which was the right instinct and
+the right half of the job to hand back.
+
+A second thing that entry got wrong by omission: it reported the door
+rule as necessary because the second emission "cannot be told apart at
+the field". It can — `egui::Memory::had_focus_last_frame(id)` is
+public and is exactly the discriminator, where `lost_focus()` is
+sticky across both frames by design. `DocSession::writes_nothing`
+stays at the door anyway, for reasons now written on
+`work/vgeom/a-typed-field-hands-its-text-over-on-two-frames.md` as
+declined-with-reasons rather than as a door that does not exist.
+
+## 2026-09-21 — AUTH-2 MERGED (`8352822c2`); the sitting's second unit is done
+
+Green at 39 jobs on a head that had current `main` merged into it —
+that merge brought real code (geom-core/sym, geom-brep, editor-core
+tests), so the docs-only exemption did NOT apply and the run was
+re-taken in full. The fix-pass lane deliberately did not re-merge
+after its own green, so as not to invalidate it, and handed me the
+decision. That was the right instinct and is worth naming: **a green
+run over a stale base is not a claim about what merges.**
+
+**Two units, both P0 doors, both closed.** A person can place a sketch
+on a picked face, and write a parameter in the unit they think in.
+
+**What this unit cost, and why that is the interesting number**: one
+implementer pass, two review lanes, a fix pass, a TARGETED re-review,
+and a second fix pass. The re-review is the one that would normally be
+skipped, and it is the one that caught a regression against `main` in
+the unit's own subject. The trigger for running it was not diff size
+or a hunch — it was that **the fix pass replaced the design the
+reviews examined**, so the claims those lanes falsified no longer
+described the code. That test is cheap to apply and is now this
+program's rule for when a fix pass earns a fresh arm.
+
+**Four of my premises were falsified across the two units**: the
+`Ambiguous` multi-body hypothesis, the `base_r * 2` text, the
+`partial_mirror!` return type (in an adjudication, not a spec), and
+`set_slot`'s reachability from the Python bindings. Every one was
+caught by a lane or a reviewer, and every one was cheap because the
+surrounding instruction said *decide and say* rather than asserting.
+The adjudication one remains the worst of the four, for the reason
+already logged: a spec is read by someone who will check it; an
+adjudication arrives as a list of things to do.
+
+**Next in the order**: `add-profile-mints-no-frame`, which now carries
+three label sites rather than two, and behind it the two node-kind
+gaps. The slate reads 8 open rows.
