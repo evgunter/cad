@@ -2,7 +2,7 @@
 id: add-profile-mints-no-frame
 kind: issue
 title: The add-profile form cannot mint the frame it needs, and names the ones it finds by node number
-status: open
+status: dispatched
 opened: 2026-09-03
 refs: [1829]
 priority: P0
@@ -136,3 +136,31 @@ that is not even a node. Note the label work also wants
 `Display for BlendTarget` (`crates/viewer/src/blend.rs`), whose doc
 already argues the sentence belongs in one home — AUTH-1's fix pass
 routes its own site through it, so the shape is in the tree to copy.
+
+## The third site has moved (2026-09-21, verified against the tree)
+
+The section above says `add_datum_ui` renders the held face pick as a
+hand-rolled `format!("feature {} body {}", node, body)`. **That is no
+longer true.** AUTH-1's fix pass (PR 2955, merged `2cf83b500`) routed
+it through `BlendTarget::of_face(face).to_string()`
+(`crates/viewer/src/pane/create.rs:495`), and the node-number spelling
+now lives in `impl Display for BlendTarget`
+(`crates/viewer/src/blend.rs:146-150`), which writes
+`"feature {} body {body}"`.
+
+**The defect is unchanged and the fix got cheaper.** A person still
+reads a node number where they need to know which face; but the
+spelling has ONE home instead of two, so fixing that home moves this
+site and the blend sites together. The row's own note that the label
+work "also wants `Display for BlendTarget`" anticipated this — what it
+did not anticipate is that the face site would already be behind it.
+
+Also confirmed unchanged by the same check: site 1 is
+`create.rs:55` and `:60` — the `format!("feature {}", id.0)` appears
+TWICE, in the closed combo text and in the options — and site 2 is
+`tree.rs:215-216`.
+
+Dispatched as **AUTH-3** (`docs/AUTH-3-SPEC.md`, branch
+`author/profile-frame`), both halves in one unit because both live in
+`add_profile_ui`'s ComboBox and splitting them would put two lanes in
+the same widget.

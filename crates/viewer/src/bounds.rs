@@ -287,14 +287,33 @@ impl Bounds {
     /// magnitude). This is what stops the rule being
     /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
+    ///
+    /// **And a bound may be one the NOTATION cannot name**, which is
+    /// the one thing this sentence must not spell `inf`. Writing a
+    /// canonical value in millimetres multiplies it up by a thousand,
+    /// so a bound above `f64::MAX * MILLI` has no millimetre value and
+    /// `inf mm` would read as a search that reached infinity — the
+    /// overclaim this whole doc comment exists to refuse, at the one
+    /// end where nothing the probe did is wrong. The conversion is
+    /// asked rather than performed
+    /// ([`crate::props::shown_text`], over [`crate::props::written`]),
+    /// which is also why the divide is no longer written out here.
+    /// The `map_or` this line used to open with was a third
+    /// hand-written spelling of [`crate::props::shown_in`] — the one
+    /// that door's own doc warns about — and the door that renders it
+    /// is the same door with the render attached, so there is one home
+    /// for `canonical / factor` and one for what to say when it has no
+    /// answer.
+    ///
+    /// **This render owns no bound on the value itself, and no door
+    /// upstream of it does either.** A probed bound is where the
+    /// doubling search reached from the field's own value, and the
+    /// chrome's `f64` fields carry no `.range()`, so the origin is
+    /// whatever a user typed. There is nothing here to narrow; what
+    /// there is, is a value that has no reading in the unit asked for,
+    /// and saying so is the whole of the repair.
     pub fn wording(self, unit: Option<UnitDef>) -> String {
-        let show = |value: f64| {
-            let written = crate::readout::number(crate::props::shown_in(unit, value));
-            match unit {
-                Some(unit) => format!("{written} {}", unit.symbol()),
-                None => written,
-            }
-        };
+        let show = |value: f64| crate::props::shown_text(unit, value);
         match (self.low, self.high) {
             (Bound::Open { probed: low }, Bound::Open { probed: high }) => format!(
                 "nothing new fails anywhere from {} to {} — as far as {} samples looked",
