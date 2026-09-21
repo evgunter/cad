@@ -2,10 +2,11 @@
 id: quantity-fmt-error-display-row-is-a-verbatim-copy-of-assert-f6
 kind: issue
 title: quantity's FmtQuantityError display row is a verbatim copy of assert_f6's body, panic wording included
-status: review
+status: closed
 opened: 2026-09-19
 branch: fix/quantity-f6-fold
 pr: 2944
+closed: 2026-09-21
 ---
 
 Found by S-DUP's F6 fold of `crates/viewer/tests/panel_edits.rs`, whose
@@ -103,3 +104,52 @@ lands, or say why you could not.
 **Fence:** `crates/test-utils/*` is S-TCOST's and S-TINT's. The
 dev-dependency edge is announced there, in the PR body and on their
 log.
+
+## Closed (2026-09-21) — PR 2944, and the lane improved on the ruling
+
+The row is folded onto `test-utils`' shared F6 door, with `test-utils`
+added to `crates/quantity`'s `[dev-dependencies]` and the manifest
+comment now stating why the leaf property is untouched.
+
+**The lane landed `assert_f6_every_variant` + `f6_variants!`, not the
+bare `assert_f6` the ruling named, and it was right to.** Folding onto
+the bare form takes a `dumps` argument, which for this enum would have
+been a hand-typed `&["NonFinite"]` — re-minting the exact drift this row
+exists to close (*"nothing puts a compiler behind that list"*) and
+re-spelling a hand-written mirror of an error enum, which
+`work/tint/assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums`
+closed and which the weld's own docs forbid. **The ruling was the
+narrower reading; the census form is the stronger one.** A deviation
+better than the letter owes nothing further, and the lane flagged it for
+adjudication rather than burying it, which is what made it cheap to
+accept.
+
+**The red-first was EXECUTED, in three commits on the branch**, not
+argued — this program shipped one argued-rather-than-executed half in
+wave 3 and it was a mistake. `FmtQuantityError` has one arm, so the
+sibling leak had to be planted: green under the old inline form (the
+blind spot measured, not asserted), then `error[E0004]: non-exhaustive
+patterns` under the census form (the compiler half the inline row never
+had), then runtime red naming the leak. Plant removed; the net diff
+carries neither.
+
+**The closure measurement was taken honestly and the lane said which
+half was which.** CI printed `RUN_PNCAD_PY=true`, but that is
+fail-closed: the diff touches `Cargo.lock`, so the filter falls to
+`TIER=all` and never reaches the seed arithmetic. The real measurement
+is `ci-filter.py`'s own `pncad_py_seeds` called on the tree before and
+after the manifest edit — **16 members both times, `quantity` in,
+`test-utils` out**, matching the set CI printed. The row's reasoning
+about the non-dev closure is now measured rather than inferred.
+
+**Fence:** `crates/test-utils/*` is S-TCOST's and S-TINT's — the
+dev-dependency edge, plus one module-doc clause in `source.rs` that
+listed `quantity` among the crates NOT dev-depending on `test-utils` and
+became false with this change. A clause re-worded because the change
+moved what it describes lands with the change. Announced on both logs.
+
+**Filed:** no new row. Evidence appended to
+`work/census/the-field-brace-fingerprint-is-spelled-at-eight-sites-in-six-crates`,
+whose *"where else to look"* asks for exactly the `contains('{')` sweep
+this unit owed — an append rather than a second file, per §6's
+grep-the-program's-directory-first.

@@ -2839,3 +2839,70 @@ now states the ruling instead of the question.
 What survives the correction is the practice, which both programs
 already carry: read the other's slate for a row before dispatching it,
 and file nothing there that your own could carry.
+
+## Wave 4 dispatches into a design-free slate (2026-09-21)
+
+The first wave this program has run with nothing on the slate to decide.
+Five rows, five lanes, each brief carrying the three standing
+instructions and an explicit licence the earlier waves did not give:
+**stop rather than implement a ruling the tree contradicts.** Neither
+lane that reported needed it, and both said so with the evidence — which
+is the point of granting it.
+
+### `subject-refused` CLOSED (PR 2943) — the ruling held, checked rather than assumed
+
+The lane read `means_no_body` before implementing: exhaustive over the
+kind, true for `NoBodyRoots` alone, with `exactly_one_arm_reads_as_no_body`
+pinning the set. So the ruling's premise is the tree's. `Subject::refused`
+routes, and **both** hand-routing arms are deleted — the half-fix shape
+(guard added, hand-routing left) was named in the brief and avoided.
+
+**The pin is better than the one I asked for.** I asked for a row that
+goes red if `refused(&NoBodyRoots)` yields `Unavailable`. The lane wrote
+one that compares the arm the door PICKED against what the
+classification says of the same error, so the row follows a
+re-classification instead of hardcoding today's answer. Which arm is
+which is not written down on the left.
+
+### `quantity-fmt-error` CLOSED (PR 2944) — and the lane improved on my ruling
+
+I ruled "fold onto `assert_f6`". The lane landed the census form
+(`assert_f6_every_variant` + `f6_variants!`) and flagged the deviation
+for adjudication rather than burying it. **It was right and I was
+narrow**: bare `assert_f6` takes a `dumps` list, which here would have
+been a hand-typed `&["NonFinite"]` — re-minting the drift the row exists
+to close, and re-spelling the hand-written mirror that
+`work/tint/assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums`
+closed. Accepted under Protocol v5: a deviation better than the letter
+owes nothing further.
+
+**Worth keeping: this is the reviewer-brief trap avoided by the author
+for once.** *"When the diff is itself a fix for a structural finding,
+check whether the fix mints a fresh instance of the defect it closes"* —
+and the brief adds that only a reader who did not write the fix has ever
+caught it. Here the author caught it, in the act of choosing the door.
+
+**The red-first was EXECUTED in three commits**, not argued — green
+under the old form with a planted sibling arm, `E0004` under the census
+form, then runtime red. And the closure claim was MEASURED: CI's
+`RUN_PNCAD_PY=true` is fail-closed via `TIER=all` and proves nothing
+about seeds, so the lane called `pncad_py_seeds` itself before and after
+the manifest edit — 16 members both times, `test-utils` out. A lane
+declining to read a green flag as evidence for a claim it does not
+support is the same discipline wave 3's best lane showed about guards.
+
+### Dispatching notes for the next seat
+
+- **Three lanes ran concurrently under a width-1 build slot.** That is
+  the right number here: the slot serialises the builds anyway, so more
+  lanes buy disk cost rather than throughput. Targets peaked ~5 GB each;
+  reclaiming the two finished ones took the box from 17 GB free back to
+  22 GB. **Reclaim when a report lands, not when a lane runs out** — a
+  finished lane's `target/` is pure waste the moment the report is in
+  hand.
+- **Both lanes disclosed uncertainty as the posture asks.** With no
+  reviewer, the trade is stated explicitly in every brief: less review,
+  more disclosed uncertainty. Both delivered — the `refused` name still
+  carrying an old hint, a pin's roster being two representatives rather
+  than a census, two inherited dispositions not re-derived. None rose to
+  a defect; all four were cheaper to adjudicate than to re-find.

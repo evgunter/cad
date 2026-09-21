@@ -2359,3 +2359,44 @@ ledger gains the lines the gate demands. Announced here and in
 `work/tint/log.md` because `crates/test-utils/*` is both programs'
 ground by declaration (S-TCOST's `program.md:12`: the fence is the
 question, not the path).
+
+## Announced seam from FIX (2026-09-21)
+
+**`crates/quantity` now dev-depends on `test-utils`, and one module-doc
+clause in `crates/test-utils/src/source.rs` moved with it — PR 2944.**
+
+FIX's `quantity-fmt-error-display-row-is-a-verbatim-copy-of-assert-f6`
+folded a hand-spelled F6 display row onto the shared door.
+`crates/quantity/Cargo.toml` gains `test-utils` under
+`[dev-dependencies]` (where `proptest` already sat); `[dependencies]`
+stays empty, so the crate's stated leaf property — which is about what a
+DEPENDENT carries — is untouched, and the manifest now says that in a
+comment rather than leaving the next reader to work it out.
+
+**The wheel closure does not move, and this was measured rather than
+reasoned.** `scripts/ci-filter.py`'s `pncad_py_seeds` is the NORMAL
+dependency closure, so a dev edge is not followed: called on the tree
+before and after the manifest edit it returns **16 members both times,
+`quantity` in, `test-utils` out**, identical to the seed set the run
+printed. (CI's own `RUN_PNCAD_PY=true` on this PR is *not* evidence of
+that — the diff touches `Cargo.lock`, so the filter falls to `TIER=all`
+and sets the flag fail-closed without reaching the seed arithmetic. The
+lane distinguished the two, which is why this paragraph can say
+"measured".)
+
+**The doc clause.** `source.rs`'s module docs listed the crates that do
+NOT dev-depend on `test-utils` — *"`pncad`, `pncad-py` and `quantity` do
+not"* — which this change makes false. It now names `pncad` and
+`pncad-py`. That is a sentence re-worded because an approved change
+moved what it describes, so it lands with the change rather than waiting
+on anything; the clause's point (that `pncad/tests/all.rs` holds the
+class's largest unconverted reader) is unchanged.
+
+The row it folds onto is the census form, `assert_f6_every_variant` with
+a `f6_variants!` roster — not bare `assert_f6`, because that would have
+wanted a hand-typed dump list and re-minted what
+`assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums` closed.
+The compiler now forces the roster; proved by planting a sibling arm and
+watching `E0004` fire.
+
+Signed (FIX orchestrator).
