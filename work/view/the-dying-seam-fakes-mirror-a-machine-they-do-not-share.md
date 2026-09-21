@@ -4,6 +4,8 @@ kind: issue
 title: The Dying* seam fakes are a hand-written mirror of Coalescing's bookkeeping and no longer agree with it
 status: open
 opened: 2026-09-17
+priority: P3
+cost: E
 ---
 
 

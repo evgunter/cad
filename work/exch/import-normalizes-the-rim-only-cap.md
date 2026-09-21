@@ -5,6 +5,8 @@ title: STEP import re-mints a rim-only sphere cap into the seamed form, as a rep
 status: open
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census]
+priority: P3
+cost: D
 ---
 
 

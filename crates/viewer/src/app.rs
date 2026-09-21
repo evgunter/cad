@@ -196,6 +196,25 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
     egui::Color32::from_rgb(color.r, color.g, color.b)
 }
 
+/// `text` in the weight or colour its [`frame::Tone`] asks for.
+///
+/// **The one place the tone-to-chrome mapping is made.** Its two
+/// readers are the toolbar's badge family ([`draw_badge`]) and the
+/// feature tree's row badge, which reads the same tone off
+/// [`crate::tree::RowStatus::tone`] — two families, one rule, so what
+/// `Advisory` looks like is changed here or nowhere.
+///
+/// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
+/// REDUNDANT — everything wearing it says its own words — so this
+/// decides salience and never meaning.
+pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -> egui::RichText {
+    let text = egui::RichText::new(text);
+    match tone {
+        frame::Tone::Advisory => text.weak(),
+        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+    }
+}
+
 /// **Draw one standing-fact badge**, and hand the response back.
 ///
 /// The one draw the badge family has. What a badge SAYS, how loud it
@@ -209,15 +228,7 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 /// leaves no gap behind.
 fn draw_badge(ui: &mut egui::Ui, theme: &Theme, badge: &frame::Badge) -> egui::Response {
     ui.separator();
-    let text = egui::RichText::new(badge.label());
-    // The tone's two spellings, in the one place the mapping is made.
-    // `Theme::unresolved`'s contract is that the colour is REDUNDANT —
-    // every badge wearing it says its own words — so this decides
-    // salience and never meaning.
-    let text = match badge.tone() {
-        frame::Tone::Advisory => text.weak(),
-        frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
-    };
+    let text = toned(badge.label(), theme, badge.tone());
     let response = match badge.affordance() {
         frame::Affordance::Read => ui.label(text),
         // Frameless, so a control the reader can open still reads as a

@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-20
 github: 694
 refs: [561, 689, S107]
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 694

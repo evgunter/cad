@@ -5,6 +5,8 @@ title: The §9.3 holed-box sequence is written out four times, and the §9.4.2 c
 status: open
 opened: 2026-09-19
 refs: [the-cube-sequence-is-written-five-times-and-twice-inside-src]
+priority: P4
+cost: E
 ---
 
 

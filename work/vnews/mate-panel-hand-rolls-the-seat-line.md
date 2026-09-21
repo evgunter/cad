@@ -4,6 +4,8 @@ kind: issue
 title: The mate panel composes its own seat line, with the list mark and the empty-state sentence spelled a second time
 status: open
 opened: 2026-09-19
+priority: P3
+cost: E
 ---
 
 

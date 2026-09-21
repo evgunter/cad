@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-30
 github: 1282
 refs: [1267, num-relative-tolerance-collides-above-a-decimetre]
+priority: P1
+cost: E
 ---
 
 ## From GitHub issue 1282
@@ -148,3 +150,33 @@ question this row asks.
 
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for you.
+
+## Evidence added 2026-09-21 (FIX, `fix/fillet-leg-carrier-num`)
+
+FIX's `fillet-leg-carrier-renders-raw-float-noise` landed. `num` is now
+`pub(crate)` in `crates/profile/src/path.rs` and has a second consumer:
+`FilletLegCarrier`'s `Display` in `crates/profile/src/validate.rs`.
+
+**That second consumer is WITHIN the crate, so it does not answer this
+row's question and was deliberately not made to.** The home question
+this row names is where the helper lives *once a second CRATE consumes
+it*; `pub(crate)` is the narrowest visibility that serves a sibling
+module and moves nothing across a crate boundary. The lane read the
+fence that way on purpose and stopped at it.
+
+Two facts this row can now use:
+
+- **The `f64`-typed door exists too.** This row's body motivates the
+  helper from `Real` carrying `Debug` and no `Display`. `FilletLegCarrier`'s
+  fields are plain `f64`, whose own `Display` is the same shortest
+  round-tripping spelling, so a concretely-typed scalar payload reaches
+  the identical defect without `Real` being involved. A sweep of the
+  other crates' error types should look for `f64` fields, not only
+  `T: Real` ones.
+- **`crates/profile/src/` is now clean of the class.** Swept at merge
+  base `57b0f7844` for `{ident} m` / `{ident} rad` and by enumerating
+  every `Display` impl in the crate: every scalar-bearing refusal
+  rendering routes through `num`. `ProfileError`, `LiftRefusal`,
+  `StructureRefusal`, `ReplayError` and the vocabulary enums render
+  only indices, counts and words — no scalars. What is left of this row
+  is entirely outside `crates/profile/`.

@@ -4,6 +4,8 @@ kind: issue
 title: nurbs_iso_derive's LINE cap-rim arm mints a v-row image for a u-column ruling
 status: open
 opened: 2026-09-04
+priority: P0
+cost: H
 ---
 
 

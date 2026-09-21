@@ -5,6 +5,8 @@ title: nurbs_face_bound is UNSOUND on a random rational surface: r1_random_ratio
 status: open
 opened: 2026-09-04
 refs: [1850, rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes]
+priority: P0
+cost: H
 ---
 
 
@@ -146,7 +148,7 @@ surfaces now (it reproduces with the old `mk` restored).
 **The cause** is `geom_brep::patch_bound::rational_cells` hulling the
 `f64`-refined net — PROPS' file, filed there with the exact-arithmetic
 measurements:
-`work/props/rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes.md`.
+`work/tess/rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes.md`.
 The certificate IS the defect (the described surface's true `‖S_uu‖`
 exceeds `muu` by 3e-16 relative, in exact rational arithmetic), not the
 test's bare `<=`.

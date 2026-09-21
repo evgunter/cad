@@ -4,6 +4,8 @@ kind: issue
 title: topo/tests has two tests-only vocabulary homes and neither names the other
 status: open
 opened: 2026-09-18
+priority: P3
+cost: E
 ---
 
 ## Finding

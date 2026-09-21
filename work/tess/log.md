@@ -133,6 +133,99 @@ corrections are on the row.
   "import route dead" two days after PR 2741 opened it. Measure-first
   caught it; nothing else would have.
 
+## Dispatched and asked (2026-09-18, after PR 2849 merged)
+
+- **TESS-1 implementer dispatched** — block TESS-B1 slot 0, branch
+  `tess/1-meridian-free-refusal`. It stops on a green frozen head; the
+  ordinal (5100) is claimed on main at review dispatch.
+- **`[ev]` PR 2850** — is a rim-only sphere cap a face of this kernel?
+  (E) mesh emits it, or (N) import normalizes and validity refuses it.
+  Recommended (N); the half-measure named and rejected. `needs_ev` is
+  on the cap row. The away-channel monitor is armed on `tess/` (it
+  expires every 30 min in this harness and is re-armed at each expiry).
+
+## (N) ruled; the message unit in review (2026-09-18)
+
+- **Ev, in chat: (N), with (E) deliberately tabled** — a `deferred` row
+  pointing at a SHA where the code (N) retires is whole. `[ev]` PR 2850
+  now carries the DESIGN sentence ("A chart singularity inside a face is
+  a vertex of it", written for the cone apex too — flagged for Ev), the
+  tabled row, and the work filed on EXCH (import normalization, first)
+  and TOPO (the validity rule, with the props arm's retirement riding it
+  because **PROPS is paused**, Ev same message). Waits on Ev's 👍 for
+  the DESIGN text only.
+- **PR 2848** (domination assert messages) reported green on the full
+  matrix at `cd07a9ad`. The unit outgrew the bottom tier — a shared
+  test helper now decides thirteen domination rows — so it takes the
+  middle tier: one style review with a correctness arm (no row), whose
+  first claim is that no converted assert got weaker or had its
+  operands swapped. The lane filed the out-of-fence hits on TINT and
+  INSTR.
+- **PROPS paused changes the NURBS bound's owner in practice.** TESS
+  will take `patch_bound::rational_cells`' unenclosed refinement as an
+  ANNOUNCED territory crossing (INSTR's precedent on paused S-MESH
+  ground), as TESS-2 on the full dual, specced once TESS-1's head is
+  frozen — one kernel unit on the build mutex at a time. Told to Ev.
+
+## (N) stays out of DESIGN; PR 2850 merged; PR 2848's fix pass (2026-09-18)
+
+- **Ev, in chat: (N) for now, but not in DESIGN.md** — it contradicts
+  nothing there and would carry too much weight for a provisional
+  ruling. The DESIGN hunk was dropped; the rule ("a chart singularity
+  inside a face is a vertex of it") is stated on the EXCH and TOPO rows
+  and lands in those doors' own docs. PR 2850, tracker-only after that,
+  merged on green; `needs_ev` cleared. **Mine to remember: "a new
+  validity rule" is not by itself a DESIGN.md decision — ask whether it
+  contradicts or settles something there first.**
+- **PR 2848's review** (one reviewer, middle tier): APPROVE-WITH-FIXES,
+  no MAJOR, all 17 converted sites identical. Adjudicated the same hour
+  and sent to the lane as a fix pass — the pinning test's surviving
+  `>=` mutant, the vacuous empty list, the `inf` on a zero bound, three
+  false doc sentences, a hand-synced message pair the PR itself minted,
+  the rational twin left behind. **Two CLASS findings given their own
+  rows rather than left in the report**: the unswept ordering asserts
+  outside `crates/mesh` (TINT), and the two domination helpers with
+  opposite operand orders, one of them unreachable from integration
+  tests (the owner of `crates/test-utils`). Not taken: the `unsure`
+  that `worst_ratio` reds do not name their triangle.
+
+## Seam acked: TRIM-2 PR-2 in `chords.rs` and `trimmed.rs` (2026-09-18)
+
+CURVED's orchestrator (for TRIM) announced on PR 2564: the `General`
+pcurve arm of `chords::nurbs_tighten` returns certified UV speed sups
+instead of refusing, and the trim walk admits `Pcurve::General` on a
+NURBS chart. Acked there — shapes fine, no TESS door wanted — with one
+ask (a domination row for the new sups that goes red when the sup
+degrades; E2's vertex count cannot see a sup that is too small) and a
+note of what TESS has in flight on the same files (PR 2848's test
+modules; TESS-1's new `TessellateError` arm).
+
+## Usage-limit outage and resume (2026-09-19 → 2026-09-20)
+
+Both lanes (TESS-1's implementer, PR 2848's fix pass) died mid-turn on
+the account's Fable limit, 2026-09-19; resumed 2026-09-20 with their
+transcripts, each told what changed under it. Annotate both rows'
+wall-clock with the gap.
+
+- **TESS-1**: PR 2852 open at `02121bbda`, item in review, one
+  uncommitted edit (`step-import/tests/tier_gate.rs`) in the clone — the
+  lane was told to identify it before building on it.
+- **PR 2848**: fix-pass commit `fa48d6eee` pushed; the lane died with a
+  mutant run in flight and was told to verify no mutant is applied.
+- **Disk**: CURVED's orchestrator deleted TESS' four idle target dirs
+  under pressure (courtesy note on PR 2564); I reclaimed the two
+  finished diag clones (evidence is on their pushed branches). 18 G
+  free — lanes told to prefer hosted CI.
+- **Monitors are not armed** (Ev, 2026-09-18): Claude Code kills every
+  Monitor watch at 30 minutes. `local-scripts/monitors/README.md`
+  carries the temporary note (PR 2854). The away channel is read by
+  hand when a lane reports.
+- **My miss, recorded**: I merged PR 2854 at Ev's "right away" without
+  reading its checks — two were red (`check-ci-mirror-parity` reads a
+  version literal under `local-scripts/` as a tool pin). Another lane
+  fixed main forward (`a8018fb0c`). "Right away" does not skip the
+  conclusion filter; it took one more line of shell.
+
 ## Announced from TRIM (2026-09-20): a filed class on this slate
 
 `chord-count-arithmetic-is-plain-f64-across-every-speed-arm` moved
@@ -185,3 +278,28 @@ the flip, if it comes, is announced to FIX. What gates it is entirely
 yours to measure.
 
 Signed (FIX orchestrator).
+
+## Re-read after the cut; TESS-2 specced (2026-09-20)
+
+While this session was down the tracker grew priority bands, `cost`
+and a 30-point track budget (`work/README.md`), and TESS was cut on
+its priority seam: the register rows and the contract rows went to
+CHORD; PROPS was cut into QUAD, ENCL and FRAME, and `patch_bound.rs`
+with the rational-cells row landed on ENCL (no orchestrator seated).
+`plan.md`'s slate and exit shape re-written to the slate as it is.
+
+- **Ev, in chat, 2026-09-20: no need to wait for PROPS.** TESS-2
+  (`docs/TESS-2-SPEC.md`): knot refinement inside the ring, so every
+  `PatchCell` encloses the DESCRIBED patch; both branches of
+  `patch_cells_refined`; the defect made a deterministic red row from
+  the exact referee's numbers before the fix. The rational-cells row
+  is claimed from ENCL by `git mv` with `parent: TESS-2`, announced in
+  ENCL's log. Pre-draw fields, logged before the slot is read:
+  **difficulty L, task-class numeric.** Block TESS-B1 slot 1.
+- Binding choices in the spec, recorded because they are mine: α is
+  enclosed from the knots in the ring, never an f64 quotient widened by
+  guessed ULPs and never a pad on the sups; one insertion SCHEDULE
+  (`CurvePlan`) with two arithmetics preferred over a second Boehm
+  loop; the tess-budget baseline is not re-cut by the lane.
+- Dispatch waits for TESS-1's head to freeze — one kernel unit on a
+  mutex-width-1, 18-G-free box at a time.

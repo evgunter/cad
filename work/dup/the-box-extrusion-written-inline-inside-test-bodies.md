@@ -4,6 +4,8 @@ kind: issue
 title: Outside the named builders, the rectangle extrusion appears in at most 100 more functions, inline in their bodies
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 ## Finding

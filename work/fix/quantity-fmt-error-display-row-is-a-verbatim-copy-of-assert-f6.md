@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-19
 branch: fix/quantity-f6-fold
 pr: 2944
+priority: P4
+cost: E
 ---
 
 Found by S-DUP's F6 fold of `crates/viewer/tests/panel_edits.rs`, whose

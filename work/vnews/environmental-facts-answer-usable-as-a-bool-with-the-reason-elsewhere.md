@@ -5,6 +5,8 @@ title: one environmental fact now says WHY it is unusable and its sibling still 
 status: open
 opened: 2026-09-10
 refs: [wasm-theme-choice-is-offered-and-silently-not-kept, hover-route-for-an-absent-chooser-has-no-test, 2293]
+priority: P3
+cost: E
 ---
 
 Disclosed by the close of

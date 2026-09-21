@@ -5,6 +5,8 @@ title: test suites across six crates carry a byte-identical fn band() wrapper; s
 status: open
 opened: 2026-09-04
 refs: [band-derivation-has-a-scalar-twin]
+priority: P4
+cost: E
 ---
 
 

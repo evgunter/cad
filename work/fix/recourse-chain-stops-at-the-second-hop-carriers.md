@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-12
 branch: fix/recourse-second-hop
 pr: 2948
+priority: P4
+cost: E
 ---
 
 

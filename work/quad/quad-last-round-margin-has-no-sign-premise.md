@@ -4,6 +4,8 @@ kind: issue
 title: nothing states that props_quad_last_round's recorded margin cannot exceed target_len, and a k-lint guard rests on it
 status: open
 opened: 2026-09-16
+priority: P1
+cost: D
 ---
 
 

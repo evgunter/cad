@@ -4,6 +4,8 @@ kind: unit
 title: A red inherited from main is not attributed to the merge that caused it - the diagnosis is re-derived by every lane that trips over it
 status: open
 opened: 2026-09-07
+priority: P4
+cost: E
 ---
 
 
