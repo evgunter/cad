@@ -7,9 +7,9 @@
 //! AND through `curved_face`, so the rows state where the two agree
 //! (a rectangle passes both, a notch refuses both by `props_rim_level`,
 //! an oblique sphere section refuses both by the same incidence name)
-//! and the ONE place they part: the rimless lune, a chart rectangle
-//! the door admits and the flux lane refuses on its own `Δu = π`
-//! premise. That divergence is the door's contract, not a gap in it.
+//! and the rimless lune, a chart rectangle the door admits on the
+//! shape alone while the flux lane measures it at the width its loop
+//! bounds — two premises, one face.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
@@ -102,24 +102,28 @@ fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
     );
 }
 
-/// **The divergence, pinned.** A lune between two great circles a
-/// quarter turn apart is `[0, π/2] × [−π/2, π/2]` — a chart rectangle
-/// — so the door admits it; the flux lane refuses it on
-/// `props_band_coplanar`, its own `Δu = π` premise. Goes red if either
-/// side is folded onto the other.
+/// **Two homes, one lune.** A lune between two great circles a
+/// quarter turn apart is a chart rectangle in azimuth × latitude, so
+/// the door admits it; the flux lane measures it at the width the
+/// loop bounds (`props_wedge_azimuth`). The door's answer is the
+/// shape's and does not depend on which lunes the flux lane measures.
 #[test]
-fn a_rimless_lune_passes_the_door_and_fails_the_flux_lane() {
+fn a_rimless_lune_passes_the_door_and_measures() {
     let half = core::f64::consts::FRAC_PI_2;
     let lune = vec![
         great(0.0, -half, half, 0, 1),
         great(half, half, -half, 1, 0),
     ];
     assert_eq!(require_iso_rectangle(&sphere(), &lune, band()), Ok(()));
-    assert_eq!(
-        curved_face(&sphere(), &lune, true, band()).map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
-            what: "props_band_coplanar"
-        })
+    // Interior-left about the outward normal: with `sense = true` this
+    // loop (northward at `u = 0`) bounds the three-quarter lune of the
+    // unit sphere.
+    let fc = curved_face(&sphere(), &lune, true, band()).expect("the flux lane measures the lune");
+    let exact = 2.0 * 3.0 * half;
+    assert!(
+        (fc.area - exact).abs() / exact < 1e-12,
+        "area {:.15e} != {exact:.15e}",
+        fc.area
     );
 }
 

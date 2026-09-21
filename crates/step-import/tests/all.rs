@@ -57,6 +57,8 @@ mod cert1_r1_import_probes;
 mod cert5_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
 mod cert_n2r2_consumer_probes;
+#[path = "coherence_channel.rs"]
+mod coherence_channel;
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]

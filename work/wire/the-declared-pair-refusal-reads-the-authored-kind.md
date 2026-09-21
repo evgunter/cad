@@ -2,10 +2,11 @@
 id: the-declared-pair-refusal-reads-the-authored-kind
 kind: unit
 title: resolve_declarations answers DeclareUnsupportedPair from the authored StableName's kind, not the resolved key
-status: review
+status: closed
 opened: 2026-09-13
 branch: wire/tie-before-kind
 pr: 2681
+closed: 2026-09-15
 ---
 
 

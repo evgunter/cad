@@ -379,7 +379,7 @@ fn the_lily_weld_pairs_resolve_at_the_ratified_sample_count() {
     let bands: Vec<f64> = [1e-9, 1e-6, 1e-12]
         .into_iter()
         .map(|eps| {
-            Band::new(eps, Tol::witness().k() * eps)
+            Band::linear_at(Tol::witness(), eps)
                 .expect("a linear band at this eps")
                 .escalate()
         })
@@ -729,7 +729,7 @@ fn a_coincident_torus_pair_encloses_pm_charge_and_reads_negative() {
     // ambiguity band escalates rather than deciding — and the covered
     // rung, which needs a Zero, is out of reach on this fixture.
     for eps in [1e-9, 1e-6, 1e-12] {
-        let definite = Band::new(eps, Tol::witness().k() * eps)
+        let definite = Band::linear_at(Tol::witness(), eps)
             .expect("a linear band at this eps")
             .escalate();
         assert!(

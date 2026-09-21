@@ -564,3 +564,15 @@ Not determined: the build cost of ungating `geom_core::interval` (the
 of the 28 endpoint reads follows a division (U0 answers it); the
 ring-specific test line count. The PR is `[ev]` and waits.
 
+## The second sitting ratified (2026-09-21)
+
+Ev answered PR 2701 on 2026-09-16 and confirmed the summary on
+2026-09-21: the ring retired in the aggressive form (feature dropped at
+the dissolve), a tighter bound re-baselines, the full no-trait cut with
+the certified name kept on the `CertifiedBounds` door and a
+`_structural` twin. `H5` carries the RATIFIED section; the plan carries
+nine units in two chains (RING-0…3, LANE-0…4). Evidence: the survey
+lanes' figures on the PR thread (compile cost measured on the shared
+4-vCPU box; the no-lane count: 3 kernel traits, 15 impls, 959 lines, 14
+call sites, 104 bounded signatures).
+

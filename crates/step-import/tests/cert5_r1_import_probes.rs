@@ -70,10 +70,12 @@ use step_import::{ImportOptions, StepImportError, import_step};
 /// That refusal is gone at the fine band. Tier 3's check 7 certifies
 /// a SIGN, and dm1's volume enclosure excludes zero however far short
 /// of the reporting target `1024*eps` the schedule stops, so the gate
-/// admits the solid and the import goes on to meet the D7 ladder gap
-/// at edge `#389` that the stall used to mask
-/// (`work/exch/step-import-degree-one-line-promotion.md`;
-/// `r1_dm1_probe` pins that disposition cell by cell).
+/// admits the solid — and the D7 ladder gap at edge `#389` the stall
+/// used to mask is RETIRED too (#388: degree-1 carriers promote to
+/// `Curve3::Line` and the slit adopts through its reversed wall
+/// column), so the import goes on to the pcurve MINT on the
+/// l-bracket wall's ARC rim, which refuses `MapResidual`
+/// (`r1_dm1_probe` pins that disposition cell by cell).
 ///
 /// **The residual did not move — its instrument did.** The width the
 /// schedule stops at is now what a caller asking for the NUMBER is
@@ -100,13 +102,23 @@ fn dm1_residual_and_wall_time_remeasured() {
     let out = import_step(&text, &ImportOptions::default(), Tol::witness());
     let dt = t0.elapsed();
     match out {
-        // Every band clears the at-rest gate and meets the ladder.
-        Err(StepImportError::Adoption { id, attempts }) => {
-            eprintln!("CERT5-R1 dm1: past the at-rest gate in {dt:?}, ladder gap at #{id}");
-            assert_eq!(id, 389, "the ladder gap's edge");
+        // Every band clears the at-rest gate AND the ladder (`#389`
+        // adopts, #388) and stops at the arc-rim pcurve mint.
+        Err(StepImportError::Pcurves { source }) => {
+            eprintln!("CERT5-R1 dm1: past the gate and the ladder in {dt:?}: {source}");
+            let shown = source.to_string();
             assert!(
-                attempts.is_empty(),
-                "the polyline GAP, not a refusal with candidates"
+                shown.contains("MapResidual"),
+                "the frontier is the arc-rim mint's residual: {shown}"
+            );
+        }
+        // The ladder, where no band stops now: `#389`'s gap would be
+        // a REGRESSION of #388's retirement.
+        Err(StepImportError::Adoption { id, attempts }) => {
+            panic!(
+                "the D7 ladder does not refuse dm1 any more (#388): \
+                 #{id}, {} candidate(s)",
+                attempts.len()
             );
         }
         // The at-rest gate, which no band stops at now. Kept as an arm

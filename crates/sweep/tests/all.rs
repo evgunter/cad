@@ -73,6 +73,16 @@ mod bool3_r1_probes;
 mod bool3_torus_doors;
 #[path = "bool3_torus_doors_interval.rs"]
 mod bool3_torus_doors_interval;
+#[path = "bool5r2_wedge_reach.rs"]
+mod bool5r2_wedge_reach;
+#[path = "bool6_per_slab_stacking.rs"]
+mod bool6_per_slab_stacking;
+#[path = "bool6_r2_probes.rs"]
+mod bool6_r2_probes;
+#[path = "bool6r1_probes.rs"]
+mod bool6r1_probes;
+#[path = "bool6r1_probes_interval.rs"]
+mod bool6r1_probes_interval;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -154,12 +164,16 @@ mod blend_margin_payload_interval;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
 #[path = "cert8_r1_probes.rs"]
 mod cert8_r1_probes;
 #[path = "closed_chain_junctions.rs"]
 mod closed_chain_junctions;
+#[path = "contact_edge_must_carry.rs"]
+mod contact_edge_must_carry;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -262,6 +276,8 @@ mod r1_probes_issue1362_donut;
 mod r2_sense_fold_probes;
 #[path = "readback_doors.rs"]
 mod readback_doors;
+#[path = "recourse_roster.rs"]
+mod recourse_roster;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_arms2_r1_probes.rs"]
@@ -282,6 +298,8 @@ mod review_blend6_r2_probes;
 mod review_chamfer_r1_probes;
 #[path = "review_closed_chain_junctions_r2_probes.rs"]
 mod review_closed_chain_junctions_r2_probes;
+#[path = "review_contact_edge_must_carry_r2_probes.rs"]
+mod review_contact_edge_must_carry_r2_probes;
 #[path = "review_d2_adv_probes.rs"]
 mod review_d2_adv_probes;
 #[path = "review_d2_recourse_at_the_site.rs"]
@@ -332,6 +350,8 @@ mod review_must_carry_rule_r1_probes;
 mod review_must_carry_rule_r2_probes;
 #[path = "review_pr12_probes.rs"]
 mod review_pr12_probes;
+#[path = "review_recourse_roster_r2_probes.rs"]
+mod review_recourse_roster_r2_probes;
 #[path = "review_s11_adv.rs"]
 mod review_s11_adv;
 #[path = "review_s12_adv.rs"]
@@ -613,6 +633,8 @@ mod review_blend5_r5_probes;
 
 #[path = "review_blend4_r4_probes.rs"]
 mod review_blend4_r4_probes;
+#[path = "review_contact_edge_must_carry_r1_probes.rs"]
+mod review_contact_edge_must_carry_r1_probes;
 #[path = "shell5_r1_dump.rs"]
 mod shell5_r1_dump;
 #[path = "shell5_r1_probes.rs"]
@@ -644,6 +666,8 @@ mod shell8_r2_probes;
 
 #[path = "shell7_seam_corner.rs"]
 mod shell7_seam_corner;
+#[path = "spiric_rim.rs"]
+mod spiric_rim;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;
@@ -692,3 +716,6 @@ mod census_containment_cause;
 
 #[path = "wire_loft_end_profile_lift.rs"]
 mod wire_loft_end_profile_lift;
+
+#[path = "review_recourse_roster_r1_probes.rs"]
+mod review_recourse_roster_r1_probes;

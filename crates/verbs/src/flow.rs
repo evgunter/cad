@@ -103,11 +103,12 @@ impl ScalarParam {
 /// vocabulary reaches: a profile edge's carrier radius. The VALUE is
 /// per edge — the wall swept from an edge stores that edge's radius
 /// and no other edge's, which is what makes the flow honourable per
-/// minted wall — but the ADDRESS the document holds it at need not be
-/// that fine, and today it is not: a carrier loop is drawn at one
-/// radius, so every edge it replays to reads the same expression at
-/// one per-LOOP slot. A per-edge address is what a loop form with more
-/// than one radius would need, and no consumer has one.
+/// minted wall — and the ADDRESS is per edge too, composed rather than
+/// held: the document holds a radius at a per-STEP slot, and which
+/// edges a step drew is the replay's own record
+/// (`editor_core::ProfileProgram::segment_radii`). A carrier loop is
+/// one step drawn at one radius, so every edge of it reads the same
+/// expression; a chain's arc steps each read their own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum EdgeScalar {
     /// The radius of a CIRCULAR profile edge — the arc's carrier
@@ -168,10 +169,11 @@ pub enum RoleFamily {
     /// edge (`Extruded::side_faces`, `Revolved::walls`). The family
     /// whose rows are addressed BY THE OPERAND's entities rather than
     /// by the verb's — which is what lets an operand-carried source be
-    /// honoured at all. The record groups the rows by LOOP, and that
-    /// is the grouping the flow's consumer keys on, because the
-    /// address the document holds a carrier radius at is per loop
-    /// ([`EdgeScalar`]).
+    /// honoured at all. The record keys the rows by LOOP and then by
+    /// canonical SEGMENT, and both indices are what the flow's
+    /// consumer keys on: the scalar is per edge ([`EdgeScalar`]), so a
+    /// wall's token is its own edge's and a segment that minted no
+    /// wall holds its position rather than shifting the rest.
     SweptWalls,
 }
 

@@ -9,9 +9,10 @@ use crate::display_contract::assert_f6_every_variant;
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, EntityKey, EntityRef, EvalOptions, Evaluation,
-    HitTestError, Node, ProfileDoc, RecipeNodeId, Resolution, RunCtx, SplitSide, ValuePayload,
-    body_name, entity_name, evaluate, resolve,
+    BooleanOp, BooleanValue, CancelToken, CapEnd, DocumentId, EntityKey, EntityKind, EntityRef,
+    EvalOptions, Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution,
+    RoleSeg, RunCtx, SplitSide, StableName, ValuePayload, body_name, entity_name, evaluate,
+    resolve,
 };
 use fixture::{ang, die, insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -306,24 +307,21 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
     );
 }
 
-/// `HitTestError`'s exhaustiveness token: the `match` has no wildcard
-/// arm, so a variant added to the enum — or renamed — leaves it
-/// non-exhaustive and this file stops compiling. It returns nothing on
-/// purpose; the identifiers come off each value's own `Debug`, never
-/// off a string typed beside a pattern.
-fn hit_test_error_is_exhaustive(e: &HitTestError) {
-    match e {
-        HitTestError::NodeNotEvaluated { .. }
-        | HitTestError::NodeFailed { .. }
-        | HitTestError::NodePoisoned { .. }
-        | HitTestError::Unnamed { .. } => (),
-    }
+test_utils::f6_variants! {
+    /// `HitTestError`'s census: one ident per variant, feeding both the
+    /// wildcard-free `match` rustc checks and the identifier roster the
+    /// weld compares against the rendered cases. The mechanism and what
+    /// it does NOT weld are documented on
+    /// [`test_utils::f6::assert_f6_every_variant`].
+    const HIT_TEST_ERROR: HitTestError = [
+        NodeNotEvaluated,
+        NodeFailed,
+        NodePoisoned,
+        EvaluationOfAnotherDocument,
+        Ambiguous,
+        Unnamed,
+    ];
 }
-
-/// The identifier roster, welded to the cases by the set difference in
-/// [`assert_f6_every_variant`].
-const HIT_TEST_ERROR_VARIANTS: &[&str] =
-    &["NodeNotEvaluated", "NodeFailed", "NodePoisoned", "Unnamed"];
 
 /// The Display contract (#1111): a consumer renders a `HitTestError`
 /// through the payload's own words, so every arm must state what
@@ -343,6 +341,26 @@ const HIT_TEST_ERROR_VARIANTS: &[&str] =
 fn hit_test_error_display_names_its_content_not_its_struct() {
     let node = RecipeNodeId(7);
     let through = RecipeNodeId(3);
+    // Two faces of ONE node, differing only in their role path — the
+    // shared-edge tie's own shape, and the case that says the
+    // rendering carries the path.
+    let tied_hit = |at: u32| PickHit {
+        name: StableName {
+            kind: EntityKind::Face,
+            node,
+            path: vec![RoleSeg::Cap(if at == 3 {
+                CapEnd::Start
+            } else {
+                CapEnd::End
+            })],
+        },
+        node,
+        body: 0,
+        t: f64::from(at),
+        t_lo: f64::from(at),
+        t_hi: f64::from(at),
+        point: geom_core::Point3::new(0.0, 0.0, 0.0),
+    };
     let cases = [
         (
             HitTestError::NodeNotEvaluated { node },
@@ -352,6 +370,27 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
         (
             HitTestError::NodePoisoned { node, through },
             vec!["node 7", "node 3", "poisoned"],
+        ),
+        (
+            HitTestError::EvaluationOfAnotherDocument {
+                expected: DocumentId::derive("m4-hit-expected"),
+                found: DocumentId::derive("m4-hit-found"),
+            },
+            // Two documents, both named: which one the door is about
+            // and which one was handed. The ids render through their
+            // own `Display`, so the prose carries the whole answer.
+            vec!["document", "not"],
+        ),
+        (
+            HitTestError::Ambiguous {
+                hits: [3u32, 5].map(tied_hit).to_vec(),
+            },
+            // The count, and each tied face NUMBERED so the phrase
+            // lines up with its entry in `hits` — two faces of one
+            // node render identically through `StableName`'s
+            // `Display`, and the role path that would tell them apart
+            // is a `Debug` derivation the prose must not carry.
+            vec!["tied between 2 faces", "(1) face", "(2) face", "node 7"],
         ),
         (
             HitTestError::Unnamed {
@@ -366,10 +405,5 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
             vec!["node 7", "face", "body 2", "kernel bug"],
         ),
     ];
-    assert_f6_every_variant(
-        &cases,
-        hit_test_error_is_exhaustive,
-        HIT_TEST_ERROR_VARIANTS,
-        &[],
-    );
+    assert_f6_every_variant(&cases, &HIT_TEST_ERROR, &[]);
 }

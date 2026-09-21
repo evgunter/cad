@@ -7,7 +7,7 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::test_support::arena_counts;
@@ -15,10 +15,6 @@ use topo::{
     Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, boolean_reduce_declared,
     validate,
 };
-
-fn brick<T: Decide + geom_core::Bounds>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 fn reduce_ok<T: Decide + geom_core::Bounds>(
     op: BooleanOp,
@@ -28,7 +24,14 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
     let before = (arena_counts(a), arena_counts(b));
     // M4 PR 5: intended flush contacts are DECLARED (the test author's
     // recipe intent); value-equality alone no longer classifies.
-    let red = boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
+    let red = boolean_reduce_declared(
+        op,
+        a,
+        b,
+        &flush_declarations(a, b, Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     // Operands functionally untouched: every topology arena, not a
     // three-component sample of them.
     assert_eq!((arena_counts(a), arena_counts(b)), before);
@@ -45,8 +48,8 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
 /// ring sequence), all correspondence-keyed. Op-independent here (no
 /// Eq. 15.3 row is hit).
 fn two_bricks<T: Decide + geom_core::Bounds>(op: BooleanOp) {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
+    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness());
     let red = reduce_ok(op, &a, &b);
     assert_eq!(red.contacts.vv.len(), 0);
     assert_eq!(red.contacts.a_on_b.len(), 3);
@@ -82,8 +85,8 @@ fn two_bricks_all_ops() {
 /// (opposite orientation). Union sees crossings (the stacked bodies
 /// merge through the shared plane); the census is pinned per op.
 fn stacked_bricks<T: Decide + geom_core::Bounds>(op: BooleanOp, expect_pairs_nonzero: bool) {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<T>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0));
+    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = brick::<T>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0), Tol::witness());
     let red = reduce_ok(op, &a, &b);
     assert_eq!(red.contacts.vv.len(), 4);
     assert_eq!(red.contacts.a_on_b.len(), 0);
@@ -112,8 +115,8 @@ fn stacked_bricks_full_coplanar_face() {
 /// declared v-v contact is the entire result. Near-miss variants: a gap
 /// inside the sliver band escalates typed; a definite gap is clean.
 fn corner_kiss<T: Decide + geom_core::Bounds>() {
-    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
         let red = reduce_ok(op, &a, &b);
         assert_eq!(red.contacts.vv.len(), 1);
@@ -126,11 +129,11 @@ fn corner_kiss<T: Decide + geom_core::Bounds>() {
 fn corner_kiss_touch_and_near_miss() {
     corner_kiss::<f64>();
     let eps = geom_core::Tol::witness().get().eps;
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     // In-band gap (3ε with K = 10): a genuine sliver — typed
     // escalation, never a silent contact and never a silent miss (F6).
     let g = 1.0 + 3.0 * eps;
-    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0));
+    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness());
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     assert!(
         matches!(
@@ -141,7 +144,7 @@ fn corner_kiss_touch_and_near_miss() {
     );
     // Definite gap (1000ε): clean miss, no contacts at all.
     let g = 1.0 + 1000.0 * eps;
-    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0));
+    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness());
     let red = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap();
     assert!(red.contacts.vv.is_empty());
     assert!(red.contacts.a_on_b.is_empty());
@@ -153,8 +156,8 @@ fn corner_kiss_touch_and_near_miss() {
 /// declared v-v pair). Census hand-traced: two such crossings, plus one
 /// vertex-on-face contact per side in the shared tangent plane z = 2.
 fn skew_edge_cross<T: Decide + geom_core::Bounds>(op: BooleanOp) -> BooleanReduction<T> {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0));
+    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0), Tol::witness());
     let red = reduce_ok(op, &a, &b);
     assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
     assert_eq!(red.contacts.a_on_b.len(), 1);
@@ -190,8 +193,8 @@ fn skew_edge_cross_all_ops() {
 #[test]
 fn vertex_on_face_tangential_rest() {
     // B's corner (1,1,2) rests on A's top face z=2 interior.
-    let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0));
-    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0));
+    let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness());
+    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0), Tol::witness());
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
         let red = reduce_ok(op, &a, &b);
         // All four bottom corners of B rest on A's face.
@@ -215,8 +218,8 @@ fn vertex_on_face_tangential_rest() {
 /// and the shared plane's collinear edge segments put the Tables II/III
 /// edge-edge machinery live at every minted v-v pair.
 fn collinear_overlap<T: Decide + geom_core::Bounds>(op: BooleanOp) -> BooleanReduction<T> {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = brick::<T>((1.0, 3.0), (0.0, 2.0), (2.0, 4.0));
+    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let b = brick::<T>((1.0, 3.0), (0.0, 2.0), (2.0, 4.0), Tol::witness());
     reduce_ok(op, &a, &b)
 }
 
@@ -242,9 +245,9 @@ fn collinear_edge_overlap() {
 /// F5 gate: a curved operand refuses typed.
 #[test]
 fn curved_operand_refuses() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0));
-    let cube = common::geometric_cube::<f64>();
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let cube = common::geometric_cube::<f64>(Tol::witness());
     // A genuinely curved body is not in the prismatic corpus; instead
     // gate on scaffolding: a mid-surgery operand refuses.
     let _ = cube;
@@ -267,8 +270,13 @@ fn curved_operand_refuses() {
 /// face with the same plane description).
 #[test]
 fn non_maximal_operand_refuses() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)], 0.0, 1.0);
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let p = prism_z::<f64>(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
     let mut b = p.body;
     // Split the top face by a chord between the two top rim vertices
     // above (0,0) and... use mev+mef with FaceSurface::Same to make an

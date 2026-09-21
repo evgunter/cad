@@ -7,7 +7,7 @@
 
 use crate::common;
 
-use common::{cube_into, mapped_cube, prism, prism_z};
+use common::{brick, cube_into, mapped_cube, prism, prism_z};
 use geom_core::Tol;
 use geom_core::{Bounds, Decide, Point3, Vec3};
 use topo::{
@@ -15,10 +15,6 @@ use topo::{
     SplitPlane, ValidationError, intersect, mass_properties, split, subtract, union,
     validate_pseudomanifold,
 };
-
-fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
-    prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
-}
 
 fn plane_y<T: Decide>(c: f64, ny: f64) -> SplitPlane<T> {
     SplitPlane {
@@ -111,7 +107,7 @@ const NOTCH_ONLY: &[(f64, f64)] = &[
 /// plane with exact volume conservation.
 fn both_sided_pinch_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
     for (profile, must_succeed) in [(BUMP_ONLY, true), (NOTCH_ONLY, true), (BOTH_SIDED, false)] {
-        let fx = prism::<T>(profile, 1.0);
+        let fx = prism::<T>(profile, 1.0, Tol::witness());
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
         match split(&fx.body, &plane_y::<T>(1.0, 1.0), Tol::witness()) {
             Ok(r) => {
@@ -156,7 +152,7 @@ fn r1_both_sided_pinch_f64() {
 /// below m = +n) that the doc claims survives the swap.
 fn mirror_identity_scenario<T: Decide + Bounds + topo::PropsQuadLane>() {
     for profile in [MIRRORED, NOTCHED] {
-        let fx = prism::<T>(profile, 1.0);
+        let fx = prism::<T>(profile, 1.0, Tol::witness());
         let rp = split(&fx.body, &plane_y::<T>(1.0, 1.0), Tol::witness()).unwrap();
         let rn = split(&fx.body, &plane_y::<T>(1.0, -1.0), Tol::witness()).unwrap();
         // swap(split(S,−n)): its BELOW is our ABOVE.
@@ -260,8 +256,12 @@ mod interval_r1 {
 /// EdgeEdgeCross (in-plane boundary crossings) and/or EdgeFaceOverlap.
 #[test]
 fn r2_coplanar_plus_overlap_detected() {
-    let mut body = mapped_cube(|x, y, z| Point3::new(3.0 * x, 1.0 + y, z));
-    cube_into(&mut body, |x, y, z| Point3::new(1.0 + x, 3.0 * y, z));
+    let mut body = mapped_cube(|x, y, z| Point3::new(3.0 * x, 1.0 + y, z), Tol::witness());
+    cube_into(
+        &mut body,
+        |x, y, z| Point3::new(1.0 + x, 3.0 * y, z),
+        Tol::witness(),
+    );
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(
@@ -290,8 +290,12 @@ fn r2_coplanar_plus_overlap_detected() {
 /// the report (the PR calls skeleton-certification deliberate).
 #[test]
 fn r2_flush_stack_full_overlap() {
-    let mut body = mapped_cube(Point3::new);
-    cube_into(&mut body, |x, y, z| Point3::new(x, y, 1.0 + z));
+    let mut body = mapped_cube(Point3::new, Tol::witness());
+    cube_into(
+        &mut body,
+        |x, y, z| Point3::new(x, y, 1.0 + z),
+        Tol::witness(),
+    );
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(!errors.is_empty(), "flush stack must not pass undeclared");
@@ -332,12 +336,17 @@ fn r2_flush_stack_full_overlap() {
 /// is a declared face pair holding the vertex and the edge.
 #[test]
 fn r2_inscribed_diamond_vertices_on_edges() {
-    let mut body = mapped_cube(|x, y, z| Point3::new(2.0 * x, 2.0 * y, 2.0 * z));
+    let mut body = mapped_cube(
+        |x, y, z| Point3::new(2.0 * x, 2.0 * y, 2.0 * z),
+        Tol::witness(),
+    );
     // Diamond prism z ∈ [2,3]: base corners (1,0,2),(2,1,2),(1,2,2),(0,1,2)
     // — each on an edge interior of the cube's top face.
-    cube_into(&mut body, |x, y, z| {
-        Point3::new(1.0 + x - y, x + y, 2.0 + z)
-    });
+    cube_into(
+        &mut body,
+        |x, y, z| Point3::new(1.0 + x - y, x + y, 2.0 + z),
+        Tol::witness(),
+    );
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(
@@ -371,6 +380,7 @@ fn l_prism() -> Body<f64> {
         ],
         0.0,
         1.0,
+        Tol::witness(),
     )
     .body
 }
@@ -398,18 +408,21 @@ fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64>
 #[test]
 fn r4_frontier_is_joindesync_not_pairingmismatch() {
     let a = l_prism();
-    let b = mapped_cube(|x, y, z| {
-        let (e1, e2, e3) = (
-            Vec3::new(0.9, -0.6, 0.5),
-            Vec3::new(0.7, 0.8, -0.55),
-            Vec3::new(-0.45, 0.5, 0.9),
-        );
-        Point3::new(
-            2.0 + x * e1.x + y * e2.x + z * e3.x,
-            2.0 + x * e1.y + y * e2.y + z * e3.y,
-            0.5 + x * e1.z + y * e2.z + z * e3.z,
-        )
-    });
+    let b = mapped_cube(
+        |x, y, z| {
+            let (e1, e2, e3) = (
+                Vec3::new(0.9, -0.6, 0.5),
+                Vec3::new(0.7, 0.8, -0.55),
+                Vec3::new(-0.45, 0.5, 0.9),
+            );
+            Point3::new(
+                2.0 + x * e1.x + y * e2.x + z * e3.x,
+                2.0 + x * e1.y + y * e2.y + z * e3.y,
+                0.5 + x * e1.z + y * e2.z + z * e3.z,
+            )
+        },
+        Tol::witness(),
+    );
     let err = union(&a, &b, Tol::witness()).unwrap_err();
     assert!(
         matches!(err, BooleanError::JoinDesync { .. }),
@@ -456,7 +469,7 @@ fn r4_extended_sweep_volume_identities() {
                         Point3::new(2.0 + x1, 2.0 + y2, zc + z2)
                     }
                 };
-                let b = mapped_cube(map);
+                let b = mapped_cube(map, Tol::witness());
                 let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
                 let ctx = format!("zc={zc} family={family} k={k}");
                 let vu = vol_of(union(&a, &b, Tol::witness()), &ctx);
@@ -510,6 +523,7 @@ fn straddle_scenario<T: Decide + topo::PropsQuadLane + geom_core::Bounds>(delta:
         ],
         0.0,
         1.0,
+        Tol::witness(),
     );
     let verdict = validate_pseudomanifold(&fx.body, &ContactRecords::default(), Tol::witness());
     let errors = verdict.expect_err("near-touch at/inside eps must be loud");
@@ -555,19 +569,22 @@ fn r5_straddle_f64() {
 /// acceptance suite only tampers vv).
 #[test]
 fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
-    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-    let tilted = mapped_cube(|x, y, z| {
-        let (e1, e2, e3) = (
-            Vec3::new(0.9, 0.1, 0.3),
-            Vec3::new(-0.2, 0.8, 0.45),
-            Vec3::new(-0.3, -0.4, 0.85),
-        );
-        Point3::new(
-            2.0 + x * e1.x + y * e2.x + z * e3.x,
-            2.0 + x * e1.y + y * e2.y + z * e3.y,
-            1.0 + x * e1.z + y * e2.z + z * e3.z,
-        )
-    });
+    let slab = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let tilted = mapped_cube(
+        |x, y, z| {
+            let (e1, e2, e3) = (
+                Vec3::new(0.9, 0.1, 0.3),
+                Vec3::new(-0.2, 0.8, 0.45),
+                Vec3::new(-0.3, -0.4, 0.85),
+            );
+            Point3::new(
+                2.0 + x * e1.x + y * e2.x + z * e3.x,
+                2.0 + x * e1.y + y * e2.y + z * e3.y,
+                1.0 + x * e1.z + y * e2.z + z * e3.z,
+            )
+        },
+        Tol::witness(),
+    );
     let BooleanResult::Body(r) = union(&slab, &tilted, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
@@ -613,14 +630,14 @@ fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
 /// gate) — never silent wrongness.
 #[test]
 fn r7_closure_reversed_rows_loud() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let BooleanResult::Body(base) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss base");
     };
     // Reversed subtract: mover ∖ assembly. Oracle: mover [1.5,2.5]^3
     // minus its overlap with B-cube [1,2]^3 = 1 − 0.125 = 0.875.
-    let mover = brick::<f64>((1.5, 2.5), (1.5, 2.5), (1.5, 2.5));
+    let mover = brick::<f64>((1.5, 2.5), (1.5, 2.5), (1.5, 2.5), Tol::witness());
     match subtract(&mover, &base.body, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
             assert_eq!(
@@ -643,7 +660,7 @@ fn r7_closure_reversed_rows_loud() {
         Err(e) => eprintln!("R7 reversed subtract refusal: {e:?}"),
     }
     // Intersect vs a second toucher kissing the same (1,1,1) locus.
-    let toucher = brick::<f64>((0.0, 1.0), (1.0, 2.0), (1.0, 2.0));
+    let toucher = brick::<f64>((0.0, 1.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     match intersect(&base.body, &toucher, Tol::witness()) {
         Ok(BooleanResult::Body(r)) => {
             // The intersection of the assembly with the edge-tied

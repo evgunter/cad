@@ -68,14 +68,17 @@ fn z_face(body: &Body<f64>, sign: f64) -> FaceKey {
 
 /// The slab, its TOP the A-side face: `[0, len] × [0, 1]` at `z = 1`.
 fn slab(len: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(x * len, y, z))
+    common::mapped_cube(|x, y, z| Point3::new(x * len, y, z), Tol::witness())
 }
 
 /// The plate, its UNDERSIDE the B-side face: `[0, len] × [0.25, 0.75]`,
 /// TILTED by `slope`, so the two carriers meet exactly at `x = 0` and
 /// are `slope · len` apart at the far end.
 fn plate(len: f64, slope: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(x * len, 0.25 + y * 0.5, 1.0 + slope * x * len + z))
+    common::mapped_cube(
+        |x, y, z| Point3::new(x * len, 0.25 + y * 0.5, 1.0 + slope * x * len + z),
+        Tol::witness(),
+    )
 }
 
 /// The declared pair of a slab/plate fixture: the slab's top and the
@@ -283,10 +286,18 @@ fn a_bridged_door_one_declines_the_interior_witness_rung() {
 #[test]
 fn a_declared_curved_cross_instance_pair_is_still_refused() {
     let build = |surface: &Surface<f64>| {
-        let a: common::Prism<f64> =
-            common::prism_z(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], 0.0, 1.0);
-        let b: common::Prism<f64> =
-            common::prism_z(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)], 1.0, 2.0);
+        let a: common::Prism<f64> = common::prism_z(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
+            0.0,
+            1.0,
+            Tol::witness(),
+        );
+        let b: common::Prism<f64> = common::prism_z(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
+            1.0,
+            2.0,
+            Tol::witness(),
+        );
         // Re-describe both interface faces as the SAME curved surface:
         // two independently authored curved descriptions, each in its
         // own arena, with no shared key and no `GeomSource`.
@@ -347,10 +358,13 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
 /// then translated by `(tx, ty)`.
 fn turned_plate(w: f64, d: f64, deg: f64, tx: f64, ty: f64) -> Body<f64> {
     let (c, s) = (deg.to_radians().cos(), deg.to_radians().sin());
-    common::mapped_cube(|x, y, z| {
-        let (px, py) = (x * w, y * d);
-        Point3::new(px * c - py * s + tx, px * s + py * c + ty, 1.0 + z)
-    })
+    common::mapped_cube(
+        |x, y, z| {
+            let (px, py) = (x * w, y * d);
+            Point3::new(px * c - py * s + tx, px * s + py * c + ty, 1.0 + z)
+        },
+        Tol::witness(),
+    )
 }
 
 /// The VERDICT of one call, as the thing a caller may branch on.

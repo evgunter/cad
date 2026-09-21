@@ -5,6 +5,8 @@ title: Python's DimensionError names the quantity-operator check while the real 
 status: open
 opened: 2026-09-15
 refs: [S107, 694, 689]
+priority: P3
+cost: E
 ---
 
 

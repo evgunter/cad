@@ -181,6 +181,24 @@
 //! has the rows where the promise binds; a single-row run at 1e-6 would
 //! not, and should not be trusted to surface a new ε-coupled family.
 //!
+//! **A name can be ε-coupled and still belong off the roster, and that
+//! ruling is recorded rather than left to the omission's silence**
+//! ([`EPS_COUPLED_UNRULED`]). Rule (4)'s floor is the lower tail of
+//! ONE family's measured `|m|/ε`, so a name that has contributed no
+//! draw to it cannot be put under it: that would be a distribution
+//! ruling with no distribution. Such a name stays under rules (2) and
+//! (3), where the paragraph above says it is loud at the tight rows
+//! — **and only there, and only on the positive side.** Rule (4)'s
+//! own population is two-sided (24 and 48 NEGATIVE draws at the 1e-9
+//! and 1e-12 rows of the committed era, its P0 among them), so a
+//! recorded ε-coupled margin is a signed headroom whose refusal side
+//! nothing bounds, and a large negative one passes both metre rules
+//! clean. An unruled name's rows are therefore a FINDING in their own
+//! right ([`Scan::unruled`]): the CLI counts them per file, prints
+//! them ahead of the flags, and fails the run naming the open ruling
+//! rather than a baseline re-derivation that will not move. Gating on
+//! the NAME is what makes the guard independent of a row's sign.
+//!
 //! # Rule (2)'s discrimination floor
 //!
 //! Rules (2)-above and (3) are two thresholds on the SAME quantity — a
@@ -306,10 +324,69 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// does not list. Membership is a property, that property is written
 /// nowhere a test can evaluate over a name — `target_len` is this one
 /// family's spelling of it, not the criterion — and
-/// `work/meter/k-lint-eps-coupled-criterion-unwritten` is where the
+/// `work/instr/k-lint-eps-coupled-criterion-unwritten` is where the
 /// criterion is scheduled. The allow-list's fail-loud posture above is
 /// why the residue is a diagnosis gap and not an open gate.
+///
+/// **A name can satisfy the criterion's spelling and still belong off
+/// this list** — see [`EPS_COUPLED_UNRULED`], which is where that is
+/// recorded and where the CLI reads it from.
 pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
+
+/// **Names ε-coupled by the same reading as [`EPS_COUPLED_PREDICATES`]
+/// that are deliberately NOT on it, each with the reason**, as
+/// `(predicate, why)`.
+///
+/// Rule (4)'s floor is a MEASUREMENT of one family's lower tail
+/// ([`EPS_COUPLED_FLOOR_RATIO`]), not a property of ε-coupling. A name
+/// that has contributed no draw to it cannot be put under it without
+/// ruling on a distribution that does not exist, so the ruling is
+/// recorded here instead of being left to a roster omission's silence.
+/// `docs/K-REPORT.md`, "Maintenance: this roster is a RECORD", carries
+/// the reasoning; this is its machine-readable half.
+///
+/// **Not a mute, and not the same claim as ROSTERING would be.** An
+/// entry's rows stay under rules (2) and (3) and are judged exactly as
+/// any unrostered name's. What the entry adds is that a row of it is
+/// itself a FINDING ([`Scan::unruled`]): the entry is here because the
+/// family has no distribution, so the first row is that premise
+/// expiring, and the CLI fails the run naming the open ruling instead
+/// of the baseline floor's recourse, which did not move. It is a
+/// finding of rules (2)/(3)'s kind rather than rule (1)'s, so
+/// `--gate-rule-1-only` demotes it with them — the E6 driver row's
+/// recorded demotion covers it for the same reason it covers those.
+///
+/// **Why the appearance gates rather than merely printing.** The
+/// metre rules catch a POSITIVE row loudly at the tight ε rows
+/// (`tests/predicate_roster.rs`), and catch nothing on the refusal
+/// side: a large negative margin is decisive, passes both rules clean,
+/// and `crates/topo/src/props.rs` (`sign_certified`'s doc, "A face
+/// that refuses on BUDGET is different") says such a refusal rides on
+/// the certificate and is reported only when `settle` never accepted
+/// — so refusals can accumulate on a wholly green suite. Gating on
+/// the NAME is the one statement that does not depend on a row's sign
+/// or size.
+///
+/// `tests/threshold_provenance.rs` carries the other half, over the
+/// committed era rule (4)'s floor is cut from.
+pub const EPS_COUPLED_UNRULED: [(&str, &str); 1] = [(
+    "props_quad_last_round",
+    concat!(
+        "the budget exit's once-per-FACE bound on a round that never runs, minted only when ",
+        "round 0 does not certify. No committed era carries a row of it and a fresh sweep ",
+        "records none, so rule (4)'s floor cannot be cut over it. Ruled in docs/K-REPORT.md",
+    ),
+)];
+
+/// The recorded reason `predicate` is ε-coupled and deliberately off
+/// [`EPS_COUPLED_PREDICATES`], if it is.
+#[must_use]
+pub fn eps_coupled_excuse(predicate: &str) -> Option<&'static str> {
+    EPS_COUPLED_UNRULED
+        .iter()
+        .find(|(n, _)| *n == predicate)
+        .map(|(_, why)| *why)
+}
 
 /// Rule (4)'s floor for [`EPS_COUPLED_PREDICATES`], in units of ε:
 /// P0 of the baseline's |m|/ε population (minimum 164.674), rounded
@@ -487,6 +564,25 @@ pub struct Scan {
     /// floor. The CLI PRINTS this — the cap is never silent (module
     /// docs, "Rule (2)'s discrimination floor").
     pub proximity_capped: Option<(f64, f64)>,
+    /// How many rows this file carries for each
+    /// [`EPS_COUPLED_UNRULED`] name that appears in it, in roster
+    /// order, entries with no row omitted.
+    ///
+    /// **The ruling's premise, re-read on every scan, and a finding
+    /// when it fails.** Each entry is off rule (4) because it has no
+    /// distribution to cut a floor from; a non-empty count here says
+    /// that is no longer true of this file. The CLI prints it ahead of
+    /// the flags — the ruling is never silent about its own expiry,
+    /// the posture [`Scan::proximity_capped`] already has — and
+    /// FAILS the run on it, on rules (2)/(3)'s demotable side.
+    ///
+    /// Counted for every outcome, because the question is whether the
+    /// family has a distribution at all: a `zero` or in-band row is as
+    /// much of one as a definite row, and neither metre rule would say
+    /// so. The rows are ALSO judged by rules (2) and (3) exactly as
+    /// before; this column is a second, independent statement about
+    /// the same file.
+    pub unruled: Vec<(&'static str, usize)>,
 }
 
 /// The sweep's CSV header: the column order this file's rules are
@@ -715,6 +811,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut sign_gated = 0usize;
     let mut registered = 0usize;
     let mut proximity_capped = None;
+    let mut unruled = [0usize; EPS_COUPLED_UNRULED.len()];
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
             if line != EXPECTED_HEADER {
@@ -817,6 +914,13 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         if out == "registered" {
             registered += 1;
         }
+        // Counted for EVERY outcome, not just the definite arm: the
+        // question this column answers is whether the family has a
+        // distribution at all, and a `zero` or in-band row is as much
+        // of one as a `positive`.
+        if let Some(k) = EPS_COUPLED_UNRULED.iter().position(|(n, _)| *n == pred) {
+            unruled[k] += 1;
+        }
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
         if band_zero >= AMBIENT_BAND_MIN && proximity_capped.is_none() {
@@ -844,6 +948,12 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         registered,
         flags,
         proximity_capped,
+        unruled: EPS_COUPLED_UNRULED
+            .iter()
+            .zip(unruled)
+            .filter(|(_, n)| *n > 0)
+            .map(|((name, _), n)| (*name, n))
+            .collect(),
     })
 }
 

@@ -170,6 +170,7 @@ fn child_band_row() {
                 )),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect_err("a profile cannot be authored where no band exists");
     assert!(

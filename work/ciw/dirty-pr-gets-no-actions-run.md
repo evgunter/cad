@@ -5,6 +5,8 @@ title: A PR that goes mergeable_state dirty against a moved main gets NO Actions
 status: open
 opened: 2026-09-05
 refs: [1910]
+priority: P4
+cost: E
 ---
 
 
@@ -129,3 +131,81 @@ say the base, not `main`: *a push with no run is a conflict with the
 PR's own base to merge out, not a queue to wait on.* A lane told to
 merge `main` out, on a PR based on a lane branch, would merge the wrong
 thing and stay runless.
+
+## Fifth occurrence, and the first measured RATE (2026-09-15, S-TINT orchestrator)
+
+The row says this shape is one "this repository generates constantly by
+construction" but carries no frequency. `#2690` (`tint/orchestrator`,
+based on `main`) supplies one, because it stayed open across a busy
+stretch and its base merges were timed:
+
+**Four base merges in ~100 minutes; three of them conflicted, and all
+three conflicts were `docs/DOC-LEDGER.md` alone.** Between the third and
+fourth, `origin/main` advanced **22 commits in about 30 minutes**. The
+occurrence proper is the fourth: the push at `39dbf40eb` produced no
+Actions run for twenty minutes while `mergeable_state` read `dirty`,
+and merging `origin/main` out produced a queued run within seconds.
+
+So the rate is not "three in a day" but roughly **once per base merge
+for any PR open longer than main's inter-merge interval**, and that
+interval is currently well under the ~30 minutes one CI cycle takes.
+A PR that needs two cycles is more likely than not to go runless at
+least once, without anyone doing anything wrong.
+
+**`docs/DOC-LEDGER.md` is why, and it is not incidental.** Every program
+appends a per-merge-deletion entry to that one file at the end of every
+unit, so the file takes a tail-append from every lane in the repository
+and collides with every other open branch that has also appended. It is
+the single highest-collision file in the tree by construction, and
+nothing about the ledger's purpose requires one file — this row does not
+ask for that change, but a fix that only teaches lanes to recognise the
+silence leaves the collision rate untouched.
+
+**Who was fooled this time: the orchestrator, not a lane**, and it
+reported "queued or just starting" to its user before reading
+`mergeable_state`. The row's discriminator is right and cheap; what this
+adds is that the seat dispatching the work is no better placed to guess
+than the seat doing it, so the cheap half belongs in a place both read.
+`docs/prompts/implementer-discipline.md` is a lane's file; an
+orchestrator reads it too, which is the argument for putting it there
+rather than in a lane brief.
+
+## A fourth instance, and the cost measured (2026-09-16, INSTR)
+
+INSTR unit 0's fix pass hit this exactly as the title describes. The
+push `35d834490` on PR 2735 produced **zero** workflow runs — no queued
+job, no failing check, no error anywhere. The lane read it as a queue
+delay and **polled for roughly twenty minutes** before reading the PR
+object and finding `mergeable_state: dirty`. Merging `origin/main` in
+produced a full 39-job run on the next push.
+
+Two details worth adding to this row's evidence rather than to a new
+one:
+
+- **The mechanism is visible in the workflow's own prose.** `ci.yml`
+  around its checkout argues that the merge ref's first parent *"is by
+  construction the exact base state the merge was built against"*,
+  because the event payload's `base.sha` can be newer. So the diff
+  classification every gated job depends on is built from
+  `refs/pull/N/merge` — which is precisely the ref GitHub cannot
+  compute for a dirty PR. The silence is not incidental to this
+  repository's design; it follows from it.
+- **`pull_request_read get_status` cannot see this either.** It returns
+  `pending / total_count 0` for every PR in this repo, dirty or not,
+  because the repo reports through check runs rather than the legacy
+  commit-status API. A lane that polls `get_status` for "is CI done"
+  gets the same answer on a healthy PR and on an ungated one. The
+  workflow run is the record.
+
+**A second open row on this slate names the same defect.**
+`work/ciw/an-unmergeable-pr-is-silently-ungated-not-visibly-red` was
+opened on 2026-09-16 — *"A PR whose merge ref cannot be computed gets
+ZERO check runs, which reads as green unless you count jobs"*. That is
+this row's subject from the reader's side rather than the lane's, and
+`no-ci-run-on-a-conflicting-pr` already closed into this one on
+2026-09-06. Three rows for one defect is the duplicate cost
+`work/README.md` names, and **which of the two open rows survives is
+CIW's call, not INSTR's** — recorded here rather than acted on, because
+merging another program's rows across the fence is not a passing
+lane's to do. This evidence is filed on this row because it is the
+older and the one the closed row already points at.

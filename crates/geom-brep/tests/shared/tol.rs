@@ -13,7 +13,10 @@
 //! and `tcost_k1_budget_exit.rs` (an explicit ε scaled by the compiled
 //! `DEFAULT_K` rather than the run's K). Each says at its own site why
 //! it is pinned to the row's scale rather than to ε, and a shared home
-//! must not make them follow ε by accident.
+//! must not make them follow ε by accident. `pcurve_p1b_r2_probes.rs`
+//! spells its half through `Band::linear_at`, the door for a named ε
+//! with the run's K; that is the same band it built by hand and still
+//! not this module's.
 //!
 //! That list is a census, so it goes stale the way a sweep does: a new
 //! suite minting its own band belongs in it, and an entry that starts
@@ -27,7 +30,7 @@ use geom_core::{Band, Tol};
 /// (`m5_pr12_circle_certificate.rs`, `pcurve_p1b_r2_probes.rs`,
 /// `review_pr12_meridian_probe.rs`) used to spell its body out as
 /// `Band::new(tol.eps, tol.k * tol.eps)`; that is the same value and
-/// the same bits — `Band::linear(tol)` is `from_zero_threshold(tol,
+/// the same bits — `Band::linear(tol)` is `Band::linear_at(tol,
 /// tol.eps())`, which is `Band::new(zero, k * zero)` with `zero =
 /// tol.eps()` and `k = tol.k()` (`geom-core/src/predicate.rs`) — so
 /// pointing them here changed a spelling, not a threshold.

@@ -2,8 +2,10 @@
 id: a-supersession-outlives-its-own-frame
 kind: issue
 title: A supersession's stated one-frame lifetime is still not the one implemented
-status: open
+status: closed
 opened: 2026-09-05
+closed: 2026-09-16
+branch: view/supersession-lifetime
 ---
 
 
@@ -71,3 +73,39 @@ Fork 2 is the interesting one and it is the one the dispatch that
 built the vocabulary flagged as least sure. It is a design question,
 not a bug: no user-visible behaviour is wrong today, and the cost of
 answering it late is one `Subject` variant.
+
+## Closed — 2026-09-16, `view/supersession-lifetime`
+
+Fork 1 taken. `frame::Withdrawal`'s *Why the line and not a badge*
+section states the lifetime the code has, in three legs with the row
+that holds each, and argues it — including that `Clear` is tighter
+than a per-instance retirement, which the old sentence made
+underivable.
+
+**What this file was wrong about.**
+
+- `frame::acts` is at `frame.rs:561-563`, not `537-539`; `frame.rs`
+  was split on 2026-09-16 (#2749) and every number written here
+  predates it. `batch_status` is at `571-582`.
+- The RULED section says `Subject::Document` has no `Expire` issuer
+  *"where three other subjects do"*. **Two do.**
+  `frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER` is `[Subject; 2]` —
+  `Camera` and `Cursor` — and `Document` shares the absence with
+  `Display` and `Preferences`. The `Subject` roster's own paragraph
+  says so. The conclusion stands and the arm's doc is accurate; what
+  is wrong is the claim that `Document` is asymmetric.
+- *"Survives navigation"* holds, and for a second reason the file does
+  not give: a camera fold is not a `SessionOp` at all, so it never
+  reaches `batch_status`. The subject mismatch on `Expire(Camera)` is
+  the other, and either alone is enough.
+
+**No new assertion, argued by mutation.** Four falsifications of
+`frame.rs` were built and the suite run against each; every leg of the
+new sentence reds an existing row, so a row composing them would be
+green on every tree where it would have been the one to catch the
+break. The table is in `work/view/log.md`'s 2026-09-16 entry. What the
+file was actually missing — a stated lifetime nobody could trace — is
+answered by the doc naming the five rows.
+
+**Residue, filed rather than disclosed here:**
+`a-doc-comment-names-a-test-row-and-nothing-checks-it-exists`.

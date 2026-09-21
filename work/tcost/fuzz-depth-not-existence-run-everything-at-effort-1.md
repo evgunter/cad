@@ -4,6 +4,8 @@ kind: unit
 title: Wire the EFFORT policy: ci-filter.py selects a raised EFFORT instead of excluding suites
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 

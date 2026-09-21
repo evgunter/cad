@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-05
 branch: view/picture-key
 pr: 2670
+priority: P1
+cost: D
 ---
 
 
@@ -42,8 +44,8 @@ exactly the same shape. It is NOT a sixth spelling of this key — a fit's
 it now sits one trait impl away from one that is, spelled identically,
 which is the search-and-replace hazard the near-miss below is about.
 
-**Note the near-miss**: `frame::IdQueryLog::step` keys on
-`frame::IdSubject`, which is the scene revision and the generation
+**Note the near-miss**: `idpass::IdQueryLog::step` keys on
+`idpass::IdSubject`, which is the scene revision and the generation
 **without** δ. That is currently right — a δ change reaches it as a new
 index, because `PickCache::sync` nulls the held index at the submit and
 only `land` installs one, so an index cannot change δ without the key
@@ -85,5 +87,5 @@ than merely absent.
 Both named non-members stayed non-members:
 `<FitRequest as Job>::supersedes` still compares
 `(generation, requested)` and now says at the impl why it is not this
-key; `frame::IdQueryLog` and `frame::IdSubject` were not touched at
+key; `idpass::IdQueryLog` and `idpass::IdSubject` were not touched at
 all.

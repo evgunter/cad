@@ -84,6 +84,26 @@ pub struct ResolveFailure {
     pub message: String,
 }
 
+impl ResolveFailure {
+    /// A failure of `fault` with the resolver's own diagnosis.
+    pub fn new(fault: ResolveFault, message: impl Into<String>) -> Self {
+        Self {
+            fault,
+            message: message.into(),
+        }
+    }
+
+    /// [`ResolveFault::Unresolved`], with the diagnosis.
+    pub fn unresolved(message: impl Into<String>) -> Self {
+        Self::new(ResolveFault::Unresolved, message)
+    }
+
+    /// [`ResolveFault::PinMismatch`], with the diagnosis.
+    pub fn pin_mismatch(message: impl Into<String>) -> Self {
+        Self::new(ResolveFault::PinMismatch, message)
+    }
+}
+
 impl core::fmt::Display for ResolveFailure {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.message)

@@ -2,9 +2,10 @@
 id: coherence-findings-have-no-step-import-consumer
 kind: issue
 title: the step-import diagnostics half of the coherence consumer: examine_chart_coherence at the door where defective source coordinates actually arrive
-status: open
+status: closed
 opened: 2026-09-12
 refs: [2408, 1585]
+closed: 2026-09-18
 ---
 
 
@@ -73,3 +74,18 @@ would otherwise re-ask.
 ## Refs
 
 FIX's closed row (PR 2408), MESH-8 (PR 1585), issues 868, 723, 1571.
+
+## Closed (2026-09-18)
+
+Closed by unit `EXCH-E2` (PR #2837): step-import consumes
+`topo::examine_chart_coherence` directly — the path measured
+monomorphic at f64, so no capability trait (2408's forcing absent) —
+as `ImportOptions::examine_chart_coherence` (default off, literal at
+every binding) → `StepImport::Solid::coherence:
+Option<CoherenceReport>`, the report carried whole, run after gate3
+at `tol` (never ε_in). 2408's skipped/unexamined distinction is
+structural (None vs Some, no accessor to conflate them). Measured
+before wiring: the NonIsoCarrier hazard does not materialize through
+this door (39 fixtures; only trimmed curved faces produce it). Not a
+gate, proven by dual-import bit-comparison. The kernel coherence
+types' missing Display is TESS's, summoned at merge.

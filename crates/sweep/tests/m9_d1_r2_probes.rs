@@ -18,7 +18,6 @@ use geom_core::Tol;
 use profile::{ProfileLoop, ProfileVertex, RawLoop, ValidatedProfile};
 use revolve_common::*;
 use sweep::{Revolution, Revolved, revolve};
-use topo::{validate, validate_closed};
 
 /// The canonical vertex index whose authored sketch point is `p`.
 fn canon_index(vp: &ValidatedProfile<f64>, li: usize, p: Point2<f64>) -> usize {
@@ -76,12 +75,18 @@ fn partial_wedge_pole_export_is_direction_safe_both_signs() {
         let lo = canon_index(&vp, 0, p2(0.0, 0.5));
         let hi = canon_index(&vp, 0, p2(0.0, 2.5));
         let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
-        // Tiers 1-2 only: a band face with NO rims and non-coplanar
-        // meridians is volume-uncomputable (props_band_coplanar), a
-        // mass-props scope limit orthogonal to the pole export —
-        // issue #542. Tier 3 goes in here when that class computes.
-        assert_eq!(validate(&t.body), Ok(()));
-        assert_eq!(validate_closed(&t.body), Ok(()));
+        assert_all_tiers(&t.body);
+        // The wedge of the unit ball over |θ|: (2/3)·R³·|θ|, the
+        // rim-free band's closed form (the caps pass through the
+        // centre and contribute no flux).
+        let volume = topo::mass_properties(&t.body, Tol::witness())
+            .unwrap()
+            .volume;
+        let exact = 2.0 / 3.0 * theta.abs();
+        assert!(
+            (volume - exact).abs() / exact < 1e-12,
+            "theta = {theta}: volume {volume:.15e} != {exact:.15e}"
+        );
         assert_pole_at(&t, 0, lo, p2(0.0, 0.5));
         assert_pole_at(&t, 0, hi, p2(0.0, 2.5));
         assert_eq!(
@@ -142,12 +147,18 @@ fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
         let lo = canon_index(&vp, 0, p2(0.0, -2.0));
         let hi = canon_index(&vp, 0, p2(0.0, 2.0));
         let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
-        // Tiers 1-2 only: a band face with NO rims and non-coplanar
-        // meridians is volume-uncomputable (props_band_coplanar), a
-        // mass-props scope limit orthogonal to the pole export —
-        // issue #542. Tier 3 goes in here when that class computes.
-        assert_eq!(validate(&t.body), Ok(()));
-        assert_eq!(validate_closed(&t.body), Ok(()));
+        assert_all_tiers(&t.body);
+        // The wedge of the R = 2 ball over |θ| less the revolved hole
+        // (Pappus: the 0.6 × 0.6 square at centroid radius 1 sweeps
+        // 0.36·|θ|): (2/3)·8·|θ| − 0.36·|θ|.
+        let volume = topo::mass_properties(&t.body, Tol::witness())
+            .unwrap()
+            .volume;
+        let exact = (16.0 / 3.0 - 0.36) * theta.abs();
+        assert!(
+            (volume - exact).abs() / exact < 1e-12,
+            "theta = {theta}: volume {volume:.15e} != {exact:.15e}"
+        );
         assert_pole_at(&t, 0, lo, p2(0.0, -2.0));
         assert_pole_at(&t, 0, hi, p2(0.0, 2.0));
         assert_eq!(t.poles[0].iter().flatten().count(), 2);

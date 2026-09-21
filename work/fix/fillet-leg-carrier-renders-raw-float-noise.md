@@ -4,6 +4,8 @@ kind: issue
 title: FilletLegCarrier::Arc renders its radius and angular margin through f64's Display, so a fillet refusal carries the arithmetic's noise
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

@@ -3,35 +3,41 @@
 //! through `viewer`'s public surface exactly as an outside consumer
 //! would call it.
 //!
-//! Nothing here re-reads the unit's own fixtures: the documents are
-//! authored from scratch through `apply` (a different shape from
-//! `tests/common`'s plate), and every assertion is written from the
-//! PR's prose rather than from the shipped rows.
+//! **Why the documents are authored here** — a reason in these rows,
+//! not in their authorship (`memories/review-and-dependency-policy.md`):
+//! every assertion below is written from the PR's prose, so a fixture
+//! read from the shipped rows' own constants would make the oracle and
+//! the subject one thing. The sugar that carries no oracle is shared
+//! from `tests/common`: `ang`, `edited`, `inserted`, `len`,
+//! `rectangle`, `scl`, `tempdir`, `xy_frame`. This file's own slab
+//! dimensions and parameter name stay here, where the expectations
+//! that read them are; the profile's shape is not an oracle here, so
+//! it is drawn with the shared rectangle.
 //!
 //! Randomized rows follow `memories/test-suite-cost.md`: a fresh seed
 //! per run through `test_utils::fuzz` (logged unconditionally,
 //! `CAD_FUZZ_SEED` replays), counts on `CAD_FUZZ_EFFORT`. Every row
 //! asserts; there is no print-only probe in this file.
-//!
-//! # Two rows are `#[ignore]`d because they are RED against the head
-//! this review froze on (956ef3cf)
-//!
-//! They are the review's two seam findings, written as the gates they
-//! should become. Remove the `#[ignore]` when the fix lands — that is
-//! the whole of the promotion work they need.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
-test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/"];
+test_utils::gated_to![
+    "crates/viewer/src/",
+    "crates/pncad/src/",
+    "crates/viewer/tests/common/"
+];
 
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, LoopProgram, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId, apply,
+    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, Node, ParamName, ProfileProgram,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
+
+use crate::common;
+use crate::common::{ang, edited, inserted, len, scl, tempdir, xy_frame};
 use test_utils::fuzz;
 use viewer::evalseam::{EvalRequest, EvalService, InlineEvaluator, ThreadEvaluator};
 use viewer::generation::Generation;
@@ -41,49 +47,6 @@ use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
 use viewer::{docio, props, tree};
 
 // --- fixtures, authored here rather than borrowed -------------------
-
-fn len(m: f64) -> Expr {
-    Expr::literal(m, Dimension::Length).expect("a finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
-}
-
-/// The world xy frame — this suite's own, like every other fixture
-/// here (a review suite derives what it needs independently).
-fn xy_frame() -> Node<ProfileProgram> {
-    let len = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
-    };
-    let scl = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
-    };
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
-
-fn rect(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]).expect("finite corners"),
-        ],
-    })
-}
-
-fn push(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
-    let id = applied.record.minted.expect("an insert mints an id");
-    (applied.doc, id)
-}
 
 fn width_param() -> ParamName {
     ParamName::new("width")
@@ -95,19 +58,17 @@ fn width_param() -> ParamName {
 /// the unit's own `parametric_plate`.
 fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-slab", tol);
-    let doc = apply(
+    let (doc, _) = edited(
         &doc,
-        &DocEdit::SetDocParam {
+        DocEdit::SetDocParam {
             name: width_param(),
             value: DocParam::continuous(Dimension::Length, 0.005),
         },
         tol,
-    )
-    .expect("the parameter declares")
-    .doc;
-    let (doc, plane) = push(&doc, xy_frame(), tol);
-    let (doc, profile) = push(&doc, rect(plane, 0.03, 0.02), tol);
-    let (doc, extrude) = push(
+    );
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.02), tol);
+    let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -115,7 +76,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, moved) = push(
+    let (doc, moved) = inserted(
         &doc,
         Node::Transform {
             input: extrude,
@@ -126,7 +87,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
                 len(0.0),
             ],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: ang(0.0),
         },
         tol,
     );
@@ -140,15 +101,6 @@ fn distance_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> SlotValue {
         .expect("the extrude carries a distance")
         .value
         .expect("the distance evaluates")
-}
-
-fn tempdir(label: &str) -> std::path::PathBuf {
-    let unique = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let dir = std::env::temp_dir().join(format!("{label}-{unique}"));
-    std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
-    dir
 }
 
 // --- the undo TREE --------------------------------------------------
@@ -415,7 +367,8 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
             expr: len(v),
         })
         .collect();
-    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
+    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
+        .expect("the log replays");
     assert_eq!(history.len(), 4);
     for expected in [0.008_f64, 0.007, 0.006] {
         history.undo().expect("a step back");
@@ -689,9 +642,9 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
 fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-broken", tol);
-    let (doc, plane) = push(&doc, xy_frame(), tol);
-    let (doc, profile) = push(&doc, rect(plane, 0.03, 0.02), tol);
-    let (doc, bad) = push(
+    let (doc, plane) = inserted(&doc, xy_frame(), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.02), tol);
+    let (doc, bad) = inserted(
         &doc,
         Node::Extrude {
             profile,
@@ -701,13 +654,13 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
         },
         tol,
     );
-    let (doc, downstream) = push(
+    let (doc, downstream) = inserted(
         &doc,
         Node::Transform {
             input: bad,
             translation: [len(0.01), len(0.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: ang(0.0),
         },
         tol,
     );

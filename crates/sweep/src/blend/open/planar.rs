@@ -360,7 +360,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
                 )
                 .map_err(|e| op("trimline mef", e))?;
             first_trim.get_or_insert(created.he_plus);
-            described.push((created.edge, trim_carrier()));
+            described.push((created.edge, trim_carrier(), walk[i].edge));
             // The chord runs foot(start of walk[i]) → foot(start of
             // walk[i+1]): it parallels walk[i]'s own source edge, in
             // this support face. Birth data, straight off the plan.
@@ -443,6 +443,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
                     Some((center, radius)) => ContactCarrier::CornerArc { center, radius },
                     None => ContactCarrier::Chord,
                 },
+                l.edge,
             ));
             rec.arcs.push((created.edge, vertex, l.edge));
             Ok(created.edge)

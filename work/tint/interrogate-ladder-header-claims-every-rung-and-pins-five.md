@@ -4,6 +4,8 @@ kind: issue
 title: lib_u5_interrogate's header claims every rung of InterrogateError is pinned; five of ten have no row
 status: open
 opened: 2026-09-12
+priority: P3
+cost: E
 ---
 
 
@@ -129,3 +131,35 @@ zeros are absolute — the identifiers do not occur in the file in any
 form.
 
 **Recommendation (orchestrator's call).** Keep open, unchanged.
+
+## Routed OUT of the roster class (S-TINT orchestrator, 2026-09-15)
+
+This row was grouped with `r2-m10-6-header-roster-…`,
+`test-headers-name-fns-that-exist-nowhere` and TOPO's
+`review-d18-probes-header-miscounts-its-own-rows` as four rows wanting
+one executable check. **That grouping was this seat's and it was wrong
+about this row.**
+
+A feasibility probe built and ran the roster mechanism (read the row
+list off libtest's own `--list`, welded to the source by a `roster!`
+macro whose ident feeds the compile check, the compared string and the
+printed text). It covers a header that enumerates **the file's own
+`fn`s**. This row's header does not do that: it claims coverage of an
+**enum's variants** — every rung of `InterrogateError` — and a roster of
+test names says nothing whatever about `InterrogateError`.
+
+**Its welded shape is TINT-1's, not the roster's**: an exhaustive
+`match` over the enum in the test file, no wildcard, so a rung added
+tomorrow makes the file fail to compile, with the covered set compared
+against the full set by a set difference. That unit landed
+(`work/tint/assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums`,
+PR #2648) and `crates/editor-core/tests/display_contract.rs` already
+carries a complete, welded enumeration of `InterrogateError`'s ten
+variants to copy from — including the correction that the identifier is
+read off `Debug` rather than hand-typed.
+
+**So this row is cheaper than it looked and its mechanism already
+exists.** It is not blocked and it is not part of the roster unit; it
+wants a small lane of its own applying a landed pattern. Whether the
+five unpinned rungs should be pinned, or the header's claim narrowed to
+the five that are, is the row's own open question and is unchanged.

@@ -4,6 +4,8 @@ kind: issue
 title: Sym<f64>/Sym<Probe> at a far placement panic in Decide's theorem-vs-numeric debug_assert: the point channel is not a proof
 status: open
 opened: 2026-09-14
+priority: P0
+cost: H
 ---
 
 

@@ -2,8 +2,11 @@
 id: cut-off-arc-persists-as-a-corner-arc
 kind: issue
 title: names: a ruled band's cut-off arc persists under RoleSeg::CornerArc
-status: open
+status: closed
 opened: 2026-09-05
+pr: 2717
+branch: edit/cutoff-arc-rename
+closed: 2026-09-16
 ---
 
 ## Finding
@@ -172,3 +175,56 @@ slate. EDIT's charter is the persisted recipe and the edit vocabulary,
 which is exactly what a persisted role word is.
 
 Signed (WIRE orchestrator).
+
+## Built (2026-09-16) — PR #2717, `edit/cutoff-arc-rename`
+
+E-class. The ruling is built as written, and nothing in it was
+re-litigated.
+
+**The V3 read came first and the fence is not crossed.**
+`crates/sweep/README.md` V3's axis is the VERB — blend-named machinery,
+fillet-named fences against renaming BLEND-ward. `CornerArc → EndArc` is
+corner → structural, a different axis, and V3's own reason for keeping
+`OpGroup::Fillet` (a name that under-describes what it groups, with the
+minting node telling the configurations apart) is the move applied one
+level down. `crates/sweep/` is untouched and the README is not amended.
+
+**Landed.** `RoleSeg::CornerArc` is `RoleSeg::EndArc`, chosen over
+`BandEndArc`/`BandCloseArc` because the `Band*` prefix is already the
+closed-chain rim family's in the same enum. The three docs state the
+structural role: `EndArc` is the arc where a blend band closes at a
+source vertex (octant seam and transverse cut-off two configurations of
+it), `FootVertex` is retracted from the source vertex where the band
+ends rather than from "a source corner vertex", `BandCut` is the
+surviving piece of a source edge the trimline cut rather than "the
+shortened meridian". `CornerFace` is NOT renamed: the octant patch
+exists only where there is a corner.
+
+The sweep covered `role.rs`, `emit_blend.rs`, `select.rs`,
+`attribute.rs`, `resolve/mod.rs`, `refactor.rs`, `eval/anchor.rs`,
+`eval/mod.rs`, four `crates/editor-core/tests/` files the brief did not
+anticipate, and the compile-enforced Python mirror
+(`crates/pncad-py/src/py/select.rs`, `pncad.pyi`).
+`sweep::blend`'s `ContactCarrier::CornerArc` is a different type and is
+left alone.
+
+**No committed document, golden or corpus carried the old word** — the
+persisted text digests of all 28 registry documents are byte-identical.
+Four COMPUTED goldens moved, being FNV-1a over the name tables' `Debug`
+encoding: `lib_g16_corpus_name_digests`, `perf2_name_keying_differential`
+(name-table column only) and `seat4_verb_lowering`, on the four
+fillet/chamfer-bearing documents and no others. Re-baselined from the
+printed fresh tables.
+
+**Not built:** the rod-with-a-flat editor fixture, which is
+`a-ruled-carve-has-no-editor-fixture-so-emit-fillet-s-band-end-roles-are-unexercised`.
+The band-end roles are still unexercised through the document layer, so
+this row's premise (no consumer to be wrong for) still holds.
+
+No rows filed: the sweep turned up no defect outside the fence.
+
+## Closed (2026-09-16, EDIT orchestrator)
+
+Merged as PR #2717 on green CI (run 35046820507, full matrix) and the
+orchestrator's read: the diff is the ruling and nothing else. The
+fixture row stands on its own.
