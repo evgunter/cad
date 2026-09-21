@@ -393,21 +393,38 @@ population of adjacent same-typed `bool` parameters in this crate;
 `work/view/adjacent-same-typed-arguments-are-the-same-swap.md` carries
 the wider class, where the types are not `bool`.
 
-**Every "is work outstanding" answer consults the seam it asked.**
-There are three seams — evaluation, the pick index and the display fit
-— and each has a consumer that reports whether work is owed.
-`DocSession::running` is `EvalService::busy`; `PickCache::indexing` is
-`IndexService::busy` beside the cache's own record of which picture was
-asked for, so a build already destined to be discarded
-(`IndexLanding::Stale`) does not light the indicator and a build nobody
-is answering stops lighting it; and the fit's two reads in `app` are
-`FitService::busy` directly, with no second record to consult. What the
-rule is for is a build already destined to be discarded: the cache's
-own record says which picture was asked for, and asking the seam is
-what keeps a consumer from promising an answer out of its own
-bookkeeping — a spinner for the life of the window, a repaint every
-frame to collect a result nobody will send, and every click refused
-with *the picture is still being indexed*.
+**Every "is work outstanding" answer comes from whichever of the two
+records can be wrong about it, and there are only two.** There are
+three seams — evaluation, the pick index and the display fit — and
+each has a consumer that reports whether work is owed. The seam knows
+that it is busy; a consumer that keeps its own record knows WHAT it is
+busy with, and where they can disagree the consumer's record is the
+one that decides.
+
+- `DocSession::running` is `EvalService::busy` directly. The session's
+  own record (`DocSession::busy`, its two generations) answers a
+  different question — is the picture older than the document — and
+  the two differ after a cancel, which is the whole of
+  `Outstanding::Canceled`.
+- `PickCache::indexing` is the cache's own record alone. The seam
+  cannot tell an orphan from a live build: `PickCache::forget` drops
+  the attempt when the picture stops existing, and a build already
+  destined to be discarded (`IndexLanding::Stale`) must not go on
+  lighting the indicator while the seam finishes it. In the other
+  direction they cannot disagree — an attempt is recorded in the step
+  that submits it and the seam holds the request until the answer
+  `pump` takes straight to `land`.
+- The fit's two reads in `app` are `FitService::busy` directly; there
+  is no second record to consult.
+
+**A seam that has stopped answering is no longer one of the states any
+of this covers.** It used to be: reporting the cache's record alone
+left the toolbar spinning on `indexing…` for the life of the window,
+repainting every frame to collect a result nobody would send, and
+refusing every click with *the picture is still being indexed*, of a
+picture nobody was indexing. What closed that is the panic below and
+not a second read — a seam whose worker has gone ends the process
+where it finds out, so no consumer has to describe one.
 
 **A worker that CRASHED is no longer one of the states this rule
 covers, and the change is deliberate** (Ev, in-chat, 2026-09-17:

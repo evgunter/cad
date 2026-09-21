@@ -42,7 +42,7 @@ pub use predicate::{
     IndeterminatePayload, InfSpeed, Margin, MarginDiag, MissingRecourse, Sign, SupSpeed,
 };
 pub use real::{
-    Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real, is_finite_length,
+    Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real, Witness, is_finite_length,
     is_underflowed_length,
 };
 pub use ring_interval::RingInterval;

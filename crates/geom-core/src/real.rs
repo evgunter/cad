@@ -164,6 +164,55 @@ pub enum SymRegistration {
     Unwitnessed,
 }
 
+/// **What a comparison at this scalar PROVES** — the property that
+/// decides, per lane scalar, whether a disagreement between the value
+/// channel and a symbolic form is a soundness defect or a dispute.
+///
+/// It is a property of the SCALAR, fixed at compile time
+/// ([`Real::WITNESS`]), and never a value read: nothing branches on a
+/// number to obtain it, so D9 is untouched and it is not the
+/// instrument [`crate::Decide::enclosure_probe`] is.
+///
+/// **Two contracts read it, and that is the point.** The
+/// registered-identity door forwards the lane scalar's refusal arm —
+/// [`SymRegistration::Contradicted`] from an exact witness,
+/// [`SymRegistration::Disputed`] from an inexact one — and
+/// `Sym<T>::sign_within` charges a theorem-vs-numeric contradiction
+/// the same way: asserted at an exact witness, counted
+/// ([`crate::SymCounts::theorems_disputed`]) at an inexact one. Both
+/// are the same question about the same channel, so they read one
+/// marker rather than two roster copies.
+///
+/// **That they cannot drift is a property of the PIN, not of the
+/// marker**, and the difference is one a first cut got wrong: a const
+/// read in two places still lets a scalar declare one thing and answer
+/// another. What closes it is that
+/// `geom-core/tests/sym11_witness_kind_rows.rs`'s `witness_agrees` is
+/// GENERIC — one predicate instantiated at every `impl Real` in the
+/// tree by name — so an impl whose const and whose refusal arm
+/// disagree reds without anyone having written that pair down.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Witness {
+    /// **A comparison here is a PROOF.** The value channel is a
+    /// certified enclosure of the real ([`crate::Interval`]), so two
+    /// enclosures that do not meet prove the two reals differ, and an
+    /// enclosure that excludes zero proves the margin is not zero.
+    /// There is no slack in either test and no scale at which the
+    /// answer is the arithmetic giving up, so a disagreement with a
+    /// form is a defect in one of the two channels and this codebase
+    /// fails loud on it.
+    Exact,
+    /// **A comparison here is a MEASUREMENT of one rounded number.**
+    /// `f64` and [`crate::Probe`] evaluate at a point: at a far
+    /// placement the rounding exceeds the band, under rule F a one-ulp
+    /// error in a sign argument becomes a whole `2.0` at the margin,
+    /// and at a pole the channel has no clause 1 to refuse with. None
+    /// of those is a false claim by the form, so none of them may be
+    /// charged to the form: the numeric answer is kept and the
+    /// disagreement is counted.
+    Inexact,
+}
+
 /// The scalar type the geometry evaluation layer is generic over.
 ///
 /// See the [module docs](self) for the design rationale: the deliberately
@@ -203,6 +252,22 @@ pub trait Real:
     + Sync
     + 'static
 {
+    /// **What a comparison at this scalar proves** ([`Witness`]) —
+    /// declared, never defaulted, because the two things that read it
+    /// both fail in the same direction when a scalar under-declares:
+    /// [`Real::register_equal`]'s refusal arm and the theorem-vs-numeric
+    /// charge at `Sym<T>::sign_within`. **No default, so the compiler
+    /// is what asks**: a new lane scalar does not compile until it says
+    /// which side of the partition it is on, and nothing has to notice
+    /// that it did not.
+    ///
+    /// Its [`Real::register_equal`] arm then has to AGREE, which the
+    /// compiler cannot ask — `witness_agrees` in
+    /// `geom-core/tests/sym11_witness_kind_rows.rs` does, generically,
+    /// at every `impl Real` in the tree: `Exact` ⇔ a separated pair is
+    /// refused `Contradicted`, `Inexact` ⇔ `Disputed`.
+    const WITNESS: Witness;
+
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     fn from_f64(x: f64) -> Self;
 
@@ -1529,6 +1594,13 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
 impl Real for f64 {
+    /// **INEXACT**: `f64` compares one rounded number against another.
+    /// Its [`Real::register_equal`] refuses with
+    /// [`SymRegistration::Disputed`] for that reason, and the same
+    /// reason is why a theorem contradicted by this channel is a
+    /// dispute rather than a defect.
+    const WITNESS: Witness = Witness::Inexact;
+
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
         x
@@ -1607,12 +1679,18 @@ impl Real for f64 {
     /// (`m10_9_no_registrant_lies_on_any_measured_document` pins
     /// `registered` per document, identical at all three rows).
     ///
-    /// **This witness is INEXACT, so its refusal is
+    /// **This witness is INEXACT** — [`Real::WITNESS`] is
+    /// [`Witness::Inexact`] at this scalar, and this arm is that const
+    /// spelled as a refusal — **so its refusal is
     /// [`SymRegistration::Disputed`] and never
     /// [`SymRegistration::Contradicted`]**: a comparison at a slack
     /// cannot tell a false claim from a true one the arithmetic lost at
     /// this scale, and `Contradicted` is reserved for the exact witness
-    /// that can ([`crate::Interval`]'s meet).
+    /// that can ([`crate::Interval`]'s meet). The same const is what
+    /// keeps a theorem this channel contradicts a counted dispute
+    /// rather than a panic ([`crate::SymCounts::theorems_disputed`]);
+    /// a row pins the two together, so the door and the tier cannot
+    /// drift apart.
     ///
     /// A poisoned value witnesses nothing: NaN is not a real, so no
     /// claim about it is checkable.
