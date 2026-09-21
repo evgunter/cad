@@ -1074,3 +1074,56 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
     assert_eq!(crate::validate::validate(&body), Ok(()));
     OpsStrutCube { body, outer, strut }
 }
+
+// ---------------------------------------------------------------------
+// The offset-fit door's subject
+// ---------------------------------------------------------------------
+
+/// A gently bowed polynomial patch over `[0,1]²` — a base whose offset
+/// is genuinely not a NURBS, so the fit has real work to do.
+pub(crate) fn bowed_patch() -> geom::NurbsSurface<f64> {
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::new();
+    for i in 0..3 {
+        for j in 0..3 {
+            let (u, v) = (f64::from(i) * 0.5, f64::from(j) * 0.5);
+            control.push(Point3::new(u, v, 0.15 * u * (1.0 - u) + 0.1 * v * v));
+        }
+    }
+    geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap()
+}
+
+/// The certified `Approx` surface of [`bowed_patch`]'s `+0.05` offset,
+/// at the witness tolerance — the smallest subject that reaches the
+/// offset-fit door, lifted to `T` verbatim
+/// (`geom::ApproxSurface::map_scalar`, which carries the stored
+/// certificate rather than re-deriving it, so the lift is available at
+/// scalars that have no fit).
+pub(crate) fn bowed_offset_approx<T: geom_core::Real>() -> geom::ApproxSurface<T> {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let minted =
+        geom_brep::approx_offset_surface(std::sync::Arc::new(bowed_patch()), 0.05, tol, band)
+            .expect("the bowed patch's offset fits at the witness tolerance");
+    let geom::Surface::Approx(approx) = minted else {
+        panic!("the mint door produces `Surface::Approx`");
+    };
+    approx.map_scalar(T::from_f64)
+}
+
+/// The `mvfs` seed body with [`bowed_offset_approx`] on its one face —
+/// the smallest body whose check-1 walk reaches the offset-fit door.
+pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
+    let mut body = Body::<T>::new();
+    let created = body
+        .mvfs(Point3::new(T::zero(), T::zero(), T::zero()))
+        .expect("mvfs has no preconditions");
+    body.set_face_surface(
+        created.face,
+        crate::euler::FaceSurface::New(geom::Surface::Approx(std::sync::Arc::new(
+            bowed_offset_approx::<T>(),
+        ))),
+    )
+    .expect("the seed face takes a fresh surface");
+    (body, created.face)
+}

@@ -925,3 +925,76 @@ mod tests {
         assert!(transform_rigid(&described, &aside(), Tol::witness()).is_ok());
     }
 }
+
+/// **The transform door's fit door, as the pass takes it** — the rows
+/// that say what each of its two answers costs.
+///
+/// [`map_approx`] is called directly because these rows are about the
+/// PARAMETER: [`map_surface`] reads the scalar's own seam
+/// (`geom_brep::OffsetFitScalar`), and a row that could only reach the
+/// door the seam hands it could not tell an absent door from a scalar
+/// that has none.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod offset_fit_door_rows {
+    use geom_brep::OffsetFitLane;
+    use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+
+    use super::{TransformError, map_approx};
+
+    /// A rotation about `z` — a rigid map that genuinely re-splits the
+    /// hull bound across the axes, so the re-derivation has work to do.
+    fn turned() -> Affine3<f64> {
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 0.7)
+    }
+
+    /// **No door: the map refuses**, with the variant and the payload
+    /// the absence has always had — the certificate is never carried
+    /// across a geometry change.
+    #[test]
+    fn no_door_refuses_the_mapped_surface_by_name() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let approx = crate::fixtures::bowed_offset_approx::<f64>();
+        match map_approx(&turned(), &approx, band, None) {
+            Err(TransformError::ApproxLaneUnsupported { lane }) => assert_eq!(lane, "f64"),
+            other => panic!("the absence must name the lane: {other:?}"),
+        }
+    }
+
+    /// **The `f64` door re-derives on the mapped pair**, and what it
+    /// hands back is the fit door's own measurement of that pair, limb
+    /// for limb, bit for bit — the assertion that the body moved rather
+    /// than being rewritten. `rounds` is the FIT's provenance and is
+    /// carried, which is why it is read off the operand.
+    #[test]
+    fn the_f64_door_re_derives_the_mapped_pair() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let map = turned();
+        let approx = crate::fixtures::bowed_offset_approx::<f64>();
+        let mapped = map_approx(&map, &approx, band, Some(OffsetFitLane::fit()))
+            .expect("a rigid map of a certified fit re-certifies at the same tolerance");
+        let spec = mapped.spec();
+        let reference = OffsetFitLane::fit()
+            .remap(&spec.description, &spec.fit, spec.window, spec.tolerance, band)
+            .expect("the door measures the mapped pair it was just handed");
+        let got = mapped.certificate();
+        for (name, x, y) in [
+            ("distance", got.distance, reference.distance),
+            ("on_locus_max", got.on_locus_max, reference.on_locus_max),
+            ("hull_sup", got.hull_sup, reference.hull_sup),
+            ("normal_floor", got.normal_floor, reference.normal_floor),
+            (
+                "curvature_reach",
+                got.curvature_reach,
+                reference.curvature_reach,
+            ),
+        ] {
+            assert_eq!(x.to_bits(), y.to_bits(), "{name} moved behind the door");
+        }
+        assert_eq!(
+            got.rounds,
+            approx.certificate().rounds,
+            "`rounds` is the fit's provenance and is carried, not re-measured"
+        );
+    }
+}

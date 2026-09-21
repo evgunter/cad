@@ -9228,3 +9228,144 @@ mod review_census_display_keys {
         }
     }
 }
+
+/// **Check 1's offset-fit door, as the pass takes it** — the rows that
+/// say what each of its two answers costs.
+///
+/// The battery is called directly because these rows are about the
+/// PARAMETER: the public doors read the scalar's own seam
+/// (`geom_brep::OffsetFitScalar`), and a row that could only reach the
+/// door the seam hands it could not tell an absent door from a scalar
+/// that has none.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod offset_fit_door_rows {
+    use geom_brep::{OffsetFitLane, OffsetFitScalar};
+    use geom_core::{Band, Decide, Tol};
+
+    use super::{DeclaredContact, ValidationError, tier3_local_checks_marked};
+    use crate::entity::FaceKey;
+    use crate::fixtures::approx_faced_body;
+
+    /// The battery over the one-`Approx`-face seed body, with whatever
+    /// door the caller names.
+    fn check1<T: crate::props::PropsQuadLane>(
+        door: Option<OffsetFitLane<T>>,
+    ) -> (Vec<ValidationError>, FaceKey) {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (body, face) = approx_faced_body::<T>();
+        let declarations: [DeclaredContact; 0] = [];
+        let mut marks = slotmap::SecondaryMap::new();
+        let (errors, _) = tier3_local_checks_marked(
+            &body,
+            &declarations,
+            band,
+            &mut marks,
+            tol,
+            &|_, _, _| None,
+            None,
+            door,
+        );
+        (errors, face)
+    }
+
+    /// **No door: the face is REPORTED, not skipped**, with the variant
+    /// and the payload the absence has always had.
+    #[test]
+    fn no_door_refuses_the_approx_face_by_name() {
+        let (errors, face) = check1::<f64>(None);
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)),
+            "check 1 must report the face it could not re-derive: {errors:?}"
+        );
+    }
+
+    /// **The `f64` door: the same face passes check 1**, and the
+    /// certificate arm never fires — the door re-derives the claim the
+    /// mint made, on the surface the mint made it about.
+    #[test]
+    fn the_f64_door_re_derives_the_approx_face() {
+        let (errors, _) = check1::<f64>(Some(OffsetFitLane::fit()));
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::ApproxLaneUnsupported { .. })),
+            "the `f64` door is present, so the absence arm may not fire: {errors:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::ApproxCertification { .. })),
+            "the surface was minted at this tolerance, so its re-derivation must hold: {errors:?}"
+        );
+    }
+
+    /// **A refusing scalar reaches the same arm through its own seam.**
+    /// The subject is the `f64` mint's surface lifted verbatim, which is
+    /// the point: an `ApproxSurface<T>` is representable here, so the
+    /// face arrives and the absence is about the DERIVATION.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn the_probe_seam_reaches_the_same_refusal() {
+        let (errors, face) =
+            check1::<geom_core::Probe>(geom_core::Probe::offset_fit_lane());
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::ApproxLaneUnsupported { face: f } if *f == face)),
+            "the probe scalar has no fit, so its face must report the absence: {errors:?}"
+        );
+    }
+
+    /// **The seam's roster**: `f64` answers the door and no other scalar
+    /// does. A scalar that gained one silently would pass every green
+    /// corpus and only this row.
+    #[test]
+    fn only_f64_answers_the_seam() {
+        assert!(
+            <f64 as OffsetFitScalar>::offset_fit_lane().is_some(),
+            "the `f64` fit is the door's one constructor"
+        );
+        fn no_door<T: OffsetFitScalar + Decide>(named: &str) {
+            assert!(
+                T::offset_fit_lane().is_none(),
+                "{named} has no offset fit, so its seam must answer `None`"
+            );
+        }
+        #[cfg(feature = "probe")]
+        no_door::<geom_core::Probe>("the telemetry probe");
+        #[cfg(feature = "interval")]
+        no_door::<geom_core::interval::Interval>("the interval scalar");
+        no_door::<geom_core::Sym<f64>>("the symbolic tier over `f64`");
+        no_door::<geom_core::Dual<f64>>("the dual tier over `f64`");
+    }
+
+    /// **The door IS the free function**, limb for limb, bit for bit —
+    /// the assertion that the bodies moved rather than being rewritten.
+    /// A door wired to a neighbouring routine (the `_at` instrument at
+    /// some other target, say) moves at least `hull_sup`.
+    #[test]
+    fn the_door_is_the_offset_fit_module_bit_for_bit() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let approx = crate::fixtures::bowed_offset_approx::<f64>();
+        let door = OffsetFitLane::fit()
+            .recertify(&approx, tol, band)
+            .expect("the surface re-certifies at the tolerance it was minted at");
+        let free = geom_brep::recertify_approx(&approx, tol, band)
+            .expect("the free function agrees that it re-certifies");
+        for (name, a, b) in [
+            ("distance", door.distance, free.distance),
+            ("on_locus_max", door.on_locus_max, free.on_locus_max),
+            ("hull_sup", door.hull_sup, free.hull_sup),
+            ("normal_floor", door.normal_floor, free.normal_floor),
+            ("curvature_reach", door.curvature_reach, free.curvature_reach),
+        ] {
+            assert_eq!(a.to_bits(), b.to_bits(), "{name} moved behind the door");
+        }
+        assert_eq!((door.cells, door.samples), (free.cells, free.samples));
+    }
+}
