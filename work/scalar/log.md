@@ -956,3 +956,24 @@ it closed-form), a pre-existing ATREST shape now uniform — filed, not
 changed. Unique R2: the evalscalar allowlist header written to the
 spec's supertrait list, not the tree's; the unearned `Bounds` on the
 props `_structural` doors. Fix pass dispatched on the FABLE arm.
+
+## LANE-2 specified; block SCALAR-B6 drawn (2026-09-21)
+
+LANE-2 (`docs/LANE-2-SPEC.md`, item `lane-2-chart-region-lane-deleted`;
+dispatched after LANE-1 lands, on its shape): `ChartRegionLane` and its
+five forwarding impls go; a two-pointer `RegionLane<T>` value with one
+constructor at `Decide + CertifiedBounds` is threaded through the twelve
+census signatures and `pseudomanifold_certificate_via`, the certified
+twin supplying `Some` and the `_structural` twin `None`; `None` keeps
+today's `CensusLaneUnsupported` and the `false` fold exactly, and the
+unit adds the first rows that observe them produced. The survey
+corrected the plan's ground: `census.rs` is CONTACT's, `chart_region.rs`
+CHART's, the TOPO-shaped file reached is ATREST's `validate.rs`. Fences
+announced here: CONTACT, CHART, ATREST, PROPS (`real.rs` prose, DL3),
+GUARD (a selftest fixture spelling the `Sym` impl, two counts, one
+header line), WIRE (prose), TCOST/TINT (`perf12_census_bvh_diff.rs`,
+the census test files), the unowned `props.rs`/`lib.rs`. Block
+SCALAR-B6's pre-draw fields (LANE-2 M; LANE-3 E; RING-3 M, Fable spec,
+Ev-gated) were recorded before the byte: **153** ⇒ fable position 0
+(slot 0 LANE-2 = FABLE, slot 1 LANE-3 = OPUS, slot 2 RING-3 = OPUS).
+Ruling 3 supersedes the 2026-09-05 DEFER on this trait; the spec says so.
