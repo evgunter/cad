@@ -723,3 +723,5 @@ mod wire_loft_end_profile_lift;
 
 #[path = "review_recourse_roster_r1_probes.rs"]
 mod review_recourse_roster_r1_probes;
+#[path = "sym11_r1_far_probe.rs"]
+mod sym11_r1_far_probe;
