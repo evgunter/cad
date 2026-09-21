@@ -434,3 +434,53 @@ fn the_walk_ledger_on_the_unmeasured_documents() {
         }
     }
 }
+
+/// **R1 DECIDE-3 PROBE (not part of the unit).** The PR body says "the
+/// Plain rows are byte-identical, the plain walk is untouched"; the
+/// committed `PLATE_LEDGER` moved both of the plate's Plain digests.
+/// This row prints the plate's Plain ledger lines under each dial set
+/// so the mover is named. Evidence only.
+#[test]
+fn r1_which_dial_moves_the_plates_plain_walk() {
+    let tol = Tol::witness();
+    let doc = the_plate(tol);
+    let (_, nominal) = boxes(&doc).into_iter().next().unwrap();
+    let plain = |l: &str| {
+        l.lines()
+            .map(|s| s.trim().to_owned())
+            .collect::<Vec<_>>()
+            .join("\n        ")
+    };
+    let sets: [(&str, SymRules); 5] = [
+        ("shipped               ", SymRules::shipped()),
+        ("without_canonical_root", SymRules::without_canonical_root()),
+        ("without_the_reads     ", SymRules::without_the_reads()),
+        (
+            "both new dials off    ",
+            SymRules {
+                canonical_root: false,
+                decision_read: false,
+                ..SymRules::shipped()
+            },
+        ),
+        (
+            "and sqrt_square off   ",
+            SymRules {
+                canonical_root: false,
+                decision_read: false,
+                sqrt_square: false,
+                ..SymRules::shipped()
+            },
+        ),
+    ];
+    for (name, rules) in sets {
+        start_profile();
+        let _ = replay(&doc, &nominal, rules, tol);
+        let p = take_profile();
+        let largest = p.ops.values().map(|o| o.max_terms_out).max().unwrap_or(0);
+        println!(
+            "{name} largest form {largest}\n        {}",
+            plain(&p.walk_ledger())
+        );
+    }
+}
