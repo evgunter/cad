@@ -30,6 +30,9 @@ fn before() -> SymRules {
     }
 }
 
+/// One measured document, by name and by the door that builds it.
+type Document = (&'static str, Box<dyn Fn() -> editor_core::ProfileDoc>);
+
 fn total(t: &BTreeMap<&'static str, [u64; 4]>) -> [u64; 4] {
     t.values().fold([0u64; 4], |a, s| {
         [a[0] + s[0], a[1] + s[1], a[2] + s[2], a[3] + s[3]]
@@ -45,7 +48,7 @@ fn total(t: &BTreeMap<&'static str, [u64; 4]>) -> [u64; 4] {
 #[test]
 fn decide_3_no_predicate_loses_a_decision() {
     let tol = Tol::witness();
-    let docs: [(&str, Box<dyn Fn() -> editor_core::ProfileDoc>); 3] = [
+    let docs: [Document; 3] = [
         (
             "r2_link",
             Box::new(move || crate::m10_9_r2_probes_interval::link(1.0, tol).0),
@@ -76,6 +79,37 @@ fn decide_3_no_predicate_loses_a_decision() {
                 if a == *b { "" } else { "  <- moved" }
             );
             let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
+            // **ONE named exception, with its numbers**, so the row
+            // still reds if it drifts or if anything else joins it.
+            // The link's `carrier_on_surface_2` loses sixteen theorems
+            // to rule G, and the loss is measured apart:
+            //
+            // - TEN to rule A's companion rewrite opening the squares
+            //   of `abs` NODES the document wrote. With the rewrite
+            //   shut this predicate reads 36/0/0/72 under rule G, so
+            //   the rewrite buys 52 of the 88 it leaves and costs 10.
+            // - SIX to `sqrt(R²) = |R|`, which the registrant's axiom
+            //   then closes (`registered` 0 → 6). With that step shut
+            //   the predicate reads 88/0/0/20 and `registered` stays
+            //   90 on the document.
+            //
+            // Neither is the retired side-condition source: re-enabling
+            // it moves nothing here. Both are
+            // `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s
+            // class — opening an atom the walk was cancelling OVER
+            // costs the walk a theorem — and at the document level
+            // rule G is a gain on the link (515/0/90 → 541/0/96).
+            // Filed whole as
+            // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
+            let known = *name == "r2_link" && *p == "carrier_on_surface_2";
+            if known {
+                assert_eq!(
+                    (*b, a),
+                    ([98, 0, 0, 10], [82, 0, 6, 20]),
+                    "the known exception moved: re-measure it and say what"
+                );
+                continue;
+            }
             if a[0] < b[0] {
                 lost.push(format!("{name}/{p}: THEOREMS fell {b:?} -> {a:?}"));
             } else if discharged(a) < discharged(*b) {
@@ -114,5 +148,66 @@ fn decide_3_which_dial_moves_the_links_split() {
             total(&t),
             t.get("carrier_on_surface_2").copied().unwrap_or([0; 4])
         );
+    }
+}
+
+/// Evidence: the link's `carrier_on_surface_2` residuals that stop
+/// being theorems under rule G, rendered under both dial sets with the
+/// atom census of each early form — the instrument that says WHICH
+/// spelling stopped meeting which.
+#[test]
+#[ignore = "evidence-only: two shape reports of the link with forms rendered"]
+fn decide_3_the_links_carrier_on_surface_2_rendered() {
+    use crate::m10_8_harness::nominal_box;
+    use editor_core::analysis::{AnalysisPolicy, analyzed_box};
+    use geom_core::sym::report::{ShapeOutcome, explain_depth};
+    let tol = Tol::witness();
+    let doc = crate::m10_9_r2_probes_interval::link(1.0, tol).0;
+    let census = |s: &str| {
+        let n = |needle: &str| s.matches(needle).count();
+        format!(
+            "sqrt {} | abs {} | select {} | max {} | min {} | terms(top) {}",
+            n("sqrt("),
+            n("abs("),
+            n("select("),
+            n("max("),
+            n("min("),
+            s.split(" + ").count()
+        )
+    };
+    for (name, rules) in [
+        ("G off", SymRules::without_canonical_root()),
+        ("shipped", SymRules::shipped()),
+    ] {
+        explain_depth(4);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let (shapes, _, _) =
+            crate::m10_8_arc_family_interval::replay(&doc, &nominal_box(&analyzed), rules, tol);
+        let mut shown = 0;
+        for s in &shapes {
+            if s.predicate != "carrier_on_surface_2"
+                || !matches!(
+                    s.outcome,
+                    ShapeOutcome::NumericZero
+                        | ShapeOutcome::Indeterminate
+                        | ShapeOutcome::Registered
+                )
+            {
+                continue;
+            }
+            shown += 1;
+            if shown > 2 {
+                break;
+            }
+            println!("== {name} blocked #{shown}: {:?}", s.outcome);
+            if let Some(f) = &s.early_form {
+                println!("   early [{}]", census(f));
+                println!("   {}", &f[..f.len().min(600)]);
+            }
+            if let Some(f) = &s.form {
+                println!("   plain [{}]", census(f));
+            }
+        }
+        println!("== {name}: {} shapes, {shown} blocked shown", shapes.len());
     }
 }

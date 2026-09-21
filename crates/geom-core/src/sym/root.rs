@@ -169,19 +169,16 @@ fn leading_is_negative(p: &Poly) -> Option<bool> {
 /// `2x − 1` then key the same indeterminate, and a root of a perfect
 /// square meets the `abs` NODE the document spelled whichever way
 /// round `poly_sqrt` happened to return its root.
-/// **Only an INDEFINITE argument is normalised**, and the seam is why.
-/// Where the form already shows a sign — `manifest::nonneg` on the
-/// argument or on its negation — that sign is rule F's subject, not a
-/// key convention: whether `|X|` folds for a manifestly NEGATIVE `X`
-/// is a measured decision of its own (SYM-12's), and re-keying such an
-/// argument here would answer it by another route. So a signed
-/// argument is left exactly as written and rule F's arms see what
-/// SYM-8 pinned; an argument neither test can classify has no sign to
-/// preserve, and there the orientation is a free choice made once.
-fn sign_normalised(f: &Form, sess: &Session) -> Option<Form> {
-    if manifest::nonneg(f, sess) || f.neg().is_some_and(|n| manifest::nonneg(&n, sess)) {
-        return Some(f.clone());
-    }
+/// **The normalisation is a KEY convention and touches no rule's
+/// predicate.** Every fold at an `abs` node — A0's, rule F's manifest
+/// sign, rule C's certified read — has already been asked by `combine`
+/// on the argument AS WRITTEN and declined by the time this runs, so
+/// rule F's arms see what SYM-8 pinned whether the argument is
+/// manifestly signed or not, and whether `|X|` folds for a manifestly
+/// NEGATIVE `X` stays the measured decision it is (SYM-12's). What
+/// changes here is only which indeterminate the magnitude that is left
+/// is called.
+fn sign_normalised(f: &Form) -> Option<Form> {
     if leading_is_negative(&f.num)? {
         let mut out = f.neg()?;
         out.gated = f.gated;
@@ -200,9 +197,35 @@ fn sign_normalised(f: &Form, sess: &Session) -> Option<Form> {
 /// and the key alone. That is the seam with rule F: this module
 /// decides how a magnitude is NAMED, and rule F decides when one may
 /// be folded away.
+/// **`|c · R|` and `c · |R|` are one magnitude, so they are one atom.**
+/// The rational content comes out of both halves and the primitives
+/// are sign-normalised, leaving the key a function of the value class
+/// exactly as a root's is: `(k, R')` with `|Y| = k · |R'|`, `k > 0`.
+///
+/// Without it rule G's own magnitudes — keyed on the primitive, since
+/// that is what a root's content split leaves — would not meet the
+/// `abs` NODES a document writes, which are keyed on the form as
+/// written. A registrant's `|signed_radius|` and a walk's
+/// `sqrt(signed_radius²)` are exactly that pair.
+fn magnitude_key(f: &Form) -> Option<(Rat, Form)> {
+    let (cn, mut n) = content_split(&f.num)?;
+    let (cd, mut d) = content_split(&f.den)?;
+    if leading_is_negative(&n)? {
+        n = n.neg()?;
+    }
+    if leading_is_negative(&d)? {
+        d = d.neg()?;
+    }
+    let k = cn.mul(&cd.recip()?)?;
+    let mut out = Form::quotient(n, d);
+    out.gated = f.gated;
+    Some((k, out))
+}
+
 pub(super) fn magnitude_atom(arg: &Form, sess: &mut Session) -> Option<Form> {
-    let f = sign_normalised(arg, sess)?;
-    Some(atom(SymOp::Abs, f, sess))
+    let (k, primitive) = magnitude_key(arg)?;
+    let a = atom(SymOp::Abs, primitive, sess);
+    a.mul(&Form::poly(Poly::constant(k)), sess.budget)
 }
 
 /// `|R|` for the exact polynomial root `R` of a perfect square — the
@@ -219,7 +242,7 @@ pub(super) fn magnitude_atom(arg: &Form, sess: &mut Session) -> Option<Form> {
 /// only after the value-free step, which is `combine`'s documented
 /// order.
 fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
-    let f = sign_normalised(&Form::poly(r), sess)?;
+    let f = sign_normalised(&Form::poly(r))?;
     if let Some(m) = manifest::magnitude(&f, sess) {
         return Some(m);
     }
@@ -228,7 +251,7 @@ fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
     {
         return Some(g);
     }
-    Some(atom(SymOp::Abs, f, sess))
+    magnitude_atom(&f, sess)
 }
 
 /// `sqrt(p)` in canonical form — the content split of the module
