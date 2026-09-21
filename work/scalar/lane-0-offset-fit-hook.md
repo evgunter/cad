@@ -19,5 +19,5 @@ hook type passed as `Option<_>` to the three passes that call them
 only from the `f64` seam arms and `f64`-concrete callers. The
 "not derivable at this scalar" absence stops sharing a `None` with
 "may not certify". Spec: `docs/LANE-0-SPEC.md` (deleted at merge).
-Block SCALAR-B4 slot 1 (OPUS). Ground: TOPO, SHELL, TRIM, the unowned
+Block SCALAR-B4 slot 1. Ground: TOPO, SHELL, TRIM, the unowned
 `topo/src/props.rs`; announced.
