@@ -1398,8 +1398,9 @@ fn attribute(
         | ValidationError::ScaffoldAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
-        | ValidationError::NegativeVolume
+        | ValidationError::NegativeVolume { .. }
         | ValidationError::VolumeUncomputable { .. }
+        | ValidationError::MultipleOuterShells { .. }
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
         | ValidationError::RingContactEscalated { .. }

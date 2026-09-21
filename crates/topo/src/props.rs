@@ -285,7 +285,27 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
     let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
-    mass_properties_impl(body, &faces, band, &reporting_hook::<T>, tol)
+    mass_properties_of(body, &faces, band, tol)
+}
+
+/// [`mass_properties_with`] restricted to `faces` — the same lane, the
+/// same level, summed over exactly the faces named and in the order
+/// given. [`mass_properties_with`] is this door over the face arena, so
+/// a caller handing the whole arena pays it term for term.
+///
+/// This is [`sign_certified`]'s reporting-level twin, for the doors
+/// that dispatch through the scalar's own lane instead of certifying.
+///
+/// # Errors
+///
+/// [`MassPropsError`], as [`mass_properties`].
+pub(crate) fn mass_properties_of<T: PropsQuadLane>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(body, faces, band, &reporting_hook::<T>, tol)
 }
 
 /// **The lane-dispatched hook at the REPORTING level, one home**: the
@@ -379,18 +399,26 @@ fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
 /// # Errors
 ///
 /// [`MassPropsError`], as [`mass_properties`].
+/// **The subject is `faces`, and it is an argument.** An enclosure is
+/// a claim about whatever its faces bound, so a caller asking whether
+/// ONE solid's volume is positive, or whether one shell bounds
+/// material or a cavity, is asking a question no other solid's faces
+/// enter — [`classify_shells_of`]'s argument, made at SIGN level
+/// instead of at the reporting one. Handing the face arena in arena
+/// order is the whole-body walk, term for term and round for round;
+/// the restriction is which faces are visited and nothing else.
 pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
     body: &'b Body<T>,
+    faces: &[FaceKey],
     band: Band,
     tol: Tol,
     settle: impl Fn(VolumeEnclosure<T>) -> Option<V>,
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
     // Round 0 over every face, then the rounds after it over the faces
-    // still open — both idiom 1 into arena-order slots, both composed
-    // sequentially in that order ([`mass_properties_impl`]'s note).
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
-    let mut runs = decide_faces(&faces, |&face_key| {
+    // still open — both idiom 1 into slots in the caller's order, both
+    // composed sequentially in it ([`mass_properties_impl`]'s note).
+    let mut runs = decide_faces(faces, |&face_key| {
         face_flux(
             body,
             face_key,
@@ -567,7 +595,57 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
     }
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
+impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
+    /// **The body's certificate, assembled from its parts'** — the
+    /// runs of certificates taken over disjoint face sets, re-ordered
+    /// into FACE-ARENA order.
+    ///
+    /// Arena order is the vocabulary every claim on this type is stated
+    /// in: [`SignCertificate`]'s refusal rule names the first refusing
+    /// face in it, and [`Self::refine_to_target`]'s bit-identity with
+    /// [`mass_properties`] is identity of the same terms summed in it.
+    /// So the parts are re-ordered rather than concatenated, and a
+    /// single part covering the whole arena — which is what a body
+    /// holding one solid hands here — comes back unchanged, run for
+    /// run and round for round.
+    ///
+    /// # Panics
+    ///
+    /// When the parts do not cover the face arena exactly once. Every
+    /// caller partitions the arena by an ownership relation tier 1 has
+    /// already validated, so a gap is a bug in the composition above
+    /// rather than a body state (D9's bug-state half).
+    pub(crate) fn assembled(body: &'b Body<T>, band: Band, tol: Tol, parts: Vec<Self>) -> Self {
+        let mut by_face: slotmap::SecondaryMap<FaceKey, FaceRun<T>> = slotmap::SecondaryMap::new();
+        let mut handed = 0usize;
+        for part in parts {
+            for run in part.runs {
+                handed += 1;
+                by_face.insert(run.face, run);
+            }
+        }
+        let runs: Vec<FaceRun<T>> = body
+            .faces
+            .iter()
+            .filter_map(|(face_key, _)| by_face.remove(face_key))
+            .collect();
+        assert!(
+            handed == runs.len() && by_face.is_empty(),
+            "a sign certificate assembled from parts that do not partition the face arena: \
+             {handed} runs handed in, {} of them in the arena, {} left over",
+            runs.len(),
+            by_face.len(),
+        );
+        let refused = fold_runs(&runs).1;
+        Self {
+            body,
+            band,
+            tol,
+            runs,
+            refused,
+        }
+    }
+
     /// The certified volume bracket and its lever, at the round the
     /// walk stopped on.
     #[must_use]

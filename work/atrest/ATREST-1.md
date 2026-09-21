@@ -2,7 +2,7 @@
 id: ATREST-1
 kind: unit
 title: tier 3 learns to ask which solid: a per-solid volume sign and a per-solid shell-role check
-status: spec
+status: review
 opened: 2026-09-20
 priority: P0
 cost: D

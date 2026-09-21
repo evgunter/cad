@@ -178,7 +178,9 @@ fn revert_involution_and_tiers() {
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
         validate_geometric(&reverted, Tol::witness()),
-        Err(vec![topo::ValidationError::NegativeVolume])
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }])
     );
     // Genuinely reversed: some plane normal is negated.
     assert_ne!(format!("{reverted:?}"), original);

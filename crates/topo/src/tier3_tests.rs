@@ -796,7 +796,9 @@ fn revert_maps_the_declared_cusp_to_the_declared_slit() {
     );
     assert_eq!(
         validate_geometric_declared(&reverted, &kiss_declared(&p), tol).unwrap_err(),
-        vec![ValidationError::NegativeVolume],
+        vec![ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }],
         "declared, the wedge arm contributes nothing either way"
     );
     // That residue is `revert`'s own ratified posture — a reverted
@@ -1135,4 +1137,174 @@ fn material_arm_error_table() {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------
+// Check 7's subject and check 10 — the per-SOLID reads.
+//
+// The bodies below are hand-assembled from cubes because that is the
+// shape the defects have: a second solid beside the first, and a second
+// outer shell filed under one solid. Both are states the public verbs
+// produce (a boolean leaves multi-solid results; subtracting a hollow
+// operand files the island it carves under the minuend's solid) and
+// neither is reachable from this crate's own doors, which is what the
+// raw arenas are for here (module docs).
+// ---------------------------------------------------------------------
+
+/// A cube of side `s` at `origin`, into `body` as its own solid —
+/// mirrored in x when `inside_out`, which is the orientation flip
+/// `review_m2_pr7` pins as invisible to tiers 1 and 2.
+fn cube_solid(body: &mut Body<f64>, origin: (f64, f64, f64), s: f64, inside_out: bool, tol: Tol) {
+    let (ox, oy, oz) = origin;
+    crate::test_support_fixtures::cube_into(
+        body,
+        move |x, y, z| {
+            let x = if inside_out { 1.0 - x } else { x };
+            pt(ox + x * s, oy + y * s, oz + z * s)
+        },
+        tol,
+    );
+}
+
+/// The solid keys of `body`, in arena order.
+fn solids_of(body: &Body<f64>) -> Vec<crate::entity::SolidKey> {
+    body.solids().map(|(k, _)| k).collect()
+}
+
+/// Every shell of `donor` refiled under `keeper`, and `donor` removed —
+/// the raw-arena spelling of "these shells are one solid's".
+fn refile_shells(
+    body: &mut Body<f64>,
+    donor: crate::entity::SolidKey,
+    keeper: crate::entity::SolidKey,
+) {
+    let moved = body.get_solid(donor).expect("a live donor").shells.clone();
+    for shell in &moved {
+        body.get_shell_mut(*shell).expect("a live shell").solid = keeper;
+    }
+    body.get_solid_mut(keeper)
+        .expect("a live keeper")
+        .shells
+        .extend(moved);
+    body.get_solid_mut(donor)
+        .expect("a live donor")
+        .shells
+        .clear();
+    body.solids.remove(donor);
+    body.solid_provenance.remove(donor);
+}
+
+/// **An inside-out part beside a larger ordinary one certifies when
+/// only the body TOTAL is pinned.**
+///
+/// The body's total signed volume is `1 - 0.125 = +0.875`, so a check
+/// reading the sum sees nothing; the small solid is inside-out and its
+/// own volume is `-0.125`. Red without the per-solid subject: the
+/// runtime value that makes the assertion false is `errs` coming back
+/// empty, which is what a body-total read produces here.
+#[test]
+fn an_inside_out_part_beside_an_ordinary_one_refuses_by_name() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (5.0, 0.0, 0.0), 0.5, true, tol);
+    let [ordinary, reverted] = solids_of(&body)[..] else {
+        panic!("two cubes are two solids");
+    };
+    let total = crate::mass_properties(&body, tol).expect("both cubes measure");
+    assert!(
+        total.volume > 0.0,
+        "the fixture's point is a POSITIVE total: {}",
+        total.volume
+    );
+    let errs = validate_geometric(&body, tol).unwrap_err();
+    assert_eq!(
+        errs,
+        vec![ValidationError::NegativeVolume { solid: reverted }],
+        "check 7 names the inside-out solid and says nothing about the other one"
+    );
+    assert!(
+        !errs.contains(&ValidationError::NegativeVolume { solid: ordinary }),
+        "the ordinary solid is not implicated by its neighbour"
+    );
+}
+
+/// **The false-refusal direction, on the same shape**: two ordinary
+/// solids in one body certify. A per-solid check that read a
+/// neighbour's faces, or that refused a body for holding two solids at
+/// all, reds here.
+#[test]
+fn two_ordinary_solids_in_one_body_certify() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (5.0, 0.0, 0.0), 0.5, false, tol);
+    assert_eq!(solids_of(&body).len(), 2, "two cubes are two solids");
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
+}
+
+/// **Two outer boundaries filed under one solid refuse by name** — the
+/// hollow-operand subtraction's shape
+/// (`work/bool/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
+///
+/// One solid, three shells: the outer cube, a cavity wall inside it,
+/// and an island inside that cavity. Check 7 passes the solid
+/// (`1 - 0.125 + 0.008 > 0`), so the refusal below is check 10's alone
+/// — the runtime value that makes it false is `outer` coming back with
+/// one key, which is what a check that never asked which solid a shell
+/// belongs to reports.
+#[test]
+fn a_solid_holding_two_outer_shells_refuses_by_name() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (0.2, 0.2, 0.2), 0.5, true, tol);
+    cube_solid(&mut body, (0.3, 0.3, 0.3), 0.2, false, tol);
+    let [keeper, cavity, island] = solids_of(&body)[..] else {
+        panic!("three cubes are three solids");
+    };
+    refile_shells(&mut body, cavity, keeper);
+    refile_shells(&mut body, island, keeper);
+    let shells: Vec<_> = body
+        .get_solid(keeper)
+        .expect("the one solid")
+        .shells
+        .clone();
+    assert_eq!(shells.len(), 3, "one solid, three shells");
+    assert!(
+        crate::mass_properties(&body, tol)
+            .expect("the cubes measure")
+            .volume
+            > 0.0,
+        "check 7 must PASS this solid, so that check 10 is what refuses"
+    );
+    assert_eq!(
+        validate_geometric(&body, tol),
+        Err(vec![ValidationError::MultipleOuterShells {
+            solid: keeper,
+            shells: vec![shells[0], shells[2]],
+        }]),
+        "two material components filed under one solid"
+    );
+}
+
+/// **The false-refusal direction for check 10**: a solid with a genuine
+/// cavity — one outer shell, one void — certifies. A check that
+/// counted shells instead of reading their signs reds here.
+#[test]
+fn a_solid_with_a_genuine_cavity_certifies() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (0.2, 0.2, 0.2), 0.5, true, tol);
+    let [keeper, cavity] = solids_of(&body)[..] else {
+        panic!("two cubes are two solids");
+    };
+    refile_shells(&mut body, cavity, keeper);
+    assert_eq!(
+        body.get_solid(keeper).expect("the one solid").shells.len(),
+        2,
+        "one solid, two shells"
+    );
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
 }

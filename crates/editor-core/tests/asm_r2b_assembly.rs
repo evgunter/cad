@@ -1784,7 +1784,9 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     };
     let finding = |attribution| AtRestFinding {
         attribution,
-        error: topo::ValidationError::NegativeVolume,
+        error: topo::ValidationError::NegativeVolume {
+            solid: topo::SolidKey::default(),
+        },
     };
     let msg = AssemblyError::AtRest {
         findings: vec![
@@ -1847,8 +1849,12 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
         ProductError::SolidInvalid {
             node: RecipeNodeId(3),
             errors: vec![
-                topo::ValidationError::NegativeVolume,
-                topo::ValidationError::NegativeVolume,
+                topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                },
+                topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                },
             ],
         },
         ProductError::Naming {

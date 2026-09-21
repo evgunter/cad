@@ -106,3 +106,37 @@ Its "What a fix is" section names `PlusVSubject`, a type `ee74cdbc6`
 removed AFTER the row was filed. A future lane reading that paragraph
 would hunt a symbol that is not there; the row now says so and says
 what survives instead.
+
+## 2026-09-20 — ATREST-1 implemented (branch `atrest/1-per-solid`)
+
+Check 7's subject is the SOLID, and check 10 is new. Both reads are at
+SIGN level: `props::sign_certified` took the faces it reads as an
+argument, and its two callers hand it one solid's faces (check 7) and
+one shell's faces (check 10). `classify_shells_of` is not called from
+`validate.rs` — D-D held.
+
+Three things the spec did not settle, decided in the lane and
+disclosed:
+
+- **The whole-body wrapper went rather than staying dead.** D-D asked
+  for a pair (`sign_certified` over every face, `sign_certified_of`
+  over some), but with check 7's subject moved to the solid nothing
+  calls the whole-body door, and a `pub(crate)` fn with no caller is
+  dead code the gate refuses. There is one door, taking its faces;
+  handing it the face arena in arena order is the whole-body walk,
+  which is what `Body::faces_of_solid` gives a one-solid body.
+- **Check 10 makes the DEFINITE half of D-C's claim only.** The full
+  claim reds the coplanar pillow and five other zero-volume fixtures,
+  because check 7's ratified `Zero`-exempt posture says an orientation
+  probe is not a thinness gate. Filed as
+  `check-10-refuses-two-outer-shells-and-is-exempt-on-the-rest-of-the-role-claim`.
+- **Check 10 is gated on that solid's own check 7**, so an inverted
+  solid still reports `NegativeVolume` alone and not a second name for
+  the same defect.
+
+Residues filed:
+`check-10-states-one-outer-and-the-rest-void-but-not-that-a-void-lies-inside-it`
+(the `and inside it` half the spec required be filed),
+`check-10-refuses-two-outer-shells-and-is-exempt-on-the-rest-of-the-role-claim`,
+and `check-10-is-not-made-by-the-mixed-tier-3-passes`, which rides with
+`tier3-prime-still-couples-plus-v-to-the-reporting-target`.

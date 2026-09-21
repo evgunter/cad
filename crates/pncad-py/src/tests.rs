@@ -18,7 +18,7 @@ use crate::tags::{
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
-use pncad::topo::{FaceKey, VertexKey};
+use pncad::topo::{FaceKey, SolidKey, VertexKey};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 // The shared Rust-source lexer: `src/tags.rs` is READ by the tag-table
@@ -3496,11 +3496,14 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
         Some("edge_face_pierce")
     );
 
-    // The one fieldless arm, and the shape of every arm that carries
-    // no payload at all: the variant alone, five `None`s beside it,
+    // An arm whose payload projects to no word at all, and the shape
+    // every such arm takes: the variant alone, five `None`s beside it,
     // so `getattr` never raises on a finding a caller did not expect.
+    // Check 7's subject is a solid, and a solid key is not a word.
     assert_eq!(
-        project(&ValidationError::NegativeVolume),
+        project(&ValidationError::NegativeVolume {
+            solid: SolidKey::default(),
+        }),
         Finding {
             variant: "negative_volume",
             subject_kind: None,
@@ -3572,7 +3575,13 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
     // the contradiction arm is the OTHER direction of the same
     // certification diff and carries a declaration that IS witnessed,
     // by counter-evidence.
-    assert_eq!(project(&ValidationError::NegativeVolume).stale_kind, None);
+    assert_eq!(
+        project(&ValidationError::NegativeVolume {
+            solid: SolidKey::default(),
+        })
+        .stale_kind,
+        None
+    );
 }
 
 /// **Every `RingContact` arm's word, built and read.**
@@ -5427,6 +5436,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "loop_cycle_overrun",
             "loop_role_inverted",
             "missing_provenance",
+            "multiple_outer_shells",
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
