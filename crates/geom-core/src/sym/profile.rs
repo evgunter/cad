@@ -95,11 +95,15 @@ pub enum Origin {
     /// check of a registered zero against a definite sign
     /// (`door_zero`) counts here too — it is the decision path.
     Decision,
-    /// The contradiction ASSERTION on a definite sign: `Decide for
-    /// Sym<T>` runs `discharge` inside a `debug_assert!` on every
-    /// margin the numeric channel proved non-zero, so under debug
-    /// assertions (dev, test, and this workspace's release profile)
-    /// those forms are built by the assertion and not by the tier.
+    /// The contradiction CHECK on a definite sign: `Decide for Sym<T>`
+    /// runs `discharge` on every margin the numeric channel answered
+    /// definite, so those forms are built by the check and not by the
+    /// tier. At an EXACT witness the check is a `debug_assert!`, so it
+    /// runs under debug assertions only (dev, test, and this
+    /// workspace's release profile); at an INEXACT one it is the
+    /// dispute count (`SymCounts::theorems_disputed`) and runs in
+    /// every profile. Both are charged here, because what the column
+    /// measures is the walk and not the verdict.
     Assertion,
     /// The shape report's rendering of a blocked residual
     /// (`report::render_node`), when the report is installed.
