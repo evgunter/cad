@@ -586,7 +586,10 @@ fn the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints() {
 /// `Abs` atom an `abs(Y)` node mints.
 #[test]
 fn the_positive_boundary_folds_and_every_fold_is_zero_at_the_point() {
-    let cases: [(&str, fn() -> Sym<f64>); 4] = [
+    /// One named residual builder, so the array below is a list of
+    /// cases rather than a nest of function types.
+    type Case = (&'static str, fn() -> Sym<f64>);
+    let cases: [Case; 4] = [
         ("abs(1 + sqrt(t²)) − (1 + sqrt(t²))", || {
             let x = Sym::from_f64(1.0) + p("t", 0.25).powi(2).sqrt();
             x.abs() - x
