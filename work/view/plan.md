@@ -1370,6 +1370,51 @@ unless the tree was fetched and merged in this turn.** The same holds
 for `git grep`: pass `origin/main` as the tree. It costs one word per
 read and it is the only form whose answer names its own commit.
 
+**A receipt that was never run in the form it was written down in.**
+Three of this program's defects in one day are one shape. #2994's
+`\`-continued literal was re-minted by `cargo fmt` in the same commit
+that introduced it, so the author's own tree never showed the two runs
+of fourteen spaces. The un-mergeable-PR rule below listed four
+symptoms, three of which fire on a perfectly healthy docs tier. And
+#2998's census rule printed
+`rg -U --no-heading -o '...'` while telling the reader to take "the
+lines that begin `let`" — without `-n`, `--no-heading` prefixes every
+match with `path:`, so that reading returns **0** against a stated 22,
+and the PR body's own receipt silently carried the `-n` form.
+
+The tell in all three is **a rule stated as a description of the output
+rather than as the command that produces the answer.** A description
+cannot be run, so nothing ever runs it, and it stays plausible
+indefinitely. The practice that replaces it: print a command whose
+output IS the number (end it in `| wc -l` if you must), then run the
+exact text you printed, extracted from the file with `sed -n Np`
+rather than retyped. #2998's correction earned its keep the same hour:
+fixing the pattern so it could be run admitted a qualified path, and
+the population moved 22 → 24 — two `egui::` binds at the chrome
+boundary that the old spelling could not see.
+
+**A fence written in the same commit as the program it fences has no
+independent authority.** The four-track cut (`f8a822e8c1`) wrote
+eighty-six rows' new homes and four `keep_out` clauses in one pass, and
+nothing re-derived the clauses afterwards. One of them told every VDOC
+lane that `crates/viewer/README.md` "is ratified design beside the code
+per CLAUDE.md" and that a decision-row change "waits for Ev". It does
+not and it does not: CLAUDE.md's sign-off exception covers the
+`crates/<crate>/README.md` pages **`docs/DESIGN.md`'s companion table
+lists**, and that table does not list this one — its
+`crates/viewer/GUI-DESIGN.md` row says the README "beside it is the
+implementation record, which the program maintains itself". The fence
+invented a sign-off requirement on a page four open rows touch, and it
+survived two units before a lane read it.
+
+Corollary, because it makes the class checkable: **a `keep_out` that
+asserts a sign-off requirement is a claim about CLAUDE.md, not a local
+decision** — the companion table either lists the page or it does not,
+and `grep -cE '^\| `<path>`' docs/DESIGN.md` settles it. The general
+instrument is CLAUDE.md's own and it is cheap: *check that Ev ever
+agreed, before you wait for Ev*, `git log --all -S` over a short
+phrase. Here it returned the cut's own commit and nothing behind it.
+
 ## Exit shape
 
 The README states the module map and every item above has landed or
