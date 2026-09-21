@@ -13915,3 +13915,58 @@ it.
 states a population a member has since joined. Zero build, so it runs
 beside `vgeom/refusal-floor`, whose target dir is 7.8 GB of the 22 that
 were free.
+
+## 2026-09-21 — the attribution unit, and a fence the orchestrator had built wrong
+
+#3002 merged: four P4 rows on `crates/viewer/README.md`, the sibling
+class to #2998's — *the page attributes a fact to the wrong site, or
+states a population a member has since joined.* All four closed.
+
+**Verified by re-deriving, not by reading.** `features.rs:80-81`
+carries the comment *"How LOUD a drawn badge is, is not decided here —
+that is `RowStatus::tone()`"* four lines above the call the page
+blamed, so the README had been contradicting a comment sitting beside
+its own subject. `tree.rs:149-153` is where the rule is stated.
+`display.rs:355` holds the link the page cited at `:262`. All four
+printed commands run verbatim out of the file: 11, 24, 3, 43 and 15.
+`rg -l -e SessionOp -e OpOutcome crates/viewer/src` is 27, against a
+cell that said seven.
+
+**The unit produced a live CI finding, not four citation fixes.**
+Re-deriving the cross-crate-link census moved it from twelve
+hand-written addresses to a command that prints **15**, and the
+bullet's *conclusion* went with the addresses: fourteen of the fifteen
+target `pncad`, and the fifteenth is `session/refuse.rs:151`'s
+`` [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`] ``.
+`ci-filter.py:1436` is `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad",
+"bvh"}` — **`editor-core` is not in it**, so the ungated-link hole the
+bullet called theoretical is open today. Filed on MIRROR's slate beside
+the parent row that asserts the hole is empty.
+
+**And the lane caught a fence this orchestrator had built wrong.**
+`work/vdoc/program.md`'s `keep_out` said *"`crates/viewer/README.md` is
+ratified design beside the code per CLAUDE.md so … a change to what a
+Where-in-the-code decision row DECIDES waits for Ev."* That is false,
+and it was written **in the cut itself** (`f8a822e8c1`) — by me, not by
+Ev. CLAUDE.md's sign-off exception covers the `crates/<crate>/README.md`
+pages **that `docs/DESIGN.md`'s companion table lists**, and
+`grep -cE '^\| `crates/viewer/README\.md`' docs/DESIGN.md` is **0**.
+The table's `crates/viewer/GUI-DESIGN.md` row says of it: *"beside it is
+the implementation record, **which the program maintains itself**"*.
+
+So the fence was inventing a sign-off requirement out of nothing, on a
+page four of this program's rows touch. Corrected in `program.md` in
+the same wave, with the companion-table reasoning written into it so
+the next lane does not have to re-derive it. **The check that found it
+is CLAUDE.md's own**: *check that Ev ever agreed, before you wait for
+Ev* — `git log --all -S` over the sentence, which returned the cut's
+own commit and no ratification behind it.
+
+Two rules for the register fall out, and both are about the
+orchestrator rather than the lanes. **A fence written in the same
+commit as the program it fences has no independent authority** — the
+cut wrote eighty-six rows' new homes and four `keep_out` clauses in one
+pass, and nothing re-derived the clauses afterwards. And **a `keep_out`
+that asserts a sign-off requirement is a claim about CLAUDE.md, so it
+is checkable**: the companion table either lists the page or it does
+not.
