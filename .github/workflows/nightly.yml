@@ -1299,7 +1299,8 @@ jobs:
   #
   #   * one `--workspace --features interval` TEST BUILD at the gate's opt-1
   #     environment, which is the job's dominant term. It is the same compile
-  #     ci.yml's `build + archive (interval)` step pays, so that step is the
+  #     interval.yml's `build + archive (interval)` step pays, so that step is
+  #     the
   #     bound: 11.1 min at the 2026-09-02 reading in docs/S-TCOST-PLAN.md, and
   #     11-15 min is the band those readings have moved in. This job pays no
   #     artifact upload, so it should sit at or under that;
@@ -1330,7 +1331,8 @@ jobs:
     if: needs.gate.outputs.run == 'true'
     timeout-minutes: 90
     env:
-      # The gate's own build environment, copied from ci.yml's `build-interval`
+      # The gate's own build environment, copied from interval.yml's
+      # `build-interval`
       # job and TRACKING it, for the reason the `demoted` job states at its
       # own copy: a cost measured in a configuration we do not use is not a
       # cost anyone can act on.
