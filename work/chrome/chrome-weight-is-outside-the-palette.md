@@ -2,10 +2,9 @@
 id: chrome-weight-is-outside-the-palette
 kind: issue
 title: The tree's badge WEIGHT carries meaning no palette can tune, and no test sees any badge's colour
-status: parked
+status: open
 opened: 2026-09-04
 refs: [1769, 1463]
-blocked_on: [tone-is-a-value-in-frame-and-a-comment-in-two-panes]
 priority: P4
 cost: E
 ---
@@ -71,3 +70,43 @@ for a badge that is now in `pane/features.rs`.
 Half-dissolved since filing: `frame::Tone` is a typed value and
 `crates/viewer/tests/frame_policy.rs` asserts `badge.tone()`, so the
 POLICY is seen by a test. Only the paint is not.
+
+## Un-parked by the row it was parked on (2026-09-20)
+
+`tone-is-a-value-in-frame-and-a-comment-in-two-panes` closed at PR
+2915. `work/README.md`'s *a fired trigger is not a blocker* makes
+`parked` false of this row the moment that lands, and the error it
+would otherwise raise is the one the README says a closing PR must not
+leave for a program that cannot see it coming. **Opened rather than
+re-parked, because nothing gates it**: neither decision below waits on
+a trigger, and `deferred` would need a ratification nobody has made.
+Un-parked here by VNEWS, in the same commit that closes the trigger,
+which is what that clause asks for.
+
+**What the trigger actually delivered, and what it did not** — read
+against the tree rather than taken from the other row's summary:
+
+- **Decision 2 is half answered.** This row asked for *"a pure
+  `RowStatus -> paint` function for a headless row to assert on"*. The
+  POLICY half is now one: `tree::RowStatus::tone()` returns a
+  `frame::Tone`, is pure, and
+  `tree_badges::only_the_row_whose_own_operation_refused_is_actionable`
+  asserts it headlessly over rows a real evaluation produced. The PAINT
+  half is now a pure function too — `app::toned(text, &Theme, Tone) ->
+  egui::RichText`, the one place the mapping is made — **but it is
+  `pub(crate)`**, so `crates/viewer/tests/*` cannot reach it and no
+  integration row can assert a colour. What is left is either a
+  `#[cfg(test)]` unit test inside the crate or a visibility decision,
+  which is smaller than the *"change to how the chrome draws"* this row
+  anticipated.
+- **Decision 1 is untouched.** Whether a semantic distinction drawn in
+  WEIGHT belongs inside the theme contract is exactly as open as it
+  was. `ui.weak` is still an egui default that no palette — including
+  `colorblind-safe` — can tune, and `theme.rs`'s dichromacy carve-out
+  still argues redundancy only for the `unresolved` HUE. That decision
+  now has an obvious landing site it did not have before, since both
+  spellings are produced in one function.
+
+The census in the section above stays dead and still owes a
+re-derivation by subject before anyone acts; `app.rs` now has **one**
+`.color(chrome(` and it is inside `toned`.
