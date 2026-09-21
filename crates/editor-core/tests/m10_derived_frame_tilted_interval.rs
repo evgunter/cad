@@ -827,36 +827,85 @@ fn atom_census(rendered: &str) -> String {
     )
 }
 
-/// **SYM-8 Phase 1.1 — the wall, named.** The tilt-`u` derived
-/// document (`u = (1,0,t)`, a cube extruded from it, a `FaceFrame` on
-/// its cap, the boss on that) is where SYM-5's rule E turns the DEGREE
-/// wall into a TERM wall and stops: it refuses `carrier_endpoint_end`
-/// identically with rule E on and off. This row renders the refused
-/// residual at `explain_depth 6` at both widths and both lifts, with
-/// rule F (the manifest sign) OFF and ON, and prints for every node of
-/// the decision path its early form's size, whether the walk FROZE it,
-/// and the census of `copysign`/`abs` atoms its render carries — so
-/// "terms before / after, degree, whether it would fit the budget" is
-/// read off the instrument and not eyeballed.
-#[test]
-#[ignore = "evidence-only: SYM-8 Phase 1.1, the tilt-U wall with and without rule F"]
-fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
+/// The DISTINCT `<name>(…)` atoms a render spells, each with its
+/// argument to the render's own nesting depth — balanced on the
+/// parentheses, so `copysign(1, (1) / (sqrt(…)))` comes back whole.
+/// What "the fold never fires" is READ from: an atom still standing
+/// in a rule-F-ON render is one the predicate declined, and its
+/// argument is the form it declined.
+fn distinct_atoms(rendered: &str, name: &str) -> Vec<String> {
+    let needle = format!("{name}(");
+    let mut out: Vec<String> = Vec::new();
+    let mut from = 0;
+    while let Some(i) = rendered[from..].find(&needle) {
+        let start = from + i;
+        let mut depth = 0usize;
+        let mut end = None;
+        for (j, ch) in rendered[start..].char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(start + j + ch.len_utf8());
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        // The explanation cuts a long render at a fixed width, so an
+        // atom can be cut open: keep what stands and say so.
+        let (atom, end) = match end {
+            Some(end) => (rendered[start..end].to_owned(), end),
+            None => (format!("{}…[cut]", &rendered[start..]), rendered.len()),
+        };
+        if !out.contains(&atom) {
+            out.push(atom);
+        }
+        from = end;
+    }
+    out
+}
+
+/// **The wall, rendered** — one document at the named widths, both
+/// lifts (`CAD_SYM8_LIFT` narrows), rule F OFF and ON: the counts,
+/// the refusals, the split, and for every blocked residual its
+/// enclosure, early form, atom census, the DAG below it explained to
+/// `CAD_SYM12_DEPTH` levels (default 6; `CAD_SYM12_DIAL` narrows to
+/// one of `F-off`/`F-on`; the `Pinned` lift on a cube
+/// renders every `NumericZero` residual and at depth 6 can exhaust a
+/// small box — set the depth lower there and say so), with every
+/// `FROZEN` node, every `num`-sized node and the census of every
+/// rendered form, and finally the DISTINCT `copysign`/`abs` atoms the
+/// early form and the explanation spell, with their arguments.
+fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
     use geom_core::sym::report::{
         ShapeOutcome, explain_depth, name_param, start_shape_report, take_shape_report,
     };
     let only_half = std::env::var("CAD_SYM8_HALF").ok();
-    for half in [1.0e-3, 5.0e-2] {
+    let depth: usize = std::env::var("CAD_SYM12_DEPTH")
+        .ok()
+        .and_then(|d| d.trim().parse().ok())
+        .unwrap_or(6);
+    if let Some(chars) = std::env::var("CAD_SYM12_CHARS")
+        .ok()
+        .and_then(|d| d.trim().parse().ok())
+    {
+        geom_core::sym::report::explain_render_chars(chars);
+    }
+    for &half in halves {
         if only_half
             .as_deref()
             .is_some_and(|h| h.trim() != format!("{half:e}"))
         {
             continue;
         }
-        let doc = r2_document(half, Base::TiltU, Place::Derived(1));
+        let doc = r2_document(half, base, place);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let box_ = ParamBox::of(&analyzed);
-        for name in box_.axes().keys() {
-            name_param(&name.0);
+        for name_ in box_.axes().keys() {
+            name_param(&name_.0);
         }
         let only_lift = std::env::var("CAD_SYM8_LIFT").ok();
         for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
@@ -866,17 +915,21 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
             {
                 continue;
             }
+            let only_dial = std::env::var("CAD_SYM12_DIAL").ok();
             for (label, rules) in [
                 ("F-off", SymRules::without_rule_f()),
                 ("F-on", shipped_with_rule_f()),
             ] {
+                if only_dial.as_deref().is_some_and(|d| d.trim() != label) {
+                    continue;
+                }
                 let o = EvalOptions {
                     param_box: Some(Arc::new(box_.clone())),
                     profile_lift: lift,
                     ..EvalOptions::default()
                 };
                 start_shape_report();
-                explain_depth(6);
+                explain_depth(depth);
                 let t0 = std::time::Instant::now();
                 let (refusal, counts) = geom_core::sym::with_session_rules(budget(), rules, || {
                     let ev: Evaluation<geom_core::Sym<Interval>> =
@@ -886,7 +939,7 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
                 let dt = t0.elapsed().as_secs_f64();
                 let shapes = take_shape_report();
                 explain_depth(0);
-                println!("=== tiltU derived half={half:e} {lift:?} {label} ({dt:.1}s)");
+                println!("=== {name} half={half:e} {lift:?} {label} depth {depth} ({dt:.1}s)");
                 println!("    counts {counts:?}");
                 println!(
                     "    refusals {:?}",
@@ -894,6 +947,30 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
                 );
                 for (pred, row) in crate::m10_8_harness::split(&shapes) {
                     println!("    split {pred:<36} {row:?}");
+                }
+                // Every rendered form of the replay, blocked or not:
+                // the atoms a NumericZero residual carries say whether
+                // the fold fired on a decision the document DID reach.
+                let mut all_atoms: Vec<String> = Vec::new();
+                let mut rendered = 0usize;
+                for s in &shapes {
+                    if let Some(f) = &s.early_form {
+                        rendered += 1;
+                        for kind in ["copysign", "abs"] {
+                            for a in distinct_atoms(f, kind) {
+                                if !all_atoms.contains(&a) {
+                                    all_atoms.push(a);
+                                }
+                            }
+                        }
+                    }
+                }
+                println!(
+                    "    rendered {rendered} early forms; distinct copysign/abs atoms across them: {}",
+                    all_atoms.len()
+                );
+                for a in &all_atoms {
+                    println!("      atom {}", head(a, 300));
                 }
                 let mut seen: std::collections::BTreeSet<&str> = Default::default();
                 for s in &shapes {
@@ -911,12 +988,27 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
                         if let Some(e) = &s.explain {
                             let frozen = e.lines().filter(|l| l.contains("FROZEN")).count();
                             println!("    explain: {} lines, {frozen} FROZEN", e.lines().count());
+                            let mut path_atoms: Vec<String> = Vec::new();
                             for l in e.lines() {
                                 if l.contains("FROZEN") || l.contains(": num") {
                                     println!("      {}", head(l, 200));
                                 } else if l.trim_start().starts_with("= ") {
                                     println!("        census {}", atom_census(l));
+                                    for kind in ["copysign", "abs"] {
+                                        for a in distinct_atoms(l, kind) {
+                                            if !path_atoms.contains(&a) {
+                                                path_atoms.push(a);
+                                            }
+                                        }
+                                    }
                                 }
+                            }
+                            println!(
+                                "    distinct copysign/abs atoms on the explained path: {}",
+                                path_atoms.len()
+                            );
+                            for a in &path_atoms {
+                                println!("      path atom {}", head(a, 8000));
                             }
                         }
                     }
@@ -924,6 +1016,40 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
             }
         }
     }
+}
+
+/// **SYM-8 Phase 1.1 — the wall, named.** The tilt-`u` derived
+/// document (`u = (1,0,t)`, a cube extruded from it, a `FaceFrame` on
+/// its cap, the boss on that) is where SYM-5's rule E turns the DEGREE
+/// wall into a TERM wall and stops: it refuses `carrier_endpoint_end`
+/// identically with rule E on and off. This row renders the refused
+/// residual at `explain_depth 6` at both widths and both lifts, with
+/// rule F (the manifest sign) OFF and ON, and prints for every node of
+/// the decision path its early form's size, whether the walk FROZE it,
+/// and the census of `copysign`/`abs` atoms its render carries — so
+/// "terms before / after, degree, whether it would fit the budget" is
+/// read off the instrument and not eyeballed.
+#[test]
+#[ignore = "evidence-only: SYM-8 Phase 1.1, the tilt-U wall with and without rule F"]
+fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
+    render_wall("tiltU derived", Base::TiltU, Place::Derived(1), &[1.0e-3, 5.0e-2]);
+}
+
+/// **SYM-12 Phase 1.1 — `tiltUV`, rendered.** Both SYM-8 reviews
+/// predicted the tilt about `u` AND `v` (`n.z = 1/sqrt(1 + 2t²)`) as
+/// the shape rule F folds, and the ladder above measured the rule
+/// moving not one count there at either lift. This row is the render
+/// that ladder did not take: the same instrument as the tilt-`u`
+/// wall's, on the `tiltUV` document, so which of the three is true —
+/// the fold never fires (the atoms still stand in the F-on render, and
+/// their arguments say what form the predicate declined), it fires but
+/// the node is frozen before it combines (no atom stands and a FROZEN
+/// node sits on the path), or it fires where no decision is asked —
+/// is read off the atoms and the path rather than guessed.
+#[test]
+#[ignore = "evidence-only: SYM-12 Phase 1.1, the tilt-UV document rendered with and without rule F"]
+fn sym12_phase1_the_tilt_uv_document_rendered() {
+    render_wall("tiltUV derived", Base::TiltUV, Place::Derived(1), &[1.0e-3]);
 }
 
 /// **SYM-8 Phase 1.1's ladder** — the tilt-`u` derived document and its
@@ -1053,6 +1179,101 @@ fn m10_the_tilt_u_derived_boss_stops_on_the_newell_residual_and_names_it() {
         "and the wall it stops at now is the newell residual, by name \
          (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`): {on_fails:?}"
     );
+}
+
+/// **SYM-12 Phase 1.3 — the one-sided documents, per lift, with and
+/// without rule F, under whatever the process's manifest-sign arm is**
+/// (the negative arm is a process dial while it is hand-planted; this
+/// row is run once without it and once with it, and the two prints
+/// are the table). Per document and lift: the counts, the first
+/// refusal by name, the split of every predicate that refused, and
+/// the widest half-width that certifies whole — a log bisection of
+/// `half` between `1e-4` and `5e-2` in eight steps, `(certifies,
+/// refuses)`, `NaN` when even `1e-4` refuses. `CAD_SYM12_CASES` names
+/// a comma-separated subset; `CAD_SYM8_LIFT` narrows the lift.
+#[test]
+#[ignore = "evidence-only: SYM-12 Phase 1.3, the one-sided documents under the manifest-sign arms"]
+fn sym12_phase1_the_one_sided_documents_ladder() {
+    use geom_core::sym::report::{start_shape_report, take_shape_report};
+    let only = std::env::var("CAD_SYM12_CASES").ok();
+    let only_lift = std::env::var("CAD_SYM8_LIFT").ok();
+    for (name, base, place) in [
+        ("tiltU start-cap", Base::TiltU, Place::DerivedStartCap),
+        ("flipZ derived", Base::FlipZ, Place::Derived(1)),
+        ("tiltU derived", Base::TiltU, Place::Derived(1)),
+        ("tiltUV derived", Base::TiltUV, Place::Derived(1)),
+        ("tiltNZ derived", Base::TiltNZ, Place::Derived(1)),
+        ("tiltV derived", Base::TiltV, Place::Derived(1)),
+    ] {
+        if only
+            .as_deref()
+            .is_some_and(|l| !l.split(',').any(|n| n.trim() == name))
+        {
+            continue;
+        }
+        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+            if only_lift
+                .as_deref()
+                .is_some_and(|l| l.trim() != format!("{lift:?}"))
+            {
+                continue;
+            }
+            for (label, rules) in [
+                ("F-off", SymRules::without_rule_f()),
+                ("F-on ", shipped_with_rule_f()),
+            ] {
+                let doc = r2_document(1.0e-3, base, place);
+                start_shape_report();
+                let t0 = std::time::Instant::now();
+                let (f, c) = sym(&doc, lift, rules, budget());
+                let dt = t0.elapsed().as_secs_f64();
+                let shapes = take_shape_report();
+                let split = crate::m10_8_harness::split(&shapes);
+                println!(
+                    "{name} half=1e-3 {lift:?} {label}: sym0 {} reg {} gated {} num {} frozen {} \
+                     in {dt:.1}s\n  fails {} {}",
+                    c.symbolic_zero,
+                    c.registered,
+                    c.sign_gated,
+                    c.numeric,
+                    c.frozen,
+                    f.len(),
+                    head(f.first().map_or("", String::as_str), 200)
+                );
+                let mut named: Vec<&str> = Vec::new();
+                for (pred, row) in &split {
+                    if row[3] > 0 && f.iter().any(|r| r.contains(pred)) {
+                        named.push(pred);
+                        println!("  refused split {pred:<32} {row:?}");
+                    }
+                }
+                // The widest certifying half-width under this lift and
+                // arm: cheap on these cubes (a replay is well under a
+                // second each way with the report off).
+                let certifies = |h: f64| sym(&r2_document(h, base, place), lift, rules, budget()).0.is_empty();
+                let (mut lo, mut hi) = (1.0e-4_f64, 5.0e-2_f64);
+                let ceiling = if !certifies(lo) {
+                    (f64::NAN, lo)
+                } else if certifies(hi) {
+                    (hi, f64::INFINITY)
+                } else {
+                    for _ in 0..8 {
+                        let mid = (0.5 * (lo.ln() + hi.ln())).exp();
+                        if certifies(mid) {
+                            lo = mid;
+                        } else {
+                            hi = mid;
+                        }
+                    }
+                    (lo, hi)
+                };
+                println!(
+                    "  half-width ceiling: certifies {:.4e}, refuses {:.4e}",
+                    ceiling.0, ceiling.1
+                );
+            }
+        }
+    }
 }
 
 /// **The documents the two reviews built and could not run** (R1's

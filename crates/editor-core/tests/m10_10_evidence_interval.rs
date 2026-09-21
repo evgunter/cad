@@ -676,6 +676,118 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
     }
 }
 
+/// The DISTINCT `<name>(…)` atoms a render spells, balanced on the
+/// parentheses; one cut open by the render's width is kept as it
+/// stands and marked.
+fn distinct_atoms(rendered: &str, name: &str) -> Vec<String> {
+    let needle = format!("{name}(");
+    let mut out: Vec<String> = Vec::new();
+    let mut from = 0;
+    while let Some(i) = rendered[from..].find(&needle) {
+        let start = from + i;
+        let mut depth = 0usize;
+        let mut end = None;
+        for (j, ch) in rendered[start..].char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(start + j + ch.len_utf8());
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let (atom, end) = match end {
+            Some(end) => (rendered[start..end].to_owned(), end),
+            None => (format!("{}…[cut]", &rendered[start..]), rendered.len()),
+        };
+        if !out.contains(&atom) {
+            out.push(atom);
+        }
+        from = end;
+    }
+    out
+}
+
+/// **SYM-12 Phase 1.2 — the `copysign` census at the nominal.** Every
+/// document (`CAD_M10_10_DOCS` names a subset) replayed at its
+/// NOMINAL under `CAD_M10_10_RULES` (default shipped) with the shape
+/// report installed and no explanation, and per predicate: how many of
+/// its decisions stayed numeric with a rendered early form, how many
+/// of THOSE carry a `copysign` atom and how many an `abs` atom, and
+/// the distinct atoms of each kind across the replay with their
+/// arguments (to the render's own nesting depth) — which is what says
+/// WHICH mint site's atom reaches a decision the tier is asked, and
+/// whether the signed argument's form is one the manifest-sign
+/// predicate could ever read. A document whose replay renders no
+/// `copysign` atom is one the sites never reach at a decision.
+#[test]
+#[ignore = "evidence-only: the copysign/abs atom census per document at the nominal"]
+fn sym12_the_copysign_census_at_the_nominal() {
+    let tol = Tol::witness();
+    let rules = rules_from_env();
+    println!("== rules {rules:?}");
+    let only = std::env::var("CAD_M10_10_DOCS")
+        .ok()
+        .filter(|s| !s.trim().is_empty());
+    let defaults: Vec<&'static str> = documents(tol).iter().map(|(n, _)| *n).collect();
+    for (name, at) in documents(tol).into_iter().chain(controls(tol)) {
+        let wanted = match only.as_deref() {
+            Some(list) => list.split(',').any(|n| n.trim() == name),
+            None => defaults.contains(&name),
+        };
+        if !wanted {
+            continue;
+        }
+        let t = std::time::Instant::now();
+        let doc = at(1.0);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let (shapes, refusal, counts) = replay(&doc, &nominal_box(&analyzed), rules, tol);
+        println!(
+            "   {name} ({:.2}s) {counts:?}\n      first refusal {:?}",
+            t.elapsed().as_secs_f64(),
+            refusal.as_deref().map(|r| crate::m10_8_harness::head(r, 160))
+        );
+        let mut per: BTreeMap<&'static str, (usize, usize, usize)> = BTreeMap::new();
+        let mut atoms: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        for s in &shapes {
+            let Some(f) = &s.early_form else { continue };
+            let e = per.entry(s.predicate).or_default();
+            e.0 += 1;
+            for (kind, slot) in [("copysign", 1usize), ("abs", 2usize)] {
+                let found = distinct_atoms(f, kind);
+                if !found.is_empty() {
+                    if slot == 1 {
+                        e.1 += 1;
+                    } else {
+                        e.2 += 1;
+                    }
+                }
+                let list = atoms.entry(kind).or_default();
+                for a in found {
+                    if !list.contains(&a) {
+                        list.push(a);
+                    }
+                }
+            }
+        }
+        for (pred, (rendered, with_copysign, with_abs)) in &per {
+            println!(
+                "      {pred:<36} rendered {rendered:>4}  with copysign {with_copysign:>4}  with abs {with_abs:>4}"
+            );
+        }
+        for (kind, list) in &atoms {
+            println!("      distinct {kind} atoms: {}", list.len());
+            for a in list.iter().take(12) {
+                println!("         {}", crate::m10_8_harness::head(a, 240));
+            }
+        }
+    }
+}
+
 /// **The per-predicate split at the NOMINAL, per document, under a
 /// chosen rule set** (`CAD_M10_10_RULES`, default shipped;
 /// `CAD_M10_10_DOCS` names a subset of [`documents`] and [`controls`]).

@@ -98,6 +98,9 @@ thread_local! {
     /// How many levels below a blocked residual [`explain`] walks
     /// (zero: no explanation is rendered).
     static EXPLAIN: Cell<usize> = const { Cell::new(0) };
+    /// The most characters of one rendered form [`explain`] prints
+    /// ([`explain_render_chars`]).
+    static RENDER_CHARS: Cell<usize> = const { Cell::new(EXPLAIN_RENDER_CHARS) };
     static SHAPES: RefCell<Vec<DecisionShape>> = const { RefCell::new(Vec::new()) };
     static NAMES: RefCell<BTreeMap<u128, String>> = const { RefCell::new(BTreeMap::new()) };
 }
@@ -121,6 +124,14 @@ pub fn take_shape_report() -> Vec<DecisionShape> {
 /// renders no explanation.
 pub fn explain_depth(levels: usize) {
     EXPLAIN.set(levels);
+}
+
+/// Sets the most characters of one rendered form the explanation
+/// prints (the default cuts at 1500, which is a page and is where an
+/// atom's argument gets cut open when the form carrying it is wide —
+/// a row that has to READ the argument raises it).
+pub fn explain_render_chars(chars: usize) {
+    RENDER_CHARS.set(chars);
 }
 
 /// Registers a parameter's NAME for rendering, on this thread.
@@ -190,7 +201,8 @@ pub(super) struct Rendered {
 /// The largest numerator (terms) [`explain`] renders in full.
 const EXPLAIN_RENDER_TERMS: usize = 80;
 
-/// The most characters of one rendered form [`explain`] prints.
+/// The most characters of one rendered form [`explain`] prints unless
+/// [`explain_render_chars`] set another.
 const EXPLAIN_RENDER_CHARS: usize = 1500;
 
 fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
@@ -237,7 +249,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
             let text = render_form(sess, &e, 0);
             let cut = text
                 .char_indices()
-                .nth(EXPLAIN_RENDER_CHARS)
+                .nth(RENDER_CHARS.get())
                 .map_or(text.len(), |(i, _)| i);
             let _ = writeln!(
                 out,
