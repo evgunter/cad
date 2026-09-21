@@ -5,6 +5,8 @@ title: A two-section loft whose top section's plane normal points DOWN (against 
 status: open
 opened: 2026-09-16
 refs: [2752]
+priority: P0
+cost: H
 ---
 
 Found by BOOL-6's R2 review (PR 2752), pre-existing at the merge base,

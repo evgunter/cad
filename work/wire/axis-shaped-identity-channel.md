@@ -6,6 +6,8 @@ status: parked
 opened: 2026-09-12
 refs: [2404, 1593, 1604]
 blocked_on: [step-import-discards-the-entity-ids-that-are-its-identity-channel, axis-per-component-source-beside-geom-source]
+priority: P1
+cost: H
 ---
 
 

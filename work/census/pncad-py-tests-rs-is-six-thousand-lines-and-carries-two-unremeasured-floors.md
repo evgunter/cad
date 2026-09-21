@@ -4,6 +4,8 @@ kind: issue
 title: pncad-py tests.rs is 9162 lines and its two vacuity floors are numbers nothing re-measures
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: Three doors named insert in one test binary mean two different constructions
 status: open
 opened: 2026-09-20
+priority: P1
+cost: E
 ---
 
 

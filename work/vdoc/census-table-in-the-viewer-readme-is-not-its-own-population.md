@@ -4,6 +4,8 @@ kind: issue
 title: The README's non-dump census table says nine and PruneReport::is_empty is a tenth it does not carry
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 

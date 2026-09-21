@@ -4,6 +4,8 @@ kind: issue
 title: boolean: a union with a definitely tilted cylinder boss refuses ClassificationInvariant (the volume backstop) where a frontier refusal is due
 status: open
 opened: 2026-09-08
+priority: P0
+cost: H
 ---
 
 

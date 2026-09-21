@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-26
 github: 1019
 refs: [1012, 1048]
+priority: P4
+cost: D
 ---
 
 ## From GitHub issue 1019

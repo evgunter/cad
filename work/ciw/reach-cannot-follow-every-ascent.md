@@ -5,6 +5,8 @@ title: The read reach's chain resolver does not follow every ascent, and the fai
 status: open
 opened: 2026-09-05
 refs: [closure-reaches-tree-wide-guards, 1889]
+priority: P4
+cost: E
 ---
 
 Disclosed by `closure-reaches-tree-wide-guards`, which is the unit that built

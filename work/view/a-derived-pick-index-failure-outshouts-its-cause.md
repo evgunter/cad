@@ -4,6 +4,8 @@ kind: issue
 title: viewer: a pick-index failure caused by a failed node is the loud banner, and the node's own refusal is the quiet line
 status: open
 opened: 2026-09-17
+priority: P1
+cost: D
 ---
 
 **Ev reported this** (in chat, 2026-09-17), from unioning the two

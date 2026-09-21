@@ -4,6 +4,8 @@ kind: issue
 title: shell's void insertion refuses a cavity whose chart carries a same-surface latitude seam (collinear cap plane, two-arc sphere) that the axial door already offset validly
 status: open
 opened: 2026-09-08
+priority: P0
+cost: H
 ---
 
 

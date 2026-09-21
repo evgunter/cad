@@ -5,6 +5,8 @@ title: The drag tick has three homes and a count field has two answers — the c
 status: open
 opened: 2026-09-04
 refs: [1776]
+priority: P1
+cost: E
 ---
 
 

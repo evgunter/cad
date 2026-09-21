@@ -5,6 +5,8 @@ title: three hand-written shell command splitters in scripts/, with independent 
 status: open
 opened: 2026-09-11
 refs: [apt-preamble-bypass-is-unguarded]
+priority: P4
+cost: E
 ---
 
 

@@ -5,6 +5,8 @@ title: the sphere flux arm's coplanar premise leaves lune-family bodies outside 
 status: open
 opened: 2026-09-03
 refs: [1674]
+priority: P0
+cost: H
 ---
 
 ## Measured (VERBS-RIMCAP PR-1, at its head)

@@ -4,6 +4,8 @@ kind: issue
 title: Eight private spellings of the axis-aligned pick ray in crates/viewer/tests
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

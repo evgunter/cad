@@ -4,6 +4,8 @@ kind: issue
 title: expr.rs discloses that u8a_parse's two proptest generators silently under-cover the unit symbols, and nothing schedules it
 status: open
 opened: 2026-09-11
+priority: P3
+cost: E
 ---
 
 

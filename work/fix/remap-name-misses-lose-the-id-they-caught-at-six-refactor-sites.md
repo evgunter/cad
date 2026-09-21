@@ -7,6 +7,8 @@ opened: 2026-09-11
 refs: [2378]
 branch: fix/remap-name-carries-the-id
 pr: 2945
+priority: P1
+cost: E
 ---
 
 

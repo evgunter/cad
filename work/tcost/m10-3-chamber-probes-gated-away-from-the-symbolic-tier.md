@@ -4,6 +4,8 @@ kind: issue
 title: the M10-3 chamber probes are gated to the driver's paths and not the symbolic tier's, so a change to the tier does not run the row S-TCOST bisected the tier's cost on
 status: open
 opened: 2026-09-14
+priority: P3
+cost: D
 ---
 
 

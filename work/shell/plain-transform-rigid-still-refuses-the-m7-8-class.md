@@ -5,6 +5,8 @@ title: transform_rigid_via gives the capability but the plain door still refuses
 status: open
 opened: 2026-09-12
 refs: [2418, transform-recertifies-through-the-narrow-lane, graft-recertifies-through-the-narrow-lane]
+priority: P0
+cost: D
 ---
 
 

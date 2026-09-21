@@ -4,6 +4,8 @@ kind: issue
 title: The mate lane's escalations reach no node's log: the whole-document solve, and coset's own mint
 status: open
 opened: 2026-09-20
+priority: P1
+cost: D
 ---
 
 

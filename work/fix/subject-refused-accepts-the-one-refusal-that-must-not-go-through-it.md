@@ -2,8 +2,12 @@
 id: subject-refused-accepts-the-one-refusal-that-must-not-go-through-it
 kind: issue
 title: Subject::refused accepts NoBodyRoots, the one refusal the registry must not treat as unavailable
-status: open
+status: review
 opened: 2026-09-15
+branch: fix/subject-refused-routes-no-body
+pr: 2943
+priority: P0
+cost: E
 ---
 
 

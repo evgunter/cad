@@ -5,6 +5,8 @@ title: a new error/kind pair arrives unguarded by default, and the two purpose-b
 status: open
 opened: 2026-09-12
 refs: [kind-mirrors-have-no-single-declaration, 2417]
+priority: P3
+cost: D
 ---
 
 

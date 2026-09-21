@@ -4,6 +4,8 @@ kind: issue
 title: The viewer README's two-marks section records the consumer that was removed but not the look-alike that was refused
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

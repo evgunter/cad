@@ -4,6 +4,8 @@ kind: issue
 title: seat_line takes a hand-built (Seat, Option<RecipeNodeId>) slice, so five panels re-list roles a Seats value already holds
 status: open
 opened: 2026-09-20
+priority: P3
+cost: E
 ---
 
 

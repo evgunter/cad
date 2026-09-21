@@ -5,6 +5,8 @@ title: the prose census types no binding introduced by a nested pattern, a closu
 status: open
 opened: 2026-09-12
 refs: [prose-census-undecided-residue, error-census-keyed-on-bare-type-name]
+priority: P4
+cost: E
 ---
 
 Found while re-deriving `prose-census-undecided-residue`'s classes for

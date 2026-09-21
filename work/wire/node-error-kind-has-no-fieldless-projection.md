@@ -4,6 +4,8 @@ kind: issue
 title: NodeErrorKind carries payloads and has no fieldless projection, so three doors render a node refusal to prose — the fifth instance of the kind-mirror class
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: m5_s12's ball(r) is parameterised only for another file, and sweep::test_support already hosts the revolve family
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 ## Finding

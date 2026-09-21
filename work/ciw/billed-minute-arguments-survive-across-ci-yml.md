@@ -4,6 +4,8 @@ kind: issue
 title: ci.yml still argues live configuration decisions in billed minutes, including one that decides the shard matrix
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

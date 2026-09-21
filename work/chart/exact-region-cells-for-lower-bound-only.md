@@ -5,6 +5,8 @@ title: Certified::LowerBoundOnly retires only with exact-region cells, not with 
 status: open
 opened: 2026-09-13
 refs: [clearance-window-tightening-needs-chart-boundary]
+priority: P1
+cost: H
 ---
 
 

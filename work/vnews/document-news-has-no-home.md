@@ -4,6 +4,8 @@ kind: issue
 title: What a tool has to say is one door, but the panes reach it three different ways
 status: open
 opened: 2026-09-05
+priority: P1
+cost: D
 ---
 
 

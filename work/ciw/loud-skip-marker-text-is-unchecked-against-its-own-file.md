@@ -4,6 +4,8 @@ kind: issue
 title: Nothing checks a loud-skip marker's text against its own file; three markers shipped saying their file's rows are the gated ones when most were not
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

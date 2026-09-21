@@ -4,6 +4,8 @@ kind: issue
 title: demos/tour writes the extruded box three times and one of them is already pub
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 ## Finding

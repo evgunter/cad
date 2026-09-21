@@ -5,6 +5,8 @@ title: review-and-dependency-policy cites work/issues/reviewer-pair-rebuilds-two
 status: open
 opened: 2026-09-19
 needs_ev: true
+priority: P4
+cost: E
 ---
 
 

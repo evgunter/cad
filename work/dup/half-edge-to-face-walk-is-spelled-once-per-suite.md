@@ -5,6 +5,8 @@ title: The half-edge → loop → face walk is spelled once per file across topo
 status: open
 opened: 2026-09-19
 refs: [blend-spells-the-half-edge-to-face-walk-five-times, the-half-edge-to-face-walk-is-spelled-per-test-file, names-emit-keeps-an-unguarded-two-refusal-walk, chords-spells-the-half-edge-to-face-walk-twice, step-lanes-spell-the-half-edge-to-face-walk, demos-tour-spells-the-half-edge-to-face-walk-three-times, solid-of-face-has-eleven-hand-written-walks-outside-it]
+priority: P4
+cost: E
 ---
 
 
