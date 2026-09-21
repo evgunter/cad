@@ -2,10 +2,11 @@
 id: viewer-states-the-empty-document-rule-in-four-places-and-the-one-that-gates-cannot-red
 kind: issue
 title: The viewer states the empty-document classification in four places, and the one that actually gates (product_badge's matches!) is the one construct that cannot red when a ProductError arm is added
-status: open
+status: dispatched
 opened: 2026-09-15
 priority: P1
 cost: E
+branch: chrome/empty-document-gate
 ---
 
 
