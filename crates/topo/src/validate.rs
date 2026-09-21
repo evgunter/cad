@@ -3150,7 +3150,7 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
 /// [`ValidationError::BackPointerMismatch`] refuses a stored
 /// back-pointer that disagrees with the owner. Together: the solids
 /// partition the shells and the shells partition the faces, so
-/// `faces_of_solid`'s back-pointer selection and a [`Solid::shells`]
+/// `faces_of_solid`'s back-pointer selection and a `Solid::shells`
 /// walk name the same set, and over one solid that set is the arena.
 /// Check 7 runs only behind that gate — [`validate_geometric`]'s `?`
 /// between its two halves, and the `if errors.is_empty()` in the
@@ -3209,6 +3209,15 @@ fn shell_roles_of<T: geom_core::Decide + geom_core::CertifiedBounds>(
         // solid arena.
         return Vec::new();
     };
+    if solid.shells.len() < 2 {
+        // **Vacuous, and short-circuited because it would not be
+        // free.** "No TWO shells" cannot fail on fewer than two, and a
+        // solid with one shell is the overwhelmingly common one: its
+        // single shell's faces ARE the solid's, so the walk below
+        // would re-run check 7's quadrature on the same faces and
+        // double what the gate costs.
+        return Vec::new();
+    }
     let mut outer = Vec::new();
     for &shell_key in &solid.shells {
         let Some(shell) = body.get_shell(shell_key) else {

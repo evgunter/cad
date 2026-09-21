@@ -524,7 +524,7 @@ BOUNDS_ALLOWLIST=(
   # census took the C10 tree as its pre-filter, the three doors that
   # reach `census::census_and_certify` — the driver amendment's seam,
   # argued in the ledger under 2026-07-29 beside `separation`.
-  'crates/topo/src/validate.rs 12 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 13 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment; the thirteenth is check 10 (shell_roles_of), which reads a shell volume ENCLOSURE and decides its sign, the same seam check 7 was ratified for'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its

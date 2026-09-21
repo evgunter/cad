@@ -1876,7 +1876,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     let expected: [&[&str]; 3] = [
         &[
             "root 3's solid is not valid at rest (2 finding(s)):",
-            "\n  the body's exact-B-rep signed volume is definitely negative",
+            "\n  solid SolidKey(null)'s exact-B-rep signed volume is definitely negative",
         ],
         &["root 2's face name (minted by node 1) collides"],
         &["grafting root 5 refused: boolean_reduce: invalid band:"],
