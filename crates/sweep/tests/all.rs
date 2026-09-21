@@ -127,6 +127,8 @@ mod sf2b_r2_probes;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "sym11_far_placement_rows.rs"]
+mod sym11_far_placement_rows;
 #[path = "topo_ring_nesting.rs"]
 mod topo_ring_nesting;
 #[path = "torax_axial.rs"]

@@ -1034,9 +1034,10 @@ impl PickIndex {
     /// here**, and there are two ways to draw nothing. Hiding
     /// EVERYTHING gives [`SceneMesh::empty`] — a blank picture whose
     /// bounds are the hidden geometry's, so the camera keeps a real
-    /// extent to frame against. An index with NO PARTS AT ALL — an
-    /// emptied document, or one that holds only datums and profiles —
-    /// gives [`SceneMesh::nothing`], which has no extent to carry.
+    /// extent to frame against. An index with NO PARTS AT ALL gives
+    /// [`SceneMesh::nothing`], which has no extent to carry; which
+    /// documents reach that state is
+    /// [`pncad::document::ProductErrorKind::means_no_body`]'s to say.
     /// Either way the picture is never left stale behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
         self.scene_focused(display, &BTreeSet::new())
@@ -1075,15 +1076,12 @@ impl PickIndex {
             // geometry's box, so a camera still has a real extent to
             // frame against (the case the docs above state).
             //
-            // An index with NO PARTS is the other, and it is what
-            // deleting the last feature leaves — as does a document
-            // that has only datums or profiles in it yet. That used to
-            // fall through to `build_parts_focused`, which counts zero
-            // triangles and refuses `EmptyMesh`; the refusal left the
-            // PREVIOUS picture on screen under an error line, so an
-            // emptied document went on showing the body it no longer
-            // has. An empty document is a state, not a fault, and
-            // [`SceneMesh::nothing`] is the picture of it.
+            // An index with NO PARTS is the other, and whether such a
+            // document is a fault is `ProductErrorKind::means_no_body`'s
+            // to say. `SceneMesh::nothing` is the picture of one.
+            // Refusing here would instead leave the PREVIOUS picture on
+            // screen under an error line, so the document would go on
+            // showing a body it no longer has.
             if self.parts.is_empty() {
                 return Ok(SceneMesh::nothing(self.key.delta()));
             }
