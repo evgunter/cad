@@ -2,8 +2,10 @@
 id: recourse-chain-stops-at-the-second-hop-carriers
 kind: issue
 title: five second-hop carriers stop at the condition, so the recourse chain is unproved one delegation past the ValidationError arms
-status: open
+status: review
 opened: 2026-09-12
+branch: fix/recourse-second-hop
+pr: 2948
 priority: P4
 cost: E
 ---
@@ -88,3 +90,59 @@ recorded at three carriers: no test discriminates any of these
 renderings, so the enforcement row each carrier is owed is also the
 first pin it has ever had. The missing pin is part of the defect, not a
 baseline to preserve.
+
+## Cut by carrier (2026-09-21) — four of the five taken
+
+**Taken: `SplineError`, `MeterError`, `PatchBoundError`, `FitError`**,
+settled the way PR 2354, PR 2403 and the parent's second PR settled the
+others: the arms get their recourse, the wrapper supplies none. Four
+enforcement rows carry the claim, plus a fifth at `KnotVectorIssue` —
+**a sixth carrier this file does not name**, reached through
+`SplineError::KnotVectorInvalid`, whose seven renderings all stopped at
+the condition. Without it `SplineError`'s only delegating arm could not
+be asserted transitively and the chain would be false at one remove —
+the same discovery the first parent PR made at `PropsError`.
+
+**Two counts in the table above are wrong, re-derived by reading:**
+
+* `SplineError` is **six variants, not five**. Five own arms stopped;
+  the sixth delegates to `KnotVectorIssue` (above).
+* `PcurveCertifyError` is fifteen variants as counted, but **seven stop,
+  not six** — `UnsupportedCarrier` was read as naming a repair and does
+  not (it names how a caller reached the arm, not what to do instead),
+  while `UnsupportedChart` DOES route the caller to the fitted lane.
+
+`MeterError` (2 of 3), `PatchBoundError` (5 of 7) and `FitError` (7 of
+10) are exactly as counted.
+
+**Remaining: `PcurveCertifyError`**, filed as
+`work/fix/recourse-chain-stops-at-pcurve-certify-error.md`. The cut is
+by shape, not by convenience: two of its seven stopping arms
+(`IsoUnsupported`, `FittedCertificate`) render a `&'static str` minted
+at the refusal SITE — fourteen distinct literals for the iso lane
+alone, across two crates — so the repairs belong at the sites and a
+single clause at the arm would be the blanket tail PR 2354 removed.
+That is a per-site pass over the SSI and iso-lane vocabularies, not
+this unit's shape.
+
+**Every delegation assertion whose carrier now has a row is
+transitive**: `every_offset_fit_error_arm_names_a_recourse`'s four
+(`Meter`, `PatchBound`, `Fit`, `Structure`) and
+`every_spline_error_arm_names_a_recourse`'s one. Two stay delegation-only
+and say why in place: `every_fit_error_arm_names_a_recourse`'s `Lsq` and
+`KnotAlgebra` (filed at
+`work/props/fit-error-delegates-to-two-carriers-that-name-no-recourse.md`),
+and `every_pcurve_mint_error_arm_names_a_recourse`'s `Certify`, which
+becomes transitive when the cut row above closes.
+
+**What pinned these messages: one pin, of the kind the repo's own
+convention forbids.** `crates/geom/tests/curves/domain_door.rs`
+asserted `SplineError::DomainInvalid`'s rendering with a full-string
+`assert_eq!` — the spelling `COINCIDENCE_RECOURSE`'s doc rules out
+("message-pinning tests pin the fragment with `contains`, never with
+full-string pins that rot"), and it made the recourse clause
+unwritable. It is now a fragment pin. **Nothing else pins any
+rendering at any of the five carriers**, so the enforcement rows are
+the first pins those types have had. The first sweep for pins here was
+too narrow — it read the crates' `--lib` rows and a fragment grep that
+did not cover every sentence — and CI found the one it missed.

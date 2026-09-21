@@ -2776,7 +2776,8 @@ mod recourse_tests {
         // the lever the caller turns satisfies the claim the same way
         // an imperative does.
         const RECOURSE_WORDS: &[&str] = &[
-            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule",
+            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule", "split", "report",
+            "describe", "drop",
         ];
         let meter = MeterError::NormalFloor {
             floor: 0.0,
@@ -2857,9 +2858,17 @@ mod recourse_tests {
                 OffsetFitError::Structure(_) => Some(structure.to_string()),
                 _ => None,
             };
+            // The four carriers below each hold an enforcement row of
+            // their own (`every_meter_error_arm_names_a_recourse`,
+            // `every_patch_bound_error_arm_names_a_recourse`,
+            // `every_fit_error_arm_names_a_recourse`,
+            // `every_spline_error_arm_names_a_recourse`), so these arms
+            // are asserted TRANSITIVELY: the carrier is rendered whole
+            // AND its clause survives into the message a caller reads.
+            // The carrier's row is what makes that a statement about
+            // every payload rather than about the one built here.
             if let Some(carrier) = delegated {
                 assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
-                continue;
             }
             let lower = msg.to_lowercase();
             assert!(

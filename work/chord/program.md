@@ -2,7 +2,7 @@
 id: chord
 kind: program
 title: CHORD — the tessellator's arithmetic and its certificates: the chord counts, the sizing schedules and the guards over them
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: chord/

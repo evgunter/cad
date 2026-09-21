@@ -2,7 +2,7 @@
 id: sym
 kind: program
 title: SYM — the E12 symbolic identity tier
-status: open
+status: active
 opened: 2026-09-13
 area: kernel
 prefix: sym/

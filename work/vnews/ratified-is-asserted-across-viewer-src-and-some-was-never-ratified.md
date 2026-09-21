@@ -104,3 +104,39 @@ VDOC's by `work/vnews/program.md`'s `keep_out` and are filed there, not
 fixed here. `platform.rs`, `theme.rs` and `blend.rs` are among the
 eleven files `work/view/viewer-src-files-no-successor-claims` reports
 as claimed by no dispatching program.
+
+## A tracker-side member, and it is the orchestrator's — 2026-09-20
+
+`crates/viewer/src/session/select.rs`'s `Standing` doc calls the clause
+*"the affordances that need a live entity switch off"* **GQ7's recorded
+constraint**. Verified by grep over all three candidate documents:
+
+- `crates/viewer/GUI-DESIGN.md` — **0 occurrences**, and its GQ7 is
+  selection mechanics (single-select, pick priority, `PickKinds`),
+  which defers vanishing-entity semantics elsewhere;
+- `docs/SELECT-DESIGN.md` — **0 occurrences**;
+- `crates/viewer/src/session/select.rs` — **1**, the assertion itself.
+
+So this is the same shape as `frame.rs`'s *"ratified"* ranking: a source
+comment naming a ratified home that does not contain the rule. It is
+listed here as a source-side member.
+
+**What makes it worth recording separately is where it went.** The VNEWS
+orchestrator read that comment, did not check `GUI-DESIGN.md`, and wrote
+*"ratified design in `crates/viewer/GUI-DESIGN.md`, so the shape I
+recommended would have needed an `[ev]` PR"* into a dispatch, into
+`work/vnews/plan.md` §Dispatch rules, and into the merged body of
+PR #2942 — **two hours after ruling that the status line's ratification
+was an agent's word nobody had checked, and while this row was being
+filed.** The properties-pane lane caught it.
+
+That is the class's real cost, and it is not that a comment is wrong.
+**An unchecked ratification claim does not stay in the comment**: it is
+believed by the next reader, who writes it somewhere more binding, and a
+plan or a merged PR body is harder to correct than a doc line. The
+sorting test this row states — find the clause, then the commit — has to
+run at **the document that would carry the gate**, never at the comment
+that cites one.
+
+Corrected at `work/vnews/plan.md` §Dispatch rules, which now carries the
+retraction rather than a quiet rewrite.

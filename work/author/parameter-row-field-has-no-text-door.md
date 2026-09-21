@@ -2,11 +2,13 @@
 id: parameter-row-field-has-no-text-door
 kind: issue
 title: A parameter row's value field is a bare DragValue — no parser, no unit authoring, no no-op guard
-status: open
+status: review
 opened: 2026-09-04
 refs: [1776]
 priority: P0
 cost: D
+branch: author/param-notation
+pr: 2957
 ---
 
 
@@ -56,7 +58,7 @@ arm of `ViewerBehavior::properties_ui` — both in
 
 ## Its relation to the sibling item
 
-`work/chrome/add-parameter-form-authors-canonical-only.md` is the
+`work/author/add-parameter-form-authors-canonical-only.md` is the
 CREATE door's version of the same question. They are two items
 deliberately: that one mints a declaration (and can be done today
 through `written_length`/`written_angle`), this one edits a standing
@@ -65,7 +67,8 @@ other — the design call about how notation crosses `props` is shared.
 
 ## Home
 
-CHROME. The field is `crates/viewer/src/pane/properties.rs`
+AUTHOR (here since CHROME's 2026-09-20 priority-seam cut,
+`work/author/log.md`). The field is `crates/viewer/src/pane/properties.rs`
 (`ViewerBehavior::properties_ui`'s `Selection::Param` arm, with
 `ViewerBehavior::slot_value_ui` beside it as the shape to copy); the
 parse door is `crates/viewer/src/props.rs` (`props::field_edit`). The
@@ -142,3 +145,14 @@ on. It is open work on CHROME's slate now; the API the panel consumes
 is named in that item's `## Built`. Header edited from outside CHROME's
 fence only to keep the tracker true (`work/README.md`: a fired trigger
 is not a blocker).
+
+## Dispatched 2026-09-21 — AUTH-2, with the create door riding along
+
+`docs/AUTH-2-SPEC.md`, branch `author/param-notation`. This row and
+`add-parameter-form-authors-canonical-only` went out as ONE unit
+because this file already says why: *"the design call about how
+notation crosses `props` is shared"*, and settling it twice is how the
+two doors drift. The parser is
+`editor_core::parse::parse_expr` — the one that already reads `50 mm`
+— rather than a second unit table; the unit-and-value edit is one
+`commit_action`, so one submit is one undo.
