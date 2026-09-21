@@ -498,7 +498,7 @@ BOUNDS_ALLOWLIST=(
   # Neither reaches past the seam: no new public door, no new
   # instantiation site, and the `Bounds` reads are `from_certified` on
   # scalars the quadrature already consumed.
-  'crates/topo/src/props.rs 23 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/props.rs 30 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
@@ -518,13 +518,13 @@ BOUNDS_ALLOWLIST=(
   # M9-2 PR-1, the chart-region overlap predicate.
   'crates/topo/src/chart_region.rs 26 M9-2 PR-1, the chart-region overlap predicate'
   # 2026-08-29, the advisory-check registry.
-  'crates/editor-core/src/checks.rs 3 2026-08-29, the advisory-check registry'
+  'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
   # `validate.rs` carries the at-rest validator's nine and, since the
   # census took the C10 tree as its pre-filter, the three doors that
   # reach `census::census_and_certify` — the driver amendment's seam,
   # argued in the ledger under 2026-07-29 beside `separation`.
-  'crates/topo/src/validate.rs 12 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 21 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its
@@ -1234,7 +1234,7 @@ plant_rustfmt_where_block() {
 plant_wrapper_type_compound() {
   mkdir -p "$1/crates/planted/src"
   {
-    printf 'impl<T> PropsQuadLane for geom_core::Sym<T>\n'
+    printf 'impl<T> AtRestPolicy for geom_core::Sym<T>\n'
     printf 'where\n'
     printf '    geom_core::Sym<T>: Decide + geom_core::Bounds,\n'
     printf '{\n'

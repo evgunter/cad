@@ -8,8 +8,8 @@
 # MINOR-4). `editor_core::EvalScalar` is the evaluation-service
 # bound — ten supertraits at `editor-core/src/eval/mod.rs`, of which
 # `geom_core::Bounds` is the bracket door: `Decide + ContentBits +
-# geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (which carries
-# `topo::PropsQuadLane` as its own supertrait) `+
+# geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (whose own
+# supertraits are `Decide + geom_core::Bounds` and the two lane traits) `+
 # crate::analysis::AxisScalar + crate::analysis::SeedScalar +
 # crate::measure::MinClearanceLane + SectionScalar` — declared once at
 # the seam the rule above already ratifies, so `eval/parts.rs` names

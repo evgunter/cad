@@ -150,14 +150,14 @@ fn edge_cert_count(r: &Result<(), Vec<ValidationError>>) -> String {
 }
 
 /// The six at-rest doors, in one order: the three whose bound names the
-/// certification right, then the three that keep their lane.
+/// certification right, then their three `_structural` twins.
 const DOOR_NAMES: [&str; 6] = [
     "validate_geometric",
-    "validate_pseudomanifold_certified",
-    "contact_marks_certified",
-    "validate_geometric_structural",
     "validate_pseudomanifold",
     "contact_marks",
+    "validate_geometric_structural",
+    "validate_pseudomanifold_structural",
+    "contact_marks_structural",
 ];
 
 fn six_doors(body: &Body<f64>) -> [String; 6] {
@@ -165,13 +165,13 @@ fn six_doors(body: &Body<f64>) -> [String; 6] {
     let records = ContactRecords::default();
     [
         edge_cert_count(&validate::validate_geometric(body, tol)),
-        edge_cert_count(&validate::validate_pseudomanifold_certified(
-            body, &records, tol,
-        )),
-        edge_cert_count(&validate::contact_marks_certified(body, tol).map(|_| ())),
-        edge_cert_count(&validate::validate_geometric_structural(body, tol)),
         edge_cert_count(&validate::validate_pseudomanifold(body, &records, tol)),
         edge_cert_count(&validate::contact_marks(body, tol).map(|_| ())),
+        edge_cert_count(&validate::validate_geometric_structural(body, tol)),
+        edge_cert_count(&validate::validate_pseudomanifold_structural(
+            body, &records, tol,
+        )),
+        edge_cert_count(&validate::contact_marks_structural(body, tol).map(|_| ())),
     ]
 }
 
@@ -183,7 +183,7 @@ fn six_doors(body: &Body<f64>) -> [String; 6] {
 /// The row asserts the WHOLE table rather than one door, because the
 /// split's content is which side of the line each door falls on: the
 /// three doors bounded on the certification right catch it, the three
-/// that keep their lane do not — at `f64` as much as at a dual, since
+/// `_structural` twins do not — at `f64` as much as at a dual, since
 /// what decides is the BOUND and not the scalar.
 #[test]
 fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() {

@@ -10,7 +10,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Band, Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, ContactRecords, PropsQuadLane, SplitPart, SplitPlane, split};
+use topo::{Body, ContactRecords, SplitPart, SplitPlane, split};
 
 fn v<T: Real>(x: f64, y: f64, b: f64) -> ProfileVertex<T> {
     ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b))
@@ -24,7 +24,7 @@ fn profile<T: geom_core::Decide>(lp: ProfileLoop<T>) -> profile::ValidatedProfil
 
 /// The generic corpus: name, body. Valid bodies first, then their
 /// reverted (NegativeVolume) twins.
-pub(crate) fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
+pub(crate) fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     let tol = Tol::witness();
     let mut out: Vec<(String, Body<T>)> = Vec::new();
     // L-prism (planar, closed form).
@@ -126,7 +126,11 @@ pub(crate) fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
     out
 }
 
-fn dump<T: PropsQuadLane + geom_core::Bounds + core::fmt::Debug + topo::AtRestPolicy>(
+/// The three passes, each scalar through the door its bound can name —
+/// the certified doors here, the `_structural` twins in
+/// [`dump_structural`] — under one set of labels, so the rows compare
+/// across scalars.
+fn dump<T: geom_core::CertifiedBounds + core::fmt::Debug + topo::AtRestPolicy>(
     scalar: &str,
     name: &str,
     body: &Body<T>,
@@ -149,9 +153,31 @@ fn dump<T: PropsQuadLane + geom_core::Bounds + core::fmt::Debug + topo::AtRestPo
     );
 }
 
-fn dump_composed<
-    T: PropsQuadLane + geom_core::CertifiedBounds + core::fmt::Debug + topo::AtRestPolicy,
->(
+/// [`dump`] through the `_structural` twins — the doors a scalar
+/// without certification rights measures through.
+fn dump_structural<T: geom_core::Bounds + core::fmt::Debug + topo::AtRestPolicy>(
+    scalar: &str,
+    name: &str,
+    body: &Body<T>,
+) {
+    let tol = Tol::witness();
+    println!(
+        "M2R1|{scalar}|{name}|pseudomanifold|{:?}",
+        topo::validate_pseudomanifold_structural(body, &ContactRecords::default(), tol)
+    );
+    let marks = topo::contact_marks_structural(body, tol).map(|m| {
+        let mut v: Vec<String> = m.iter().map(|(k, m)| format!("{k:?}={m:?}")).collect();
+        v.sort();
+        v
+    });
+    println!("M2R1|{scalar}|{name}|contact_marks|{marks:?}");
+    println!(
+        "M2R1|{scalar}|{name}|mass_properties|{:?}",
+        topo::mass_properties_structural(body, tol)
+    );
+}
+
+fn dump_composed<T: geom_core::CertifiedBounds + core::fmt::Debug + topo::AtRestPolicy>(
     scalar: &str,
     name: &str,
     body: &Body<T>,
@@ -177,7 +203,26 @@ fn m2r1_passes_f64() {
 #[test]
 fn m2r1_passes_dual64() {
     for (n, b) in corpus::<geom_core::Dual64>() {
-        dump("dual64", &n, &b);
+        dump_structural("dual64", &n, &b);
+    }
+}
+
+/// **The `_structural` door at `Dual64` IS the closed form**, body by
+/// body over the corpus: a walk holding no quadrature lane answers what
+/// `mass_properties_closed_form` answers, refusal for refusal and bit
+/// for bit, so nothing a dual measures through the public door comes
+/// from anywhere but the closed forms.
+#[test]
+fn m2r1_structural_at_dual64_is_the_closed_form() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    for (n, b) in corpus::<geom_core::Dual64>() {
+        let structural = format!("{:?}", topo::mass_properties_structural(&b, tol));
+        let closed = format!("{:?}", topo::mass_properties_closed_form(&b, band, tol));
+        assert_eq!(
+            structural, closed,
+            "{n}: the structural door at Dual64 must be the closed form verbatim"
+        );
     }
 }
 
