@@ -4639,3 +4639,33 @@ three rows are red on the base too). Recorded in the PR body and the
 unit's "Closed on Phase 1" section.
 
 - `SYM-10-SPEC.md` — SYM-10, the decision door and the floor (#2970)
+
+## Per-merge deletion — LANE-1's spec (2026-09-21)
+
+Recoverable at `git show 97d8ffe54d:docs/LANE-1-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the public Python doors …
+call the `topo::` doors monomorphically at `f64` — the certified names,
+unchanged in behaviour" — `value.rs` called the lane-keeping
+`validate_pseudomanifold` at the base, so the fold (the table's own
+choice) changes its verdict on an M7-8 body from `VolumeUncomputable`
+to the edge-by-edge `EdgeCertification` findings, both reviews' MAJOR,
+ruled to stand and pinned by an in-crate row (no public door can build
+such a body — filed on EXCH); "`run_checks<T: AtRestPolicy>`, which
+runs at `Dual`" — it carried `CertifiedBounds` at the base, so
+`connectedness` takes the certified name; "`AtRestPolicy`'s supertrait
+list becomes `Decide + geom_core::Bounds + PcurveFittedLane +
+ChartRegionLane`" — `Bounds` is deliberately not a supertrait (the
+allowlist gate would have needed a licensing entry; every
+bracket-reading door spells `Bounds` at the door instead); "the tour's
+~60 sites stay type-correct under the certified bound" — they did not
+(eleven red sites), the tour's `Scalar` gaining `CertifiedBounds`;
+"`mass_properties_structural<T: Decide + Bounds>`" — `T: Decide`, the
+term unearned; the plan's ground column named "demos" (zero
+occurrences) and the survey re-drew it (ATREST, SHELL, REACH, CHART,
+LIB/BIND, WIRE, PROPS, GUARD, PCERT, TCOST/TINT, the unowned
+`props.rs`); the fold's rename reached six files the fence did not
+name (`demos/tour/src/main.rs`, `step-import`, three test files, the
+in-src probe table). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `LANE-1-SPEC.md` — LANE-1, `PropsQuadLane` deleted: the quadrature door is a parameter, the certified name keeps its quadrature, a `_structural` twin carries the `None` (#3010)

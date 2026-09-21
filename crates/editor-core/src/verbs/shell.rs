@@ -210,8 +210,8 @@ impl ShellLane for geom_core::Interval {
 }
 
 /// **The symbolic tier over a certifying scalar** runs the door at
-/// `Sym<T>` itself, for the reason `PropsQuadLane` gives at its `Sym`
-/// impl: the tier changes how an identically-zero margin decides and
+/// `Sym<T>` itself, for the reason `topo::QuadLane` gives for the
+/// symbolic tier: the tier changes how an identically-zero margin decides and
 /// nothing else, so wrapping a certifying base must not demote a
 /// certifying lane to a refusing one — the driver's leaf replay would
 /// otherwise stop hollowing the bodies it certifies.
@@ -223,7 +223,7 @@ impl ShellLane for geom_core::Interval {
 impl<T> ShellLane for geom_core::Sym<T>
 where
     T: geom_core::CertifiedBounds,
-    geom_core::Sym<T>: Decide + topo::PropsQuadLane + Lane,
+    geom_core::Sym<T>: Decide + topo::AtRestPolicy + Lane,
 {
     fn run_shell(
         verb: &Verb<Self>,

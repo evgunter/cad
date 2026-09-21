@@ -1481,12 +1481,12 @@ fn how_many_datums_this_view_drew_nothing_of_is_a_fact_the_caller_is_handed() {
 ///   spacing of representable numbers around `1e100` of about
 ///   `2e84` — so both ends round onto `cv`.
 ///
-/// **The same plane at `f64::MAX` is empty for three reasons at
-/// once**, which is what makes it the wrong witness for any one of
-/// them: the tick's depth overflows to `inf` and it refuses for want
-/// of a scale, one ruled direction's `cv / pitch` overflows and it
-/// refuses on the finiteness guard, and the other loses its extent as
-/// here. At `1e100` only the third is live.
+/// **The same plane at `f64::MAX` is empty for two reasons at once**,
+/// which is what makes it the wrong witness for either: the tick's
+/// depth overflows to `inf` and it refuses for want of a scale, and
+/// one direction's `cv / pitch` overflows, which refuses the whole
+/// patch on the finiteness guard before any extent is asked about.
+/// At `1e100` the extent loss below is what is live.
 ///
 /// **What makes this falsifiable**: if `rule_patch` emitted the
 /// zero-length segments instead of refusing them, the drawing here
@@ -1833,4 +1833,193 @@ fn no_normal_makes_a_datum_draw_something_that_is_not_a_drawing() {
             }
         }
     }
+}
+
+/// **A patch that holds more lattice lines than the backstop rules is
+/// ruled SMALLER, completely, AROUND WHAT THE READER IS LOOKING AT**
+/// — not ruled as far as the backstop reaches and then handed over in
+/// the shape of a whole ruling, and not shrunk onto some other part
+/// of the plane.
+///
+/// Three claims, and each is a different way for a capped drawing to
+/// be a lie.
+///
+/// **It closes.** Each family's lines run between the other family's
+/// outermost lines, so the picture is a rectangle with four edges
+/// rather than one with a side ruled off past where the lines
+/// crossing it stop. Truncating the line list leaves one family
+/// running to a bound the other never reached, and the two extents
+/// disagree by whatever the backstop cut.
+///
+/// **It covers the aim.** The ruled rectangle contains the looked-at
+/// point. The region a plane is ruled over is NOT centred on that
+/// point — at the grazing seat that reaches the cap at all, its near
+/// edge is where the bottom of the window lands and its far edge is
+/// the cut-off toward the horizon — so a patch shrunk onto the
+/// region's own midpoint walks away from the aim as the window grows
+/// and eventually leaves the reader looking at bare plane through a
+/// hole in a grid that is complete everywhere else. The tall panes
+/// below are past that point: at 1920x7680, shrinking onto the
+/// region's midpoint rules y from +0.32 to +5.43 and the aim is at 0.
+///
+/// **It stops growing.** The narrow pair fixes the premise — while
+/// the backstop is slack the ruling is the window's, so tripling the
+/// window triples the ruled width — and the wide pair is where it
+/// bites.
+///
+/// Every window here is one a display can be, seen from an orbit
+/// position rather than a pathology, which is what makes the cap
+/// worth a row at all.
+#[test]
+fn a_patch_past_the_grid_backstop_is_shrunk_rather_than_truncated() {
+    let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0])]);
+    // Half a degree above the plane, looking at the origin: the seat
+    // that rules a plane out toward its horizon and so asks for the
+    // most lines a view can ask for. The aim is therefore the plane's
+    // own origin, and a rectangle covering it is one covering `[0, 0]`.
+    let elevation = 0.5_f64.to_radians();
+    let eye = [0.0, -elevation.cos(), elevation.sin()];
+    // The ruled rectangle at each window, as `[x_lo, x_hi, y_lo,
+    // y_hi]`, with the two claims that hold at EVERY window checked
+    // here rather than at the two the growth claim compares.
+    let ruled_box = |[width_px, height_px]: [f64; 2]| -> [f64; 4] {
+        let mut view = view_at(eye, [0.0, 0.0, 0.0]);
+        // Both sides of the window, and the scale the window implies
+        // — `datum_view` reads metres-per-pixel off the HEIGHT, so a
+        // pane that is taller is finer, and a view that set one
+        // without the other would not be a pane.
+        view.window_px = [width_px, height_px];
+        view.metres_per_pixel_at_one_metre = 2.0 * (core::f64::consts::FRAC_PI_8).tan() / height_px;
+        let segments = &drawn_under(&doc, tol, view)[0].segments;
+        // The plane's normal tick is the one mark off the plane.
+        let ruled: Vec<[[f64; 3]; 2]> = segments
+            .chunks_exact(2)
+            .filter(|pair| pair[0][2].abs() < 1.0e-12 && pair[1][2].abs() < 1.0e-12)
+            .map(|pair| [pair[0], pair[1]])
+            .collect();
+        let window = format!("{width_px}x{height_px}");
+        assert!(!ruled.is_empty(), "a {window} window ruled nothing");
+        // A ruled line holds one plane coordinate and runs along the
+        // other, so which coordinate it holds names its family.
+        let family = |held: usize| -> Vec<&[[f64; 3]; 2]> {
+            ruled
+                .iter()
+                .filter(|line| (line[0][held] - line[1][held]).abs() < 1.0e-12)
+                .collect()
+        };
+        let (held_x, held_y) = (family(0), family(1));
+        assert_eq!(
+            held_x.len() + held_y.len(),
+            ruled.len(),
+            "a {window} window ruled a line belonging to both families or to neither",
+        );
+        assert!(
+            !held_x.is_empty() && !held_y.is_empty(),
+            "a {window} window ruled only one family: {} holding x, {} holding y",
+            held_x.len(),
+            held_y.len(),
+        );
+        let box_of = |lines: &[&[[f64; 3]; 2]]| {
+            let mut bounds = [
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+            ];
+            for line in lines {
+                for point in line.iter() {
+                    bounds = [
+                        bounds[0].min(point[0]),
+                        bounds[1].max(point[0]),
+                        bounds[2].min(point[1]),
+                        bounds[3].max(point[1]),
+                    ];
+                }
+            }
+            bounds
+        };
+        let (a, b) = (box_of(&held_x), box_of(&held_y));
+        assert_eq!(
+            a, b,
+            "at {window} the two families rule different rectangles — {a:?} against \
+             {b:?} — so the drawing does not close",
+        );
+        assert!(
+            a[0] <= 0.0 && 0.0 <= a[1] && a[2] <= 0.0 && 0.0 <= a[3],
+            "at {window} the ruling is x {:.3}..{:.3}, y {:.3}..{:.3} — the reader is \
+             looking at [0, 0] and there is no grid there",
+            a[0],
+            a[1],
+            a[2],
+            a[3],
+        );
+        // **And it is plane the window can SEE.** A shrunk patch that
+        // is free to sit anywhere rules the aim's neighbourhood
+        // whether or not the window reaches it, which is the same
+        // untrue drawing pointed the other way. The eye looks along
+        // +y from `eye`, so nothing the window sees is behind it in
+        // y — give or take the one whole cell the region's bounds are
+        // rounded outward by, which is read off the drawing rather
+        // than assumed.
+        let mut held: Vec<f64> = held_y.iter().map(|line| line[0][1]).collect();
+        held.sort_by(f64::total_cmp);
+        let pitch = held
+            .windows(2)
+            .map(|pair| pair[1] - pair[0])
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            a[2] >= eye[1] - pitch,
+            "at {window} the ruling reaches y {:.3}, behind an eye at y {:.3} by more \
+             than the {pitch:.3} m cell the bounds are rounded out by",
+            a[2],
+            eye[1],
+        );
+        a
+    };
+    // Widening the window, which caps the ruling ACROSS the view.
+    let width = |b: [f64; 4]| b[1] - b[0];
+    let narrow = width(ruled_box([1280.0, 800.0]));
+    let tripled = width(ruled_box([3840.0, 800.0]));
+    let wide = width(ruled_box([7680.0, 800.0]));
+    let doubled = width(ruled_box([15360.0, 800.0]));
+    assert!(
+        (tripled / narrow - 3.0).abs() < 0.05,
+        "tripling the window over a {narrow:.1} m ruling gave {tripled:.1} m, \
+         not three times it",
+    );
+    // **Where it bites, the patch stops growing rather than the line
+    // list stopping.** Two statements of that, and the band between
+    // them is what the constants say.
+    //
+    // A window asking for twice as much gets back the SAME rectangle,
+    // to the bit: both are the cap's worth of lines on one lattice,
+    // clamped against a region bound that did not move, so every
+    // coordinate is the same product of the same two numbers. A
+    // tolerance here would admit a patch that drifted a cell.
+    //
+    // And the wide window is short of proportional by more than a
+    // tenth. The premise above says an uncapped ruling would have
+    // doubled; measured, this one is 1.59 times the 3840-pixel
+    // ruling against 1.99 uncapped, so `1.8` sits about a fifth of
+    // the gap from either.
+    assert!(
+        doubled == wide && wide < tripled * 2.0 * 0.9,
+        "the backstop did not bite: {tripled:.1} m at 3840 px, {wide:.1} m at 7680 px, \
+         {doubled:.1} m at 15360 px",
+    );
+    // Heightening the window instead, which caps the ruling ALONG the
+    // view — the direction whose region is asymmetric about the aim,
+    // and the one a shrink toward the region's midpoint loses. The
+    // `ruled_box` claims above are the assertion; these two windows
+    // are here to put a capped patch in front of them.
+    let along = |b: [f64; 4]| b[3] - b[2];
+    let (short, tall) = (
+        along(ruled_box([1920.0, 6400.0])),
+        along(ruled_box([1920.0, 7680.0])),
+    );
+    assert!(
+        short == tall,
+        "a taller pane moved the ruling along the view: {short:.2} m at 6400 px, \
+         {tall:.2} m at 7680 px",
+    );
 }
