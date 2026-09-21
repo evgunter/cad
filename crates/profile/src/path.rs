@@ -1531,10 +1531,20 @@ impl<T: Real> PathError<T> {
 /// what makes both of them readable: `1e-12` rather than eleven zeros,
 /// `1e300` rather than 301 digits.
 ///
-/// Every arm below renders its scalars through here. Non-scalar payloads
-/// — a side, a carrier, an index, a `&'static str` site — are not this
-/// helper's business and reach the sentence through their own `Display`.
-fn num<T: core::fmt::Debug>(v: &T) -> String {
+/// A plain `f64` field reaches the same defect by the other door: its
+/// own `Display` is that shortest round-tripping spelling too, so a
+/// scalar payload typed concretely is no more shortened than one behind
+/// [`Real`], and both belong here.
+///
+/// Every scalar-bearing refusal rendering in this crate goes through
+/// here — the arms below, and [`crate::FilletLegCarrier`]'s `Display`
+/// in `validate`, whose sentence is interpolated into
+/// [`CornerReason::AnchorOutsideTrimmedExtent`]'s. One grid for the
+/// crate's refusals, not one per module. Non-scalar payloads — a side,
+/// a carrier, an index, a `&'static str` site — are not this helper's
+/// business and reach the sentence through their own `Display`, which
+/// renders any scalars of its own through here in turn.
+pub(crate) fn num<T: core::fmt::Debug>(v: &T) -> String {
     let raw = format!("{v:?}");
     let Ok(x) = raw.parse::<f64>() else {
         return raw;
@@ -5049,6 +5059,76 @@ mod tests {
         .to_string();
         assert!(cusp.contains("turn margin -4e-11 m on a 1 m arm"), "{cusp}");
         assert!(!cusp.contains("margin -0 m"), "{cusp}");
+    }
+
+    /// **A carrier clause carries no noise its sentence does not.**
+    /// [`CornerReason::AnchorOutsideTrimmedExtent`] interpolates
+    /// [`FilletLegCarrier`]'s `Display` as `{carrier}`, beside a
+    /// `{setback}` and an `{available}` that `num` already shortened —
+    /// so an unshortened carrier puts the arithmetic's noise inside a
+    /// sentence otherwise free of it.
+    ///
+    /// The two scalars here are SUBTRACTED, not typed: an 8 mm carrier
+    /// and a 3.5 mrad margin are each exactly representable as a
+    /// literal, and a literal would therefore render `0.008` and
+    /// `0.0035` with no helper at all. `0.017 - 0.009` and
+    /// `0.0135 - 0.01` are the values arithmetic actually lands on, and
+    /// they are what makes this row state the defect rather than
+    /// illustrate it: without `num` it reads *"carrier radius
+    /// 0.008000000000000002 m, angular margin 0.0034999999999999996
+    /// rad"*.
+    ///
+    /// The payload is untouched — the shortening is a DISPLAY choice,
+    /// and the field still holds the bits the subtraction produced.
+    #[test]
+    fn a_subtracted_carrier_radius_reaches_the_sentence_shortened() {
+        let radius = 0.017_f64 - 0.009_f64;
+        let angular_margin = 0.0135_f64 - 0.01_f64;
+        // The premise: these are the noisy values, not the exact ones.
+        assert_ne!(radius, 0.008_f64);
+        assert_ne!(angular_margin, 0.0035_f64);
+
+        let carrier = FilletLegCarrier::Arc {
+            radius,
+            angular_margin,
+        };
+        assert_eq!(
+            carrier.to_string(),
+            "circular (carrier radius 0.008 m, angular margin 0.0035 rad)"
+        );
+
+        // And through the sentence that interpolates it, where the
+        // neighbouring scalars are shortened already.
+        let s = CornerRefusal {
+            at: Point2::new(0.25_f64, 0.5_f64),
+            reason: CornerReason::AnchorOutsideTrimmedExtent {
+                side: FilletLeg::Incoming,
+                carrier,
+                setback: 0.017_f64 - 0.009_f64,
+                available: 0.0135_f64 - 0.01_f64,
+            },
+        }
+        .to_string();
+        assert!(
+            s.contains(
+                "circular (carrier radius 0.008 m, angular margin 0.0035 rad) carrier: \
+                 tangent setback 0.008 m exceeds the 0.0035 m the anchor pins"
+            ),
+            "{s}"
+        );
+        assert!(!s.contains("0.008000000000000002"), "{s}");
+        assert!(!s.contains("0.0034999999999999996"), "{s}");
+
+        // Display only: the payload keeps what the subtraction gave it.
+        let FilletLegCarrier::Arc {
+            radius: kept_radius,
+            angular_margin: kept_margin,
+        } = carrier
+        else {
+            panic!("an arc carrier");
+        };
+        assert_eq!(kept_radius.to_bits(), (0.017_f64 - 0.009_f64).to_bits());
+        assert_eq!(kept_margin.to_bits(), (0.0135_f64 - 0.01_f64).to_bits());
     }
 
     /// **The cap is visible at the door too.**
