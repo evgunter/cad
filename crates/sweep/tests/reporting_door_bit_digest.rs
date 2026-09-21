@@ -152,6 +152,16 @@ fn roster() -> String {
 /// instrument: a row cut on the branch would record what the branch
 /// does, which is the thing under test. An ε with no entry here prints
 /// its block and fails, which is how a new row gets cut.
+///
+/// **Re-cut at all three ε when the C9 ring became a newtype over
+/// `interval-transcendentals`' `DInterval`.** That is the other repair
+/// the assertion below names: the ring padded one representable step
+/// outward on every operation and the backend pads only where the
+/// operation is inexact, so every `vpad`/`apad` in the table shrank
+/// and none grew, and the five ε-coupled rows' `v`/`a` midpoints moved
+/// with them. Every verdict hash in the block is unchanged — nothing
+/// certified that refused, or refused that certified — and the pads
+/// are the whole of what moved, downward.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("reporting-door-digest/eps-1e-6.txt")),

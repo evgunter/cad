@@ -183,6 +183,16 @@ fn digest() -> String {
 /// The committed digest for each ε row the matrix gates. Cut on the
 /// MERGE BASE (see the module docs); an ε with no entry prints its
 /// block and fails, which is how a new row gets cut.
+///
+/// **Re-cut at all three ε when the C9 ring became a newtype over
+/// `interval-transcendentals`' `DInterval`.** That is the other repair
+/// the assertion below names: the ring padded one representable step
+/// outward on every operation and the backend pads only where the
+/// operation is inexact, so `arc_loft`'s outer pads shrank and none
+/// grew; the two closed-form bodies and the refusing strip are
+/// unmoved. Every verdict hash in the block is unchanged — nothing
+/// certified that refused, or refused that certified — and the pads
+/// are the whole of what moved, downward.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("shell-census-digest/eps-1e-6.txt")),
