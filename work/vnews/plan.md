@@ -456,6 +456,34 @@ its callers on both sides of the fence, and what its visibility
 forecloses. **Fixing a sentence and adding a function are different
 acts and a fence ruling about one says nothing about the other.**
 
+**A test that asserts a COUPLING does not pin a MAPPING**, and this
+program has now shipped two units that confused them. The shape: a row
+asserts *the control's words equal the door's words* by comparing two
+renderings of **one value**, and adds an `assert_ne!` that two variants
+differ. Both are invariant under a permutation of the mapping, so every
+arm can be wrong together and the suite stays green.
+
+Measured, not reasoned — three mutations on the undo/redo unit
+(2026-09-21): inverting the session dispatch **reds**; swapping
+**both** arms of the direction→word map is **GREEN**; inverting the
+direction column of the toolbar's own `[(label, direction, op)]` table
+is **GREEN**. The second and third each ship a confidently wrong
+sentence to a reader. The unit's own mutation flipped one arm, which
+reds only because it collapses the `assert_ne!` — which is why it
+looked pinned.
+
+So: **a coupling test needs an absolute companion** — one assertion
+that some variant renders a named literal — and a hand-built table
+whose columns must agree needs a row that reads it. The tone unit is
+the same lesson from the other side: its colour rule was asserted
+nowhere at all until its fix pass planted a variant and watched four
+build sites fail. **Plant the value, do not flip the sign.**
+
+And the excuse for not pinning chrome is usually false: `app.rs`'s
+`toolbar_row` and `pane/view.rs` are headless egui harnesses already in
+this crate, one of which lays out the toolbar, so *"not testable
+without a window"* is a claim to check rather than accept.
+
 **Apply the charter's reader test at SPEC time, not at review.** The
 Charter's *"a row belongs here only if a reader would see the
 difference; a rename nobody reads is not news"* is a scoping test —
@@ -550,7 +578,16 @@ with no diff, and the argument for why is the thing that stops the next
 sweep re-minting them. Write it into the row rather than the PR body,
 which stops being read at merge.
 
-**Concurrency.** Four lanes is the right number for READING work and
+**Concurrency, and its limit.** This program's lane count is not the
+box's: on 2026-09-21 five target dirs were live across three programs
+(`atrest-1`, `atrest-2`, `sym-8-r1` and two of this program's), load ran
+40–60, and one viewer test-binary compile took **1h26m**. A rule here
+can only serialize VNEWS's own lanes. What it can do is make each lane
+cheap — no workspace run, no full `doc-gate`, attribute processes via
+`/proc/<pid>/environ` and never broad-`pkill` — and leave a warm target
+dir and its scripts in the scratchpad, which turned a re-run of three
+mutations from hours into minutes.
+Four lanes is the right number for READING work and
 too many for four simultaneous viewer builds. Prefer a wave that mixes
 one or two code lanes with census and adjudication work, which is what
 wave 1 accidentally got right with its fourth lane.
