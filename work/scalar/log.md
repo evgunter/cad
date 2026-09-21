@@ -607,3 +607,22 @@ as "a structure that lets duals run in the `Bounds`-only parts and
 never enter `CertifiedEnclosure`" — which is what the cut is. The
 RATIFIED section and the unit cut go on the sitting's branch next.
 
+## LANE-0 and RING-1 specified; block SCALAR-B4 slots 1–2 (2026-09-21)
+
+The first two units of the second sitting's cut, both E: LANE-0 (the
+`f64`-only offset-fit absence becomes an `Option` hook on
+`tier3_local_checks_marked`, `mint_offset`, `map_approx`; the three
+methods leave `PropsQuadLane`/`PcurveFittedLane`) on `scalar/lane-0`,
+and RING-1 (`geom_core::interval` unconditional, `interval-transcendentals`
+a normal dependency, the feature gates only the instantiation; the
+measured five-file patch) on `scalar/ring-1`. Both take the B4 draw's
+OPUS arm (byte 75, slots 1–2); their pre-draw sentences are recorded
+with the note that the arm was known when the cut was made. Fences
+announced here: LANE-0 reaches TOPO (`validate.rs`), SHELL
+(`replace_face.rs`, `transform.rs`), TRIM (`pcurve_cache.rs`), WIRE
+(`verbs/shell.rs`), LIB, the unowned `topo/src/props.rs`, TINT/TCOST;
+RING-1 reaches PROPS (`geom-core`), CIW (`ci.yml` only if a step
+changes), GUARD (`scripts/gates/*`), `docs/DESIGN.md` Q1's phrase
+(naming-only) and `docs/GENERICS-BUILD-COST.md`. Dispatch waits for
+lane slots: the CURVE3-JET dual and its fix pass come first.
+

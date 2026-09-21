@@ -7321,8 +7321,17 @@ read it:
   construction — no decision is added).
 - slot 1 — the first `H5` sub-unit the sitting cuts — **H** (the plan's
   class for `H5`; the sub-unit's own pre-draw sentence is written when
-  it is cut, and says that the arm was already known).
-- slot 2 — the second `H5` sub-unit — **H**, likewise.
+  it is cut, and says that the arm was already known). **Cut 2026-09-21,
+  arm already known (OPUS):** `lane-0-offset-fit-hook` (LANE-0;
+  `docs/LANE-0-SPEC.md`) — **E / structural** (three `f64`-only lane
+  methods become one `Option` hook on three passes; every result and
+  refusal bit-identical; the class the plan gave `H5` as a whole was H,
+  and the sitting's cut came out E).
+- slot 2 — the second `H5` sub-unit — **H**, likewise. **Cut 2026-09-21,
+  arm already known (OPUS):** `ring-1-interval-type-ungated` (RING-1;
+  `docs/RING-1-SPEC.md`) — **E / structural** (five files, +2/−9 lines
+  measured; the type compiles in every build, the feature keeps gating
+  the instantiation; no bit moves).
 
 ### Block SCALAR-B4 — the draw (2026-09-15)
 
