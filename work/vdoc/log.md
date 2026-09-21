@@ -54,3 +54,28 @@ commit that opens this program, per that entry's own rule.
 
 No unit is cut and no branch exists yet. This program does not
 dispatch until its opening condition lifts — `plan.md` §Order.
+
+## 2026-09-21 — AUTHOR discharged one row and filed another
+
+**`add-profile-ui-doc-comment-states-a-premise-the-tree-falsified` is
+discharged, and set to `review` on PR 2955.** AUTHOR's AUTH-1
+(`author/face-frame-seat`) rewrote `add_profile_ui`'s doc comment while
+building the face-frame seat — this row's second falsehood, *"the
+interrogation vocabulary deliberately answers no 'is this face planar'
+verdict"*, is a claim that unit falsifies by existing. The row is not
+closed: it closes when 2955 merges, and is open again as written if it
+does not.
+
+**The seam is announced here rather than only in the PR** because
+AUTHOR touched VDOC's ITEM, not just its ground — the header is set and
+the evidence is on the row. Two stale citations on it were fixed in
+passing (`work/chrome/add-profile-placement-on-picked-face-frame.md` →
+`work/author/…`, and a `## Home` saying CHROME when the row has been
+VDOC's since the 2026-09-20 cut).
+
+**One row filed**:
+`viewer-readme-recourse-count-does-not-say-what-it-counts` (P4) — the
+README's *"composed six ways across five modules"* does not say whether
+it counts ways or sites, so AUTH-1's new recourse-composing site
+neither confirms nor breaks it. Three sibling rows on this slate are
+the same shape and are named on it.

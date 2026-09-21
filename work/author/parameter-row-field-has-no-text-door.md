@@ -2,12 +2,13 @@
 id: parameter-row-field-has-no-text-door
 kind: issue
 title: A parameter row's value field is a bare DragValue — no parser, no unit authoring, no no-op guard
-status: dispatched
+status: review
 opened: 2026-09-04
 refs: [1776]
 priority: P0
 cost: D
 branch: author/param-notation
+pr: 2957
 ---
 
 

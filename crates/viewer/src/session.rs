@@ -93,7 +93,9 @@ pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, OpOutcome, SessionOp};
 pub use probe::{BoundsReading, BoundsTarget};
-pub use refuse::{NodeKindWanted, Refusal, admits};
+pub use refuse::{
+    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, admits, face_frame_seat,
+};
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
 use author::datum_node;
@@ -1985,14 +1987,27 @@ impl DocSession {
     }
 
     /// Insert one datum node ([`SessionOp::AddDatum`]). Its slots are
-    /// literals; an axis in a sketch also names its frame, and a name
-    /// that is not a frame is refused `WrongNodeKind` before the edit.
+    /// literals; the two kinds that also name a node by PICK — an axis
+    /// in a sketch names its frame, a frame on a face names the body
+    /// its face is read out of — are gated by kind here, so a pick of
+    /// the wrong kind is refused `WrongNodeKind` before the edit.
     fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
         // An axis in a sketch names its frame by PICK, so it is gated
         // at this door by kind, as the add-profile door gates its
         // plane.
         if let DatumSpec::AxisInPlane { plane, .. } = &datum
             && let Err(refusal) = self.require_kind(*plane, NodeKindWanted::Frame)
+        {
+            return OpOutcome::refused(refusal);
+        }
+        // A frame on a face names the node its face is read out of by
+        // PICK too, and that node has to denote ONE body: the
+        // evaluator reads the face through its single-body operand
+        // door, so a split side or a pattern instance would mint a
+        // node that refuses after the edit lands. Gated here for the
+        // same reason the frame above is.
+        if let DatumSpec::FaceFrame { at, .. } = &datum
+            && let Err(refusal) = self.require_kind(*at, NodeKindWanted::Body)
         {
             return OpOutcome::refused(refusal);
         }
