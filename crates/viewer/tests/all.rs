@@ -98,6 +98,8 @@ mod error_display;
 mod eval_seam;
 #[path = "focus_highlight.rs"]
 mod focus_highlight;
+#[path = "frame_labels.rs"]
+mod frame_labels;
 #[path = "frame_policy.rs"]
 mod frame_policy;
 #[path = "gesture_table.rs"]

@@ -27,7 +27,7 @@ use pncad::geom_core::Tol;
 use pncad::profile::{
     ArcData, ArcMode, ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb,
 };
-use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::sketch::{self, Notation, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
@@ -95,7 +95,7 @@ fn a_line_chain_previews_and_authors_the_same_square() {
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&square(side))],
         },
     );
@@ -221,7 +221,7 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane,
+        plane: ProfilePlane::Existing(plane),
         loops: vec![shape(&template)],
     });
     assert!(
@@ -284,7 +284,7 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane,
+        plane: ProfilePlane::Existing(plane),
         loops: vec![shape(&template)],
     });
     assert!(
@@ -363,7 +363,7 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane,
+        plane: ProfilePlane::Existing(plane),
         loops: overlapping.iter().map(shape).collect(),
     });
     assert!(out.refusal.is_some(), "the door refuses what it drew");
@@ -547,7 +547,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Path { steps })],
         },
     );

@@ -7330,6 +7330,32 @@ that the fold gives plain-name `f64` callers of the tier-3′ doors check
 2's lane, which can change a verdict off the corpora. Sample number at
 merge. Row at merge.
 
+## RING-2 review ordinal fixed at dispatch (2026-09-21)
+
+`ring-2-newtype-over-dinterval` (RING-2; SCALAR; PR #3032 open — frozen
+head `e228297d68`): **ordinal 4114** (SCALAR band; claimed after LANE-2's
+4115 because RING-2's head froze later — two red heads after the PR
+opened, both fixed by the lane). Protocol v6 dual: draw = `/dev/urandom`
+byte **8**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the
+frozen head, read-side isolation (v6 item 5), briefs identical and
+stored before either ran, with a line telling both arms that the
+branch's spec commit is the orchestrator's and that two container
+restarts split the implementing lane into three lanes on one arm. Pre-draw
+difficulty **H / numeric** (recorded branch-side in the block SCALAR-B5
+pre-draw section before the block's byte 244, which put the OPUS arm on
+slot 2; a Fable spec — it moves certified bounds). Impl phase: the PR
+opened 17:00Z (dispatched ~12:30Z; the box restarted at ~13:50Z and
+~20:45Z, the lane resumed on the same arm both times from its pushed
+commits and a saved patch); the first head red on five rows (two meter
+rows on an exactly-zero curvature bound, two interval eps-1e-12 rows,
+the test-utils reader-census ledger), the second on one (`step-export`'s
+sidecar fixtures), all re-pinned tighter with the cause named or fixed
+at the consumer; impl CI **35654662476** GREEN on the frozen head (twelve
+`test` legs, five `k-lint (gate, …)`, the python suite, `gate ok`).
+The brief leads with the newtype's three choices and the new
+`CertifiedEnclosure::crossing_bracket` member (against DL1), then the
+two red heads' dispositions. Sample number at merge. Row at merge.
+
 ## LANE-2 review ordinal fixed at dispatch (2026-09-21)
 
 `lane-2-chart-region-lane-deleted` (LANE-2; SCALAR; PR #3038 open — frozen
