@@ -640,3 +640,92 @@ fn a_manifestly_negative_argument_is_declined_by_both_arms() {
         "if this folds now, the predicate grew a negative branch"
     );
 }
+
+/// **THE ADVERSARY: a manifestly positive form whose `f64` channel
+/// reads NEGATIVE at the point (R2, item G).**
+/// `E = (x + 1)² − x² − 2x − 1 + 1e-30·(1 + y²)` is the polynomial
+/// `1e-30 + 1e-30·y²` as a FORM — a positive constant plus a
+/// non-negative term — so rule F folds `copysign(1, E)` to `1`. At
+/// `x ≈ 1e8` the `f64` evaluation of the first four terms is roundoff
+/// of order one and can be negative, so the value channel's
+/// `copysign(1, E)` is `−1` there and the margin `copysign(1, E) − 1`
+/// is a DEFINITE `−2` while the tier says the same margin is
+/// identically zero.
+///
+/// **That is not an unsoundness of rule F**: `E > 0` for every real
+/// `x`, `y`, and the `f64` lift is not an enclosure, so the
+/// disagreement is the channel's roundoff. What rule F adds is that a
+/// one-ulp error in the SIGN argument becomes a whole `2.0` at the
+/// margin — it is the first rule that turns one into the other. At
+/// `Sym<Interval>` the enclosure of `E` contains zero, the value
+/// channel cannot decide, and the tier answers `theorem`.
+///
+/// `#[ignore]`d because `Sym<f64>::sign_within`'s contradiction
+/// `debug_assert!` FIRES here by design, and a row that panics on
+/// purpose in every CI log is read as a break. The class is
+/// `work/sym/sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`;
+/// changing that assertion is SYM's row and not this unit's.
+#[test]
+#[ignore = "evidence-only: fires Sym<f64>'s contradiction debug_assert by design (R2's adversary)"]
+fn the_adversary_a_positive_form_whose_f64_channel_reads_negative() {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+    let tiny = 1.0e-30;
+    let (mut contradicted, mut flipped) = (0, 0);
+    for &x0 in &[1.0e8, 3.0e8, 5.0e8, 7.0e8, 1.0e9, 1.3e9] {
+        let resid = move || {
+            let x = p("x", x0);
+            let y = p("y", 0.5);
+            let e = (x + one()).powi(2) - x.powi(2) - Sym::from_f64(2.0) * x - one()
+                + Sym::from_f64(tiny) * (one() + y.powi(2));
+            one().copysign(e) - one()
+        };
+        // Each point on its own thread: a panic inside
+        // `with_session_rules` leaves that thread's session installed
+        // and the next point would refuse to nest.
+        let outcome = std::thread::spawn(move || {
+            catch_unwind(AssertUnwindSafe(|| how(SymRules::shipped(), resid)))
+        })
+        .join()
+        .expect("the probe thread itself joins");
+        match outcome {
+            Ok((l, v)) => {
+                println!("  x = {x0:e}: copysign(1, E) − 1 → {l}, value {v:e}");
+                assert_eq!(l, "theorem", "E is manifestly positive");
+                if v != 0.0 {
+                    flipped += 1;
+                }
+            }
+            Err(_) => {
+                println!(
+                    "  x = {x0:e}: the f64 margin is definite and the form is zero — \
+                          Sym<f64>'s contradiction assertion FIRED"
+                );
+                contradicted += 1;
+            }
+        }
+    }
+    println!("  contradiction fired at {contradicted} of 6 points, value ≠ 0 at {flipped}");
+    assert!(
+        contradicted + flipped > 0,
+        "the adversary is meant to make the f64 channel disagree at least once"
+    );
+}
+
+/// The same adversary at the INTERVAL lift, which is the certified
+/// lane: `E`'s enclosure over a box around `x = 1e8` straddles zero,
+/// the value channel cannot decide, and the tier answers `theorem` —
+/// the identity, correctly. Gating, because nothing here panics.
+#[test]
+#[cfg(feature = "interval")]
+fn the_adversary_at_the_interval_lift_is_a_plain_theorem() {
+    let tiny = 1.0e-30;
+    let (l, v) = how_i(SymRules::shipped(), || {
+        let x = over("x", 1.0e8 - 1.0, 1.0e8 + 1.0);
+        let y = over("y", 0.4, 0.6);
+        let e = (x + one_i()).powi(2) - x.powi(2) - Sym::from_f64(2.0) * x - one_i()
+            + Sym::from_f64(tiny) * (one_i() + y.powi(2));
+        one_i().copysign(e) - one_i()
+    });
+    println!("  interval lift over x ∈ [1e8 ∓ 1]: {l} enclosure {v:?}");
+    assert_eq!(l, "theorem");
+}
