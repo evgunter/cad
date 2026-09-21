@@ -1047,3 +1047,20 @@ and pushed, the cost measurement had completed, and the agent was
 resumed. Spec deleted with its ledger entry; item
 `sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` closed;
 unit closed.
+
+## SYM-12 spec'd and dispatched (2026-09-21): the derived-frame freeze's next shape — block SYM-B3 slot 1
+
+With SYM-11 merged (#3028, sample #230) a lane is free and block
+SYM-B3's slot 1 dispatches per its pre-draw fields (H / NUMERIC, FABLE
+by the draw's byte 178). The unit takes the derived-frame item's own
+"whoever takes the next unit on this row should render it first":
+Phase 1 renders `tiltUV` (the fold never fires, or fires into a frozen
+node, or fires where no decision is asked — one of three, recorded),
+counts the five other `copysign` mint sites against the eight measured
+documents, and hand-plants the manifest-NEGATIVE arm against the ring
+item's acceptance; Phase 2 takes the arm only if no split or ceiling
+moves down anywhere. The Newell wall after rule F is DECIDE-3's ground
+and is read-only here. Spec `docs/SYM-12-SPEC.md`; unit
+`work/sym/SYM-12.md`; branch `sym/12-negative-arm`. Triaged IN under v7
+by the program's default for a unit that changes what the tier decides
+on a document (the block record says so; re-asked here: IN).
