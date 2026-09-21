@@ -269,3 +269,6 @@ mod rim_of_r1_probes;
 
 #[path = "r2_rim_probes.rs"]
 mod r2_rim_probes;
+
+#[path = "lane0_r2_probes.rs"]
+mod lane0_r2_probes;
