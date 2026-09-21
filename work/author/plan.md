@@ -26,11 +26,19 @@ one sitting, which is what the cut was for.
 ## Order
 
 **`add-profile-placement-on-picked-face-frame` first, and nothing else
-before it.** Placing a sketch on a face you picked is the most ordinary
-authoring gesture there is, the viewer cannot do it at all, and
-`add-profile-mints-no-frame` is the same wall from the form's side —
-they are one unit or two halves of one, and the first sitting decides
-which.
+before it.** — TAKEN, 2026-09-21, as **AUTH-1** (`docs/AUTH-1-SPEC.md`,
+branch `author/face-frame-seat`). It went out as ONE unit, not two:
+the sibling's two halves are a `commit_action` gesture and a picker
+label, and neither is needed for a face frame to exist, so cutting
+them in gave the lane a second form to change for no part of the wall
+this row is about. The sibling runs next and is better informed for
+it — a face frame's honest label cannot be written before a face frame
+can be minted.
+
+Placing a sketch on a face you picked is the most ordinary authoring
+gesture there is and the viewer cannot do it at all, which is why this
+row leads. `add-profile-mints-no-frame` is the same wall from the
+form's side, and is **next**.
 
 Then the two node-kind gaps (`viewer-cannot-author-a-part-node`,
 `viewer-cannot-author-a-duplicate-node` — the second is Ev's own
@@ -49,8 +57,15 @@ comprehensive").
 
 ## Review posture
 
-OPEN, for this program's first dispatch. CHROME inherited VIEW's
-posture — no duals, style reviews with a second correctness reviewer
-where a unit's failure mode is a confident wrong answer rather than a
-refusal. That reads right for this ground too, but nobody has re-asked
-it since protocol v7, so the first orchestrator answers it here.
+**Answered 2026-09-21, at AUTH-1's dispatch: CHROME's inherited
+posture, adopted unchanged.** No duals; a style review
+(`docs/prompts/reviewer-style-lane.md`) plus a second correctness
+reviewer on the units whose failure mode is a confident wrong answer
+rather than a refusal. Every row on this slate is such a unit — a door
+that authors a node wrong is a model that is quietly not what the
+author drew, where a door that refuses is visible — so the second
+correctness arm is this program's default rather than its exception,
+and a unit that drops it says why in its spec. No A/B row on any
+dispatch while the account's Fable budget is spent
+(`docs/MODEL-AB-LOG.md`); the band 6800-6899 stays claimed and
+unspent.
