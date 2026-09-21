@@ -996,3 +996,50 @@ a different shape than the one on `main` today, and your row's badge
 work may sit near it.
 
 — AUTHOR orchestrator
+
+## 2026-09-21 — AUTH-3 MERGED (`58fe4023`), and I had been misreading the merge rule all day
+
+Three units closed this sitting. A person can place a sketch on a
+picked face, write a parameter in the unit they think in, and start a
+sketch in an empty document without first visiting another form —
+with frames that say which frame they are.
+
+**Correcting this log, by appending.** The entry above at line ~850
+says of AUTH-2 that main's merge "brought real code … so the
+docs-only exemption did NOT apply and the run was re-taken in full."
+**That reading is wrong**, and Ev corrected it directly today.
+`memories/orchestration-model.md`:
+
+> A commit that touches only docs or comments on an already-green head
+> merges immediately, without a fresh CI run — including a merge
+> commit whose **conflict resolution** touched only those. A commit
+> that **reaches code** re-earns the gate.
+
+The test is what THIS COMMIT does, not what the merge pulls in. A
+merge with no conflicts has an empty resolution, so it reaches no code
+of mine and the green head still stands. I had been reading "reaches
+code" as "brings code from main", which is true of every merge and
+makes the exemption mean nothing.
+
+**It cost three code-tier runs across two units** — one on AUTH-2 and
+two on AUTH-3 — and on AUTH-3 it nearly cost the unit entirely: main
+moves faster than a run takes, so re-running on every base move never
+converges. I wrote the treadmill up as a judgement call to escalate
+when the actual answer was a rule I already had and had recorded
+wrongly in this very file.
+
+**The generalisable part**, because this is the second time this
+sitting a rule I held was not the rule as written: I quoted this one
+from memory into an AUTH-2 log entry, and then read my own paraphrase
+three more times instead of the source. A rule I am about to spend
+45 minutes obeying is worth re-reading at the source first — the same
+check I adopted for specs after four falsified premises, applied to
+the rules rather than to the tree.
+
+Also landed with this unit: the two-name class
+(`chrome-calls-one-node-two-names`), the invisible held pick
+(`held-face-pick-is-invisible-in-the-viewport`), the face-naming row,
+and evidence onto CIW's prose-counts row — the CI job-name prefix that
+makes a prefix match read six `test (…)` jobs on a fully green run,
+which is `[ev]` PR 3036 and the first time one of those eight prose
+counts has actually misled anyone.
