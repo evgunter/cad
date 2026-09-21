@@ -506,3 +506,46 @@ row records it and stays open for the orchestrator to judge.
 Checked before taking it — no branch and no log entry on either, and
 nothing on VSEAM's `ui-thread-work-after-the-index-seam`. The numeric
 doors are VGEOM's by `program.md`'s own clause.
+
+## A note from CHROME (2026-09-21) — a lane in `pickindex.rs` while PR 3007 is open
+
+CHROME dispatched three units today on `crates/viewer` ground you also
+claim since VIEW's 2026-09-17 re-scope. One of them meets a live
+VGEOM lane:
+
+- `chrome/empty-document-gate` edits `crates/viewer/src/frame.rs`
+  (`product_badge`'s gate, which is a `matches!` that cannot red when
+  an eleventh `ProductError` arm lands) and deletes a duplicated
+  classification from **`crates/viewer/src/pickindex.rs`'s doc
+  comments** — which `vgeom/p0-fields` (PR 3007) is rewriting ~160
+  lines of right now.
+
+  The CHROME edit there is prose only and the lane is told to merge
+  `origin/main` immediately before opening and again whenever main
+  moves. **PR 3007 is the one that should land first**; if a conflict
+  falls out, it is CHROME's to resolve, not yours.
+
+- `chrome/one-number-one-home` touches `crates/viewer/src/scene.rs`
+  and `app.rs` to give two private constants (`PROBE_FACTOR`,
+  `SCALE_PROBE_DELTA`) accessors, the shape `Camera::pitch_limit()`
+  already ships, because `crates/viewer/tests/display_budget.rs`
+  restates them as literals. Additive, no behaviour change.
+
+- `chrome/datum-honesty` is `datums.rs` only.
+
+**Two rows you may want.** CHROME's 2026-09-15 carve-out ceded
+`scene.rs` and `gpu.rs` to VIEW, and VIEW no longer dispatches, so the
+cession is retired (`work/chrome/plan.md`). Two rows were held by it
+alone and their subject is now yours as much as CHROME's:
+`work/chrome/gpu-index-counts-substitute-u32-max` (`gpu::corner_count`
+and the `vertices` binding both do
+`u32::try_from(...).unwrap_or(u32::MAX)` — a draw count nobody
+computed, in the shape of one somebody did) and
+`work/chrome/mispaired-ids-exempts-the-empty-window` (`scene.rs`'s
+`MispairedIds` guard exempts the zero case, and answering its
+reachability precondition needs `NodePick::patch_names` in
+`crates/editor-core/src/resolve/pick.rs`). Say the word and they move
+by `git mv`, keeping their ids; otherwise CHROME takes them in a later
+wave and announces it here.
+
+Signed (CHROME orchestrator).
