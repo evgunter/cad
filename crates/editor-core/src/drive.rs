@@ -251,12 +251,13 @@ pub struct DriveConfig {
 /// Two things keep that bill down and both are measured rather than
 /// argued. A margin the numeric channel has already proved NON-ZERO
 /// is never DECIDED by its form (`geom_core::sym`'s `Decide` impl —
-/// a certified enclosure excluding zero is a proof no normal form can
-/// contradict), which is most margins on most documents; the form is
-/// still BUILT for it wherever debug assertions are on (dev, test and
-/// this workspace's release profile), by the contradiction assertion
-/// at that site — a tenth of the slab's plain forms, measured
-/// (`geom_core::sym`'s `# Cost`). And
+/// at this lane's EXACT witness a certified enclosure excluding zero
+/// is a proof no normal form can contradict), which is most margins on
+/// most documents; the form is still BUILT for it by the contradiction
+/// check at that site, which at an exact witness is a `debug_assert!`
+/// and so runs wherever debug assertions are on (dev, test and this
+/// workspace's release profile) — a tenth of the slab's plain forms,
+/// measured (`geom_core::sym`'s `# Cost`). And
 /// `Poly::mul` refuses on pre-bounds instead of building a product and
 /// discarding it, so an over-budget multiplication costs its two
 /// operands' sizes rather than their product.
@@ -862,12 +863,18 @@ impl ParamBoxVerdict {
                 );
             }
             // The theorem channels' refusal column, by the same rule
-            // again. It costs no schema bump because it cannot be
-            // non-zero here: a drive replays at `Sym<Interval>`, whose
-            // witness is EXACT, and the contradiction is asserted
-            // there rather than counted
-            // (`geom_core::SymCounts::theorems_disputed`). A receipt
-            // that carries it came from a lane no driver runs.
+            // again. **It costs no schema bump because there is no
+            // schema to bump**: this text is written and never parsed.
+            // Its two consumers are `content_key`, which hashes it
+            // (derived on demand, never persisted — E10), and the rows
+            // that compare two renderings byte for byte. Neither reads
+            // a FIELD, so a key added here cannot break a reader; what
+            // the present-only-when-nonzero rule buys is that the hash
+            // and those comparisons do not move — and here the column
+            // cannot be non-zero at all, because a drive replays at
+            // `Sym<Interval>`, whose witness is EXACT, so the
+            // contradiction is asserted rather than counted
+            // (`geom_core::SymCounts::theorems_disputed`).
             if self.decisions.theorems_disputed != 0 {
                 let _ = write!(s, " theorems_disputed={}", self.decisions.theorems_disputed);
             }
