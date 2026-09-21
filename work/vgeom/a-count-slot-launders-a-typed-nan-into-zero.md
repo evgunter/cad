@@ -2,10 +2,12 @@
 id: a-count-slot-launders-a-typed-nan-into-zero
 kind: issue
 title: A typed NaN in a Count slot commits 0, past the finiteness refusal props.rs promises names it
-status: open
+status: closed
 opened: 2026-09-17
 priority: P0
 cost: E
+closed: 2026-09-21
+branch: vgeom/refusal-floor
 ---
 
 Found by the sweep `a-clamp-is-not-a-bound-against-nan` ran over
@@ -70,3 +72,49 @@ measured on this row.
 
 `crates/viewer/src/props.rs` and `crates/viewer/src/pane/properties.rs`
 — VIEW's, the standing double claim with CHROME.
+
+## Closed — the Count arm raises the literal door's own refusal
+
+`props::SlotValue::of` returns `Result<Self, DimensionError>`, and its
+`Count` arm answers `DimensionError::NonFiniteLiteral` for a value
+that is not finite — **the same error, by name, that `Expr::literal`
+raises for the continuous half**. That is what makes `field_edit`'s
+promise true rather than merely repaired: the promise was that the
+refusal downstream names the problem, and this is that refusal, raised
+where the literal door is not on the path because `Expr::count` takes
+an integer.
+
+The four call sites take it the way each already refuses:
+`session/probe.rs`'s `probe_edit` through its own documented `None`
+("the value cannot be expressed there at all"),
+`session.rs`'s `preview_gesture` through `Refusal::Dimension`, which
+is a named refusal on screen, and `widgets.rs`' typed arm and
+`pane/properties.rs`' create-param by emitting no operation. **After
+the fix the poison is not representable in the operation**: a
+`SessionOp` carries a `SlotValue`, and there is no longer a `SlotValue`
+for it.
+
+**Row**: `crates/viewer/tests/panel_edits.rs`,
+`a_count_slot_refuses_a_value_that_is_not_a_number`. It reads BOTH
+sides rather than restating one — the expected error is obtained by
+calling `Expr::literal(f64::NAN, Dimension::Length)` and comparing, so
+a row that spelled `NonFiniteLiteral` as a literal and agreed with
+itself is not what is here. It carries the pair a value door needs:
+the three poisons refuse, all four Count-dimensioned slots refuse, and
+every legitimate count — including the truncation toward zero at both
+signs — comes back as itself. The continuous arm's `NaN` is checked by
+`matches!` and not `assert_eq!`, because `NaN` is equal to nothing.
+
+**Mutation**: deleting the `is_finite` conjunct from `of`'s `Count`
+arm reds that row and nothing else in the 798-row app-feature suite.
+
+## What is NOT fixed, and it is the other half of the same cast
+
+`value as i64` still saturates for a FINITE value outside `i64` —
+`1e30` commits `i64::MAX`, executed. It is not fixed here because it
+has no refusal to raise: `DimensionError` has no arm for it and
+`crates/editor-core` is EDIT's and MSOLVE's. Filed as
+`work/vgeom/a-count-slots-cast-still-saturates-for-a-finite-value-too-large.md`
+with the fork it needs.
+
+PR: `vgeom/refusal-floor`.
