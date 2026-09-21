@@ -20,7 +20,9 @@ test_utils::gated_to![
     "crates/geom/src/surfaces.rs",
 ];
 
-use crate::nurbs_cert::tests::{fold_bound, nurbs_face_bound, sample_worst, whole_net_bound};
+use crate::nurbs_cert::tests::{
+    Domination, fold_bound, nurbs_face_bound, sample_worst, whole_net_bound,
+};
 use crate::nurbs_cert::*;
 use geom::NurbsSurface;
 use geom_core::Point3;
@@ -138,13 +140,10 @@ fn r1_random_rational_soundness_sweep() {
         let (wuu, wuv, wvv) = sample_worst(&s, 60);
         let r = (wuu / b.muu).max(wuv / b.muv).max(wvv / b.mvv);
         worst = worst.max(r);
+        let d = Domination::second_partials((wuu, wuv, wvv), &b);
         assert!(
-            wuv <= b.muv && wuu <= b.muu && wvv <= b.mvv,
-            "UNSOUND at trial {trial}: ({wuu:.3e},{wuv:.3e},{wvv:.3e}) vs \
-             ({:.3e},{:.3e},{:.3e}) — {}",
-            b.muu,
-            b.muv,
-            b.mvv,
+            d.holds(),
+            "UNSOUND at trial {trial} (degree {pu}x{pv}): {d} — {}",
             fuzz::replay()
         );
     }
@@ -170,8 +169,8 @@ fn r1_random_rational_soundness_sweep() {
     // lowering the threshold.
     assert!(
         worst > 0.5,
-        "the sweep must stay adversarial (tight cases exist): worst \
-         {worst:.6} — {}",
+        "the sweep must stay adversarial (tight cases exist): worst sampled/certified \
+         {worst:.17e} is not above the floor 0.5 — {}",
         fuzz::replay()
     );
 }

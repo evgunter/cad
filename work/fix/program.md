@@ -2,7 +2,7 @@
 id: fix
 kind: program
 title: FIX — kernel and façade doors with the fix written
-status: open
+status: active
 opened: 2026-09-03
 area: kernel
 prefix: fix/

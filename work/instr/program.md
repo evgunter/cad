@@ -2,7 +2,7 @@
 id: instr
 kind: program
 title: INSTR — the instrument crates and the documents they feed
-status: open
+status: active
 opened: 2026-09-08
 area: infra
 prefix: instr/
