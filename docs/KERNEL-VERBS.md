@@ -476,7 +476,7 @@ the table.
   that CROSSES its outer loop, part in and part out, passes whenever
   the first vertex the walk decides is an inside one. Filed, with the
   widening that closes the disc third:
-  `work/topo/check-9-nesting-is-line-bounded-only.md`.
+  `work/atrest/check-9-nesting-is-line-bounded-only.md`.
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`
