@@ -96,6 +96,8 @@ mod curves_n1r1_c24_dump;
 mod cert_n2r2_probes;
 #[path = "curves/ders1_meter.rs"]
 mod curves_ders1_meter;
+#[path = "curves/ders1_r2_probes.rs"]
+mod curves_ders1_r2_probes;
 #[path = "curves/n1r1_c24_meter.rs"]
 mod curves_n1r1_c24_meter;
 #[path = "curves/n1r1_lift_probes.rs"]
