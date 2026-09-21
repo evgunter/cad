@@ -1024,3 +1024,103 @@ my statements were wrong: `camera.rs` is claimed by **chrome, fit and
 view** as well, not the two I named; and `crates/viewer/src/narrowing.rs`
 read as *"owned by chrome, view"* because VGEOM's `paths` lists files
 rather than a glob. **Added to `program.md` here.**
+
+## 2026-09-21 — `vgeom/render-spelling` (#3031): the conversion a render performs owns its bound
+
+The wave's last lane, and the one whose unit halved mid-flight when
+#3007 turned out to have closed its other row. It reverted the work it
+had already done there — including a `number_text` doc arguing *leave
+it alone and state it*, which would have contradicted #3007's landed
+bound — and its header edit, so the row's `closed` / `branch` fields
+are #3007's and untouched. No duplicate fix, no duplicate row.
+
+**The decision: none of the three members takes the bound, and that is
+the answer.** Each renders a value another type owns, so the row is
+right that a render cannot narrow what it is handed. What a render CAN
+own is **the conversion it performs itself** — and all three perform
+one, `canonical / unit.factor()`, a multiplication UP for six of the
+unit table's eight rows. So the bound went to the conversion:
+`props::written` asks whether the converted value is a number, with
+`no_reading` as the one spelling of the refusal.
+
+`pane/view.rs` gained a named `camera_mm` reading the factor from the
+unit table, which also discharges the AUTH-2 third-spelling half;
+`bounds.rs::wording` goes through `shown_text`, deleting its
+hand-written divide; `props::field_text` uses `written`.
+
+**Two findings the row did not have.**
+
+- **The other direction.** `pi rad`'s factor is π > 1, so `5e-324` rad
+  written in `pi rad` divides to `0.0` — a text reading zero for a
+  value that is not. Both edges pinned; `written` refuses both ways.
+  The row was about overflow and the class is *the conversion can
+  leave the type*, which has two ends.
+- **`readout::number`'s doc asserted a false universal** — *"Nothing
+  in the chrome hands this one"* a non-finite value. Replaced with its
+  three callers and what each guarantees, with the sweep rule at the
+  sentence.
+
+**The new §5 second pass, run in both directions, found no fourth
+member** — backwards from every multiplication UP in the crate, and
+forwards from all 98 production sites that write a value into a text,
+of which exactly one has an arithmetic argument and it is already
+guarded. The remaining gap is stated rather than closed: *a product
+formed in another crate and handed here as an ordinary value*, which
+is other programs' ground.
+
+**The CHROME collision fired exactly where it was predicted to.**
+`chrome/one-number-one-home` merged while this lane was open and
+conflicted on the `bounds.rs` line the addendum named. Resolved to
+this lane's side because it is the SUPERSET — `props::shown_text` IS
+CHROME's `shown_in` plus the render plus the symbol, plus the refusal
+— so CHROME's finding stays discharged and nothing was reverted.
+CHROME had also appended evidence to this row file; both halves kept,
+theirs before the `## Closed`.
+
+**Stopped at the fence rather than crossing it.** The camera member's
+other half — `Camera::new` admits every finite radius, so
+`max_distance = radius * 100` arrives already `inf` above
+`f64::MAX/100` — belongs at `Camera::new`, in a file another lane held.
+Filed as `camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite`
+(P1/E) rather than taken.
+
+### Adjudication: one filed row deleted, and why
+
+The lane filed `work/props/props-log-carries-a-committed-conflict-block-on-main`
+after a tree-wide marker grep found a live conflict block in
+`work/props/log.md` on `main`. The finding was **true when made** and
+is now moot twice over: CHROME found it the same afternoon, filed
+`work/props/committed-conflict-block-in-the-props-log`, and repaired
+it at `97217090`; the markers are gone and CHROME's row is closed.
+
+So the lane's row was an open duplicate, of a closed row, about a
+repaired defect. **Deleted at merge** — one file, one item. And its
+central argument was wrong in a way worth naming: it read the gate as
+*filed for track J and never built*, therefore still owed. The gate
+was **decided against** — `work/ciw/committed-conflict-markers-reach-main`
+carries Ev's call of 2026-09-04 (*close it — the failure is rare and
+not worth the special effort*) two lines below the orphaning sentence
+the lane quoted. Reading `:30` and not `:32` is *check that Ev ever
+agreed* run in the opposite direction, and it costs the same.
+
+What survived is the datum, and it is recorded on the CIW row where
+the ruling lives: **four instances in about three weeks**, the newest
+costing two lanes a detour on one afternoon, both finding it by
+accident while checking their own merges. `lint` does not read
+`log.md`, so `main` was green over it. **The ruling stands and nothing
+here reopens it** — a standing gate is Ev's to decide.
+
+## Wave closed — 2026-09-21
+
+Four units dispatched, one stood down and re-tasked as a reviewer,
+four PRs merged (#3027, #3007, #3030, #3031) plus two orchestrator
+state-syncs. **Twelve rows closed; the slate went 15 open / 10 closed
+to 9 open / 22 closed, load 22.5 → 18 of 30.** Eleven rows filed
+across six programs (VGEOM, VSEAM, VDOC, CHROME, WIRE, LINALG, and one
+to `work/issues/`), every one a file rather than a sentence in a
+merged PR body.
+
+**The wave's own lesson is the correction near the top of this
+entry**: it was cut over an open lane, because the board cannot show a
+claim that has not merged. The remote check is one command and it is
+now written down.
