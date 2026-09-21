@@ -676,3 +676,39 @@ previous `z`-only assertion, and verified it by mutation
 (`CapEnd::Start` now reds). **That gap is worth knowing about beyond
 this unit**: the viewer cannot author a union of two bodies it made
 flush, which is an ordinary CAD gesture.
+
+## 2026-09-21 — AUTH-1 MERGED (`2cf83b500`); the program's first unit is done
+
+PR 2955 landed green at 39 jobs. **The viewer can place a sketch on a
+picked face** — the single most ordinary thing a person opens a CAD
+program to do, and the row the plan put first precisely because the
+viewer could not do it at all.
+
+**Merge order mattered and the lane caught it, not me.** AUTH-1's code
+comments cite two CHROME rows its own reviewers filed, and those rows
+existed only on the orchestrator branch. Merging 2955 first would have
+put citations on `main` naming files `main` did not have — nothing
+gates work-row citations, so it would have been silent rot of exactly
+the kind VDOC's slate is full of. The fix pass flagged it in its
+report. The tracker PR (#2979) went first; 2955 then conflicted on
+`work/author/`, was merged forward (docs and work only, no code), and
+landed under Ev's 2026-09-21 rule that such a commit on an
+already-green head merges without a fresh run.
+
+**Closed with it**: VDOC's
+`add-profile-ui-doc-comment-states-a-premise-the-tree-falsified`,
+whose `## Shape` asked for exactly the rewrite this unit made.
+
+**Three of my premises were falsified across this unit**, and the
+shape is consistent enough to name: the `Ambiguous` multi-body
+hypothesis (spec), the `base_r * 2` text (AUTH-2's spec), and the
+`partial_mirror!` return type (an F12 adjudication). Each was cheap to
+correct where the surrounding text said *decide and say*, and the
+adjudication one is the worst of the three — a spec is read by a lane
+that will check it; an adjudication arrives as a list of things to do.
+**Next spec and next adjudication both carry the instruction to check
+me.**
+
+Remaining on the slate: AUTH-2 in fix (PR 2957),
+`add-profile-mints-no-frame` next in the order, and eight rows behind
+it.
