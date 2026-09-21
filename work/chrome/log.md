@@ -1548,3 +1548,53 @@ across four programs. What the wave evidences about this program's
 review posture is in `work/chrome/plan.md`, stated once.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-21 — withdrawn: the interval job-prefix "finding" was not one
+
+Filed as a CIW row and an `[ev]` PR (3033) earlier today, then
+withdrawn on Ev's questioning. Recorded here rather than as a closed
+row, because `work/README.md` is explicit that the tracker exists so
+work is not forgotten and not so work is recorded — and there is no
+work here.
+
+**The claim.** The interval lane now runs from a called workflow
+(`ci.yml` -> `interval.yml`), so six of the twelve `test (…)` jobs are
+named `interval / test (interval, eps = …, n/2)`.
+`docs/prompts/implementer-discipline.md` tells every lane to expect
+twelve and says that six-where-twelve-was-expected is the signature of
+a break. I argued this sends lanes hunting a non-problem.
+
+**Why it was wrong, in the order the errors were made.**
+
+1. **A lane's PREDICTION was promoted to a finding.** The lane wrote
+   *"this will bite other lanes"* and I adopted it without testing it.
+   What the lane actually reported was *"I nearly reported a narrowing
+   that was not one"* — it caught itself inside the same
+   investigation, before reporting anything. The other lane in the
+   same wave hit the identical rename and disposed of it in one
+   clause. **Two encounters, zero wrong conclusions.**
+2. **The "measurement" measured invented failure modes.** Asked to
+   justify it, I compared counting methods and reported that an
+   anchored match returns six. No agent would write
+   `startswith("test (")` against a doc quoting `test (…)`; the
+   natural spelling is a substring, which returns **twelve** and
+   notices nothing. My own check-runs filter used a substring all day
+   and never saw a problem. I constructed the failure and then cited
+   it as evidence.
+3. **The disqualifying argument was already in hand.** Ev's ruling on
+   `work/ciw/committed-conflict-markers-reach-main` (2026-09-04) says
+   a defect that is loud on sight, repaired in the same breath, with
+   nothing built on it meanwhile, is a poor subject for machinery. I
+   quoted that argument in this same session, against my own note on
+   that row — and did not apply it here, where it holds *more*
+   strongly, because what I was asking for was a change to a file that
+   binds every lane plus a ruling from Ev.
+
+**The general shape, which is the only thing worth carrying.** An
+orchestrator reading lane reports is reading claims, and a lane's
+forecast about OTHER lanes is the least tested thing in its report.
+The cost of adopting one is a file, a PR, a reader and a ruling
+request; the cost of testing it is asking whether it has ever actually
+cost anything. Neither encounter here had.
+
+Signed (CHROME orchestrator).

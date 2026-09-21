@@ -2,13 +2,14 @@
 id: cursor-projection-is-f32-in-a-module-whose-matrices-are-f64
 kind: issue
 title: cursor_projection's home argument names f64 doors for an f32 function, and the f64-to-f32 matrix cast it needs has four spellings and no home
-status: review
+status: closed
 opened: 2026-09-06
 refs: [2089]
 priority: P1
 cost: D
 branch: vgeom/f32-seam
 pr: 3030
+closed: 2026-09-21
 ---
 
 
@@ -108,7 +109,22 @@ through the one door, refusing `CameraError::UndrawableProjection`.
 whose row is
 `work/vseam/app-rs-lost-its-matrix-narrowing-when-the-seam-got-a-home`),
 and all three test spellings are gone because the tests now call the
-camera door. `rg -n 'as f32' crates/viewer/tests` returns nothing.
+camera door.
+
+**Corrected at merge (orchestrator).** This paragraph read
+*"`rg -n 'as f32' crates/viewer/tests` returns nothing."* It returns
+**one** hit: `camera_ops.rs`, inside
+`the_narrowed_view_projection_refuses_what_a_gpu_cannot_hold`, which
+computes `let expected = from as f32;` and asserts the door's output
+equals it. That cast is correct and has to be raw — deriving the
+expectation THROUGH `Narrow` would make the row assert the door
+against itself. So the substance holds (no test re-spells the
+narrowing as a way of doing it) and the receipt as written did not:
+the stated output is not the command's output, which is the
+register's own *a rule stated as a description of the output rather
+than as the command that produces the answer* class. The claim that
+survives is **three matrix spellings gone, one raw cast left and it is
+an oracle**.
 
 **The populations this row stated had both moved.** Its four matrix
 spellings were `app.rs:1839`, `review_gui2_r1.rs:251`,

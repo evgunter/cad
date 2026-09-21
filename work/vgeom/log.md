@@ -795,3 +795,332 @@ Standing offer back: if CHROME would rather not carry it, say so on
 this log and VGEOM will take it in a later wave — declining on a
 charter test is not declining on capacity, and a row nobody takes is
 worse than a row in the less exact home.
+
+## 2026-09-21 — the wave lands: #3027, then #3007 reviewed, fixed and merged
+
+### `vgeom/deletions` (#3027) — three rows, and two findings worth more than them
+
+Closed `viewer-array-lowered-vector-ops-escaped-the-hand-rolled-sweep`,
+`mixfraction-has-two-constructors-where-one-would-do` and
+`headings-unit-vector-is-not-unit-at-the-bottom-of-the-range`. 39 checks,
+twelve `test (…)`, five `k-lint (gate, …)`, `gate ok` success.
+
+**A citation that never had a subject.** The array-lowered row sent the
+lane to `sketch.rs:1038`, *"`tip_mark`'s `diagonal`"*. Neither token
+exists anywhere in `crates/viewer/src` at any commit — re-checked here
+with `git grep` over `origin/main`. The lane re-derived **by subject**
+rather than repointing, landed on `datums.rs`'s `screen_metres_at`
+(clean, as the row says), and found the function above it —
+`metres_per_pixel_at` — spelling `(point - eye).norm()` by hand four
+lines from three real `.norm()` calls. That is #2783's own stated
+`sqrt()` blind spot surviving in the file that sweep was run on. Filed
+on CHROME, not fixed across the fence.
+
+**A row whose name is the weak part.** Deleting the dead `assert_ne!`
+was the brief; asking whether what remains can fail was not. Measured:
+with `datums.rs` mutated to rule a plane along its own normal — the
+exact defect the row's NAME forbids — the row stays **green while seven
+sibling `datum_draw` rows red**. The suite catches it and the row named
+for it does not, so the deliverable is a citation rather than an
+assertion (the register's `a-supersession-outlives-its-own-frame`
+rule). Filed on VDOC with the receipt.
+
+On `MixFraction`, all three of the row's stated defeaters were tried by
+compiling, including a **control run** proving `clippy::unwrap_used` is
+live in `theme.rs` and merely const-exempt — without which the green
+would have meant nothing. The deletion also turned an unenforced doc
+sentence into a mechanical guard.
+
+### `vgeom/p0-fields` (#3007) — reviewed at `e3df0d5b`, fixed at `c03a0bf8`, merged
+
+**This PR was open, green and complete before this wave was cut, and
+the wave was cut over it** (see the correction above). Two of its rows
+were dispatched to lanes that had to be stood down. The lane on
+`pickindex.rs` was re-tasked as its review lane, which is the only good
+thing to come out of the collision — and it paid for itself.
+
+**The code was right and three of its written claims were not. The one
+that mattered inverts the unit's own framing.** It recorded *no public
+door ever takes a projected pixel* and sited its rows on a private
+helper because of it. Measured false: `segment_distance_px` mints the
+`NaN` itself — `length2 = dx² + dy²` overflows past a pixel separation
+of about `1.34e154` and `inf / inf` poisons `t` — while a projected
+pixel is an NDC scaled by `ViewportSize`, which nothing bounds above.
+Through `edge_at_for` at `1.28e155 × 7.2e154`, `origin/main` answers
+`Err(the camera's cursor x is NaN)` — **the walk blaming the caller's
+cursor for a pixel it had computed** — where the branch answers the
+rim. So the unit repaired a live defect through the public API, and the
+row the lane said could not be written now exists. No user-reachable
+producer of such a viewport was found and none is claimed.
+
+This is the register's *hunt the producer, not the input* rule paying
+out: the unit's sweep was over non-finite INPUTS and closed honestly;
+the arithmetic that MINTS one from finite inputs was invisible to it.
+
+**The decision the fix pass had to take.** The width bound reached
+integer fields: `number_text(-1.0e9, 0..=0)` answered `-1.000e9`, and
+`drafts.rs`'s `pattern_count: i64` is live through that door. For a
+length `REL_TOLERANCE` is the ratified render accuracy; for a count
+every value inside that band is a **different count**. The line taken
+is principled rather than special-cased — **`MAX_CHARS` is what ENDS A
+SEARCH, and a range of `0..=0` offers one spelling, so there is no
+search to end.** Verified here rather than taken on report:
+`egui-0.36.1`'s `DragValue::new` gives an integral `Numeric`
+`max_decimals(0)` **and** `range(Num::MIN..=Num::MAX)` in the same
+expression, so the exemption is bounded by the integer type at twenty
+characters for an `i64`; a continuous field defaults to
+`auto_decimals + 2`; and this crate sets `max_decimals` nowhere, so
+`0..=0` can only arrive from that arm.
+
+Also landed: the `desired_width` census re-derived (**four** calls, one
+of them a numeric field — the register's own `desired_width` rule
+landing on the paragraph that cites it), `readout.rs`'s rotted
+commit-coupling header rewritten, the two spellings of the echo
+mechanism documented at both ends where egui's builders overwrite, and
+the pick guard re-spelled so both terms are load-bearing.
+
+**Not de-duplicated, deliberately.** The fix pass declined to compose
+the two echo spellings because doing so needs a second constructor or
+an observer argument — *"writing one would be this pass minting the
+copy it is reporting"*, which is the reviewer brief's trap named and
+avoided rather than named and walked into.
+
+**A deviation I endorsed.** The fix pass put its six corrections in a
+PR **comment** rather than the body, because the body is last-write-wins
+and the other session had edited it that afternoon. Every correction is
+also written into the item files, which is where it survives the PR.
+
+Three rows filed: `creation-form-fields-lost-two-spellings-egui-accepted`
+(VGEOM P2 — the interior-space and U+2212 parse loss, which had been
+disclosed in three places and scheduled in none),
+`pickkinds-doc-states-its-disclaimer-twice` (VDOC P4), and
+`pick-index-indexes-its-candidates-by-a-number-the-kernel-chose`
+(`work/issues/` P3 — parked there because none of the five claimants'
+charter tests covers a panic, and the row says so).
+
+### Standing discipline changed under the wave
+
+`docs/prompts/implementer-discipline.md` §5 was amended on `main` at
+`36454928` while three lanes were in flight: naming a sweep's blind
+spot is now half the duty, and a **second pass shaped at the gap** is
+owed, or a written reason the gap cannot be searched. Relayed to both
+live lanes with the specific gaps it lands on. `vgeom/deletions`
+happened to satisfy it already — its fifth pass, over iterator-shaped
+sums and variable indices, caught `camera.rs`'s 4×4 product written
+`(0..4).map(...).sum()`, which four line-shaped patterns could not see.
+
+### Operational
+
+`/` hit 100% twice and killed two lane runs with
+`LLVM ERROR: IO failure on output stream` and `No space left on
+device`; neither was reported as a result, correctly. Four private
+target dirs at 6–8G each is 27G. Freed the finished lane's 6.3G and
+told the rest to export `CARGO_INCREMENTAL=0`; one lane also used
+`CARGO_PROFILE_DEV_DEBUG=0` / `CARGO_PROFILE_TEST_DEBUG=0`, which is
+the larger win and is the thing to put in the next dispatch.
+
+**A dead branch that lint cannot see.** `vgeom/pick-distance` carries
+one commit setting two now-closed rows to `dispatched`. It has no PR
+and cannot merge, and the remote refused the delete from here; left as
+a note rather than forced.
+
+## 2026-09-21 — `vgeom/f32-seam` (#3030): one door for the display narrowing
+
+Four rows closed as one question — *where the `f64` → `f32` conversion
+lives in this crate, and whether it refuses.* 39 checks, twelve
+`test (…)`, five `k-lint (gate, …)`, `gate ok` green, and the render
+lanes including the viewer GUI montage, which is the row that would
+catch a picture that stopped drawing.
+
+**The answer: `crate::narrowing::Narrow`, and it judges the RESULT.**
+One trait, one method, impls for `f64`, for `[T; N]` where `T` narrows
+(a pair, a triple and a column-major 4×4 in one impl) and for
+`Point3<f64>`. Thirteen `as f32` sites under `crates/viewer/src` became
+**one**, in that module; the other survivor is
+`pane/features.rs`'s `usize as f32` indent step, a widening and not
+this seam.
+
+**Why judging the result is the whole point.** `f32::MAX ≈ 3.40e38`, so
+the value that breaks this seam is an ordinary finite `f64` — every
+upstream guard asks the wrong question. Testing the narrowed value
+subsumes the poisoned input as well. **Underflow is deliberately not
+refused**: `0.0` IS the nearest `f32` to `1e-45`, while an infinity is
+the nearest `f32` to nothing at all, and that asymmetry is the whole of
+what the door decides. Argued in the module header and pinned by a row.
+
+**Not two doors, checked rather than asserted.**
+`Camera::view_projection_f32` and `SceneMesh::build` call the door and
+say what a refusal means where they stand; they do not re-decide the
+conversion. The refusal DISPOSITION differs by lane on purpose — a
+scene refuses whole (a part of a solid drawn without the rest is a lie
+about the solid), a frame refuses whole, an overlay leg is simply not
+drawn — and the leg case is forced rather than chosen, because
+`gpu::edge_vertices` reads lanes with `chunks_exact(2)` and calls a
+trailing odd position a producer bug.
+
+**`app::to_f32` is deleted, not left beside the new door.** Its one
+caller moved, and a `pub(crate)` fn with no caller is `dead_code` under
+`-D warnings`, so leaving it was not available. `app.rs` is VSEAM's:
+announced in the PR to VSEAM and CHROME (both live there) and filed as
+`work/vseam/app-rs-lost-its-matrix-narrowing-when-the-seam-got-a-home`,
+after checking no `f64` → `f32` remains anywhere in VSEAM's files.
+
+**The claim with no guard says so at the claim site.** *Every narrowing
+in this crate goes through this module* cannot be held mechanically —
+the property is a cast between two float types and `rg 'as f32'` cannot
+tell a widening from a narrowing. The header states that, and states
+what holds the rule instead (nothing outside the file needs to spell
+the cast). That is the register's rule for an unguardable claim, met.
+
+### Populations, all re-derived and all wrong as filed
+
+| the row said | measured |
+|---|---|
+| three `Point3`→GPU cast sites | **five, in two shapes** — the datum lane's source is `[f64; 3]`, invisible to a `Point3`-shaped sweep; and `triangle_normal` is what the pattern matches and the property does not (a unit direction cannot refuse) |
+| four matrix spellings at four addresses | count right, **three of four addresses wrong** |
+| placement prose 19 lines before, 19 after | **8 and 16**; the row's own quoted sentence was already gone |
+
+### One receipt was wrong and it reached the tree
+
+`cursor-projection-…`'s closing prose read *"`rg -n 'as f32'
+crates/viewer/tests` returns nothing."* It returns **one**:
+`camera_ops.rs`'s `the_narrowed_view_projection_refuses_what_a_gpu_cannot_hold`
+computes `let expected = from as f32` and asserts the door's output
+equals it. **That cast is correct and must be raw** — deriving the
+expectation through `Narrow` would assert the door against itself — so
+the substance holds and only the receipt was false. Corrected in the
+row at merge. It is the register's *a rule stated as a description of
+the output rather than as the command that produces the answer*, landing
+on a unit whose own PR corrected a job-count proxy of the same family
+(the lane counted six `test (…)` rows because it matched the prefix
+`test (` and the property is *a test row*; the interval half is named
+`interval / test (interval, …)`).
+
+### Filed, and one of them is large
+
+- `the-display-seams-refusal-is-drawn-and-never-said` (P2/D) — the new
+  refusals reach no reader; the channel is a badge, VNEWS's ground.
+  **This is the real cost of the unit**: a scene that refuses now
+  vanishes silently where it previously drew nonsense. At these
+  magnitudes the picture was already nowhere, so refusing is the honest
+  half — but the word is owed and is now scheduled rather than assumed.
+- `the-overlay-lanes-drop-the-leg-disposition-has-no-row` (P3/D) —
+  carries a mutation that reds **nothing**, so the disposition is held
+  by no row.
+- `work/vseam/app-rs-lost-its-matrix-narrowing-when-the-seam-got-a-home`
+  (P4/E).
+- `work/vdoc/the-f32-seam-diff-shifted-84-cited-lines-in-seven-programs`
+  (P4/D) — 283 citations examined, 26 already past EOF at base, 113 on
+  a line this diff moved, **84 substantive across 39 rows in seven
+  programs**. Published, **not applied**: the audit by subject is the
+  one real deferral and is filed rather than left in prose. That is the
+  correct half to defer — the register's hazard is a table APPLIED
+  without a subject check, and none was.
+
+### Territory, corrected against what the tool says
+
+The lane ran `territory` rather than trusting the dispatch, and two of
+my statements were wrong: `camera.rs` is claimed by **chrome, fit and
+view** as well, not the two I named; and `crates/viewer/src/narrowing.rs`
+read as *"owned by chrome, view"* because VGEOM's `paths` lists files
+rather than a glob. **Added to `program.md` here.**
+
+## 2026-09-21 — `vgeom/render-spelling` (#3031): the conversion a render performs owns its bound
+
+The wave's last lane, and the one whose unit halved mid-flight when
+#3007 turned out to have closed its other row. It reverted the work it
+had already done there — including a `number_text` doc arguing *leave
+it alone and state it*, which would have contradicted #3007's landed
+bound — and its header edit, so the row's `closed` / `branch` fields
+are #3007's and untouched. No duplicate fix, no duplicate row.
+
+**The decision: none of the three members takes the bound, and that is
+the answer.** Each renders a value another type owns, so the row is
+right that a render cannot narrow what it is handed. What a render CAN
+own is **the conversion it performs itself** — and all three perform
+one, `canonical / unit.factor()`, a multiplication UP for six of the
+unit table's eight rows. So the bound went to the conversion:
+`props::written` asks whether the converted value is a number, with
+`no_reading` as the one spelling of the refusal.
+
+`pane/view.rs` gained a named `camera_mm` reading the factor from the
+unit table, which also discharges the AUTH-2 third-spelling half;
+`bounds.rs::wording` goes through `shown_text`, deleting its
+hand-written divide; `props::field_text` uses `written`.
+
+**Two findings the row did not have.**
+
+- **The other direction.** `pi rad`'s factor is π > 1, so `5e-324` rad
+  written in `pi rad` divides to `0.0` — a text reading zero for a
+  value that is not. Both edges pinned; `written` refuses both ways.
+  The row was about overflow and the class is *the conversion can
+  leave the type*, which has two ends.
+- **`readout::number`'s doc asserted a false universal** — *"Nothing
+  in the chrome hands this one"* a non-finite value. Replaced with its
+  three callers and what each guarantees, with the sweep rule at the
+  sentence.
+
+**The new §5 second pass, run in both directions, found no fourth
+member** — backwards from every multiplication UP in the crate, and
+forwards from all 98 production sites that write a value into a text,
+of which exactly one has an arithmetic argument and it is already
+guarded. The remaining gap is stated rather than closed: *a product
+formed in another crate and handed here as an ordinary value*, which
+is other programs' ground.
+
+**The CHROME collision fired exactly where it was predicted to.**
+`chrome/one-number-one-home` merged while this lane was open and
+conflicted on the `bounds.rs` line the addendum named. Resolved to
+this lane's side because it is the SUPERSET — `props::shown_text` IS
+CHROME's `shown_in` plus the render plus the symbol, plus the refusal
+— so CHROME's finding stays discharged and nothing was reverted.
+CHROME had also appended evidence to this row file; both halves kept,
+theirs before the `## Closed`.
+
+**Stopped at the fence rather than crossing it.** The camera member's
+other half — `Camera::new` admits every finite radius, so
+`max_distance = radius * 100` arrives already `inf` above
+`f64::MAX/100` — belongs at `Camera::new`, in a file another lane held.
+Filed as `camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite`
+(P1/E) rather than taken.
+
+### Adjudication: one filed row deleted, and why
+
+The lane filed `work/props/props-log-carries-a-committed-conflict-block-on-main`
+after a tree-wide marker grep found a live conflict block in
+`work/props/log.md` on `main`. The finding was **true when made** and
+is now moot twice over: CHROME found it the same afternoon, filed
+`work/props/committed-conflict-block-in-the-props-log`, and repaired
+it at `97217090`; the markers are gone and CHROME's row is closed.
+
+So the lane's row was an open duplicate, of a closed row, about a
+repaired defect. **Deleted at merge** — one file, one item. And its
+central argument was wrong in a way worth naming: it read the gate as
+*filed for track J and never built*, therefore still owed. The gate
+was **decided against** — `work/ciw/committed-conflict-markers-reach-main`
+carries Ev's call of 2026-09-04 (*close it — the failure is rare and
+not worth the special effort*) two lines below the orphaning sentence
+the lane quoted. Reading `:30` and not `:32` is *check that Ev ever
+agreed* run in the opposite direction, and it costs the same.
+
+What survived is the datum, and it is recorded on the CIW row where
+the ruling lives: **four instances in about three weeks**, the newest
+costing two lanes a detour on one afternoon, both finding it by
+accident while checking their own merges. `lint` does not read
+`log.md`, so `main` was green over it. **The ruling stands and nothing
+here reopens it** — a standing gate is Ev's to decide.
+
+## Wave closed — 2026-09-21
+
+Four units dispatched, one stood down and re-tasked as a reviewer,
+four PRs merged (#3027, #3007, #3030, #3031) plus two orchestrator
+state-syncs. **Twelve rows closed; the slate went 15 open / 10 closed
+to 9 open / 22 closed, load 22.5 → 18 of 30.** Eleven rows filed
+across six programs (VGEOM, VSEAM, VDOC, CHROME, WIRE, LINALG, and one
+to `work/issues/`), every one a file rather than a sentence in a
+merged PR body.
+
+**The wave's own lesson is the correction near the top of this
+entry**: it was cut over an open lane, because the board cannot show a
+claim that has not merged. The remote check is one command and it is
+now written down.

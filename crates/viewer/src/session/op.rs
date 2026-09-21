@@ -25,7 +25,7 @@ use pncad::select::ContactClass;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
-use crate::session::author::{DatumSpec, PatternRuleSpec};
+use crate::session::author::{DatumSpec, PatternRuleSpec, ProfilePlane};
 use crate::session::probe::BoundsTarget;
 use crate::session::refuse::Refusal;
 use crate::session::select::{Hovered, Selection};
@@ -463,20 +463,23 @@ pub enum SessionOp {
     /// the literal door). The plane is a REFERENCE to a frame node,
     /// which the pick below spells out.
     AddProfile {
-        /// **The frame node the profile is drawn on** — a PICK, not a
-        /// field.
+        /// **The frame the profile is drawn on** — a PICK, not a
+        /// field, and [`ProfilePlane`] says which of the two ways it
+        /// was picked.
         ///
-        /// It was a `SketchPlane<f64>` the form filled in from a
-        /// world-XY constant. A profile's plane is a document node
-        /// now, so the form names one that already exists rather than
-        /// minting one on the side: one submit inserts one node, and
-        /// the frame a person drew on is the frame they can see in the
-        /// viewport and edit afterwards.
+        /// A profile's plane is a document node, so the form names
+        /// one rather than carrying a plane on the side: the frame a
+        /// person drew on is the frame they can see in the viewport
+        /// and edit afterwards.
         ///
-        /// A reference that does not name a `Datum::Frame` refuses
-        /// [`Refusal::WrongNodeKind`] at the door, like every other
-        /// pick.
-        plane: RecipeNodeId,
+        /// [`ProfilePlane::Existing`] names a node that is already
+        /// there; a reference that does not name a `Datum::Frame`
+        /// refuses [`Refusal::WrongNodeKind`] at the door, like every
+        /// other pick. [`ProfilePlane::NewXy`] inserts the world XY
+        /// frame FIRST and draws on it, both edits in one committed
+        /// action and therefore one undo — so an empty document can
+        /// author a sketch without a trip to another form.
+        plane: ProfilePlane,
         /// The loop programs, in description order.
         loops: Vec<LoopProgram>,
     },
@@ -1307,6 +1310,18 @@ pub struct OpOutcome {
     pub committed: Vec<DocEdit<ProfileProgram>>,
     /// The edits evaluated against scratch state and NOT recorded.
     pub previewed: Vec<DocEdit<ProfileProgram>>,
+    /// **The ids this operation's inserts MINTED**, in the order the
+    /// action applied them — empty for every operation that inserted
+    /// nothing.
+    ///
+    /// The `EditRecord::minted` the edit door already answers with,
+    /// carried out to the chrome instead of being dropped at the
+    /// session's edge. A form that has just committed a node it will
+    /// go on referring to has no other way to learn its id: a
+    /// `DocEdit::InsertNode` carries the payload and not the id, and
+    /// reading "the last node in document order" would be a guess
+    /// about an action nobody promised inserts only one thing.
+    pub minted: Vec<RecipeNodeId>,
     /// Why nothing (or nothing more) happened.
     pub refusal: Option<Refusal>,
     /// What this operation's document transition WITHDREW from the

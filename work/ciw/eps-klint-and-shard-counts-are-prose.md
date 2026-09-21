@@ -43,3 +43,32 @@ the shard count) and holds the sentences to them, or prose rewritten so
 it names the roster rather than counting it ("every row `EPS_ROWS`
 declares"). The second is cheaper and is what `render.yml`'s header and
 `render-hosted.sh` now do.
+
+## The prose count actually misled a lane (2026-09-21, AUTH-3)
+
+Until now this row's cost was hypothetical: eight sentences that could
+drift. One of them has, and the drift is not in the COUNT but in the
+SPELLING the count's reader matches on.
+
+Measured on one branch, two runs, two hours apart:
+
+- run `35615773273` (head `76e6abef7`): the interval lane's six are
+  `test (interval, eps = 1e-6, 1/2)` and so on — twelve jobs whose
+  names all begin `test (`.
+- run `35629720422` (head `d2acc7372`): the interval six read
+  `interval / test (interval, eps = 1e-6, 1/2)`. They have picked up a
+  reusable-workflow prefix, and only the default six still begin
+  `test (`. `interval backend crate` and `interval oracle (certify vs
+  inari+MPFR)` moved the same way.
+
+§2's sentence — *"twelve `test (…)` jobs, each naming its lane"* — is
+still true of the RUN. It is no longer true of the obvious way to
+check it: AUTH-3's lane matched on the prefix, read six on a green
+run, and came within one step of reporting a narrowed matrix on a run
+that gated all six lane/eps points. It caught it only by listing the
+outstanding jobs by name.
+
+So the fix this row asks for has a second half now. Whatever holds the
+counts should also hold the SHAPE of the names, or §2 should say to
+match on a substring and why — a reusable workflow prefixes its jobs
+with the calling job's id, and nothing warns the reader of that.

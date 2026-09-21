@@ -32,8 +32,8 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, SurfaceKind, attribute};
 use pncad::select::{InterrogateError, all_faces, face_carrier_kind};
 use viewer::session::{
-    DatumSpec, DocSession, FaceFrameFault, FaceSelection, NodeKindWanted, Refusal, SessionOp,
-    admits, face_frame_seat,
+    DatumSpec, DocSession, FaceFrameFault, FaceSelection, NodeKindWanted, ProfilePlane, Refusal,
+    SessionOp, admits, face_frame_seat,
 };
 use viewer::{sketch, tree};
 
@@ -103,7 +103,7 @@ fn a7_the_viewer_takes_a_derived_frame_by_value() {
     let boss = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: frame,
+            plane: ProfilePlane::Existing(frame),
             loops: vec![
                 LoopProgram::polygon([
                     (-0.005, -0.005),
@@ -471,7 +471,7 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![common::shape(&viewer::session::ProfileShape::Rectangle {
                 width: 0.02,
                 height: 0.02,
