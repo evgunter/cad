@@ -7097,6 +7097,24 @@ SYM-7 RECORDED AT MERGE (2026-09-15, PR #2609 merged; sample #199 — prior high
 
 SYM-8 RECORDED AT MERGE (2026-09-21, PR #2616 merged; sample #226 — prior highest #225 on main at merge; block SYM-B2 slot 1 concluded; the block record stays on `sym/b2-block`). **Protocol v7 triage, recorded late (v7 is 09-19; the unit was spec'd 09-14 under v6): SYM-8 triaged IN — a rule of the atom algebra, H / NUMERIC; the dual is the v6 full dual, dispatched 09-19 22:50Z.** **The orchestrator's model, per phase:** spec, dispatch and adjudication FABLE (the local fork); fix pass, state-sync and merge FABLE (the cloud session); the unit changed hands at the fork of 09-19. Method notes applying to both arms: the dual ran on Ev's shared local box (load 26–58, four orchestrators) where NEITHER arm could run its editor-core re-takes (R1's interval test binary did not link in 2.5 h; R2's was OOM-killed twice), so both arms' numeric claims ride the hosted gate and the PR's tables; both arms were stopped by an account session limit and resumed with state intact; R2's report was written by the resumed agent from its finished rows; the reports, the union brief and the delta crossed sessions through PR #2949. R1 disclosed two glimpses (an `ls -la` of the lanes directory, one `pgrep -af` on its own path), neither carrying a finding; the pair is FLAGGED. No unilateral MAJOR. Tokens per phase: impl + fix ~614k (one agent), reviews ~245k (R1) + ~275k (R2), delta ~35k; adjudication ~1 h on the local fork.
 
+## SYM-12 review ordinal fixed at dispatch (2026-09-21)
+
+SYM-12 (the derived-frame freeze's next shape — `tiltUV` rendered, the
+`copysign` census, the manifest-NEGATIVE arm measured and taken; PR
+#3046 open against `main` — frozen head
+`c6cf72319b931966641a8e605f2a6917e03aefd2`, run 35664833201 GREEN on
+the full matrix, twelve `test (…)` and five `k-lint (gate, …)`):
+**ordinal 4706** (SYM's band — 4700–4799). Protocol v7 IN (a rule of
+the atom algebra that changes what the tier decides on a document;
+H / NUMERIC, pre-draw on `sym/b3-block`). The v6 dual: draw =
+`/dev/urandom` byte **198**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**,
+concurrent on the frozen head, read-side isolation (v6 item 5), briefs
+identical but for the lane name and stored with sha256 before either
+ran (`fd1dffd12c6b…` / `9a7bb3f66980…`). Implementer arm FABLE per
+block SYM-B3's draw (byte 178 ⇒ fable at slot 1). Impl phase: ~389k
+tokens / ~3.5 h on the harness counter (dispatch ~19:50Z, PR 22:51Z);
+no intermediate red. Sample number at merge. Row at merge.
+
 ## DECIDE-3 review ordinal fixed at dispatch (2026-09-21)
 
 DECIDE-3 (the canonical root at the mint site — every `sqrt` atom keyed
