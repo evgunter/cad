@@ -353,8 +353,8 @@ vocabulary is not a forbidden import path.
 | Module | Holds |
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
-| `session::refuse` | `Refusal` with its `rank`/`preferred` ladder, its `Display`, and the recourse composers `affordance`/`exists_wording`/`offer_wording`; `NodeKindWanted` and `admits`, since they are a `Refusal` payload and its predicate |
-| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pickindex`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
+| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder and the composers `affordance`/`exists_wording`/`offer_wording`, plus the `NodeKindWanted` payload and its predicate `admits`; and `FaceFrameFault`, with `face_frame_seat`, the free function that answers it, and the recourse constant `NO_FACE_PICKED`, which `forms` spends |
+| `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
 | `session::author` | `DatumSpec`, `PatternRuleSpec`, `datum_node`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
@@ -916,9 +916,11 @@ would leave the class on its own.
 
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need
-to act on — the rule `pane::features` argues for poisoned rows, stated
-by a value rather than picked per call site), an optional hover detail,
-and a `frame::Affordance`: `Read` for a label, `Opens` for a control,
+to act on — the rule that a poisoned row stays `Advisory` is STATED by
+`tree::RowStatus::tone`, the one function outside `frame` that decides
+a tone, and `pane::features` reads that value rather than arguing it at
+its draw), an optional hover detail, and a `frame::Affordance`: `Read`
+for a label, `Opens` for a control,
 which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
@@ -941,9 +943,12 @@ no badge can be built anywhere else. The count is held by
 which scans the return types rather than the names. A door answers
 the subject from the refusal TYPE it was handed, and where one seam's
 refusal arrives as two types both name one constant, so its two
-channels move together. `app::draw_badge` is the single draw; what a
-click on a control means stays at the call site, which is why the draw
-hands the response back and names no window. `tree::RowStatus::badge`
+channels move together. `app::draw_badge` is the single draw and
+`app::toned` the single tone-to-chrome mapping, read by that draw and
+by the feature tree's row badge, so what `Advisory` looks like is
+changed in one place or nowhere; what a click on a control means stays
+at the call site, which is why the draw hands the response back and
+names no window. `tree::RowStatus::badge`
 is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
@@ -1013,6 +1018,34 @@ file's own complaints and the theme and preset resolutions produce,
 `prefs::PrefsError` and `prefs::StoreError` — because what holds the
 line is the door each string passes through and not the type it arrived
 as.
+
+**What is NOT a consumer, and the test rather than the list.** Sharing
+the spelling is not membership: `LIST_SEPARATOR` is `"; "`, two
+characters any sentence may use. A site is a consumer only if the mark
+separates the items of a list ONE `frame::Message` carries, introduced
+by a counted preamble — the test the third consumer failed on, applied
+forwards. Two sites in `crates/viewer/src` write those two characters
+between items of their own and are NOT consumers by it, both because
+they reach no `frame::Message` and nothing counts or introduces their
+items: `seats::seat_line`'s panel label, whose doc comment carries the
+argument, and `pane::create`'s mate-tool panel, which spells the same
+line a second time inside a format string
+(`work/vnews/mate-panel-hand-rolls-the-seat-line` is that duplication,
+and a second copy is still not a consumer). **The list is disposed, not
+swept**, and deliberately. Neither available pattern is the property:
+
+    rg -n '"; "' crates/viewer/src
+
+prints **3** — the constant, `seat_line`'s join and the doc comment
+that argues about it — and misses the mate panel entirely, whose mark
+is inside `"pick a: node {}; pick b: node {}"`; while
+
+    rg -n '"[^"]*; ' crates/viewer/src
+
+prints **43**, which is every sentence in the crate that uses a
+semicolon. Between the two there is no pattern for *joins its own
+items*, so what this section holds is the test, run against the two
+sites it has been run against.
 
 ### The app driver, split for size
 
@@ -1954,31 +1987,55 @@ where, exhaustively:
   toolkit; but a link also breaks when the item it points at is renamed
   or deleted, and that happens on someone else's branch.
   `cargo_scope` is the dependent closure while `run_viewer_toolkit` is
-  keyed on the SEEDS (`ci.yml:1833-1836`), so a branch seeded elsewhere
-  takes skip mode **with `viewer` in scope** — and the
-  default-features pass, link lint inert, is then the only rustdoc
-  reading this crate.
+  keyed on the SEEDS — `scripts/ci-filter.py`'s
+  `res["RUN_VIEWER_TOOLKIT"] = "true" if seeds & VIEWER_TOOLKIT_SEEDS`
+  (`:2495`), read by `ci.yml`'s `rustdoc (gate)` step, whose
+  `if [ … run_viewer_toolkit = 'true' ]` picks `scripts/doc-gate.sh`
+  over `scripts/doc-gate.sh --skip-viewer-toolkit` (`ci.yml:1890-1894`).
+  So a branch seeded elsewhere takes skip mode **with `viewer` in
+  scope** — and the default-features pass, link lint inert, is then the
+  only rustdoc reading this crate.
 
-  **That case is empty today by a contingency, not by construction, and
-  the contingency is the thing to write down.** Every cross-crate link
-  in the renderer-free half targets `pncad` — twelve sites:
-  `blend.rs:425`, `display.rs:262`, `docio.rs:85`, `marks.rs:324`,
-  `matetool.rs:33`, `:54`, `:153`, `:220`, `parts.rs:11`,
-  `props.rs:652`, `sketch.rs:939`, `tree.rs:143` — and `pncad` is itself
-  a toolkit seed (`scripts/ci-filter.py:1428`,
-  `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad", "bvh"}`). So every branch
-  that can break one of these links seeds the toolkit and takes the
-  all-features pass. **A first link into any crate outside that set —
-  `editor-core`, `topo`, anything — opens the hole, and nothing reds
-  when it does.** The ruling's second clause, `nightly.yml:291-293`'s
+  **That case is NOT empty, and it is the contingency that used to keep
+  it empty that lapsed rather than anything about the mechanism.** The
+  rule that produces the population is *every intra-doc link in a `///`
+  or `//!` line under `crates/viewer/src`, outside the `app`-gated
+  modules, whose first path segment is one of this crate's non-`app`
+  dependencies*, which is
+
+      rg -n -g '!{app,drafts,forms,gpu,widgets,pane}.rs' -g '!pane/**' -g '!bin/**' -e '(\[`|\]\()(pncad|bvh|editor_core|toml)::' crates/viewer/src
+
+  and it prints **15** lines, one per site; add `| wc -l` for the
+  number alone. **Fourteen target `pncad`**, which is itself a toolkit
+  seed (`scripts/ci-filter.py:1436`,
+  `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad", "bvh"}`), so every branch
+  that can break one of those fourteen seeds the toolkit and takes the
+  all-features pass. **The fifteenth does not.**
+  `session::refuse`'s `Refusal::NoSuchParam` doc links
+  `` [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`] ``, and
+  `editor-core` is not in the seed set — so a branch that renames or
+  deletes that constant reaches `viewer` through the closure, takes
+  skip mode, and nothing anywhere reports the break. **The hole this
+  bullet once described as theoretical is open**, and the row that owns
+  the repair owns this instance with it.
+
+  **What the rule cannot match**, stated because the claim above it is a
+  universal: a link whose target is reached through a `use`, since the
+  link text then carries the in-scope name and not the defining crate.
+  `sketch.rs`'s `` [`ProfileVertex`] `` is one — it resolves into
+  `pncad`, and no path-shaped sweep can see it. A bare code span naming
+  another crate is not a link at all and is unchecked in both passes.
+
+  The ruling's second clause, `nightly.yml:291-293`'s
   `rustdoc (viewer, all features)`, does not close it: that row is
   `cargo doc -p viewer --all-features --no-deps` with no `RUSTDOCFLAGS`
   anywhere in the file, so a broken link there is a warning and the step
   exits 0 — measured, by planting one. It re-takes the RENDER, not the
   lint. The sweep rule this bullet owes is *the renderer-free half's
-  cross-crate link targets, against `VIEWER_TOOLKIT_SEEDS`*, and
-  `work/view/renderer-free-cross-crate-links-are-ungated-off-the-seed-set.md`
-  owns it.
+  cross-crate link targets, against `VIEWER_TOOLKIT_SEEDS`*, written
+  above as the command that produces it, and
+  `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` — on
+  MIRROR's slate, having moved there with CIW's cut — owns the repair.
 
 Someone who runs `cargo doc` on this crate without `app` — the reader
 the renderer-free half exists for — meets one of those links as the
