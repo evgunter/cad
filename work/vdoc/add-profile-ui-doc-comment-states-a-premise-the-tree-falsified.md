@@ -2,11 +2,12 @@
 id: add-profile-ui-doc-comment-states-a-premise-the-tree-falsified
 kind: issue
 title: add_profile_ui's doc comment says the form authors on world XY and that no planarity door exists; both are false
-status: review
+status: closed
 opened: 2026-09-15
 priority: P4
 cost: E
 pr: 2955
+closed: 2026-09-21
 ---
 
 
@@ -84,9 +85,10 @@ replacement states the invariant per implementer-discipline §4: the
 plane is a pick of a frame node that exists, the picker lists both
 frame kinds, and the residue is the one-gesture version.
 
-Recorded here rather than left for VDOC to re-derive, and the header
-set to `review` on that PR: the row is not closed until 2955 merges,
-and if 2955 does not merge this row is open again exactly as written.
+Recorded here rather than left for VDOC to re-derive. **2955 merged
+2026-09-21 (`2cf83b500`), so this row is CLOSED** — the condition it
+was set to `review` on has fired and both sentences are gone from the
+tree.
 **The seam is announced on VDOC's log** — AUTHOR touched VDOC's row,
 not just its ground.
 
