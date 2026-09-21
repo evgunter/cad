@@ -2,10 +2,11 @@
 id: viewer-array-lowered-vector-ops-escaped-the-hand-rolled-sweep
 kind: issue
 title: the hand-rolled vector-op sweep missed its own dot half, and one datum row asserts something no value can break
-status: open
+status: dispatched
 opened: 2026-09-16
 priority: P3
 cost: E
+branch: vgeom/deletions
 ---
 
 
