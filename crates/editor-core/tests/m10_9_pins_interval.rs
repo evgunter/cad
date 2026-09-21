@@ -162,8 +162,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // both dials, no per-predicate split at any document's
             // nominal moves, and no ceiling on any of the eight
             // measured documents moves by a digit.
-            registered: 128,
-            symbolic_zero: 854,
+            // DECIDE-3: 128 -> 150 and 854 -> 890, with six decisions
+            // the read answers; `numeric` 971 -> 907. Every column
+            // that moved moved UP.
+            registered: 150,
+            symbolic_zero: 890,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
