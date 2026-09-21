@@ -1083,3 +1083,25 @@ lane's directories). Wall-clock and token counts for LANE-2's dual and
 RING-2's fix will be the sum of the killed and resumed lanes, with the
 restart noted in the row. Disk 12 G free after the orphan worktrees
 were removed.
+
+## RING-2 frozen; ordinal 4114 claimed; LANE-2's R2 in (2026-09-21)
+
+RING-2's third head `e228297d68` (the sidecar re-pin — four
+`step-export` fixtures' certified volume pairs, each new enclosure a
+subset of the old — plus main merged in) ran green: run 35654662476,
+40 jobs, 36 success, three expected skips, `render drift (gui)`
+neutral. Ordinal 4114 claimed (PR 3044, after LANE-2's 4115 by
+freeze order; the entry sits between them); byte 8 parity 0 ⇒ R1 OPUS,
+R2 FABLE; the brief (sha256 `5e733a1ae1e4…`) gained the resumption
+note and two claims on the two red heads' dispositions (the meter
+rows' exactly-zero certificate and the `patch_steps: (inf, inf)` it
+leaves; the reader-census conversion; the one interval number; the
+sidecar subset-ness). The pair dispatches when the implementer hands
+back and its target is reclaimed (three lanes is the cap; LANE-2's R1
+is still running). LANE-2's R2 (FABLE, resumed) handed back APPROVE
+WITH FIXES, 1 MAJOR / 4 MINOR / 5 NOTE: the `_structural` door at
+`f64` certified the declared straddle seat at the base and refuses it
+at the head — a public-door verdict change the PR presents as a state;
+spec-mandated under ruling 3, so the fix owed is disclosure, the door's
+doc and the ATREST row's priority. R1's report is awaited before the
+dual is adjudicated.
