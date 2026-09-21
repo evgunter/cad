@@ -2,8 +2,10 @@
 id: fillet-leg-carrier-renders-raw-float-noise
 kind: issue
 title: FilletLegCarrier::Arc renders its radius and angular margin through f64's Display, so a fillet refusal carries the arithmetic's noise
-status: open
+status: review
 opened: 2026-09-12
+branch: fix/fillet-leg-carrier-num
+pr: 2946
 ---
 
 
