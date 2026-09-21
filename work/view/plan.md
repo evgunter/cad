@@ -1224,6 +1224,18 @@ conspired: the shallow history, and the register's own split-span trap
 — the sentence spans a `///` continuation, so the whole-phrase pickaxe
 returned nothing even where the history reached.
 
+**But `is-shallow-repository` is not the test, and on THIS repository it
+gives the wrong answer.** `.git/shallow` exists here, so that command
+says `true` — and `git log origin/main` still reaches
+`c857d68a42 initial commit`. The grafts are for refs fetched shallowly
+at some point; main's own history was deepened and is complete. A
+reviewer caught the orchestrator asserting the opposite in a dispatch,
+after the orchestrator had already reached for "the clone is shallow"
+to explain a nil `--grep` whose real cause was a wrong pattern. **The
+test is whether the history you are searching reaches the initial
+commit** (`git log <ref> | tail -1`), not whether a shallow file exists.
+Discounting a nil result on a complete history throws away evidence.
+
 So a provenance receipt owes three things, not one: **the SHA must
 resolve** (`git cat-file -t` it, or look it up on GitHub when the clone
 is shallow), the search must be a **fragment short enough to survive a

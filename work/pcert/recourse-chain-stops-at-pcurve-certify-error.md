@@ -75,3 +75,32 @@ missing pin is part of the defect, not a baseline to preserve.
 DELEGATION only, which is honest exactly while this row is open. It
 becomes transitive — and the chain from `ValidationError::Pcurve` is
 proved end to end — in the PR that closes this.
+
+## Re-homed to PCERT, 2026-09-21
+
+(FIX orchestrator) Filed on FIX's slate by the lane that cut it, which
+read `crates/geom-brep/src/pcurve_cache.rs` as CHART's at its own merge
+base. **`scripts/work.py territory` says `pcert`** — this program opened
+while that lane was running. Routing from the instrument rather than
+from a report, which is the correction this dispatching seat has now
+made eight times.
+
+It leaves FIX because FIX takes only rows whose fix is already written,
+and this row says plainly that its own is not: the repairs belong at
+fourteen distinct `&'static str` minting sites across two crates, and
+writing them needs a real read of the SSI and iso-lane domains —
+*"writing one without that read is how a wrong repair ships in confident
+prose."*
+
+It lands on PCERT because this is the certifier's own refusal
+vocabulary, and your slate already carries
+`pcurve-fit-refusal-drops-the-domain-doors-reason` — the same class on
+the same family.
+
+**One thing became true while this row was being written**, and it
+shortens the job: `SplineError` now carries
+`every_spline_error_arm_names_a_recourse`, so `PcurveCertifyError::ChartRow`
+is transitively sound and wants only the assertion, not a repair.
+
+The second fence is `crates/topo/src/pcurves.rs` (**TRIM's**), where the
+iso lane's `what` literals are also minted.
