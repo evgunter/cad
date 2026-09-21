@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 42;
+const OP_COUNT: usize = 44;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -199,6 +199,14 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::SetParam {
             name: param.clone(),
             value: SlotValue::Continuous(0.02),
+        },
+        SessionOp::SetParamUnit {
+            name: param.clone(),
+            unit: MM.def(),
+        },
+        SessionOp::SetParamText {
+            name: param.clone(),
+            text: "5 mm".to_owned(),
         },
         SessionOp::CreateParam {
             name: param.clone(),
@@ -399,6 +407,10 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddChamfer { .. } => (39, false),
         SessionOp::AddInstance { .. } => (40, false),
         SessionOp::EditProfile { .. } => (41, false),
+        // The parameter row's other two doors, both document edits
+        // and both fenced for `SetParam`'s reason.
+        SessionOp::SetParamUnit { .. } => (42, false),
+        SessionOp::SetParamText { .. } => (43, false),
     }
 }
 
@@ -821,6 +833,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
         | SessionOp::CreateParam { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
@@ -1212,6 +1226,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
         | SessionOp::CreateParam { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
