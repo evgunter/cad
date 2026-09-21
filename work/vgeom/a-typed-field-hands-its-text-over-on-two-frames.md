@@ -44,17 +44,56 @@ Two things that rule does not reach:
   hand-over would cost an undo step rather than losing an edit. A
   future field whose door mints something (an insert) would be
   charged twice.
-- **The field's own guard cannot see it.** `props::echoed` compares
-  the typed text against the field's render, and by the second frame
-  the document has moved and the render is no longer the text the user
-  left in the box. So the two rules are genuinely two, and a reader
-  who collapses them re-opens this.
+- **The field's own guard sees it only when the render round-trips.**
+  `props::echoed` compares the typed text against the field's render,
+  and the formatter runs before BOTH parse sites, so the render is
+  populated both times. What lets a second hand-over through is
+  narrower than "the document has moved": `widgets::number_text`
+  spells at least one decimal, so a user who typed `1002` is compared
+  against `1002.0`. Where the round trip IS exact the field stops the
+  second parse by itself — `widgets::value_field_tests::
+  the_field_swallows_the_second_hand_over_when_its_render_round_trips`
+  is that row, and its sibling is the case that reaches the document.
+  So the two rules are genuinely two, and a reader who collapses them
+  re-opens this.
+
+## The toolkit DOES separate the two frames — considered and declined
+
+`egui::Memory::had_focus_last_frame(id)` is public and is exactly the
+discriminator `lost_focus` is not. Both read the same bookkeeping
+(`egui-0.36.1/src/memory/mod.rs`): `lost_focus` is
+`(id_previous_frame == Some(id) || id_two_frames_ago == Some(id)) &&
+!has_focus(id)`, and it spans both frames BY DESIGN — the doc comment
+says so. `had_focus_last_frame` is `id_previous_frame == Some(id)`
+alone, with no `two_frames_ago` disjunct, so it is true on the frame
+that carries the first parse and false on the one that carries the
+second. The earlier claim here — that the toolkit cannot tell them
+apart — was true of `lost_focus` and wrong about the toolkit.
+
+It was declined anyway, for two reasons and neither is "it cannot be
+done":
+
+- **Reaching it costs a bet.** The parser is a closure inside
+  `DragValue::custom_parser`, so using it means capturing the
+  `egui::Context` AND the widget's id into that closure — and the id
+  is `ui.next_auto_id()` (`drag_value.rs`), read before the widget is
+  added. A caller re-deriving it is betting that `DragValue` consumes
+  exactly one auto-id, which is an implementation detail of the
+  toolkit rather than anything it promises.
+- **It does not buy the other half.** Suppressing the repeat at the
+  field would not answer the case `DocSession::writes_nothing` also
+  answers: a person re-typing, in different characters, a number or an
+  expression that already stands (`50 mm` over a parameter declared
+  `50 mm`, `base_r*2.0` over a slot driven by `base_r * 2.0`). That is
+  a document question, and the document door would still have to ask
+  it.
 
 ## What a fix would answer
 
-Whether the chrome should recognise the repeat AT the field — which
-means remembering, per widget id, the text a field last turned into an
-operation, and clearing it on `gained_focus` so a deliberate re-type
-is still an act. That is state the panel does not otherwise keep, and
-it would let the field emit at most one operation per keyboard edit
-rather than relying on every door below it being idempotent.
+Whether the chrome should recognise the repeat AT the field — either
+through `had_focus_last_frame` above, or by remembering, per widget
+id, the text a field last turned into an operation and clearing it on
+`gained_focus` so a deliberate re-type is still an act. Either is
+state the panel does not otherwise keep, and either would let the
+field emit at most one operation per keyboard edit rather than relying
+on every door below it being idempotent.

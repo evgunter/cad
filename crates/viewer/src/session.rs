@@ -1566,7 +1566,17 @@ impl DocSession {
         } else {
             DocEdit::SetParam { node, slot, expr }
         };
-        self.commit(edit)
+        // **Through the written door**, like every other door that
+        // writes a panel field's value. The field's own guard cannot
+        // answer for this one: a literal slot that evaluated shows its
+        // NUMBER, so the render the echo compares against is the bare
+        // `8.0` while the slot's source is `8 mm`, and re-typing the
+        // source is no echo of anything. `Self::writes_nothing` asks the question
+        // that is actually being asked here — whether the expression
+        // offered is the expression standing — and the `unparse` /
+        // `parse_expr` round trip preserves both the bits and the
+        // display unit, so a source re-typed as itself compares equal.
+        self.commit_written(edit)
     }
 
     /// The value door: write a declared parameter's value.
@@ -2300,9 +2310,11 @@ impl DocSession {
     ///
     /// **Every other edit submits**, and that is the conservative
     /// direction rather than a gap: an insert, a delete or a rename
-    /// has no standing value of its own to be equal to, and an edit
-    /// this does not recognise costs an undo step rather than being
-    /// silently dropped.
+    /// has no standing value of its own to be equal to. The match
+    /// below NAMES every one of them rather than wildcarding — a
+    /// `DocEdit` added later has to be answered here, in a compile
+    /// error, instead of quietly inheriting a guard nobody asked
+    /// whether it wanted.
     fn writes_nothing(&self, edit: &DocEdit<ProfileProgram>) -> bool {
         let doc = self.committed_doc();
         match edit {
@@ -2330,7 +2342,48 @@ impl DocSession {
                 doc.params().get(name),
                 Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
             ),
-            _ => false,
+            // **Every other edit submits — and the match NAMES them
+            // all**, so a `DocEdit` added later is a compile error at
+            // the one site that has to decide whether it wants this
+            // guard. A wildcard would give the next value-writing
+            // edit no guard and nothing would go red; this is the
+            // same preference `SessionOp::permitted_during_value_gesture`
+            // states for the gesture table.
+            //
+            // The structure of the recipe and the shape of the
+            // product: a node inserted, deleted, re-parented or
+            // re-pointed has no standing value of its own for an
+            // offered one to equal.
+            DocEdit::InsertNode { .. }
+            | DocEdit::DeleteNode { .. }
+            | DocEdit::SetMembers { .. }
+            | DocEdit::SetRoots { .. }
+            | DocEdit::Rebind { .. }
+            | DocEdit::UpdateReference { .. }
+            | DocEdit::SetPlacement { .. }
+            // The declaration doors that are not the value or the
+            // notation half. `SetDocParam` is create-or-replace: a
+            // redeclaration is an act — it is how a parameter's
+            // DIMENSION changes — and the door refuses or performs it
+            // on its own terms. A distribution is an annotation no
+            // panel field shows.
+            | DocEdit::SetDocParam { .. }
+            | DocEdit::SetDocParamDistribution { .. }
+            // A subtree rewrite at an `ExprPath`, which no panel door
+            // emits: the comparison it would want is against the
+            // REBUILT ancestor rather than against the payload, and
+            // inventing one here would be a second opinion about what
+            // that edit means.
+            | DocEdit::SetExpression { .. }
+            // Presentation, tolerance and witnesses — none of them a
+            // value a panel field writes.
+            | DocEdit::SetAppearance { .. }
+            | DocEdit::ClearAppearance { .. }
+            | DocEdit::SetAppearanceMeta { .. }
+            | DocEdit::ClearAppearanceMeta { .. }
+            | DocEdit::SetTolerance { .. }
+            | DocEdit::ReWitness { .. }
+            | DocEdit::ReWitnessBulk { .. } => false,
         }
     }
 

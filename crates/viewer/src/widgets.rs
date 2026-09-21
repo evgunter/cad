@@ -1745,23 +1745,45 @@ mod field_tests {
 mod value_field_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
 
     use super::{FieldVocabulary, GestureVocabulary, number_text, value_field_ops};
     use crate::forms::FieldWriting;
     use crate::props;
     use crate::session::{DocSession, SessionOp};
     use eframe::egui;
-    use pncad::document::{Doc, DocParam, ParamName, ProfileProgram};
+    use pncad::document::{
+        Datum, Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName,
+        ProfileProgram, RecipeNodeId, RefusingReach, SlotId, apply,
+    };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
     use pncad::quantity::WrittenLength;
 
-    /// A document parameter's row: the field, the session behind it,
-    /// and what the gesture emitted.
+    /// **Which of the panel's two rows the field under test is drawn
+    /// for.**
+    ///
+    /// `pane::properties` draws both through the one
+    /// [`super::value_field_ops`] call, with the one formatter and the
+    /// one parser — so a rule about the field is a rule about both,
+    /// and a harness that drove only the parameter row would be
+    /// reading half of what it claims. The two differ in exactly what
+    /// this enum carries: which pair of doors a typed text takes, and
+    /// (at a slot) whether the field shows a number or a SOURCE.
+    #[derive(Clone)]
+    enum Subject {
+        /// A document parameter's row — `Selection::Param`'s arm.
+        Param(ParamName),
+        /// A feature's slot row — `slot_value_ui`.
+        Slot { node: RecipeNodeId, slot: SlotId },
+    }
+
+    /// A panel value row: the field, the session behind it, and what
+    /// the gesture emitted.
     struct Row {
         ctx: egui::Context,
         session: DocSession,
-        name: ParamName,
+        subject: Subject,
         rect: egui::Rect,
         /// Every operation the frames of this gesture emitted, in
         /// order.
@@ -1769,6 +1791,39 @@ mod value_field_tests {
         /// The subset of those that CHANGED the document — what the
         /// user would undo.
         landed: Vec<SessionOp>,
+    }
+
+    /// Apply one edit to a fixture document, answering the document
+    /// and any minted id — `tests/common`'s `edited`, spelled here
+    /// because this suite lives inside the crate.
+    fn edited(
+        doc: &Doc<ProfileProgram>,
+        edit: DocEdit<ProfileProgram>,
+        tol: Tol,
+    ) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
+        let applied = apply(doc, &edit, tol, &RefusingReach).expect("the fixture's edit applies");
+        (applied.doc, applied.record.minted)
+    }
+
+    fn inserted(
+        doc: &Doc<ProfileProgram>,
+        node: Node<ProfileProgram>,
+        tol: Tol,
+    ) -> (Doc<ProfileProgram>, RecipeNodeId) {
+        let (doc, minted) = edited(doc, node_insert(node), tol);
+        (doc, minted.expect("an insert mints an id"))
+    }
+
+    fn node_insert(node: Node<ProfileProgram>) -> DocEdit<ProfileProgram> {
+        DocEdit::InsertNode { node }
+    }
+
+    fn len(metres: f64) -> Expr {
+        Expr::literal(metres, Dimension::Length).expect("a finite length")
+    }
+
+    fn scl(value: f64) -> Expr {
+        Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
     }
 
     impl Row {
@@ -1787,28 +1842,136 @@ mod value_field_tests {
             Self {
                 ctx: egui::Context::default(),
                 session,
-                name,
+                subject: Subject::Param(name),
                 rect: egui::Rect::NOTHING,
                 emitted: Vec::new(),
                 landed: Vec::new(),
             }
         }
 
+        /// **An extrude's distance slot**, written in millimetres and
+        /// standing at `canonical` metres, over a square on the world
+        /// xy frame — the row `slot_value_ui` draws, and the row the
+        /// PR's expression door is reached from.
+        ///
+        /// One declared parameter comes with it (`base_r`, 4 mm), so a
+        /// row about a DRIVEN slot has something to drive it with.
+        fn extrude_distance(label: &str, canonical: f64) -> Self {
+            let tol = Tol::witness();
+            let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
+            let (doc, _) = edited(
+                &doc,
+                DocEdit::SetDocParam {
+                    name: ParamName::new("base_r"),
+                    value: DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
+                },
+                tol,
+            );
+            let (doc, plane) = inserted(
+                &doc,
+                Node::Datum(Datum::Frame {
+                    origin: [len(0.0), len(0.0), len(0.0)],
+                    u: [scl(1.0), scl(0.0), scl(0.0)],
+                    v: [scl(0.0), scl(1.0), scl(0.0)],
+                }),
+                tol,
+            );
+            let (doc, profile) = inserted(
+                &doc,
+                Node::Profile(ProfileProgram {
+                    plane,
+                    loops: vec![
+                        LoopProgram::polygon([(0.0, 0.0), (0.04, 0.0), (0.04, 0.04), (0.0, 0.04)])
+                            .expect("finite corners"),
+                    ],
+                }),
+                tol,
+            );
+            let (doc, extrude) = inserted(
+                &doc,
+                Node::Extrude {
+                    profile,
+                    distance: Expr::written_length(WrittenLength::canonical_in(canonical, MM))
+                        .expect("a finite written length"),
+                },
+                tol,
+            );
+            Self {
+                ctx: egui::Context::default(),
+                session: DocSession::inline(doc, tol),
+                subject: Subject::Slot {
+                    node: extrude,
+                    slot: SlotId::Distance,
+                },
+                rect: egui::Rect::NOTHING,
+                emitted: Vec::new(),
+                landed: Vec::new(),
+            }
+        }
+
+        /// **The four facts `FieldShowing` carries**, read off the
+        /// document the way the panel's own row reads them — including
+        /// the fixed text, which is where the two rows differ: a
+        /// parameter row never has one, and a slot row has one exactly
+        /// when it shows SOURCE rather than a number.
+        fn field(&self) -> (FieldWriting, Dimension, f64, Option<String>) {
+            match &self.subject {
+                Subject::Param(_) => {
+                    let row = self.row();
+                    let writing = FieldWriting::of(row.dimension, row.unit);
+                    (
+                        writing,
+                        row.dimension,
+                        writing.shown(row.value.as_f64()),
+                        None,
+                    )
+                }
+                Subject::Slot { .. } => {
+                    let row = self.slot();
+                    let writing = FieldWriting::of(row.dimension, row.unit);
+                    // `slot_value_ui`'s own rule for the fixed text,
+                    // minus the in-flight draft this harness has no
+                    // draft store for: a driven slot and a slot that
+                    // did not evaluate show their SOURCE, and a
+                    // literal that evaluated shows the number egui
+                    // formats.
+                    let fixed = (row.driver.is_driven() || row.value.is_err())
+                        .then(|| props::field_text(&row));
+                    let number = writing.shown(match row.value {
+                        Ok(value) => value.as_f64(),
+                        Err(_) => 0.0,
+                    });
+                    (writing, row.dimension, number, fixed)
+                }
+            }
+        }
+
         /// What the row's field is showing, in the notation it is
         /// written in — the number, and the text the field renders for
-        /// it.
+        /// it (its fixed text where it has one, else the formatter's).
         fn showing(&self) -> (f64, String) {
-            let row = self.row();
-            let field = FieldWriting::of(row.dimension, row.unit);
-            let shown = field.shown(row.value.as_f64());
-            (shown, number_text(shown, 1..=3))
+            let (_, _, number, fixed) = self.field();
+            (number, fixed.unwrap_or_else(|| number_text(number, 1..=3)))
         }
 
         fn row(&self) -> props::ParamRow {
+            let Subject::Param(name) = &self.subject else {
+                panic!("this row is not a parameter row");
+            };
             props::param_rows(self.session.doc())
                 .into_iter()
-                .find(|row| row.name == self.name)
+                .find(|row| &row.name == name)
                 .expect("the parameter is declared")
+        }
+
+        fn slot(&self) -> props::SlotRow {
+            let Subject::Slot { node, slot } = &self.subject else {
+                panic!("this row is not a slot row");
+            };
+            props::slot_rows(self.session.doc(), *node)
+                .into_iter()
+                .find(|row| row.slot == *slot)
+                .expect("the slot is listed")
         }
 
         /// One frame: lay the field out, collect what it emitted, and
@@ -1823,47 +1986,88 @@ mod value_field_tests {
                 events,
                 ..Default::default()
             };
-            let row = self.row();
-            let field = FieldWriting::of(row.dimension, row.unit);
-            let name = self.name.clone();
+            let (writing, dimension, number, fixed) = self.field();
+            let subject = self.subject.clone();
             let mut ops = Vec::new();
             let rect = &mut self.rect;
             let mut output = ctx.run_ui(input, |ui| {
-                value_field_ops(
-                    ui,
-                    super::FieldShowing {
-                        writing: field,
-                        dimension: row.dimension,
-                        number: field.shown(row.value.as_f64()),
-                        text: None,
-                    },
-                    GestureVocabulary {
-                        begin: SessionOp::BeginParamGesture { name: name.clone() },
-                        preview: |value| SessionOp::PreviewParamGesture {
-                            name: name.clone(),
-                            value,
+                let showing = super::FieldShowing {
+                    writing,
+                    dimension,
+                    number,
+                    text: fixed.clone(),
+                };
+                match &subject {
+                    Subject::Param(name) => value_field_ops(
+                        ui,
+                        showing,
+                        GestureVocabulary {
+                            begin: SessionOp::BeginParamGesture { name: name.clone() },
+                            preview: |value| SessionOp::PreviewParamGesture {
+                                name: name.clone(),
+                                value,
+                            },
+                            commit: SessionOp::CommitParamGesture { name: name.clone() },
+                            cancel: SessionOp::CancelGesture,
                         },
-                        commit: SessionOp::CommitParamGesture { name: name.clone() },
-                        cancel: SessionOp::CancelGesture,
-                    },
-                    FieldVocabulary {
-                        number: |value| SessionOp::SetParam {
-                            name: name.clone(),
-                            value,
+                        FieldVocabulary {
+                            number: |value| SessionOp::SetParam {
+                                name: name.clone(),
+                                value,
+                            },
+                            text: |text| SessionOp::SetParamText {
+                                name: name.clone(),
+                                text,
+                            },
                         },
-                        text: |text| SessionOp::SetParamText {
-                            name: name.clone(),
-                            text,
+                        &mut ops,
+                    ),
+                    Subject::Slot { node, slot } => value_field_ops(
+                        ui,
+                        showing,
+                        GestureVocabulary {
+                            begin: SessionOp::BeginGesture {
+                                node: *node,
+                                slot: *slot,
+                            },
+                            preview: |value| SessionOp::PreviewGesture {
+                                node: *node,
+                                slot: *slot,
+                                value,
+                            },
+                            commit: SessionOp::CommitGesture {
+                                node: *node,
+                                slot: *slot,
+                            },
+                            cancel: SessionOp::CancelGesture,
                         },
-                    },
-                    &mut ops,
-                );
+                        FieldVocabulary {
+                            number: |value| SessionOp::SetSlot {
+                                node: *node,
+                                slot: *slot,
+                                value,
+                            },
+                            text: |text| SessionOp::SetSlotExpression {
+                                node: *node,
+                                slot: *slot,
+                                text,
+                            },
+                        },
+                        &mut ops,
+                    ),
+                }
                 *rect = ui.min_rect();
             });
             output.textures_delta.clear();
             for op in ops {
                 self.emitted.push(op.clone());
                 let outcome = self.session.perform(op.clone());
+                // The harness drives the paths a row can DRIVE: every
+                // refusal this field can reach (a driven slot's number
+                // door, an unparseable text) is a path `Row` cannot
+                // hold, because a refused frame stops here. Those stay
+                // with `tests/panel_edits.rs`, which reads them at the
+                // session door.
                 assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
                 if !outcome.committed.is_empty() {
                     self.landed.push(op);
@@ -1993,11 +2197,20 @@ mod value_field_tests {
     /// `DragValue` parses the text it buffered both on the frame the
     /// keyboard edit ends and again on the next, so a field that
     /// turned every parse into an undo step would charge two for one
-    /// number. The field's own guard cannot see it — by the second
-    /// frame the document has moved and the field's render is no
-    /// longer the text the user left in it — so what answers it is
-    /// `DocSession::writes_nothing`, the document's own rule, and
-    /// this row is where the two are held together.
+    /// number.
+    ///
+    /// **Why the field's own guard does not stop THIS one**, and the
+    /// reason is narrower than "the document has moved": the
+    /// formatter runs before both parse sites, so the render the echo
+    /// compares against is populated both times. What lets the second
+    /// through is that the render is not the text the user typed —
+    /// [`number_text`] spells at least one decimal, so `1002` is
+    /// judged against `1002.0`. Where the round trip IS exact the
+    /// field's guard swallows the second hand-over by itself
+    /// ([`the_field_swallows_the_second_hand_over_when_its_render_round_trips`]),
+    /// and what is left over for `DocSession::writes_nothing`, the
+    /// document's own rule, is this case. This row is where the two
+    /// are held together.
     #[test]
     fn the_second_hand_over_of_one_typed_text_changes_nothing() {
         let mut row = Row::millimetres("auth2-twice", 1.0);
@@ -2016,6 +2229,36 @@ mod value_field_tests {
             "and the same operation both times"
         );
         assert_eq!(row.landed().len(), 1, "one of them moves the document");
+    }
+
+    /// **The other half of the two-frame reading: where the render
+    /// round-trips, the FIELD stops the second hand-over.**
+    ///
+    /// `1000.4` is spelled `1000.4` by the formatter, so on the
+    /// second frame the buffered text and the field's render are the
+    /// same string and [`props::echoed`] answers the question without
+    /// the document being consulted at all. It is the row that keeps
+    /// the sibling above honest about which rule does what: the two
+    /// guards are two because they answer two questions, not because
+    /// one of them is blind on the second frame.
+    #[test]
+    fn the_field_swallows_the_second_hand_over_when_its_render_round_trips() {
+        let mut row = Row::millimetres("auth2-twice-exact", 1.0);
+        row.click_in();
+        row.frame(vec![egui::Event::Text("1000.4".to_owned())]);
+        row.click_away();
+        let emitted = row.taken();
+        assert_eq!(
+            row.showing().1,
+            "1000.4",
+            "the formatter spells the typed value back exactly"
+        );
+        assert_eq!(
+            emitted.len(),
+            1,
+            "so the second parse IS an echo, and the field's own guard \
+             is what stops it: {emitted:?}"
+        );
     }
 
     /// **A number the render cannot distinguish from what the field
@@ -2080,5 +2323,110 @@ mod value_field_tests {
         let row = Row::millimetres("auth2-fixture", 0.05);
         assert_eq!(row.row().unit.map(|unit| unit.symbol()), Some("mm"));
         assert_eq!(row.showing().0, 50.0);
+    }
+
+    /// **Re-typing a literal slot's own SOURCE writes nothing.**
+    ///
+    /// The slot row's text door is the one the field's guard cannot
+    /// answer for, and this is why: a literal slot that evaluated
+    /// shows its NUMBER (`slot_value_ui` pins no text for it), so the
+    /// field's render is `8.0` while the slot's source is `8 mm` — and
+    /// `props::echoed` is right to let the second through, because it
+    /// is not the field's render. What answers it is the DOCUMENT's
+    /// rule at the expression door: the parse of `8 mm` is the
+    /// expression already standing, so nothing is written and nothing
+    /// is undone.
+    #[test]
+    fn re_typing_a_literal_slots_own_source_is_not_an_edit() {
+        let mut row = Row::extrude_distance("auth2-slot-source", 0.008);
+        let (shown, render) = row.showing();
+        assert_eq!(shown, 8.0, "the slot is shown in millimetres");
+        assert_eq!(render, "8.0", "and a literal that evaluated shows a NUMBER");
+        let source = row.slot().source.expect("a literal has source");
+        assert_eq!(source, "8 mm", "written in the unit it was authored in");
+        assert!(
+            !props::echoed(&source, &render),
+            "the source is not the field's render, so the field's guard \
+             cannot be what answers this"
+        );
+
+        let before = row.session.history().len();
+        row.click_in();
+        row.frame(vec![egui::Event::Text(source.clone())]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            landed.is_empty(),
+            "re-typing the slot's own source writes nothing: {landed:?}"
+        );
+        assert_eq!(
+            row.session.history().len(),
+            before,
+            "and costs no undo step"
+        );
+        assert_eq!(row.showing().0, shown, "and moves the value nowhere");
+    }
+
+    /// **The same rule for a DRIVEN slot re-typed in different
+    /// characters** — and the one row that drives the field over a
+    /// fixed text rather than a number.
+    ///
+    /// A driven slot shows its source, so the echo guard swallows the
+    /// source spelled exactly; re-spaced, it is a different text and
+    /// reaches the door, where the same expression parses back out of
+    /// it.
+    #[test]
+    fn re_typing_a_driven_slots_source_respaced_is_not_an_edit() {
+        let mut row = Row::extrude_distance("auth2-slot-driven", 0.008);
+        let Subject::Slot { node, slot } = row.subject.clone() else {
+            panic!("the fixture is a slot row");
+        };
+        let outcome = row.session.perform(SessionOp::SetSlotExpression {
+            node,
+            slot,
+            text: "base_r * 2.0".to_owned(),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let (_, render) = row.showing();
+        assert_eq!(render, "base_r * 2.0", "a driven slot shows its source");
+
+        let respaced = render.replace(' ', "");
+        assert_ne!(respaced, render);
+        assert!(
+            !props::echoed(&respaced, &render),
+            "re-spaced, it is not the field's render"
+        );
+        let before = row.session.history().len();
+        row.click_in();
+        row.frame(vec![egui::Event::Text(respaced)]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            landed.is_empty(),
+            "the same expression, differently spelled, writes nothing: {landed:?}"
+        );
+        assert_eq!(
+            row.session.history().len(),
+            before,
+            "and costs no undo step"
+        );
+    }
+
+    /// **A slot row's number door still lands**, so the two rows above
+    /// are reading a guard rather than a field that emits nothing.
+    #[test]
+    fn a_number_typed_over_a_slot_is_one_undo_step() {
+        let mut row = Row::extrude_distance("auth2-slot-number", 0.008);
+        let before = row.session.history().len();
+        row.click_in();
+        row.frame(vec![egui::Event::Text("12".to_owned())]);
+        row.click_away();
+        let landed = row.landed();
+        assert!(
+            matches!(landed.as_slice(), [SessionOp::SetSlot { .. }]),
+            "one number typed, one edit: {landed:?}"
+        );
+        assert_eq!(row.session.history().len(), before + 1);
+        assert_eq!(row.showing().0, 12.0);
     }
 }
