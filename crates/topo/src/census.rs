@@ -680,6 +680,7 @@ pub fn census_traces_planted<T: Decide + Bounds>(
 /// `tol` rides beside `band` for one consumer: the instance-containment
 /// arm's material test, whose at-infinity fold reads a closed-form
 /// volume through the props lane (`Tol` is never witnessed here).
+#[allow(clippy::too_many_arguments)] // the census's whole state: the doors' four, the region door, and the trace's three
 fn census_with<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
@@ -1738,6 +1739,7 @@ fn ef_overlap_lane<T: Decide>(
 /// Census pass 5: edge × edge — proper interior crossings (backable
 /// at the unified strength through [`ee_cross_backed`]) and collinear
 /// positive-length overlaps (D3-certified at both bounds).
+#[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus the region door the rung consults
 fn sweep_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1764,6 +1766,7 @@ fn sweep_edge_edge<T: Decide>(
 }
 
 /// One edge pair of pass 5.
+#[allow(clippy::too_many_arguments)] // one pair of pass 5, the region door riding to the rung
 fn pair_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
