@@ -1458,8 +1458,8 @@ fn fetch(points: &[Point3<f64>], corners: &[u32; 3]) -> Option<[Point3<f64>; 3]>
 /// The unit normal of a triangle wound counterclockwise as seen from
 /// the side the normal points to.
 ///
-/// A degenerate (zero-area) triangle has no normal; it gets
-/// [`DEGENERATE_NORMAL`] rather than a NaN, because a NaN in a vertex
+/// A degenerate (zero-area) triangle has no normal; it gets `+Z`
+/// ([`DEGENERATE_NORMAL`]) rather than a NaN, because a NaN in a vertex
 /// buffer poisons the shading of everything the rasterizer blends it
 /// with, while a wrong-facing sliver is invisible at the size a
 /// degenerate triangle has.
