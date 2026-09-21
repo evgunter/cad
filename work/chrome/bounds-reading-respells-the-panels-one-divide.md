@@ -2,10 +2,12 @@
 id: bounds-reading-respells-the-panels-one-divide
 kind: issue
 title: BoundsReading::wording re-spells props::shown_in by hand
-status: dispatched
+status: closed
 opened: 2026-09-21
 branch: chrome/one-number-one-home
 cost: E
+pr: 3022
+closed: 2026-09-21
 ---
 
 

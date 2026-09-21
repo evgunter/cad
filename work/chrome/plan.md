@@ -123,48 +123,67 @@ None open: the two rows filed here landed in PR 2856 on 2026-09-19.
 
 ## Unit order
 
-**Wave 1, dispatched 2026-09-21.** Three units, all E, all on disjoint
-files, none carrying an undecided design fork that only Ev can settle.
-No A/B duals and no row in `docs/MODEL-AB-LOG.md` (Ev, in chat,
-2026-09-21: *"no AB protocol"*). Specs are
-`docs/CHROME-<NAME>-SPEC.md`, deleted at merge per
-`docs/DOC-LEDGER.md`.
+**Wave 1 LANDED 2026-09-21** — three units, five rows, PRs 3018, 3021
+and 3022. No A/B duals and no row in `docs/MODEL-AB-LOG.md` (Ev, in
+chat: *"no AB protocol"*); the band 1600-1699 stays claimed and empty.
+Each unit's spec was deleted at its merge per `docs/DOC-LEDGER.md`, so
+nothing here points at one; `work/chrome/log.md` carries what each
+did and the item files are the record that survives.
 
-1. **`chrome/datum-honesty`** (`docs/CHROME-DATUM-HONESTY-SPEC.md`) —
-   `datums.rs`: `four-spellings-of-one-finiteness-predicate-in-datums-
-   rs` and `max-grid-lines-truncates-a-ruling-and-calls-it-one`. One
-   file, one class (a number the module could not honestly compute,
-   returned in the shape of one it did).
-2. **`chrome/empty-document-gate`**
-   (`docs/CHROME-EMPTY-DOC-SPEC.md`) — `frame.rs` and `pickindex.rs`:
-   `viewer-states-the-empty-document-rule-in-four-places-and-the-one-
-   that-gates-cannot-red`. The structural half only.
-3. **`chrome/one-number-one-home`**
-   (`docs/CHROME-ONE-NUMBER-SPEC.md`) — `bounds.rs`, `app.rs`,
-   `scene.rs`, `tests/display_budget.rs`:
-   `bounds-reading-respells-the-panels-one-divide` and
-   `display-budget-rows-restate-three-private-constants`.
+**What the wave is evidence for, stated once because it is the reason
+this program reviews the way it does.** Every one of the three units
+was corrected by the layer below it, and the corrections changed
+answers rather than details:
 
-**Two premise corrections found by reading the tree before writing the
-specs**, and recorded because the program's own 2026-09-15 audit says
-this is where units get lost: `MAX_GRID_LINES` is **512**, not the 96
-its row asserts and builds a reachability argument on; and the
-finiteness census in `datums.rs` is **eight** sites, not the four its
-row lists — the row predicted exactly that growth and it happened.
-Both corrections are in the dispatches, with an instruction to re-take
-the census rather than trust them.
+- **A row's premise was wrong on all three units.** `MAX_GRID_LINES`
+  is 512, not the 96 its row builds a reachability argument on. The
+  `datums.rs` finiteness census was eight sites, not four. And
+  `ProductErrorKind::is_empty_document`, the home the whole
+  empty-document unit was built around citing, **does not exist** —
+  renamed `means_no_body` inside PR 2629's own lane, so the row was
+  filed citing a dead name. Two were caught at dispatch by reading the
+  tree; the third by the lane. **Reading the tree before writing a
+  spec is now what this program does**, and it costs minutes.
+- **A correctness arm blocked a merge.** The grid unit's first cut
+  shrank the over-cap patch centred on the REGION, which at a grazing
+  seat is not centred on what the camera is aimed at — past a pane
+  about 6900 px tall it drew a complete, closing rectangle with
+  nothing at the aim point, and it was a REGRESSION against the
+  truncation it replaced. Style review alone would not have caught it;
+  the arm was added because that unit's failure mode is a confident
+  wrong answer rather than a refusal, which is the rule this program
+  already had.
+- **The fresh-instance trap landed on all three units, seven times.**
+  A lane closing a duplication minted one, every time. One lane caught
+  its own at the keyboard and another found its fourth while filing
+  the row about it; the rest were caught only by a reader who did not
+  write the fix. `docs/prompts/reviewer-style-lane.md` §1's last
+  bullet is the single highest-yield line in the brief, and naming the
+  trap in a PR body still prevents nothing.
+- **Two lanes overturned an orchestrator recommendation with
+  measurement, and both were right.** One was told to restate a
+  constant deliberately and instead made it private and exposed the
+  DERIVED bound (`placed_rung_cost`), which is `Camera::pitch_limit`'s
+  precedent exactly rather than the departure the review called it.
+  The other declined to derive `OVER_BUDGET_DELTA` from the starting
+  δ, because a decade under a COARSER start is a δ the same file
+  records as inside the budget. Sequencing and shape calls are the
+  orchestrator's; both of these were the lane's, and the lane had the
+  measurement.
 
-**Held out of wave 1, and why.**
-`at-rest-badge-reports-an-empty-document-as-a-refusal` is the
-behavioural half of unit 2's cluster and lives in `session.rs`, which
-AUTHOR's live `author/profile-frame` lane (AUTH-3) has in scope this
-hour — a scheduling conflict, not a fence, and it goes out in wave 2.
-`a-split-circle-fixture-sits-inside-the-1e-6-escalation-band` is small
-and a live red at `1e-6` on `main` today; it is wave 2's first row.
-`certify-affordance-on-the-bounds-panel` is priced **E and is not** —
-it is a long-running query needing progress, cancel, a panel-side
-budget and eleven unrendered `RangeRefusal` arms; it wants a re-price
-and a design pass, not a lane.
+**Next, and the reason it is next.** Three rows are now available that
+were held by the spent cession (above), and one of them —
+`band-refusal-still-badges-every-row` — acquired a partner in this
+wave: `has-faults-cannot-red-on-a-new-rowstatus` says `tree.rs`'s
+`has_faults` is a `matches!` over `RowStatus` that cannot red when the
+enum grows, and the Band row's fix is precisely to ADD a `RowStatus`
+variant. They are cross-referenced both ways and should go as one
+unit. Behind them:
+`at-rest-badge-reports-an-empty-document-as-a-refusal` (the
+behavioural half of PR 3021's cluster, held out only because AUTHOR's
+`author/profile-frame` had `session.rs` in scope) and
+`a-split-circle-fixture-sits-inside-the-1e-6-escalation-band` (a live
+red at `1e-6` on `main`).
 
 ## Exit shape
 
