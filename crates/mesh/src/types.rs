@@ -222,7 +222,8 @@ pub enum TessellateError {
     /// kernel bug report. An iso-bounded loop the rim predicate cannot
     /// see lands a FEATURE width inside it: a zero-width slit (two
     /// meridians up and down one column to an interior level) has
-    /// every rim at an extreme and passes the shape door, and its tip
+    /// every rim at an extreme, its rims agree on the material side,
+    /// so it passes the shape door, and its tip
     /// is a walk entry strictly inside the box. That is valid input in
     /// a lane not built for it (D2 addendum row 2), and re-authoring
     /// the face is the recourse.
@@ -262,11 +263,15 @@ pub enum TessellateError {
         max_distance: f64,
     },
     /// A curved face's domain is not an iso-parameter rectangle, by
-    /// props' named shape predicate — `geom_brep::props::
+    /// props' named shape predicates — `geom_brep::props::
     /// require_iso_rectangle`, the S58 single home of `props_rim_level`
-    /// and of the per-kind rim/meridian classification under it. The
-    /// `source` is props' own refusal, carrying the `what` the flux
-    /// lane would report for the same face.
+    /// and of the per-kind rim/meridian classification under it, and
+    /// the sense-free residue it carries beside that one: every rim
+    /// must encode the SAME material side (`props_rim_side`), which a
+    /// door handed no face can still ask because it compares the rims
+    /// with each other rather than with a sense bit. The `source` is
+    /// props' own refusal, carrying the `what` the flux lane would
+    /// report for the same face.
     ///
     /// **This is the SHAPE question**, asked on the face's rim structure
     /// BEFORE the boundary walk runs. The swept-rectangle lane cites the
