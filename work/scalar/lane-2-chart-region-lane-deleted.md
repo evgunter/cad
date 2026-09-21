@@ -2,9 +2,10 @@
 id: lane-2-chart-region-lane-deleted
 kind: unit
 title: LANE-2: ChartRegionLane deleted — the chart-region doors are one Option<RegionLane<T>> parameter through the census, None keeping today's typed refusal
-status: open
+status: review
 opened: 2026-09-21
 branch: scalar/lane-2
+pr: 3038
 ---
 
 
