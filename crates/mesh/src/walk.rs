@@ -75,9 +75,10 @@
 //!   `debug_assert` and so runs only where debug assertions do;
 //! - **a meridian that stops short of the pole** — a spur into a face
 //!   whose pole is still interior — is not checked here at all. The
-//!   walk traces the spur as a column, and what becomes of the face is
-//!   decided downstream and depends on δ
-//!   (`mesh/tests/loops_the_meridian_guard_admits.rs` pins what).
+//!   walk traces the spur as a column, and the face is refused
+//!   downstream by its deviation certificate (`CertificateExceeded`, a
+//!   comparison against δ rather than a statement about the loop) at
+//!   the two δ `mesh/tests/loops_the_meridian_guard_admits.rs` tries.
 //!
 //! A pole junction between two meridians emits *two* polygon entries —
 //! one closing the incoming meridian's column, one opening the

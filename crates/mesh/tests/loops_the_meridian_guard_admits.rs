@@ -13,9 +13,10 @@
 //!   (`work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
 //! * **A rim-only cap wearing a spur** — a meridian strut from the rim
 //!   toward the pole, walked up and back. A spur that reaches the pole
-//!   is the one-face seamed statement of the cap; one that stops short
-//!   leaves the pole interior, which is the state the guard refuses,
-//!   in disguise.
+//!   is the one-face seamed statement of the cap, and meshes; one that
+//!   stops short leaves the pole interior — the state the guard
+//!   refuses, in disguise — and is caught only by the deviation
+//!   certificate.
 //!
 //! Every outcome here is read where debug assertions run, which is
 //! every profile this workspace builds; the census is a `debug_assert`,
@@ -227,9 +228,16 @@ fn cap_with_a_spur(tip: f64) -> Body<f64> {
 /// **What the spur buys, measured at two δ.** The guard admits both
 /// bodies — each loop has a meridian — so neither answer below is
 /// `MeridianFreeCurvedFace`, and that is the row's first claim. The
-/// rest is the record of what stands behind the guard: a spur to the
-/// pole is a statement this lane can mesh or cannot; a spur that stops
-/// short leaves the pole interior, and the answer moves with δ.
+/// rest is the record of what stands behind the guard:
+///
+/// * a spur that REACHES the pole is the one-face seamed statement of
+///   the cap, and it meshes watertight at both δ;
+/// * a spur that stops SHORT leaves the pole interior — the state the
+///   guard refuses, wearing a meridian — and is refused
+///   `CertificateExceeded` at both δ tried. That is a typed refusal and
+///   not a hole, but it is a comparison of a deviation bound against δ
+///   and not a statement about the loop: nothing structural refuses
+///   this face, and the row does not claim the answer holds at every δ.
 #[test]
 fn a_spur_on_a_rim_only_cap_gets_past_the_guard_and_this_is_what_answers() {
     let measured: Vec<(&str, f64, String)> = [
