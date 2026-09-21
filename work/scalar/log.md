@@ -780,3 +780,11 @@ over 9 production files (not the survey's 28/14), 17 unguarded, none
 reached by the dry run — RING-2's hazard list. Ordinal 4112 claimed on
 main; byte 23 parity 1 ⇒ R1 FABLE, R2 OPUS, concurrent, briefs stored
 before dispatch. Two rows filed on this slate.
+
+## RING-0's fence, announced late (2026-09-21)
+
+R1 noted the log carried no TCOST/TINT announcement for RING-0's reach
+into `crates/geom-core/tests/ring_interval_differential.rs` (the
+"RING-0 specified" entry named the ground but not the file). Announced
+here: TCOST/TINT own that file; the fix pass also adds one witness row
+to `crates/geom-core/tests/certified_door.rs` (the same ground).
