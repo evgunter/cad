@@ -88,11 +88,17 @@ input.
 The row's figures reproduce. Two things it did not say, and both
 shape the header:
 
-- **The largest `dx = dy` with a non-unit answer is `1e-281`**, at an
-  error of `1.1e-16` — one rounding step. So the promise was never
-  EXACT even for ordinary separations; what the subnormal range does
-  is take a 1-ULP approximation to 41%, which is a different claim
-  and is the one worth writing down.
+- **The promise was never EXACT, at any magnitude.** `dx = dy = 1.0`
+  answers a length of `0.9999999999999999` and `1e-308` answers the
+  same — an ordinary one-rounding-step error, which is all a
+  normalize can give. (A first scan reported *"the largest `dx = dy`
+  with a non-unit answer is `1e-281`"*; that was an artefact of the
+  scan's own range, `-324..=-280`, and the line above is what the
+  table actually shows. Recorded rather than deleted: it is the
+  register's *the first number out is the one to distrust*.) So the
+  claim worth writing down is not that the answer stops being unit
+  somewhere, but that a 1-ULP approximation becomes a 41% one, which
+  is a different statement.
 - **The DIRECTION survives where the length does not.** Both
   components are divided by one length and that length's own
   rounding is a common factor. Over every separation whose two
