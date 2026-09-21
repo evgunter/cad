@@ -88,8 +88,12 @@ This row names two acceptable repairs and asks for **either**:
 > ones are reported rather than ranked.
 
 `pickindex::best_segment`'s admission is
-`if !(distance.is_finite() && distance <= EDGE_PICK_RADIUS_PX) { continue; }`
-(`pickindex.rs`), so every `Candidate` reaching `candidates.sort_by`
+`if distance > EDGE_PICK_RADIUS_PX || distance.is_nan() { continue; }`
+(`pickindex.rs`; re-spelled by the review fix pass from
+`!(distance.is_finite() && distance <= …)`, which said the same thing
+with one term that could not change an answer — the ruling below is
+unaffected, the admission is the same set), so every `Candidate`
+reaching `candidates.sort_by`
 carries a finite distance and `partial_cmp` cannot fail on the first
 key. That is the second branch, taken whole.
 
