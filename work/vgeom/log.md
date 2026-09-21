@@ -325,6 +325,26 @@ thing that asks, which is the `arc_points`-answers-ONE arm where the
 interior loop never runs and nothing else would notice a centre at
 `[inf, 5e-7]`.
 
+**The eps matrix caught a fixture this lane had not thought about,
+twice over.** The one-segment arc row was first written at a micron
+so that `arc_points` would answer the one-segment floor, and hosted
+CI's `eps = 1e-6` rows refused its junction at replay two steps before
+the flattener saw it — turn margin `3.75e-7 m`, which at that
+tolerance is tangency. The arc is millimetre-scale now and buys the
+floor from a COARSE display tolerance instead, which is a δ the caller
+chooses. **A fixture whose scale is near a gated eps row's is a
+fixture about that row**, and the lane's local verification had been
+single-eps, which is how it reached CI.
+
+Running the viewer suite at all three rows afterwards turned up a
+SECOND red that is not this lane's and that hosted CI cannot see:
+`pane::profile::tests::drawing_a_locked_split_circle_above_the_cap_leaves_it_alone`
+fails on `main` at `eps = 1e-6` — a `chord_side` margin of `1.127e-6`
+inside that row's escalation band — and the viewer's `app`-feature
+rows run in exactly one CI step, at the default eps only. Filed as
+`work/chrome/a-split-circle-fixture-sits-inside-the-1e-6-escalation-band.md`
+and `work/ciw/the-viewer-app-feature-rows-gate-one-eps-of-three.md`.
+
 **And the sweep was tree-only, which the plan's rule says is half of
 one.** A tracker pass would have reached
 `the-viewport-and-position-lanes-narrow-to-f32-with-no-door`, whose
