@@ -999,3 +999,51 @@ ordinal is claimed on main at the dual's dispatch in SYM's band
 (4700–4799, next 4705; the 2026-09-20 roster line that says SYM keeps
 "5800–5899" collides with ENCL's band and is a roster error to correct
 at that claim).
+
+## SYM-11 merged (2026-09-21): the point channel is not a proof — block SYM-B3 slot 0
+
+PR #3028 merged at `the merge commit` (fix-pass head `c6addfa56`, run
+35639015619 green on the full matrix). The theorem-vs-numeric
+`debug_assert!` in `Decide for Sym<T>` assumed a certified enclosure;
+the unit charges the contradiction by WITNESS KIND, the partition
+`Real::register_equal` already draws: `Real::WITNESS: Witness`
+(`Exact` | `Inexact`, required, no default — `Interval` the only
+`Exact`; `f64` and `Probe` `Inexact`; `Dual<T>` and `Sym<T>` forward),
+asserted at an exact witness exactly as before, COUNTED at an inexact
+one (`SymCounts::theorems_disputed`, a refusal column declared on the
+DECIDE-2 pins' non-discharge side, both theorem kinds) with the numeric
+answer kept and nothing panicking. Phase 1: both mechanisms reproduced
+and counted (the far placement at (1e-9, 1e9), (1e-12, 1e6), (1e-12,
+1e9) on the stadium and the washer; rule F's adversary 6 of 6 at `f64`
+and `Probe`); the pole recorded (the inexact channel has no clause 1,
+which is why it keeps the numeric answer); the exact channel never
+trips it — zero on the five measured documents past their ceilings at
+three ε (stop clause not triggered); the partition written down. No
+decision at `Sym<Interval>` moves; every pin bit-identical; the
+serialized receipt byte-identical (the column is present only when
+non-zero, and no reader exists). The far-placement rows and the
+adversary are gating; the `Sym<Probe>` rows rostered in the probe
+census's executed floor.
+
+Review: the v6 dual on `df23fca26` (ordinal 4705; R1 FABLE
+MERGEABLE-AFTER-FIXES 0/3/5 + 8 style, R2 OPUS MERGEABLE-AFTER-FIXES
+1/4/6, rubrics 4/3/3 both); both found the same first defect — the
+two-contract pin was a hand roster a mis-declared `Probe` walked
+through — so no unilateral MAJOR. Fix pass A–K: the pin made generic
+over `T: Real` with ten instantiations and three plants shown to red;
+`SignGated` ruled into the one column with its doc corrected and a
+gated-dispute row; the rotted prose and the hoisted contradiction
+predicate; the undisclosed `probe-suite-census.sh` edit announced; the
+unnamed-predicate deviation filed
+(`a-dispute-names-no-predicate-on-the-receipt`); the far-placement rows
+assert their whole table (R2's triangle at `3.7e7` added: the point
+lanes build where the bare lift refuses, and the certified lane is a
+superset of neither); the past-ceiling receipts asserted; one home for
+the own-thread helper (`test-utils`); the cost number (~1.7 %, inside
+run-to-run spread, and zero in every profile this workspace builds).
+Delta by R1: MERGEABLE (every item CLOSED but two citation PARTIALs and three non-blocking notes, taken in the state-sync commit: the profile row's comment explaining its guard by the wrong arm, the filed row cited on the item and the unit, the one remaining uncited copy of `E`). Row at ordinal 4705, sample #230. The box
+restarted once during the fix pass (18:35Z); every commit was on disk
+and pushed, the cost measurement had completed, and the agent was
+resumed. Spec deleted with its ledger entry; item
+`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` closed;
+unit closed.
