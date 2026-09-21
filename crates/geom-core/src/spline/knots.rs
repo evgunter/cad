@@ -83,7 +83,9 @@ impl core::fmt::Display for SplineError {
             ),
             SplineError::ControlCountMismatch { control, expected } => write!(
                 f,
-                "control-point count {control} does not match the knot vector (expected {expected})"
+                "control-point count {control} does not match the knot vector (expected \
+                 {expected}) — the two are one description: supply {expected} control points, \
+                 or a knot vector of control + degree + 1 knots"
             ),
             SplineError::WeightCountMismatch { weights, control } => write!(
                 f,
@@ -172,9 +174,12 @@ impl core::fmt::Display for KnotVectorIssue {
                  repeat the last knot exactly degree+1 times (the periodic and unclamped \
                  forms are a designed absence, not this refusal)",
             ),
-            KnotVectorIssue::InteriorMultiplicityTooHigh { index } => {
-                write!(f, "interior knot {index} has multiplicity > degree")
-            }
+            KnotVectorIssue::InteriorMultiplicityTooHigh { index } => write!(
+                f,
+                "interior knot {index} has multiplicity > degree — an interior value may \
+                 repeat up to degree times, which drops continuity to C⁰, and never past it: \
+                 drop the surplus copies there"
+            ),
         }
     }
 }

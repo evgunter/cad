@@ -148,9 +148,12 @@ pub enum FitError {
 impl core::fmt::Display for FitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            FitError::TooFewPoints { have, need } => {
-                write!(f, "fit: {have} points, need at least {need}")
-            }
+            FitError::TooFewPoints { have, need } => write!(
+                f,
+                "fit: {have} points, need at least {need} — supply the missing samples; \
+                 a degree-p interpolant needs p+1 of them and any fit needs 2, so a \
+                 lower degree lowers this floor only down to 2"
+            ),
             FitError::NonFinitePoint { index } => write!(
                 f,
                 "fit: point {index} has a non-finite coordinate — the fit never repairs \
