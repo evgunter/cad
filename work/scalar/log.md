@@ -737,3 +737,29 @@ M / test lane; LANE-1 M; RING-2 H, Fable spec) were recorded before the
 byte: **244** ⇒ fable position 1 (slot 0 RING-0 = OPUS, slot 1 LANE-1 =
 FABLE, slot 2 RING-2 = OPUS). RING-0 dispatches when a lane slot frees
 (three are taken: LANE-0's implementer closing out, its two reviewers).
+
+## LANE-0 dual concluded; the seam ruled (2026-09-21)
+
+Both arms REQUEST CHANGES on frozen `667e77f7e5`: R1 (OPUS) 2 MAJOR /
+4 MINOR / 5 NOTE, R2 (FABLE) 1 MAJOR / 4 MINOR / 9 NOTE; both executed
+base-vs-head byte identity through the public doors at every scalar
+and moved no bit. Both MAJORs bilateral ⇒ no tally candidate: the
+design (`OffsetFitScalar`, a fourth per-scalar trait bundled as a
+supertrait of `PcurveFittedLane`, where the spec said stop), and the
+"bit for bit" rows that compare the door against its own bodies and
+stay green under a `recertify` wired to the `_at` instrument or a
+`remap` without the window rule (R1 at MAJOR, R2 at MINOR). The
+orchestrator's ruling, recorded in the fix brief: the `Some` is read
+at the seam ruling 3 keeps — one method on `AtRestPolicy` (DL3's
+per-scalar policy home), `f64` answering `Some`, the four others
+`None` with their reason; the trait goes; the passes keep their
+`Option` parameter; bound edits measured and listed, zero call-site
+edits. Threading through the 18 public doors was declined because a
+door only `f64` can construct would still be read off a per-scalar
+seam by every generic caller. Unique R1: the fixture's bow shrunk
+10⁴× so the refinement loop never runs (undisclosed); the `CHAIN`
+roster not extended to the new file; `MinClearanceLane`'s §4 row
+wrong twice. Unique R2: the census admits the instrument through the
+whole new file; the plan and item still describe the spec's shape.
+Fix pass dispatched on the OPUS arm; it also re-homes the FIX row to
+WIRE (FIX left the tracker on main between the two runs).
