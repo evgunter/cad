@@ -4,6 +4,8 @@ kind: issue
 title: frame_from_unit_aim takes perp and cross_len as a pair the callee cannot verify — a witness for 'this length is that vector's norm' is the next shape
 status: open
 opened: 2026-09-15
+priority: P1
+cost: E
 ---
 
 

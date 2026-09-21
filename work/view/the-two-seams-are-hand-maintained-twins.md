@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-05
 branch: view/seam-twins
 pr: 2666
+priority: P1
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: The cascade-delete affordance shows the names a delete would strand, beside its dependent count (DM7)
 status: open
 opened: 2026-09-16
+priority: P1
+cost: D
 ---
 
 

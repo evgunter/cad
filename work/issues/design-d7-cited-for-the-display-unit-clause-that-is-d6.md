@@ -4,6 +4,8 @@ kind: issue
 title: ten live sites cite D7 for the display-unit rule that DESIGN.md puts in D6
 status: open
 opened: 2026-09-16
+priority: P4
+cost: E
 ---
 
 

@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-12
 branch: fix/fillet-leg-carrier-num
 pr: 2946
+priority: P4
+cost: E
 ---
 
 

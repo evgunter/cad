@@ -4,6 +4,8 @@ kind: issue
 title: A typed NaN in a Count slot commits 0, past the finiteness refusal props.rs promises names it
 status: open
 opened: 2026-09-17
+priority: P0
+cost: E
 ---
 
 Found by the sweep `a-clamp-is-not-a-bound-against-nan` ran over

@@ -4,6 +4,8 @@ kind: issue
 title: boundary_iso_u/_v panic on a corrupt net instead of refusing, and their # Errors contract promises the opposite
 status: open
 opened: 2026-09-12
+priority: P0
+cost: E
 ---
 
 

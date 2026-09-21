@@ -4,6 +4,8 @@ kind: issue
 title: Five sites name the wrong last job on the critical path, and the run's shape has changed under all of them
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

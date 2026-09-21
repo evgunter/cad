@@ -4,6 +4,8 @@ kind: issue
 title: The viewer states the empty-document classification in four places, and the one that actually gates (product_badge's matches!) is the one construct that cannot red when a ProductError arm is added
 status: open
 opened: 2026-09-15
+priority: P1
+cost: E
 ---
 
 

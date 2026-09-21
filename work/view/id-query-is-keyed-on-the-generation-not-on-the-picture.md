@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-15
 branch: view/id-query-key
 pr: 2622
+priority: P1
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: a lofted Circle section is unmeshable, and the refusal arrives three steps downstream
 status: open
 opened: 2026-09-10
+priority: P0
+cost: H
 ---
 
 

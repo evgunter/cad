@@ -959,3 +959,13 @@ on #2468 decides, and SYM proceeds on the first shape meanwhile.
 **Where SYM runs now.** The remote box is gone; the program runs on the
 shared local machine (8 cores, load ~30 today, four orchestrators).
 SYM-8's dual first, SYM-10's Phase 1 after; lanes seed one at a time.
+
+## The fork, reconciled (2026-09-21)
+
+The session that wrote this log since 2026-09-19 was the LOCAL copy of
+a forked orchestrator; the cloud copy returned on 2026-09-21 and the
+two reconciled on `[ev]` #2949 — the record is in `work/decide/log.md`
+(SYM-8 and SYM-10 live there after the 09-20 cut). The cloud copy is
+the orchestrator of SYM's remainder going forward; the local copy's one
+unmerged docs commit (`mngr/sym` @ `8dfe5c1fb`, SYM-10's dispatch) is
+folded here rather than merged.

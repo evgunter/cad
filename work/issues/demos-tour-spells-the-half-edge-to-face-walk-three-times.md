@@ -4,6 +4,8 @@ kind: issue
 title: demos/tour spells the half-edge to face walk three times, twice byte-identically
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 
