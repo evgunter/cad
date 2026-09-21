@@ -2655,6 +2655,11 @@ enum Discharge {
     /// when it was registered, counted apart from both theorem kinds
     /// (`registered`).
     Registered,
+    /// THE PLANT: a sixth discharge kind, wired into ONE side of each
+    /// of the three seams, to demonstrate that each pin reds. Reverted
+    /// before this branch's head.
+    #[allow(dead_code)]
+    Planted,
 }
 
 #[cfg(any(test, feature = "probe"))]
@@ -2666,11 +2671,16 @@ impl Discharge {
     /// a kind missing from the list beside it is a compile error here,
     /// so a pin that iterates this roster iterates the whole
     /// vocabulary rather than the part someone remembered.
-    fn all() -> [Self; 3] {
-        let all = [Self::Theorem, Self::SignGated, Self::Registered];
+    fn all() -> [Self; 4] {
+        let all = [
+            Self::Theorem,
+            Self::SignGated,
+            Self::Registered,
+            Self::Planted,
+        ];
         for kind in all {
             match kind {
-                Self::Theorem | Self::SignGated | Self::Registered => {}
+                Self::Theorem | Self::SignGated | Self::Registered | Self::Planted => {}
             }
         }
         all
@@ -2689,6 +2699,7 @@ impl Discharge {
             Self::Theorem => crate::k_stats::SampleOutcome::SymbolicZero,
             Self::SignGated => crate::k_stats::SampleOutcome::SignGated,
             Self::Registered => crate::k_stats::SampleOutcome::Registered,
+            Self::Planted => crate::k_stats::SampleOutcome::SymbolicZero,
         }
     }
 }
@@ -2855,6 +2866,7 @@ fn count_decision(discharge: Option<Discharge>) {
                 Some(Discharge::Theorem) => sess.counts.symbolic_zero += 1,
                 Some(Discharge::SignGated) => sess.counts.sign_gated += 1,
                 Some(Discharge::Registered) => sess.counts.registered += 1,
+                Some(Discharge::Planted) => sess.counts.symbolic_zero += 1,
                 None => sess.counts.numeric += 1,
             }
         }
