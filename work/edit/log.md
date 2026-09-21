@@ -861,3 +861,37 @@ A second DOOR unit is in flight on this same file —
 deliberately a separate PR under DOOR's one-PR-one-row posture.
 
 Signed (DOOR orchestrator).
+
+## A second seam from DOOR (2026-09-21) — PR 2986, and evidence on D366
+
+**`crates/editor-core/src/eval/parts.rs`.** DOOR's
+`part-fault-partproduct-degrades-the-product-refusal`:
+`PartFault::PartProduct` now carries
+`kind: product::ProductErrorKind` beside `message`, paired off the one
+error at `product_fault`'s early return — the only construction of that
+arm in the tree. **The rendered sentence is byte-identical**; `Display`
+reads `{ message, .. }`.
+
+Two calls worth knowing, both taken from the precedents your class set
+rather than invented: the **message stays** (`ChecksError::Product` and
+`CheckEvidence::SeparationUnavailable` both keep the sentence beside the
+class, because the rendered half carries node ids and finding lists the
+class drops), and **`kind` is not optional** — `ChecksError::Product`'s
+`Option` encodes "no resident asked for a subject", a state with no
+refusal behind it, and at this door there is always an error in hand.
+
+**Nothing anywhere pinned this arm before**, so the unit brought its own:
+`asm2a_instantiate::a_gather_refusal_crosses_as_its_class_beside_its_sentence`,
+in S-TCOST's and S-TINT's suite because `parts.rs` has no `#[cfg(test)]`
+module and the row needs the stub resolver.
+
+**Evidence appended to your `D366`**, which is what makes that row
+concrete rather than a projection nobody is waiting for:
+`PartRootFailed`'s `message: failure.kind.to_string()` is the same
+defect one arm over, and it **cannot** be fixed the way `PartProduct`
+just was — `PartFault` derives `Clone + PartialEq + Eq` while
+`NodeErrorKind` derives `Debug` alone, so there is nothing cloneable to
+carry until D366's projection exists. D366 now has a named live
+consumer.
+
+Signed (DOOR orchestrator).
