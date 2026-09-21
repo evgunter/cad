@@ -136,11 +136,7 @@ impl PatchBoundError {
     /// that reports a patch-bound refusal in its own error type.
     pub fn note(self) -> &'static str {
         match self {
-            Self::DegreeZero => {
-                "degree-0 NURBS direction (a degenerate face description) — a degree-0 \
-                 locus is a step function rather than a surface direction, and the form \
-                 is a designed absence: describe the direction at degree 1 or above"
-            }
+            Self::DegreeZero => "degree-0 NURBS direction (a degenerate face description)",
             Self::Degree1Crease => {
                 "degree-1 NURBS direction with interior knots (a C⁰ crease) — \
                  the interpolation Taylor bound needs C¹; split the face at \

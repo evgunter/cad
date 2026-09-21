@@ -234,8 +234,7 @@ impl core::fmt::Display for MeterError {
                 "offset_curvature_headroom: |d| reaches the patch's certified \
                  curvature radius on the folding side (reach {reach} m, headroom \
                  {headroom} m, principal curvature in [{}, {}] 1/m) — the offset \
-                 folds, so nothing is fitted: ask for |d| strictly inside the reach, \
-                 or offset to the other side, where this patch does not fold",
+                 folds, so nothing is fitted",
                 kappa.0, kappa.1
             ),
             Self::Escalated { source } => write!(f, "offset meter escalated: {source}"),
