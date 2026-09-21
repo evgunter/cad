@@ -42,7 +42,7 @@
 //!
 //! Why it earns a place in CI: it needs **no oracle library**, so it runs
 //! in the kernel's own pipeline with no C toolchain (README
-//! "Certification", ci.yml's `interval-backend` job).
+//! "Certification", interval.yml's `interval-backend` job).
 //!
 //! # Depth and seed
 //!

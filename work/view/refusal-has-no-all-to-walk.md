@@ -5,7 +5,7 @@ title: Refusal has no ALL value, so every property over the vocabulary is a hand
 status: closed
 opened: 2026-09-05
 closed: 2026-09-06
-refs: [refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, session-clearing-walk-is-hand-maintained-three-times, viewer-const-all-tables-have-no-exhaustiveness-guard, dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum, prose-census-cannot-see-a-bypassed-prose-renderer, viewer-preview-names-a-verb-by-its-variant-identifier]
+refs: [refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, session-clearing-walk-is-hand-maintained-three-times, viewer-const-all-tables-have-no-exhaustiveness-guard, prose-census-cannot-see-a-bypassed-prose-renderer, viewer-preview-names-a-verb-by-its-variant-identifier]
 pr: 2053
 branch: view/refusal-all
 ---
@@ -228,3 +228,7 @@ a missing roster.
 ## Reference note (FIX's sweep, 2026-09-21)
 
 `verb-and-dimension-render-through-debug` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/verb-and-dimension-render-through-debug.md`.
+
+## Reference note (DOOR's sweep, 2026-09-21)
+
+`dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum` was dropped from this row's `refs` because the row closed with **DOOR**, which left the tracker at sweep 19 — `work/door/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 284ca7e9889f:work/door/dimension-radio-row-is-an-unforced-mirror-of-a-kernel-enum.md`.
