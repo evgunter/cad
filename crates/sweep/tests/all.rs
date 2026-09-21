@@ -103,6 +103,8 @@ mod r1_mate3_probes;
 mod r2_mate3_probes;
 #[path = "r2_mesh1_donut_probes.rs"]
 mod r2_mesh1_donut_probes;
+#[path = "r2_sym11_e2e_body.rs"]
+mod r2_sym11_e2e_body;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -125,8 +127,6 @@ mod sf2b_r2_probes;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
-#[path = "r2_sym11_e2e_body.rs"]
-mod r2_sym11_e2e_body;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
 #[path = "topo_ring_nesting.rs"]

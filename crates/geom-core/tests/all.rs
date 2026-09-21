@@ -99,6 +99,8 @@ mod m10_7_r1_sym_probes;
 mod m5_pr1_poison_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]
 mod m5_pr7b_tensor_compose;
+#[path = "r2_sym11_e2e_probe.rs"]
+mod r2_sym11_e2e_probe;
 #[path = "review_m0_pr2.rs"]
 mod review_m0_pr2;
 #[path = "review_m0_pr3.rs"]
@@ -137,8 +139,6 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
-#[path = "r2_sym11_e2e_probe.rs"]
-mod r2_sym11_e2e_probe;
 #[path = "sym11_witness_kind_interval_rows.rs"]
 mod sym11_witness_kind_interval_rows;
 #[path = "sym11_witness_kind_rows.rs"]
