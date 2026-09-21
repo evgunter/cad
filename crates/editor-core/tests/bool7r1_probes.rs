@@ -279,7 +279,10 @@ fn sweep_sample_population_and_diagnosis_per_cell() {
         ("delete the bar block", DocEdit::DeleteNode { id: s.bar }),
     ];
     for (label, edit) in cells {
-        let applied = match s.doc.apply(&edit, Tol::witness()) {
+        let applied = match s
+            .doc
+            .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
+        {
             Ok(a) => a,
             Err(e) => {
                 eprintln!("CELL {label}: edit refused: {e:?}");

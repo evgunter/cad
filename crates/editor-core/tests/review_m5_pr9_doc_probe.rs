@@ -35,7 +35,13 @@ impl Rec {
     }
     fn insert(&mut self, node: Node<ProfileProgram>) -> RecipeNodeId {
         let edit = DocEdit::InsertNode { node };
-        let applied = apply(&self.doc, &edit, Tol::witness()).expect("edit applies");
+        let applied = apply(
+            &self.doc,
+            &edit,
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("edit applies");
         self.doc = applied.doc;
         self.edits.push(edit);
         applied.record.minted.expect("minted id")

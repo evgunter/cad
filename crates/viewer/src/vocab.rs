@@ -1,10 +1,12 @@
 //! **One declaration per closed vocabulary, and every list projected
 //! from it.**
 //!
-//! **Eight** enums in this crate are *closed vocabularies*: a fixed set
+//! **Nine** enums in this crate are *closed vocabularies*: a fixed set
 //! of choices the chrome offers, which something has to be able to
-//! walk in order — a radio row, a combo's options, a suite's sweep.
-//! Each of them used to carry a hand-written `const ALL` beside the
+//! walk in order — a radio row, a combo's options, a suite's sweep —
+//! and one of them, `crate::marks::EdgeLane`, is a renderer's draw
+//! order walked the same way.
+//! Each of the chrome's used to carry a hand-written `const ALL` beside the
 //! enum, and that second copy of the membership was free to fall
 //! behind the first: **adding a variant compiled**, the radio row
 //! silently lost a button, and every sweep keyed on the list quietly

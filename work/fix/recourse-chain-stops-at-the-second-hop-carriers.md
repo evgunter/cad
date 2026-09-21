@@ -4,6 +4,8 @@ kind: issue
 title: five second-hop carriers stop at the condition, so the recourse chain is unproved one delegation past the ValidationError arms
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

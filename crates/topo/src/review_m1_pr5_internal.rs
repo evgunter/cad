@@ -18,7 +18,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::entity::EntityId;
-use crate::fixtures::{ops_cube, pillow, prov};
+use crate::fixtures::{pillow, prov};
+use crate::test_support_fixtures::declined_cube;
 use crate::validate::{ValidationError, validate, validate_closed};
 use geom_core::Tol;
 
@@ -28,7 +29,7 @@ use geom_core::Tol;
 #[test]
 fn missing_provenance_all_seven_arenas() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
 
     // Solids.
     let mut b = t.body.clone();
@@ -109,7 +110,7 @@ fn missing_provenance_all_seven_arenas() {
 #[test]
 fn leaked_provenance_all_seven_arenas() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     macro_rules! leak_probe {
         ($arena:ident, $variant:ident) => {{
             let mut b = t.body.clone();
@@ -142,7 +143,7 @@ fn leaked_provenance_all_seven_arenas() {
 #[test]
 fn cross_shell_shredding_terminates_and_reports_coherently() {
     let tol = Tol::witness();
-    let t = ops_cube(tol);
+    let t = declined_cube::<f64>(tol);
     let mut b = t.body;
     let faces: Vec<_> = b.faces.keys().collect();
     let solid = b.solids.keys().next().unwrap();
@@ -277,7 +278,13 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // ---- Test-support fixture builders. Why they are in this
     // population at all is stated once, on
     // [`crate::source_walk::mutation_doors`]. What tier 1 makes of
-    // them: each writes only through the asserting operators above. ----
+    // them: each writes only through doors that EITHER declare the
+    // tier-1 postcondition themselves (`mvfs`, `mev`, `mef`, which are
+    // therefore not on this list and cannot be) OR appear on it below
+    // for writing fields tier 1 does not constrain. The union is the
+    // claim; neither half alone is true of all four entries, and an
+    // entry names the doors it composes so a reader can check which
+    // half each one lands in. ----
     (
         "prism_ops",
         "grows a prism through `mvfs`, `mev`, `mef` and `set_face_surface` and writes no \
@@ -290,6 +297,13 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
     (
         "cube_into",
         "calls `prism_ops` at the unit square, then `describe_as_intersections`",
+    ),
+    (
+        "cyl_wall_sheet",
+        "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line`, `mef` and \
+         `set_face_surface` (asserting), and then through `set_surface_source` and \
+         `mint_pcurves` — which do not assert, and are on this list below for writing \
+         fields tier 1 does not constrain",
     ),
     // ---- Writes fields tier 1 does not constrain. ----
     (

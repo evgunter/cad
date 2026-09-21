@@ -5,6 +5,8 @@ title: The crate root re-export is a SECOND path to an item, never the only one:
 status: open
 opened: 2026-09-06
 refs: [2089]
+priority: P4
+cost: E
 ---
 
 
@@ -121,7 +123,7 @@ crate is bounded by that single re-export, and walking the 17:
   in `app.rs`.
 - **10 doc links to items genuinely defined in `app.rs`**:
   `ViewerApp` and its methods (`sync_scene` ×2,
-  `fit_delta_on_scene` ×2, `remember_theme`), `ViewerBehavior` and its
+  `fit_delta_on_scene` ×2, `remember_prefs`), `ViewerBehavior` and its
   methods (`viewport_ui` ×2, `add_profile_ui`), `run`, and
   `indeterminate_wording`. `ViewerBehavior::add_profile_ui` is worth
   naming as a near-miss that is NOT a hit: the method's `impl` is in

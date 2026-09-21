@@ -19,12 +19,12 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EntityKind, Expr,
-    MateFrame, MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
-    content_pin, derivation_nodes, split,
+    Alignment, AxisSense, CapEnd, ContactClass, DocEdit, DocRef, DocumentId, Expr, MateFrame,
+    MatePrimitive, Node, PatternKind, ProfileDoc, RecipeNodeId, StableName, content_pin,
+    derivation_nodes, split,
 };
 use fixture::resolver::in_part;
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{in_copy, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 fn block(label: &str) -> ProfileDoc {
@@ -50,17 +50,6 @@ fn block_ref(label: &str) -> DocRef {
     let doc = block(label);
     let pin = content_pin(&doc, Tol::witness()).unwrap();
     DocRef { id: doc.id(), pin }
-}
-
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
@@ -134,6 +123,7 @@ fn sweep_every_cut(doc: &ProfileDoc, label: &str) -> Sweep {
             &cut,
             DocumentId::derive(&format!("{label}-part-{mask}")),
             Tol::witness(),
+            None,
         ) else {
             seen.refused += 1;
             continue;
@@ -216,15 +206,17 @@ fn three_shapes() -> ProfileDoc {
     );
     // A head the name UNDERQUALIFIES — one `Instance(i)` over a
     // two-level nest, which is the name such a table never mints:
-    // NOT an edge, welds nothing.
-    let (doc, _) = step(
+    // NOT an edge, welds nothing. The insert door refuses such a
+    // head, so it is authored the way one arises after insert
+    // (`insert_mate_with_stranded_head`).
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
-        DocEdit::InsertNode {
-            node: seat(
-                in_copy(npc, 1, in_part(c, CapEnd::End)),
-                in_part(b, CapEnd::End),
-            ),
-        },
+        seat(
+            in_copy(npc, 1, in_part(c, CapEnd::End)),
+            in_part(b, CapEnd::End),
+        ),
+        editor_core::MateSide::A,
+        b,
     );
     doc
 }
@@ -252,14 +244,17 @@ fn foreign_master() -> ProfileDoc {
     );
     let (doc, c) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-c")));
     let (doc, d) = insert(doc, Node::instantiate_part(block_ref("rev-xs-f-d")));
-    let (doc, _) = step(
+    // The head resolves to no member (the walk reaches `a` under a
+    // name whose master is `c`), which the insert door refuses: it is
+    // authored the way such a head arises after insert.
+    let (doc, _) = crate::fixture::insert_mate_with_stranded_head(
         doc,
-        DocEdit::InsertNode {
-            node: seat(
-                in_copy(pa, 2, in_part(c, CapEnd::End)),
-                in_part(d, CapEnd::Start),
-            ),
-        },
+        seat(
+            in_copy(pa, 2, in_part(c, CapEnd::End)),
+            in_part(d, CapEnd::Start),
+        ),
+        editor_core::MateSide::A,
+        d,
     );
     doc
 }

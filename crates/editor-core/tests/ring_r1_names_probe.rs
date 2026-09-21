@@ -11,11 +11,10 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, NameTable, Node, ProfileDoc,
-    ProfileEdgeRef, RecipeNodeId, RoleSeg, StableName, band, band_pi, band_rim, evaluate,
-    meridian_vertex,
+    CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, Node, ProfileDoc,
+    ProfileEdgeRef, RoleSeg, band, band_pi, band_rim, evaluate, meridian_vertex,
 };
-use fixture::{ang, axis_in_plane, insert, on_frame_keeping};
+use fixture::{ang, axis_in_plane, insert, minted, on_frame_keeping, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -26,20 +25,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
-    &ev.value(id)
-        .unwrap_or_else(|| panic!("node {id:?} has no value: {:?}", ev.nodes.get(&id)))
-        .name_table
-}
-
-fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node,
-        path: vec![seg],
-    }
 }
 
 fn pe(l: u32, s: u32) -> ProfileEdgeRef {
@@ -89,7 +74,7 @@ fn full_wire_holed_revolve_names_totally() {
         assert!(t.lookup(&band(rev, 1, s)).is_some());
         assert!(t.lookup(&band_rim(rev, 1, s)).is_some());
         assert!(
-            t.lookup(&name1(
+            t.lookup(&minted(
                 EntityKind::Edge,
                 rev,
                 RoleSeg::Meridian(MeridianEnd::Seam, pe(1, s))

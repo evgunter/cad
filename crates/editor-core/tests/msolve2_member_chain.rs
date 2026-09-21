@@ -28,11 +28,13 @@ use editor_core::{
     DocEdit, DocParam, DocParamValue, DocumentId, EvalOptions, Expr, MateFault, MateFrame,
     MatePrimitive, MateRole, MateSide, MintRefusal, Node, ParamName, PartSelect, PatternKind,
     ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, SitedFace, SplitHalf, StableName,
-    clusters, member_of, product, solve_document,
+    clusters, member_of, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated, seat_map};
-use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, step, xform};
+use fixture::{
+    ang, door_refusal, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform,
+};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
@@ -220,8 +222,8 @@ const Q: f64 = std::f64::consts::FRAC_PI_2;
 /// (`read_mates`), so a document's cluster membership and its solved
 /// gauges cannot disagree; this asserts that on whatever document it
 /// is handed.
-fn assert_partition_agrees(doc: &ProfileDoc, what: &str) {
-    let poses = solve_document(doc, Tol::witness());
+fn assert_partition_agrees(doc: &ProfileDoc, opts: &EvalOptions, what: &str) {
+    let poses = solve(doc, opts, Tol::witness());
     let mut from_solve: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
     for c in clusters(doc) {
         for &i in &c {
@@ -310,7 +312,7 @@ fn a1_a_nested_copy_seats_at_the_composed_pose() {
         "the operand is the node the mate is read at"
     );
 
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "A1: the solve refused a nested copy: {:?}",
@@ -346,7 +348,7 @@ fn assert_loop_closes(
     consistent: bool,
     what: &str,
 ) {
-    let poses = solve_document(doc, Tol::witness());
+    let poses = solve(doc, opts, Tol::witness());
     assert!(
         poses.fault(tree).is_none() && poses.fault(closer).is_none(),
         "{what}: the solve places on the tree edge and never verifies the \
@@ -626,7 +628,7 @@ fn a3a_a_part_selected_copy_read_at_the_part_is_a_member() {
         member.at, part,
         "the operand is the Part the mate is read at"
     );
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "A3(a): the solve refused: {:?}",
@@ -733,7 +735,7 @@ fn a3c_transform_over_part_over_a_pattern_seats() {
         "the transform contributes no copy — only the pattern does"
     );
     assert_eq!(member.at, moved);
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "A3(c): the solve refused: {:?}",
@@ -772,24 +774,28 @@ fn a4_a_part_that_selects_another_copy_refuses_typed() {
     let a = in_part(base, CapEnd::End);
     let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
     let reference = crate::fixture::head_at(part, b.clone());
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_at(crate::fixture::head(a), reference.clone(), FIRST_SEAT),
-        },
-    );
-    let mate = mate.unwrap();
     // ADMISSION is structural and evaluates nothing, so the walk
     // still resolves this reference to a member: the disagreement is
-    // a fact about two numbers, and numbers are the offset's half.
+    // a fact about two numbers, which the per-reference check reads
+    // — and that check is the mate's own, so the edit door asks it
+    // where the mate is authored and refuses with the solve's fault.
     assert!(
         member_of(&doc, &reference).is_some(),
-        "the walk admits the reference; the offset is what refuses"
+        "the walk admits the reference; the number check is what refuses"
     );
-    let fault = solve_document(&doc, Tol::witness())
-        .fault(mate)
-        .cloned()
-        .expect("a disagreeing Part refuses");
+    let err = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: seat_at(crate::fixture::head(a), reference.clone(), FIRST_SEAT),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("a disagreeing Part refuses");
+    let editor_core::EditError::MateRefused { node: mate, fault } = err else {
+        panic!("expected MateRefused, got {err:?}");
+    };
+    let fault = *fault;
     let MateFault::PartSelectsAnotherCopy {
         mate: at,
         side,
@@ -845,7 +851,7 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
         },
     );
     let mate = mate.unwrap();
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "the solve places a mate read below the outer pattern: {:?}",
@@ -881,7 +887,7 @@ fn the_gate_on_a_mate_read_below_the_outer_pattern_names_the_operand() {
     // and the gate holds: the difference is whether the name is a
     // product ROOT's own row.
     assert!(
-        gate(&doc, &ev).is_err() && solve_document(&doc, Tol::witness()).fault(outer).is_none(),
+        gate(&doc, &ev).is_err() && solve(&doc, &s.opts, Tol::witness()).fault(outer).is_none(),
         "the outer pattern itself carries no fault"
     );
 }
@@ -924,7 +930,7 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
         vec![(p2, 2), (p1, 1)],
         "the transforms contribute no copy — only the patterns do"
     );
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
     let ev = run(&doc, &s.opts);
@@ -940,7 +946,7 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
         &control,
         "A1′(a) two levels + transforms",
     );
-    assert_partition_agrees(&doc, "A1′(a)");
+    assert_partition_agrees(&doc, &s.opts, "A1′(a)");
 }
 
 /// **A1′(b).** Three levels — circular, linear, circular — each with
@@ -973,7 +979,7 @@ fn a1c_three_levels_deep_seat() {
     let mate = mate.unwrap();
     let m = member_of(&doc, &r).expect("a member three levels down");
     assert_eq!(m.copy, vec![(p3, 2), (p2, 1), (p1, 1)]);
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -981,7 +987,7 @@ fn a1c_three_levels_deep_seat() {
         "the product gathers"
     );
     assert_seated(&doc, &ev, &a, &b, &control, "A1′(b) three levels");
-    assert_partition_agrees(&doc, "A1′(b)");
+    assert_partition_agrees(&doc, &s.opts, "A1′(b)");
 }
 
 // ---- A2′: a loop whose TREE EDGE carries a non-identity outer map ----
@@ -1061,7 +1067,7 @@ fn a2d_a_rotating_outer_map_on_the_tree_edge_seats_and_closes() {
         // the quarter turn — seats where the alignment asks.
         let ev = run(&doc, &opts);
         assert_seated(&doc, &ev, &a, &b1, &control, label);
-        assert_partition_agrees(&doc, label);
+        assert_partition_agrees(&doc, &opts, label);
     }
 }
 
@@ -1086,7 +1092,11 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
     let (base, top) = (s.base, s.top);
     let (doc, pattern) = insert(s.doc, linear(top, [0.0, -1.0, 0.0], 4.0, 3));
     let (doc, part1) = insert(doc, part_of(pattern, 0));
-    let (doc, part2) = insert(doc, part_of(pattern, 2));
+    // `part2` agrees with the name at insert — the edit door refuses
+    // a disagreeing `Part` where the mate is authored — and is
+    // re-pointed at copy 2 below, which is how a `Part` comes to
+    // disagree after insert.
+    let (doc, part2) = insert(doc, part_of(pattern, 0));
     let a = in_part(base, CapEnd::End);
     let b = in_copy(pattern, 0, in_part(top, CapEnd::Start));
     let (doc, m1) = step(
@@ -1110,10 +1120,18 @@ fn a4b_a_part_mismatch_on_a_declaring_mate_refuses_too() {
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetStructuralParam {
+            node: part2,
+            slot: editor_core::SlotId::Instance,
+            expr: Expr::count(2),
+        },
+    );
     // Both references are members: admission is structural and the
     // disagreement is about two numbers.
     assert!(member_of(&doc, &crate::fixture::head_at(part2, b)).is_some());
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(m1).is_none(),
         "the well-formed mate is untouched: {:?}",
@@ -1174,7 +1192,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     );
     let mate = mate.unwrap();
     let before = member_of(&doc, &r).expect("a member at k = 1");
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
     assert_seated(&doc, &ev, &a, &b, &control, "A4′(b) at k = 1");
@@ -1191,7 +1209,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
         before, after,
         "the member does not move with a parameter: admission is structural"
     );
-    let fault = solve_document(&doc, Tol::witness())
+    let fault = solve(&doc, &s.opts, Tol::witness())
         .fault(mate)
         .cloned()
         .expect("the disagreement refuses at k = 2");
@@ -1229,20 +1247,14 @@ fn a3d_a_part_over_the_wrong_pattern_stops_the_walk() {
     let b = in_copy(outer, 1, in_copy(inner_a, 1, in_part(top, CapEnd::Start)));
     let r = crate::fixture::head_at(outer, b);
     assert!(member_of(&doc, &r).is_none(), "no member stands there");
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_at(
-                crate::fixture::head(in_part(base, CapEnd::End)),
-                r,
-                FIRST_SEAT,
-            ),
-        },
+    let fault = door_refusal(
+        &doc,
+        seat_at(
+            crate::fixture::head(in_part(base, CapEnd::End)),
+            r,
+            FIRST_SEAT,
+        ),
     );
-    let fault = solve_document(&doc, Tol::witness())
-        .fault(mate.unwrap())
-        .cloned()
-        .expect("refuses");
     assert!(
         matches!(fault, MateFault::DanglingHead { head, .. } if head == inner_b),
         "the walk stops at the pattern it actually reached: {fault:?}"
@@ -1267,20 +1279,14 @@ fn a3e_a_part_naming_a_split_half_stops_the_walk() {
     let b = in_copy(pattern, 1, in_part(top, CapEnd::Start));
     let r = crate::fixture::head_at(part, b);
     assert!(member_of(&doc, &r).is_none(), "not a member");
-    let (doc, mate) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_at(
-                crate::fixture::head(in_part(base, CapEnd::End)),
-                r,
-                FIRST_SEAT,
-            ),
-        },
+    let fault = door_refusal(
+        &doc,
+        seat_at(
+            crate::fixture::head(in_part(base, CapEnd::End)),
+            r,
+            FIRST_SEAT,
+        ),
     );
-    let fault = solve_document(&doc, Tol::witness())
-        .fault(mate.unwrap())
-        .cloned()
-        .expect("refuses");
     assert!(
         matches!(fault, MateFault::DanglingHead { head, .. } if head == part),
         "the walk stops at the Part itself: {fault:?}"
@@ -1333,7 +1339,7 @@ fn a_lifted_declared_frame_does_not_move_what_the_gate_reads() {
         },
     );
     let (m1, m2) = (m1.unwrap(), m2.unwrap());
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert_eq!(poses.role(m1), Some(MateRole::Determining));
     assert_eq!(poses.role(m2), Some(MateRole::Declaring));
     let ev = run(&doc, &s.opts);

@@ -421,3 +421,37 @@ pub(super) fn loop_points_of<T: Decide>(
     let starts = loop_starts(body, l)?;
     starts.into_iter().map(|v| vertex_point(body, v)).collect()
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use crate::EntityId;
+    use crate::entity::LoopKey;
+    use crate::fixtures::pillow;
+    use geom_core::Tol;
+
+    /// The refusal [`Body::face_of_half_edge`]'s docs reserve to a
+    /// caller's own walk: which key went stale, per hop.
+    #[test]
+    fn he_face_names_the_key_that_went_stale() {
+        let mut t = pillow(Tol::witness());
+        let he = t.hes_a[0];
+        assert_eq!(he_face(&t.body, he).ok(), Some(t.face_a));
+        assert!(matches!(
+            he_face(&t.body, HalfEdgeKey::default()),
+            Err(SplitJoinError::Corrupt {
+                entity: EntityId::HalfEdge(_)
+            })
+        ));
+        // A live half-edge with a dead loop back-pointer: the SECOND
+        // hop fails, and the refusal is about the loop.
+        t.body.get_half_edge_mut(he).unwrap().parent_loop = LoopKey::default();
+        assert!(matches!(
+            he_face(&t.body, he),
+            Err(SplitJoinError::Corrupt {
+                entity: EntityId::Loop(_)
+            })
+        ));
+    }
+}

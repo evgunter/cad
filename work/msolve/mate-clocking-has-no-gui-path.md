@@ -2,9 +2,12 @@
 id: mate-clocking-has-no-gui-path
 kind: issue
 title: Mate clocking through the GUI: the tool admits a rider the coset table statically refuses, and no affordance can turn a mate's roll
-status: open
+status: closed
 opened: 2026-09-01
 github: 1461
+blocked_on: [MSOLVE-10]
+closed: 2026-09-20
+pr: 2913
 ---
 
 ## From GitHub issue 1461
@@ -60,3 +63,38 @@ Moved from `work/docm/` to `work/msolve/` at DOCM's exit sweep (`docs/DOC-LEDGER
 sweep 14): mate authoring is MSOLVE's (`mate.rs`, `mate/*`); the viewer half rides along as CHROME's announced seam. Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Closed (2026-09-20, PR 2913)
+
+MSOLVE-10 (`docs/MSOLVE-10-SPEC.md`).
+
+**Half (1) — built.** The edit door asks the solve's own per-mate
+admission (`admit_mate`, `crates/editor-core/src/mate/solve.rs`) of a
+mate being inserted and refuses `EditError::MateRefused` carrying the
+solve's fault unaltered, so a mate the coset table refuses on its own
+datum is refused at the insert door: the walk's head, one member twice,
+the class, each frame, the table's static gaps, the clocking rider on
+a coincidence decided over the mate's own lever through the reach the
+door holds. The viewer tool refuses the static gaps before any
+geometry (`MateToolError::TableRefused`); the decided rider is met at
+`perform`, typed. The doors decide edits and the solve decides
+states: a mate that comes to carry such a fault after insert (a
+stranded head, a re-pointed `Part`, a loaded snapshot) is the
+solve's at evaluation. The rows: `crates/editor-core/tests/
+msolve10_door_admission.rs` (A1, A2 over a corpus, A4's counting
+reach, the history, replay), `crates/viewer/tests/story_assembly.rs`
+stage 11a and `mate_tool_flow.rs`, and
+`crates/pncad-py/tests/test_assembly_author.py`'s
+`test_a_rider_the_table_decides_against_is_refused_at_the_door`.
+The item's measurement — `proposal(…, FrameCoincidence, clocking:
+Some(π/2))` → `perform` commits and the next evaluation fails — now
+reads: `perform` refuses typed, nothing commits, nothing fails.
+
+**Half (2) — recorded, not built.** The spelling that exists for
+turning a mate's roll is a coaxial mate with a clocking rider (the
+table's coaxial+clocking row), which `MateChoice` already offers; a
+roll-reference convention for authored frames is MSOLVE-9's
+`reference` rule; a rotate-mate affordance is CHROME's viewer seam,
+handed there when MSOLVE-9's convention is ratified. The story
+suite's recovery (turning the roll reference and committing through
+`AddMate`, stage 10) stays the record of that cost.

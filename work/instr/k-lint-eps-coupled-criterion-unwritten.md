@@ -6,6 +6,8 @@ status: parked
 blocked_on: [k-lint-roster-wants-a-kernel-side-vocabulary]
 opened: 2026-09-07
 refs: [2115]
+priority: P3
+cost: D
 ---
 
 

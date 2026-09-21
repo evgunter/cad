@@ -5,6 +5,8 @@ title: A frame's refusal discards its notices, and a discarded free-move placeme
 status: open
 opened: 2026-09-04
 refs: [opoutcome-superseded-has-no-production-reader, the-news-vocabulary-has-no-expiry, status-line-writers-bypass-the-ranking]
+priority: P0
+cost: D
 ---
 
 Disclosed by `opoutcome-superseded-has-no-production-reader`'s fix,

@@ -15,7 +15,7 @@
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
-//! agreeing with itself. Its match is exhaustive: a forty-second
+//! agreeing with itself. Its match is exhaustive: a forty-third
 //! `SessionOp` does not compile until someone writes down whether a
 //! drag refuses it, which is the property the table exists to buy.
 //! Its index half, checked against `OP_COUNT`, is what makes a MISSING
@@ -72,7 +72,7 @@
 //! sets, so there are two tables and this file checks both.
 //! [`SessionOp::permitted_during_free_move`] has two refusals rather
 //! than 26 and they have a name, so it is NOT restated here as a
-//! second copy of 41 rows: `replaces_the_document` says the property
+//! second copy of 42 rows: `replaces_the_document` says the property
 //! the table encodes — an operation that puts a different document
 //! under the session — and
 //! `the_free_move_table_refuses_exactly_the_replacement_doors` checks
@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 41;
+const OP_COUNT: usize = 42;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -316,6 +316,14 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
+        SessionOp::EditProfile {
+            node,
+            base: pncad::document::ProfileProgram {
+                plane: node,
+                loops: vec![],
+            },
+            loops: vec![],
+        },
     ]
 }
 
@@ -390,6 +398,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddFillet { .. } => (38, false),
         SessionOp::AddChamfer { .. } => (39, false),
         SessionOp::AddInstance { .. } => (40, false),
+        SessionOp::EditProfile { .. } => (41, false),
     }
 }
 
@@ -790,7 +799,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
 // --- the cancel doors -----------------------------------------------
 
 /// **Which operations cancel a GESTURE**, written down exhaustively so
-/// that a forty-second operation cannot join the enum without answering
+/// that a forty-third operation cannot join the enum without answering
 /// whether the chrome owes it a door.
 ///
 /// The rule ranges over what an operation cancels, NOT over what it is
@@ -833,6 +842,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
@@ -1071,7 +1081,7 @@ fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
 ///
 /// The value drag's stranding trace above does not carry over to this
 /// gesture and this row does not claim it does: the probe's field is
-/// drawn off the shown document (`display::is_instance` and
+/// drawn off the shown document (`display::instance_check` and
 /// `display::free_move_check`), not off the landed evaluation, and a
 /// document change while a probe is in flight is pruned rather than
 /// stranded. What holds here is the other half of the item — the
@@ -1173,10 +1183,10 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// rather than as a second copy of its rows.**
 ///
 /// `expected` above is a hand-written copy of
-/// `permitted_during_value_gesture` because that table has 24 refusals
-/// with no shorter description than the list itself — 23 of them move
+/// `permitted_during_value_gesture` because that table has 25 refusals
+/// with no shorter description than the list itself — 24 of them move
 /// the document, the history or the file a drag previews against, and
-/// `ProbeBounds` is the twenty-fourth and reads rather than moves. The
+/// `ProbeBounds` is the twenty-fifth and reads rather than moves. The
 /// free-move table has two, and they have a name: an operation that REPLACES the
 /// document the session is about — as against one that moves it, which
 /// a prune answers for by reporting. So this says the name, and
@@ -1185,7 +1195,7 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// that is wrong or a property that has stopped being the reason, and
 /// both are things to find out.
 ///
-/// **Exhaustive on purpose**, like `expected`: a forty-second `SessionOp`
+/// **Exhaustive on purpose**, like `expected`: a forty-third `SessionOp`
 /// does not compile until someone says whether it replaces the
 /// document.
 fn replaces_the_document(op: &SessionOp) -> bool {
@@ -1223,6 +1233,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddMate { .. }
         | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
@@ -1237,7 +1248,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
 }
 
 /// The free-move table is exactly the replacement doors, on the same
-/// sample roster the value table is checked on — so a forty-second
+/// sample roster the value table is checked on — so a forty-third
 /// operation is answered for both drags or does not compile.
 #[test]
 fn the_free_move_table_refuses_exactly_the_replacement_doors() {

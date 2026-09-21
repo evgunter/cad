@@ -40,6 +40,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
                 value: DocParam::continuous(Dimension::Length, x0),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -60,6 +61,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -71,6 +73,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .unwrap()
     .doc
@@ -169,6 +172,7 @@ fn circle_radius_edit_keeps_names() {
                     }),
                 },
                 Tol::witness(),
+                &editor_core::RefusingReach,
             )
             .unwrap()
             .doc;
@@ -180,6 +184,7 @@ fn circle_radius_edit_keeps_names() {
                 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc
@@ -295,6 +300,7 @@ fn hole_circle_anchor_recovers_reversal() {
                 }),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
@@ -307,6 +313,7 @@ fn hole_circle_anchor_recovers_reversal() {
                 },
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;

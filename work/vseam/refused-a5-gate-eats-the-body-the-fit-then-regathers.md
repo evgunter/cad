@@ -4,6 +4,8 @@ kind: issue
 title: a refused A5 gate consumes the landing's body, so the display fit gathers that document again
 status: open
 opened: 2026-09-05
+priority: P1
+cost: D
 ---
 
 

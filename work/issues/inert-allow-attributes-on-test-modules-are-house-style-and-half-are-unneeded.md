@@ -5,6 +5,8 @@ title: 124 of 257 cfg(test) modules carry allow(unwrap_used, expect_used, panic)
 status: open
 opened: 2026-09-11
 refs: [2375]
+priority: P4
+cost: E
 ---
 
 

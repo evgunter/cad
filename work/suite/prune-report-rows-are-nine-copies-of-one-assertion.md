@@ -5,6 +5,8 @@ title: Nine near-verbatim assertion blocks across seven test files, because the 
 status: open
 opened: 2026-09-05
 refs: [session-shims-and-test-imports, 1886]
+priority: P4
+cost: E
 ---
 
 

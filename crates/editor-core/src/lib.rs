@@ -126,14 +126,14 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, Maintenance, apply,
-    cascade_delete_order,
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance, apply,
+    apply_logged, cascade_delete_order, replay_entry,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
     EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError,
-    NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, ProfileLift, SectionScalar,
-    SplitSide, ValuePayload, VerbKind, evaluate,
+    NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, PartReach, ProfileLift,
+    SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate, mate_reach,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
@@ -146,11 +146,11 @@ pub use expr::{
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use lane::{BracketEnd, Lane};
 pub use mate::{
-    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, ClassAdmission,
-    ClusterMaintenance, Coset, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateRole,
-    MateSide, Member, NO_AT_REST_RECORD_RECOURSE, SolvedPoses, Subgroup, UNDER_RECOURSE,
-    class_admission, clusters, gauge_of, member_of, reading_edges, relative_freedom_components,
-    solve_document,
+    Alignment, AxisSense, CLASS_DEFERRAL, CONTRADICTORY_RECOURSE, Clash, ClassAdmission,
+    ClusterMaintenance, Coset, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
+    MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, ReachRefusal, RefusingReach,
+    SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of,
+    reading_edges, relative_freedom_components, solve_document, table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
@@ -183,10 +183,10 @@ pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
-    load, save,
+    load, load_with, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
-pub use placement::{AxisRefusal, Frame};
+pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{

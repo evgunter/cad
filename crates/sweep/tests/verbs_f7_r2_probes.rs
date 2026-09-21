@@ -73,15 +73,7 @@ fn dump_poles(b: &Body<f64>, label: &str) {
 
 /// A brick that straddles the cone, so the boolean is a real cut.
 fn brick_operand() -> Body<f64> {
-    use profile::{Profile, SketchPlane};
-    use sweep::{Extrusion, extrude};
-    let loop_ = ProfileLoop::polygon([p2(-0.5, -0.5), p2(0.5, -0.5), p2(0.5, 0.5), p2(-0.5, 0.5)]);
-    let vp = Profile::new(SketchPlane::xy(), vec![loop_])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body
+    sweep::test_support::brick((-0.5, 0.5), (-0.5, 0.5), (0.0, 0.4), Tol::witness())
 }
 
 /// PROBE 1 — the plain analytic CONE from `revolve` carries the

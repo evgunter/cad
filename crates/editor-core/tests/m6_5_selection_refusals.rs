@@ -62,7 +62,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
             },
         },
     ] {
-        doc = apply(&doc, &edit, Tol::witness())
+        doc = apply(&doc, &edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("the fixture builds")
             .doc;
     }
@@ -72,6 +72,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
             node: Node::fillet(BODY, len(0.125), selection),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the fillet inserts");
     let id = applied.record.minted.expect("a minted id");
@@ -87,8 +88,13 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
-        let a =
-            apply(doc, &DocEdit::InsertNode { node }, Tol::witness()).expect("the fixture builds");
+        let a = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("the fixture builds");
         let id = a.record.minted.expect("a minted id");
         (a.doc, id)
     };
@@ -184,6 +190,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => {
             assert_eq!(name.node, RecipeNodeId(99));
@@ -212,6 +219,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the spare extrude inserts");
     let spare_id = spare.record.minted.expect("a minted id");
@@ -221,6 +229,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
             node: Node::fillet(BODY, len(0.125), vec![rim(spare_id, 0)]),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the fillet inserts while the spare is live");
     let fillet = with_fillet.record.minted.expect("a minted id");
@@ -228,6 +237,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
         &with_fillet.doc,
         &DocEdit::DeleteNode { id: spare_id },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("deleting a node a NAME references is allowed (N5)")
     .doc;
@@ -316,6 +326,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the fillet inserts");
     let fillet = applied.record.minted.expect("a minted id");

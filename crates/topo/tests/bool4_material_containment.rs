@@ -598,27 +598,64 @@ fn nurbs_walled_bracket() -> Body<f64> {
 
 /// **A container carrying a face kind the material test does not
 /// serve — measured at the public door.** The spline-walled bracket
-/// is refused at tier 3 (check 7 cannot integrate the spline face:
-/// `VolumeUncomputable`), so no body carrying a described spline face
-/// reaches the census through `validate_pseudomanifold` today, and the
-/// arm's own typed cause for the kind is pinned one door down, through
-/// `census_and_certify`, in `census.rs`'s
-/// `an_unserved_face_kind_on_the_container_refuses_naming_the_cause`.
-/// This row pins the public-door fact so that the day check 7 admits
-/// such a face, the census row is what a reader is sent to.
+/// reaches the CENSUS and is refused there, naming the kind.
+///
+/// **That day arrived** (TRIM-2 PR-1, the trimmed-region quadrature).
+/// This row used to read "refused at tier 3 BEFORE the census": check 7
+/// could not integrate the spline face and answered
+/// `VolumeUncomputable`, so nothing carrying a described spline face
+/// reached the census through `validate_pseudomanifold`, and the
+/// version of this row that stood then said in its own doc *"so that
+/// the day check 7 admits such a face, the census row is what a reader
+/// is sent to"*. The bracket's wall edges are described `Intersection`
+/// with a `Nurbs` carrier, which is exactly what mints a
+/// `Pcurve::General`, and the trimmed lane now ANSWERS that face — so
+/// check 7 passes and the census runs. What refuses is the census's own
+/// typed cause for a kind with no cheap sound box, which is the
+/// statement this row was always pointing at
+/// (`census.rs`'s `an_unserved_face_kind_on_the_container_refuses_naming_the_cause`).
+///
+/// The row is kept at the PUBLIC door because that is where the change
+/// is visible: the refusal a caller earns moved one gate later and
+/// changed its cause, and nothing else about the body did.
 #[test]
-fn a_spline_walled_container_is_refused_at_tier_3_before_the_census() {
+fn a_spline_walled_container_is_refused_at_the_census_for_its_face_kind() {
     let container = nurbs_walled_bracket();
     assert_eq!(topo::validate_closed(&container), Ok(()));
     let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     let body = assembly(&container, &part);
     let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
-        .expect_err("tier 3 refuses the spline face's quadrature");
+        .expect_err("the census refuses the spline face's kind");
     assert!(
         errors
             .iter()
-            .all(|e| matches!(e, ValidationError::VolumeUncomputable { .. })),
-        "nothing from the census, only check 7: {errors:?}"
+            .all(|e| matches!(e, ValidationError::CensusUndecidable { .. })),
+        "check 7 admits the face now, so every finding is the census's: {errors:?}"
     );
-    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::CensusUndecidable { what, .. } if what.contains("sound box")
+        )),
+        "and the census names the kind it cannot reach: {errors:?}"
+    );
+    // **The placement question this file is about is now ANSWERED
+    // rather than skipped**, and that is the other half of what moved:
+    // the row used to assert NO placement finding, because the body
+    // never got past check 7 to raise one. It raises exactly one, and
+    // it says why — the unserved kind leaves the containing instance's
+    // extent unclaimable.
+    let placement = placement_findings(&errors);
+    assert_eq!(
+        placement.len(),
+        1,
+        "one placement finding, the containing instance's: {errors:?}"
+    );
+    assert!(
+        matches!(
+            placement[0],
+            ValidationError::CensusUndecidable { what, .. } if what.contains("unclaimable")
+        ),
+        "and it names why the extent is unclaimable: {placement:?}"
+    );
 }

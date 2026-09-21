@@ -4,6 +4,8 @@ kind: issue
 title: the adjacent-swappable-argument class extends past bool and viewer/src has a dozen, transform_node's two [Expr; 3] worst
 status: open
 opened: 2026-09-06
+priority: P1
+cost: D
 ---
 
 

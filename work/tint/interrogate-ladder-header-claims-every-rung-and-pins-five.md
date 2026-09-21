@@ -4,6 +4,8 @@ kind: issue
 title: lib_u5_interrogate's header claims every rung of InterrogateError is pinned; five of ten have no row
 status: open
 opened: 2026-09-12
+priority: P3
+cost: E
 ---
 
 
