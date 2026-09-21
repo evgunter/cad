@@ -76,7 +76,8 @@
 //!
 //! **The second fold: `atan2(0, N) = 0` for an `N` non-negative by its
 //! syntax** (`manifest::nonneg`, which is where that predicate lives
-//! and where rule F sharpens it to strict positivity) — the cylinder chart's phase,
+//! and where rule F sharpens it to strict positivity) — the cylinder
+//! chart's phase,
 //! `atan2(a_r · v_ref, a_r · u_ref)` with `u_ref` the start's own
 //! radial, is `atan2(0, r²/sqrt(r²))`, and the arc exists only where
 //! that radial length is positive. `atan2(z, n)` is the angle of the

@@ -4,6 +4,8 @@ kind: issue
 title: after rule F takes the tilt-u carrier wall the derived boss refuses on a newell_plane_residual straddle the tier does not prove
 status: open
 opened: 2026-09-15
+priority: P2
+cost: H
 ---
 
 
