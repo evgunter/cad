@@ -120,7 +120,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
             registered: 144,
-            symbolic_zero: 1083,
+            // DECIDE-3: fifteen more theorems (1083 -> 1098) and
+            // thirteen decisions the read answers, all out of
+            // `numeric` (794 -> 766); `registered` is unmoved.
+            symbolic_zero: 1098,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {

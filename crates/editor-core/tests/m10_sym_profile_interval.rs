@@ -304,10 +304,8 @@ const PLATE_MAX_TERMS: usize = 252;
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 951 forms 15030 frozen 672 digest aa581ad9960b7ef704f978c1bb2d7ce3\n\
      Plain/Assertion calls 462 forms 2594 frozen 372 digest 702ce928fd05aeeb766afa8c0ae157bb\n\
-     Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Early/Decision calls 320 forms 7979 frozen 8 digest 577d41f1148bf0465181f65a3c4dc5b0\n\
      Early/Assertion calls 462 forms 3406 frozen 0 digest 3d65028fb66b9f9e9949610892e3400a\n\
-     Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
      Door/Decision calls 330 forms 11884 frozen 0 digest 0c5415ffdd10213675fa8c3baa939112\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 

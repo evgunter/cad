@@ -187,16 +187,25 @@ pub(crate) fn assert_split(
     table: &BTreeMap<&'static str, [u64; 4]>,
     expected: &[(&str, [u64; 4])],
 ) {
+    // EVERY row that moved, in one panic. A per-row `assert_eq!` stops
+    // at the first, so re-pinning a table that moved on six rows cost
+    // six runs of a suite that takes minutes — and each run told the
+    // reader one sixth of what had happened.
+    let mut moved: Vec<String> = Vec::new();
     for (pred, want) in expected {
         let got = table
             .get(pred)
             .copied()
             .unwrap_or_else(|| panic!("{name}: no {pred} decisions — the pinned table lists it"));
-        assert_eq!(
-            got, *want,
-            "{name}: {pred} moved at the nominal (theorem/gated/registered/numeric); if a rule              took it, re-pin and say which"
-        );
+        if got != *want {
+            moved.push(format!("{pred} {want:?} -> {got:?}"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "{name}: these moved at the nominal (theorem/gated/registered/numeric); if a rule \
+         took them, re-pin and say which: {moved:?}"
+    );
     let unlisted: Vec<String> = table
         .iter()
         .filter(|(p, _)| !expected.iter().any(|(e, _)| e == *p))

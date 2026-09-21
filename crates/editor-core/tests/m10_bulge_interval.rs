@@ -119,10 +119,18 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// identity is the door's here (`carrier_endpoint_start` 12/0/12/0),
 /// as is the chart phase, as on the plate.
 ///
-/// **DECIDE-3 takes one more of `arc_span`**, 4/0/0/2 -> 5/0/0/1: the
-/// canonical root spells `sqrt(L²)` as `|L|`, which is the atom the
-/// carrier's own `abs` mints, so the span's two spellings meet on one
-/// indeterminate where they used to stand as two.
+/// **DECIDE-3 takes one more of `arc_span`**, 4/0/0/2 -> 5/0/0/1, and
+/// **DECIDE-3 takes the `abs` wall the paragraph above describes.**
+/// The canonical root spells `sqrt(L²)` as `|L|`, which is the atom
+/// the carrier's own `abs` mints, so the radius `abs(signed_radius)`
+/// and the square it used to stand against meet on ONE indeterminate
+/// instead of two: `carrier_on_surface_1` and `carrier_on_surface_2`
+/// go 81/0/0/9 -> 90/0/0/0 each, `witness_on_surface_1` and
+/// `witness_on_surface_2` 9/0/0/1 -> 10/0/0/0, `arc_span` 4/0/0/2 ->
+/// 5/0/0/1 and `contact_at_shared_vertex` 4/0/0/5 -> 6/0/0/3 — every
+/// one of them a THEOREM, none of them a read. The two `line_span`
+/// decisions are the read's: a comparison no form settles, certified
+/// over the leaf's box, 0/0/0/2 -> 0/2/0/0.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -141,9 +149,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_endpoint_start", [12, 0, 12, 0]),
             ("carrier_line_circle", [0, 0, 0, 3]),
             ("carrier_matches_mapped_source", [72, 0, 54, 0]),
-            ("carrier_on_surface_1", [81, 0, 0, 9]),
-            ("carrier_on_surface_2", [81, 0, 0, 9]),
-            ("contact_at_shared_vertex", [4, 0, 0, 5]),
+            ("carrier_on_surface_1", [90, 0, 0, 0]),
+            ("carrier_on_surface_2", [90, 0, 0, 0]),
+            ("contact_at_shared_vertex", [6, 0, 0, 3]),
             ("datum_unit_norm", [0, 0, 0, 2]),
             ("dihedral_arm", [0, 0, 0, 80]),
             ("dihedral_wedge", [0, 0, 0, 80]),
@@ -151,7 +159,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("extrusion_normal_component", [0, 0, 0, 2]),
             ("interval_span_forward", [0, 0, 0, 24]),
             ("interval_span_winding", [0, 0, 0, 12]),
-            ("line_span", [0, 0, 0, 2]),
+            ("line_span", [0, 2, 0, 0]),
             ("newell_plane_residual", [18, 0, 0, 0]),
             ("path_circle_radius", [0, 0, 0, 1]),
             ("path_junction_turn", [0, 0, 0, 2]),
@@ -162,8 +170,8 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),
             ("witness_at_mid_parameter", [10, 0, 0, 0]),
-            ("witness_on_surface_1", [9, 0, 0, 1]),
-            ("witness_on_surface_2", [9, 0, 0, 1]),
+            ("witness_on_surface_1", [10, 0, 0, 0]),
+            ("witness_on_surface_2", [10, 0, 0, 0]),
         ],
     );
 }
