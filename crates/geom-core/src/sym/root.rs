@@ -82,11 +82,12 @@
 //!
 //! # One door
 //!
-//! [`mint`] is the only place a `Sqrt` atom is built. The walk reaches
-//! it from `combine`'s `Sqrt` arm, rule D from [`trig`]'s hand-built
-//! roots, and the registered-identity door from the same early walk the
-//! registrant's own forms are built in — so a registrant's `‖q − c‖`
-//! and the walk's meet by construction rather than by coincidence.
+//! [`root::mint`] is the only place a `Sqrt` atom is built. The
+//! walk reaches it from `combine`'s `Sqrt` arm, rule D from [`trig`]'s
+//! hand-built roots, and the registered-identity door from the same
+//! early walk the registrant's own forms are built in — so a
+//! registrant's `‖q − c‖` and the walk's meet by construction rather
+//! than by coincidence.
 
 use std::sync::Arc;
 
