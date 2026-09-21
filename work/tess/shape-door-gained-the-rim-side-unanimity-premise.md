@@ -62,3 +62,16 @@ The bow tie's refusal NAME changed, which cost the branch premise its
 body-level witness —
 `apex-crossing-branch-premise-has-no-body-level-witness`, filed beside
 this.
+
+## A second row moved, outside tess's territory
+
+`crates/topo/tests/mesh12_rim_row_reach.rs` (tcost/tint) states a
+sphere rim row as two arcs `R·Δv = 1.5ε` apart. "Which extreme is this
+rim at" is undecidable at that gap, so the door now ESCALATES
+`props_rim_side` (margin `-1.3163737899724026e-9`, `zero = 1e-9`,
+`escalate = 1e-8`) where it used to answer `Ok(())`. That row is
+re-baselined in PR 2924 with its reason — the row's own prose already
+called the in-band gap *exactly what cannot be decided*, and the door
+now says so one predicate earlier than the flux lane's
+`props_rim_only_extent`. Recorded here because it is the same seam;
+nothing is left for an owner to do.

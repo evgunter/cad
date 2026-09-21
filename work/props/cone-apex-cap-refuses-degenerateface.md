@@ -88,3 +88,69 @@ face refused by `curved_face` is refused, final. What row 2 costs here
 is the whole answer, not a `pad > 0` enclosure. (R2 review lane, PR
 2741; the same false sentence stood in issue 1250's imported text and
 in `require_iso_rectangle`'s docs, and is corrected in both.)
+
+## Served (PR 2924, branch `props/curved-residues`)
+
+**The fold.** `cone_apex_level` pushes level `0` when a
+generator-free cone boundary's levels collapse, inside `cone_boundary`
+so that all three doors read the same extent. It needs no σ, exactly
+as the corrected filing said. It DOES need the sibling of the sphere's
+unanimity: σ is `d_u_sign` under the face's one sense bit
+(`rim_interior_side`), so unanimity of σ is unanimity of `d_u_sign`
+and the cone can require it without the bit — which is what keeps the
+true zero-extent patch (rims at one level traversed opposite ways) at
+`DegenerateFace`, pinned in
+`cone_rims_at_one_level_with_opposite_traversals_stay_degenerate`.
+A generator-bearing zero-extent face states its own `v`-domain and is
+not folded either (`a_generator_bearing_zero_extent_cone_face_stays_degenerate`).
+
+**The closed form, both traversals, both nappes.**
+`sin α·Δu·|v_hi² − v_lo²|/2` with `lo = 0`, i.e. `π·v²·sin α` over a
+whole turn. Executed on the 45° cone about `+Z`, apex at the origin,
+`v ∈ {SL, 2·SL, −SL}` with `SL = 0.010` m, both traversals: area
+within `1e-12` relative of the closed form and flux exactly `0.0`
+(apex at the origin ⇒ the anchored term, the only term a cone's flux
+has, vanishes identically). Whole cap at `v = SL`:
+`2.221441469079183e-4` m².
+
+**The closure guard, red-first.** `props_rim_only_closed` — the
+sphere's guard generalised to take the kind's own azimuthal arm
+(`RimArms::azimuth`; the cone's is its first rim's radius) — with the
+guard removed, the four shapes the sphere unit's row uses answer an
+area through the public `curved_face`:
+
+```
+half a rim only (du = pi)                    ACCEPT area=1.110720734539592e-4 (whole cap 2.221441469079183e-4, ratio 0.5000)
+quarter rim only                             ACCEPT area=5.553603672697958e-5 (whole cap 2.221441469079183e-4, ratio 0.2500)
+the same full rim stated twice               ACCEPT area=4.442882938158366e-4 (whole cap 2.221441469079183e-4, ratio 2.0000)
+full rim + an extra half arc, same direction ACCEPT area=3.332162203618774e-4 (whole cap 2.221441469079183e-4, ratio 1.5000)
+```
+
+With it, all four refuse by that name:
+
+```
+half a rim only (du = pi)                    REFUSE props_rim_only_closed
+quarter rim only                             REFUSE props_rim_only_closed
+the same full rim stated twice               REFUSE props_rim_only_closed
+full rim + an extra half arc, same direction REFUSE props_rim_only_closed
+```
+
+**The inverted traversal, verified rather than inherited.** The
+filing said the complement is caught inside a body at tier 3's check
+6; that is now true because the fold is in the shared parse, so
+`boundary_material_sign`'s cone arm has an extent to read a side
+against and answers `Encoded` where the sphere's rim-only cap answers
+`Unencoded`. Executed: `apex cap +u: Ok(Encoded(Negative))`,
+`-u: Ok(Encoded(Positive))` — definite and opposite. On a body built
+through the Euler doors (one rim row as two half arcs, giving the cap
+and the rest of the nappe on one chart), `validate_geometric` raises
+`CurvedSenseInverted` naming exactly the face whose encoded side
+contradicts its stored `Face::sense`, and no other
+(`topo::all cone_apex_cap_body::the_unbounded_complement_is_caught_by_check_6`).
+
+**ε posture: nothing moved.** The fold reuses `require_extent`'s own
+cone comparand (the bare slant difference) under the sphere fold's
+name `props_rim_only_extent`, and the guard reuses
+`props_rim_only_closed`'s comparand at the kind's own arm. No new
+predicate name, no new comparand, no new lever; `docs/predicate-
+dimension-audit.md`'s two rows are widened to name the cone arm.
