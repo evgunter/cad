@@ -14,7 +14,10 @@ use geom_core::sym::with_session_rules;
 use geom_core::{Decide, ParamSymbol, Real, Sym, SymBudget, SymCounts, SymRules};
 
 fn budget() -> SymBudget {
-    SymBudget { max_terms: 4096, max_degree: 128 }
+    SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    }
 }
 
 fn cubic_resid<T: Real>(x0: f64, y0: f64) -> Sym<T> {

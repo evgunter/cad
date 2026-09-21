@@ -14,7 +14,10 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::Extrusion;
 
 fn budget() -> SymBudget {
-    SymBudget { max_terms: 4096, max_degree: 128 }
+    SymBudget {
+        max_terms: 4096,
+        max_degree: 128,
+    }
 }
 
 fn triangle_extrude<T: Decide>(d: T) -> Result<usize, String> {
