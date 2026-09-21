@@ -98,6 +98,12 @@ fn sym11_the_exact_channel_never_contradicts_past_the_ceiling() {
                     "{name}: a registered identity was contradicted past the ceiling — \
                      that is an axiom a constructor stated and this box disproves: {counts:?}"
                 );
+                assert_eq!(
+                    counts.theorems_disputed, 0,
+                    "{name}: the dispute column is not this lane's — at an EXACT witness \
+                     the theorem-vs-numeric contradiction is asserted, so a count here \
+                     means the const on `Interval` moved: {counts:?}"
+                );
             }
             Err(()) => {
                 println!("   {name} at eps={eps:e}, ceiling + δ: the CONTRADICTION FIRED");

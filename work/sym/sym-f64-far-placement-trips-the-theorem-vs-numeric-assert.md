@@ -2,7 +2,7 @@
 id: sym-f64-far-placement-trips-the-theorem-vs-numeric-assert
 kind: issue
 title: Sym<f64>/Sym<Probe> at a far placement panic in Decide's theorem-vs-numeric debug_assert: the point channel is not a proof
-status: open
+status: review
 opened: 2026-09-14
 priority: P0
 cost: H
@@ -77,3 +77,31 @@ channel cannot decide, and the tier answers the identity), and
 `a_manifestly_positive_form_undefined_inside_the_box` (the pole, both
 arms, both boxes). SYM-8 changed nothing here: the assertion and the
 `f64` lift are this row's, not that unit's.
+
+## What was owed, and the answer (SYM-11, 2026-09-21)
+
+**The assertion's premise holds at exactly the lane scalars whose
+witness is EXACT, and the tier now charges the contradiction by that
+partition.** `Real::WITNESS` (`Witness::{Exact, Inexact}`, declared by
+every lane scalar beside `Real::register_equal`, whose refusal arm is
+the same claim) is read by `Sym<T>::sign_within`: at an exact witness
+the `debug_assert!` stands, because a certified bracket that excludes
+zero is a proof and a form that is the zero polynomial under it means
+one of the two channels does not contain its real. At an inexact one
+the contradiction is COUNTED — `SymCounts::theorems_disputed`, a
+refusal column beside `registrations_contradicted`, declared in
+`NOT_A_DISCHARGE_KIND` — the numeric answer is kept, and nothing
+panics.
+
+Both mechanisms are now gating rows rather than crashes: the far
+placement at three placements × three ε × `Sym<f64>`/`Sym<Probe>`
+(`sweep/tests/sym11_far_placement_rows.rs`) and rule F's adversary at
+all six sampled `x` plus R1's pole
+(`geom-core/tests/sym11_witness_kind_rows.rs`), with the certified
+twins asserting the count at zero
+(`sym11_witness_kind_interval_rows`, `m10_9_pins_interval`,
+`sym11_exact_channel_rows`). The fixture-scale row this item said was
+blocked — one that drives `Sym<f64>` far from the origin — is
+unblocked: the far-placement rows are exactly that, and they run.
+
+No decision at `Sym<Interval>` moved and every pin is bit-identical.

@@ -164,7 +164,7 @@ fn report(lane: &str, d: f64, built: &Result<Built, ()>) {
 /// doors: no session, nothing counted, and the column that says what
 /// the placement costs downstream anyway.
 #[test]
-fn sym11_p1_the_bare_lifts_answer_typed_at_every_placement() {
+fn sym11_the_bare_lifts_answer_typed_at_every_placement() {
     for d in PLACEMENTS {
         let e = stadium_extrude::<f64>(d, 0.5);
         let r = washer_revolve::<f64>(d, 1.0);
@@ -179,11 +179,48 @@ fn sym11_p1_the_bare_lifts_answer_typed_at_every_placement() {
     }
 }
 
-/// `Sym<f64>` — the inexact witness in a session, each placement on
-/// its own thread.
+/// **Which placements the mechanism reaches at this ε** — the table
+/// in the header, as the assertion the rows below read. A placement
+/// outside it must dispute NOTHING, which is the half that says the
+/// charge is not firing everywhere.
+fn disputes_expected(d: f64) -> bool {
+    let eps = Tol::witness().eps();
+    if (eps / 1.0e-12 - 1.0).abs() < 1.0e-3 {
+        d >= 1.0e6
+    } else if (eps / 1.0e-9 - 1.0).abs() < 1.0e-3 {
+        d >= 1.0e9
+    } else if (eps / 1.0e-6 - 1.0).abs() < 1.0e-3 {
+        false
+    } else {
+        panic!("no measured row at eps = {eps:e}: measure one and add it")
+    }
+}
+
+/// The dispute count and the expectation, asserted together.
+fn assert_disputes(lane: &str, d: f64, built: &Result<Built, ()>) {
+    let eps = Tol::witness().eps();
+    let Ok(b) = built else {
+        panic!(
+            "[{lane}] eps={eps:e} d={d:e}: an INEXACT witness panicked on a              theorem-vs-numeric contradiction — the point channel is not a proof and the              charge at this scalar is a count, not an assertion"
+        );
+    };
+    let want = disputes_expected(d);
+    assert_eq!(
+        b.counts.theorems_disputed > 0,
+        want,
+        "[{lane}] eps={eps:e} d={d:e}: the far placement's rounding {} exceed the band          here, so the tier {} owe the receipt a dispute: {:?}",
+        if want { "does" } else { "does not" },
+        if want { "does" } else { "does not" },
+        b.counts
+    );
+}
+
+/// `Sym<f64>` — the inexact witness in a session. Each placement on
+/// its own thread still, and the thread is now what catches a
+/// REGRESSION rather than a design: before SYM-11 the far placements
+/// aborted here, and this row had to be `#[ignore]`d.
 #[test]
-#[ignore = "phase 1 evidence: fires Sym<f64>'s contradiction debug_assert by design"]
-fn sym11_p1_the_far_placement_at_sym_f64() {
+fn sym11_the_far_placement_is_a_counted_dispute_at_sym_f64() {
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<f64>(d, |d| {
             (
@@ -192,6 +229,7 @@ fn sym11_p1_the_far_placement_at_sym_f64() {
             )
         });
         report("Sym<f64>", d, &built);
+        assert_disputes("Sym<f64>", d, &built);
     }
 }
 
@@ -199,8 +237,7 @@ fn sym11_p1_the_far_placement_at_sym_f64() {
 /// `f64`, so the same rounding reaches the same door.
 #[cfg(feature = "probe")]
 #[test]
-#[ignore = "phase 1 evidence: fires Sym<Probe>'s contradiction debug_assert by design"]
-fn sym11_p1_the_far_placement_at_sym_probe() {
+fn sym11_the_far_placement_is_a_counted_dispute_at_sym_probe() {
     use geom_core::Probe;
     for d in PLACEMENTS {
         let built = drive_on_a_thread::<Probe>(d, |d| {
@@ -210,6 +247,7 @@ fn sym11_p1_the_far_placement_at_sym_probe() {
             )
         });
         report("Sym<Probe>", d, &built);
+        assert_disputes("Sym<Probe>", d, &built);
     }
 }
 
@@ -219,7 +257,7 @@ fn sym11_p1_the_far_placement_at_sym_probe() {
 /// right. Nothing fires at any placement, which is the claim.
 #[cfg(feature = "interval")]
 #[test]
-fn sym11_p1_the_far_placement_at_sym_interval_never_contradicts() {
+fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
     use geom_core::Interval;
     let eps = Tol::witness().eps();
     for d in PLACEMENTS {
@@ -237,10 +275,21 @@ fn sym11_p1_the_far_placement_at_sym_interval_never_contradicts() {
             )
         });
         report("Sym<Interval>", d, &built);
-        assert!(
-            built.is_ok(),
-            "d={d:e} at eps={eps:e}: the EXACT witness contradicted its own form — one of the \
-             two channels is unsound and that is a different unit"
+        let Ok(b) = built else {
+            panic!(
+                "d={d:e} at eps={eps:e}: the EXACT witness contradicted its own form — a \
+                 certified bracket that excludes zero and a form that is the zero \
+                 polynomial cannot both be right, so one of the two channels does not \
+                 contain its real. That is a soundness defect in a channel and a \
+                 DIFFERENT unit"
+            );
+        };
+        assert_eq!(
+            b.counts.theorems_disputed, 0,
+            "d={d:e} at eps={eps:e}: the dispute column is not this scalar's — at an EXACT \
+             witness the contradiction is asserted, so a count here means the const on \
+             `Interval` moved: {:?}",
+            b.counts
         );
     }
 }

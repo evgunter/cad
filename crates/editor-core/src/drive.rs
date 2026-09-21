@@ -861,6 +861,16 @@ impl ParamBoxVerdict {
                     self.decisions.registrations_contradicted
                 );
             }
+            // The theorem channels' refusal column, by the same rule
+            // again. It costs no schema bump because it cannot be
+            // non-zero here: a drive replays at `Sym<Interval>`, whose
+            // witness is EXACT, and the contradiction is asserted
+            // there rather than counted
+            // (`geom_core::SymCounts::theorems_disputed`). A receipt
+            // that carries it came from a lane no driver runs.
+            if self.decisions.theorems_disputed != 0 {
+                let _ = write!(s, " theorems_disputed={}", self.decisions.theorems_disputed);
+            }
             let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
@@ -940,6 +950,13 @@ impl ParamBoxVerdict {
                     s,
                     "; {} registered identity/identities CONTRADICTED by a definite enclosure",
                     d.registrations_contradicted
+                );
+            }
+            if d.theorems_disputed != 0 {
+                let _ = write!(
+                    s,
+                    "; {} theorem(s) DISPUTED by an inexact value channel",
+                    d.theorems_disputed
                 );
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);

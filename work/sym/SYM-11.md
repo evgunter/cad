@@ -2,7 +2,7 @@
 id: SYM-11
 kind: unit
 title: the point channel is not a proof: the theorem-vs-numeric contradiction charged per witness kind
-status: dispatched
+status: review
 opened: 2026-09-21
 priority: P0
 cost: H

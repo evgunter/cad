@@ -470,6 +470,14 @@ fn m10_9_the_ceilings_are_unmoved_and_both_ends_are_the_measured_bracket() {
 ///   had their turn: `Cyclic`, and any FUTURE registrant that binds the
 ///   refusal without asserting. It is the backstop, not the loud
 ///   channel, and saying otherwise was the first cut's mistake.
+/// - **`theorems_disputed == 0`**, the `Interval` twin of SYM-11's
+///   dispute count. At an EXACT witness a definite non-zero sign is a
+///   certified bracket that excludes zero, so no form over the
+///   parameters can be the zero polynomial under it; the
+///   contradiction is asserted at this scalar rather than counted, and
+///   a count here says the const on `Interval` moved. The same claim
+///   past each document's ceiling — where the residuals are the widest
+///   the corpus produces — is `sym11_exact_channel_rows`.
 ///
 /// The ε rows are the suite's: one process per ε, so this row runs at
 /// `1e-6`, `1e-9` and `1e-12` and the claim is all three.
@@ -506,6 +514,13 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
             "{name} at eps={eps:e}: a registration was refused on a real document — at \
              this lane that is `Cyclic`, or an exact-witness refusal from a registrant \
              that binds it instead of asserting: {counts:?}"
+        );
+        assert_eq!(
+            counts.theorems_disputed, 0,
+            "{name} at eps={eps:e}: the tier's own THEOREM met a definite numeric sign. \
+             At this lane the witness is EXACT, so the count cannot be non-zero without \
+             the const on `Interval` having moved — the contradiction is asserted here, \
+             not counted, and the assertion would have fired first: {counts:?}"
         );
     }
 }
