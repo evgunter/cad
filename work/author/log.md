@@ -102,3 +102,68 @@ lane and now says so.
 `work/chrome/…` paths on rows that moved to `work/author/` at the cut,
 and one `work/issues/doc-param-unit-edit-has-no-door.md` that was
 claimed by EDIT and has since closed.
+
+## 2026-09-21 — AUTH-1 landed green; two reviewers out
+
+PR https://github.com/evgunter/cad/pull/2955, head `9b06ab941`, CI run
+35551509615 green at 39 jobs — twelve `test (…)` across
+{default, interval} × {default ε, 1e-6, 1e-12} × two shards, and all
+five `k-lint (gate, …)` unifications, so nothing was narrowed. Open,
+not merged; the correctness and style lanes are running.
+
+**The deviation worth the program's attention.** The spec's
+`Ambiguous`/multi-body hypothesis was WRONG about the tree, and the
+lane said so rather than building on it. `face_carrier_kind` cannot
+answer `Ambiguous` for multi-bodiness — a name's ENTRY carries its own
+output-body index — so the tag read alone would have ADMITTED a face
+picked on a split half. What a multi-body `at` actually breaks is
+`eval::wire`'s `body_operand`. The lane carried
+`FaceFrameFault::NotOneBody` over `combine::denotes_body` and also
+gated `at` at `DocSession::add_datum`, so bypassing the form does not
+bypass the rule. **That second gate sits on the shared `add_datum`
+path**, which is why the correctness reviewer is asked whether it
+narrows a datum kind that used to work — a fix that lands on a shared
+door is the shape that costs someone else something quietly.
+
+**The dispatcher's hypothesis was the thing that was wrong**, which is
+the outcome `reviewer-style-lane.md` names ("the dispatch is a
+hypothesis") and implementer-discipline invites. Worth saying plainly
+in a log that will be read by whoever writes the next spec: the spec
+asked the lane to *decide and say* rather than asserting the answer,
+and that phrasing is what made the correction cheap.
+
+**A residue that reaches another row.** With no `AddPart` op, a face
+picked on a split half or a pattern instance can never be given a
+frame from the GUI at all — so `NotOneBody` is a second ordinary
+gesture blocked on the missing door. Evidence went onto the EXISTING
+`work/author/viewer-cannot-author-a-part-node.md` rather than a second
+row, which raises that row's value when it comes up in the order.
+
+**Disk and lanes.** AUTH-1's build target was reclaimed the moment its
+report was in hand (89% → 66%); review lanes are the biggest consumers
+and both were told to build only when a claim needs running.
+
+## 2026-09-21 — the scratchpad collision, adjudicated not re-opened
+
+AUTH-1 reported that its CI poller in the session scratchpad was
+silently overwritten by AUTH-2's, and that for one round it read
+AUTH-2's job counts believing they were its own. It caught it and
+re-verified.
+
+`work/meta/lane-scratchpad-is-shared-between-worktrees.md` already
+holds this finding, `deferred` on Ev's 2026-09-11 ruling, and states
+its own re-opening condition: a lane that LOSES work re-opens it, a
+third instance that is CAUGHT changes nothing. This one was caught, so
+**the deferral stands and no `[ev]` PR was opened** — the tracker
+answered the question without one. Evidence appended to that row
+rather than a second row opened, with the two things about it that are
+new: the blast radius is larger than the row's two instances (this one
+fed a lane's reading of hosted CI, the verification of record, not a
+draft), and the row's unverified "per-session or wider" is now
+half-settled — both lanes were one session's, so the cross-session
+case is still untested.
+
+Shape 2 is in force here as the orchestrator convention it always was:
+every AUTHOR lane gets a lane-private scratch path at dispatch. AUTH-2
+was told mid-flight and asked to re-verify its own green against its
+head SHA rather than against a file it wrote earlier.
