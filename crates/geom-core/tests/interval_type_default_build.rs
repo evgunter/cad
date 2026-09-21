@@ -10,10 +10,12 @@
 //! row reads the global `Tolerance`, so the suite reads identically at
 //! every eps row and needs no process of its own.
 //!
-//! The rows are the doors this crate ungated, one each: the type and
-//! its arithmetic, the [`Decide`] impl, the `bit_identity` arm and the
-//! sealed [`SpanLocate`] impl — plus [`DualInterval`], the
-//! dual-over-interval alias.
+//! The rows are the doors this crate ungated: the type and its
+//! arithmetic, the [`Decide`] impl in both its answers, the
+//! `bit_identity` arm in both its channels (endpoints and decoration)
+//! and the sealed [`SpanLocate`] impl — plus [`DualInterval`], the
+//! dual-over-interval alias. Containment is the contract and tightness
+//! is the quality, so the arithmetic is pinned on both.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -39,14 +41,15 @@ fn interval_constructs_decides_and_encloses_in_a_default_build() {
         Ok(Sign::Negative)
     );
 
-    // The arithmetic encloses: the true 1e-6 lies inside the product's
+    // The arithmetic encloses: the true 2e-6 lies inside the product's
     // endpoints, which outward rounding may widen but never lose.
-    let sq = x * x;
+    // Containment is the contract; tightness is a separate row below.
+    let prod = x * Interval::from_f64(2e-3);
     assert!(
-        Bounds::lo(sq) <= 1e-6 && 1e-6 <= Bounds::hi(sq),
-        "[{}, {}] must enclose 1e-6",
-        Bounds::lo(sq),
-        Bounds::hi(sq)
+        Bounds::lo(prod) <= 2e-6 && 2e-6 <= Bounds::hi(prod),
+        "[{}, {}] must enclose 2e-6",
+        Bounds::lo(prod),
+        Bounds::hi(prod)
     );
 
     // An enclosure straddling both thresholds has no certifiable sign —
@@ -129,16 +132,19 @@ fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
     );
 }
 
-/// The product row's containment (`lo <= 1e-6 <= hi`) gets EASIER as
-/// the enclosure degrades; this row bounds the width from above so a
-/// backend that widened to `[0, 1]` — still a containing bracket — goes
-/// red. One correctly rounded multiply pads at most one ulp per
-/// endpoint, and the backend's own budget is that (`interval.rs`
-/// module docs, "Tightness is a quality").
+/// Containment gets EASIER as an enclosure degrades — `[0, 1]`
+/// contains 1e-6 — so the enclosing row above can catch a lost bracket
+/// and never a lost one's TIGHTNESS. This row bounds the width of the
+/// square from above instead. It squares through [`Real::powi`], the
+/// idiom `scripts/gates/interval-square-allowlist.sh` requires of a
+/// square (the operator treats the two factors as independent, which
+/// costs a zero-straddling enclosure its nonnegative lower bound), and
+/// the backend pads at most 1 ulp per arithmetic endpoint
+/// (`interval.rs`, "Tightness is a quality"), so 4 ulp of 1e-6 passes
+/// a tight answer and fails a widened one.
 #[test]
-fn the_product_enclosure_is_ulp_tight_in_a_default_build() {
-    let x = Interval::from_f64(1e-3);
-    let sq = x * x;
+fn the_square_enclosure_is_ulp_tight_in_a_default_build() {
+    let sq = Interval::from_f64(1e-3).powi(2);
     let width = Bounds::hi(sq) - Bounds::lo(sq);
     let ulp = f64::EPSILON * 1e-6;
     assert!(
@@ -146,5 +152,26 @@ fn the_product_enclosure_is_ulp_tight_in_a_default_build() {
         "[{}, {}] is {width} wide, more than 4 ulp ({ulp}) of 1e-6",
         Bounds::lo(sq),
         Bounds::hi(sq)
+    );
+}
+
+/// `repr_bits` is a TRIPLE — endpoints and a decoration word — and the
+/// endpoint row above varies only the first two, so an arm that dropped
+/// the decoration would still pass it. This row varies the decoration
+/// alone: the clamped image of a domain violation and a clean enclosure
+/// with the same endpoints are not the same description.
+#[test]
+fn the_bit_identity_channel_separates_decoration_in_a_default_build() {
+    let clamped = Interval::from_bounds(-1.0, 4.0).sqrt();
+    let clean = Interval::from_bounds(Bounds::lo(clamped), Bounds::hi(clamped));
+    assert_eq!(
+        (Bounds::lo(clamped), Bounds::hi(clamped)),
+        (Bounds::lo(clean), Bounds::hi(clean)),
+        "the two enclosures must agree on endpoints for this row to be about decoration"
+    );
+    assert_eq!(
+        geom_core::bit_identity::eq_bits(&clamped, &clean),
+        Some(false),
+        "same endpoints, different decoration: not the same description"
     );
 }
