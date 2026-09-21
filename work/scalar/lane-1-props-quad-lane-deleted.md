@@ -2,9 +2,10 @@
 id: lane-1-props-quad-lane-deleted
 kind: unit
 title: LANE-1: PropsQuadLane deleted — the quadrature door is a parameter, the certified name keeps its quadrature, a _structural twin carries the None
-status: open
+status: review
 opened: 2026-09-21
 branch: scalar/lane-1
+pr: 3010
 ---
 
 ## What
