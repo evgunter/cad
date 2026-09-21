@@ -96,7 +96,7 @@ gated shut:
 | check 6, planar arm | `plane_outward_normal` | `all_lines` | every planar face carries a `Circle` |
 | check 6, curved arm | `(side == Sign::Positive) != face.sense` | skips `Plane` and `Surface::spline_chart()` | every face is one or the other |
 | tier 2, C7 material arm | `sense_plus` / `sense_minus` on a definitely-smooth edge | `nurbs_adjacent` short-circuits to `ContactMark::Unmarked` | every edge has a spline-chart face |
-| check 7 | `props::curved_face(surface, &outer, face.sense, band)` | reached only by a face with an iso boundary and no certified quad lane (the rimless sphere band) | no loft face reaches it; the metered enclosure is **bit-identical** under the inversion |
+| check 7 | `props::curved_face(surface, &outer, face.sense, band)` | reached only by a face with an iso boundary and no certified quad lane (the rimless sphere band) | no loft face reaches it; the reporting door gives the **same reading** under the inversion — bit-identical where it computes, the same typed refusal at the tight ε where these rational walls honestly run out of budget |
 
 The `nurbs_adjacent` entry is the one not previously written down. It
 is a deliberate, documented exemption BY KIND (implicit-form gradients
@@ -114,7 +114,8 @@ compare the bit against.
 the door the constructors themselves use to attach the honest bit. The
 pinned row builds the inverted arc loft with that door alone, from an
 integration test outside `topo`, and `validate_geometric` returns
-`Ok(())` on the result with the enclosure bit-identical and positive.
+`Ok(())` on the result, at every ε row, with the enclosure unmoved
+(and positive wherever the fixed schedule computes it).
 The same public door on the square loft IS refused, which is the
 control: the door writes the bit, so the silence is the checks'.
 
@@ -140,7 +141,7 @@ In `crates/sweep/tests/m5_s10_face_sense.rs`:
   cylinder for a circular-arc segment breaks both the
   `Plane`-or-spline assertion and the per-edge nurbs-adjacency one; a
   quadrature that folds the bit into a loft face's flux breaks the
-  bit-identical enclosure.
+  same-reading enclosure.
 - `the_public_sense_door_builds_an_inverted_arc_loft_tier_3_accepts` —
   answer 3. Red when `set_face_sense` stops being public (a
   compile break), when a gate catches the public-door inversion on the

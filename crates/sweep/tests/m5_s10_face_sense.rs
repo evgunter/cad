@@ -576,14 +576,16 @@ fn only_the_line_bounded_cap_refuses_a_whole_body_sense_inversion() {
 ///   has a spline-chart face, so the short-circuit fires first;
 /// - check 7 reads the bit only at `props::curved_face`'s rimless-band
 ///   site, which no loft face reaches; the row states that as the
-///   volume being bit-identical under the inversion.
+///   reporting door giving the SAME reading under the inversion — a
+///   bit-identical volume where it computes, the same typed refusal
+///   where this body's rational walls honestly run out of budget.
 ///
 /// **How it goes red.** If `loft_body` ever mints an analytic cylinder
 /// for a circular-arc profile segment — the obvious improvement — that
 /// wall is neither `Plane` nor a spline chart, the second assertion
 /// fails, and the third fails with it because its edges stop being
 /// nurbs-adjacent. If the quadrature ever folds the bit into a loft
-/// face's flux, the bit-identical assertion fails. The runtime values
+/// face's flux, the same-reading assertion fails. The runtime values
 /// are the stored `Surface` discriminants, the per-edge face pair, and
 /// the `f64` bits of the metered volume.
 #[test]
@@ -632,21 +634,36 @@ fn every_sense_reading_gate_shuts_on_the_arc_loft() {
         );
     }
 
-    // Check 7's blindness: the enclosure is bit-identical under the
-    // whole-body inversion, and positive both ways.
-    let honest = topo::mass_properties(&arc, tol).expect("the arc loft meters");
-    let lied =
-        topo::mass_properties(&atrest2_inverted(&arc), tol).expect("the inverted arc loft meters");
-    assert!(
-        honest.volume > 0.0,
-        "the honest arc loft encloses positive volume"
-    );
-    assert_eq!(
-        honest.volume.to_bits(),
-        lied.volume.to_bits(),
-        "the metered enclosure must not move under a sense inversion this body's \
-         flux never reads — if it moved, some lane started folding the bit in"
-    );
+    // Check 7's blindness: the reporting door gives the SAME reading
+    // under the whole-body inversion. Phrased over the whole outcome,
+    // not over a volume, because this body's walls are rational and the
+    // fixed schedule honestly runs out of budget at a tight ε (the m8-3
+    // posture) — a refusal is as much the door's output as a number is,
+    // and both must be unmoved by a bit no lane here reads.
+    let honest = topo::mass_properties(&arc, tol);
+    let lied = topo::mass_properties(&atrest2_inverted(&arc), tol);
+    match (&honest, &lied) {
+        (Ok(h), Ok(l)) => {
+            assert!(
+                h.volume > 0.0,
+                "the honest arc loft encloses positive volume; got {}",
+                h.volume
+            );
+            assert_eq!(
+                h.volume.to_bits(),
+                l.volume.to_bits(),
+                "the metered enclosure must not move under a sense inversion this \
+                 body's flux never reads — if it moved, some lane started folding \
+                 the bit in"
+            );
+        }
+        (Err(h), Err(l)) => assert_eq!(
+            format!("{h:?}"),
+            format!("{l:?}"),
+            "the door's typed refusal must not move under the inversion either"
+        ),
+        _ => panic!("the inversion changed WHETHER the enclosure computes: {honest:?} vs {lied:?}"),
+    }
 }
 
 /// **Answer 3.** The inverted body is reachable through the PUBLIC API:
