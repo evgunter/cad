@@ -73,7 +73,7 @@ use crate::pickindex::{PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, Refusal, Selection, SessionOp};
+use crate::session::{DocSession, Refusal, Selection, SessionOp, Step};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -1433,9 +1433,12 @@ impl ViewerApp {
             // The New… control (GAUTH-1): one name field, because
             // the document id is derived from the name — see
             // `SessionOp::NewDocument`. The field is a draft; the
-            // op is emitted only by Create, and only for a
-            // non-blank name (the typed refusal backing the
-            // disabled button is `Refusal::EmptyName`).
+            // op is emitted only by Create, and only for a name
+            // `Refusal::empty_name` passes. That predicate is the
+            // door's own, and out of it the button shows the refusal
+            // the click would have been answered with — the value
+            // that knows carries the words, so the two cannot
+            // disagree.
             match self.drafts.new_doc_name.as_mut() {
                 None => {
                     if ui.button("New…").clicked() {
@@ -1448,13 +1451,18 @@ impl ViewerApp {
                             .hint_text("document name")
                             .desired_width(120.0),
                     );
-                    let typed = name.trim().to_owned();
-                    if ui
-                        .add_enabled(!typed.is_empty(), egui::Button::new("Create"))
-                        .on_disabled_hover_text("the document id is derived from the name")
-                        .clicked()
-                    {
-                        ops.push(SessionOp::NewDocument { name: typed });
+                    let blocked = Refusal::empty_name(name);
+                    let create = ui.add_enabled(blocked.is_none(), egui::Button::new("Create"));
+                    let clicked = match &blocked {
+                        Some(refusal) => {
+                            create.on_disabled_hover_text(refusal.to_string()).clicked()
+                        }
+                        None => create.clicked(),
+                    };
+                    if clicked {
+                        ops.push(SessionOp::NewDocument {
+                            name: name.trim().to_owned(),
+                        });
                         self.drafts.new_doc_name = None;
                     } else if ui.button("Cancel").clicked() {
                         self.drafts.new_doc_name = None;
@@ -1503,17 +1511,29 @@ impl ViewerApp {
                 }
             }
             ui.separator();
-            if ui
-                .add_enabled(self.session.history().can_undo(), egui::Button::new("Undo"))
-                .clicked()
-            {
-                ops.push(SessionOp::Undo);
-            }
-            if ui
-                .add_enabled(self.session.history().can_redo(), egui::Button::new("Redo"))
-                .clicked()
-            {
-                ops.push(SessionOp::Redo);
+            // **The history controls**, drawn the way the cancel
+            // doors below are: the refusal the step would be answered
+            // with decides both whether the button is live and what it
+            // says while it is not (`Refusal::nothing_to_step`). These
+            // two buttons are the only hand that pushes
+            // `SessionOp::Undo` or `SessionOp::Redo`, so a sentence
+            // they do not show is one no reader ever meets — and the
+            // refusal names ITS OWN direction, because a redo waiting
+            // on the branch the cursor just left makes a sentence
+            // about both false of the half that is live.
+            for (label, direction, op) in [
+                ("Undo", Step::Undo, SessionOp::Undo),
+                ("Redo", Step::Redo, SessionOp::Redo),
+            ] {
+                let blocked = Refusal::nothing_to_step(self.session.history(), direction);
+                let button = ui.add_enabled(blocked.is_none(), egui::Button::new(label));
+                let clicked = match &blocked {
+                    Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
+                    None => button.clicked(),
+                };
+                if clicked {
+                    ops.push(op);
+                }
             }
             ui.separator();
             // **The cancel doors**, beside the history controls

@@ -47,6 +47,7 @@ use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
     AtRestBadge, DocSession, FaceSelection, Hovered, Outstanding, Refusal, Selection, SessionOp,
+    Step,
 };
 
 fn delta() -> DisplayTolerance {
@@ -102,7 +103,9 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     // A refusal always reaches the line, whatever the batch was: a
     // hover cannot refuse today, and silence would be the wrong answer
     // if one ever did.
-    let refusal = viewer::session::Refusal::NothingToDo;
+    let refusal = viewer::session::Refusal::NothingToDo {
+        direction: viewer::session::Step::Undo,
+    };
     let shown = frame::batch_status(&[SessionOp::Hover(None)], Some(&refusal));
     assert_eq!(
         shown,
@@ -152,7 +155,9 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 
     // A refusal outranks it — the answer to what the user asked the
     // DOCUMENT for is the louder of the two.
-    let refusal = Refusal::NothingToDo;
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
     assert_eq!(
         frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
         StatusUpdate::Show(frame::Message::new(

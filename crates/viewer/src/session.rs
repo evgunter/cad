@@ -93,7 +93,7 @@ pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, OpOutcome, SessionOp};
 pub use probe::{BoundsReading, BoundsTarget};
-pub use refuse::{NodeKindWanted, Refusal, admits};
+pub use refuse::{NodeKindWanted, Refusal, Step, admits};
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
 use author::datum_node;
@@ -1227,8 +1227,8 @@ impl DocSession {
                 }
                 Err(refusal) => OpOutcome::refused(refusal),
             },
-            SessionOp::Undo => self.step(true),
-            SessionOp::Redo => self.step(false),
+            SessionOp::Undo => self.step(Step::Undo),
+            SessionOp::Redo => self.step(Step::Redo),
             SessionOp::CancelEvaluation => {
                 self.eval.cancel();
                 OpOutcome::default()
@@ -1762,16 +1762,25 @@ impl DocSession {
         }
     }
 
-    /// Undo (`toward_root`) or redo.
-    fn step(&mut self, toward_root: bool) -> OpOutcome {
-        let moved = if toward_root {
-            self.history.undo()
-        } else {
-            self.history.redo()
-        };
-        if moved.is_none() {
-            return OpOutcome::refused(Refusal::NothingToDo);
+    /// Undo or redo, by the direction the op names.
+    ///
+    /// The refusal is asked for BEFORE the move rather than read off
+    /// its `None`, because the toolbar's two buttons ask the same
+    /// question of the same history to decide whether to draw
+    /// themselves enabled ([`Refusal::nothing_to_step`]): one
+    /// predicate, so a button cannot offer a step this refuses.
+    fn step(&mut self, direction: Step) -> OpOutcome {
+        if let Some(refusal) = Refusal::nothing_to_step(&self.history, direction) {
+            return OpOutcome::refused(refusal);
         }
+        let moved = match direction {
+            Step::Undo => self.history.undo(),
+            Step::Redo => self.history.redo(),
+        };
+        debug_assert!(
+            moved.is_some(),
+            "the predicate that let this through answers the same field the move reads"
+        );
         // The document moved, so the display state's derived facts
         // (which instances exist; which are mate-constrained) may have
         // too — an undo past a mate's insertion does NOT resurrect a
@@ -1834,10 +1843,10 @@ impl DocSession {
     /// fields going the other way: no path and no resolver, because
     /// nothing backs this document until it is saved.
     fn new_document(&mut self, name: &str) -> OpOutcome {
-        let name = name.trim();
-        if name.is_empty() {
-            return OpOutcome::refused(Refusal::EmptyName);
+        if let Some(refusal) = Refusal::empty_name(name) {
+            return OpOutcome::refused(refusal);
         }
+        let name = name.trim();
         self.history = History::new(Doc::empty_derived(name, self.tol));
         self.path = None;
         self.resolver = None;
