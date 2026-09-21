@@ -41,10 +41,14 @@
 //!   rim-continuation finding — not for want of a fixture but by
 //!   construction (issue 1588's answer). The certifying Euler doors
 //!   admit two on-surface rims a band apart with their junctions in
-//!   the endpoint band, which is a rim-only cap: the shape door
-//!   admits it, the flux lane refuses it and the walk cannot mesh it
-//!   (issue 1615). `topo/tests/mesh12_rim_row_reach.rs` pins both
-//!   halves, and pins the record itself without a file: the re-mint's
+//!   the endpoint band, which is a rim-only cap whose two levels are
+//!   an ambiguity band apart: the shape door and the flux lane both
+//!   ESCALATE it — "which extreme is this rim at" and "do these levels
+//!   carry an extent" are one undecidable question at one lever, asked
+//!   a predicate apart (`props_rim_side`, `props_rim_only_extent`) —
+//!   and the walk cannot mesh it either way
+//!   (issue 1615). `topo/tests/mesh12_rim_row_reach.rs` pins all
+//!   three, and pins the record itself without a file: the re-mint's
 //!   admission threshold and this condition's reporting threshold,
 //!   bisected on one body at the run's ε, do not overlap
 //!   (`the_remint_admits_no_gap_the_examination_reports`); the

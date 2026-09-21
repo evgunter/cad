@@ -156,3 +156,62 @@ name `props_rim_only_extent`, and the guard reuses
 `props_rim_only_closed`'s comparand at the kind's own arm. No new
 predicate name, no new comparand, no new lever; `docs/predicate-
 dimension-audit.md`'s two rows are widened to name the cone arm.
+
+## Fix pass — the guard decided a SUM, not a COVER (PR 2924, R2 review)
+
+**A live defect on `main`, not only on this branch.**
+`require_rim_only_closed` compared `du_of_rims`' per-group SUM of spans
+to a turn, so any multiset of same-direction arcs totalling `τ` passed
+it. The function has two call sites — this unit's cone fold and the
+sphere's `sphere_rim_only_pole_level`, shipped in PR 2741 — so the
+shape reached both. Red-first, with the sum alone deciding:
+
+```
+cone   the same HALF rim stated twice (du = tau)    ACCEPT area=2.221441469079183e-4 ratio=1.0000
+cone   two overlapping arcs, spans summing to tau   ACCEPT area=2.221441469079183e-4 ratio=1.0000
+sphere the same HALF rim stated twice               ACCEPT area=0.00032708658071349983 (the whole cap)
+```
+
+That is the sphere unit's own MAJOR — an area answered for a rim that
+does not close — reached past the guard written to close it.
+
+**The fix decides a tiling.** `props_rim_only_join` requires, for each
+edge in the loop's own order, that its traversal END is the next one's
+traversal START, cyclically: a point deviation in metres, through the
+funnel, at `require_rim_incidence`'s dimension. Sum and chain together
+ARE a cover — each arc runs the same way in `u` with non-negative span,
+so a chained arc `k` covers `[S_{k−1}, S_k]` and `S_n = τ` tiles the
+circle exactly once. Neither half suffices: three arcs of `2τ/3` chain
+into a closed cycle and double-cover (the sum refuses them); a half rim
+twice totals a turn and covers half (the chain refuses it). The verdict
+is invariant under cyclic rotation of the loop — asserted for every
+anchor of every tiling — so it is a fact about the face, not about the
+flattening.
+
+**Pinned as a property, not a list.** For `n ∈ 1..=6` the tiling
+`[k·τ/n, (k+1)·τ/n]` measures the cap at every anchor, and four
+families derived from those same arcs refuse: one short, one repeated,
+`n` copies of one arc (sum exactly `τ`), and the tiling with two
+adjacent arcs exchanged (sum exactly `τ`). The last two are the ones a
+sum cannot see.
+
+**The guard moved into the fold, and the flag is gone.** Two of
+`cone_boundary`'s three callers bound the `folded_apex` flag and
+discarded it, so a half rim only answered `Ok(())` at the shape door
+and a definite `Encoded` side at the gate for a boundary the flux lane
+refused — an unpaired derivation, the shape that raises
+`CurvedSenseInverted` over an honest `NotIsoRectangle`. A fold now
+refuses a rim that does not close rather than folding and leaving the
+check to whoever asked, so there is no flag to forget. Executed: door,
+gate and flux all refuse `props_rim_only_closed` for a half rim and
+`props_rim_only_join` for the same half rim twice
+(`a_boundary_that_does_not_close_refuses_at_every_door`).
+
+**Coverage the fixtures did not have.** Every committed cone row sat at
+apex = origin, `α = 45°`, axis `+Z` — where `sin α = cos α`, so a
+sin/cos swap is invisible, and where the anchored term is identically
+zero, so no flux assertion can fail. The R2 probe's 54-row general-cone
+battery is adopted (`the_apex_cap_measures_on_a_general_cone`): three
+half-angles, two apexes, three axes, both nappes and both traversals,
+asserting the area closed form, the anchored flux `apex·n̂·πr²` and that
+the two traversals anchor OPPOSITE flux.

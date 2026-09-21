@@ -323,6 +323,17 @@ impl<T: SpanLocate> LoopEdge<T> {
     pub(crate) fn tag_at_t0(&self) -> u32 {
         if self.forward { self.start } else { self.end }
     }
+
+    /// The carrier points at the edge's TRAVERSAL ends, in traversal
+    /// order — `(p0, p1)` forward, swapped otherwise, the geometric
+    /// twin of the `(start, end)` tag pair.
+    pub(crate) fn traversal_ends(&self) -> (Point3<T>, Point3<T>) {
+        if self.forward {
+            (self.p0(), self.p1())
+        } else {
+            (self.p1(), self.p0())
+        }
+    }
 }
 
 /// The identity of the original edge a boundary edge is a piece of —

@@ -75,3 +75,30 @@ called the in-band gap *exactly what cannot be decided*, and the door
 now says so one predicate earlier than the flux lane's
 `props_rim_only_extent`. Recorded here because it is the same seam;
 nothing is left for an owner to do.
+
+## The corpus measurement has a blind spot, and here it is
+
+**"A zero-extent face still passes" is true at EXACTLY zero.** The
+door's charter says extent is not a shape question, and at `lo == hi`
+that still holds: no rim sits at one extreme rather than the other,
+`rim_side` answers `DegenerateFace` and `linear_rims_at_extremes`
+admits it. Move the extent into the AMBIGUITY BAND and the same
+question stops being vacuous and starts being undecidable, so the door
+escalates. Executed on a cylinder wall, every offset from the run's own
+`Band` (`zero = ε`, `escalate = 10ε`):
+
+| wall extent | `require_iso_rectangle` |
+| --- | --- |
+| `0` | `Ok(())` |
+| `1.5 × zero` | `Escalated { props_rim_side }` |
+| `5 × zero` | `Escalated { props_rim_side }` |
+| `100 × zero` | `Ok(())` |
+
+So **every linearly-levelled face whose extent lands in the band now
+refuses at the door that gates the walk** — a class, where the
+measurement above found one sphere body, because no corpus body has a
+band-scale extent and a 40-pair golden run cannot see one. The posture
+is the ratified one (escalate, never guess) and PROPS is not arguing
+with it; this is the disclosure that goes with it. Pinned as
+`geom-brep::all iso_rectangle_door::the_doors_zero_extent_charter_is_exactly_at_zero`,
+which holds at each ε on the matrix because its offsets are the band's.

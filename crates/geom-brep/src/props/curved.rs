@@ -206,7 +206,7 @@ pub fn boundary_material_sign<T: Decide>(
             // traversal that would bound the nappe's unbounded
             // complement disagrees with the face's bit instead of
             // measuring the cap.
-            let (b, _folded_apex) = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
             let (lo, hi) = min_max(&b.levels)?;
             Ok(MaterialSign::Encoded(linear_rim_side(&b, (lo, hi), band)?))
         }
@@ -217,9 +217,6 @@ pub fn boundary_material_sign<T: Decide>(
             ..
         } => {
             let (b, meridian_axes) = sphere_boundary(center, radius, axis, outer, band)?;
-            if b.rims.is_empty() {
-                return Ok(MaterialSign::Unencoded);
-            }
             let (lo, hi) = min_max(&b.levels)?;
             // The rim-only cap: the levels carry no extent, so "which
             // extreme is this rim at" has no answer and the side the
@@ -243,11 +240,13 @@ pub fn boundary_material_sign<T: Decide>(
             // `s_f` is one fact about the face, and a face whose rims
             // read it differently gets an exemption rather than
             // whichever answer the walk's anchor happened to reach.
-            Ok(MaterialSign::Encoded(unanimous_rim_side(
-                &b,
-                (lo, hi),
-                band,
-            )?))
+            // No rim at all is the rimless band above — the ONE place
+            // "no rim, no side" is spelled, read here as the answer it
+            // is rather than as a refusal.
+            Ok(match unanimous_rim_side(&b, (lo, hi), band)? {
+                Some(s) => MaterialSign::Encoded(s),
+                None => MaterialSign::Unencoded,
+            })
         }
         Surface::Torus {
             center,
@@ -448,7 +447,7 @@ pub fn require_iso_rectangle<T: Decide>(
             ..
         } => {
             let (sin_a, cos_a) = half_angle.sin_cos();
-            let (b, _folded_apex) = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
             linear_rims_at_extremes(&b, band)
         }
         Surface::Sphere {
@@ -737,9 +736,6 @@ pub fn require_one_chart_branch<T: Decide>(
 /// [`require_extent`] first.
 fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Result<(), PropsError> {
     let (lo, hi) = min_max(&b.levels)?;
-    if b.rims.is_empty() {
-        return Ok(());
-    }
     match unanimous_rim_side(b, (lo, hi), band) {
         Ok(_) | Err(PropsError::DegenerateFace) => Ok(()),
         Err(e) => Err(e),
@@ -1108,30 +1104,18 @@ fn level_gap<T: Real>(a: RimLevel<T>, b: RimLevel<T>) -> Option<T> {
     }
 }
 
-/// The refusal a mixed-representation level pair gets: the typed
-/// structural refusal, named for the predicate that asked.
+/// The refusal a mixed-representation level pair gets: typed, named
+/// for the predicate that asked, and **not routed through the
+/// funnel** — the pair has no comparand, so there is nothing to
+/// decide and no verdict to spend.
 ///
-/// **It is not routed through the funnel, and it used to be.** A mixed
-/// pair has no comparand — the two representations are not two values
-/// of one quantity — so there is nothing to decide, and the refusal
-/// was manufactured by feeding `f64::NAN` into [`classify`] and
-/// keeping whatever came back: a decision predicate used as a `throw`,
-/// which spends a recorded verdict on a margin that measures nothing
-/// and makes the error's TYPE depend on how the funnel happens to
-/// treat a poisoned value. The outcome this arm owes its callers is
-/// the one they always got — an `Err`, never `Ok(false)`, so a
-/// mixed-representation face neither measures nor groups — and it is
-/// stated here directly.
-///
-/// **Which reading of D9 this leaves.** The state is kernel-bug-only
-/// (one surface builds every rim of a face AND both its ends), and
-/// `props/curved.rs` answers that class two ways —
-/// [`torus_meridian_orient`]'s `unreachable!` sibling and
-/// [`unreachable_zero`]'s poison return. Neither is adopted here: this
-/// arm keeps the typed refusal it already produced, because choosing
-/// between the two is the file-wide census
+/// The state is kernel-bug-only (one surface builds every rim of a
+/// face AND both its ends), and this file answers that class two other
+/// ways — [`torus_meridian_orient`]'s `unreachable!` and
+/// [`unreachable_zero`]'s poison return. Neither is adopted here:
+/// choosing between them is the file-wide census
 /// `props-curved-carries-two-readings-of-d9-unreachable-vs-poison`
-/// asks for and a decision taken at one site would pre-empt it.
+/// asks for, and a decision taken at one site would pre-empt it.
 fn mixed_levels(name: &'static str) -> PropsError {
     PropsError::NotIsoRectangle { what: name }
 }
@@ -1436,7 +1420,7 @@ fn unanimous_rim_side<T: Decide>(
     b: &LinearBoundary<T>,
     (lo, hi): (T, T),
     band: Band,
-) -> Result<Sign, PropsError> {
+) -> Result<Option<Sign>, PropsError> {
     require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
     let mut answer: Option<Sign> = None;
     for rim in &b.rims {
@@ -1453,9 +1437,7 @@ fn unanimous_rim_side<T: Decide>(
             _ => answer = Some(s),
         }
     }
-    answer.ok_or(PropsError::NotIsoRectangle {
-        what: "curved face without a rim (non-sphere)",
-    })
+    Ok(answer)
 }
 
 /// **Where a rim sits in its face's level range, as a margin** — the
@@ -1647,9 +1629,9 @@ fn cone<T: Decide>(
     // A generator-free cone boundary of rims alone carries no extent of
     // its own: every level it touches is a rim's slant, and where those
     // coincide the face's missing extreme is the APEX
-    // ([`cone_apex_level`], folded inside the shared parse so all three
-    // doors read the same extent).
-    let (b, folded_apex) = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
+    // ([`cone_apex_level`], folded inside the shared parse — with its
+    // closure guard — so all three doors read the same extent).
+    let b = cone_boundary(apex, axis, sin_a, cos_a, edges, band)?;
     let (lo, hi) = min_max(&b.levels)?;
     require_extent(Margin::of(hi - lo), band)?;
     // The iso-rectangle premise (S58/#649). Cone levels are the signed
@@ -1663,12 +1645,6 @@ fn cone<T: Decide>(
     // premise with it.
     require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)?;
     let du = du_of_rims(&b.rims, b.arms, band)?;
-    // A folded apex is a claim that the rim CLOSES around it, and `Δu`
-    // is the only place that claim can be read
-    // ([`require_rim_only_closed`], at the cone's own azimuthal arm).
-    if folded_apex {
-        require_rim_only_closed(du, b.arms.azimuth, band)?;
-    }
     // Single-nappe check: definitely-negative low AND definitely-positive
     // high would straddle the apex through both nappes.
     let s_lo = classify("props_cone_nappe", Margin::of(lo), band)?;
@@ -1687,7 +1663,7 @@ fn cone<T: Decide>(
 /// the shared parse consumed by the flux closed form,
 /// [`boundary_material_sign`] and [`require_iso_rectangle`] — **with
 /// the apex folded in where the boundary needs it**
-/// ([`cone_apex_level`]; the returned flag says whether it was).
+/// ([`cone_apex_level`]).
 ///
 /// The fold lives here rather than in the flux lane because the cone's
 /// missing extreme needs no sense bit, so all three doors can and must
@@ -1696,6 +1672,14 @@ fn cone<T: Decide>(
 /// only be read against an extent the parse supplies. The sphere's
 /// pole fold is the other shape — it reads `Face::sense`, so it sits
 /// in `sphere` and the gate arm declines to answer at all.
+///
+/// **A folded extent carries its guard with it**, so there is no flag
+/// to return and no caller that can forget one: the fold refuses a rim
+/// that does not close around the apex ([`require_rim_only_closed`])
+/// rather than folding and leaving the check to whoever asked. Two of
+/// this fn's three callers did forget it — a half rim only answered
+/// `Ok(())` at the shape door and a definite `Encoded` side at the
+/// gate, for a boundary the flux lane refused.
 fn cone_boundary<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
@@ -1703,7 +1687,7 @@ fn cone_boundary<T: Decide>(
     cos_a: T,
     edges: &[LoopEdge<T>],
     band: Band,
-) -> Result<(LinearBoundary<T>, bool), PropsError> {
+) -> Result<LinearBoundary<T>, PropsError> {
     let mut rims: Vec<Rim<T>> = Vec::new();
     let mut levels: Vec<T> = Vec::new();
     let mut generators = false;
@@ -1779,8 +1763,10 @@ fn cone_boundary<T: Decide>(
         arms,
         as_level: RimLevel::Length,
     };
-    let folded_apex = !generators && !b.rims.is_empty() && cone_apex_level(&mut b, band)?;
-    Ok((b, folded_apex))
+    if !generators && !b.rims.is_empty() {
+        cone_apex_level(&mut b, edges, band)?;
+    }
+    Ok(b)
 }
 
 /// **A generator-free cone boundary's missing extreme is the APEX** —
@@ -1811,19 +1797,46 @@ fn cone_boundary<T: Decide>(
 /// step earlier, under the name the sphere's fold asks it by
 /// (`props_rim_only_extent`): the cone's is the bare slant difference,
 /// as `require_extent`'s cone call reads it.
-fn cone_apex_level<T: Decide>(b: &mut LinearBoundary<T>, band: Band) -> Result<bool, PropsError> {
+fn cone_apex_level<T: Decide>(
+    b: &mut LinearBoundary<T>,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(), PropsError> {
     let (lo, hi) = min_max(&b.levels)?;
     if classify("props_rim_only_extent", Margin::of(hi - lo), band)? != Sign::Zero {
-        return Ok(false);
+        return Ok(());
     }
-    let Some((first, rest)) = b.rims.split_first() else {
-        return Ok(false);
-    };
-    if !rest.iter().all(|r| r.d_u_sign == first.d_u_sign) {
-        return Ok(false);
+    if unanimous_rim_dir(&b.rims).is_none() {
+        return Ok(());
     }
+    require_rim_only_closed(edges, span_sum(&b.rims), b.arms.azimuth, band)?;
     b.levels.push(T::zero());
-    Ok(true)
+    Ok(())
+}
+
+/// The traversal direction EVERY rim of a boundary shares, or `None`
+/// where the set is empty or divided.
+///
+/// **This is the sphere's unanimity premise and the cone's, spelled
+/// once.** The sphere folds only where every rim's σ agrees, and σ is
+/// [`rim_interior_side`] — `d_u_sign` times the face's ONE sense bit,
+/// a fixed involution of the direction — so unanimity of σ is
+/// unanimity of `d_u_sign` for any rim set and either bit. The cone
+/// has no bit and asks the same question of the same data.
+fn unanimous_rim_dir<T: Real>(rims: &[Rim<T>]) -> Option<Sign> {
+    let (first, rest) = rims.split_first()?;
+    rest.iter()
+        .all(|r| r.d_u_sign == first.d_u_sign)
+        .then_some(first.d_u_sign)
+}
+
+/// The `Δu` a one-group rim set spans — the plain sum of the stored
+/// spans, which is [`du_of_rims`]' answer wherever there is one group
+/// and is only asked where a fold has already established that (one
+/// level, one direction). It decides nothing and records nothing; the
+/// deciding is [`require_rim_only_closed`]'s.
+fn span_sum<T: Real>(rims: &[Rim<T>]) -> T {
+    rims.iter().fold(T::zero(), |acc, r| acc + r.dt)
 }
 
 /// The cone's azimuthal lever arm: the first rim's own radius
@@ -1966,9 +1979,9 @@ fn sphere<T: Decide>(
     // level it touches is a rim latitude, and where those coincide the
     // face's missing extreme is the POLE its rims' traversals point
     // at ([`sphere_rim_only_pole_level`]).
-    let folded_pole = !b.rims.is_empty()
-        && meridian_axes.is_empty()
-        && sphere_rim_only_pole_level(&mut b, sense, radius, band)?;
+    if !b.rims.is_empty() && meridian_axes.is_empty() {
+        sphere_rim_only_pole_level(&mut b, edges, sense, radius, band)?;
+    }
     let (du, side);
     let (lo, hi) = min_max(&b.levels)?;
     require_extent(sphere_extent_margin(lo, hi, radius), band)?;
@@ -2022,11 +2035,6 @@ fn sphere<T: Decide>(
         );
         side = SphereFluxSide::Rim(s_f);
         du = du_of_rims(&b.rims, b.arms, band)?;
-        // A folded pole is a claim that the rim CLOSES around it, and
-        // `Δu` is the only place that claim can be read.
-        if folded_pole {
-            require_rim_only_closed(du, radius, band)?;
-        }
     }
     let area = radius.powi(2) * du * (hi - lo);
     let va = loop_vector_area(edges, center)?;
@@ -2655,10 +2663,11 @@ fn require_rim_interior_sides<T: Decide>(
 /// verdict is recorded for it.
 fn sphere_rim_only_pole_level<T: Decide>(
     b: &mut LinearBoundary<T>,
+    edges: &[LoopEdge<T>],
     sense: bool,
     radius: T,
     band: Band,
-) -> Result<bool, PropsError> {
+) -> Result<(), PropsError> {
     let (lo, hi) = min_max(&b.levels)?;
     if classify(
         "props_rim_only_extent",
@@ -2666,17 +2675,15 @@ fn sphere_rim_only_pole_level<T: Decide>(
         band,
     )? != Sign::Zero
     {
-        return Ok(false);
+        return Ok(());
     }
-    let mut sides = b.rims.iter().map(|rim| rim_interior_side(rim, sense));
-    let Some(sigma) = sides.next() else {
-        return Ok(false);
-    };
-    if !sides.all(|s| s == sigma) {
-        return Ok(false);
+    if unanimous_rim_dir(&b.rims).is_none() {
+        return Ok(());
     }
+    let sigma = rim_interior_side(&b.rims[0], sense);
+    require_rim_only_closed(edges, span_sum(&b.rims), b.arms.azimuth, band)?;
     b.levels.push(t_sign::<T>(sigma));
-    Ok(true)
+    Ok(())
 }
 
 /// **A folded extreme is interior to a rim only if the rim CLOSES
@@ -2699,10 +2706,40 @@ fn sphere_rim_only_pole_level<T: Decide>(
 /// same full rim stated twice at double, and a full rim with an extra
 /// half arc at 1.5×.
 ///
-/// The comparand is `(Δu − τ)` at the kind's azimuthal arm
-/// ([`RimArms::azimuth`] — the sphere's `R`, the cone's own rim
-/// radius), the arc the rim fails to close by: a length, like every
-/// other margin here. It is asked ONLY where an extreme was folded: a
+/// **A SUM is not a COVER, and the sum alone was the same defect one
+/// level down.** `props_rim_only_closed`'s comparand is `(Δu − τ)` at
+/// the kind's azimuthal arm ([`RimArms::azimuth`] — the sphere's `R`,
+/// the cone's own rim radius), the arc the spans fail to total a turn
+/// by: a length, like every other margin here. It admits any multiset
+/// of same-direction arcs whose spans happen to total `τ` — the same
+/// HALF rim stated twice covers half the circle and totals a turn, and
+/// answered the whole cap's area through the public door. So the arcs
+/// must also TILE: `props_rim_only_join` decides, for each edge in the
+/// loop's own order, that its traversal END is the next one's
+/// traversal START — a point deviation in metres, the comparand
+/// [`require_rim_incidence`] already meters incidences with.
+///
+/// **Why the two together are a cover.** Every arc of the group runs
+/// the same way in `u` and its span `dt` is non-negative, so if arc
+/// `k` starts where arc `k − 1` ended, arc `k` covers the azimuth
+/// interval `[S_{k−1}, S_k]` with `S_k = Σ_{i ≤ k} dt_i` — by
+/// induction, since the joins fix each start azimuth modulo `τ` and
+/// the cumulative sum fixes it in `ℝ`. The intervals are consecutive
+/// and non-overlapping by construction, and `S_n = τ` makes their
+/// union the whole circle exactly once. Neither half suffices alone:
+/// three arcs of `2τ/3` chain into a closed cycle and DOUBLE-cover
+/// (the sum refuses them), and a half rim stated twice totals a turn
+/// and covers half (the joins refuse it).
+///
+/// **The verdict does not depend on the loop's anchor.** The joins are
+/// asked cyclically, so every rotation of one edge cycle asks the same
+/// set of questions; what a non-cyclic permutation would refuse is not
+/// a loop traversal, and `topo`'s flattening hands edges in traversal
+/// order. That is the distinction [`linear_rim_side`]'s docs draw —
+/// an ANSWER that moves under re-anchoring is the defect, and this one
+/// does not move.
+///
+/// It is asked ONLY where an extreme was folded: a
 /// face whose levels carry their own extent states its `u`-domain the
 /// way every other face does, and `props_du_consistent` is what bounds
 /// it there.
@@ -2726,13 +2763,38 @@ fn sphere_rim_only_pole_level<T: Decide>(
 /// once* — reached independently, and each catches the shape its own
 /// branch's other premises are blind to: a coplanar rimless loop that
 /// doubles back on one half-plane (a slit) and a rim-only loop whose
-/// spans are a part or a multiple of a turn.
-fn require_rim_only_closed<T: Decide>(du: T, arm: T, band: Band) -> Result<(), PropsError> {
+/// arcs do not tile the circle exactly once.
+///
+/// **Its precondition is the fold's own**: every edge of `edges` is a
+/// rim of the one group, in loop order. Both callers establish that
+/// before folding — a rim-only boundary has no meridian, so the parse
+/// has classified every edge as a rim, and the fold has already
+/// required one level and one traversal direction, which is what makes
+/// [`du_of_rims`]' grouping answer one group.
+fn require_rim_only_closed<T: Decide>(
+    edges: &[LoopEdge<T>],
+    du: T,
+    arm: T,
+    band: Band,
+) -> Result<(), PropsError> {
     require_zero(
         "props_rim_only_closed",
         Margin::levered(du - T::tau(), arm),
         band,
-    )
+    )?;
+    // The joins, in the loop's own order: edge `i`'s traversal END is
+    // edge `i + 1`'s traversal START, cyclically. A point deviation in
+    // metres, the comparand `require_rim_incidence` already meters
+    // incidences with.
+    for (i, e) in edges.iter().enumerate() {
+        let next = &edges[(i + 1) % edges.len()];
+        require_zero(
+            "props_rim_only_join",
+            Margin::norm3(e.traversal_ends().1 - next.traversal_ends().0),
+            band,
+        )?;
+    }
+    Ok(())
 }
 
 /// Classify a sphere face's boundary into (rims, meridian great-circle

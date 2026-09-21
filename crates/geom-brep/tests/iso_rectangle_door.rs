@@ -427,3 +427,54 @@ fn the_one_rim_divergence_survives_the_residue() {
         })
     );
 }
+
+/// **The residue is not band-continuous with the door's zero-extent
+/// charter, and this row is that seam measured.**
+///
+/// "A zero-extent face passes" is true at EXACTLY zero: there no rim
+/// sits at one extreme rather than the other, `rim_side` answers
+/// `DegenerateFace`, and the door admits it. Move the extent into the
+/// ambiguity band and the same question becomes undecidable rather
+/// than vacuous — `props_rim_side` escalates, typed — and only above
+/// the band does it answer again. So every linearly-levelled face
+/// whose extent lands in the band now refuses at the door that gates
+/// `mesh`'s walk, which the corpus measurement could not see because
+/// no corpus body has a band-scale extent.
+///
+/// The posture is the ratified one (escalate, never guess) and this
+/// row does not argue with it; it states the class, on a cylinder
+/// wall, with every offset taken from the run's own `Band` so it holds
+/// at each ε on the matrix.
+#[test]
+fn the_doors_zero_extent_charter_is_exactly_at_zero() {
+    let z = band().zero();
+    let wall = |dv: f64| {
+        vec![
+            rim(0.0, 0.0, 1.5, 0, 1),
+            mer(1.5, 0.0, dv, 1, 2),
+            rim(dv, 1.5, 0.0, 2, 3),
+            mer(0.0, dv, 0.0, 3, 0),
+        ]
+    };
+    for (dv, decidable) in [
+        (0.0, true),
+        (1.5 * z, false),
+        (5.0 * z, false),
+        (100.0 * z, true),
+    ] {
+        let door = require_iso_rectangle(&cylinder(), &wall(dv), band());
+        println!("  extent {dv:.3e} ({:.1} x zero): door = {door:?}", dv / z);
+        if decidable {
+            assert_eq!(door, Ok(()), "extent {dv:.3e}: the door answers");
+        } else {
+            assert!(
+                matches!(
+                    &door,
+                    Err(PropsError::Escalated { cause })
+                        if cause.predicate == Some("props_rim_side")
+                ),
+                "extent {dv:.3e}: an in-band extent has no extreme to place a rim at: {door:?}"
+            );
+        }
+    }
+}

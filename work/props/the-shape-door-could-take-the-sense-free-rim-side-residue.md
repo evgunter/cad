@@ -110,3 +110,25 @@ triggered, so the residue is taken.
 half-cap has ONE rim, so unanimity has nothing to compare and no
 sense-free door can tell it from the half-cap. Pinned as
 `iso_rectangle_door::the_one_rim_divergence_survives_the_residue`.
+
+## Fix pass — the band seam, disclosed (PR 2924, R2 review)
+
+The corpus measurement above is a 40-pair golden run and no corpus body
+has a band-scale extent, so it could not see this: **"a zero-extent
+face still passes" is true at exactly zero.** In the ambiguity band the
+same question is undecidable rather than vacuous and the door
+escalates — `0 → Ok`, `1.5 × zero → Escalated { props_rim_side }`,
+`5 × zero → Escalated`, `100 × zero → Ok`, executed on a cylinder wall
+with every offset from the run's own band. It is a CLASS where the
+measurement found one sphere body. The posture is the ratified one and
+is not re-litigated here; the disclosure is in the seam note
+(`work/tess/shape-door-gained-the-rim-side-unanimity-premise.md`) with
+the table, and pinned as
+`iso_rectangle_door::the_doors_zero_extent_charter_is_exactly_at_zero`.
+
+**Two spellings of one rule retired with it.** `unanimous_rim_side`
+answers `Ok(None)` for a rimless parse instead of an error its two
+callers each guarded against separately; the door reads that as "pass"
+and `boundary_material_sign`'s sphere arm as `Unencoded`, which is the
+answer it always gave. One statement of *no rim, no side*, two readings
+of it.

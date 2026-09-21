@@ -518,7 +518,10 @@ fn the_refusing_faces_verdicts_are_a_face_fact_too() {
 /// **The rim-only cap's own verdicts, named.** The fold decides
 /// `props_rim_only_extent` once per meridian-free rim boundary,
 /// `props_rim_interior_side` once per rim, and `props_rim_only_closed`
-/// once per folded pole. No new COMPARAND is read anywhere: σ is a
+/// once per folded pole, with `props_rim_only_join` once per arc. Only
+/// the last reads a comparand the arm did not already have — a point
+/// deviation between two vertices, `require_rim_incidence`'s
+/// dimension. σ is a
 /// product of two discrete signs, `props_rim_only_extent` is
 /// `require_extent`'s own sphere margin asked one step earlier (hence
 /// the two records here), `props_rim_interior_side` is
@@ -526,7 +529,7 @@ fn the_refusing_faces_verdicts_are_a_face_fact_too() {
 /// `Δu` angle at the azimuthal arm `props_du_consistent` already
 /// meters.
 #[test]
-fn the_rim_only_cap_records_its_two_named_decides() {
+fn the_rim_only_cap_records_its_named_decides() {
     let got = verdict_multiset(&[rim(0.5, 0.0, TAU, 0, 0)]);
     let want: Vec<(String, usize)> = [
         ("props_circle_axis_class Positive", 1),
@@ -538,6 +541,7 @@ fn the_rim_only_cap_records_its_two_named_decides() {
         ("props_rim_level Zero", 1),
         ("props_rim_only_closed Zero", 1),
         ("props_rim_only_extent Zero", 1),
+        ("props_rim_only_join Zero", 1),
         ("props_rim_side Positive", 1),
     ]
     .into_iter()
@@ -550,21 +554,21 @@ fn the_rim_only_cap_records_its_two_named_decides() {
 // The sibling kinds
 // ---------------------------------------------------------------------
 
-/// **The cone apex cap is the sphere cap's sibling, and it is served
-/// on its own chart** — `props_cone_apex_cap.rs`, whose fold pushes
-/// level `0` where this one pushes a pole. The two differ in exactly
-/// one thing and this row is where that difference is stated: the
-/// sphere's missing extreme is one of TWO poles and σ picks between
-/// them, so `sphere_rim_only_pole_level` reads the face's sense bit;
-/// a cone is bounded on the apex side only, so its fold reads no bit
-/// at all and `fn cone` still takes none.
-///
-/// What a cone cannot do without a bit is tell the apex cap from the
-/// rest of its nappe, which is unbounded and no finite face of any
-/// solid. That question is the boundary's material side, answered by
-/// `boundary_material_sign` and compared with `Face::sense` at tier
-/// 3's check 6 — where this cap's is `Unencoded` and nothing compares
-/// it at all (`a_rim_only_cap_encodes_no_material_side` above).
+// **The cone apex cap is the sphere cap's sibling, and it is served on
+// its own chart** — `props_cone_apex_cap.rs`, whose fold pushes level
+// `0` where this one pushes a pole. The two differ in exactly one
+// thing: the sphere's missing extreme is one of TWO poles and σ picks
+// between them, so `sphere_rim_only_pole_level` reads the face's sense
+// bit; a cone is bounded on the apex side only, so its fold reads no
+// bit at all and `fn cone` still takes none.
+//
+// What a cone cannot do without a bit is tell the apex cap from the
+// rest of its nappe, which is unbounded and no finite face of any
+// solid. That question is the boundary's material side, answered by
+// `boundary_material_sign` and compared with `Face::sense` at tier 3's
+// check 6 — where this cap's is `Unencoded` and nothing compares it at
+// all (`a_rim_only_cap_encodes_no_material_side` above).
+
 /// **The cylinder's rim-only face is genuinely extent-less** — the
 /// sweep's negative result, executed. A cylinder is unbounded along
 /// its axis in BOTH directions, so one rim circle bounds no finite
@@ -661,4 +665,62 @@ mod interval_lane {
             }
         }
     }
+}
+
+/// **The sphere twin of the cone's sum-is-not-a-cover row.**
+/// `require_rim_only_closed` has two call sites and the defect was in
+/// the shared function, so the shape that reached it on the cone
+/// reaches it here: the same HALF rim stated twice totals a turn and
+/// covers half the circle, and answered the whole cap's area through
+/// `curved_face`. `props_rim_only_join` requires the arcs to TILE —
+/// each edge's traversal end is the next one's traversal start,
+/// cyclically — and the three-arc cap is the floor that says the rule
+/// is not "refuse every multi-arc rim".
+#[test]
+fn a_pole_is_not_folded_for_a_rim_that_totals_a_turn_without_tiling() {
+    let v0 = 0.5_f64;
+    let cap = TAU * RS * RS * (1.0 - v0.sin());
+    let third = TAU / 3.0;
+    for (name, edges) in [
+        (
+            "the same HALF rim stated twice",
+            vec![rim(v0, 0.0, PI, 0, 1), rim(v0, 0.0, PI, 0, 1)],
+        ),
+        (
+            "two overlapping arcs totalling a turn",
+            vec![
+                rim(v0, 0.0, 0.75 * TAU, 0, 1),
+                rim(v0, 0.5 * TAU, 0.75 * TAU, 1, 2),
+            ],
+        ),
+        (
+            "a tiling with two arcs exchanged",
+            vec![
+                rim(v0, third, 2.0 * third, 1, 2),
+                rim(v0, 0.0, third, 0, 1),
+                rim(v0, 2.0 * third, TAU, 2, 0),
+            ],
+        ),
+    ] {
+        let got = curved_face(&sphere(), &edges, true, band());
+        assert!(
+            matches!(
+                &got,
+                Err(PropsError::NotIsoRectangle {
+                    what: "props_rim_only_join"
+                })
+            ),
+            "{name}: arcs that total a turn without tiling bound no cap, got {got:?}"
+        );
+    }
+    // The floor: the same three arcs in loop order still measure.
+    measures_outward(
+        "the cap whose rim is three arcs, in order",
+        &[
+            rim(v0, 0.0, third, 0, 1),
+            rim(v0, third, 2.0 * third, 1, 2),
+            rim(v0, 2.0 * third, TAU, 2, 0),
+        ],
+        cap,
+    );
 }
