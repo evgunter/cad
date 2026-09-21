@@ -18,7 +18,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::spline::{KnotVector, SpanLocate};
-use geom_core::{Band, Bounds, Decide, Dual, DualInterval, Interval, Real, Sign};
+use geom_core::{
+    Band, Bounds, CertifiedEnclosure, Decide, Dual, DualInterval, Interval, Real, Sign,
+};
 
 /// Construction, arithmetic and the certified decision door, feature
 /// off. The band is 1e-9/1e-8 and the values are orders away from it in
@@ -94,4 +96,55 @@ fn dual_interval_is_nameable_in_a_default_build() {
     let d: DualInterval = Dual::new(Interval::from_f64(2.0), Interval::from_f64(1.0));
     assert_eq!(Bounds::lo(d.value), 2.0);
     assert_eq!(Bounds::hi(d.deriv), 1.0);
+}
+
+/// The refusing half of the decision door is compiled too: a
+/// domain-clamped enclosure (`sqrt([-1, 4])` clamps to `[0, 2]`, a
+/// plausible bracket) is refused on its DECORATION, not on its
+/// endpoints — `MarginDiag::Invalid`, where the straddling row above
+/// refuses with `MarginDiag::Enclosure`. A default build that compiled
+/// the arithmetic but not the poison channel would answer `Positive`.
+#[test]
+fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let clamped = Interval::from_bounds(-1.0, 4.0).sqrt();
+    assert!(
+        Bounds::lo(clamped) <= 0.0 && Bounds::hi(clamped) >= 2.0,
+        "the clamped bracket is still a sound bracket of [0, 2]"
+    );
+    let refused = clamped.sign_within(band).unwrap_err();
+    assert!(
+        matches!(refused.margin, geom_core::MarginDiag::Invalid),
+        "a clamped enclosure refuses on its decoration: {refused:?}"
+    );
+    assert_eq!(
+        clamped.certified_bracket(),
+        None,
+        "the certified door refuses the same enclosure"
+    );
+    assert_eq!(
+        Interval::from_bounds(1.0, 4.0).sqrt().certified_bracket(),
+        Some((1.0, 2.0)),
+        "an in-domain sqrt certifies its exact bracket"
+    );
+}
+
+/// The product row's containment (`lo <= 1e-6 <= hi`) gets EASIER as
+/// the enclosure degrades; this row bounds the width from above so a
+/// backend that widened to `[0, 1]` — still a containing bracket — goes
+/// red. One correctly rounded multiply pads at most one ulp per
+/// endpoint, and the backend's own budget is that (`interval.rs`
+/// module docs, "Tightness is a quality").
+#[test]
+fn the_product_enclosure_is_ulp_tight_in_a_default_build() {
+    let x = Interval::from_f64(1e-3);
+    let sq = x * x;
+    let width = Bounds::hi(sq) - Bounds::lo(sq);
+    let ulp = f64::EPSILON * 1e-6;
+    assert!(
+        width <= 4.0 * ulp,
+        "[{}, {}] is {width} wide, more than 4 ulp ({ulp}) of 1e-6",
+        Bounds::lo(sq),
+        Bounds::hi(sq)
+    );
 }
