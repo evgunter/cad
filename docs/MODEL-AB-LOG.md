@@ -7793,3 +7793,39 @@ Sample number at merge.
 ## TESS program rows (work/tess/; band 5100–5199; blocks named TESS-B<n>)
 
 TESS-1 review ordinal fixed at dispatch (2026-09-20, PR #2852 open, frozen head `7a5fe831e`, hosted run 35550649883 green on the full matrix): **ordinal 5100** (TESS band, its first). Unit: a curved face whose loop classifies with no meridian traversal refuses typed (`TessellateError::MeridianFreeCurvedFace`) where it meshed as a hole. Pre-draw fields, logged in `work/tess/log.md` before the block draw: difficulty **M**, task-class **STRUCTURAL**; implementer arm per block TESS-B1 slot 0 (record branch-side on `tess/b1-block`). Protocol v6 dual: R1/R2 byte and assignment recorded branch-side with the block. Method, recorded before either review runs: CONCURRENT same-head, both briefs generated from one template and STORED with sha256 on `tess/b1-block` before either dispatches, neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and scratch per reviewer. Method note applying to BOTH arms equally: ~16 G free on the box, so `CARGO_INCREMENTAL=0`, debug, per-package builds, and a stop-building floor at 8 G, stated identically in both briefs. Implementer-phase gap annotated branch-side (a usage-limit outage, 2026-09-19 → 2026-09-20). Sample number assigned at merge.
+
+## Block DECIDE-B1 — record (branch-side on `decide/b1-block` until the block concludes; opened 2026-09-21)
+
+Block DECIDE-B1 pre-draw fields (2026-09-21, logged before the draw):
+slot 0 = DECIDE-3 (`docs/DECIDE-3-SPEC.md`, the canonical root at the
+mint site — SYM-10's Phase 2 as Ev ruled it on #2970: every `sqrt`
+atom keyed on its argument's value class through `mint_atom`, the two
+certified reads behind every value-free fold; items
+`the-candidate-norm-needs-a-canonical-square-root`,
+`the-decision-door-is-opaque-to-the-tier`) — difficulty **H**,
+task-class **NUMERIC**; slot 1 = SYM-9 (`docs/SYM-9-SPEC.md`, on main
+since #2602: what a refused decision may retry — the wider ring and the
+kept atom, measured first on the six documents; its 2026-09-15 lane
+died at its first call and the unit returns here from block SYM-B2's
+voided slot) — **H / NUMERIC**; slot 2 = DECIDE-4
+(`rule-d-reaches-the-unit-bulge-only`: the ring's width at the boss and
+the parameter bulge's two routes; spec at dispatch with these fields
+binding) — **D / NUMERIC**. DECIDE-3's spec is on `main` before this
+draw (the orchestrator's tracker PR). Protocol v7 triage, per unit:
+DECIDE-3 IN (a canonical-form decision over every atom the tier keys),
+SYM-9 IN (it changes what the door answers on a refusal), DECIDE-4
+re-asked at its spec. The orchestrator's model is FABLE (the cloud
+session). Dispatch order: slot 0 now (its lane is the SYM-10 lane
+re-used, on `sym/10-decision-door`'s head); slots 1 and 2 as lanes
+free and as DECIDE-3's re-keying settles what they measure against.
+
+Block DECIDE-B1 draw (2026-09-21, after the pre-draw fields above; the
+2026-09-04 ratio amendment — triple {opus, opus, fable}, one
+/dev/urandom byte, reject ≥ 252, byte mod 3 = fable's position): byte
+**248**, 248 mod 3 = 2 = fable's position ⇒ **fable at slot 2**.
+Recorded branch-side on `decide/b1-block`; this record reaches `main`
+when the block's last slot's reviews conclude. DECIDE's band is
+8600–8699; its first ordinal is claimed on `main` at DECIDE-3's dual
+dispatch.
+
+Block DECIDE-B1 slot record (branch-side, appended as each slot concludes):
