@@ -63,3 +63,46 @@ the two tracker rows that cite ours (`work/exch/import-normalizes-the-rim-only-c
 `work/topo/S330`). Repointed. `docs/DOC-LEDGER.md` also names one, and
 is left alone: it is a dated sweep record, and the convention in that
 same list is to annotate a re-home, not to rewrite the path.
+
+## 2026-09-20 — ATREST-1 specced and dispatched
+
+`docs/ATREST-1-SPEC.md`, branch `atrest/1-per-solid`, carrying both
+per-solid admit-holes as one unit. The structure made the case: a
+solid's face set is reachable and total (`Solid { shells }`, `Shell {
+faces, solid }`, back-pointers validated in tier 1), and
+`crates/topo/src/props.rs` already carries the restriction idiom —
+`classify_shells` is `classify_shells_of` over every shell, and that
+door's own rustdoc argues for restriction in the sentence this unit
+needed, one level down.
+
+Four design calls settled in the spec rather than left to the lane:
+
+- **check 7's subject becomes the SOLID**, with a proved
+  short-circuit at one solid (same face set), not a per-solid check
+  added BESIDE the body-total one — that would be two implementations
+  of one logic, the P1 class, with the older one weaker;
+- **one uncomputable vocabulary** — an undecidable solid refuses
+  `VolumeUncomputable` with the solid named, no second variant;
+- **the shell-role check states exactly-one-`Outer`**, and the *"and
+  inside it"* half of SHELL-5's sentence is NOT this unit — it is a
+  containment claim tier 3 has no at-rest walk for, same family as
+  check 9's gap, and gets its own file in the landing PR;
+- **neither new read may touch the REPORTING target.**
+  `classify_shells_of` runs whole schedules by its own comment, so
+  calling it from tier 3 would mint a fresh instance of
+  `tier3-prime-still-couples-plus-v-to-the-reporting-target` inside
+  the program that filed it. Both questions are SIGN questions;
+  `sign_certified` gets the face-restricted sibling
+  `classify_shells_of` already models.
+
+**Triage (protocol v7): OUT.** Opus implementer, opus reviewer, full
+review. Reason: the design calls are made above, so what is left is
+execution and evidence — but it lands a new refusal on the door every
+program reads as proof, which is more than reading the diff settles,
+so the review carries correctness claims and not style alone.
+
+**Finding recorded on `tier3-prime-still-couples-plus-v-to-the-reporting-target`.**
+Its "What a fix is" section names `PlusVSubject`, a type `ee74cdbc6`
+removed AFTER the row was filed. A future lane reading that paragraph
+would hunt a symbol that is not there; the row now says so and says
+what survives instead.
