@@ -784,6 +784,7 @@ fn adjacent_faces(body: &Body<f64>, ek: EdgeKey) -> Result<Vec<topo::FaceKey>, T
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::nurbs_cert::tests::Domination;
     use geom::NurbsCurve3;
     use geom_core::{Point2, Point3};
     use topo::EdgeKey;
@@ -1050,7 +1051,11 @@ mod tests {
             .expect("multiplicity = p is a C0 kink, which a Lipschitz bound survives");
         let (wu, wv) = sampled_uv_speeds(&image, 4096);
         println!("C0 KINK: certified ({su:.17e}, {sv:.17e}) vs sampled ({wu:.17e}, {wv:.17e})");
-        assert!(wu > 0.0 && wv > 0.0 && wu <= su && wv <= sv);
+        let d = Domination::sampled_under_certified(&[("u'", wu, su), ("v'", wv, sv)]);
+        assert!(
+            wu > 0.0 && wv > 0.0 && d.holds(),
+            "C0 kink: sampled speeds must be positive and under the certified sups: {d}"
+        );
     }
 
     /// **The domain premise is checked, not assumed.** The hull bounds
@@ -1338,10 +1343,8 @@ mod tests {
             let t = d0 + (d1 - d0) * f64::from(k) / 4000.0;
             truth = truth.max(n.deriv2(t).norm());
         }
-        assert!(
-            truth <= m,
-            "{name}: sampled sup|C''| {truth:.6e} escapes the certified {m:.6e}"
-        );
+        let d = Domination::sampled_under_certified(&[("sup|C''|", truth, m)]);
+        assert!(d.holds(), "{name}: {d}");
         println!("{name}: truth/bound = {:.4}", truth / m);
         // (b) chord counts keep the secant inside delta_s.
         for &delta_s in deltas {
