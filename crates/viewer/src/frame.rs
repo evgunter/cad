@@ -2498,44 +2498,21 @@ mod tests {
         // And the classes this channel is FOR, by name rather than by
         // the one sample above — the half of the policy a badge that
         // went silent would not fail.
-        for kind in EVERY_KIND {
-            if badge_site(kind) == BadgeSite::Frame {
-                continue;
-            }
-            assert!(
-                matches!(
-                    kind,
-                    ProductErrorKind::RootFailed
-                        | ProductErrorKind::RootPoisoned
-                        | ProductErrorKind::UnknownNode
-                        | ProductErrorKind::NoBodyRoots
-                ),
-                "no per-node badge carries this one, so the frame owes it: {kind:?}"
+        for kind in [
+            ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::Naming,
+            ProductErrorKind::Graft,
+            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::ProductInvalid,
+            ProductErrorKind::ContactLineage,
+        ] {
+            assert_eq!(
+                badge_site(kind),
+                BadgeSite::Frame,
+                "no per-node badge carries it: {kind:?}"
             );
         }
     }
-
-    /// Every [`ProductErrorKind`], written out once for the rows that
-    /// range over the whole enum.
-    ///
-    /// **A hand-maintained census, and this is the reason it can be
-    /// one** (`docs/prompts/reviewer-style-lane.md` Q6): a class
-    /// cannot be added without [`badge_site`]'s `match` refusing to
-    /// compile, so whoever adds one is already standing at the site
-    /// that sends them here. No guard can be cheaper than that, and a
-    /// scheduled re-measure would fire later than the compiler does.
-    const EVERY_KIND: [ProductErrorKind; 10] = [
-        ProductErrorKind::EvaluationOfAnotherDocument,
-        ProductErrorKind::UnknownNode,
-        ProductErrorKind::Naming,
-        ProductErrorKind::RootFailed,
-        ProductErrorKind::RootPoisoned,
-        ProductErrorKind::NoBodyRoots,
-        ProductErrorKind::Graft,
-        ProductErrorKind::SolidInvalid,
-        ProductErrorKind::ProductInvalid,
-        ProductErrorKind::ContactLineage,
-    ];
 
     /// **The guard for the count [`badge_site`]'s doc states about
     /// another module's enum.**
@@ -2566,10 +2543,27 @@ mod tests {
         .iter()
         .map(non_ok)
         .sum();
-        let left_to_the_tree = EVERY_KIND
-            .iter()
-            .filter(|kind| badge_site(**kind) == BadgeSite::FeatureTree)
-            .count();
+        // Every class, inline in the row the way this crate's suites
+        // hold a complete variant list (`crates/viewer/README.md`).
+        // It is hand-written and can be: a class cannot be added
+        // without [`badge_site`]'s `match` refusing to compile, so
+        // whoever adds one is already standing at the site that sends
+        // them here, and no schedule fires sooner than that.
+        let left_to_the_tree = [
+            ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::UnknownNode,
+            ProductErrorKind::Naming,
+            ProductErrorKind::RootFailed,
+            ProductErrorKind::RootPoisoned,
+            ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::Graft,
+            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::ProductInvalid,
+            ProductErrorKind::ContactLineage,
+        ]
+        .into_iter()
+        .filter(|kind| badge_site(*kind) == BadgeSite::FeatureTree)
+        .count();
         assert_eq!(
             left_to_the_tree, states,
             "every class this policy leaves to the Features pane is left to a row the pane draws"

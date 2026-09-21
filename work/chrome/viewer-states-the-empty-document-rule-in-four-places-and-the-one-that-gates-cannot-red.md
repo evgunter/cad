@@ -185,3 +185,15 @@ unguarded "beside eight others"; both corrected, the latter by
 dropping the count rather than restating it. `crates/viewer/README.md`
 remains the only complete enumeration and the only one the repaired
 `frame_policy` scan reads.
+
+**Where the census of classes lives, and why not a `const`.** The
+guard's ten-class list is an inline array in the row.
+`scripts/gates/viewer-vocab-declared-once.sh` reds on a `const` array
+of two or more `Type::Variant` entries under `crates/viewer/src` that
+`crates/viewer/README.md`'s roster does not ratify, and neither
+ratified kind fits a complete census of another crate's enum — a
+third kind is an amendment argued on that page, not a table cell. The
+page states the alternative it expects of a suite: a hand-written
+variant list belongs inline in a row. It is hand-written for the
+reason the row states at the site: a class cannot be added without
+`badge_site`'s `match` refusing to compile.
