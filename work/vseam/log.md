@@ -213,6 +213,37 @@ gesture. The same merge moved every gesture-vocabulary site; the five
 that exist now — three in `pane/properties.rs` and two new ones in
 `widgets.rs`'s `field_tests` — are all minted from a name, and
 `GestureVocabulary {` has no literal outside `widgets.rs`.
+
+**And a real arrival is better evidence than a planted one.** The
+dispatch asked for the alarm to be proved with a planted 43rd variant.
+A planted variant proves the compiler is exhaustive, which was never in
+doubt; what the charter's claim needs is that the alarm is SITED where
+arrivals actually land, and only an arrival nobody arranged can show
+that. `SetParamUnit` and `SetParamText` are that arrival. Generalises:
+when a guard's claim is about where it sits rather than about what it
+computes, a planted input tests the computation and says nothing about
+the siting.
+
+**A merge of two green branches can carry a finding neither one's CI
+saw, and this program has no rule for it.** The AUTH-2 merge arrived
+with two clippy findings that CI's own
+`cargo clippy -p viewer --features app --all-targets -- -D warnings`
+would have failed on — a `type_complexity` on the probe pair's return
+and a redundant closure — and both were fixed in the merge commit here.
+Neither side could have seen them: `type_complexity` fires on a return
+type that only exists once this branch's `free_move_gesture` meets
+main's re-shaped call sites, and CI runs on each head separately.
+`merge-tree` answers *does this apply*, not *is the result green*, and
+nothing in the gate answers the second question for a branch that has
+not pushed its merge yet. The instrument that works is the one used
+here: merge `main` in, then re-run the receipts on the MERGED tree
+before pushing — which the register already says for a different
+reason (a stale base) and which turns out to buy this as well. The
+whitespace-run hit filed as
+`work/author/fmt-re-minted-a-continued-literal-into-the-assertion-message`
+arrived the same way and is the same shape, one step less severe: it
+was green on both sides because no gate greps for it at all.
+
 ## 2026-09-21 — the plan recorded a wait, a count and a parked PR, all stale
 
 Found by the review of #2965, which was asked to check whether VSEAM's
