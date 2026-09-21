@@ -37,7 +37,7 @@ pub(crate) fn indent(depth: usize) -> f32 {
 /// creation forms' picker puts after that node's number.
 ///
 /// A free function over the `Ui` because that is the only shape a
-/// headless drive can reach ([`crate::pane::headless`]): the caller is
+/// headless drive can reach (`crate::pane::headless`): the caller is
 /// a method on `ViewerBehavior`, which borrows the whole application.
 pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egui::Response {
     let named = match &row.pose {
@@ -144,7 +144,7 @@ impl ViewerBehavior<'_> {
     }
 }
 
-/// **The feature tree's rows, driven** — [`crate::pane::headless`]
+/// **The feature tree's rows, driven** — `crate::pane::headless`
 /// carries the harness and what it can and cannot reach.
 #[cfg(test)]
 mod tests {

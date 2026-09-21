@@ -1295,7 +1295,7 @@ impl ViewerBehavior<'_> {
 }
 
 /// **The creation forms' own widgets, driven** —
-/// [`crate::pane::headless`] carries the harness and what it can and
+/// `crate::pane::headless` carries the harness and what it can and
 /// cannot reach.
 #[cfg(test)]
 mod tests {

@@ -35,6 +35,10 @@ pub mod viewport;
 /// function over the `Ui`, and the method's job is to call it.
 #[cfg(test)]
 pub(crate) mod headless {
+    // Panicking is a test harness's failure mechanism, as it is a
+    // test's (workspace lint note).
+    #![allow(clippy::panic)]
+
     use eframe::egui;
 
     /// Everything one pass of `draw` painted, joined by newlines.
