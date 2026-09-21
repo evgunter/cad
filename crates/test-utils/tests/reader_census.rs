@@ -375,6 +375,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/topo/tests/r1_lane1_bracket_read_census.rs",
+        disposition: Shared, // validate.rs's bracket reads, code view
+    },
+    Entry {
         path: "crates/topo/tests/readback_sense_kind.rs",
         disposition: Shared, // the query seat's body, code view
     },
