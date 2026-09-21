@@ -93,7 +93,9 @@ pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, OpOutcome, SessionOp};
 pub use probe::{BoundsReading, BoundsTarget};
-pub use refuse::{FaceFrameFault, NodeKindWanted, Refusal, admits, face_frame_seat};
+pub use refuse::{
+    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, admits, face_frame_seat,
+};
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
 use author::datum_node;

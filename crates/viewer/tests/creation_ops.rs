@@ -1191,9 +1191,25 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 /// is PICKED the way the viewport picks it (a `FaceSelection` carrying
 /// the name and the node whose body the ray met), the gate is asked
 /// the question the button asks, `AddDatum` mints the frame on it, and
-/// a profile is drawn on that frame and extruded. The volume is the
-/// block plus the boss, so a frame minted at the wrong height, on the
-/// wrong face or on the wrong node is red rather than merely absent.
+/// a profile is drawn on that frame and extruded.
+///
+/// **The boss's own volume discriminates nothing** — a frame on the
+/// bottom cap, on a side, or at the wrong height extrudes the same
+/// cylinder — so what pins the frame is its landed POSE, asserted
+/// whole: origin at the cap's centre, normal along the cap's outward
+/// normal, and sketch +x where a zero spin puts it. A frame read off
+/// the bottom cap has the opposite normal and an origin 10 mm below;
+/// one read off a side has neither; one read through a node the name
+/// does not live in does not resolve at all. The volume stays as the
+/// evidence that a profile drew and extruded on it.
+///
+/// **Not the union of block and boss.** A boss drawn on the face
+/// frame is FLUSH with the block at that face by construction, and
+/// this kernel refuses an undeclared coincident contact
+/// (`ValidationError::UndeclaredContact`); the declaration is a
+/// `Declare` node, which `SessionOp::AddBoolean` has no seat for. The
+/// sum-of-volumes assertion is therefore not authorable through the
+/// op vocabulary this row drives.
 ///
 /// It is still a TWO-FORM trip for a person — add the datum, then draw
 /// on it — which is the residue
@@ -1266,16 +1282,35 @@ fn a_boss_is_authored_on_a_picked_face() {
     );
     let v = body_volume(&mut session, boss, tol);
     let want = core::f64::consts::PI * 0.005 * 0.005 * 0.004;
-    assert!(near(v, want), "the boss on the picked cap: {v} vs {want}");
+    assert!(near(v, want), "the boss drew and extruded: {v} vs {want}");
 
-    // The boss STANDS ON the cap: its base is the block's top, which
-    // is what "the frame was read off that face" means geometrically.
+    // The frame IS the cap, as a pose: this is what "the frame was
+    // read off that face" means geometrically, and it is the assertion
+    // a frame on another face, another node or another height fails.
     let ev = session.evaluation().expect("the document evaluated");
     let placed = viewer::sketch::frame_placement(session.committed_doc(), ev, frame)
         .expect("a drawable frame");
-    assert!(
-        (placed.placement.translation.z - 0.01).abs() <= 1e-12,
-        "the frame sits on the cap at z = 10 mm: {}",
-        placed.placement.translation.z
+    let close = |got: [f64; 3], want: [f64; 3], what: &str| {
+        for (g, w) in got.into_iter().zip(want) {
+            assert!((g - w).abs() <= 1e-12, "{what}: {got:?} vs {want:?}");
+        }
+    };
+    let origin = placed.origin();
+    close(
+        [origin.x, origin.y, origin.z],
+        [0.0, 0.0, 0.01],
+        "the frame's origin is the cap's centre, 10 mm up",
+    );
+    let n = placed.normal();
+    close(
+        [n.x, n.y, n.z],
+        [0.0, 0.0, 1.0],
+        "and its normal is the cap's outward normal, not the base's",
+    );
+    let u = placed.u();
+    close(
+        [u.x, u.y, u.z],
+        [1.0, 0.0, 0.0],
+        "and a zero spin leaves sketch +x on the carrier's u-reference",
     );
 }

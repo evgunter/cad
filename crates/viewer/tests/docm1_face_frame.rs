@@ -403,3 +403,113 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
     );
     assert!(refused.committed.is_empty(), "nothing was inserted");
 }
+
+/// **A placer over a pattern is a body-denoting NODE whose VALUE is
+/// several bodies, and the seat reads the value.** `Node::Transform`
+/// is shape-preserving over its input, so a transform of a pattern
+/// evaluates to `Instances` while every node-kind predicate over it
+/// answers "a body". The frame node's `at` goes through the
+/// evaluator's single-body operand door, which reads the VALUE, so a
+/// seat that asked the node kind would admit this pick and mint a node
+/// that refuses on arrival.
+#[test]
+fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
+    let tol = Tol::witness();
+    let (doc, cube) = boxed(tol);
+    let (doc, pattern) = inserted(
+        &doc,
+        Node::Pattern {
+            input: cube,
+            count: Expr::count(2),
+            kind: pncad::document::PatternKind::Linear {
+                direction: common::scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+        tol,
+    );
+    let (doc, placed) = inserted(
+        &doc,
+        Node::Transform {
+            input: pattern,
+            translation: common::len3([0.0, 0.0, 0.001]),
+            rotation_axis: common::scl3([0.0, 0.0, 1.0]),
+            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("an angle"),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let face = face_where(&session, placed, |kind, _| kind == SurfaceKind::Plane);
+    let picked = FaceSelection {
+        name: face,
+        node: placed,
+        body: 0,
+    };
+    assert_eq!(
+        face_frame_seat(session.landed_pair(), Some(&picked)),
+        Err(FaceFrameFault::NotOneBody { at: placed }),
+        "the transform's value is several bodies"
+    );
+}
+
+/// **A pick whose feature an undo took away is refused for being
+/// GONE, not for being several bodies.** The latch outlives the node:
+/// a face is picked, the extrude that carried it is undone, and the
+/// arm is still showing. "Project the one you mean first" would be
+/// advice about a feature that no longer exists, so the refusal is the
+/// interrogation door's own word for a node this document has no
+/// result for.
+#[test]
+fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
+    let tol = Tol::witness();
+    // Built through the session's own ops, so the undo has a state to
+    // step back to — the gesture this row is about is an author's, not
+    // a document-door edit's.
+    let mut session = DocSession::inline(Doc::empty_derived("docm1-viewer", tol), tol);
+    let plane = common::xy_frame_in(&mut session);
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane,
+            loops: vec![common::shape(&viewer::session::ProfileShape::Rectangle {
+                width: 0.02,
+                height: 0.02,
+            })],
+        },
+    );
+    let cube = insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    session.pump();
+    let picked = FaceSelection {
+        name: cap_of(cube),
+        node: cube,
+        body: 0,
+    };
+    assert!(
+        face_frame_seat(session.landed_pair(), Some(&picked)).is_ok(),
+        "the cap seats while its feature is there"
+    );
+
+    assert!(
+        session.perform(SessionOp::Undo).refusal.is_none(),
+        "the extrude is undone"
+    );
+    session.pump();
+    assert!(
+        session.committed_doc().node(cube).is_none(),
+        "the document no longer holds the node the pick names"
+    );
+    assert_eq!(
+        face_frame_seat(session.landed_pair(), Some(&picked)),
+        Err(FaceFrameFault::Unresolved {
+            error: InterrogateError::NodeNotEvaluated { node: cube },
+        }),
+        "the face is gone, and that is what it is told"
+    );
+}

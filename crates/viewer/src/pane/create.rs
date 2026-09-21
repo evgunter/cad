@@ -341,10 +341,12 @@ impl ViewerBehavior<'_> {
     /// The add-datum form: one kind choice, the kind's fields, one
     /// [`SessionOp::AddDatum`] on commit.
     ///
-    /// Every kind but one is numbers alone. An axis in a sketch also
+    /// Four of the six kinds are numbers alone. The two that are not
+    /// each take a PICK, from different places: an axis in a sketch
     /// names the frame its coordinates are written in, picked from the
     /// document's frames the way the add-profile form picks its plane,
-    /// and the button waits until one is picked.
+    /// and a frame on a face names the face itself, picked in the
+    /// viewport. Either way the button waits until the pick is in.
     pub(crate) fn add_datum_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("datum");
@@ -416,26 +418,30 @@ impl ViewerBehavior<'_> {
             DatumKindChoice::FaceFrame => self.datum_face_frame_rows(ui),
             DatumKindChoice::Point => self.datum_origin_row(ui, "position"),
         }
+        // The face-frame gate, on the kind that has one, asked ONCE:
+        // its `Ok` is the pair the spec is lowered from and its `Err`
+        // is the sentence over the held button, so the button is gated
+        // by the same computation it commits. A second derivation of
+        // the picks would gate on one and commit the other.
+        let seat = (kind == DatumKindChoice::FaceFrame)
+            .then(|| face_frame_seat(self.session.landed_pair(), self.drafts.datum_face.as_ref()));
+        let refused = seat.as_ref().and_then(|seat| seat.as_ref().err());
         // Lowered every frame, so the button's enabling and its commit
-        // read one value: `Ok(None)` is a pick still missing, and it is
-        // what holds the button. The sentence over it follows the KIND
-        // — the two picking kinds want different things from different
-        // places, so one sentence for the form would be false of
-        // whichever is not showing.
-        let datum = self.drafts.datum_spec();
+        // read one value: `Ok(None)` is a seat still unfilled, and it
+        // is what holds the button. The sentence over it follows the
+        // KIND — the two picking kinds want different things from
+        // different places, so one sentence for the form would be
+        // false of whichever is not showing.
+        let datum = self
+            .drafts
+            .datum_spec(seat.as_ref().and_then(|seat| seat.as_ref().ok()));
         let unpicked = matches!(datum, Ok(None));
         if unpicked && let Some(wanted) = kind.unmet_seat() {
             ui.weak(wanted);
         }
-        // The face-frame gate, on the kind that has one: a refusal
-        // holds the button too, so a frame is not minted on a face the
-        // node would refuse at evaluation.
-        let refused = (kind == DatumKindChoice::FaceFrame)
-            .then(|| face_frame_seat(self.session.landed_pair(), self.drafts.datum_face.as_ref()))
-            .and_then(Result::err);
-        // `NoFace` is the unmet seat above, said once: the sentence
-        // over the button already asks for the pick.
-        if let Some(fault) = &refused
+        // `NoFace` is the unmet seat above, in the same words from its
+        // one home: the sentence asking for the pick is drawn once.
+        if let Some(fault) = refused
             && *fault != FaceFrameFault::NoFace
         {
             ui.weak(fault.to_string());
@@ -482,7 +488,11 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             ui.label("face");
             match &self.drafts.datum_face {
-                Some(face) => ui.weak(format!("feature {} body {}", face.node.0, face.body)),
+                // The drawn body a pick is on, in the one sentence
+                // this crate names that scope with
+                // (`Display for BlendTarget`): a target that grew a
+                // third component would name the wrong scope here too.
+                Some(face) => ui.weak(BlendTarget::of_face(face).to_string()),
                 None => ui.weak("none picked"),
             };
         });

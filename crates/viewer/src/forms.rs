@@ -179,10 +179,15 @@ impl DatumKindChoice {
     /// answers `Ok(None)` for**, which is a fact about two functions in
     /// two modules and is therefore asserted rather than asked to be
     /// believed (`drafts::tests::the_unmet_seat_sentence_follows_the_kind`).
+    ///
+    /// **The frame-on-a-face sentence is READ, not written here.** The
+    /// face-frame gate refuses an empty pick with the same sentence
+    /// ([`crate::session::FaceFrameFault::NoFace`]), so the two are one
+    /// string at its one home and cannot drift apart.
     pub(crate) fn unmet_seat(self) -> Option<&'static str> {
         match self {
             Self::AxisInPlane => Some("pick a frame to write the axis in"),
-            Self::FaceFrame => Some("pick a face in the viewport to read the frame off"),
+            Self::FaceFrame => Some(crate::session::NO_FACE_PICKED),
             Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
         }
     }

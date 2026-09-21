@@ -12,8 +12,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Datum, Dimension, DimensionError, Doc, DocumentId, EditError, Evaluation, Node, ParamName,
-    ParseError, ProfileProgram, RecipeNodeId, SlotId,
+    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, Evaluation, Node,
+    ParamName, ParseError, ProfileProgram, RecipeNodeId, SlotId, ValuePayload,
 };
 use pncad::prelude::{StableName, SurfaceKind};
 use pncad::select::{InterrogateError, face_carrier_kind};
@@ -565,6 +565,18 @@ impl core::fmt::Display for Refusal {
 
 impl core::error::Error for Refusal {}
 
+/// **"Nothing is picked yet", for a frame on a face — one string, two
+/// readers.**
+///
+/// [`FaceFrameFault::NoFace`]'s sentence and the unmet-seat sentence
+/// [`crate::forms::DatumKindChoice`] gives that kind are the SAME
+/// sentence: the gate's "no face" and the form's "still waiting for a
+/// pick" are one state said from two sides. Two literals would be two
+/// spellings to keep in step, with the form suppressing one of them
+/// and nothing able to notice they had drifted, so there is one
+/// literal and nothing to keep in step.
+pub const NO_FACE_PICKED: &str = "pick a face in the viewport to read the frame off";
+
 /// **Why a face frame may not be authored on the face the viewport
 /// has picked** — the add-datum form's `frame on face` affordance,
 /// as a value.
@@ -576,10 +588,10 @@ impl core::error::Error for Refusal {}
 ///
 /// **An AFFORDANCE, never the safety.** `Datum::FaceFrame` refuses a
 /// non-planar carrier and a name that stops resolving at its own
-/// evaluation (DM1b), and a multi-body `at` at the evaluator's
-/// single-body operand door. This says the same things one step
-/// earlier, so the author learns before the node lands rather than
-/// from a badge on it.
+/// evaluation (DM1b), and an `at` whose value is not one body at the
+/// evaluator's single-body operand door. This says the same things one
+/// step earlier, so the author learns before the node lands rather
+/// than from a badge on it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FaceFrameFault {
     /// Nothing is picked, or what is picked is not a face. A frame on
@@ -590,20 +602,34 @@ pub enum FaceFrameFault {
     /// is the document not having been answered yet, the other is an
     /// answer that does not hold this name.
     NotLanded,
-    /// The node the face was picked on is not a single body, so it is
-    /// not a node a face frame may be read out of: a split's sides and
-    /// a pattern's instances are several bodies, and the frame node's
-    /// `at` goes through the evaluator's single-body operand door
-    /// ([`crate::combine::denotes_body`], which tracks it). The recipe's
+    /// The node the face was picked on EVALUATED to more than one
+    /// body, so it is not a node a face frame may be read out of: a
+    /// split's sides, a pattern's instances and a placer's map of
+    /// either are several bodies, and the frame node's `at` goes
+    /// through the evaluator's single-body operand door. The recipe's
     /// way of naming one of several is `Node::Part`.
+    ///
+    /// **A question about the VALUE, which is the door's own
+    /// question.** A node-kind predicate answers a different one:
+    /// `Node::Transform` is shape-preserving over its input, so a
+    /// transform of a pattern is body-denoting by kind and several
+    /// bodies by value.
     NotOneBody {
         /// The node whose body the ray met.
         at: RecipeNodeId,
     },
     /// The name does not resolve to one face in this evaluation — a
-    /// stale pick, a tie, a failed node. The interrogation door's own
-    /// refusal, CARRIED rather than flattened to a string here, for
+    /// stale pick, a tie, a failed node, or a node this document no
+    /// longer holds at all. The interrogation door's own refusal,
+    /// CARRIED rather than flattened to a string here, for
     /// [`crate::drafts::CommitFault`]'s reason.
+    ///
+    /// **A pick whose node an undo took away arrives here**, as
+    /// [`InterrogateError::NodeNotEvaluated`] — the door's own word
+    /// for a node id this evaluation has no result for. It is not
+    /// [`Self::NotOneBody`]: "several bodies" is a claim about a value
+    /// that exists, and telling an author to project the one they mean
+    /// would be advice about a feature that is gone.
     Unresolved {
         /// The interrogation door's refusal.
         error: InterrogateError,
@@ -620,7 +646,7 @@ pub enum FaceFrameFault {
 impl core::fmt::Display for FaceFrameFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NoFace => f.write_str("pick a face in the viewport to read the frame off"),
+            Self::NoFace => f.write_str(NO_FACE_PICKED),
             Self::NotLanded => {
                 f.write_str("the document has not evaluated yet, so the picked face cannot be read")
             }
@@ -657,21 +683,40 @@ impl core::error::Error for FaceFrameFault {}
 ///
 /// # Errors
 ///
-/// Every [`FaceFrameFault`]: no face picked, nothing landed, a
-/// multi-body `at`, a name that does not resolve, and a carrier that
+/// Every [`FaceFrameFault`]: no face picked, nothing landed, an `at`
+/// whose VALUE is several bodies, a name that does not resolve (which
+/// includes an `at` this document no longer holds), and a carrier that
 /// is not a plane.
 pub fn face_frame_seat(
     landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
     picked: Option<&FaceSelection>,
 ) -> Result<(RecipeNodeId, StableName), FaceFrameFault> {
     let face = picked.ok_or(FaceFrameFault::NoFace)?;
-    let (doc, ev) = landed.ok_or(FaceFrameFault::NotLanded)?;
+    // The PAIR is what a session hands out; every question below is
+    // of the evaluation, including whether the document still holds
+    // the node — an evaluation has no result for a node its document
+    // does not have, and the interrogation door says so in its own
+    // words.
+    let (_doc, ev) = landed.ok_or(FaceFrameFault::NotLanded)?;
     // `at` is the node whose BODY the ray met, never the feature that
     // minted the face: the name is read out of that body's own table,
     // and a flat shrunk by a later fillet is a smaller face there than
     // the feature that swept it holds.
     let at = face.node;
-    if !doc.node(at).is_some_and(combine::denotes_body) {
+    // The evaluator's operand door is over the VALUE, so this is too.
+    // A node KIND predicate answers a different question: `Transform`
+    // is shape-preserving over its input, so a transform of a pattern
+    // is body-denoting by kind and `Instances` by value, and a seat
+    // gated on the kind would mint a node that refuses on arrival.
+    //
+    // A node with no value AT ALL — the one an undo took away, most of
+    // all — is left to the interrogation below, which names why it has
+    // none. "Several bodies, project the one you mean" would be advice
+    // about a feature that is gone.
+    if ev
+        .value(at)
+        .is_some_and(|value| !is_one_body(&value.payload))
+    {
         return Err(FaceFrameFault::NotOneBody { at });
     }
     // DM1b as a TAG READ, consulting no number: the same comparison
@@ -681,4 +726,24 @@ pub fn face_frame_seat(
         Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
         Err(error) => Err(FaceFrameFault::Unresolved { error }),
     }
+}
+
+/// **Whether an evaluated value IS one body** — the evaluator's
+/// single-body operand door (`eval::wire::body_operand`) asked of a
+/// value the viewer is holding.
+///
+/// The same two shapes that door takes: a `Body` payload, or a
+/// boolean's non-empty result. Everything else — a split's two sides,
+/// a pattern's or a placer's instances, a datum, a profile — is a
+/// value it refuses `WrongOperand`.
+///
+/// **Not [`crate::combine::denotes_body`]**, which answers the
+/// narrower question a body SEAT asks, off the node vocabulary alone,
+/// before any value exists. A seat that has an evaluation in hand can
+/// ask the door's own question instead of a predicate that tracks it.
+fn is_one_body(payload: &ValuePayload<f64>) -> bool {
+    matches!(
+        payload,
+        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. })
+    )
 }

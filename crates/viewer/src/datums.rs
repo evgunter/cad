@@ -464,10 +464,12 @@ const POINT_ARM_PX: f64 = 14.0;
 ///
 /// **Not the add-datum form's `forms::DatumKindChoice`**, which names
 /// what that form OFFERS rather than what a drawing IS, and which owns
-/// the radio row's words and its `ALL`. The two differ by exactly
-/// `AxisInPlane`: the form offers it as its own choice, because
-/// authoring one takes a frame pick, and this tag draws it as the axis
-/// it is. Neither side is required to move when the other does.
+/// the radio row's words and its `ALL`. The two differ by
+/// `AxisInPlane` and by `FaceFrame`, and for one reason twice over:
+/// each is its own choice in the form because authoring it takes a
+/// PICK, and each is drawn here as the thing it evaluates to — the
+/// axis, and the frame. Neither side is required to move when the
+/// other does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DatumKind {
     /// A plane: an outlined, gridded rectangle plus a normal tick.
