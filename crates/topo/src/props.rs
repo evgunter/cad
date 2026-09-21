@@ -1948,6 +1948,16 @@ fn classify_shells_via<T: Decide>(
 /// driver's leaf replay would stop validating the bodies it certifies;
 /// `Sym<T>: CertifiedBounds` whenever `T` is, so the constructor is
 /// there for it.
+///
+/// A scalar that may not certify cannot hold one — the constructor's
+/// `impl` block is bounded on the right, so the value cannot be
+/// written, let alone handed to a walk:
+///
+/// ```compile_fail,E0277
+/// use geom_core::Dual64;
+/// use topo::QuadLane;
+/// let _ = QuadLane::<Dual64>::certified();
+/// ```
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct QuadLane<T: Decide> {
