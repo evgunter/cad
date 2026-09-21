@@ -923,3 +923,104 @@ the larger win and is the thing to put in the next dispatch.
 one commit setting two now-closed rows to `dispatched`. It has no PR
 and cannot merge, and the remote refused the delete from here; left as
 a note rather than forced.
+
+## 2026-09-21 — `vgeom/f32-seam` (#3030): one door for the display narrowing
+
+Four rows closed as one question — *where the `f64` → `f32` conversion
+lives in this crate, and whether it refuses.* 39 checks, twelve
+`test (…)`, five `k-lint (gate, …)`, `gate ok` green, and the render
+lanes including the viewer GUI montage, which is the row that would
+catch a picture that stopped drawing.
+
+**The answer: `crate::narrowing::Narrow`, and it judges the RESULT.**
+One trait, one method, impls for `f64`, for `[T; N]` where `T` narrows
+(a pair, a triple and a column-major 4×4 in one impl) and for
+`Point3<f64>`. Thirteen `as f32` sites under `crates/viewer/src` became
+**one**, in that module; the other survivor is
+`pane/features.rs`'s `usize as f32` indent step, a widening and not
+this seam.
+
+**Why judging the result is the whole point.** `f32::MAX ≈ 3.40e38`, so
+the value that breaks this seam is an ordinary finite `f64` — every
+upstream guard asks the wrong question. Testing the narrowed value
+subsumes the poisoned input as well. **Underflow is deliberately not
+refused**: `0.0` IS the nearest `f32` to `1e-45`, while an infinity is
+the nearest `f32` to nothing at all, and that asymmetry is the whole of
+what the door decides. Argued in the module header and pinned by a row.
+
+**Not two doors, checked rather than asserted.**
+`Camera::view_projection_f32` and `SceneMesh::build` call the door and
+say what a refusal means where they stand; they do not re-decide the
+conversion. The refusal DISPOSITION differs by lane on purpose — a
+scene refuses whole (a part of a solid drawn without the rest is a lie
+about the solid), a frame refuses whole, an overlay leg is simply not
+drawn — and the leg case is forced rather than chosen, because
+`gpu::edge_vertices` reads lanes with `chunks_exact(2)` and calls a
+trailing odd position a producer bug.
+
+**`app::to_f32` is deleted, not left beside the new door.** Its one
+caller moved, and a `pub(crate)` fn with no caller is `dead_code` under
+`-D warnings`, so leaving it was not available. `app.rs` is VSEAM's:
+announced in the PR to VSEAM and CHROME (both live there) and filed as
+`work/vseam/app-rs-lost-its-matrix-narrowing-when-the-seam-got-a-home`,
+after checking no `f64` → `f32` remains anywhere in VSEAM's files.
+
+**The claim with no guard says so at the claim site.** *Every narrowing
+in this crate goes through this module* cannot be held mechanically —
+the property is a cast between two float types and `rg 'as f32'` cannot
+tell a widening from a narrowing. The header states that, and states
+what holds the rule instead (nothing outside the file needs to spell
+the cast). That is the register's rule for an unguardable claim, met.
+
+### Populations, all re-derived and all wrong as filed
+
+| the row said | measured |
+|---|---|
+| three `Point3`→GPU cast sites | **five, in two shapes** — the datum lane's source is `[f64; 3]`, invisible to a `Point3`-shaped sweep; and `triangle_normal` is what the pattern matches and the property does not (a unit direction cannot refuse) |
+| four matrix spellings at four addresses | count right, **three of four addresses wrong** |
+| placement prose 19 lines before, 19 after | **8 and 16**; the row's own quoted sentence was already gone |
+
+### One receipt was wrong and it reached the tree
+
+`cursor-projection-…`'s closing prose read *"`rg -n 'as f32'
+crates/viewer/tests` returns nothing."* It returns **one**:
+`camera_ops.rs`'s `the_narrowed_view_projection_refuses_what_a_gpu_cannot_hold`
+computes `let expected = from as f32` and asserts the door's output
+equals it. **That cast is correct and must be raw** — deriving the
+expectation through `Narrow` would assert the door against itself — so
+the substance holds and only the receipt was false. Corrected in the
+row at merge. It is the register's *a rule stated as a description of
+the output rather than as the command that produces the answer*, landing
+on a unit whose own PR corrected a job-count proxy of the same family
+(the lane counted six `test (…)` rows because it matched the prefix
+`test (` and the property is *a test row*; the interval half is named
+`interval / test (interval, …)`).
+
+### Filed, and one of them is large
+
+- `the-display-seams-refusal-is-drawn-and-never-said` (P2/D) — the new
+  refusals reach no reader; the channel is a badge, VNEWS's ground.
+  **This is the real cost of the unit**: a scene that refuses now
+  vanishes silently where it previously drew nonsense. At these
+  magnitudes the picture was already nowhere, so refusing is the honest
+  half — but the word is owed and is now scheduled rather than assumed.
+- `the-overlay-lanes-drop-the-leg-disposition-has-no-row` (P3/D) —
+  carries a mutation that reds **nothing**, so the disposition is held
+  by no row.
+- `work/vseam/app-rs-lost-its-matrix-narrowing-when-the-seam-got-a-home`
+  (P4/E).
+- `work/vdoc/the-f32-seam-diff-shifted-84-cited-lines-in-seven-programs`
+  (P4/D) — 283 citations examined, 26 already past EOF at base, 113 on
+  a line this diff moved, **84 substantive across 39 rows in seven
+  programs**. Published, **not applied**: the audit by subject is the
+  one real deferral and is filed rather than left in prose. That is the
+  correct half to defer — the register's hazard is a table APPLIED
+  without a subject check, and none was.
+
+### Territory, corrected against what the tool says
+
+The lane ran `territory` rather than trusting the dispatch, and two of
+my statements were wrong: `camera.rs` is claimed by **chrome, fit and
+view** as well, not the two I named; and `crates/viewer/src/narrowing.rs`
+read as *"owned by chrome, view"* because VGEOM's `paths` lists files
+rather than a glob. **Added to `program.md` here.**
