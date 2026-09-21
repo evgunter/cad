@@ -1774,25 +1774,21 @@ fn a_world_axis_planes_ruling_stays_on_the_other_two_world_axes() {
         Vec3::new(0.0, 1.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
     ];
-    for (axis_index, v) in [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        .into_iter()
-        .enumerate()
-    {
+    for v in [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] {
         let (doc, tol) = evaluated(vec![plane([0.0, 0.0, 0.0], v)]);
         let drawn = draws(&doc, tol, [0.05, -0.15, 0.1]);
         for d in directions(&drawn[0].segments) {
-            let along = world
-                .iter()
-                .position(|w| parallel(d, *w))
-                .unwrap_or_else(|| {
-                    panic!("the {v:?} plane ruled along ({}, {}, {})", d.x, d.y, d.z)
-                });
-            if along == axis_index {
-                // The normal tick, which is the one mark that is
-                // allowed to leave the plane.
-                continue;
-            }
-            assert_ne!(along, axis_index);
+            // The plane's own axis is admitted here because the
+            // normal tick runs along it, and it is the one mark
+            // allowed to leave the plane; the ruling is the other
+            // two.
+            assert!(
+                world.iter().any(|w| parallel(d, *w)),
+                "the {v:?} plane ruled along ({}, {}, {})",
+                d.x,
+                d.y,
+                d.z,
+            );
         }
     }
 }
