@@ -34,6 +34,7 @@
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};
+use crate::m10_8_harness::head;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
@@ -96,11 +97,6 @@ fn sym(
             evaluate(doc, None, &CancelToken::new(), &o, Tol::witness());
         failures(&ev)
     })
-}
-
-fn head(s: &str, n: usize) -> String {
-    let cut: String = s.chars().take(n).collect();
-    cut
 }
 
 fn param_doc(name: &str, nominal: f64, half: f64, r: &mut Recorder) {
@@ -534,6 +530,27 @@ enum Base {
     /// Genuinely NON-unit authored axes: `u = (2,0,0)`, `v = (0,2,t)`.
     /// The datum door normalises them; reached, and no false `Zero`.
     NonUnit,
+    /// **SYM-8's reviews (R1, and R2's `tilt-uv`).** BOTH axes tilt out
+    /// of plane: `u = (1,0,t)`, `v = (0,1,t)`. The face normal is
+    /// `(−t, −t, 1)/sqrt(1 + 2t²)`, so `n.z` is an `Inv` of a `sqrt`
+    /// atom as in the tilt-`u` document but over a different `P`, and
+    /// `n.x`, `n.y` carry the parameter too — the shape rule F folds,
+    /// with bigger products above it.
+    TiltUV,
+    /// **SYM-8's review R1.** The tilt-`u` frame with `v` FLIPPED:
+    /// `u = (1,0,t)`, `v = (0,−1,0)`, so the face normal is
+    /// `(t, 0, −1)/sqrt(1 + t²)` and `n.z` is NEGATIVE — a `−1` over a
+    /// `sqrt` atom. Rule F's predicate must DECLINE it (a negative
+    /// coefficient on the only term) and the document must read the
+    /// same at both dials.
+    FlipZ,
+    /// **SYM-8's reviews (R1, and R2's `z-touches-zero`).**
+    /// `u = (1,0,0)`, `v = (0,t,1)`: the face normal is
+    /// `(0,−1,t)/sqrt(1 + t²)`, so `n.z` is a BARE PARAMETER over a
+    /// `sqrt` atom and its enclosure STRADDLES zero at a wide box —
+    /// the case `Interval::copysign` must answer `[−1, 1]` on. Rule F
+    /// must decline it.
+    TiltNZ,
 }
 
 fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
@@ -557,6 +574,18 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         Base::NonUnit => (
             [scl(2.0), scl(0.0), scl(0.0)],
             [scl(0.0), scl(2.0), t.clone()],
+        ),
+        Base::TiltUV => (
+            [scl(1.0), scl(0.0), t.clone()],
+            [scl(0.0), scl(1.0), t.clone()],
+        ),
+        Base::FlipZ => (
+            [scl(1.0), scl(0.0), t.clone()],
+            [scl(0.0), scl(-1.0), scl(0.0)],
+        ),
+        Base::TiltNZ => (
+            [scl(1.0), scl(0.0), scl(0.0)],
+            [scl(0.0), t.clone(), scl(1.0)],
         ),
     };
     r.insert(Node::Datum(Datum::Frame {
@@ -586,6 +615,26 @@ fn stacked(r: &mut Recorder, base: RecipeNodeId, n: usize) -> RecipeNodeId {
         }));
     }
     on
+}
+
+/// One cube extruded from `base`, and the `FaceFrame` on its START
+/// cap — the cap whose normal is the negation of the end cap's, so
+/// `n.z` carries a negative coefficient and rule F declines it
+/// (SYM-8's review R2).
+fn start_cap_frame(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
+    let p = r.insert(Node::Profile(fixture::desc(
+        base,
+        vec![fixture::square(0.0, 0.0, 1.0)],
+    )));
+    let cube = r.insert(Node::Extrude {
+        profile: p,
+        distance: len(1.0),
+    });
+    r.insert(Node::Datum(Datum::FaceFrame {
+        at: cube,
+        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::Start)),
+        spin: ang(0.0),
+    }))
 }
 
 /// A half-turn revolve of an off-axis square about the base frame's
@@ -626,6 +675,12 @@ enum Place {
     Authored,
     Derived(usize),
     Revolved,
+    /// **SYM-8's review R2 (`start-cap`).** One derived frame, on the
+    /// cube's START cap instead of its end: the normal is the negation,
+    /// `n.z = −1/sqrt(P(t))`, which rule F's predicate declines (a
+    /// negative coefficient). The document class the current predicate
+    /// does NOT reach, named rather than left to inference.
+    DerivedStartCap,
 }
 
 fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
@@ -648,6 +703,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
         Place::Authored => b,
         Place::Derived(n) => stacked(&mut r, b, n),
         Place::Revolved => revolved(&mut r, b),
+        Place::DerivedStartCap => start_cap_frame(&mut r, b),
     };
     boss_on(&mut r, on);
     r.doc
@@ -738,11 +794,20 @@ fn sym5_the_reach_on_documents_the_unit_did_not_build() {
     assert!(lost.is_empty(), "rule E lost a certification: {lost:?}");
 }
 
-/// The shipped set, which carries **rule F** — the manifest sign —
-/// for the SYM-8 rows below; [`SymRules::without_rule_f`] is the
-/// differential's other half.
-fn with_rule_f() -> SymRules {
-    SymRules::shipped()
+/// The shipped set — which carries **rule F**, the manifest sign,
+/// today. The SYM-8 rows below read it through this name so that the
+/// day rule F leaves the shipped set they read the dial and not a
+/// wish: [`SymRules::without_rule_f`] is the differential's other
+/// half, and this is `shipped` with the dial asserted ON, so a rule F
+/// dialled off reds here instead of turning every "F-on" column into a
+/// silent copy of the "F-off" one.
+fn shipped_with_rule_f() -> SymRules {
+    let s = SymRules::shipped();
+    assert!(
+        s.manifest_sign,
+        "the rows below read the shipped set as rule F's ON column"
+    );
+    s
 }
 
 /// How many `copysign(`/`abs(`/`sqrt(` atoms a rendered form spells,
@@ -803,7 +868,7 @@ fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
             }
             for (label, rules) in [
                 ("F-off", SymRules::without_rule_f()),
-                ("F-on", with_rule_f()),
+                ("F-on", shipped_with_rule_f()),
             ] {
                 let o = EvalOptions {
                     param_box: Some(Arc::new(box_.clone())),
@@ -886,7 +951,7 @@ fn sym8_phase1_the_tilt_u_ladder() {
                 );
                 for (label, rules) in [
                     ("F-off", SymRules::without_rule_f()),
-                    ("F-on", with_rule_f()),
+                    ("F-on", shipped_with_rule_f()),
                 ] {
                     let t = std::time::Instant::now();
                     let (f, c) = sym(&doc, lift, rules, budget());
@@ -903,6 +968,206 @@ fn sym8_phase1_the_tilt_u_ladder() {
             }
         }
     }
+}
+/// **SYM-8's GATING tilt-`u` row — the acceptance the unit owes.** The
+/// spec asked for the tilt-U parity row green at the widths the twin
+/// certifies at, or the width it stops at pinned BY NAME with the
+/// reason. It stops, so this row pins the stop.
+///
+/// On the tilt-`u` derived document (`u = (1,0,t)`, a cube extruded
+/// from it, a `FaceFrame` on its cap, the boss on that) at
+/// `half = 1e-3` under `Guided`:
+///
+/// - with rule F SHUT the boss refuses `carrier_endpoint_end`, whose
+///   split is 24/0/0/1 — the residual is a `sqrt` over a FROZEN
+///   `Powi ^2` whose kid is 440 terms at degree 27 and `440² >
+///   MAX_TERMS`;
+/// - with rule F ON that square is built, `carrier_endpoint_end` is
+///   33/0/0/0 — every decision a THEOREM — and the document's refusal
+///   MOVES, to a `newell_plane_residual` straddle the tier does not
+///   prove.
+///
+/// Both refusals are asserted by name, so the day either moves this
+/// reds and says which. The remaining wall is
+/// `work/sym/the-tilt-u-newell-residual-is-the-next-wall`; when it is
+/// answered, the second half of this row fails and the width joins the
+/// parity list.
+///
+/// Cost: two evaluations of a small document, well under a second each
+/// in release and about four seconds in the test profile — the split
+/// is read from the shape report, which is what the second of those
+/// pays for.
+#[test]
+fn m10_the_tilt_u_derived_boss_stops_on_the_newell_residual_and_names_it() {
+    use geom_core::sym::report::{start_shape_report, take_shape_report};
+    let doc = r2_document(1.0e-3, Base::TiltU, Place::Derived(1));
+    let mut seen = Vec::new();
+    for (label, rules) in [
+        ("F-off", SymRules::without_rule_f()),
+        ("F-on", shipped_with_rule_f()),
+    ] {
+        start_shape_report();
+        let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+        let shapes = take_shape_report();
+        let split = crate::m10_8_harness::split(&shapes);
+        let row = |p: &str| split.get(p).copied().unwrap_or([0; 4]);
+        println!(
+            "tiltU derived Guided 1e-3 {label}: {counts:?}\n  carrier_endpoint_end {:?} \
+             newell_plane_residual {:?}\n  fails {} {}",
+            row("carrier_endpoint_end"),
+            row("newell_plane_residual"),
+            fails.len(),
+            head(fails.first().map_or("", String::as_str), 200)
+        );
+        seen.push((row("carrier_endpoint_end"), fails));
+    }
+    let (off_split, off_fails) = &seen[0];
+    let (on_split, on_fails) = &seen[1];
+    assert_eq!(
+        *off_split,
+        [24, 0, 0, 1],
+        "with rule F shut the carrier endpoint is one decision short of the theorem"
+    );
+    assert_eq!(
+        off_fails.len(),
+        1,
+        "and the document refuses: {off_fails:?}"
+    );
+    assert!(
+        off_fails[0].contains("carrier_endpoint_end"),
+        "the wall rule F is measured against is the carrier endpoint: {off_fails:?}"
+    );
+    assert_eq!(
+        *on_split,
+        [33, 0, 0, 0],
+        "rule F takes the whole predicate: every decision a theorem"
+    );
+    assert_eq!(
+        on_fails.len(),
+        1,
+        "the document still refuses: {on_fails:?}"
+    );
+    assert!(
+        on_fails[0].contains("newell_plane_residual"),
+        "and the wall it stops at now is the newell residual, by name \
+         (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`): {on_fails:?}"
+    );
+}
+
+/// **The documents the two reviews built and could not run** (R1's
+/// `r1_sym8_three_documents_the_unit_did_not_measure`, R2's `tilt-uv`,
+/// `start-cap` and `z-touches-zero`), adopted here as one ladder
+/// rather than a second file with a copied preamble.
+///
+/// - `TiltUV` — a tilt about `u` AND `v`; `n.z = 1/sqrt(1 + 2t²)`, the
+///   shape rule F folds, on a document whose `n.x` and `n.y` carry the
+///   parameter too.
+/// - `FlipZ` — the same tilt with `v` flipped, so `n.z` is NEGATIVE;
+///   the predicate must decline and the document read the same at both
+///   dials.
+/// - `TiltNZ` — `n.z` a bare parameter over a `sqrt` atom, whose
+///   enclosure straddles zero at the wide box; the predicate must
+///   decline.
+/// - `TiltU` on the START cap — `n.z = −1/sqrt(P(t))`, the
+///   document class the current predicate does not reach.
+///
+/// Written by the reviews, not run by them (neither box could link the
+/// `editor-core` interval binary); run once by this fix pass. It
+/// asserts the one thing that must hold everywhere — rule F never
+/// REFUSES what the dial-off tier certifies — and prints the rest.
+///
+/// **What it showed, 2026-09-21, dev build** (`SymCounts` as
+/// `sym0 / numeric / frozen`, F off → on): rule F moves NOT ONE COUNT
+/// on any of the four, at either lift.
+///
+/// | document | `Pinned` | `Guided` |
+/// | --- | --- | --- |
+/// | tiltUV derived | 576/746/291 both dials, certifies | 525/308/37 both dials, refuses `carrier_endpoint_end` |
+/// | flipZ derived | 754/568/1270 both dials, certifies | 525/308/37 both dials, refuses `carrier_endpoint_end` |
+/// | tiltNZ derived, `half = 1e-3` | 876/446/1269 both, certifies | 956/526/1467 both, certifies |
+/// | tiltNZ derived, `half = 3e-1` | 876/446/1269 both, certifies | 142/56/0 both, four refusals, the first a clause-1 INVALID newell margin |
+/// | tiltU start-cap | 768/554/1270 both dials, certifies | 573/316/398 both dials, refuses `carrier_endpoint_end` |
+///
+/// Three of those are the reviews' own predictions confirmed by
+/// execution: `flipZ`, `tiltNZ` and the START cap carry an `n.z` the
+/// predicate DECLINES (a negative coefficient, or a bare parameter at
+/// an odd power), and `flipZ`'s `Pinned` reading is the tilt-`u`
+/// document's F-OFF reading to the digit — the same document with the
+/// fold declined, which is what "the reach is one-sided" means at the
+/// document scale.
+///
+/// **`tiltUV` is NOT one of them, and that is a finding.** Both reviews
+/// predicted it as the shape rule F folds (`n.z = 1/sqrt(1 + 2t²)`, an
+/// `Inv` of a `sqrt` atom). Measured, rule F moves nothing there at
+/// either lift. Why is NOT measured here — the fold either never fires
+/// on that document's `n.z` form or fires without reaching a decision —
+/// and saying which needs the render this row does not take. Recorded
+/// rather than explained.
+#[test]
+#[ignore = "evidence-only: the reviews' e2e ladder, four documents x two lifts x two dials"]
+fn sym8_the_reviews_documents_the_unit_did_not_measure() {
+    let mut lost: Vec<String> = Vec::new();
+    for (name, base, place, half) in [
+        ("tiltUV derived", Base::TiltUV, Place::Derived(1), 1.0e-3),
+        ("flipZ derived", Base::FlipZ, Place::Derived(1), 1.0e-3),
+        (
+            "tiltNZ derived narrow",
+            Base::TiltNZ,
+            Place::Derived(1),
+            1.0e-3,
+        ),
+        (
+            "tiltNZ derived wide",
+            Base::TiltNZ,
+            Place::Derived(1),
+            3.0e-1,
+        ),
+        (
+            "tiltU start-cap",
+            Base::TiltU,
+            Place::DerivedStartCap,
+            1.0e-3,
+        ),
+    ] {
+        let doc = r2_document(half, base, place);
+        for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+            let p = plain(&doc, lift);
+            println!(
+                "{name} half={half:e} {lift:?} plain: {} {}",
+                p.len(),
+                head(p.first().map_or("", String::as_str), 160)
+            );
+            let mut off_ok = false;
+            for (label, rules) in [
+                ("F-off", SymRules::without_rule_f()),
+                ("F-on ", shipped_with_rule_f()),
+            ] {
+                let t0 = std::time::Instant::now();
+                let (f, c) = sym(&doc, lift, rules, budget());
+                println!(
+                    "{name} half={half:e} {lift:?} {label}: sym0 {} reg {} gated {} num {} \
+                     frozen {} in {:.1}s\n  fails {} {}",
+                    c.symbolic_zero,
+                    c.registered,
+                    c.sign_gated,
+                    c.numeric,
+                    c.frozen,
+                    t0.elapsed().as_secs_f64(),
+                    f.len(),
+                    head(f.first().map_or("", String::as_str), 200)
+                );
+                if label.trim() == "F-off" {
+                    off_ok = f.is_empty();
+                } else if off_ok && !f.is_empty() {
+                    lost.push(format!("{name} half={half:e} {lift:?}: {f:?}"));
+                }
+            }
+        }
+    }
+    assert!(
+        lost.is_empty(),
+        "rule F refused what the dial-off tier certified: {lost:?}"
+    );
 }
 
 // ---------------------------------------------------------------

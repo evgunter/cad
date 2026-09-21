@@ -1,7 +1,10 @@
 //! The [`Interval`] scalar over the in-repo `interval-transcendentals`
-//! crate — Q1's certified instantiation of [`Real`] and [`Decide`] (M0
-//! PR 4, behind the `interval` cargo feature; backend swapped from `inari`
-//! in M5 PR 1).
+//! crate — Q1's certified instantiation of [`Real`] and [`Decide`].
+//! This module compiles in every build; what the `interval` cargo
+//! feature gates is the lane-trait impls in the crates above this one
+//! and the interval test files — not the type, and not a kernel body
+//! bounded by [`Real`]/[`Decide`]/[`Bounds`] alone, which instantiates
+//! at this scalar in a default build.
 //!
 //! An `Interval` is a machine-representable enclosure `[lo, hi]` of the
 //! **true real value** of a computation: every operation returns an
@@ -99,21 +102,22 @@
 //! transcendental implementation D9 already mandates for `f64` — plus f64
 //! arithmetic and `next_up`/`next_down` stepping. There is no
 //! platform-conditional path anywhere in it and no inline assembly: the
-//! same build on the same inputs yields bit-identical endpoints, and the
-//! `interval` feature imposes no instruction-set floor. (The historical
-//! repo-wide `-C target-cpu=x86-64-v3` rustflag was dropped after the
-//! swap — 2026-07-29, Ev's #127 review; `f64::mul_add` in the
+//! same build on the same inputs yields bit-identical endpoints, and
+//! this scalar imposes no instruction-set floor on any build. (The
+//! historical repo-wide `-C target-cpu=x86-64-v3` rustflag was dropped
+//! after the swap — 2026-07-29, Ev's #127 review; `f64::mul_add` in the
 //! backend's witness paths is correctly-rounded with or without
 //! hardware FMA, so results are unchanged.) This crate's
 //! `forbid(unsafe_code)` is untouched, and so is
 //! the backend's.
 //!
-//! **Licensing**: the `interval` feature is MIT OR Apache-2.0 and C-free,
-//! like every other build configuration of this kernel. The LGPL-3.0+
-//! `gmp-mpfr-sys`/`rug` obligation that `inari/gmp` used to impose on
-//! consumers of this feature is gone (issue #4's license fork, closed by
-//! M5 PR 1); inari remains only as the backend crate's *dev*-dependency
-//! differential oracle, which never enters a kernel build.
+//! **Licensing**: this scalar and its backend are MIT OR Apache-2.0 and
+//! C-free, like every other part of the kernel — which is what lets them
+//! sit in every build. The LGPL-3.0+ `gmp-mpfr-sys`/`rug` obligation
+//! that `inari/gmp` used to impose on consumers of the scalar is gone
+//! (issue #4's license fork, closed by M5 PR 1); inari remains only as
+//! the backend crate's *dev*-dependency differential oracle, which never
+//! enters a kernel build.
 //!
 //! # Non-real inputs
 //!

@@ -210,6 +210,7 @@ RUN_FLOOR=(
   plain:sweep:k_report:0
   plain:sweep:mass_props_are_thread_count_invariant:4
   plain:sweep:must_carry_rule:10
+  plain:sweep:r1_lane0_e2e:2
   plain:sweep:review_chamfer_r1_probes:7
   plain:sweep:review_contact_edge_must_carry_r1_probes:5
   plain:sweep:review_contact_edge_must_carry_r2_probes:6
@@ -217,6 +218,7 @@ RUN_FLOOR=(
   plain:sweep:review_fillet_e1_probes:4
   plain:sweep:review_ring_clearance_r1_probes:7
   plain:sweep:shell_census_is_thread_count_invariant:4
+  plain:topo:lane0_r2_probes:4
   plain:topo:probe_census:1
   plain:topo:probe_s5_sectors:1
   plain:topo:review_m3_pr2:9

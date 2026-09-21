@@ -478,6 +478,16 @@ fn sweep(rng: &mut fuzz::Rng) {
     }
 
     // Lane 4: signed zeros, exact dyadics, and targeted edges.
+    //
+    // A third list of this shape lives in
+    // `ring_interval_differential.rs` (`CORNERS`, which adds the
+    // infinities and the overflowing magnitudes its verdict classes
+    // need) and a fourth in `interval-transcendentals`'
+    // `review_fuzz_exact.rs` (`EDGE_MAGNITUDES`, which adds the 2Prod
+    // witness floor). They are not shared: the backend is its own
+    // workspace, and each list is chosen for the property its lane
+    // asserts. Adding a magnitude here is a reason to look at the
+    // other two, not to assume they follow.
     let edges = [
         0.0,
         -0.0,

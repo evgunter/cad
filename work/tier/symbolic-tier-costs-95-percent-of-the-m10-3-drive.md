@@ -741,3 +741,27 @@ it off** — every leaf refused, the per-node rule A/B reduction is the
 cost, and the plain memo saves nothing there. The class the memo helps
 is plain-walk-dominated drives, which is what the slab is and what the
 plate half is.
+
+## The pad's nominal split cannot be taken under the shape report (SYM-8, 2026-09-21)
+
+Disclosed by SYM-8 as a measurement it could not make, and filed here
+rather than left in a PR body. `m10_8_harness::split_at_the_nominal`
+replays a document over `nominal_box` with the shape report installed,
+which renders every blocked residual; on R2's rounded pad that
+exhausted the measuring box's memory (SIGKILL) at BOTH symbolic dials —
+measured with the new rule's dial OFF first, so it is the pad and the
+report, not the rule. The other seven measured documents take it in
+seconds to a minute.
+
+So the pad has no per-predicate table at its nominal on that box, and
+a unit whose acceptance is "every pinned split moved UP or not at all"
+has one document where the split is unavailable and the evidence has to
+be the ceiling and the leaf cost instead. What would fix it is a report
+mode that records the SIZES of a blocked residual without rendering it
+— `DecisionShape::sizes` is already that number, and `form`/`early_form`
+are what cost — or a per-document cap on how many blocked residuals are
+rendered. Neither is scheduled.
+
+Cost class, not correctness: nothing is wrong with the pad or the
+report, and the row exists so the next unit that needs that table finds
+the reason rather than re-discovering it.

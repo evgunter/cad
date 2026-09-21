@@ -2,8 +2,11 @@
 id: curve3-eval-and-deriv-at-one-t-run-two-basis-passes
 kind: issue
 title: Curve3::eval and Curve3::deriv at one t run two span locations and two basis passes, with no order-1 jet door to collapse them into
-status: open
+status: closed
 opened: 2026-09-11
+closed: 2026-09-21
+branch: scalar/curve3-jet
+pr: 2708
 priority: P1
 cost: E
 ---
@@ -102,3 +105,58 @@ What neither pass can match:
 - **Anything outside `crates/*/src`** — `demos/`, `tools/` and
   `benches/` were not swept, and `demos/tour` and `demos/wild` are
   ordinary API consumers where the pair would be just as real.
+
+## Unit CURVE3-JET (2026-09-15)
+
+Dispatched as block SCALAR-B4 slot 0 under `docs/CURVE3-JET-SPEC.md`
+(deleted at merge per the ledger). The survey of 2026-09-15 corrected the
+finding on two points the spec carries: the whole-curve order-2 jet
+`NurbsCurve3::ders` already exists (the order-1 door is its sibling,
+`ders1`), and the `revolve/upgrade.rs` pair now lives in
+`geom-brep/src/dihedral.rs`; it added six `NurbsCurve3<f64>` pair sites in
+the tour and the `pncad` example that feed S393's `path_start_frame`.
+
+## Digest receipt: the D9 pin for "nothing's bits move"
+
+The recipe is `work/scalar/rate-pair-in-geom-core.md` §Digest receipt,
+zero-parameter (the release binary run directly, outdir the literal
+`tour-out`, both streams digested whole). Taken at the merge base
+`88201b83f` (the branch was `origin/main` plus the spec commit, which
+touches no code) before the first code change:
+
+- listing (1766 emitted files, sorted per-file digests):
+  `c678b14381e6c0d9e835e91883a294f8f588507aedf60e8e820a5ec1834b0863`
+- narration (729 lines):
+  `65da9dd7349507058bc4d8dc2b302764009e1c44879b6480dd67731a9e591d50`
+
+The head receipt is on the PR, taken the same way at the head SHA.
+
+## Closed (2026-09-21) — PR 2708
+
+`NurbsCurve3::ders1(t) -> (Point3, Vec3)` (and `NurbsCurve2::ders1`
+through the macro) beside `ders`, and `Curve3::ders1` exhaustive
+(`Line` closed form; `Circle` one `azimuth::frame` through the shared
+`circle_point`; `Ellipse` one basis; `Spiric` sharing `basis` and
+`spiric_radial` once — main's variant arrived after the frozen head;
+`Nurbs` → the payload door). The located-span walk written once
+(`located_walk`), `eval`/`deriv`/`ders1`/`ders` one call each. The
+tuple returned, no `CurveJet1`, no `ders2` (no NURBS consumer of the
+order-2 pair). Fourteen sites, fifteen pairs folded: the six enum-door
+sites (`validate.rs`, `boolean/ops.rs`, `contact_verify.rs`,
+`dihedral.rs`, `blend/battery.rs`, `certify.rs` — the last with each
+arm taking its point through its own door), `skin.rs`'s two pairs,
+the tour's four, the `pncad` example's two, and `param_near`'s
+`Circle` arm. Bit identity: both `span_bit_identity` digests unchanged;
+the `_ext` row at f64/Dual64/Interval including knot-straddling and
+whole-domain intervals; both reviewers' adversarial corpora adopted
+(degree 1 unequal spans, mult-4 knots, weights to 1e-300, out-of-domain,
+NaN); the tour listing digest identical at base and head. Mutants: M1
+reds the differential rows only; M5 (`Circle` tangent negated) 178
+rows; M3 (NURBS enum tangent negated) nothing — structural, stated;
+M6 (two frames) nothing — the meter is the only guard, stated at the
+arm. Timing 8–38 % of the pair saved (reporting). Reviews: dual, both
+APPROVE WITH FIXES, no MAJOR; thirteen items taken, two declined with
+reason. Rows: PIN `rim-wedge-hand-rolls-the-circle-jet-beside-the-curve3-door`
+(a fold moves the rim stations' bits: a PIN re-baseline), LIB
+`pncad-py-exposes-path-start-frame-but-no-curve-value-door`.
+

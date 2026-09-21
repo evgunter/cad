@@ -1003,7 +1003,8 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
             .perform(SessionOp::SetSlot {
                 node: b,
                 slot: SlotId::Translation(pncad::document::Axis3::X),
-                value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0),
+                value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0)
+                    .expect("a finite length is a value"),
             })
             .refusal
             .is_none()
@@ -1082,7 +1083,8 @@ fn the_strand_check_is_not_asked_without_an_answer() {
             .perform(SessionOp::SetSlot {
                 node: target,
                 slot: SlotId::Distance,
-                value: viewer::props::SlotValue::of(Dimension::Length, 0.0),
+                value: viewer::props::SlotValue::of(Dimension::Length, 0.0)
+                    .expect("a finite length is a value"),
             })
             .refusal
             .is_none()

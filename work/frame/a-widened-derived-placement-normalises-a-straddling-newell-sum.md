@@ -41,8 +41,10 @@ site with `sign_within`:
 `Vec3::norm_squared` already squares component-wise through `powi(2)`,
 so the lower bound is an exact `0` and not a spurious negative — this
 is NOT
-`work/sym/interval-self-dot-straddles-before-rule-a`'s mechanism, which
-is about `dot(v, v)` as a product of independent copies. The defect is
+`work/decide/interval-self-dot-straddles-before-rule-a`'s mechanism,
+which is about `dot(v, v)` as a product of independent copies (that row
+is closed: DECIDE-1's census, #3001, found no such product at
+`Interval` on any certification path a measured document takes). The defect is
 one step further on: the DIVISION by a length whose enclosure contains
 zero. The true `normal_sum` has a definite direction at every parameter
 point of the box (the boss's side plane is a planar rectangle for every

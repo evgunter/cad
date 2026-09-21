@@ -2,10 +2,11 @@
 id: tier-3-does-not-check-shell-roles-per-solid
 kind: issue
 title: tier 3 accepts a solid whose shells classify to two Outer boundaries — shell-to-solid grouping is unchecked
-status: open
+status: dispatched
 opened: 2026-09-08
 priority: P0
 cost: D
+parent: ATREST-1
 ---
 
 

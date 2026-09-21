@@ -4,7 +4,7 @@ kind: issue
 title: step-import RimOffWallBoundary's residual is a measurement type carrying a non-measurement sentinel
 status: open
 opened: 2026-09-12
-refs: [step-adopt-let-ok-iso-discards, 2406]
+refs: [2406]
 priority: P3
 cost: E
 ---
@@ -95,3 +95,7 @@ sentinel:
 - after which `RimOffWallBoundary.residual` can be documented — and
   ideally typed — as a finite measured deviation, which is the only
   thing its sentence can honestly render.
+
+## Reference note (DOOR's sweep, 2026-09-21)
+
+`step-adopt-let-ok-iso-discards` was dropped from this row's `refs` because the row closed with **DOOR**, which left the tracker at sweep 19 — `work/door/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 284ca7e9889f:work/door/step-adopt-let-ok-iso-discards.md`.

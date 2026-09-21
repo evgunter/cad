@@ -74,6 +74,8 @@ mod bool4r2_probes;
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
+#[path = "cone_apex_cap_body.rs"]
+mod cone_apex_cap_body;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
@@ -269,3 +271,6 @@ mod rim_of_r1_probes;
 
 #[path = "r2_rim_probes.rs"]
 mod r2_rim_probes;
+
+#[path = "lane0_r2_probes.rs"]
+mod lane0_r2_probes;

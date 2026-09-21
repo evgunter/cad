@@ -81,7 +81,7 @@ the oracle needs it:
 RUSTFLAGS="-C target-cpu=x86-64-v3" cargo test --release --features oracle-inari
 ```
 
-`.github/workflows/ci.yml`'s `oracle-certify` job runs this tier whenever
+`.github/workflows/interval.yml`'s `oracle-certify` job runs this tier whenever
 any of the four `ORACLE_PATHS` changes. Case depth is one env var away —
 the job's `CAD_FUZZ_EFFORT` multiplies every count — and depth is cheap,
 because the job's cost is dominated by building GMP and MPFR from C

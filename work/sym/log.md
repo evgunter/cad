@@ -959,3 +959,43 @@ on #2468 decides, and SYM proceeds on the first shape meanwhile.
 **Where SYM runs now.** The remote box is gone; the program runs on the
 shared local machine (8 cores, load ~30 today, four orchestrators).
 SYM-8's dual first, SYM-10's Phase 1 after; lanes seed one at a time.
+
+## The fork, reconciled (2026-09-21)
+
+The session that wrote this log since 2026-09-19 was the LOCAL copy of
+a forked orchestrator; the cloud copy returned on 2026-09-21 and the
+two reconciled on `[ev]` #2949 — the record is in `work/decide/log.md`
+(SYM-8 and SYM-10 live there after the 09-20 cut). The cloud copy is
+the orchestrator of SYM's remainder going forward; the local copy's one
+unmerged docs commit (`mngr/sym` @ `8dfe5c1fb`, SYM-10's dispatch) is
+folded here rather than merged.
+
+## SYM-11 spec'd and dispatched (2026-09-21): the point channel is not a proof — block SYM-B3 opens
+
+The orchestrator returns to SYM's own slate with DECIDE's remainder
+waiting on Ev (#2970) and on SYM-10. The plan's order puts
+`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` first — the
+one row that is a live crash rather than a refusal or a freeze — and
+its two mechanisms (the far placement's rounding, rule F's sign
+amplification) share one cause: the theorem-vs-numeric `debug_assert!`
+assumes its numeric channel is a certified enclosure, which is true at
+`Interval` and false at `f64`/`Probe`. SYM-6 drew exactly this
+partition for the registered-identity door (`Contradicted` from an
+exact witness, `Disputed` from an inexact one); SYM-11 draws it for the
+theorem channels — declared on the lane scalar, asserted at an exact
+witness, counted and never panicking at an inexact one, the numeric
+answer kept. Spec `docs/SYM-11-SPEC.md`; unit `work/sym/SYM-11.md`;
+branch `sym/11-witness-kind`. **Triaged IN under v7** (an architectural
+decision on the door; H / STRUCTURAL, pre-draw). **Block SYM-B3 opens**
+on `sym/b3-block` with slot 0 = SYM-11, slot 1 = SYM-12 (the
+derived-frame freeze's next shape, H / NUMERIC) and slot 2 = SYM-13
+(the leaf's `frozen` column under the drive memo, D / STRUCTURAL); the
+pre-draw fields for all three are logged there before the draw, the
+specs for slots 1 and 2 are written at their dispatch (recorded as the
+block's one deviation from SYM-B2's "all three specs on main first").
+The draw: byte 178, 178 mod 3 = 1 ⇒ fable at slot 1. SYM-11's
+implementer arm is therefore OPUS. The
+ordinal is claimed on main at the dual's dispatch in SYM's band
+(4700–4799, next 4705; the 2026-09-20 roster line that says SYM keeps
+"5800–5899" collides with ENCL's band and is a roster error to correct
+at that claim).

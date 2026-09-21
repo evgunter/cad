@@ -60,7 +60,6 @@ pub fn repr_bits<T: crate::Real>(x: &T) -> Option<ScalarBits> {
     if let Some(v) = any.downcast_ref::<crate::Probe>() {
         return Some((v.0.to_bits(), 0, 0));
     }
-    #[cfg(feature = "interval")]
     if let Some(v) = any.downcast_ref::<crate::Interval>() {
         let (lo, hi, dec) = v.repr_bits();
         return Some((lo, hi, u64::from(dec)));

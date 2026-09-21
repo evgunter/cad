@@ -2,7 +2,7 @@
 id: trim
 kind: program
 title: TRIM — the NURBS trim frontier
-status: open
+status: active
 opened: 2026-09-03
 area: kernel
 prefix: trim/

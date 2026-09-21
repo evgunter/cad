@@ -479,11 +479,6 @@ impl VectorSlot {
         }
     }
 
-    /// All three of this family's slots, component order (x, y, z).
-    pub fn slots(self) -> [SlotId; 3] {
-        Axis3::ALL.map(|axis| self.slot(axis))
-    }
-
     /// The family as a prose noun — the one spelling a user-facing
     /// rendering uses.
     pub fn label(self) -> &'static str {
@@ -2108,9 +2103,15 @@ pub enum Node<P> {
         /// [`crate::DocEdit::SetMembers`] leaves it as it was.
         declare: Option<RecipeNodeId>,
     },
-    /// A rigid placement of an upstream body (F4: Transform).
+    /// **A rigid placement of an upstream value** (F4: Transform):
+    /// ONE map, applied to every body the input's value carries, in
+    /// that value's own order. Shape-preserving — a body places as a
+    /// body, an `Instances` value places as `Instances` — so what
+    /// this node takes is a placer's operand and not a body seat
+    /// (`eval::wire`'s `placeable_operand`).
     Transform {
-        /// The body placed.
+        /// The value placed: a body, a boolean's non-empty result, or
+        /// an `Instances` value taken whole.
         input: RecipeNodeId,
         /// Translation components, Length ([`SlotId::Translation`]).
         translation: [Expr; 3],
@@ -2119,10 +2120,17 @@ pub enum Node<P> {
         /// Rotation angle ([`SlotId::RotationAngle`]).
         rotation_angle: Expr,
     },
-    /// A pattern of an upstream body with a STRUCTURAL Count-typed
-    /// index expression (spec D3/A8; N1 `Instance(i)` will index it).
+    /// **A pattern of an upstream value** with a STRUCTURAL
+    /// Count-typed index expression (spec D3/A8; N1 `Instance(i)`
+    /// will index it): the input is the MASTER, placed WHOLE at every
+    /// placement. It takes the same operand [`Node::Transform`] does
+    /// (`eval::wire`'s `placeable_operand`), but it is not
+    /// shape-preserving the way a transform is — the value is
+    /// `Instances` whatever the master was: N bodies for a one-body
+    /// master, N·M placement-major for an `Instances` master of M.
     Pattern {
-        /// The body replicated.
+        /// The master replicated: a body, a boolean's non-empty
+        /// result, or an `Instances` value placed whole.
         input: RecipeNodeId,
         /// Instance count — the structural slot ([`SlotId::Count`]).
         count: Expr,
@@ -2154,10 +2162,12 @@ pub enum Node<P> {
     /// Because it moves nothing and renames nothing, an `Instance`
     /// selection is a pass-through of A11's member walk too
     /// ([`crate::mate::member_of`]): a mate read at one, or below
-    /// one, stands on the same member the pattern's copy does. It is
-    /// also the only node a pattern of a pattern can be built
-    /// through, a pattern's own value being many bodies where a
-    /// pattern's input is one.
+    /// one, stands on the same member the pattern's copy does.
+    ///
+    /// A pattern of a pattern does NOT need this projection — a
+    /// placer takes an `Instances` value whole — so a `Part` between
+    /// two patterns is a user saying WHICH copy to replicate, a
+    /// different document from the nest without it.
     Part {
         /// The split or pattern whose value is read.
         of: RecipeNodeId,

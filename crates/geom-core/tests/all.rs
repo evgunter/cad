@@ -85,6 +85,8 @@ mod eps_provenance;
 mod flagged_census;
 #[path = "interval_band.rs"]
 mod interval_band;
+#[path = "interval_type_default_build.rs"]
+mod interval_type_default_build;
 #[path = "k_stats_doors.rs"]
 mod k_stats_doors;
 #[path = "knot_queries_differential.rs"]
@@ -121,6 +123,8 @@ mod review_m5_pr7_svd;
 mod review_m5_pr7b_tensor;
 #[path = "review_margin_probe.rs"]
 mod review_margin_probe;
+#[path = "ring0_review_probes.rs"]
+mod ring0_review_probes;
 #[path = "ring_interval_differential.rs"]
 mod ring_interval_differential;
 #[path = "ring_interval_fuzz.rs"]
@@ -137,6 +141,8 @@ mod spline_hull;
 mod sym_drive_memo;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
+#[path = "sym_rule_f_interval_rows.rs"]
+mod sym_rule_f_interval_rows;
 #[path = "sym_rule_f_rows.rs"]
 mod sym_rule_f_rows;
 #[path = "tolerance_init.rs"]

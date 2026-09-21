@@ -2,11 +2,15 @@
 id: add-parameter-form-authors-canonical-only
 kind: issue
 title: The add-parameter form authors only the canonical unit, though the kernel's written_length/written_angle doors are total
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1776]
 priority: P0
 cost: E
+branch: author/param-notation
+rides_with: parameter-row-field-has-no-text-door
+pr: 2957
+closed: 2026-09-21
 ---
 
 
@@ -42,7 +46,7 @@ picked yet", when Create is refused anyway. The bullet is struck
 rather than re-pointed because there is no surviving subject to point
 at: the defect it described was fixed, not moved. (It was never load-
 bearing for this item, which is about the declared UNIT, not the tick;
-`work/chrome/drag-tick-has-three-homes.md` is where the tick question
+`work/chrome/drag-tick-has-three-homes.md` (CHROME's, and still there) is where the tick question
 lives, and it now records `add_param_ui` as one of the two converted
 sites.)
 
@@ -120,3 +124,38 @@ the canonical unit. Read at `385c01b3`.
 
 `work/issues/doc-param-unit-edit-has-no-door.md` re-pointed to
 `work/edit/…` — EDIT claimed the item; it is open.
+
+## Dispatched 2026-09-21 — riding AUTH-2
+
+`docs/AUTH-2-SPEC.md`, branch `author/param-notation`, as the CREATE
+half of one notation unit; `parameter-row-field-has-no-text-door` is
+the carrier and the EDIT half. Filed as a rides-along rather than
+folded in: this row's own finding — the form mints through
+`props::doc_param` into `DocParam::continuous` where
+`written_length`/`written_angle` are total — is a separate fact with
+its own evidence, and closing the carrier is not closing it.
+
+## Closed 2026-09-21 — PR 2957 merged (`8352822c2`), riding AUTH-2
+
+**The add-parameter form authors the unit.** `props::doc_param` takes
+an `Option<UnitDef>` and mints through `DocParam::written_length` /
+`written_angle` rather than `DocParam::continuous`, so `base_r = 50 mm`
+is a declaration whose `display_unit` is `mm` — asserted through a
+save/load round trip in `doc_io`, because a notation that does not
+survive the wire is not a notation.
+
+**No double scaling**, which was the hazard this row shared with its
+carrier: `WrittenLength::canonical_in` multiplies by nothing, and the
+assertions are written in mm against a 1000× factor so a second
+multiply would read `5e-5` rather than `0.05`.
+
+**A latent collision closed in passing**: `widgets::pick_unit`
+hard-coded its id salt as `"creation_unit"`, so a parameter named
+`add_param` would have collided with the add-parameter form's own
+length picker. `pick_unit` now takes a prefix and the collision is
+impossible. Found because this row's fix routed `param_unit_ui`
+through that function instead of hand-rolling a third copy of it.
+
+Closed as a rides-along with its carrier
+(`parameter-row-field-has-no-text-door`), whose closure section
+carries the notation design's full history.
