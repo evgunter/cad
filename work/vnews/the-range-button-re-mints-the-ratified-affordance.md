@@ -2,11 +2,13 @@
 id: the-range-button-re-mints-the-ratified-affordance
 kind: issue
 title: The slot range button mints a third sentence for the condition Refusal::affordance is the one home of
-status: open
+status: closed
 opened: 2026-09-19
-refs: [a-disabled-control-says-why-in-four-shapes]
+refs: [a-disabled-control-says-why-in-four-shapes, the-hide-toggle-is-drawn-over-a-refusal-the-op-will-give]
 priority: P3
 cost: E
+branch: vnews/properties-controls-read-their-refusals
+closed: 2026-09-20
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at
@@ -101,3 +103,46 @@ reachable, are unwritten.
 VNEWS's: `crates/viewer/src/pane/properties.rs` (double-claimed with
 chrome, vgeom and view). `crates/viewer/src/session/refuse.rs` is read,
 not edited — `Refusal::affordance` already has the shape this needs.
+
+## Closed
+
+Landed on `vnews/properties-controls-read-their-refusals`.
+
+`range_button` reads `probe_affordance(row)`, which answers `None` for
+a literal driver and `Refusal::affordance(params, current)` for a
+driven one — `Refusal::affordance`'s one composition, the same call
+`slot_notes_ui` makes for the same row. The minted literal is gone.
+
+**The second conjunct: the state is UNREACHABLE, and the predicate now
+says so.** `row.value.is_ok()` is dropped; the gate is the driver
+alone, which is exactly `guard_driven`'s condition. The witness the row
+asked for does not exist, and the chain is short:
+
+- `SlotDriver::of` answers `Literal` only for a leaf with no parameter
+  reference — `ExprKind::Literal` or `ExprKind::CountLiteral`.
+- `props::slot_row` evaluates with the branch `SlotId::dimension`
+  picks. A leaf with no parameter reference can only fail that
+  evaluation on the Count/continuous divide
+  (`CountExprInContinuousEval` / `ContinuousExprInCountEval`) — the
+  other `EvalError` arms need a parameter, arithmetic, or a non-finite
+  value that `Expr::literal` refuses at construction (door 1).
+- Every door refuses that divide through one predicate,
+  `Node::slot_dimension_fault`: the edit doors ask it
+  (`edit.rs`'s `check_node_slots` and the per-slot
+  `SlotId::dimension_fault`) and the load door's walk asks the same one
+  (`persist/check.rs`). So no document the panel can be handed holds a
+  literal whose dimension disagrees with its slot's.
+
+`a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension`
+(`crates/viewer/tests/panel_edits.rs`) holds both halves — the rows a
+literal document produces, and the door that refuses the expression
+which would break them. Verified red by disabling
+`SlotId::dimension_fault` at the `SetParam` door: a `CountLiteral`
+then lands in a `Length` slot, which is the witness, and it exists only
+with the door removed.
+
+`a_driven_slots_range_button_carries_the_refusals_own_sentence` and two
+siblings (`crates/viewer/src/pane/properties.rs`'s test module) hold
+the button's words against `Refusal::DrivenByExpression`'s own
+rendering. Verified red by re-minting the old literal in
+`probe_affordance`, and by refusing the literal arm.

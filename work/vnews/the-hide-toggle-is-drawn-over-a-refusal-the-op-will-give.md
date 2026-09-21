@@ -2,10 +2,13 @@
 id: the-hide-toggle-is-drawn-over-a-refusal-the-op-will-give
 kind: issue
 title: the instance panel draws the hide toggle for a fused instance, and SetInstanceHidden refuses it on click
-status: open
+status: closed
 opened: 2026-09-20
+refs: [a-disabled-control-says-why-in-four-shapes, the-range-button-re-mints-the-ratified-affordance, the-unit-picker-is-offered-on-a-slot-whose-notation-is-not-the-users]
 priority: P1
 cost: E
+branch: vnews/properties-controls-read-their-refusals
+closed: 2026-09-20
 ---
 
 
@@ -63,3 +66,47 @@ sizing it — a cross-instance boolean has to be authored first.
 
 VNEWS's: `crates/viewer/src/pane/properties.rs`, double-claimed with
 VGEOM and written on both sides, so a change there announces.
+
+## Closed
+
+Landed on `vnews/properties-controls-read-their-refusals`, in the
+second shape this row proposed.
+
+`instance_ui` still gates the SECTION on `display::instance_check` —
+the kind test, and the silence for its two arms is argued where the
+fault is defined and is unchanged. The hide toggle inside it is now
+`ui.add_enabled(display_check(..).is_ok(), Checkbox::new(..))`, the
+full admission test `DisplayState::set_hidden` itself runs, and the
+fault's own sentence is drawn under the control it governs. When the
+toggle is refused the section ends there: `free_move_check` runs
+`display_check` first, so the probe below would answer the SAME fault,
+and the sentence that used to sit under the probe's heading — the row's
+actual complaint — is not said a second time.
+
+**This is the first real member of the census's own blind spot.**
+`a-disabled-control-says-why-in-four-shapes` parked *"a control drawn
+as usable that refuses on click"* as a shape no pass in it could see,
+with `pane/create.rs`'s unreachable-in-practice Add-profile arm as its
+only named instance. A fused instance's hide toggle is reachable, is
+drawn enabled, and is refused on the click.
+
+`a_fused_instances_section_is_drawn_and_its_display_controls_are_refused`
+(`crates/viewer/tests/assembly_display.rs`) holds the two tests apart —
+`instance_check` admits the fused instance, `display_check` refuses it
+— and holds the pre-click sentence against the post-click refusal's
+rendering. Verified red twice: by re-wording `Refusal::Display`'s arm
+(the two sentences stop being one), and by making `drawn_targets` stop
+refusing a fused root (the gap closes and the row has no subject). The
+fixture it shares with `fused_geometry_refuses_both_display_ops_typed`
+is extracted as `fused_pair`, so the two rows cannot come to disagree
+about what fused is.
+
+**What the change does NOT buy.** No test holds the PANEL to reading
+`display_check`: `ViewerBehavior` is `pub(crate)` with ~20 borrowed
+fields and nothing in this crate can construct one, so a revert of
+`instance_ui` alone goes unnoticed by the suite. What the new row pins
+is the model fact the panel reads and the identity of the two
+sentences.
+
+A sibling found by the same sweep, in the same file, is filed as
+`the-unit-picker-is-offered-on-a-slot-whose-notation-is-not-the-users`.
