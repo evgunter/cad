@@ -2,7 +2,7 @@
 id: iso
 kind: program
 title: ISO — the trimmed and rational lane: iso derivation, composite rounds, and the loft seam's exact compare
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: iso/

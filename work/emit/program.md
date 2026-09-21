@@ -2,7 +2,7 @@
 id: emit
 kind: program
 title: EMIT — the name table a verb emits, and the names that vanish from it
-status: open
+status: ready
 opened: 2026-09-20
 area: api
 prefix: emit/
