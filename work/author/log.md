@@ -466,3 +466,88 @@ announced on META's log. Neither
 VDOC's `sweep-blind-spots-the-precheck-sweep-could-not-see` covers it
 — the first is a pattern that misses its OWN instance, the second
 preserves one sweep's gaps as a record rather than changing the rule.
+
+## 2026-09-21 — AUTH-2's correctness lane: NOT-MERGEABLE, two MAJORs
+
+Both settled by RUNNING, in a production-faithful egui harness the
+reviewer built — real `DocSession`, real `egui::Context`, ops
+performed per frame as `app` does. Fix pass dispatched.
+
+**M1: the new guard is DEAD CODE on the parameter row.** The
+`Selection::Param` arm still calls `widgets::drag_ops`, whose typed arm
+pushes `SessionOp::SetParam` unconditionally and BEFORE the new
+dispatch runs. egui marks `changed()` on an exact `f64` comparison, so
+it fires on the echo case and on every real edit alike. Measured: a
+click-in/click-away on a parameter rendering `40` but holding
+40.000019 mm still commits and still costs an undo step — **the exact
+defect this unit was dispatched to fix** — and typing `1002` over
+`1000` costs three history states, one frame emitting two identical
+`SetParam`s. C5 is true of `typed_edit` as a pure function and false
+of the panel, which is the gap between a unit-tested helper and a
+wired one.
+
+**M2: the widened guard discards real slot edits.** The band is
+relative to the value and unbounded in absolute terms — ±0.5 mm on a
+1 m slot, ±50 mm on a 100 m one — and on the SLOT row `typed_edit` is
+the sole emitter, so a field reading `1000` typed as `1000.4` commits
+nothing at all. The guard it replaced committed it. A behaviour
+regression on a pre-existing door, taken to fix a different one.
+
+**I asked whether widening was the right direction and the answer is
+no**, with the alternative in hand: the echo is identifiable AS TEXT.
+`number_field` renders through `widgets::number_text` and the
+`custom_parser` receives that exact `&str`, so `text != last_rendered`
+separates an echo from a re-type **exactly**, needs no tolerance, and
+is still one rule in one home. The PR's *"the chrome cannot tell an
+echoed text from a re-typed one"* was never forced — it was a
+consequence of comparing numbers instead of the thing the field
+actually produced. The fix pass is told to re-shape the guard to text
+and, if that fails, to stop and report rather than fall back.
+
+**This is the adjudication the posture exists for.** Q1's pull toward
+one home is right and duplication is this project's standing defect —
+but "one home" is not a reason to make an exact test lossy, and the
+lane took the trade in good faith and disclosed it honestly. Deciding
+against it is the orchestrator's call, not the lane's, and it needed a
+reviewer who would RUN the band to make the cost visible.
+
+**Both units this sitting closed a duplication and minted one.**
+AUTH-1 added a hardcoded per-kind sentence twelve lines from the one
+it replaced; AUTH-2's `param_unit_ui` is a third hand-rolled copy of
+`widgets::pick_unit` — same options call, same early return, same salt
+shape, same `.width(72.0)` — in a file importing `widgets` in its own
+diff. That is a PATTERN in this program now, and the next spec carries
+the trap in its own text rather than leaving it to the reviewer.
+
+**The sweep blind spot again, third instance in two units.** AUTH-2's
+declared gap — *"a unit vocabulary reached through a `match` on
+`Dimension`"* — holds six ladders, three of them added by that unit.
+Filed as `work/chrome/dimension-to-unit-ladders-have-six-homes-in-the-viewer.md`
+(P1). Evidence appended to the `[ev]` question's item.
+
+## 2026-09-21 — the [ev] PR was rebuilt; my mistake
+
+PR 2974 carried **22 files and 1560 lines** of this session's tracker
+state behind a one-paragraph design question, because I branched it
+off the orchestrator branch rather than off `main`. `work/README.md`
+gives a design conversation its own PR precisely so the question is
+not buried, and the concrete cost is worse than reading: a "no" would
+have stranded the tracker state behind a declined question.
+
+Closed 2974, opened **PR 2975** off `main` with the one file. The
+item lands with ordinary tracker state and does not wait on the
+answer — the item existing records a finding; it does not ratify a
+rule. Subscription moved.
+
+**Main moved a long way underneath this session** and the merge
+brought in two things that bind what I write: a program `status`
+vocabulary (`ready` / `active` / `blocked` — AUTHOR reads `active`,
+correctly, an orchestrator is on it) and Ev's 2026-09-21 rule that
+**no status scaffolding goes in the diff** — "proposed", "pending
+sign-off", "awaits ratification" only have to be taken out again
+before merging; the `[ev]` title, the PR body and `needs_ev:` carry
+that status. The META item's "The proposed amendment (for Ev)"
+heading was exactly that shape and is now "The amendment, and the
+argument either way". Worth noting the rule reached me through a merge
+rather than a message, which is the case `work/README.md` says the
+board exists to prevent.
