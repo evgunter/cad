@@ -147,11 +147,22 @@ fn roster() -> String {
 
 /// The committed digest for each ε row the matrix gates.
 ///
-/// Cut on the MERGE BASE — never on this branch — at the three ε the
-/// CI matrix runs, and then run here. That order is the whole
+/// Cut on the MERGE BASE, not on the branch under test, at the three ε
+/// the CI matrix runs, and then run here. That order is the whole
 /// instrument: a row cut on the branch would record what the branch
 /// does, which is the thing under test. An ε with no entry here prints
 /// its block and fails, which is how a new row gets cut.
+///
+/// **When a lane may re-cut here instead, and what licenses it.** The
+/// merge-base rule exists to stop a branch recording its own
+/// regression as the baseline — not to make a pinned number a
+/// contract. A branch re-cuts on itself exactly when its own change is
+/// what moved the table AND the new reading is the right answer, with
+/// the cause named at the cut: `work/scalar/H5.md` ruling 2 (a
+/// certified bound that gets tighter re-baselines like any other move)
+/// and `memories/output-stability-as-justification.md`. Anything else
+/// — a move the branch cannot explain, or one in the wrong direction —
+/// is a finding, and the table stays where it is.
 ///
 /// **Re-cut at all three ε when the C9 ring became a newtype over
 /// `interval-transcendentals`' `DInterval`.** That is the other repair

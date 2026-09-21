@@ -158,6 +158,21 @@ impl RingInterval {
     /// reading a stronger decoration out of it would be a claim the
     /// scalar never made.
     ///
+    /// **Why `Def` rather than the crossing scalar's own decoration**,
+    /// which for the interval scalar would often be `Com` or `Dac`:
+    /// the parameter is `T: CertifiedEnclosure`, and most of its
+    /// implementors — `f64`, `Probe`, `Sym` — have no decoration to
+    /// carry. Two of the three answers this door can give would then
+    /// depend on which scalar the value crossed from rather than on
+    /// what was proved about it, and a ring bound built from an `f64`
+    /// would be weaker than the identical bound built from an
+    /// `Interval`. `Def` is the strongest claim every implementor
+    /// actually makes, so it is the one the crossing carries. The cap
+    /// is invisible today — nothing downstream reads a ring
+    /// decoration but [`Self::is_poison`] — and stops being a cap at
+    /// all in RING-3, where the ring dissolves into the interval
+    /// scalar and there is no crossing left to make.
+    ///
     /// `Bounds::lo`/`Bounds::hi` into [`Self::from_bounds`] is the
     /// *driver's* spelling and stays available: reading a bracket is not
     /// certifying it, and that spelling mints a fresh `Com`/`Dac` with

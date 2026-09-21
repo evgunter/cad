@@ -51,6 +51,20 @@ use geom_core::{Point3, RingInterval, Vec3};
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
 const RADIUS: f64 = 2.5;
 
+/// The plane limb's sampler slack, in ulps of `RADIUS` — the unit the
+/// escape comes in, since `(p − c)·n` rounds three products and two
+/// sums at the scale of `|dᵢnᵢ| ≤ r`. Two is the first multiple above
+/// the one measured escape (`3.91e-16`, arc 1); the reasoning and the
+/// sphere limb's zero are at the comparison.
+///
+/// **The tree's other sampler allowances are not this constant and do
+/// not share a home**: `mesh::nurbs_cert`'s `SAMPLER_ULPS` is a
+/// relative allowance inside production code, and
+/// `review_m5_pr2_e2e.rs`'s is a third spelling. The crate all three
+/// can reach is `geom-core`, which is outside RING-2's fence —
+/// `work/props/the-samplers-own-error-has-three-spellings-and-no-home`.
+const SAMPLER_PLANE_SLACK_ULPS: f64 = 2.0;
+
 fn axis() -> Vec3<f64> {
     Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)
 }
@@ -178,29 +192,40 @@ fn c2_2_rehearsal_circle_residual_hull_bound_is_sound_and_tight() {
         worst_plane = worst_plane.max(b.plane);
         // Soundness by falsification: dense sampling inside the arc.
         //
-        // **The sampler's own error is outside the bound, and has to
-        // be added back.** `b.sphere`/`b.plane` enclose the residual
-        // of the REAL curve; `residuals_at(curve.eval(t))` is an `f64`
-        // rational evaluation followed by two `f64` dot products, and
-        // its rounding is not a value the certificate ever claimed to
+        // **The sampler's own error is outside the bound**, and the
+        // question is how much of it has to be added back.
+        // `b.sphere`/`b.plane` enclose the residual of the REAL curve;
+        // `residuals_at(curve.eval(t))` is an `f64` rational
+        // evaluation followed by two `f64` dot products, and its
+        // rounding is not a value the certificate ever claimed to
         // cover. While the arithmetic padded one representable step
         // per operation the bound absorbed that rounding by accident;
-        // it does not now, and the residual here is exactly zero in
-        // ℝ, so the bound collapses to fp representation error alone.
-        // The two slacks below bound the SAMPLER, at the same
-        // 64-ulp scale this file's ceilings use, and neither widens
-        // the certificate: the tightness assertions below read
-        // `b.sphere`/`b.plane` unwidened.
+        // it does not now, and the residual here is exactly zero in ℝ,
+        // so the bound collapses to fp representation error alone.
+        //
+        // **Measured rather than scaled**, over all four arcs at 513
+        // samples each: the SPHERE limb never escapes at all — the
+        // tightest arc leaves `8.9e-15` between its worst sample and
+        // its bound — so it is compared unwidened, and a sampler
+        // rounding that grew to the bound's size would red. The PLANE
+        // limb escapes on exactly one arc, by `3.91e-16`. That escape
+        // is the rounding of `(p − c)·n` itself: three products and
+        // two sums, each rounding at the scale of `|dᵢnᵢ| ≤ r`, so one
+        // ulp of `r` is the unit it comes in and `2 ε r` is the first
+        // multiple of that unit above it — `1.11e-15`, which is `1.2×`
+        // the bound it tolerates rather than the `38×` a house-scale
+        // 64 would have been. Neither number widens the certificate:
+        // the tightness assertions below read `b.sphere`/`b.plane`
+        // unwidened.
         let (t0, t1) = (f64::from(arc as u32) / 4.0, f64::from(arc as u32 + 1) / 4.0);
-        let slack_sphere = 64.0 * RADIUS * RADIUS * f64::EPSILON;
-        let slack_plane = 64.0 * RADIUS * f64::EPSILON;
+        let slack_plane = SAMPLER_PLANE_SLACK_ULPS * RADIUS * f64::EPSILON;
         for k in 0..=512 {
             let t = t0 + (t1 - t0) * (f64::from(k) / 512.0);
             let (s, pl) = residuals_at(curve.eval(t));
             assert!(
-                s.abs() <= b.sphere + slack_sphere,
-                "arc {arc}: sampled sphere residual {s:e} exceeds bound {:e} widened \
-                 by the sampler's own error {slack_sphere:e}",
+                s.abs() <= b.sphere,
+                "arc {arc}: sampled sphere residual {s:e} exceeds the bound {:e} — \
+                 which it has never needed widening to clear",
                 b.sphere
             );
             assert!(

@@ -678,6 +678,70 @@ fn assert_the_corner_corpus_agrees<O: Oracle>() {
     );
 }
 
+/// **The one place the newtype is LOOSER than the ring it replaced**,
+/// pinned so the sentence is executable.
+///
+/// Every corpus in the tree moves tighter or not at all, and that is
+/// what the PR's "zero looser" counts. It is a claim about the
+/// corpora, not about the arithmetic: at the subnormal floor and at
+/// the overflow ceiling the backend gives width back, because the
+/// retired ring carried two rules the backend does not — a sign clamp
+/// that pulled a same-signed product's far end to exactly `0`, and a
+/// symmetric one-step pad that could not straddle the subnormal
+/// boundary. Four corners, each one step:
+///
+/// * `[MIN_POSITIVE]² ` — the retired ring answered `[0, 5e-324]`, the
+///   newtype `[-5e-324, 5e-324]`: one subnormal step at the LOW end,
+///   the clamp's. `sqr` and `powi(4)` give the step back at the HIGH
+///   end instead (`[0, 1e-323]` against `[0, 5e-324]`), which is the
+///   backend's two-step pad below the 2Prod floor.
+/// * `[MIN_POSITIVE, 1e-160].powi(-1)` — `4.494232837155792e307`
+///   against the retired `…791e307`: one ordinary ulp at the top of
+///   the range.
+///
+/// Neither direction is a soundness question — a wider enclosure still
+/// encloses — and neither reaches a corpus: the consumer that noticed
+/// the clamp at all is
+/// `review_m5_pr2_scratch::review_scratch_ring_lanes`'s
+/// `lane_boundary_pool`, which asserts containment against exact
+/// arithmetic instead of the clamp's own rule. The retired ring's side
+/// of each number is measured against a verbatim port of it in
+/// `ring2_r2_probes::the_sign_clamps_one_subnormal_step_is_the_only_direction_the_newtype_gives_back`;
+/// what is pinned here is the newtype's own answer, which is what a
+/// future change to the backend would move.
+#[test]
+fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
+    let t = f64::MIN_POSITIVE;
+    let tiny = RingInterval::from_bounds(t, t);
+
+    let product = tiny * tiny;
+    assert!(!product.is_poison(), "{product:?}");
+    assert_eq!(
+        (product.lo(), product.hi()),
+        (-5e-324, 5e-324),
+        "the sign clamp is gone: the low end is one subnormal step below the retired \
+         ring's exact 0"
+    );
+
+    for (what, got) in [("sqr", tiny.sqr()), ("powi(4)", tiny.powi(4))] {
+        assert!(!got.is_poison(), "{what}: {got:?}");
+        assert_eq!(
+            (got.lo(), got.hi()),
+            (0.0, 1e-323),
+            "{what}: the retired ring answered [0, 5e-324] — one subnormal step \
+             tighter at the top"
+        );
+    }
+
+    let recip = RingInterval::from_bounds(t, 1e-160).powi(-1);
+    assert!(!recip.is_poison(), "{recip:?}");
+    assert_eq!(
+        (recip.lo(), recip.hi()),
+        (9.999_999_999_999_999e159, 4.494_232_837_155_792e307),
+        "the retired ring's top end was 4.494232837155791e307 — one ulp tighter"
+    );
+}
+
 #[test]
 fn verdicts_and_endpoints_agree_over_the_corner_corpus() {
     assert_the_corner_corpus_agrees::<DInterval>();

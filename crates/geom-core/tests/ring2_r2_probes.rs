@@ -438,4 +438,37 @@ fn the_sign_clamps_one_subnormal_step_is_the_only_direction_the_newtype_gives_ba
     let p = ri(1e-160, 1e-160).powi(-2);
     let q = Old::from_bounds(1e-160, 1e-160).powi(-2);
     println!("powi(-2) at 1e-160: newtype {p:?} retired {q:?}");
+
+    // The four corners the differential pins the newtype's side of
+    // (`ring_interval_differential::the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back`),
+    // measured HERE against the retired ring itself, which is the
+    // only place in the tree that still has one.
+    let sq = ri(t, t).sqr();
+    let osq = Old::from_bounds(t, t).sqr();
+    println!("sqr: newtype {sq:?} retired {osq:?}");
+    assert_eq!((osq.lo, osq.hi), (0.0, 5e-324));
+    assert_eq!(
+        (sq.lo(), sq.hi()),
+        (0.0, 1e-323),
+        "one subnormal step wider at the top"
+    );
+
+    let p4 = ri(t, t).powi(4);
+    let op4 = Old::from_bounds(t, t).powi(4);
+    assert_eq!((op4.lo, op4.hi), (0.0, 5e-324));
+    assert_eq!(
+        (p4.lo(), p4.hi()),
+        (0.0, 1e-323),
+        "the same step, through powi(4)"
+    );
+
+    let recip = ri(t, 1e-160).powi(-1);
+    let orecip = Old::from_bounds(t, 1e-160).powi(-1);
+    println!("powi(-1) at [MIN_POSITIVE, 1e-160]: newtype {recip:?} retired {orecip:?}");
+    assert_eq!(recip.lo(), orecip.lo, "the low end is shared");
+    assert_eq!(
+        (orecip.hi, recip.hi()),
+        (4.494_232_837_155_791e307, 4.494_232_837_155_792e307),
+        "one top-of-range ulp, the only non-subnormal direction the newtype gives back"
+    );
 }
