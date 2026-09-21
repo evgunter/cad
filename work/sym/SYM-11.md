@@ -8,6 +8,7 @@ priority: P0
 cost: H
 branch: sym/11-witness-kind
 refs: [sym-f64-far-placement-trips-the-theorem-vs-numeric-assert]
+pr: 3028
 ---
 
 ## What
