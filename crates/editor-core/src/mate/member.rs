@@ -730,7 +730,7 @@ fn axis_datum<P>(
                 pattern,
                 NodeErrorKind::WrongOperand {
                     input: axis,
-                    expected: "datum axis",
+                    expected: crate::eval::phrase::DATUM_AXIS,
                     found,
                 },
             ))),

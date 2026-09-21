@@ -915,8 +915,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
     let extent = extent_of(&carrier, t0, t1);
     let mid = mid_param(t0, t1);
-    let p = carrier.eval(mid);
-    let tau = carrier.deriv(mid);
+    let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
     // Predicate 5 first at the link level: the arm's side depends on
