@@ -2,7 +2,8 @@
 id: the-shape-door-could-take-the-sense-free-rim-side-residue
 kind: issue
 title: props: require_iso_rectangle admits a face whose rims encode different material sides; the sense-free residue unanimous_rim_side already decides it in the gate arm
-status: review
+status: closed
+closed: 2026-09-21
 opened: 2026-09-16
 priority: P0
 cost: D

@@ -5,20 +5,28 @@
 //! [`crate::session::DocSession`] because the wording it draws is the
 //! session's own answer.
 //!
-//! Every other function here draws one row or one field from values
-//! the caller already holds, and returns what the user did with it.
 //! None of the others reads the application or the session: the pane
 //! modules own that, and hand these numbers, units and labels.
 //!
-//! [`drag_ops`] is the exception worth naming — it is the one mapping
-//! from a `DragValue` to session operations, and the whole reason a
-//! dragged number in this crate emits one committed edit rather than
-//! one per frame.
+//! **Most of what is here draws one row or one field** from values the
+//! caller already holds, and returns what the user did with it. The
+//! rule that produces the exceptions is *a function that takes no
+//! `ui: &mut egui::Ui`*, and there are eight: [`number_text`] and
+//! [`number_field`], which render and build rather than draw;
+//! [`install_number_formatter`], which writes a style; [`new_row_step`],
+//! which mints a value; [`value_gesture`] and [`free_move_gesture`],
+//! which mint a gesture's operations from its name; and [`drag_ops`]
+//! with [`drag_gesture_ops`], which read a `Response`.
+//!
+//! [`drag_ops`] is the one worth naming — it is the one mapping from a
+//! `DragValue` to session operations, and the whole reason a dragged
+//! number in this crate emits one committed edit rather than one per
+//! frame.
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Dimension, RecipeNodeId};
+use pncad::document::{Dimension, Frame, RecipeNodeId};
 use pncad::geom_core::Point2;
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, SpecForms, Step, Target, TargetKind, TipState, Verb,
@@ -32,7 +40,7 @@ use crate::forms::{
 };
 use crate::props;
 use crate::readout;
-use crate::session::{DocSession, SessionOp};
+use crate::session::{DocSession, FreeMoveName, GestureName, SessionOp, ValueGestureName};
 use crate::sketch;
 
 /// **The text a numeric field shows**, and the one rule every field in
@@ -145,6 +153,14 @@ pub(crate) fn install_number_formatter(ctx: &egui::Context) {
 /// lands what the user abandoned and abandons what they landed, with
 /// nothing between the mistake and the user to catch it.
 ///
+/// **The four name ONE gesture, and the fields are private so that
+/// they cannot name four.** The only way to build one outside this
+/// module is [`value_gesture`] or [`free_move_gesture`], each of which
+/// takes the gesture's name once and mints all four operations from
+/// it ([`GestureName`]); a panel that spelled the target per operation
+/// could preview into one field and commit another, which is a
+/// convention away from a real edit landing on the wrong slot.
+///
 /// **The value [`Self::preview`] carries is the GESTURE's, not a
 /// widget's.** A slot and a parameter each drag one number, so for
 /// those two the distinction is invisible; the free-move probe drags a
@@ -154,15 +170,90 @@ pub(crate) fn install_number_formatter(ctx: &egui::Context) {
 /// [`drag_ops`] and [`drag_gesture_ops`] where the value is applied.
 pub(crate) struct GestureVocabulary<Preview> {
     /// Open the gesture: emitted on the press.
-    pub(crate) begin: SessionOp,
+    begin: SessionOp,
     /// Move it: emitted on every frame the value changes under the
     /// pointer, carrying that value. Nothing it emits is committed.
-    pub(crate) preview: Preview,
+    preview: Preview,
     /// Land it: emitted when a pointer release ends the drag.
-    pub(crate) commit: SessionOp,
+    commit: SessionOp,
     /// Abandon it: emitted when Escape ends the drag instead
     /// ([`drag_gesture_ops`]).
-    pub(crate) cancel: SessionOp,
+    cancel: SessionOp,
+}
+
+/// **The four operations of a VALUE drag**, minted from the one slot
+/// or parameter they all name.
+///
+/// The caller spells the target once and writes no operation at all,
+/// so the begin, the preview and the commit cannot come to name
+/// different fields and the cancel cannot be the other drag's.
+pub(crate) fn value_gesture(
+    name: ValueGestureName,
+) -> GestureVocabulary<impl Fn(f64) -> SessionOp> {
+    let gesture = GestureName::Value(name.clone());
+    GestureVocabulary {
+        begin: gesture.begin(),
+        commit: gesture.commit(),
+        cancel: gesture.cancel(),
+        preview: move |value| name.preview(value),
+    }
+}
+
+/// **Both halves of what one probe row hands [`drag_ops`]**: the four
+/// operations a drag emits and the one-shot triple a TYPED value
+/// spells.
+///
+/// A struct rather than a tuple because the two are passed as separate
+/// arguments and are the same shape at the call, so a transposition
+/// hands the drag arm to the typed parameter with nothing between the
+/// mistake and the user — the argument [`GestureVocabulary`] makes
+/// about its own four members.
+///
+/// **Boxed rather than generic.** Both members are closures minted
+/// here, so a caller never names their types; spelling them as two
+/// type parameters makes this function's return type the widest thing
+/// in the module and says nothing a reader wants. One allocation per
+/// probe row per frame is not a cost this chrome can measure.
+pub(crate) struct ProbeOps<'a> {
+    /// What the pointer drives.
+    pub(crate) gesture: GestureVocabulary<BoxedPreview<'a>>,
+    /// What a typed value spells: a begin, a preview and a commit in
+    /// one batch.
+    pub(crate) typed: Box<dyn Fn([f64; 3]) -> Vec<SessionOp> + 'a>,
+}
+
+/// One preview operation of a probe, minted from the row's three
+/// millimetre boxes.
+type BoxedPreview<'a> = Box<dyn Fn([f64; 3]) -> SessionOp + 'a>;
+
+/// **A FREE-MOVE probe's whole vocabulary**, minted from the one
+/// instance every operation in it names: the four a drag emits, and
+/// the one-shot triple a TYPED value spells.
+///
+/// The typed arm is minted here rather than beside the call because it
+/// names the same probe — a begin, a preview and a commit in one
+/// batch — and a hand-written copy of it is the one place the panel
+/// could still name a second instance. Both arms go to [`drag_ops`],
+/// which is why they are returned together.
+///
+/// `frame_of` is the panel's own writing — the millimetres its three
+/// boxes show composed into the rigid frame a preview carries — and is
+/// the only part of the probe's vocabulary that is not the name's.
+pub(crate) fn free_move_gesture<'a>(
+    instance: RecipeNodeId,
+    frame_of: impl Fn([f64; 3]) -> Frame + Copy + 'a,
+) -> ProbeOps<'a> {
+    let name = FreeMoveName { instance };
+    let gesture = GestureName::FreeMove(name);
+    ProbeOps {
+        gesture: GestureVocabulary {
+            begin: gesture.begin(),
+            commit: gesture.commit(),
+            cancel: gesture.cancel(),
+            preview: Box::new(move |mm| name.preview(frame_of(mm))),
+        },
+        typed: Box::new(move |mm| vec![name.begin(), name.preview(frame_of(mm)), name.commit()]),
+    }
 }
 
 /// **The one mapping from a `DragValue` to session operations**, and
@@ -407,9 +498,19 @@ pub(crate) fn value_field_ops(
     // including the echo this field is built to swallow.
     drag_gesture_ops(&widget, writing.authored(number), gesture, ops);
     match typed.into_inner() {
+        // **A number the dimension cannot carry is not an edit.** A
+        // `Count` field takes `inf` and `NaN` from its parser like any
+        // other (`props::field_edit`), and `props::SlotValue::of` is
+        // where that stops being a value — so there is nothing for the
+        // number door to carry and the field keeps what the document
+        // says it holds. The refusal reaches a word on the DRAG path,
+        // where the session's gesture door maps it to
+        // `crate::session::Refusal::Dimension`; on this path there is
+        // no operation to carry one, so it is silent.
         Some(props::FieldEdit::Number(written)) => {
-            let value = props::SlotValue::of(dimension, writing.authored(written));
-            ops.push((doors.number)(value));
+            if let Ok(value) = props::SlotValue::of(dimension, writing.authored(written)) {
+                ops.push((doors.number)(value));
+            }
         }
         Some(props::FieldEdit::Expression(text)) => ops.push((doors.text)(text)),
         // An emptied field is not an edit: there is no value it could
@@ -1036,8 +1137,10 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{GestureVocabulary, drag_gesture_ops, number_field, vec3_row_ops};
-    use crate::session::SessionOp;
+    use super::{
+        ProbeOps, drag_gesture_ops, free_move_gesture, number_field, value_gesture, vec3_row_ops,
+    };
+    use crate::session::{SessionOp, ValueGestureName};
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
 
@@ -1121,31 +1224,8 @@ mod tests {
                 let laid_out = ui.horizontal(|ui| match vocabulary {
                     Vocabulary::FreeMove => {
                         let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
-                        vec3_row_ops(
-                            ui,
-                            0.5,
-                            mm,
-                            GestureVocabulary {
-                                begin: SessionOp::BeginFreeMove { instance: NODE },
-                                preview: |mm| SessionOp::PreviewFreeMove {
-                                    instance: NODE,
-                                    frame: frame_of(mm),
-                                },
-                                commit: SessionOp::CommitFreeMove { instance: NODE },
-                                cancel: SessionOp::CancelFreeMove,
-                            },
-                            |mm| {
-                                vec![
-                                    SessionOp::BeginFreeMove { instance: NODE },
-                                    SessionOp::PreviewFreeMove {
-                                        instance: NODE,
-                                        frame: frame_of(mm),
-                                    },
-                                    SessionOp::CommitFreeMove { instance: NODE },
-                                ]
-                            },
-                            ops_ref,
-                        );
+                        let ProbeOps { gesture, typed } = free_move_gesture(NODE, frame_of);
+                        vec3_row_ops(ui, 0.5, mm, gesture, typed, ops_ref);
                     }
                     Vocabulary::Slot => {
                         // Three components, three SLOTS, three
@@ -1160,16 +1240,7 @@ mod tests {
                             drag_gesture_ops(
                                 &widget,
                                 *component,
-                                GestureVocabulary {
-                                    begin: SessionOp::BeginGesture { node: NODE, slot },
-                                    preview: |value| SessionOp::PreviewGesture {
-                                        node: NODE,
-                                        slot,
-                                        value,
-                                    },
-                                    commit: SessionOp::CommitGesture { node: NODE, slot },
-                                    cancel: SessionOp::CancelGesture,
-                                },
+                                value_gesture(ValueGestureName::Slot { node: NODE, slot }),
                                 ops_ref,
                             );
                         }
@@ -1411,6 +1482,108 @@ mod tests {
                 "a released drag lands what it previewed"
             );
         }
+    }
+
+    /// **Every operation one drag emits names the SAME gesture.**
+    ///
+    /// The concept both vocabularies are spellings of is
+    /// [`crate::session::GestureName`], and this is the row that says a
+    /// control cannot drive two: the four operations are minted from
+    /// one name ([`value_gesture`], [`free_move_gesture`]) rather than
+    /// written per operation, so a preview cannot land in one field and
+    /// a commit in another.
+    ///
+    /// Driven through the real widget rather than off the constructor,
+    /// because what is being asserted is what a pointer causes: the
+    /// press, the move and the release each emit through
+    /// [`drag_gesture_ops`], and it is their ops that are read back.
+    /// Both vocabularies, because one mapping serves both.
+    #[test]
+    fn every_operation_one_drag_emits_names_the_same_gesture() {
+        for vocabulary in [Vocabulary::FreeMove, Vocabulary::Slot] {
+            let mut probe = Probe::of(vocabulary);
+            probe.frame(Vec::new());
+            probe.frame(Vec::new());
+            let x = probe.aim();
+            probe.frame(vec![egui::Event::PointerMoved(x)]);
+            let mut emitted = probe.frame(vec![egui::Event::PointerButton {
+                pos: x,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            emitted.extend(probe.frame(vec![egui::Event::PointerMoved(x + egui::vec2(40.0, 0.0))]));
+            emitted.extend(probe.frame(vec![egui::Event::PointerButton {
+                pos: x + egui::vec2(40.0, 0.0),
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }]));
+            assert_eq!(
+                emitted.iter().map(kind).collect::<Vec<_>>(),
+                ["begin", "preview", "commit"],
+                "the drag this row reads back"
+            );
+            let named: Vec<_> = emitted
+                .iter()
+                .filter_map(SessionOp::names_gesture)
+                .collect();
+            assert_eq!(named.len(), emitted.len(), "an operation named no gesture");
+            assert!(
+                named.windows(2).all(|pair| pair[0] == pair[1]),
+                "one drag drove more than one gesture: {named:?}"
+            );
+        }
+    }
+
+    /// **The TYPED arm names the same gesture the drag does**, and it
+    /// is a separate row because it is a separate spelling.
+    ///
+    /// A keystroke with no pointer anywhere emits a whole
+    /// begin/preview/commit of its own
+    /// ([`a_keyboard_bump_with_no_drag_open_still_spells_the_whole_triple`]),
+    /// and that triple is handed to [`drag_ops`] beside the drag's
+    /// four rather than inside them. So the drag row above cannot see
+    /// it, and a probe whose typed arm named a neighbouring instance
+    /// would commit a frame onto a part the user never touched, in
+    /// silence.
+    ///
+    /// Only the free-move vocabulary: the value drag's typed arm is
+    /// `SetSlot` or `SetParam`, a direct edit that drives no gesture
+    /// and names none.
+    #[test]
+    fn the_typed_arm_names_the_gesture_the_drag_does() {
+        let mut probe = Probe::of(Vocabulary::FreeMove);
+        probe.frame(Vec::new());
+        probe.frame(Vec::new());
+        let mut bumped: Vec<SessionOp> = Vec::new();
+        for _ in 0..TAB_BUDGET {
+            probe.key(egui::Key::Tab);
+            bumped = probe.key(egui::Key::ArrowUp);
+            if !bumped.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(
+            bumped.iter().map(kind).collect::<Vec<_>>(),
+            ["begin", "preview", "commit"],
+            "the typed triple this row reads back"
+        );
+        let named: Vec<_> = bumped.iter().filter_map(SessionOp::names_gesture).collect();
+        assert_eq!(named.len(), bumped.len(), "an operation named no gesture");
+        assert!(
+            named.windows(2).all(|pair| pair[0] == pair[1]),
+            "the typed triple drove more than one gesture: {named:?}"
+        );
+        let drawn = free_move_gesture(NODE, |mm: [f64; 3]| Frame::translation(mm))
+            .gesture
+            .commit
+            .names_gesture();
+        assert_eq!(
+            named.first(),
+            drawn.as_ref(),
+            "the typed triple names an instance the row is not drawing"
+        );
     }
 }
 
@@ -1747,9 +1920,10 @@ mod value_field_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use super::{FieldVocabulary, GestureVocabulary, number_text, value_field_ops};
+    use super::{FieldVocabulary, number_text, value_field_ops, value_gesture};
     use crate::forms::FieldWriting;
     use crate::props;
+    use crate::session::ValueGestureName;
     use crate::session::{DocSession, SessionOp};
     use eframe::egui;
     use pncad::document::{
@@ -2001,15 +2175,7 @@ mod value_field_tests {
                     Subject::Param(name) => value_field_ops(
                         ui,
                         showing,
-                        GestureVocabulary {
-                            begin: SessionOp::BeginParamGesture { name: name.clone() },
-                            preview: |value| SessionOp::PreviewParamGesture {
-                                name: name.clone(),
-                                value,
-                            },
-                            commit: SessionOp::CommitParamGesture { name: name.clone() },
-                            cancel: SessionOp::CancelGesture,
-                        },
+                        value_gesture(ValueGestureName::Param(name.clone())),
                         FieldVocabulary {
                             number: |value| SessionOp::SetParam {
                                 name: name.clone(),
@@ -2025,22 +2191,10 @@ mod value_field_tests {
                     Subject::Slot { node, slot } => value_field_ops(
                         ui,
                         showing,
-                        GestureVocabulary {
-                            begin: SessionOp::BeginGesture {
-                                node: *node,
-                                slot: *slot,
-                            },
-                            preview: |value| SessionOp::PreviewGesture {
-                                node: *node,
-                                slot: *slot,
-                                value,
-                            },
-                            commit: SessionOp::CommitGesture {
-                                node: *node,
-                                slot: *slot,
-                            },
-                            cancel: SessionOp::CancelGesture,
-                        },
+                        value_gesture(ValueGestureName::Slot {
+                            node: *node,
+                            slot: *slot,
+                        }),
                         FieldVocabulary {
                             number: |value| SessionOp::SetSlot {
                                 node: *node,
