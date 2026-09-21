@@ -2028,7 +2028,8 @@ fn plant(ch: char) -> bool {
         .contains(ch)
 }
 
-static PLANT_FIRES: [std::sync::atomic::AtomicUsize; 6] = [
+static PLANT_FIRES: [std::sync::atomic::AtomicUsize; 7] = [
+    std::sync::atomic::AtomicUsize::new(0),
     std::sync::atomic::AtomicUsize::new(0),
     std::sync::atomic::AtomicUsize::new(0),
     std::sync::atomic::AtomicUsize::new(0),
@@ -2042,10 +2043,10 @@ fn plant_fired(i: usize) {
 }
 
 /// SYM-10 PHASE 1 MEASUREMENT ONLY: how often each plant fired
-/// (`[order, bound, unsound-floor, decision, certified-order, equal-arm]`),
+/// (`[order, bound, unsound-floor, decision, certified-order, equal-arm, canonical-sqrt]`),
 /// and resets the counters.
-pub fn sym10_plant_fires() -> [usize; 6] {
-    let mut out = [0; 6];
+pub fn sym10_plant_fires() -> [usize; 7] {
+    let mut out = [0; 7];
     for (i, c) in PLANT_FIRES.iter().enumerate() {
         out[i] = c.swap(0, std::sync::atomic::Ordering::Relaxed);
     }
@@ -2173,6 +2174,23 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 return Some(gate(f));
             }
             if c && let Some(f) = signed::fold(node.op, a, &sess.params, budget) {
+                return Some(gate(f));
+            }
+            // SYM-10 PHASE 1 PLANT `q`: the canonical square root.
+            if plant('q')
+                && node.op == SymOp::Sqrt
+                && (early || plant('p'))
+                && let Some(f) = signed::sqrt_canon(a, sess, early)
+            {
+                plant_fired(6);
+                return Some(gate(f));
+            }
+            if plant('r')
+                && node.op == SymOp::Sqrt
+                && (early || plant('p'))
+                && let Some(f) = signed::sqrt_narrow(a, sess, early)
+            {
+                plant_fired(6);
                 return Some(gate(f));
             }
             atom1(node.op, sess)

@@ -745,6 +745,9 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
         let shapes = take_shape_report();
         println!("=== derived-frame 5e-2 Pinned {label}");
         println!("    counts {counts:?}");
+        for (pred, row) in crate::m10_8_harness::split(&shapes) {
+            println!("    split {pred:<36} {row:?}");
+        }
         println!("    plant fires {:?}", geom_core::sym::sym10_plant_fires());
         println!("    refusals {}", fails.len());
         for f in &fails {

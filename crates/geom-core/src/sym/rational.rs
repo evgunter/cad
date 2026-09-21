@@ -518,6 +518,41 @@ impl Rat {
         Self::from_parts(sn, sd, exp2 / 2)
     }
 
+    /// SYM-10 PHASE 1 PLANT `q`: the CONTENT gcd of two rationals —
+    /// the gcd of the odd numerators over the lcm of the odd
+    /// denominators, at the smaller power of two — so that dividing a
+    /// polynomial's coefficients by the gcd of all of them leaves
+    /// integers with no common factor.
+    pub(super) fn content_gcd(&self, other: &Self) -> Option<Self> {
+        let (a, b) = (self.abs(), other.abs());
+        if a.is_zero() {
+            return Some(b);
+        }
+        if b.is_zero() {
+            return Some(a);
+        }
+        let g = a.num.gcd(&b.num);
+        let dg = a.den.gcd(&b.den);
+        let l = a.den.mul(&b.den).div_exact(&dg);
+        Self::from_parts(g, l, a.exp2.min(b.exp2))
+    }
+
+    /// SYM-10 PHASE 1 PLANT `q`: `self = s² · f` for a positive
+    /// rational — `s` carries the even part of the power of two and the
+    /// exact roots of the odd numerator and denominator where each is a
+    /// perfect square; `f` is what is left. A function of the value, so
+    /// two spellings of one rational split the same way.
+    pub(super) fn split_square(&self) -> Option<(Self, Self)> {
+        if self.is_negative() || self.is_zero() {
+            return None;
+        }
+        let sn = self.num.isqrt_exact().unwrap_or_else(Int::one);
+        let sd = self.den.isqrt_exact().unwrap_or_else(Int::one);
+        let s = Self::from_parts(sn, sd, self.exp2.div_euclid(2))?;
+        let f = self.mul(&s.mul(&s)?.recip()?)?;
+        Some((s, f))
+    }
+
     /// A conservative `f64` bracket of the value — the two rounded
     /// conversions and the division each cost at most an ulp, and the
     /// bracket is opened by four on each side. `None` when the power of

@@ -544,6 +544,202 @@ pub(super) fn order(op: SymOp, a: &Form, b: &Form, sess: &Session, budget: SymBu
     Some(out)
 }
 
+// ------------------------------------------------------------------
+// SYM-10 measurement plant `q` (Phase 1): the CANONICAL square root —
+// the fourth piece the render names.
+// ------------------------------------------------------------------
+
+use std::sync::Arc;
+
+/// `p = c · p'` with `c > 0` the rational content and `p'` the
+/// primitive integer polynomial (its coefficients share no factor),
+/// the sign left on `p'`.
+fn content_split(p: &Poly) -> Option<(Rat, Poly)> {
+    let mut c: Option<Rat> = None;
+    for (_, k) in p.terms() {
+        c = Some(match c {
+            None => k.abs(),
+            Some(g) => g.content_gcd(k)?,
+        });
+    }
+    let c = c?;
+    let prim = p.scaled(&c.recip()?)?;
+    Some((c, prim))
+}
+
+fn mint(sess: &mut Session, op: SymOp, arg: Form, early: bool) -> Form {
+    let id = super::indet_atom(op.tag(), 0, &[arg.digest()]);
+    super::mint_atom(sess, id, early, || AtomInfo {
+        op,
+        payload: 0,
+        args: [Some(Arc::new(arg)), None, None],
+    });
+    Form::poly(Poly::indet(id))
+}
+
+/// `sqrt(p)` in canonical form: `s · sqrt(f) · sqrt(p')` for
+/// `p = s²·f·p'` (content split, square part out exactly, the rest a
+/// constant atom); `sqrt(R²) = |R|` read by rule F (manifest), rule C
+/// (certified, gated) or the `abs` atom.
+fn sqrt_poly_canon(p: &Poly, sess: &mut Session, early: bool) -> Option<Form> {
+    let budget = sess.budget;
+    if p.is_zero() {
+        return Some(Form::zero());
+    }
+    if let Some(c) = p.as_constant() {
+        if c.is_negative() {
+            return None;
+        }
+        if let Some(r) = c.sqrt_exact() {
+            return Some(Form::poly(Poly::constant(r)));
+        }
+        let (s, f) = c.split_square()?;
+        let k = mint(sess, SymOp::Sqrt, Form::poly(Poly::constant(f)), early);
+        return k.mul(&Form::poly(Poly::constant(s)), budget);
+    }
+    let (c, prim) = content_split(p)?;
+    let (s, f) = c.split_square()?;
+    let base = if let Some(r) = poly_sqrt(&prim, budget) {
+        let rf = Form::poly(r);
+        if let Some(m) = manifest::fold_abs(&rf, sess) {
+            m
+        } else if let Some(g) = fold(SymOp::Abs, &rf, &sess.params, budget) {
+            g
+        } else {
+            mint(sess, SymOp::Abs, rf, early)
+        }
+    } else {
+        mint(sess, SymOp::Sqrt, Form::poly(prim), early)
+    };
+    let mut out = base.mul(&Form::poly(Poly::constant(s)), budget)?;
+    if f != Rat::one() {
+        let k = mint(sess, SymOp::Sqrt, Form::poly(Poly::constant(f)), early);
+        out = out.mul(&k, budget)?;
+    }
+    Some(out)
+}
+
+/// Whether `sqrt(prim(d))` is already an atom of the session — then
+/// `d ≥ 0` wherever the document has a value at all.
+fn primitive_sqrt_atom_exists(d: &Poly, sess: &Session) -> bool {
+    content_split(d).is_some_and(|(_, prim)| {
+        let id = super::indet_atom(SymOp::Sqrt.tag(), 0, &[Form::poly(prim).digest()]);
+        sess.atoms.contains_key(&id)
+    })
+}
+
+/// **Plant `q`**: `sqrt(N/D) → sqrt(N)/sqrt(D)` wherever `D ≥ 0` is
+/// known — a positive constant, manifestly non-negative, the argument
+/// of an existing `sqrt` atom, or (a READ, gated) certified positive
+/// over the box — each half in canonical form.
+pub(super) fn sqrt_canon(a: &Form, sess: &mut Session, early: bool) -> Option<Form> {
+    if a.poisoned || a.is_zero() {
+        return None;
+    }
+    let budget = sess.budget;
+    let manifest_den = a.den.as_constant().is_some_and(|c| !c.is_negative())
+        || manifest::nonneg(&Form::poly(a.den.clone()), sess)
+        || primitive_sqrt_atom_exists(&a.den, sess);
+    let read_den = !manifest_den
+        && enclose_deep(&a.den, &sess.params, &sess.atoms, 0).is_some_and(|r| r.lo() > 0.0);
+    if !(manifest_den || read_den) {
+        return None;
+    }
+    let n = sqrt_poly_canon(&a.num, sess, early)?;
+    let d = sqrt_poly_canon(&a.den, sess, early)?;
+    let mut out = n.mul(&d.recip()?, budget)?;
+    out.gated |= a.gated || read_den;
+    Some(out)
+}
+
+/// `sqrt(c · R²) → s · sqrt(f) · |R|` ONLY where the primitive part
+/// of `p` is a perfect square (nothing else is re-keyed); `|R|` read
+/// by rule F, rule C (gated) or the `abs` atom. `None` otherwise.
+fn sqrt_square_content(p: &Poly, sess: &mut Session, early: bool) -> Option<Form> {
+    let budget = sess.budget;
+    if p.is_zero() || p.as_constant().is_some() {
+        return None;
+    }
+    let (c, prim) = content_split(p)?;
+    let r = poly_sqrt(&prim, budget)?;
+    let (s, f) = c.split_square()?;
+    let rf = Form::poly(r);
+    let base = if let Some(m) = manifest::fold_abs(&rf, sess) {
+        m
+    } else if let Some(g) = fold(SymOp::Abs, &rf, &sess.params, budget) {
+        g
+    } else {
+        mint(sess, SymOp::Abs, rf, early)
+    };
+    let mut out = base.mul(&Form::poly(Poly::constant(s)), budget)?;
+    if f != Rat::one() {
+        let k = mint(sess, SymOp::Sqrt, Form::poly(Poly::constant(f)), early);
+        out = out.mul(&k, budget)?;
+    }
+    Some(out)
+}
+
+/// `sqrt(λ)` for a positive rational: exact, or `s · sqrt(f)` with a
+/// constant atom.
+fn sqrt_const(c: &Rat, sess: &mut Session, early: bool) -> Option<Form> {
+    if let Some(r) = c.sqrt_exact() {
+        return Some(Form::poly(Poly::constant(r)));
+    }
+    let (s, f) = c.split_square()?;
+    let k = mint(sess, SymOp::Sqrt, Form::poly(Poly::constant(f)), early);
+    k.mul(&Form::poly(Poly::constant(s)), sess.budget)
+}
+
+/// **Plant `r` — the NARROW canonical root**: `sqrt(N/D) →
+/// sqrt(N) / (sqrt(λ) · S)` where `S = sqrt(A)` is an atom the session
+/// already holds and `D = λ·A` for a positive rational `λ` (the atom's
+/// existence is what says `A ≥ 0`, and `D ≠ 0` as a denominator); and
+/// `sqrt(c·R²) → s·sqrt(f)·|R|`. No existing atom is re-keyed: the
+/// only atoms this mints are constant `sqrt(f)` atoms and `sqrt(N)`
+/// over the numerator alone.
+pub(super) fn sqrt_narrow(a: &Form, sess: &mut Session, early: bool) -> Option<Form> {
+    if a.poisoned || a.is_zero() {
+        return None;
+    }
+    let budget = sess.budget;
+    if let Some(c) = a.den.as_constant() {
+        if c.is_negative() || c.is_zero() {
+            return None;
+        }
+        let n = sqrt_square_content(&a.num, sess, early)?;
+        let d = sqrt_const(&c, sess, early)?;
+        return n.mul(&d.recip()?, budget);
+    }
+    // An existing sqrt atom whose argument is a constant multiple of D.
+    let found = sess.atoms.iter().find_map(|(id, at)| {
+        if at.op != SymOp::Sqrt {
+            return None;
+        }
+        let arg = at.args[0].as_deref()?;
+        if !arg.den.as_constant().is_some_and(|k| k == Rat::one()) {
+            return None;
+        }
+        let lam = super::quotient::constant_ratio(&a.den, &arg.num)?;
+        (!lam.is_negative() && !lam.is_zero()).then_some((*id, lam))
+    });
+    let (sid, lam) = found?;
+    let n = if let Some(f) = sqrt_square_content(&a.num, sess, early) {
+        f
+    } else if let Some(c) = a.num.as_constant() {
+        if c.is_negative() {
+            return None;
+        }
+        sqrt_const(&c, sess, early)?
+    } else {
+        mint(sess, SymOp::Sqrt, Form::poly(a.num.clone()), early)
+    };
+    let root_lam = sqrt_const(&lam, sess, early)?;
+    let d = root_lam.mul(&Form::poly(Poly::indet(sid)), budget)?;
+    let mut out = n.mul(&d.recip()?, budget)?;
+    out.gated |= a.gated;
+    Some(out)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
