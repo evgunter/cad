@@ -519,11 +519,15 @@ shape, same `.width(72.0)` — in a file importing `widgets` in its own
 diff. That is a PATTERN in this program now, and the next spec carries
 the trap in its own text rather than leaving it to the reviewer.
 
-**The sweep blind spot again, third instance in two units.** AUTH-2's
+**The sweep blind spot again — the SECOND instance, in the second unit.** AUTH-2's
 declared gap — *"a unit vocabulary reached through a `match` on
 `Dimension`"* — holds six ladders, three of them added by that unit.
 Filed as `work/chrome/dimension-to-unit-ladders-have-six-homes-in-the-viewer.md`
-(P1). Evidence appended to the `[ev]` question's item.
+(P1). The `[ev]` question's item and PR 2975 already carry this
+instance; the count is TWO, one per unit, and an earlier draft of this
+entry said "third" by miscounting the three ladders AUTH-2 itself added
+as three instances. The question on 2975 rests on that count, so it is
+worth being exact about: two units, two reviewers, two gaps.
 
 ## 2026-09-21 — the [ev] PR was rebuilt; my mistake
 
@@ -551,3 +555,49 @@ heading was exactly that shape and is now "The amendment, and the
 argument either way". Worth noting the rule reached me through a merge
 rather than a message, which is the case `work/README.md` says the
 board exists to prevent.
+
+## 2026-09-21 — [ev] PR 2975 green; the board as this sitting stands
+
+PR 2975 (the §5 amendment) is green — `tier=docs`, `gate ok`'s "every
+job in this run concluded, and concluded green", work-tracker lint
+included — mergeable, and waiting on Ev and nothing else. Nothing
+further is owed on it until he answers; the check-in is armed and
+re-arms silently.
+
+**Open:** AUTH-1 (PR 2955, fix pass on twelve items from two reviews)
+and AUTH-2 (PR 2957, fix pass on two MAJORs). Both rows on each unit
+read `review`.
+
+**Rows filed outside this program's fence this sitting**, so a
+successor can find them without re-reading the narrative: CHROME gains
+`a-fifth-spelling-of-this-seat-is-empty`,
+`four-pick-state-vocabularies-in-one-create-module`,
+`a-per-kind-sentence-lives-in-the-widget-not-on-the-choice`,
+`denotes-body-enumerates-its-gaps-against-the-operand-door-and-misses-one`,
+`a-creation-forms-held-pick-survives-a-document-swap`,
+`dimension-to-unit-ladders-have-six-homes-in-the-viewer`, and (from
+AUTH-2's lane) `bounds-reading-respells-the-panels-one-divide`. VDOC
+gains `viewer-readme-recourse-count-does-not-say-what-it-counts` and
+has `add-profile-ui-doc-comment-states-a-premise-the-tree-falsified`
+at `review` on 2955. META gains
+`a-stated-sweep-blind-spot-is-never-swept`. VGEOM has evidence on two
+existing rows from AUTH-2's lane.
+
+**What a successor should NOT re-derive.** Three things this sitting
+learned that are not obvious from the diffs:
+
+1. **A spec should ask, not assert.** Two dispatcher premises were
+   falsified by the lanes (the `Ambiguous` multi-body hypothesis; the
+   `base_r * 2` text). Both corrections were cheap because the spec
+   said *decide and say* around them. Where a spec asserted, the lane
+   inherited the error.
+2. **Closing a duplication mints one.** Both units did it — AUTH-1 a
+   per-kind sentence twelve lines from the one it replaced, AUTH-2 a
+   third copy of `widgets::pick_unit`. The next spec carries the trap
+   in its own text rather than leaving it to the reviewer, which is
+   what `docs/prompts/reviewer-style-lane.md` says never works from
+   the PR body alone.
+3. **A unit-tested helper is not a wired one.** AUTH-2's guard was
+   correct as a pure function and dead code at the panel, because a
+   second emitter above it ran first. No row covered the panel's op
+   emission; the reviewer had to build an egui harness to see it.
