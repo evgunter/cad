@@ -548,15 +548,38 @@ struct Geometry {
     revision: u64,
 }
 
-/// How many vertices one pass over `scene` draws.
+/// **A vertex table's length as a draw range, or `None` when it is
+/// not one.**
+///
+/// `wgpu` counts vertices in `u32` and a Rust table counts them in
+/// `usize`, so the cast can fail — and its failure arm has to be a
+/// refusal rather than a number. `u32::MAX` is a corner count no
+/// caller here computed, in the field that carries the one they did:
+/// a draw over it reads a range the buffers do not hold, which is the
+/// one answer a length is asked for in order to avoid.
+///
+/// **Not reachable on a machine this runs on, and the bound is
+/// memory rather than code.** `u32::MAX + 1` corners is `2^32`
+/// positions at three `f32` each — 51.5 GB before normals, ids or
+/// flags — and `scene::TRIANGLE_BUDGET` is a starting point rather
+/// than a cap, so nothing in the crate bounds the count; the
+/// allocation does. This is the door stating what it can answer, not
+/// a repair of a live defect.
+fn draw_range(len: usize) -> Option<u32> {
+    u32::try_from(len).ok()
+}
+
+/// How many vertices one pass over `scene` draws, or `None` when the
+/// scene's corner table is longer than a draw range
+/// ([`draw_range`]).
 ///
 /// **The scene is non-indexed geometry** — [`SceneMesh`]'s own
 /// contract: every triangle emits its own three corners, so nothing
 /// is shared and the draw range is the corner table's own length.
 /// This is the only place that number is derived, so the two passes
 /// over one scene cannot draw different ranges of it.
-fn corner_count(scene: &SceneMesh) -> u32 {
-    u32::try_from(scene.positions().len()).unwrap_or(u32::MAX)
+fn corner_count(scene: &SceneMesh) -> Option<u32> {
+    draw_range(scene.positions().len())
 }
 
 impl ViewportRenderer {
@@ -716,6 +739,13 @@ impl ViewportRenderer {
     }
 
     /// Upload `scene` if the buffers do not already hold `revision`.
+    ///
+    /// **A scene with no draw range is not uploaded**: the held
+    /// buffers are dropped and nothing is drawn, which is the answer
+    /// the passes already have for a scene that is not there
+    /// ([`corner_count`]). Uploading it and drawing `u32::MAX`
+    /// vertices out of a shorter buffer is the alternative, and that
+    /// is a range no caller computed.
     fn ensure_geometry(&mut self, device: &wgpu::Device, scene: &SceneMesh, revision: u64) {
         if self
             .geometry
@@ -724,6 +754,10 @@ impl ViewportRenderer {
         {
             return;
         }
+        let Some(corners) = corner_count(scene) else {
+            self.geometry = None;
+            return;
+        };
         let positions = create_init_buffer(
             device,
             "viewer_scene_positions",
@@ -753,7 +787,7 @@ impl ViewportRenderer {
             normals,
             ids,
             flags,
-            corners: corner_count(scene),
+            corners,
             revision,
         });
     }
@@ -1120,7 +1154,13 @@ impl EdgePass {
             return;
         }
         let (positions, marks) = edge_vertices(overlay);
-        let vertices = u32::try_from(positions.len()).unwrap_or(u32::MAX);
+        // The same refusal as the scene's, for the same reason: a
+        // vertex table longer than a draw range has no draw, and
+        // `u32::MAX` would be a count this function did not compute.
+        let Some(vertices) = draw_range(positions.len()) else {
+            self.held = None;
+            return;
+        };
         self.held = Some(EdgeGeometry {
             positions: create_init_buffer(
                 device,
@@ -2053,7 +2093,7 @@ mod tests {
         let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
         let mesh = scene::scene_of(&doc, delta, tol).expect("the plate tessellates");
 
-        let corners = corner_count(&mesh);
+        let corners = corner_count(&mesh).expect("the plate's corners are a draw range");
         assert_eq!(
             usize::try_from(corners).expect("the corner count fits a usize"),
             mesh.stats().triangles * 3,
@@ -2074,7 +2114,44 @@ mod tests {
 
         // The empty picture draws nothing: `read_id_at` reads this as
         // "there is no answer" rather than submitting an empty pass.
-        assert_eq!(corner_count(&SceneMesh::empty(mesh.bounds(), delta)), 0);
+        assert_eq!(corner_count(&SceneMesh::empty(mesh.bounds(), delta)), Some(0));
+    }
+
+    /// **A vertex table too long to be a draw range is refused, not
+    /// substituted.**
+    ///
+    /// The pair, because neither half says anything alone: the
+    /// refusal has to be the ONLY thing refused, or a door that
+    /// answers `None` for everything passes the first assertion. The
+    /// legitimate half runs over the lengths the two call sites
+    /// actually produce — a scene's corner table and an overlay's
+    /// six-per-segment quad corners — and asks that each comes back
+    /// as itself rather than merely as some number.
+    ///
+    /// **`u32::MAX` is the value this row exists to exclude**, so it
+    /// is named: the unfixed door answers `Some(u32::MAX)` here, which
+    /// is a `Some` like any other and which an `is_some()` assertion
+    /// would have passed.
+    #[test]
+    fn a_vertex_table_longer_than_a_draw_range_has_no_draw_range() {
+        for len in [0_usize, 1, 6, 3 * 40_000, u32::MAX as usize] {
+            assert_eq!(
+                draw_range(len),
+                Some(u32::try_from(len).expect("the case fits by construction")),
+                "a table of {len} vertices is a draw range and `draw_range`                  did not answer it"
+            );
+        }
+        let Ok(too_many) = usize::try_from(u64::from(u32::MAX) + 1) else {
+            // A 32-bit target cannot express a length that does not
+            // fit a `u32`, so there is nothing to refuse there.
+            return;
+        };
+        assert_eq!(
+            draw_range(too_many),
+            None,
+            "`draw_range` answered a draw range for {too_many} vertices, which              it cannot count; the substituted answer is {:?}",
+            u32::try_from(too_many).unwrap_or(u32::MAX),
+        );
     }
 
     /// **Both scene passes hand [`corner_count`]'s answer to `draw`,

@@ -553,3 +553,64 @@ fn a_viewport_with_no_area_has_no_projection() {
     assert!(camera.projection_matrix(f64::NAN).is_err());
     assert!(camera.projection_matrix(-1.0).is_err());
 }
+
+/// **Finite bounds do not make a finite radius, and a radius that is
+/// not a length is refused rather than framed against.**
+///
+/// Squaring spends the exponent twice: a box `±1e200` on every axis
+/// has every endpoint an ordinary finite number, and
+/// `half[i] * half[i]` is already infinite. `radius < MIN_SCENE_RADIUS`
+/// is FALSE for an infinity, so the unfixed door hands the infinity
+/// back as the scene radius — from which `Camera::framing` derives a
+/// stand-off, and `clamp_distance` a band of `inf`..`inf`.
+///
+/// **The pair, because neither half says anything alone.** Refusing
+/// everything would satisfy the first assertion; the second is a box
+/// below the overflow — `±1e153`, whose three squares sum to `3e306`
+/// and are still a number — which has to come back as a camera. A
+/// door that refused on magnitude rather than on the product would
+/// pass the first and fail the second.
+#[test]
+fn bounds_whose_half_extents_square_to_infinity_are_not_a_scene() {
+    let aspect = 16.0 / 9.0;
+    let huge = Aabb {
+        min_x: -1.0e200,
+        min_y: -1.0e200,
+        min_z: -1.0e200,
+        max_x: 1.0e200,
+        max_y: 1.0e200,
+        max_z: 1.0e200,
+    };
+    match Camera::framing(&huge, aspect) {
+        Err(CameraError::NotFinite { what, value }) => {
+            assert_eq!(what, "scene radius", "refused, but not about the radius");
+            assert!(
+                !value.is_finite(),
+                "the refusal reported {value}, which is a number"
+            );
+        }
+        other => panic!(
+            "bounds of +/-1e200 gave {other:?}; the radius they imply is \
+             {} and a camera cannot be framed against it",
+            (1.0e200_f64 * 1.0e200 * 3.0).sqrt()
+        ),
+    }
+    // Below the overflow: three squares of `1e153` sum to `3e306`,
+    // which is a number, and this is a scene like any other.
+    let large = Aabb {
+        min_x: -1.0e153,
+        min_y: -1.0e153,
+        min_z: -1.0e153,
+        max_x: 1.0e153,
+        max_y: 1.0e153,
+        max_z: 1.0e153,
+    };
+    let camera = Camera::framing(&large, aspect).expect("bounds that square finite still frame");
+    assert!(
+        camera.scene_radius().is_finite() && camera.scene_radius() > 0.0,
+        "the framed camera's scene radius is {}",
+        camera.scene_radius()
+    );
+    // And the ordinary case is untouched.
+    Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
+}

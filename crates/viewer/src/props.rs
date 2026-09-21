@@ -129,8 +129,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId, UnitSym, VectorSlot, eval, eval_count, unparse,
+    Dimension, DimensionError, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node,
+    ParamName, ProfileProgram, RecipeNodeId, SlotId, UnitSym, VectorSlot, eval, eval_count,
+    unparse,
 };
 use pncad::prelude::{M, RAD};
 use pncad::quantity::{self, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength};
@@ -158,11 +159,33 @@ impl SlotValue {
     ///
     /// Three call sites wanted this and two of them had spelled it
     /// differently, which is why it is a function.
-    pub fn of(dimension: Dimension, value: f64) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value in
+    /// a `Count` dimension — **the same refusal, by name, that
+    /// `Expr::literal` raises for the continuous half**, which is what
+    /// makes [`field_edit`]'s promise true. That door admits `inf` and
+    /// `NaN` as Numbers on the stated ground that the refusal
+    /// downstream names the problem; downstream of a `Count` dimension
+    /// there is no literal to refuse, because `Expr::count` takes an
+    /// integer. `f64 as i64` is a SATURATING cast, not a conversion —
+    /// `NaN` is `0` and `inf` is `i64::MAX` — so without this the word
+    /// the user typed leaves as an ordinary count that no one asked
+    /// for, and every guard downstream of it sees a number.
+    ///
+    /// The continuous arm refuses nothing here: its value reaches
+    /// `Expr::literal` intact and is refused there, which is the
+    /// arrangement this arm is being brought into line with rather
+    /// than a second one.
+    pub fn of(dimension: Dimension, value: f64) -> Result<Self, DimensionError> {
         if dimension == Dimension::Count {
-            Self::Count(value as i64)
+            if !value.is_finite() {
+                return Err(DimensionError::NonFiniteLiteral);
+            }
+            Ok(Self::Count(value as i64))
         } else {
-            Self::Continuous(value)
+            Ok(Self::Continuous(value))
         }
     }
 

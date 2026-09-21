@@ -1291,7 +1291,8 @@ fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
             .perform(SessionOp::SetSlot {
                 node: extrude,
                 slot: SlotId::Distance,
-                value: SlotValue::of(Dimension::Length, 0.006),
+                value: SlotValue::of(Dimension::Length, 0.006)
+                    .expect("a finite length is a value"),
             })
             .refusal
             .is_none(),

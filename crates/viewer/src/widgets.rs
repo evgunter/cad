@@ -498,9 +498,20 @@ pub(crate) fn value_field_ops(
     // including the echo this field is built to swallow.
     drag_gesture_ops(&widget, writing.authored(number), gesture, ops);
     match typed.into_inner() {
+        // **A number the dimension cannot carry is not an edit.** A
+        // `Count` field takes `inf` and `NaN` from its parser like any
+        // other (`props::field_edit`), and `props::SlotValue::of` is
+        // where that stops being a value — so there is nothing for the
+        // number door to carry and the field keeps what the document
+        // says it holds. The refusal reaches a word on the DRAG path,
+        // where `session`'s gesture door maps it to
+        // `Refusal::Dimension`; on this path it has none yet, and
+        // `work/vnews/a-refused-typed-value-reaches-no-word.md` is
+        // where that is owed.
         Some(props::FieldEdit::Number(written)) => {
-            let value = props::SlotValue::of(dimension, writing.authored(written));
-            ops.push((doors.number)(value));
+            if let Ok(value) = props::SlotValue::of(dimension, writing.authored(written)) {
+                ops.push((doors.number)(value));
+            }
         }
         Some(props::FieldEdit::Expression(text)) => ops.push((doors.text)(text)),
         // An emptied field is not an edit: there is no value it could
