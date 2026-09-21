@@ -2,10 +2,11 @@
 id: pickindex-tie-break-rests-on-a-comment
 kind: issue
 title: The pick tie-break's NaN disposition is a comment, not a guard
-status: open
+status: dispatched
 opened: 2026-09-16
 priority: P1
 cost: E
+branch: vgeom/pick-distance
 ---
 
 
