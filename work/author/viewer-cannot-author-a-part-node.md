@@ -57,3 +57,28 @@ viewer's authoring ops)", and the sibling gap —
 lacked for a kernel node the combine layer already admitted — was
 CHROME's and closed by CHROME in PR 1762. That is the shape to copy and
 the argument for where the row belongs.
+
+## A second consumer refuses on it (2026-09-21, AUTH-1)
+
+Found by AUTH-1's implementer lane, inside AUTHOR's own fence, and
+recorded here rather than as a second row.
+
+The add-datum form's new `frame on face` seat declines a face picked on
+a node whose value is several bodies, because `Datum::FaceFrame` reads
+its face through the evaluator's single-body operand door
+(`eval::wire::body_operand`, reached from the `Datum::FaceFrame` arm of
+`wire_datum`) and a split's sides and a pattern's instances are not one
+body. The refusal is a value — `session::refuse::FaceFrameFault::
+NotOneBody`, with `session::add_datum`'s `WrongNodeKind { wanted: Body }`
+behind it — and
+`docm1_face_frame::several_bodies_is_no_seat_for_a_face_frame` drives
+both.
+
+So the gap this row names now costs a SECOND ordinary gesture, not just
+the nested-copy one: click the top of one half of a split, and the GUI
+cannot put a sketch frame on it. `combine::denotes_body`'s own doc says
+the recipe's way of naming one of several is `Node::Part` and that "the
+door that authors one is CHROME's" — the door this row asks for. An
+`AddPart` op would make the face-frame seat reachable there with no
+further change to the datum path: the author projects the half, picks
+the face on the projection, and the same gate admits it.

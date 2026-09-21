@@ -34,7 +34,7 @@ use pncad::document::{
     RecipeNodeId, RecordedProgramError, SlotId,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{EntityKind, StableName, ValuePayload};
+use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, ValuePayload};
 use pncad::quantity::{WrittenAngle, WrittenLength};
 use viewer::props;
 use viewer::revolvetool::RevolveTool;
@@ -1182,4 +1182,100 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
         .expect("the revolve has an angle");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("deg"));
     assert_eq!(props::field_text(&row), "90");
+}
+
+/// **From nothing to a boss on a picked face, headlessly** — the
+/// gesture AUTH-1 exists for, driven through the op vocabulary alone.
+///
+/// A document, a frame, a square, an extrude; then the box's top cap
+/// is PICKED the way the viewport picks it (a `FaceSelection` carrying
+/// the name and the node whose body the ray met), the gate is asked
+/// the question the button asks, `AddDatum` mints the frame on it, and
+/// a profile is drawn on that frame and extruded. The volume is the
+/// block plus the boss, so a frame minted at the wrong height, on the
+/// wrong face or on the wrong node is red rather than merely absent.
+///
+/// It is still a TWO-FORM trip for a person — add the datum, then draw
+/// on it — which is the residue
+/// `work/author/add-profile-mints-no-frame.md` carries.
+#[test]
+fn a_boss_is_authored_on_a_picked_face() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane,
+            loops: vec![shape(&ProfileShape::Rectangle {
+                width: 0.04,
+                height: 0.02,
+            })],
+        },
+    );
+    let block = insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    session.pump();
+
+    // The pick, as the viewport makes it: the name, and the node whose
+    // body the ray met.
+    let cap = StableName {
+        kind: EntityKind::Face,
+        node: block,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
+    };
+    let picked = FaceSelection {
+        name: cap,
+        node: block,
+        body: 0,
+    };
+    let (at, face) = viewer::session::face_frame_seat(session.landed_pair(), Some(&picked))
+        .expect("the top cap is planar and resolves");
+    let frame = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::FaceFrame {
+                at,
+                face,
+                spin: ang(0.0),
+            },
+        },
+    );
+
+    let boss_profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: frame,
+            loops: vec![shape(&ProfileShape::Circle {
+                centre: [0.0, 0.0],
+                radius: 0.005,
+            })],
+        },
+    );
+    let boss = insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: boss_profile,
+            distance: len(0.004),
+        },
+    );
+    let v = body_volume(&mut session, boss, tol);
+    let want = core::f64::consts::PI * 0.005 * 0.005 * 0.004;
+    assert!(near(v, want), "the boss on the picked cap: {v} vs {want}");
+
+    // The boss STANDS ON the cap: its base is the block's top, which
+    // is what "the frame was read off that face" means geometrically.
+    let ev = session.evaluation().expect("the document evaluated");
+    let placed = viewer::sketch::frame_placement(session.committed_doc(), ev, frame)
+        .expect("a drawable frame");
+    assert!(
+        (placed.placement.translation.z - 0.01).abs() <= 1e-12,
+        "the frame sits on the cap at z = 10 mm: {}",
+        placed.placement.translation.z
+    );
 }

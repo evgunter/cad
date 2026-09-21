@@ -23,7 +23,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
-use crate::session::{DatumSpec, ProfileShape, SessionOp};
+use crate::session::{DatumSpec, FaceSelection, ProfileShape, SessionOp};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -117,6 +117,27 @@ pub(crate) struct Drafts {
     /// Its direction in the same coordinates (unitless). Opens as the
     /// frame's +y, the axis a profile drawn beside it turns about.
     pub(crate) datum_in_frame_direction: [f64; 2],
+    /// **The face a frame-on-face is read off** — `None` until one is
+    /// picked in the viewport.
+    ///
+    /// A LATCH of the viewport's face pick rather than a read of the
+    /// live selection: a face is not a node a combo can list, so the
+    /// selection IS this form's picker, and an author who picks a face
+    /// and then clicks the feature tree to check something must not
+    /// lose it. `crate::pane::create`'s frame-on-face arm writes it
+    /// whenever the live selection is a face, so a second pick moves
+    /// the seat; nothing else clears it, exactly as nothing clears the
+    /// origin a person last typed.
+    ///
+    /// A stale latch is not a hazard the form has to clear: the gate
+    /// above it reads the pick against the LANDED evaluation every
+    /// frame ([`crate::session::face_frame_seat`]), so a face an undo
+    /// took away is refused rather than authored.
+    pub(crate) datum_face: Option<FaceSelection>,
+    /// The frame-on-face form's spin, radians — sketch +x's rotation
+    /// about the face's outward normal. Opens at zero, the
+    /// carrier's own u-reference.
+    pub(crate) datum_spin: f64,
     /// **The unit every creation form's LENGTH field is written in.**
     ///
     /// ONE choice for all the forms, not one per form. The panel's
@@ -381,6 +402,8 @@ impl Default for Drafts {
             datum_frame: None,
             datum_in_frame_origin: Point2::origin(),
             datum_in_frame_direction: [0.0, 1.0],
+            datum_face: None,
+            datum_spin: 0.0,
             length_unit: quantity::M,
             angle_unit: quantity::PI,
             profile_shape: None,
@@ -661,8 +684,16 @@ impl Drafts {
 
     /// **The add-datum form's drafts as a spec**, for the kind chosen:
     /// lengths in the form's notation, a normal or a direction
-    /// dimensionless. `None` for an axis in a sketch whose frame is not
-    /// picked yet — the form holds its button until it is.
+    /// dimensionless. `Ok(None)` is a PICK still missing — an axis in
+    /// a sketch with no frame chosen, a frame on a face with no face
+    /// picked — and the form holds its button until it is filled,
+    /// saying which pick it wants in that kind's own words
+    /// ([`DatumKindChoice::unmet_seat`]).
+    ///
+    /// It answers for the PICKS and the NUMBERS only. Whether the
+    /// picked face may carry a frame at all — is it planar, does its
+    /// name still resolve — is a question about the landed evaluation
+    /// and is asked there ([`crate::session::face_frame_seat`]).
     ///
     /// # Errors
     ///
@@ -690,6 +721,20 @@ impl Drafts {
                     plane,
                     origin: self.lengths2(self.datum_in_frame_origin)?,
                     direction: scalars2(self.datum_in_frame_direction)?,
+                }
+            }
+            DatumKindChoice::FaceFrame => {
+                let Some(face) = self.datum_face.as_ref() else {
+                    return Ok(None);
+                };
+                DatumSpec::FaceFrame {
+                    // The node whose BODY the ray met, which is the
+                    // body whose table holds the name — not
+                    // `FaceSelection::feature`, which answers which
+                    // feature minted it.
+                    at: face.node,
+                    face: face.name.clone(),
+                    spin: self.angle(self.datum_spin)?,
                 }
             }
             DatumKindChoice::Point => DatumSpec::Point {
@@ -777,13 +822,39 @@ mod tests {
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{Step, Target};
 
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+
     use super::{Drafts, ProfileEdit};
     use crate::forms::{DatumKindChoice, ShapeKind};
     use crate::seats::Seat;
     use crate::session::SessionOp;
     use crate::session::author::datum_node;
+    use crate::session::{DatumSpec, FaceSelection};
     use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
+
+    /// **The add-datum drafts with every PICK filled**, for `kind` —
+    /// the form as it stands when its button goes live.
+    ///
+    /// Both picks are filled for every kind, not one per kind: what
+    /// each kind READS is the thing under test, and a helper that
+    /// chose which pick to fill would be restating the answer.
+    fn picked(datum_kind: DatumKindChoice) -> Drafts {
+        Drafts {
+            datum_kind,
+            datum_frame: Some(RecipeNodeId(0)),
+            datum_face: Some(FaceSelection {
+                name: StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(1),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                },
+                node: RecipeNodeId(1),
+                body: 0,
+            }),
+            ..Drafts::default()
+        }
+    }
 
     /// **Every seat a datum fills can be filled from the add-datum
     /// form.** Each choice the form offers is lowered from its default
@@ -791,20 +862,18 @@ mod tests {
     /// least one of the nodes that produces — the question the seat's
     /// own gate asks of a pick.
     ///
-    /// The frame id is arbitrary: `admits` reads the node's kind, and
-    /// whether the id names a frame is the add-datum door's question.
+    /// The picked ids are arbitrary: `admits` reads the node's kind,
+    /// and whether an id names the kind its seat wants is the
+    /// add-datum door's question.
     #[test]
     fn every_datum_seat_is_fillable_from_the_add_datum_form() {
         let authorable: Vec<_> = DatumKindChoice::ALL
             .into_iter()
             .map(|(datum_kind, _)| {
-                let drafts = Drafts {
-                    datum_kind,
-                    datum_frame: Some(RecipeNodeId(0)),
-                    ..Drafts::default()
-                };
-                let spec = drafts.datum_spec().expect("the default drafts are finite");
-                datum_node(spec.expect("a frame is picked"))
+                let spec = picked(datum_kind)
+                    .datum_spec()
+                    .expect("the default drafts are finite");
+                datum_node(spec.expect("every pick is filled"))
             })
             .collect();
         for seat in Seat::ALL {
@@ -918,6 +987,101 @@ mod tests {
             ..Drafts::default()
         };
         assert!(matches!(drafts.datum_spec(), Ok(None)));
+    }
+
+    /// A frame on a face with no face picked lowers to nothing — its
+    /// twin, and the reason the sentence over the button cannot be one
+    /// sentence.
+    #[test]
+    fn a_frame_on_a_face_waits_for_its_face() {
+        let drafts = Drafts {
+            datum_kind: DatumKindChoice::FaceFrame,
+            ..Drafts::default()
+        };
+        assert!(matches!(drafts.datum_spec(), Ok(None)));
+    }
+
+    /// **The unmet-seat sentence follows the kind that is showing.**
+    ///
+    /// Two functions in two modules agree on one set: the kinds
+    /// `DatumKindChoice::unmet_seat` has a sentence for are exactly the
+    /// kinds `datum_spec` answers `Ok(None)` for with nothing picked.
+    /// A kind that gained a pick and no sentence would draw a held
+    /// button with nothing said over it; a kind that gained a sentence
+    /// and no pick would say it never. Both are red here.
+    ///
+    /// The sentences are also pairwise distinct, which is the whole
+    /// claim: one hardcoded sentence over the button was true of one
+    /// kind and false of the other.
+    #[test]
+    fn the_unmet_seat_sentence_follows_the_kind() {
+        let mut said = Vec::new();
+        for (kind, label) in DatumKindChoice::ALL {
+            let empty = Drafts {
+                datum_kind: kind,
+                ..Drafts::default()
+            };
+            let waiting = matches!(empty.datum_spec(), Ok(None));
+            assert_eq!(
+                waiting,
+                kind.unmet_seat().is_some(),
+                "the {label} kind waits for a pick without saying what for, or says so and never \
+                 waits",
+            );
+            // And a kind whose picks ARE filled lowers, so the
+            // sentence is about the PICK and not about the kind.
+            assert!(
+                matches!(picked(kind).datum_spec(), Ok(Some(_))),
+                "the {label} kind lowers once its picks are filled",
+            );
+            if let Some(sentence) = kind.unmet_seat() {
+                said.push(sentence);
+            }
+        }
+        let mut distinct = said.clone();
+        distinct.sort_unstable();
+        distinct.dedup();
+        assert_eq!(
+            distinct.len(),
+            said.len(),
+            "two kinds ask for their picks in the same words: {said:?}"
+        );
+    }
+
+    /// **The frame-on-face seat lowers the LATCHED pick and the form's
+    /// angle notation** — the node whose body the ray met, the frozen
+    /// name, and a spin written in the unit the form is working in.
+    ///
+    /// The spin is not zero here: a lowering that dropped it, or wrote
+    /// it in canonical radians while the form said half-turns, is red.
+    #[test]
+    fn the_frame_on_a_face_lowers_its_pick_and_its_spin() {
+        let drafts = Drafts {
+            datum_kind: DatumKindChoice::FaceFrame,
+            datum_spin: core::f64::consts::FRAC_PI_2,
+            angle_unit: pncad::quantity::DEG,
+            ..picked(DatumKindChoice::FaceFrame)
+        };
+        let face = drafts.datum_face.clone().expect("the seat is filled");
+        let Ok(Some(DatumSpec::FaceFrame {
+            at,
+            face: name,
+            spin,
+        })) = drafts.datum_spec()
+        else {
+            panic!("a filled seat lowers");
+        };
+        assert_eq!(at, face.node, "the node whose body the ray met");
+        assert_eq!(name, face.name);
+        let want = Expr::written_angle(pncad::quantity::WrittenAngle::canonical_in(
+            core::f64::consts::FRAC_PI_2,
+            pncad::quantity::DEG,
+        ))
+        .expect("a finite angle");
+        assert!(
+            spin.bit_eq(&want),
+            "the spin is written in degrees: {spin:?}"
+        );
     }
 
     /// A document holding one frame and the profile the add-profile

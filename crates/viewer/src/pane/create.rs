@@ -19,7 +19,7 @@ use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::PartChooser;
 use crate::seats::{Seat, seat_line};
-use crate::session::SessionOp;
+use crate::session::{FaceFrameFault, Selection, SessionOp, face_frame_seat};
 use crate::sketch;
 use crate::tools::ToolKind;
 use crate::widgets::{
@@ -413,18 +413,38 @@ impl ViewerBehavior<'_> {
                 // rather than at the revolve's refusal.
                 ui.label("x and y are the frame's own; a revolve needs its profile on this frame");
             }
+            DatumKindChoice::FaceFrame => self.datum_face_frame_rows(ui),
             DatumKindChoice::Point => self.datum_origin_row(ui, "position"),
         }
         // Lowered every frame, so the button's enabling and its commit
-        // read one value: `Ok(None)` is the unpicked frame, and it is
-        // what holds the button.
+        // read one value: `Ok(None)` is a pick still missing, and it is
+        // what holds the button. The sentence over it follows the KIND
+        // — the two picking kinds want different things from different
+        // places, so one sentence for the form would be false of
+        // whichever is not showing.
         let datum = self.drafts.datum_spec();
         let unpicked = matches!(datum, Ok(None));
-        if unpicked {
-            ui.weak("pick a frame to write the axis in");
+        if unpicked && let Some(wanted) = kind.unmet_seat() {
+            ui.weak(wanted);
+        }
+        // The face-frame gate, on the kind that has one: a refusal
+        // holds the button too, so a frame is not minted on a face the
+        // node would refuse at evaluation.
+        let refused = (kind == DatumKindChoice::FaceFrame)
+            .then(|| face_frame_seat(self.session.landed_pair(), self.drafts.datum_face.as_ref()))
+            .and_then(Result::err);
+        // `NoFace` is the unmet seat above, said once: the sentence
+        // over the button already asks for the pick.
+        if let Some(fault) = &refused
+            && *fault != FaceFrameFault::NoFace
+        {
+            ui.weak(fault.to_string());
         }
         if ui
-            .add_enabled(!unpicked, egui::Button::new("Add datum"))
+            .add_enabled(
+                !unpicked && refused.is_none(),
+                egui::Button::new("Add datum"),
+            )
             .clicked()
         {
             match datum {
@@ -439,6 +459,47 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+    }
+
+    /// **The frame-on-face form's rows**: the held face pick and the
+    /// spin.
+    ///
+    /// The seat LATCHES the viewport's face pick — a face is not a
+    /// node a combo can list, so the selection is this form's picker
+    /// and there is no widget to draw for it. Writing it here rather
+    /// than reading the live selection at the commit is what lets an
+    /// author pick a face, type a spin, open the unit picker and click
+    /// the feature tree without losing the pick; a second face pick
+    /// moves the seat, and nothing else clears it.
+    ///
+    /// Only the picks are decided here. Whether the face may carry a
+    /// frame at all is [`face_frame_seat`]'s answer, rendered by the
+    /// caller over the button it holds.
+    fn datum_face_frame_rows(&mut self, ui: &mut egui::Ui) {
+        if let Selection::Face(face) = self.session.selection() {
+            self.drafts.datum_face = Some(face.clone());
+        }
+        ui.horizontal(|ui| {
+            ui.label("face");
+            match &self.drafts.datum_face {
+                Some(face) => ui.weak(format!("feature {} body {}", face.node.0, face.body)),
+                None => ui.weak("none picked"),
+            };
+        });
+        ui.horizontal(|ui| {
+            ui.label("spin");
+            unit_field(
+                ui,
+                self.drafts.angle_unit.def(),
+                ANGLE_DRAG_SPEED,
+                &mut self.drafts.datum_spin,
+            );
+            angle_picker(ui, "datum_spin", &mut self.drafts.angle_unit);
+        });
+        // What the number MEANS, said where it is typed: the origin
+        // and the normal are the face's, so this rotation is the whole
+        // of what an author chooses here.
+        ui.label("sketch +x, turned about the face's outward normal; the origin is the face's");
     }
 
     /// The add-datum form's 3-D Length row — an origin or a position —
@@ -471,10 +532,15 @@ impl ViewerBehavior<'_> {
     /// document's frames.
     ///
     /// The circle's optional bore is what lets this template author
-    /// the hollow ring's annulus (one profile node, two loops); the
-    /// face-frame placement arm is deferred as a filed issue — the
-    /// interrogation vocabulary deliberately answers no "is this face
-    /// planar" verdict for it to gate on.
+    /// the hollow ring's annulus (one profile node, two loops).
+    ///
+    /// **The plane is a PICK of a frame that exists**, and the picker
+    /// lists both frame kinds, so drawing on a picked FACE is minting
+    /// that face's frame in the add-datum form
+    /// ([`DatumKindChoice::FaceFrame`]) and choosing it here. Doing
+    /// both in one gesture, and naming a frame in this picker by the
+    /// face it sits on rather than by its feature number, is the
+    /// residue `work/author/add-profile-mints-no-frame.md` carries.
     ///
     /// The bore field is guarded IN THE FORM: loop roles come from
     /// the profile layer's containment forest, not from list order,
