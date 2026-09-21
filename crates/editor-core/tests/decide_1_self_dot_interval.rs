@@ -20,9 +20,11 @@
 //!   decide_1_self_dot_interval:: --ignored --nocapture --test-threads 1
 //! ```
 //!
-//! The pad is measured at its NOMINAL only: its whole-box shape report
-//! renders every blocked residual of a replay past the ceiling and does
-//! not fit in the memory of the box this lane runs on.
+//! The pad is measured on the CEILING instrument only: the shape
+//! report renders the plain normal form of every blocked residual of a
+//! replay, and over that document it does not fit in the memory of a
+//! box the size of this lane's. Its bracket is measured; its `Invalid`
+//! count is not taken, and the row says so.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -53,10 +55,41 @@ fn explain_levels() -> usize {
         .unwrap_or(0)
 }
 
+/// The ceiling search's bracket and step count, as multiples of ε for
+/// the two ends: `CAD_DECIDE_1_LO`, `CAD_DECIDE_1_HI`,
+/// `CAD_DECIDE_1_STEPS`. The defaults are M10-10's evidence bench's —
+/// `[1e-1 · ε, 1e1]` in sixteen steps — which is a search over eleven
+/// decades and is what a document whose ceiling is not already known
+/// needs. It is not what the PAD needs: eighteen whole-box drives of
+/// that document do not finish in an hour and a half on a box this
+/// size, and its bracket is pinned to four digits already
+/// (`m10_9_pins_interval::measured_studies`), so the pad is measured
+/// over a bracket around that number instead.
+fn search(eps: f64, name: &str) -> (f64, f64, usize) {
+    let num = |k: &str, d: f64| {
+        std::env::var(k)
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(d)
+    };
+    let (lo, hi, steps) = if name == "r2_rounded_pad" {
+        (1.0e3, 1.0e4, 5.0)
+    } else {
+        (1.0e-1, 1.0e1 / eps, 16.0)
+    };
+    (
+        num("CAD_DECIDE_1_LO", lo) * eps,
+        num("CAD_DECIDE_1_HI", hi) * eps,
+        num("CAD_DECIDE_1_STEPS", steps) as usize,
+    )
+}
+
 /// The one document to measure, from `CAD_DECIDE_1_DOC`; all six when
 /// unset.
 fn only_doc() -> Option<String> {
-    std::env::var("CAD_DECIDE_1_DOC").ok().filter(|v| !v.is_empty())
+    std::env::var("CAD_DECIDE_1_DOC")
+        .ok()
+        .filter(|v| !v.is_empty())
 }
 
 /// `predicate -> (invalid, indeterminate, all)` over one replay, kept
@@ -167,34 +200,43 @@ fn decide_1_the_clause_1_invalid_census_on_the_six_documents() {
         if only.as_deref().is_some_and(|d| d != study.name) {
             continue;
         }
-        // **THE PAD IS OPT-IN**, by name. Its replay under the shape
-        // report — at the nominal as well as over the whole box — is
-        // killed for memory on a box of this size, and a process that
-        // dies takes the rows after it with it. Asking for it by name
-        // (`CAD_DECIDE_1_DOC=r2_rounded_pad`) is what says the run is
-        // for the pad and may end that way.
-        if study.name == "r2_rounded_pad" && only.is_none() {
-            println!(
-                "{:<42} SKIPPED — opt in with CAD_DECIDE_1_DOC=r2_rounded_pad; the shape report \
-                 over this document does not fit in the memory of a box this size",
-                "r2_rounded_pad"
-            );
-            continue;
-        }
         // **THE CEILING IS MEASURED, NEVER READ OFF A TABLE.**
         // `measured_studies`' brackets are M10-9's tier's, and this
-        // census runs the SHIPPED one, whose ceilings are elsewhere;
-        // replaying at another tier's refusing end is a replay that
-        // decides everything, and a zero `Invalid` over it measures
-        // nothing. Same call M10-10's evidence bench makes.
-        let (lo, hi, per) = ceiling(&*study.at, rules, tol, 1.0e-1 * eps, 1.0e1, 16);
+        // census runs the SHIPPED one, whose ceilings are elsewhere
+        // (the pad's differ in the second digit); replaying at another
+        // tier's refusing end is a replay that decides everything, and
+        // a zero `Invalid` over one of those measures nothing. Same
+        // call M10-10's evidence bench makes, over the bracket
+        // `search` gives.
+        let (s_lo, s_hi, steps) = search(eps, study.name);
+        let (lo, hi, per) = ceiling(&*study.at, rules, tol, s_lo, s_hi, steps);
         println!(
             "{:<42} certifies x{lo:e}, refuses x{hi:e} ({per:.2}s/probe) [{:.4e}..{:.4e} eps]",
             study.name,
             lo / eps,
             hi / eps
         );
-        let nominal = (study.at)(if lo.is_finite() { lo } else { study.certifies_at * eps });
+        // **THE PAD IS MEASURED ON THE CEILING INSTRUMENT ONLY.** Its
+        // replay under the shape report — which renders the plain
+        // normal form of every blocked residual — is killed for memory
+        // on a box of this size, at the nominal as well as over the
+        // whole box, so what this document contributes to the census is
+        // its bracket and not an `Invalid` count. Said, not skipped
+        // silently: a row nothing could run is not a row that measured
+        // zero.
+        if study.name == "r2_rounded_pad" {
+            println!(
+                "{:<42} NOT REPLAYED — the shape report over this document does not fit in the \
+                 memory of a box this size; the bracket above is the ceiling instrument's",
+                "r2_rounded_pad / nominal, ceiling + delta"
+            );
+            continue;
+        }
+        let nominal = (study.at)(if lo.is_finite() {
+            lo
+        } else {
+            study.certifies_at * eps
+        });
         census_at(
             &format!("{} / nominal", study.name),
             &nominal,
@@ -204,7 +246,7 @@ fn decide_1_the_clause_1_invalid_census_on_the_six_documents() {
         );
         if !hi.is_finite() {
             println!(
-                "{:<42} SKIPPED — no finite refusing end in [1e-1 eps, 1e1]",
+                "{:<42} SKIPPED — no finite refusing end in the search bracket",
                 format!("{} / ceiling + delta", study.name)
             );
             continue;
