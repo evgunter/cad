@@ -596,3 +596,16 @@ default-build caller out of the kernel doors at `Interval` — RING-3 and
 LANE-1..4 specs carry it. One exposure: the PR body's auto-appended
 footer names a vendor and re-appends on every body update; the row
 records it.
+
+## LANE-0 merged (2026-09-21)
+
+PR 2981, block SCALAR-B4 slot 1, ordinal 4111. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's bilateral
+MAJOR — a fourth per-scalar trait where the spec said stop — was
+settled by the orchestrator's ruling (the seam is the one method on
+`AtRestPolicy`), at a cost the fix pass measured at 47 bound edits
+and zero call-site edits. Two exposures recorded on the row: the item
+file named the arm until the freeze; the frozen head's run was red on
+the tracker lint after main closed FIX. Block SCALAR-B4's three rows
+are complete; slot 2's reviews concluded earlier, so the block closes
+with this merge.
