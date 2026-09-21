@@ -143,6 +143,8 @@ mod sym_drive_memo;
 mod sym_rule_e_rows;
 #[path = "sym_rule_f_interval_rows.rs"]
 mod sym_rule_f_interval_rows;
+#[path = "decide3_r2_probes.rs"]
+mod decide3_r2_probes;
 #[path = "sym_rule_f_rows.rs"]
 mod sym_rule_f_rows;
 #[path = "tolerance_init.rs"]
