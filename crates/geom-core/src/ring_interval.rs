@@ -8,14 +8,15 @@
 //! The kernel now carries two interval-shaped types, and confusing them
 //! would be a design error:
 //!
-//! - `geom_core::interval::Interval` (behind the `interval` cargo
-//!   feature — deliberately unlinked: the module does not exist in a
-//!   default build, and a broken intra-doc link would) is a
-//!   **[`Real`](crate::Real) instantiation** — an evaluation scalar. Geometry recipes are written generically over `Real` and
+//! - [`Interval`](crate::interval::Interval) is a
+//!   **[`Real`](crate::Real) instantiation** — an evaluation scalar.
+//!   Geometry recipes are written generically over `Real` and
 //!   *replayed* at that type; it carries transcendentals, decorations,
-//!   and a [`Decide`](crate::Decide) impl.
-//! - [`RingInterval`] (this module, **always compiled**, no feature
-//!   gate — that is its reason to exist) is **certification
+//!   and a [`Decide`](crate::Decide) impl. The `interval` cargo feature
+//!   gates the kernel's instantiation at it — the lane impls and the
+//!   interval test files — and not the type, which compiles in every
+//!   build.
+//! - [`RingInterval`] (this module) is **certification
 //!   substrate**. It is *not* a `Real` instantiation and deliberately
 //!   does not implement `Real`: no transcendentals, no `Decide`, no
 //!   evaluation-generic code may name it. Certification code bounds

@@ -2,10 +2,11 @@
 //!
 //! `geom-core` is the bottom layer everything else stands on: the [`Real`]
 //! scalar trait (instantiated at `f64` here, at forward-mode [`dual`]
-//! numbers, and — behind the `interval` cargo feature — at the certified
-//! interval scalar over `interval-transcendentals`, including the
-//! dual-over-interval
-//! combination), the single global [`Tolerance`] value, the
+//! numbers, and at the certified [`Interval`] scalar over
+//! `interval-transcendentals`, including the dual-over-interval
+//! combination; the `interval` cargo feature gates the kernel's
+//! instantiation at that scalar, not the scalar itself), the single
+//! global [`Tolerance`] value, the
 //! trilean predicate machinery ([`Decide`] / [`Sign`] / [`Band`] — the
 //! single door from numbers to decisions), and the small fixed-dimension
 //! [`linalg`] layer — vectors, points, matrices, affine maps, generic
@@ -18,7 +19,6 @@
 pub mod bit_identity;
 pub mod dual;
 pub mod exact;
-#[cfg(feature = "interval")]
 pub mod interval;
 pub mod k_stats;
 pub mod linalg;
@@ -29,10 +29,7 @@ pub mod spline;
 pub mod sym;
 pub mod tolerance;
 
-#[cfg(feature = "interval")]
-pub use dual::DualInterval;
-pub use dual::{Dual, Dual64};
-#[cfg(feature = "interval")]
+pub use dual::{Dual, Dual64, DualInterval};
 pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};

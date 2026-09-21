@@ -145,14 +145,13 @@ use crate::predicate::{Band, Decide, Indeterminate, Sign};
 use crate::real::{Bounds, Real};
 use crate::tolerance::Tol;
 
-#[cfg(feature = "interval")]
 use crate::interval::Interval;
 
 /// A forward-mode dual number over the base scalar `T`: a value and the
 /// derivative of that value with respect to one scalar parameter.
 ///
-/// Implements [`Real`] for the kernel's base scalars (`f64` and, behind
-/// the `interval` feature, [`Interval`]), so any evaluation code generic
+/// Implements [`Real`] for the kernel's base scalars (`f64` and
+/// [`Interval`]), so any evaluation code generic
 /// over [`Real`] differentiates itself when instantiated here. See the
 /// [module docs](self) for the value-channel contract, the kink
 /// conventions, and the decide-by-value rule.
@@ -850,7 +849,6 @@ pub type Dual64 = Dual<f64>;
 /// Forward-mode dual over the certified interval scalar: derivative
 /// *enclosures* riding on enclosure values (the instantiation that never
 /// existed off the shelf — see the module-doc deviation note).
-#[cfg(feature = "interval")]
 pub type DualInterval = Dual<Interval>;
 
 #[cfg(test)]

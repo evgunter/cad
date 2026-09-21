@@ -85,6 +85,8 @@ mod eps_provenance;
 mod flagged_census;
 #[path = "interval_band.rs"]
 mod interval_band;
+#[path = "interval_type_default_build.rs"]
+mod interval_type_default_build;
 #[path = "k_stats_doors.rs"]
 mod k_stats_doors;
 #[path = "knot_queries_differential.rs"]
