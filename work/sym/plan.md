@@ -46,8 +46,17 @@ as inward — take it early and tell FRAME when it lands.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. SYM inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+Protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on
+triaged-in units only, opus/opus outside it. **Answered per unit at
+spec time, recorded here:** `SYM-11`
+(`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`) IN — an
+architectural decision on the `Decide` door's contract per witness
+kind, H / STRUCTURAL, block SYM-B3 slot 0; the two placement-freeze
+rows are the default IN (they change what the tier decides on a
+document) and are triaged when spec'd (SYM-12 = the derived-frame
+freeze's next shape, H / NUMERIC, slot 1);
+`leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+(SYM-13, D / STRUCTURAL, slot 2) is IN as a receipt-contract decision;
+the ring item and the pcurve row are triaged when spec'd (the latter
+is not certainly SYM's). The block's pre-draw fields and draw are on
+`sym/b3-block`.
