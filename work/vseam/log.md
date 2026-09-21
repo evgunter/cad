@@ -202,3 +202,14 @@ the nearest relative of the sentence the prose row calls false, in a
 file this PR already edits. `widgets.rs`'s module doc universal now
 carries the rule that produces its exceptions (a function taking no
 `ui: &mut egui::Ui`) and their count.
+
+**The alarm fired on a real arrival, in the merge that followed.**
+AUTH-2's value-field rework landed on `main` mid-review and added
+`SessionOp::SetParamUnit` and `SessionOp::SetParamText`.
+`names_gesture` refused to compile (`E0004`) until both were answered,
+which is the exhaustiveness property this unit exists to buy, bought by
+a diff that had never heard of it. Both are direct edits and drive no
+gesture. The same merge moved every gesture-vocabulary site; the five
+that exist now — three in `pane/properties.rs` and two new ones in
+`widgets.rs`'s `field_tests` — are all minted from a name, and
+`GestureVocabulary {` has no literal outside `widgets.rs`.
