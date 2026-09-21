@@ -525,3 +525,18 @@ PROPS (`crates/geom/src/curves*`), TOPO (`validate.rs`), BOOL and CURVED
 unowned `certify.rs`/`dihedral.rs` (fence drawn in the PR, PROPS told)
 and `demos/tour/src/skinned.rs`. Full v6 dual at review.
 
+## CURVE3-JET in review; the second sitting answered (2026-09-21)
+
+CURVE3-JET landed as PR 2708 (ordinal 4109; byte 84 ⇒ R1 OPUS, R2
+FABLE on frozen `88c47557b`, impl CI 35039865934 green): `ders1` on
+`NurbsCurve3` (and `NurbsCurve2` through the macro) and on `Curve3`,
+thirteen sites and fourteen pairs folded, digests identical, one BOOL
+row filed. The implementer lane died on a usage limit after its final
+push; the PR body is its report. The box then sat idle five days. On
+PR 2701 Ev answered the second sitting on 2026-09-16: the aggressive
+unification (the ring retired, the feature dropped) sounds good; a
+tighter bound re-baselines; the full no-trait cut sounds good, asked
+as "a structure that lets duals run in the `Bounds`-only parts and
+never enter `CertifiedEnclosure`" — which is what the cut is. The
+RATIFIED section and the unit cut go on the sitting's branch next.
+
