@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-30
 github: 1299
 refs: [1177, 1277]
+priority: P0
+cost: E
 ---
 
 ## From GitHub issue 1299

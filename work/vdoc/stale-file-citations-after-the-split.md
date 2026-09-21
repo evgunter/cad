@@ -4,6 +4,8 @@ kind: issue
 title: 24 open files cite app.rs:NNNN or session.rs:NNNN for code the split moved, five of them wrong about the file
 status: open
 opened: 2026-09-04
+priority: P4
+cost: E
 ---
 
 

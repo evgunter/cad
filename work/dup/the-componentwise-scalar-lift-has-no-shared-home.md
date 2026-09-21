@@ -4,6 +4,8 @@ kind: issue
 title: Point3/Point2 componentwise T::from_f64 lifts are spelled out in eighteen places with no shared home
 status: open
 opened: 2026-09-19
+priority: P1
+cost: E
 ---
 
 

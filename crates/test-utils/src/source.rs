@@ -23,10 +23,10 @@
 //!
 //! This crate is where the shared answer lives because it is a
 //! zero-dependency leaf that can sit below everything. Most crates
-//! already dev-depend on it; `pncad`, `pncad-py` and `quantity` do
-//! not, and that is not a detail — `pncad/tests/all.rs` holds the
-//! class's largest unconverted reader, and adding the dev-dependency
-//! is the first step of converting it.
+//! already dev-depend on it; `pncad` and `pncad-py` do not, and that
+//! is not a detail — `pncad/tests/all.rs` holds the class's largest
+//! unconverted reader, and adding the dev-dependency is the first
+//! step of converting it.
 //!
 //! # One lexer, three views, and why the count is three
 //!

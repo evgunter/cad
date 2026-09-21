@@ -4,6 +4,8 @@ kind: issue
 title: a source-level allow can return a denying CI row to what it was, and nothing reads for it
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 

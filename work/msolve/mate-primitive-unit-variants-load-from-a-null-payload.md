@@ -4,6 +4,8 @@ kind: issue
 title: A unit MatePrimitive variant loads from a second spelling, {"coaxial": null}, before and after deny_unknown_fields
 status: open
 opened: 2026-09-19
+priority: P0
+cost: E
 ---
 
 

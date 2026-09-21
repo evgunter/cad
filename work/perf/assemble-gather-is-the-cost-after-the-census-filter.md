@@ -4,6 +4,8 @@ kind: issue
 title: assemble's product gather is the remaining cost after the census pre-filter - 162 ms at 641 solids, n^1.3
 status: open
 opened: 2026-09-13
+priority: P2
+cost: H
 ---
 
 

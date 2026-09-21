@@ -4,6 +4,8 @@ kind: issue
 title: try_wall_sheet is token-identical in two review-probe suites and wraps the now-shared door
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

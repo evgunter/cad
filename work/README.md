@@ -44,6 +44,8 @@ id: MESH-12
 kind: unit                 # program | unit | issue | ruling
 title: the saturated span refuses at the parse
 status: spec               # see the vocabularies below
+priority: P1               # P0..P4; see Priority below
+cost: H                    # E | D | H; what the row costs to do
 parent: S-MESH-slate       # optional; another item's id
 blocked_on: [D303, 1601]   # item ids, or PR/issue numbers as ints
 rides_with: D304           # optional; the row this finding travels with
@@ -100,6 +102,104 @@ so a not-now row can never be read off the board as dispatchable, and
 neither is listed as stale for going untouched. A ruling is `open` or
 `closed`. A program is `open` or `closed`; a closed program may hold
 only closed items.
+
+## Priority
+
+Every item carries a band, and so does every program. The bands (Ev,
+in chat, 2026-09-20):
+
+- **P0 — very high.** A normal verb broken on normal geometry; a live
+  wrong answer; something the GUI cannot author at all; a GUI defect
+  Ev reported as making the tool hard or impossible to use. The
+  standing goal this serves is **authoring arbitrary geometry through
+  the UI**, and most of what remains for it is kernel-side.
+- **P1 — high.** Architecture that entrenches as things are built on
+  it: two implementations of one underlying logic, a special case that
+  should be handled uniformly, and the rest of that class, which
+  mostly falls under no tidier heading than itself. Also verb breadth
+  beyond the everyday shapes, and GUI defects Ev reported as annoying
+  rather than blocking.
+- **P2 — medium-high.** Interval and error propagation — the reach
+  goal `docs/DESIGN.md` says shapes the architecture.
+- **P3 — medium.** Library usability and the north-star audit;
+  interop with other tools; tooling that prevents SILENT bugs; latent
+  unsoundness, such as a certificate a downstream crate can forge.
+- **P4 — low.** Code improvement that is not architectural; tooling
+  whose payoff is CI going red less often or the suite costing less;
+  prose, citation and naming hygiene.
+
+**A band says what to do, never when.** Dispatch order is the band
+together with what the row costs and with whether a design question is
+open on it — a cheap P4 with the fix written in its body is often
+taken ahead of a P1 that needs a ruling first, and that judgement is
+the orchestrator's. It is deliberately not a field: a stored dispatch
+order would go stale the first time a ruling landed.
+
+Two things the bands do NOT do. A guard does not inherit the band of
+what it guards: a dead assertion in the boolean suite is P3 for being
+a guard that cannot go red, not P0 for sitting on P0 ground. And a
+band is not a forecast of effort — `cost` carries that, separately,
+because the two are independent and collapsing them hides both.
+
+## Track size
+
+**A track is sized to about one orchestrator session** (Ev, in chat,
+2026-09-20). The measure is a weighted count of the rows that are
+actually dispatchable:
+
+- a row in `open` or `spec` counts; one `dispatched`, `review`,
+  `parked`, `deferred` or `closed` does not, because a row in flight
+  or ruled not-now is not a claim on the next sitting's attention;
+- it counts **1 point at cost `E`, 2.5 at `D`, 5 at `H`** — so one
+  budget of **30 points** says about 30 easy rows, about 12 design
+  rows, or about 6 hard ones, and says it for a mixed slate too, which
+  is nearly every slate;
+- a row with no `cost` is charged 2.5, so a track cannot come in under
+  budget by declining to price itself.
+
+A program may set its own `budget` with its reason in `program.md`;
+absent that it is 30. **The ceiling binds when a program opens and
+again as it grows**: a program is not opened over budget, and one that
+grows past it splits.
+
+**A track splits along its priority seam, not along another territory
+seam.** The seam that matters is the one already inside the slate: a
+fifty-row track is usually a dozen rows on the goal and thirty-eight
+behind them, and cutting it that way leaves one track a successor can
+charter and dispatch. Cutting the same slate five ways by file gives
+five tracks too thin to charter, and the territory rules above already
+say shared ground is fine. The closing rules' re-homing discipline
+applies unchanged: the rows MOVE, by `git mv`, keeping their ids.
+
+**Over budget is a report, not a lint warning.** `STATUS.md`'s
+`load` column carries every track's weight against its ceiling and
+bolds the ones over, and `work.py status` prints the same. It is
+deliberately not a warning on every `lint` run: splitting a track is a
+sitting's work and cannot be done in the PR that files its eleventh
+row, and a warning nobody can act on in the moment teaches people to
+skip warnings — the same reasoning that retired the double-claim
+warning above.
+
+## The tracker is not comprehensive
+
+**The tracker exists so work is not FORGOTTEN, not so work is
+RECORDED.** It is not an inventory of everything wrong with the tree
+and was never meant to be one, and its existence is not a reason to
+file instead of fix.
+
+So: **if you notice something small and you can fix it where you
+stand, fix it** — in the PR you are already writing, as a drive-by,
+and say so in the PR body. Do not open a file for it. A one-line
+citation that has rotted, a stale count, a comment describing code
+that moved: filing those costs a file, a header, a lint run, a review
+and a reader's attention later, to schedule work that was cheaper than
+the scheduling. Several rows on the board today are exactly this
+mistake and should have been commits.
+
+File an item when the fix is NOT yours to make where you stand:
+it needs a design question settled, it crosses into ground you are not
+working, it is too large for the PR in hand, or it would otherwise be
+lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 ## Rules
 

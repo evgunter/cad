@@ -4,6 +4,8 @@ kind: issue
 title: number_text has no width bound at all: a large field value is spelled in hundreds of characters
 status: open
 opened: 2026-09-16
+priority: P0
+cost: E
 ---
 
 

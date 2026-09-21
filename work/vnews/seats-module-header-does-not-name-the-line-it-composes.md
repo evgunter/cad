@@ -4,6 +4,8 @@ kind: issue
 title: seats' module header lists what the module is the one place for and leaves out seat_line
 status: open
 opened: 2026-09-20
+priority: P3
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: MateFault::Band on a MATE is unreachable through the insert door, so the solve's and the tree's mate-side Band arms are measured by no row — only a loaded snapshot reaches them
 status: open
 opened: 2026-09-20
+priority: P0
+cost: D
 ---
 
 

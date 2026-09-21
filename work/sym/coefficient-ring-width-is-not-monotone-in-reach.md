@@ -4,6 +4,8 @@ kind: issue
 title: widening the coefficient ring can lose discharges: a frozen node matches itself as one opaque indeterminate, and the same node expanded may not close
 status: open
 opened: 2026-09-14
+priority: P0
+cost: D
 ---
 
 

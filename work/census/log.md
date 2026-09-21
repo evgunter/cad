@@ -893,3 +893,88 @@ Before another unit in `crates/pncad-py/src/tests.rs`, settle the size
 row with LIB. Otherwise the `pncad-py` block, with
 `validation-error-reason-…` first — the only row on the slate naming a
 live user-visible defect rather than a missing instrument.
+
+## Rows arriving from FIX, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that **FIX carries no design decisions**:
+*"can you kick all the design decisions back to the track they actually
+belong to, leaving fix design-free?"* FIX is the program for rows whose
+fix is already written; three waves closed those and left a slate that
+had drifted into decisions. Fourteen rows moved out by `git mv` to the
+track owning the surface each decision is about, each carrying a
+`## Re-homed` section stating the question, the routing basis, and what
+was NOT decided for the receiver. Routing was taken from
+`python3 scripts/work.py territory --files -` over every path the rows
+cite, not from FIX's `keep_out` prose — two of that clause's fence
+claims were stale and are corrected in the moved rows.
+
+**Four rows, and three of them edit one file.**
+
+- `prose-census-undecided-residue` — the `UNDECIDED` roster's three
+  classes, each with two directions and no decision.
+- `census-cannot-type-a-nested-pattern-binding` — seven of those
+  twenty-eight rows are a fourth class the residue row does not name, and
+  were misattributed to it until a lane read them.
+- `collapsed-continuation-guard-belongs-in-the-prose-census` — home
+  settled (the needle is inside string literals, so `gate_rust_code`'s
+  code-only view cannot see it) and threshold measured by PR 2364 at run
+  >= 9, not the 4 the closed row guessed.
+- `a-new-kind-pair-arrives-unguarded-by-default` — the residue of
+  `kind-mirrors-have-no-single-declaration`, which Ev DECLINED on
+  2026-09-12 after its scale check came back feasible. Do not re-open the
+  macro from that feasibility answer.
+
+**The first three all edit `crates/pncad-py/src/prose_census.rs`** (LIB's
+path; the instrument's *contents* are CENSUS's charter). They moved
+together on purpose: two programs dispatching into that file in one week
+is a merge conflict, and one board can order them. The collapsed-
+continuation row is arguably design-free already — if you would rather
+hand it back as a written fix, FIX will take it.
+
+**One half of the kind-pair row is answered.** Ev ruled in the same
+sitting that the convention sentence's home is **the owning crate's
+`README.md`**, not `docs/DESIGN.md`. Still open: the sentence, and whether
+the two purpose-built guards (REACH's `boolean/mod.rs:2878`, WIRE's
+`product.rs:963`, ~230 lines with their `label()` tables) earn their keep
+having never fired. That second half wants those two programs' assent, not
+an announcement.
+
+Signed (FIX orchestrator).
+
+## A fifth row arriving, this one from DOOR, 2026-09-20
+
+The same sweep that sent four rows here from FIX earlier today swept
+DOOR, on the same ruling and in the same sitting. DOOR claims no paths,
+so it can never be the owning track for a decision; four of its rows
+left and this is one.
+
+**`all-census-idiom-forces-the-visit-not-the-update`.** Three rows in the
+tree pin a hand-written `ALL` against its enum the same way — an
+exhaustive match whose every arm names the same total, then
+`ALL.len() == that total` plus a no-repeats check — and each doc claims
+some version of *"visiting it means writing the new count, which then
+reds until `ALL` has grown too."*
+
+**The claim is false and the row MEASURED it** rather than arguing it: a
+four-variant enum whose `ALL` holds three entries passes green, because
+the match forces the VISIT and nothing forces the arm's NUMBER, and the
+arm an author writes is the arm they copied. The no-repeats half is
+sound. So the idiom buys a forced visit and a forced decision, which is
+not nothing and is not what three doc comments say.
+
+It lands here because this is the charter sentence about a guard rather
+than a renderer: a vocabulary spelled by hand in more than one place, and
+an instrument that cannot see the spelling that is missing. Your slate
+carries the same shape in `inert-deny-unknown-fields-on-unit-enums`.
+
+**The decision, and the row decides none of it:** sum the arms (moves the
+hole), `std::mem::variant_count` (nightly-only, this workspace is
+stable), a discriminant walk (`const fn index(self)`, then assert every
+index in `0..ALL.len()` is hit — the row's own most-promising reading,
+and three of the sites already have an index for other reasons), or a
+proc macro. Whichever you pick reaches WIRE's `crates/verbs/src/verb.rs`
+and REACH's `crates/topo/src/boolean/mod.rs`, so it wants their assent
+rather than an announcement; `crates/topo/src/param_source.rs` is in no
+open program's `paths`.
+
+Signed (DOOR orchestrator).

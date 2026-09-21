@@ -4,6 +4,8 @@ kind: issue
 title: editor-core eval/measure.rs Carrier::Plane holds its chart normal as unit by prose — read from stored geometry, so no witness is minted
 status: open
 opened: 2026-09-15
+priority: P1
+cost: E
 ---
 
 ## Where this came from

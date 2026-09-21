@@ -4,7 +4,7 @@
 
 use eframe::egui;
 
-use crate::app::{GLYPH_ROOT, ViewerBehavior, chrome};
+use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::session::{Selection, SessionOp};
 use crate::tree::{RowStatus, TreeRow};
 
@@ -72,23 +72,21 @@ impl ViewerBehavior<'_> {
                     });
                 }
             }
+            // **Exhaustive on purpose**: whether a row draws a badge
+            // at all is this pane's decision, so a status the kernel
+            // grows has to answer it here rather than fall into a
+            // wildcard and draw.
+            //
+            // How LOUD a drawn badge is, is not decided here — that is
+            // `RowStatus::tone()`, read below.
             match &row.status {
+                // Silent: a healthy row's own line is the whole of
+                // what it has to say, and a tree of unmarked rows is
+                // what makes the marked ones carry. The status still
+                // has a badge, which `examples/r1_e2e.rs` prints.
                 RowStatus::Ok => {}
-                // Nothing to act on HERE: the row was never run, or it
-                // shows someone else's failure and points at the row
-                // that owns it. Quiet, so the eye passes over it.
-                RowStatus::Unevaluated | RowStatus::Poisoned { .. } => {
-                    ui.weak(row.status.badge());
-                }
-                // The ACTIONABLE rows — the nodes whose own operation
-                // refused — are the ones that take the colour, so a
-                // document with six rows downstream of one broken
-                // feature sends the eye to the one. There can be more
-                // than one: a `MateFault::Contradictory` naming two
-                // different mates blames both, and both go red
-                // (`tree::blamed_mates`).
-                RowStatus::Failed { .. } => {
-                    ui.colored_label(chrome(self.theme.unresolved), row.status.badge());
+                RowStatus::Unevaluated | RowStatus::Poisoned { .. } | RowStatus::Failed { .. } => {
+                    ui.label(toned(row.status.badge(), &self.theme, row.status.tone()));
                 }
             }
         });

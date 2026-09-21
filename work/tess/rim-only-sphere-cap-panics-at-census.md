@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-03
 github: 1615
 refs: [897, 1571]
+priority: P0
+cost: H
 ---
 
 ## From GitHub issue 1615

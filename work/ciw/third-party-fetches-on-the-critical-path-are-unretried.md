@@ -5,6 +5,8 @@ title: seven hosted downloads from a third-party host carry no retry, beside thr
 status: open
 opened: 2026-09-11
 refs: [apt-preamble-bypass-is-unguarded]
+priority: P4
+cost: E
 ---
 
 

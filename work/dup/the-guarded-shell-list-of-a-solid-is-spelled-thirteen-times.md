@@ -4,6 +4,8 @@ kind: issue
 title: Body::shells_of_solid is the missing door: the guarded shell list of a solid is spelled thirteen times in topo/src
 status: open
 opened: 2026-09-20
+priority: P1
+cost: D
 ---
 
 
