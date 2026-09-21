@@ -77,6 +77,8 @@ mod coeffs_pair_identity;
 mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
+#[path = "decide3_r2_probes.rs"]
+mod decide3_r2_probes;
 #[path = "decoration_seam.rs"]
 mod decoration_seam;
 #[path = "eps_provenance.rs"]
@@ -143,8 +145,6 @@ mod sym_drive_memo;
 mod sym_rule_e_rows;
 #[path = "sym_rule_f_interval_rows.rs"]
 mod sym_rule_f_interval_rows;
-#[path = "decide3_r2_probes.rs"]
-mod decide3_r2_probes;
 #[path = "sym_rule_f_rows.rs"]
 mod sym_rule_f_rows;
 #[path = "tolerance_init.rs"]
