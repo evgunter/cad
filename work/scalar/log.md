@@ -977,3 +977,19 @@ SCALAR-B6's pre-draw fields (LANE-2 M; LANE-3 E; RING-3 M, Fable spec,
 Ev-gated) were recorded before the byte: **153** ⇒ fable position 0
 (slot 0 LANE-2 = FABLE, slot 1 LANE-3 = OPUS, slot 2 RING-3 = OPUS).
 Ruling 3 supersedes the 2026-09-05 DEFER on this trait; the spec says so.
+
+## RING-2's first hosted run: exact-zero bounds reach the meters (2026-09-21)
+
+PR 3032's first head ran red on three rows the lane's local set could
+not see: the mesh budget meter and `tools/tess-meter`'s rows (both
+under the k-lint rows' features and roots) record an EMPTY certificate
+for a flat NURBS face — its second-derivative bounds are now exactly
+zero where the ring's one-ulp pad made them tiny and positive, so the
+patch steps are infinite and no cell is sampled — and an interval-lane
+`Display` row at eps 1e-12 (the interval arm was run at the default
+eps only). The first two are a consumer that cannot digest a tighter
+bound, the class the spec names for consumer changes: fixed at the
+meter's source, never by widening the bound; the third is a message
+re-pin or a chain fix, the lane's call with the cause named. Recorded
+here because RING-3 dissolves this newtype into `Interval` and every
+such consumer is on its path.
