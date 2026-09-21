@@ -2,8 +2,10 @@
 id: quantity-fmt-error-display-row-is-a-verbatim-copy-of-assert-f6
 kind: issue
 title: quantity's FmtQuantityError display row is a verbatim copy of assert_f6's body, panic wording included
-status: open
+status: review
 opened: 2026-09-19
+branch: fix/quantity-f6-fold
+pr: 2944
 ---
 
 Found by S-DUP's F6 fold of `crates/viewer/tests/panel_edits.rs`, whose
