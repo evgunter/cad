@@ -13800,3 +13800,52 @@ of them is not a diagnosis.
 
 Closed with their merge dates. `4889b7c3d2` and its four siblings each
 carry two parents, so merge-only held; only the bookkeeping lapsed.
+
+## 2026-09-21 — the orchestrator's own board was stale, and two lanes went out
+
+**Four PRs merged.** #2990 (`vseam/plan-staleness` — four stale claims
+in VSEAM's plan, plus the META lint row), #2994 (`vseam/fmt-literal-row`
+— AUTH-2's re-minted literal filed on AUTHOR's slate, plus two register
+entries in `work/vseam/log.md`), #2995 (this branch's 1,043 lines of
+log, three rulings and one register rule), and before them the #2967
+sketch-guard unit that `main` already carried.
+
+Two of the four needed a `main` merge resolved by hand on
+`work/vseam/log.md` — both lanes had appended to it. That file is now
+the most conflict-prone path in the tracker, and the register's
+merge-before-push rule is what keeps it cheap.
+
+**The finding of the wave, and it is the orchestrator's own.** Picking
+the next unit meant opening `work/vgeom/`. Order item 2 — the two
+sketch guards — read `status: open` in both rows over a program log
+that ended at its opening state. Both false: #2967 had merged the
+fixes and closed both rows six hours earlier. This clone was pinned at
+`0c530f67ef` and every `work/` read this session had been taken from
+it.
+
+It is #2990's own defect one level up — a status read from somewhere
+nothing checks — and it had a second consequence: 1,043 lines of this
+log and three rulings had never reached `main`, the same way none of
+the register's rules had until #2952. Both are now on `main`, and the
+rule is in the register: **a board read is `git show origin/main:<path>`,
+never `cat <path>`.**
+
+**Two lanes dispatched, and the constraint that shaped the pair.**
+Disk is the parallelism ceiling — ~22 GB free and a viewer target dir
+costs 6–13 GB — so only one lane can build:
+
+- `vgeom/refusal-floor` — VGEOM Order item 1, the four-row refusal-floor
+  sweep (`props.rs`, `input.rs`, `camera.rs`, `gpu.rs`), dispatched
+  against #2644's shape rather than a second one invented for it. One
+  target dir.
+- `vdoc/readme-counts` — five VDOC rows that are one class, *a number
+  stated in prose that does not re-derive under its own rule*.
+  README-only, docs tier, **no build and no target dir**, which is the
+  whole reason it can run beside the other.
+
+The pair is coupled and the dispatch says so: `recourse text is composed
+six ways across five modules` moves if the refusal sweep adds recourse
+text. The instruction is not to coordinate but to **re-derive every
+count on the merged tree immediately before pushing, and name the commit
+beside the rule** — and to report it as the finding if a number moves
+between the first derivation and the last.
