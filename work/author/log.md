@@ -383,3 +383,86 @@ hand-writes what `props::shown_in` exists to prevent, and that
 function's own doc names "a hand-written `map_or` at each" as the
 thing it prevents), plus evidence onto two VGEOM rows, one of which
 asks for exactly this unit's guard generalised.
+
+## 2026-09-21 — AUTH-2's style lane, adjudicated
+
+Twenty-one findings, one of them handed straight to the correctness
+lane as a probable MAJOR and forwarded there while it was still
+running.
+
+**S2, the forwarded one: the parameter field may emit TWO ops for one
+typed number.** The `Selection::Param` arm still calls
+`widgets::drag_ops`, whose typed arm pushes `SessionOp::SetParam`
+unconditionally, and the unit ALSO added a `match typed.into_inner()`
+dispatch that pushes `SetParam` again through the new guard.
+`slot_value_ui` uses `drag_gesture_ops` — the drag half only —
+precisely so its own dispatch is the sole emitter; the parameter arm
+kept `drag_ops`. If egui reports `changed()` on a parser-produced
+value, C5's "no op at all" is FALSE at the panel and a typed bare
+number costs two undo steps, with `typed_edit` still correct as a pure
+function. **Nothing in the suite would go red either way**:
+`panel_edits` drives ops directly and `typed_edit` is tested pure, so
+the panel's op emission is untested ground.
+
+**S3 falsifies the PR's headline.** The no-op rule has THREE
+spellings now, not one: `props::typed_edit` (tolerance, on the
+render), `slot_value_ui`'s expression arm (exact, on the source text),
+and `DocSession::set_param_text` (**exact f64 equality**, on the
+canonical value) — whose doc calls its guard *"the same rule …
+(`props::typed_edit`)"* when it is the exact comparison `typed_edit`
+was written to replace. A Q2 reconciliation comment that is false is
+the strongest evidence the rule has no home.
+
+**The fresh-instance trap again, in its literal form.** S1:
+`param_unit_ui` is a third hand-rolled copy of `widgets::pick_unit` —
+same options call, same early return, same salt shape, same
+`.width(72.0)` — in a file that already imports from `widgets` in this
+very diff. Its sibling `slot_unit_ui` has a real difference (the
+`mixed` label, the vector fan-out); this one has none. So both units
+this sitting closed a duplication and minted one. That is now a
+pattern in this program and not an accident, and the next spec says so
+in the brief.
+
+**I was wrong about one thing and the reviewer corrected me.** My
+brief said the disclosed echo/re-type cost carried no schedule. It
+does: the lane put it on
+`work/vgeom/a-fields-text-commits-within-the-renders-own-tolerance.md`,
+an open item file, which is what Q6 asks for. The caveat the reviewer
+kept is the real one — it sits on VGEOM's slate under a different
+question, so AUTHOR's trade is scheduled somewhere AUTHOR does not
+read.
+
+**Held for the correctness lane**: S15, that the guard's rows cannot
+go red when the guard DEGRADES (pinned inside the band and at
+`showing * 2.0`, nothing at the boundary — widen `REL_TOLERANCE` by
+three orders and every row still passes). Asked to be verified by
+widening the constant and re-running, not by reading.
+
+## 2026-09-21 — [ev] PR 2974: sweep the blind spot you just named
+
+**The one thing this sitting found that binds future work.** Both
+units wrote §5 receipts of unusual quality, and in BOTH the stated
+blind spot is exactly where a real finding was — AUTH-1's `ui.label`
+gap held three per-kind sentences, one of them its own diff's;
+AUTH-2's "a `match` on `Dimension`" gap held six ladders, three of
+them its own. Two lanes, two independent reviewers, no contact. Each
+receipt's counts were re-derived and HELD, so the sweeps were not
+sloppy — the rule got what it asked for, which is a statement and not
+a second pass.
+
+`docs/prompts/` binds every lane by path, so it waits for Ev
+(CLAUDE.md). PR https://github.com/evgunter/cad/pull/2974, item
+`work/meta/a-stated-sweep-blind-spot-is-never-swept.md` with
+`needs_ev: true`, subscribed for comments. The PR states the case
+against as well as for, and says plainly that the base is narrow: two
+instances, one sitting, one program, both units mine. The precedent
+cited is the scratchpad row, where Ev declined a rule for not being
+specific to this project — this one is about a rule the repo already
+has, which is the distinction, and it is Ev's to weigh.
+
+Filed on META's slate because `docs/prompts/*` is META's ground; seam
+announced on META's log. Neither
+`an-items-stated-sweep-pattern-may-not-match-its-own-instance` nor
+VDOC's `sweep-blind-spots-the-precheck-sweep-could-not-see` covers it
+— the first is a pattern that misses its OWN instance, the second
+preserves one sweep's gaps as a record rather than changing the rule.
