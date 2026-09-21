@@ -788,3 +788,31 @@ into `crates/geom-core/tests/ring_interval_differential.rs` (the
 "RING-0 specified" entry named the ground but not the file). Announced
 here: TCOST/TINT own that file; the fix pass also adds one witness row
 to `crates/geom-core/tests/certified_door.rs` (the same ground).
+
+## RING-0 dual concluded; the block's first tally candidate (2026-09-21)
+
+Both arms APPROVE WITH FIXES on frozen `146ef44906`: R1 (FABLE) 0
+MAJOR / 4 MINOR / 6 NOTE, R2 (OPUS) 2 MAJOR / 5 MINOR / 9 NOTE; both
+reproduced the EFFORT-20 tallies bit for bit, the red-first, and the
+960-row coefficient split (524 unchanged / 436 tighter / 0 looser);
+R1 re-ran the whole dry run at default (22 red, every row and payload
+matching the table), R2 most of it. **R2's M1 is unilateral, by
+execution, class test-gap ⇒ a tally candidate**: the allowlist is
+closed over six sampled exponents, not over `powi`; at `powi(-1)` the
+backend refuses where the ring certifies (fourteen unmatched
+disagreements on the file's own corner corpus, the direction the
+module doc denies; `pow_pos` pads the base and the reciprocal divides
+by a zero-touching bracket where the ring's `n = ±1` path never pads);
+`-3` is the one negative exponent that agrees; production exposure
+today zero. R1 found the same predicate's other face (class 3 wider
+than the disagreement it excuses; no predicate asserts direction) at
+MINOR and not the hole. R2's M2 (the endpoint register short by at
+least five, `props.rs:2731` unable to launder under the dry run's
+`from_certified`) is bilateral with R1's MINOR 2/3 ⇒ excluded. Both
+corrected the dispatch: the survey's "division should show zero
+disagreements" is false (one class, unbounded over unbounded; zero on
+zero-touching divisors), and `ssi/enclose.rs` has no red row. For
+RING-2's spec: what `from_certified` returns under cut (ii) decides
+half the hazard list; the red set is conditional on the `hull` /
+`clamped_to` guards; the register wants to be executable. Fix pass
+dispatched on the OPUS arm.
