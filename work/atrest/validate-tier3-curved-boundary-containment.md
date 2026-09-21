@@ -34,7 +34,7 @@ What IS covered today, so the gap is stated precisely:
   reaches a face on a `Plane` whose outer loop is in `boolean::contain`'s
   `Polygon` class (no arc anywhere, so the walked polygon IS the loop's
   region) and is silent on every arc-bearing class and on any non-planar face
-  (`work/topo/check-9-nesting-is-line-bounded-only.md`).
+  (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
 
 What remains uncovered:
 
