@@ -1899,68 +1899,6 @@ pub trait PropsQuadLane:
     /// also keeps `lo`/`hi` unshadowed at every concrete call site.
     fn datum_lo(self) -> f64;
 
-    /// Re-derives an approximating surface's certificate against its
-    /// own stored description and fit, classified against
-    /// `tolerance` — the tier-3 never-trust posture (O5), one
-    /// dimension up from `EdgeCurve::recertify`.
-    ///
-    /// **The tolerance is the RUN's, not the surface's.** The edge
-    /// machinery re-certifies every carrier against the run's band and
-    /// never against a stored bound, and the surface claim is the same
-    /// shape: O3 ratifies `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so
-    /// verifying it means measuring against the ε this validation call
-    /// runs at. A surface minted at a loose tolerance validating
-    /// forever afterwards would be the stored bound quietly replacing
-    /// the ratified one. The stored tolerance stays what it always
-    /// was: the MINT's parameter, and the fit door's own gate.
-    ///
-    /// `None` = this scalar has no re-derivation lane. That is a
-    /// statement about the DERIVATION, never about which values can
-    /// arrive: [`geom::ApproxSurface::certify`] is generic in the
-    /// scalar and takes its certifier as an argument, so an
-    /// `ApproxSurface<Self>` is representable at every scalar and such
-    /// a face reaches this arm. `None` is not a pass — tier 3 reports
-    /// it as [`ValidationError::ApproxLaneUnsupported`](crate::ValidationError),
-    /// because a surface certificate is the one claim this kernel
-    /// refuses to leave unchecked.
-    ///
-    /// # Errors
-    ///
-    /// The fit door's typed refusal, when the re-derivation fails.
-    fn recertify_approx(
-        approx: &geom::ApproxSurface<Self>,
-        tol: Tol,
-        band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>>;
-
-    /// Mints the certified approximating surface for a NURBS operand's
-    /// offset — the fit door, reached through the lane so the doors
-    /// above it stay scalar-generic.
-    ///
-    /// The fit target is the run's ε and arrives as the witness, for
-    /// [`PropsQuadLane::recertify_approx`]'s reason: the mint and the
-    /// re-derivation that must later re-establish its claim classify
-    /// against the same number by construction, not because two
-    /// callers passed the same one.
-    ///
-    /// `None` = this scalar has no fit lane. That is not a pass: a
-    /// caller that cannot mint the offset refuses, exactly as tier 3
-    /// refuses a certificate it cannot re-derive. The fit itself is
-    /// derived at `f64` only, so `None` is every other scalar's honest
-    /// answer — the absence of a derivation, not of a representable
-    /// operand.
-    ///
-    /// # Errors
-    ///
-    /// The fit door's typed refusal (the meters, a rational operand,
-    /// the refinement budget, a certificate limb).
-    fn approx_offset_surface(
-        base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        d: Self,
-        tol: Tol,
-        band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>>;
-
     /// # Errors
     ///
     /// [`PropsError`] from the quadrature lane (budget, unsupported
@@ -1980,23 +1918,6 @@ impl PropsQuadLane for f64 {
         geom_core::Bounds::lo(self)
     }
 
-    fn recertify_approx(
-        approx: &geom::ApproxSurface<Self>,
-        tol: Tol,
-        band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        Some(geom_brep::recertify_approx(approx, tol, band))
-    }
-
-    fn approx_offset_surface(
-        base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        d: Self,
-        tol: Tol,
-        band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        Some(geom_brep::approx_offset_surface(base, d, tol, band))
-    }
-
     fn quad_cut_face(
         body: &Body<Self>,
         surface: &Surface<Self>,
@@ -2011,29 +1932,6 @@ impl PropsQuadLane for f64 {
 
 #[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
-    // The offset fit is derived at `f64` only, so this scalar has no
-    // re-derivation lane. That is the whole reason, and it is about the
-    // derivation: an `ApproxSurface<Self>` is representable here —
-    // `ApproxSurface::certify` is scalar-generic and takes its
-    // certifier as an argument — so such a face does reach this arm and
-    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
-    fn recertify_approx(
-        _approx: &geom::ApproxSurface<Self>,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        None
-    }
-
-    fn approx_offset_surface(
-        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        _d: Self,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        None
-    }
-
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -2052,26 +1950,6 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
-    // No re-derivation lane at this scalar; the reason has one home, on
-    // [`PropsQuadLane::recertify_approx`], and it is about the
-    // DERIVATION rather than about which values can arrive.
-    fn recertify_approx(
-        _approx: &geom::ApproxSurface<Self>,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        None
-    }
-
-    fn approx_offset_surface(
-        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        _d: Self,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        None
-    }
-
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -2102,26 +1980,6 @@ where
     geom_core::Sym<T>: Decide + geom_core::Bounds,
     T: geom_core::CertifiedBounds,
 {
-    // No re-derivation lane, for the base scalar's reason: the offset
-    // fit is derived at `f64` only. This is about the DERIVATION, not
-    // about which values can arrive.
-    fn recertify_approx(
-        _approx: &geom::ApproxSurface<Self>,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        None
-    }
-
-    fn approx_offset_surface(
-        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        _d: Self,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        None
-    }
-
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -2144,26 +2002,6 @@ impl<T> PropsQuadLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
-    // No re-derivation lane at this scalar; the reason has one home, on
-    // [`PropsQuadLane::recertify_approx`], and it is about the
-    // DERIVATION rather than about which values can arrive.
-    fn recertify_approx(
-        _approx: &geom::ApproxSurface<Self>,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
-        None
-    }
-
-    fn approx_offset_surface(
-        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
-        _d: Self,
-        _tol: Tol,
-        _band: Band,
-    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
-        None
-    }
-
     fn datum_lo(self) -> f64 {
         geom_core::Bounds::lo(self)
     }
@@ -2189,7 +2027,7 @@ where
 ///
 /// Certified validation is an act of certification — its tier-3
 /// battery re-derives surface certificates
-/// ([`PropsQuadLane::recertify_approx`]), encloses volume flux
+/// ([`geom_brep::OffsetFitLane::recertify`]), encloses volume flux
 /// through the quadrature lane, and certifies the contact census —
 /// so it belongs to the scalars with certification rights (`f64`,
 /// the telemetry probe, the interval scalar), whose impls here
@@ -2220,7 +2058,34 @@ where
 /// doors themselves keep their meaning at every `PropsQuadLane`
 /// scalar; this trait only decides which scalars' evaluation-service
 /// gates consult them.
+///
+/// The trait also carries the OFFSET FIT's seam
+/// ([`AtRestPolicy::offset_fit_lane`]), for the same reason it carries
+/// the gates: it is the per-scalar policy home, and the fit's absence
+/// is a per-scalar fact. The two absences are different facts, and the
+/// doc on that method says which is which.
 pub trait AtRestPolicy: PropsQuadLane {
+    /// **This scalar's offset-fit door, or `None` where the fit is not
+    /// derived here** — the ONE seam the `Some` comes from, read by
+    /// check 1's tier-3 battery, the offset mint
+    /// ([`crate::replace_face_offset`]) and the transform's surface
+    /// map ([`crate::transform_rigid`]).
+    ///
+    /// `None` is a statement about the DERIVATION and never about
+    /// which values may arrive: an `ApproxSurface<T>` is representable
+    /// at every scalar, so a face carrying one does reach those passes
+    /// at a scalar with no door, and each refuses typed rather than
+    /// passing. That makes it a different fact from
+    /// [`AtRestOutcome::NotRunAtThisScalar`] below, which is about
+    /// certification rights (DL1).
+    ///
+    /// It is a per-scalar seam and not a lane trait of its own
+    /// (`work/scalar/H5.md` §RATIFIED ruling 3, which keeps this trait
+    /// as the per-scalar policy that cut leaves standing): the door
+    /// itself is a value the passes take as a parameter, and this is
+    /// the one place each scalar's answer is written.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
+
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
     /// which).
@@ -2260,6 +2125,12 @@ pub enum AtRestOutcome {
 }
 
 impl AtRestPolicy for f64 {
+    /// The fit IS written here: `geom_brep::offset_fit` is an `f64`
+    /// module throughout, so this is the one arm that answers `Some`.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        Some(geom_brep::OffsetFitLane::fit())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2276,6 +2147,13 @@ impl AtRestPolicy for f64 {
 
 #[cfg(feature = "probe")]
 impl AtRestPolicy for geom_core::Probe {
+    /// The fit is derived at `f64` only. The recording scalar is `f64`
+    /// with a sink attached, and that is still not the type
+    /// `geom_brep::offset_fit` is written in.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2292,6 +2170,13 @@ impl AtRestPolicy for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl AtRestPolicy for geom_core::interval::Interval {
+    /// The fit is derived at `f64` only — a fact about the scalar the
+    /// derivation was written in, not about this scalar's
+    /// certification rights, which it has in full.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2316,6 +2201,13 @@ where
     geom_core::Sym<T>: PropsQuadLane,
     T: geom_core::CertifiedBounds,
 {
+    /// The fit is derived at `f64` only. The tier changes how a margin
+    /// DECIDES, not which derivations exist, so wrapping a scalar
+    /// cannot add one.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2340,6 +2232,13 @@ impl<T> AtRestPolicy for geom_core::Dual<T>
 where
     geom_core::Dual<T>: PropsQuadLane,
 {
+    /// The fit is derived at `f64` only — the same reason every other
+    /// arm here gives, and a separate fact from the gates below, which
+    /// are absent because a dual does not certify.
+    fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
     fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }

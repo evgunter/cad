@@ -4194,6 +4194,46 @@ record is its item's `## Closed` section and its MERGED entry in
 
 - `MSOLVE-7-SPEC.md` — MSOLVE-7, the member walk's residue: one environment, one seat, one account, one attribute (#2885)
 
+## Per-merge deletion - PROPS curved-residues' spec (2026-09-21)
+
+Recoverable at `git show 0cd022b32:docs/PROPS-CURVED-RESIDUES-SPEC.md`
+(PR #2924's merge commit, the last head carrying it). **No A/B row**:
+ordinal 2408 was claimed and retired without one on Ev's ruling, the
+fable arm having been out of credits, and a single opus review is the
+unit's review of record. The spec's rulings are the unit's record
+together with the closed items
+(`cone-apex-cap-refuses-degenerateface`,
+`the-shape-door-could-take-the-sense-free-rim-side-residue`,
+`rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify`,
+`closure-guard-decides-a-sum-not-a-cover`), the MERGED entry in
+`work/props/log.md`, and the residues on `work/tess/`.
+
+**Spec note at deletion: this spec located its own risk exactly right
+and the mitigation it named was still not enough.** It said, in those
+words, "It needs the closure guard, and that is the whole risk" - an
+unguarded fold answers the UNBOUNDED complement with the apex cap's
+area, which is the sphere unit's own MAJOR repeated on the other chart.
+The unit built the guard the spec named and red-firsted the four shapes
+the spec listed. The blinded review then built a fifth: **the same half
+rim stated twice**, which totals a turn, passes a guard that decides a
+SUM, and answers the whole cap's area on half a circle. The four shapes
+were instances; the class is "does not cover".
+
+That made three consecutive failures of one premise, the first of them
+in a spec: `docs/PROPS-SPHERE-POLE-SIDE-SPEC.md` ASSERTED that
+`du_of_rims` already sums a full rim to `2*pi` rather than requiring it
+to be decided; the sphere unit inherited the assertion and shipped a
+MAJOR; the fix added a guard that checked the sum, which is the same
+assertion one level down and shipped to main. **The lesson for spec
+writing, which is why this note exists:** naming the right risk is not
+the same as naming a sufficient mitigation, and a spec that hands a unit
+a specific guard invites the unit to stop thinking where the spec
+stopped. The four enumerated shapes were the spec's, and the unit
+tested exactly them.
+
+Closed by `props_rim_only_join` (sum AND head-to-tail chain = cover),
+at both call sites, tested as a generated property rather than a list.
+
 ## Per-merge deletion - PROPS escalation-channel's spec (2026-09-20)
 
 Recoverable at `git show 3502371ec:docs/PROPS-ESCALATION-CHANNEL-SPEC.md`
@@ -4365,3 +4405,30 @@ dev-only or optional" — it does not (its subject is `test-support` /
 does not. Recorded in the PR body and the unit's `## Closed` section.
 
 - `RING-1-SPEC.md` — RING-1, `geom_core::interval` compiles unconditionally; the feature gates only the instantiation (#2971)
+
+## Per-merge deletion — LANE-0's spec (2026-09-21)
+
+Recoverable at `git show eb100e1cbc:docs/LANE-0-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the seam arms supply `Some`
+where the scalar is `f64` (`AtRestPolicy for f64`, the `ShellLane` →
+seam arm for `f64`, `verbs/shell.rs` ~`:248-258`) and `None`
+elsewhere; `f64`-concrete public callers …" — threading the door from
+those arms was measured at 18 public doors and ~1,200 call sites and
+declined by the orchestrator's ruling (recorded in the item and the PR
+body): the `Some` is read at the one per-scalar seam ruling 3 keeps,
+`topo::AtRestPolicy::offset_fit_lane`, and the passes keep the door as
+their `Option` parameter; the `verbs/shell.rs` pointer lands on the
+`Dual` arm (the `f64` arm is `:176`); "(three per trait method)" — the
+fifteen impls are five scalars × three methods; §0's
+`crates/geom-core/src/offset_fit.rs` — the file is
+`crates/geom-brep/src/offset_fit.rs`; "the fixtures the existing `f64`
+rows use" — the sweep fixture is minted through the `_at` instrument
+at a fixed target and cannot be re-derived at the run's ε, so the
+subject is a new patch with the largest bow that certifies at every
+eps row (a bow that refines at every row was measured impossible);
+and the review brief's claim 5 ("mint pointed at remap") cannot
+compile, the live mis-wiring modes being a same-signature closure and
+the `_at` twin, both pinned by pointer identity. Recorded in the PR
+body and the unit's `## Closed` section.
+
+- `LANE-0-SPEC.md` — LANE-0, the `f64`-only offset-fit absence becomes an `Option` hook, out of the lane traits (#2981)

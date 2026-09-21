@@ -2,7 +2,9 @@
 id: viewer-readme-two-marks-section-does-not-say-what-is-not-a-consumer
 kind: issue
 title: The viewer README's two-marks section records the consumer that was removed but not the look-alike that was refused
-status: open
+status: closed
+closed: 2026-09-21
+branch: vdoc/readme-attributions
 opened: 2026-09-20
 priority: P4
 cost: E
@@ -60,3 +62,49 @@ the TEST rather than the list — the test is what the sweep needed.
 ## Home
 
 VDOC's: `crates/viewer/README.md`.
+
+## Closed — the section states the TEST and disposes both look-alikes (#vdoc/readme-attributions)
+
+**What was missing.** *"The third consumer was the second level
+misread"* recorded the site that was removed and nothing about the
+sites that were examined and refused, so the next sweep over the
+shared spelling had nothing to read.
+
+**The subject, re-derived.** `frame::LIST_SEPARATOR` is `"; "`
+(`crates/viewer/src/frame.rs:758`). Two sites in `crates/viewer/src`
+write those two characters between items of their own:
+
+- `seats::seat_line`'s `.join("; ")` at
+  `crates/viewer/src/seats.rs:373`, whose doc comment at `:351-361`
+  already carries the argument that refuses it;
+- `pane::create`'s mate-tool panel, `"pick a: node {}; pick b: node {}"`
+  at `crates/viewer/src/pane/create.rs:134`.
+
+Neither is a consumer: neither reaches a `frame::Message`, nothing
+counts their items and no preamble introduces them — the section's own
+test, applied forwards rather than backwards.
+
+**New text — the test, because the list is not sweepable.** The row
+warned that naming `seat_line` alone would mint a second, smaller wrong
+population, so the section now states the membership test first and
+disposes both sites under it, and says why the list is disposed rather
+than swept. Both commands are printed and were run out of the file:
+
+    rg -n '"; "' crates/viewer/src
+
+prints **3** (the constant, `seat_line`'s join, and the doc comment
+arguing about it) and cannot see the mate panel at all, whose mark is
+inside a format string; and
+
+    rg -n '"[^"]*; ' crates/viewer/src
+
+prints **43**, every sentence in the crate that uses a semicolon. Both
+exit 0, both extracted with `sed -n Np` and run as printed. There is no
+pattern between them for *joins its own items*, which is precisely why
+the section holds a test and not a census.
+
+The mate panel's second spelling is `work/vnews/mate-panel-hand-rolls-
+the-seat-line`, still open on VNEWS's slate and named at the sentence;
+fixing that duplication would not make the site a consumer.
+
+Re-derived on the merged tree at `fb60ba2b7f`.

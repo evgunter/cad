@@ -92,6 +92,8 @@
 
 use crate::common;
 
+use std::collections::BTreeSet;
+
 use common::{len, len3, scl3};
 use pncad::document::{
     Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Expr, Frame,
@@ -103,8 +105,8 @@ use pncad::select::ContactClass;
 use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, Hovered, PatternRuleSpec,
-    Refusal, Selection, SessionOp,
+    BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, FreeMoveName, GestureName,
+    Hovered, PatternRuleSpec, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -914,6 +916,214 @@ fn every_gesture_cancel_has_a_chrome_door() {
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
+/// **One name per family**, and the witness that the list is complete.
+///
+/// `family` is an exhaustive match, so a third kind of gesture does not
+/// compile until it is sampled here; the rows below then range over
+/// every family rather than over the two their author had in mind.
+fn family(name: &GestureName) -> usize {
+    match name {
+        GestureName::Value(ValueGestureName::Slot { .. }) => 0,
+        GestureName::Value(ValueGestureName::Param(_)) => 1,
+        GestureName::FreeMove(_) => 2,
+    }
+}
+
+/// Two distinct names per family, which is what an injectivity check
+/// needs: the pairs differ in the payload and in nothing else.
+fn sample_names() -> Vec<GestureName> {
+    let names = vec![
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(3),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(4),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+        GestureName::Value(ValueGestureName::Param(ParamName("w".into()))),
+        GestureName::FreeMove(FreeMoveName {
+            instance: RecipeNodeId(3),
+        }),
+        GestureName::FreeMove(FreeMoveName {
+            instance: RecipeNodeId(4),
+        }),
+    ];
+    let covered: BTreeSet<usize> = names.iter().map(family).collect();
+    assert_eq!(
+        covered,
+        BTreeSet::from([0, 1, 2]),
+        "a gesture family with no sample name"
+    );
+    names
+}
+
+/// The three operations a gesture name mints, which is the other
+/// direction of [`SessionOp::names_gesture`].
+///
+/// The begin and the commit are asked of [`GestureName`] itself, which
+/// is the door a chrome builds a vocabulary through
+/// (`widgets::value_gesture`, `widgets::free_move_gesture`); only the
+/// preview goes to the half, because its value kind is the half's.
+fn minted(name: &GestureName) -> [SessionOp; 3] {
+    let preview = match name {
+        GestureName::Value(value) => value.preview(1.0),
+        GestureName::FreeMove(probe) => probe.preview(Frame::translation([1.0, 0.0, 0.0])),
+    };
+    [name.begin(), preview, name.commit()]
+}
+
+/// **The three spellings are one concept, and the tree says so
+/// mechanically.**
+///
+/// Six driving operations name their gesture three ways — a node and
+/// a slot, a parameter name, an instance — and
+/// [`SessionOp::names_gesture`] is where they become one
+/// [`GestureName`]. Asserted over `every_op`'s samples, which
+/// `the_table_answers_for_every_op` holds to one per variant, so the
+/// population is the whole enum:
+///
+/// - an operation names a gesture exactly when its VARIANT is one a
+///   gesture name mints. The population that answers comes from
+///   [`sample_names`] through [`minted`] rather than from a second
+///   hand-written list of the enum: this file's own rule is that a
+///   second copy catches a wrong entry, and a copy in the same order
+///   and grouping as the original catches a typist, not an author.
+/// - reading a name off an operation and minting the operations back
+///   from that name land on the same VARIANT.
+/// - every operation a name mints reads back as that same name.
+///
+/// **What the last two are together, and what they are not.** Each
+/// alone is weak: the variant check ignores the payload, and the
+/// round trip is a FIXED-POINT check, which any idempotent wrong
+/// answer satisfies — `names_gesture` returning `RecipeNodeId(0)` for
+/// every slot drag passes both, and passed the whole viewer suite.
+/// `a_name_is_the_payload_it_was_read_off` is the row that closes it,
+/// by anchoring the round trip at a name this file wrote rather than
+/// at one `names_gesture` produced.
+#[test]
+fn every_driving_operation_names_one_gesture() {
+    let tol = Tol::witness();
+    let dir = common::tempdir("view-gesture-name-census");
+    let (_, node) = fixture(tol);
+    let mintable: Vec<SessionOp> = sample_names().iter().flat_map(minted).collect();
+    for op in every_op(node, &dir.join("saved.pncad")) {
+        let named = op.names_gesture();
+        assert_eq!(
+            named.is_some(),
+            mintable.iter().any(|minted| same_variant(minted, &op)),
+            "whether {op:?} names a gesture"
+        );
+        let Some(name) = named else { continue };
+        let vocabulary = minted(&name);
+        assert!(
+            vocabulary.iter().any(|minted| same_variant(minted, &op)),
+            "{op:?} names a gesture whose own operations are not of its variant"
+        );
+        for minted in vocabulary {
+            assert_eq!(
+                minted.names_gesture().as_ref(),
+                Some(&name),
+                "{minted:?} was minted by a name it does not answer with"
+            );
+        }
+    }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A name carries the payload it was read off.**
+///
+/// `every_driving_operation_names_one_gesture` structurally cannot see
+/// this. Its containment arm compares VARIANTS, and its round trip is
+/// a FIXED POINT — it reads a name off an operation and checks that
+/// minting from THAT name reads back the same — so any wrong answer
+/// that is idempotent satisfies it. A `names_gesture` whose slot arm
+/// answered `RecipeNodeId(0)` for every slot drag, discarding the node
+/// the operation exists to carry, passes that row and passed the whole
+/// viewer suite.
+///
+/// **The anchor is what closes it**: [`sample_names`] is hand-written
+/// and owes nothing to `names_gesture`, so minting from one of those
+/// and reading it back is an IDENTITY check rather than a fixed-point
+/// one. That mutation reds here on the first name.
+///
+/// The second arm is injectivity — two operations that drive different
+/// gestures must not read back as one name, or a chrome that spells
+/// its target once would steer whichever drag collided with it. It is
+/// the weaker of the two and kept because it fails differently: the
+/// identity arm names the payload that was dropped, this one names the
+/// two gestures that became one.
+///
+/// Both range over the sampled targets and not over all of them: two
+/// nodes, two parameters and two instances, one pair per family, with
+/// [`sample_names`]'s own exhaustive witness that no family is missing.
+#[test]
+fn a_name_is_the_payload_it_was_read_off() {
+    let names = sample_names();
+    for name in &names {
+        for op in minted(name) {
+            let read = op
+                .names_gesture()
+                .expect("a minted operation names its gesture");
+            assert_eq!(
+                &read, name,
+                "{op:?} was minted by this name and reads back as another"
+            );
+        }
+    }
+    for (i, name) in names.iter().enumerate() {
+        for other in names.iter().skip(i + 1) {
+            assert_ne!(name, other, "two sample names are one name");
+            for op in minted(name) {
+                let read = op
+                    .names_gesture()
+                    .expect("a minted operation names its gesture");
+                assert_ne!(
+                    &read, other,
+                    "{op:?} reads back as another gesture's name, so two drags became one"
+                );
+            }
+        }
+    }
+}
+
+/// **A gesture's cancel is its DRAG's**, and the name is what decides
+/// which of the two.
+///
+/// The two cancels are one per drag rather than one per gesture, so
+/// [`GestureName::cancel`] is the only place the choice is made: a
+/// control that emitted the other drag's cancel would abandon a
+/// gesture nobody let go of, or refuse while the pointer still holds
+/// one. `widgets`' own escape rows drive both through a real widget;
+/// this is the mapping those two rest on, over both names of each
+/// drag.
+#[test]
+fn a_names_cancel_is_its_own_drags() {
+    for name in [
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(3),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+    ] {
+        assert!(
+            matches!(name.cancel(), SessionOp::CancelGesture),
+            "a value drag's cancel"
+        );
+    }
+    assert!(
+        matches!(
+            GestureName::FreeMove(FreeMoveName {
+                instance: RecipeNodeId(3)
+            })
+            .cancel(),
+            SessionOp::CancelFreeMove
+        ),
+        "a probe's cancel"
+    );
+}
+
 /// **A door that cannot act says the refusal its OWN operation gives.**
 ///
 /// The sentence a disabled control shows is composed from the refusal
@@ -1081,7 +1291,7 @@ fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
             .perform(SessionOp::SetSlot {
                 node: extrude,
                 slot: SlotId::Distance,
-                value: SlotValue::of(Dimension::Length, 0.006),
+                value: SlotValue::of(Dimension::Length, 0.006).expect("a finite length is a value"),
             })
             .refusal
             .is_none(),

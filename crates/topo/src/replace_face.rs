@@ -176,11 +176,14 @@ pub enum ReplaceFaceError<T: Real> {
         /// The fit door's typed refusal, verbatim.
         error: geom_brep::OffsetFitError,
     },
-    /// The face carries a NURBS surface but this scalar has no fit
-    /// lane, so the offset cannot be minted at all. Not a pass — the
-    /// same posture tier 3 takes on an unre-derivable certificate.
+    /// The face carries a NURBS surface and the mint was handed no
+    /// fit door, so the offset cannot be minted at all. Not a pass —
+    /// the same posture tier 3 takes on an unre-derivable certificate.
+    ///
+    /// Where `Some` comes from, and what its absence means:
+    /// [`crate::AtRestPolicy::offset_fit_lane`].
     ApproxLaneUnsupported {
-        /// The face whose kind needs the (`f64`-only) fit lane.
+        /// The face whose kind needs the (`f64`-only) fit door.
         face: FaceKey,
     },
     /// **The operand's surface key is SHARED.** Another face carries
@@ -1035,7 +1038,7 @@ struct EdgePlan<T: Real> {
 /// door's, the apex-window predicate, the C5 routing boundary, the
 /// carrier lanes' scope, a re-derivation the attach layer's
 /// certification rejects, and a clone that does not validate.
-pub fn replace_face_offset<T: Decide + PropsQuadLane>(
+pub fn replace_face_offset<T: Decide + PropsQuadLane + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     d: T,
@@ -1067,7 +1070,7 @@ pub fn replace_face_offset<T: Decide + PropsQuadLane>(
 ///
 /// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
 /// gates.
-pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
+pub fn replace_faces_offset<T: Decide + PropsQuadLane + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,
@@ -1133,7 +1136,14 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
         _ => Nappe::Opening,
     };
     let d = nappe.turn(d);
-    let new_surface = mint_offset(face, &old_surface, d, band, tol)?;
+    let new_surface = mint_offset(
+        face,
+        &old_surface,
+        d,
+        band,
+        tol,
+        <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+    )?;
 
     // ---- Decide: the apex window (cones only). ----
     let shift = apex_shift(&old_surface, d);
@@ -1302,8 +1312,14 @@ pub fn replace_faces_offset<T: Decide + PropsQuadLane>(
     Ok(())
 }
 
-/// The offset surface for `old`: the analytic mint, or the fit lane's
+/// The offset surface for `old`: the analytic mint, or the fit door's
 /// certified `Approx` where the kind is not closed under offset.
+///
+/// `offset_fit` is that door ([`geom_brep::OffsetFitLane`]), handed in
+/// as a parameter; what a `None` means is
+/// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. `None` is not a
+/// pass — a caller that cannot mint the offset refuses with
+/// [`ReplaceFaceError::ApproxLaneUnsupported`].
 // `band, tol` in that order, matching the public doors above rather
 // than the `tolerance, band` this used to end in: the raw tolerance is
 // gone and the witness takes the trailing position every door on this
@@ -1314,15 +1330,17 @@ fn mint_offset<T: Decide + PropsQuadLane>(
     d: T,
     band: Band,
     tol: Tol,
+    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> Result<Surface<T>, ReplaceFaceError<T>> {
     if let Surface::Nurbs(base) = old {
         if base.is_placeholder() {
             return Err(ReplaceFaceError::PlaceholderSurface { face });
         }
-        return match T::approx_offset_surface(Arc::clone(base), d, tol, band) {
+        return match offset_fit {
             None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
-            Some(Ok(s)) => Ok(s),
-            Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),
+            Some(lane) => lane
+                .mint(Arc::clone(base), d, tol, band)
+                .map_err(|error| ReplaceFaceError::Fit { face, error }),
         };
     }
     // `d` is `geom_brep::offset_surface`'s own convention here, turned
@@ -2188,4 +2206,71 @@ pub(crate) fn edge_faces<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<(Face
         body.face_of_half_edge(e.he_plus)?,
         body.face_of_half_edge(e.he_minus)?,
     ))
+}
+
+/// **The offset mint's fit door, as the pass takes it** — the rows that
+/// say what each of its two answers costs.
+///
+/// [`mint_offset`] is called directly because these rows are about the
+/// PARAMETER: the public doors read the scalar's own seam
+/// (`crate::AtRestPolicy::offset_fit_lane`), and a row that could only reach the
+/// door the seam hands it could not tell an absent door from a scalar
+/// that has none.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod offset_fit_door_rows {
+    use geom_brep::OffsetFitLane;
+    use geom_core::{Band, Tol};
+
+    use super::{Arc, ReplaceFaceError, Surface, mint_offset};
+
+    /// The `+0.05` mint on the bowed patch, through whatever door the
+    /// caller names.
+    fn mint(door: Option<OffsetFitLane<f64>>) -> Result<Surface<f64>, ReplaceFaceError<f64>> {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (_, face) = crate::fixtures::approx_faced_body::<f64>();
+        let base = Surface::Nurbs(Arc::new(crate::fixtures::bowed_patch()));
+        mint_offset(face, &base, 0.05, band, tol, door)
+    }
+
+    /// **No door: the mint refuses**, with the variant and the payload
+    /// the absence has always had — never an analytic fallback and
+    /// never a pass.
+    #[test]
+    fn no_door_refuses_the_mint_by_name() {
+        let (_, face) = crate::fixtures::approx_faced_body::<f64>();
+        match mint(None) {
+            Err(ReplaceFaceError::ApproxLaneUnsupported { face: f }) => assert_eq!(f, face),
+            other => panic!("the absence must name the face: {other:?}"),
+        }
+    }
+
+    /// **The `f64` door mints what the free function mints**, limb for
+    /// limb, bit for bit — the assertion that the body moved rather
+    /// than being rewritten.
+    #[test]
+    fn the_f64_door_mints_the_free_function_s_surface() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let Ok(Surface::Approx(through_door)) = mint(Some(OffsetFitLane::fit())) else {
+            panic!("the bowed patch's offset fits at the witness tolerance");
+        };
+        let Ok(Surface::Approx(free)) = geom_brep::approx_offset_surface(
+            Arc::new(crate::fixtures::bowed_patch()),
+            0.05,
+            tol,
+            band,
+        ) else {
+            panic!("the free function mints the same surface");
+        };
+        let (a, b) = (through_door.certificate(), free.certificate());
+        crate::fixtures::assert_certificates_agree("the mint door", a, b);
+        assert_eq!(a.rounds, b.rounds, "the refinement history moved");
+        assert_eq!(
+            through_door.tolerance().to_bits(),
+            free.tolerance().to_bits(),
+            "the door and the free function fit against the same target"
+        );
+    }
 }

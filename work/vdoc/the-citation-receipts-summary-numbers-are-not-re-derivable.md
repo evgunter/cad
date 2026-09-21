@@ -2,11 +2,13 @@
 id: the-citation-receipts-summary-numbers-are-not-re-derivable
 kind: issue
 title: The citation receipt's summary numbers do not re-derive: 60 has no enumeration rule, six move by -13 is five, twelve lines is eight, two public items is three
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2089]
 priority: P4
 cost: E
+closed: 2026-09-21
+branch: vdoc/readme-counts
 ---
 
 
@@ -81,3 +83,76 @@ only #2089's is a half-fix.
 `sure` on all four counts and on the 51/51 — each is one `sed -n` and
 one `git show` away. `likely` that the right correction is to state the
 enumeration rule beside the count rather than to restate the count.
+
+## Closed — all four re-derived; three of the four were already repaired and this pass verified them (#vdoc/readme-counts)
+
+**The first finding is where the defect lives, because the dispatch
+that took this row had it wrong and so does its title's framing.**
+None of these four numbers is in `crates/viewer/README.md`. Their
+carriers are #2089's PR body (merged, unreachable), `work/view/log.md`,
+and `work/view/generation-get-has-no-reader.md`'s `## Closed` — VIEW's
+tracker, not this crate's design page. `grep -rn` over the repo for each
+wrong number finds no third home:
+
+    grep -rn "60 citations" --include=*.md .
+    grep -rniE "six .{0,40}citations? .{0,20}(all )?move by" --include=*.md .
+    grep -rn "two public items" --include=*.md .
+
+— hits in this row and in `work/view/log.md`'s correction section only.
+
+**And #2089's own fix pass already did the repair**, at `work/view/
+log.md:5420-5460` and in `generation-get-has-no-reader.md`'s `## Closed`.
+What was left for this row was to CHECK it, which nobody had. Re-derived
+here, each by reading the line rather than by trusting the correction:
+
+**1. "60 citations checked".** The rule the correction states — a
+`path.ext:N` regex, one hit per match, a `:a-b` span once and a `:a,:b`
+comma-list twice, over the eight VIEW item files the branch's own
+commits edit — is an enumeration rule a second reader can run, which is
+what the row asked for. The numbers it records (51 at `abf518285`, 57
+and 64 at the fix pass's tip) are stated WITH the tree they were taken
+on. Both SHAs resolve here (`git cat-file -t`), and `git log origin/main
+| tail -1` reaches `c857d68a42 initial commit`, so this is not a nil
+result from a truncated history.
+
+**2. "The six `marks.rs` citations all move by −13" — five.**
+Re-derived at the base rather than taken from the correction:
+`git show bc44531e1:crates/viewer/src/marks.rs | sed -n '130,136p'`
+puts `#[derive(Clone, Debug, Default, PartialEq)]` at `:135`, so the
+cited `:132-135` carried one line that was never part of the quoted doc
+sentence and the true subject is the three-line `:132-134`. The −13 rule
+is right about five and the sixth was already wrong on `main`, so the
+bucket split is 7 + 12.
+
+**3. "Twelve lines … six instead of ten" — eight and six.**
+`git show bc44531e1:crates/viewer/src/generation.rs` is 51 lines;
+`next`'s rustdoc block is `:33-42` (**ten**) and the ceiling paragraph
+inside it `:35-42` (**eight**). Nothing in that tree is twelve, and the
+original comparison put a paragraph against a block.
+
+**4. "Two public items" — three.** On `main` today
+`crates/viewer/src/generation.rs` is **47 lines** with three `pub`
+items: `Generation` (`:30`), `Generation::FIRST` (`:34`),
+`Generation::next` (`:44`) — `grep -n 'pub ' crates/viewer/src/
+generation.rs`, at `f45df59dc5`. The 51/51 this row called the more
+interesting number is now 51 → 47, and the close says so.
+
+**The class the row asks for, and the half of it this program cannot
+take.** `## Where else to look` asks for a sweep over every `## Closed`
+section and `log.md` entry VIEW has written that quotes a line count, a
+citation count or a *moves by N* rule. `work/vdoc/program.md`'s
+`keep_out` is explicit that *other programs' item files are never edited
+from here*, so that sweep is a report and not an edit from this branch.
+What was checked: the other row this one names, #2083's
+`citation-repoint-shifted-a-number-the-lane-knew-was-wrong`, is closed
+with a `## Closed` that re-derives by SUBJECT rather than by delta — so
+the pair this row calls a half-fix is whole on both sides.
+
+**One residue, disclosed and not filed, because its subject retires
+with it.** `work/view/generation-get-has-no-reader.md:34` still reads
+*"`next`'s doc comment (`generation.rs:33-44`, twelve lines)"* in its
+`## What`, where `:33-44` is doc plus signature plus body and the doc
+comment is ten lines. The same file's `## Closed` says *"Nothing here
+was ever twelve"* twenty lines down, so a reader meets the correction
+with the error; the row is closed, it is VIEW's, and both it and the
+sentence go when VIEW's directory does.

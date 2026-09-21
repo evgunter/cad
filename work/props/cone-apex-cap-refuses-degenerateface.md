@@ -2,7 +2,8 @@
 id: cone-apex-cap-refuses-degenerateface
 kind: issue
 title: props: a cone face bounded by one rim with the apex interior refuses DegenerateFace; its missing extreme is the apex, and the guard against its unbounded complement needs a sense bit fn cone does not take
-status: review
+status: closed
+closed: 2026-09-21
 opened: 2026-09-15
 priority: P0
 cost: H

@@ -356,3 +356,85 @@ it forces back onto this unit is that at these magnitudes the picture
 is already nowhere one door along — so *"the production consumer
 reaches it"* is true of the door and an overstatement about the
 drawing.
+
+## 2026-09-21 — `vgeom/refusal-floor`: Order item 1, four doors in one class
+
+Four rows, one argument, four files:
+`a-count-slot-launders-a-typed-nan-into-zero` (P0, `props.rs`),
+`world-per-px-answers-a-scale-for-a-viewport-it-could-not-measure`
+(`input.rs`), `finite-bounds-yield-an-infinite-scene-radius`
+(`camera.rs`) and
+`corner-count-substitutes-u32-max-for-a-length-it-could-not-cast`
+(`gpu.rs`). All four closed. The unit's shape is CHROME's
+`chrome/datums-substitution-sweep` (#2644) rather than a second one:
+the door answers an `Option` or a `Result`, the callers take the
+refusal through the nothing-to-do they already have, and the doc
+comment says why a floor or a substitute would be the wrong repair.
+
+**What the class turned out to be, stated more narrowly than the plan
+states it.** The plan's Order says *every row here is a non-finite
+value reaching a place that assumed it could not*. Three of the four
+are not that. `world_per_px` is the plan's shape exactly — an ordering
+used as a domain test on a value with no order. The other three are a
+**guard sited one arithmetic upstream of the overflow it is for**:
+`camera.rs` bounds `lo` and `hi` and the loss is in `half[i]²`;
+`props.rs` splits on the dimension before any literal exists, so the
+finiteness refusal it points at is never on the path; `gpu.rs`'s cast
+is downstream of a length nothing bounds. In all three the guard is
+correct about what it looks at, which is why each survived a sweep.
+The useful test is not *does a non-finite value get in* but **does the
+door's own answer get asked the question the door's prose asks of its
+inputs**.
+
+**What the sweep found that the four rows did not predict.**
+
+- **The same cast has a finite arm.** `SlotValue::of`'s `value as i64`
+  saturates for `1e30` as surely as for `inf` — `i64::MAX`, executed —
+  and that half is NOT fixed here, because unlike the non-finite half
+  it has no refusal to raise: `DimensionError::NonFiniteLiteral`
+  exists and says the right sentence, and nothing anywhere says *this
+  count does not fit*. Minting one reaches `crates/editor-core`
+  (EDIT's and MSOLVE's) or `session::Refusal` (VNEWS's). Filed on this
+  slate as
+  `a-count-slots-cast-still-saturates-for-a-finite-value-too-large`
+  with the fork written out.
+- **Fixing the P0 created a news gap.** The drag path maps the new
+  refusal through `Refusal::Dimension` and it reaches the status line;
+  the TYPED path has no operation to carry one and is silent. Better
+  than committing zero, and not what `field_edit`'s doc promises.
+  Filed on VNEWS as `a-refused-typed-value-reaches-no-word`, beside
+  `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words`,
+  which may want the same answer.
+- **`camera.rs`'s centre overflows too**, at the same site —
+  `lo = 1e308`, `hi = 1.7e308` gives `centre = [inf, 0, 0]` — and it
+  needs no guard: scanned over every pair of magnitudes from `1e150`
+  to `1e308` in both signs and the first 64 floats above each, 126
+  non-finite centres and **none with a finite radius**. So the radius
+  guard covers it, and the argument is in the doc comment rather than
+  in an assertion nothing can break.
+- **`world_per_px`'s quotient overflows independently of its height.**
+  The row is about the height; the same door divides an ordinary
+  visible height by the smallest subnormal to infinity. Guarded here,
+  for #2644's stated reason.
+
+**Two reachability claims are NOT upgraded by this unit, and the PR
+says so in the same words the rows do.** `world-per-px` carries a
+*"Reachability: no producer found"* over this crate's own writers of
+`ViewportSize` — not a proof about egui's layout — and nothing here
+searched further. `corner-count` says outright it is a door hardening
+and not a reachable defect: `u32::MAX + 1` corners is 51.5 GB of
+positions and the allocation is the bound, not the code.
+
+**Each row's table re-derived rather than quoted**, per the register:
+`camera.rs`'s four executed rows reproduce under a verbatim replica of
+`sphere`'s arithmetic, and the threshold is sharper than the row's *a
+few hundred orders of magnitude* — one axis overflows above `1e154`,
+three above about `7.7e153`.
+
+**Mutation, five ways, one row each.** Deleting the camera radius
+guard, restoring `height_px <= 0.0`, dropping the quotient's
+`is_finite`, restoring `unwrap_or(u32::MAX)` inside `draw_range`, and
+deleting the `Count` arm's `is_finite` conjunct each red exactly one
+of the four new rows and nothing else in the 798-row app-feature suite
+(besides `gpu::tests::every_pass_builds_on_a_real_device`, the
+standing WGPU-adapter red on a box with no Vulkan).

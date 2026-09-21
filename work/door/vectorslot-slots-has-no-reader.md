@@ -2,10 +2,12 @@
 id: vectorslot-slots-has-no-reader
 kind: issue
 title: VectorSlot::slots() is public and unread: deleting it leaves the workspace green
-status: open
+status: review
 opened: 2026-09-12
 priority: P4
 cost: E
+branch: door/vectorslot-slots-delete
+pr: 2989
 ---
 
 
