@@ -17,9 +17,8 @@ hardware not shared with any other lane and its result is a durable artifact.
 
 **It covers the full configuration matrix again, and you are expected to know
 that** (2026-09-04, Ev's two authorisations). A code-tier run gates EVERY point
-of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
-`test (…)` jobs, each naming its lane, its eps row and its shard — and all five
-`k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
+of {default features, `interval`} x {default eps, 1e-6, 1e-12}, and every
+`k-lint (gate, <row>)` feature unification. **Nothing is sampled any more.**
 The gates, the discipline and parity rows and the render lanes are unchanged and
 still run on every code-tier run. **The python suite runs whenever a seed is a
 crate a build of the wheel compiles** — `pncad-py`'s non-dev dependency closure,
@@ -30,10 +29,16 @@ one of those two skips it; everything else buys it. The `change filter` job's
 log prints both the seed set and `RUN_PNCAD_PY`, so a run says which way it
 went. Three things follow for you:
 
-- **A green run means green at all six lane/eps points and all five k-lint
-  unifications.** That is what the job list shows: if you cannot see twelve
-  test jobs and five `k-lint (gate, …)` jobs on a code-tier run, something
-  narrowed it and you should find out what.
+- **A green run means green at every lane/eps point and every k-lint
+  unification — and you establish that from the `change filter` log, not by
+  counting job names.** That job prints `LANE`, `EPS` and `KLINT_ROW`, which
+  answers narrowed-or-not directly. **A job's NAME is CI's to change and has
+  changed**: moving a lane into a called workflow prefixes its jobs with the
+  caller's key, so a reader matching the start of a name sees a fraction of a
+  full matrix and reads it as a narrowing. The roster itself is declared in
+  `scripts/ci-filter.py` (`EPS_ROWS`, `KLINT_ROWS`) and its `--selftest`
+  re-derives `ci.yml`'s matrix literals against them, so the count is held
+  executably and does not need restating here.
 - **A commit trailer cannot configure a run, and nothing in CI reads one.**
   Between 2026-08-22 and 2026-09-04 the run drew one point per dimension and a
   `CI-Config:` trailer on the head commit was how you ASKED for the one your
@@ -44,13 +49,12 @@ went. Three things follow for you:
   is to delete the line and, if the spec really wanted one configuration
   proved, dispatch the workflow instead. **To narrow deliberately, dispatch the
   workflow** with the `lane` / `eps` / `klint` inputs — and say in the PR that
-  you narrowed it, because a reader counting six test jobs where there should
-  be twelve cannot tell a narrowing from a broken matrix.
-- **The k-lint row is not drawn either, since 2026-09-04.** `k-lint (gate)`'s
-  five feature unifications run as five jobs — `k-lint (gate, dev-default)`,
-  `(release-default)`, `(release-budget)`, `(dev-budget)`, `(dev-probe)` — on
-  every code-tier run, so **a green k-lint means green at all five** and a
-  green over a skipped step is no longer the thing to check for there. Until
+  you narrowed it: a reader cannot tell a deliberate narrowing from a broken
+  matrix except by being told.
+- **The k-lint row is not drawn either, since 2026-09-04.** Every feature
+  unification `KLINT_ROWS` declares runs as its own job on every code-tier
+  run, so **a green k-lint means green at all of them** and a green over a
+  skipped step is no longer the thing to check for there. Until
   that day one row was drawn from your head SHA and the other four did not
   execute under a single green `k-lint (gate)`; `#1756` -> `#1775` is what that
   cost, and any brief telling you to name one row on the head commit predates
