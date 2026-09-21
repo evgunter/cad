@@ -213,3 +213,36 @@ gesture. The same merge moved every gesture-vocabulary site; the five
 that exist now — three in `pane/properties.rs` and two new ones in
 `widgets.rs`'s `field_tests` — are all minted from a name, and
 `GestureVocabulary {` has no literal outside `widgets.rs`.
+## 2026-09-21 — the plan recorded a wait, a count and a parked PR, all stale
+
+Found by the review of #2965, which was asked to check whether VSEAM's
+Order still named a wait that had ended. It did, and three more claims
+beside it.
+
+| claim in `plan.md` | what was true |
+|---|---|
+| Order item 7 *"waits on `two-hand-written-copies-of-the-g1-gesture-machine`"* | that row's PR #2672 merged 2026-09-15; `g1.rs` has been on `main` since |
+| §Inbound *"**Four** rows in `review`"* | the list under it holds **five** |
+| §Inbound *"their lanes are in flight"* | all five PRs had merged before the sentence was written |
+| *"#2762 is parked on a ruling from Ev"* | the ruling landed 2026-09-17 and #2762 merged carrying it |
+
+All four corrected. The rows themselves were closed by PR #2976.
+
+**The shape is one shape.** Every one of these is a *status recorded in
+prose* that outlived the event it described, and prose has no lint. The
+row files have `status:` frontmatter that `work.py lint` reads; a plan's
+sentence saying a thing is in flight is checked by nobody, so it stays
+true-looking for as long as no one re-derives it.
+
+It compounded in a specific way worth naming: the cut (#2806) declined
+to re-home these five rows **because** they read `review`, so a stale
+frontmatter field became a stale plan sentence became a program's
+schedule waiting on a trigger that had fired. Three artefacts wrong from
+one un-updated field.
+
+**What would have caught it.** `work.py lint` can see a row whose
+`status:` is `review` while its `pr:` is merged — that is a query against
+the tracker plus the forge, not a judgement — and it is the check that
+would have fired six days ago. Filed as
+`work/meta/a-row-in-review-whose-pr-has-merged-is-lintable.md`; META owns
+`scripts/work.py`, so this program reports it rather than writing it.
