@@ -4,6 +4,8 @@ kind: issue
 title: The v6 dual-review stream passed its twelve-pair stopping rule around 2026-08-29 and its unilateral-MAJOR tally has never been reconciled
 status: open
 opened: 2026-09-04
+priority: P4
+cost: E
 ---
 
 

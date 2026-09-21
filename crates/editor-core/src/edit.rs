@@ -421,6 +421,44 @@ impl<P> DocEdit<P> {
     /// answer here stops the crate compiling, rather than defaulting to
     /// "moves nothing" and making a refusal the load door owns
     /// reachable from an edit door.
+    /// **Whether this edit writes a mate's alignment datum** — the
+    /// numbers, the primitive, the sense and the rider the solve's
+    /// per-mate admission decides on. Exactly one edit does: the
+    /// insert of a `Node::Mate`, which is where the admission is asked.
+    /// A `Rebind` moves a reference's NAME (and, read at its own mint,
+    /// its operand), never the datum, and what it strands is N5's —
+    /// the solve's at evaluation.
+    ///
+    /// Exhaustive with no wildcard arm, for the reason
+    /// [`Self::moves_the_mate_graph`] gives: an arm added without an
+    /// answer here stops the crate compiling rather than writing a
+    /// datum past the admission.
+    pub(crate) fn writes_a_mates_datum(&self) -> bool {
+        match self {
+            Self::InsertNode { node } => matches!(node, Node::Mate { .. }),
+            Self::DeleteNode { .. }
+            | Self::SetMembers { .. }
+            | Self::Rebind { .. }
+            | Self::SetPlacement { .. }
+            | Self::SetParam { .. }
+            | Self::SetStructuralParam { .. }
+            | Self::SetExpression { .. }
+            | Self::SetDocParam { .. }
+            | Self::SetDocParamValue { .. }
+            | Self::SetDocParamUnit { .. }
+            | Self::SetDocParamDistribution { .. }
+            | Self::ReWitness { .. }
+            | Self::ReWitnessBulk { .. }
+            | Self::SetAppearance { .. }
+            | Self::ClearAppearance { .. }
+            | Self::SetTolerance { .. }
+            | Self::SetAppearanceMeta { .. }
+            | Self::ClearAppearanceMeta { .. }
+            | Self::SetRoots { .. }
+            | Self::UpdateReference { .. } => false,
+        }
+    }
+
     pub(crate) fn moves_the_mate_graph(&self) -> bool {
         match self {
             // The instance set and the mate set are both node sets, so
@@ -489,6 +527,22 @@ impl core::fmt::Display for CarryForwardDoor {
         })
     }
 }
+
+/// **The one recourse for a parameter name that does not exist**, and
+/// the only home of its wording.
+///
+/// One mistake reaches two doors. Typing an undeclared name into the
+/// value field reaches a carry-forward edit, which refuses
+/// [`EditError::DocParamNotDeclared`]; dragging that parameter's row
+/// is a lookup with no edit behind it, and the viewer refuses
+/// `Refusal::NoSuchParam` (`crates/viewer/src/session/refuse.rs`, the
+/// second reader of this const and the only one outside this crate).
+/// The two are converged on the RECOURSE and not on the sentence,
+/// because a drag has no refused edit to report and a sentence that
+/// borrowed the door's frame would report a refusal of something
+/// nobody attempted. What is converged is what the user must DO, so
+/// it is written once here and rendered twice.
+pub const UNDECLARED_PARAM_RECOURSE: &str = "declare it first";
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
@@ -1175,6 +1229,31 @@ pub enum EditError {
         /// The mate being inserted.
         node: RecipeNodeId,
     },
+    /// The mate solve refuses this mate on its OWN datum — a fact
+    /// about the mate alone, which the solve records against it
+    /// whenever it reads the datum: its head does not resolve to a
+    /// member, it names one member twice, its class is outside the
+    /// vocabulary, a frame has no definite direction, the coset table
+    /// has no row for it, or its clocking rider contradicts the
+    /// coincidence it rides (decided over the mate's own lever,
+    /// through the reach this door holds). The same admission the
+    /// solve makes (`ASSEMBLY.md` A11 rule 1), asked at the insert
+    /// door, so the insert is refused; the recourse is the fault's
+    /// own. A mate on a pair the fold never reads — two members over
+    /// one instance — is refused on the datum alone all the same.
+    /// What is NOT this: a verdict about a PAIR — under-determined,
+    /// contradicting ANOTHER mate, an escalation on a fold — which
+    /// needs the cluster and stays the solve's; and a STATE a mate
+    /// comes to hold after insert (a head a rebind or a shrunk pattern
+    /// strands, a `Part` re-pointed, a doctored or older snapshot),
+    /// which the doors do not re-decide and the solve refuses at
+    /// evaluation.
+    MateRefused {
+        /// The mate being inserted.
+        node: RecipeNodeId,
+        /// The solve's own fault, unaltered.
+        fault: Box<crate::mate::MateFault>,
+    },
     /// A pin update aimed at a node that does not instantiate a part
     /// (A13; ASM-UPD D-1 — the [`EditError::PlacementOnNonInstance`]
     /// precedent: only a cross-document reference HAS a version).
@@ -1434,15 +1513,13 @@ impl core::fmt::Display for EditError {
                 f,
                 "parameter {name}: a continuous parameter cannot be a count — use a count parameter"
             ),
-            // The closing clause is also `Refusal::NoSuchParam`'s, in
-            // the viewer: one mistake reaches this door by typing and
-            // that lookup by dragging, and the two are converged on the
-            // RECOURSE rather than on the sentence. A viewer test holds
-            // them in step (`panel_edits::refusals_render_as_sentences`).
+            // The closing clause is `UNDECLARED_PARAM_RECOURSE`, which
+            // the viewer's `Refusal::NoSuchParam` renders too; the
+            // const's own doc says why the two doors converge there.
             Self::DocParamNotDeclared { name, door } => write!(
                 f,
                 "parameter {name} is not declared, so {door} has no declaration to carry \
-                 forward — declare it first"
+                 forward — {UNDECLARED_PARAM_RECOURSE}"
             ),
             Self::DocParamCountHasNoUnit { name } => write!(
                 f,
@@ -1610,6 +1687,11 @@ impl core::fmt::Display for EditError {
             Self::NonFiniteAlignment { node } => write!(
                 f,
                 "the mate at node {} carries a non-finite alignment coordinate",
+                node.0
+            ),
+            Self::MateRefused { node, fault } => write!(
+                f,
+                "the mate at node {} is refused by the solve on its own datum: {fault}",
                 node.0
             ),
             Self::UpdateOnNonInstance { node } => write!(
@@ -2408,7 +2490,9 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
 /// a new value comes back with the [`EditRecord`] and the maintenance
 /// rows ([`Applied::maintenance`]). All validation is here — refs
 /// resolve, no cycles, dimension checks re-run on touched expressions
-/// (spec D6).
+/// (spec D6), and a mate being inserted passes the solve's own
+/// per-mate admission, its clocking rider decided over the mated
+/// parts' reach ([`EditError::MateRefused`]).
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
@@ -2643,6 +2727,24 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             new.order.push(id);
             check_acyclic(&new)?;
             crate::roots::on_insert(&mut new, id, &node.inputs());
+            // The solve's own per-mate admission (A11 rule 1), asked
+            // of the document the mate now stands in — its walks read
+            // the operands there — through the reach this door holds:
+            // a mate the coset table refuses on its own datum is
+            // refused at this door. The verdicts about a PAIR stay the
+            // solve's (`admit_mate`), and so does every STATE a mate
+            // comes to hold after insert — this is the one door that
+            // writes a mate's datum (`DocEdit::writes_a_mates_datum`),
+            // and a reference a later edit strands is N5's. The
+            // environment is the document's own nominal, built here
+            // once for this door's reading, the way the evaluation
+            // builds its own and hands it to the solve.
+            debug_assert!(edit.writes_a_mates_datum() == matches!(node, Node::Mate { .. }));
+            if matches!(node, Node::Mate { .. }) {
+                let env = new.param_env::<f64>();
+                crate::mate::solve::admit_mate(&new, id, node, &env, how.reach(), tol)
+                    .map_err(|fault| EditError::MateRefused { node: id, fault })?;
+            }
             EditRecord {
                 minted: Some(id),
                 structural: true,
@@ -3416,5 +3518,75 @@ mod tests {
             !keyed_on_the_gauge.moves_the_mate_graph(),
             "SetPlacement writes the registry the reconciliation re-keys; it moves no reading edge"
         );
+    }
+
+    /// **The datum question is answered by the edit too**: the insert
+    /// of a mate writes a mate's alignment datum and nothing else does
+    /// — not the insert of another node, not the rebind that moves a
+    /// head (a reference, not the datum), not the structural edit that
+    /// shrinks a pattern under one. The per-mate admission is asked
+    /// at exactly the edit this answers `true` for.
+    #[test]
+    fn exactly_the_mate_insert_writes_a_mates_datum() {
+        let id = crate::node::RecipeNodeId(1);
+        let name = |node| crate::names::StableName {
+            kind: crate::names::EntityKind::Face,
+            node,
+            path: vec![],
+        };
+        let frame = crate::mate::MateFrame {
+            origin: [0.0; 3],
+            axis: [0.0, 0.0, 1.0],
+            reference: [1.0, 0.0, 0.0],
+        };
+        let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
+            node: crate::node::Node::Mate {
+                a: crate::node::SitedFace::at_mint(
+                    crate::names::FaceName::new(name(id)).expect("a face"),
+                ),
+                b: crate::node::SitedFace::at_mint(
+                    crate::names::FaceName::new(name(crate::node::RecipeNodeId(2)))
+                        .expect("a face"),
+                ),
+                class: crate::mate::ContactClass::Rest,
+                alignment: crate::mate::Alignment {
+                    a: frame,
+                    b: frame,
+                    primitive: crate::mate::MatePrimitive::FrameCoincidence,
+                    sense: crate::mate::AxisSense::Aligned,
+                    clocking: None,
+                },
+            },
+        };
+        assert!(mate.writes_a_mates_datum());
+        let others: [DocEdit<ProfileProgram>; 3] = [
+            DocEdit::InsertNode {
+                node: crate::node::Node::Datum(crate::node::Datum::Point {
+                    position: [
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                    ],
+                }),
+            },
+            DocEdit::Rebind {
+                from: name(id),
+                to: name(crate::node::RecipeNodeId(2)),
+            },
+            DocEdit::SetStructuralParam {
+                node: id,
+                slot: crate::node::SlotId::Count,
+                expr: crate::expr::Expr::count(1),
+            },
+        ];
+        for edit in &others {
+            assert!(
+                !edit.writes_a_mates_datum(),
+                "{edit:?} writes no mate's datum; what it strands is the solve's"
+            );
+        }
     }
 }

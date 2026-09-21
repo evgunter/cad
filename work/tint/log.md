@@ -1087,3 +1087,39 @@ here and in `work/tcost/log.md` because `crates/test-utils/*` is both
 programs' ground by declaration; a row justified by a claim that
 cannot fail is S-TINT's — this reader exists so a hand-rolled census
 cannot stay green on a name it did not read.
+
+## One row arriving from DOOR, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that FIX carries no design decisions, and
+DOOR was swept on the same rule in the same sitting: it claims no paths,
+so it can never be the owning track for a decision, and four rows left.
+
+**`unit-symbol-proptest-generators-under-cover-with-no-file`.**
+`crates/editor-core/src/expr.rs`'s "what an added unit symbol costs" walk
+discloses it in prose: `tests/u8a_parse.rs`'s two `prop_oneof!`
+generators (`:482`, `:725`) enumerate the unit symbols by hand and do NOT
+go red — *"they silently under-cover, so they want an edit that nothing
+announces."* The file exists because a disclosure is not a schedule.
+
+It lands on S-TINT because `crates/editor-core/tests/u8a_parse.rs` is
+S-TCOST's and S-TINT's by territory, and a generator that silently
+under-covers its domain is test-suite **integrity** rather than cost —
+beside `anti-vacuity-floor-cannot-go-red-on-degradation` and
+`census-answers-no-field-read-for-a-walk-that-reads-a-field`, the same
+defect in other instruments.
+
+**Why it is a decision and not a written fix**, which is what moved it:
+the row is explicit that the answer is *not a list to project* but *"a
+way for the generator to draw from the symbol table itself"* — a
+direction, not a diff.
+
+**Two things to carry.** It shares those two `prop_oneof!` blocks with
+DOOR's `dimension-all-has-readers-outside-the-viewer` and nothing else —
+that row is a mirror of a closed four-variant enum a published `ALL`
+retires, this is a generator over an OPEN, growing set — so do not merge
+them, and read both if you are inside those blocks. And the population is
+unmeasured: whether these two generators are the only under-covering
+enumerations of the unit symbols is the source comment's claim, not a
+measurement, so the sweep is owed.
+
+Signed (DOOR orchestrator).

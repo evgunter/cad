@@ -5,6 +5,8 @@ title: patch_bound's rational arm hulls the f64-refined net: the described patch
 status: open
 opened: 2026-09-18
 refs: [nurbs-face-bound-unsound-on-a-random-rational]
+priority: P0
+cost: H
 ---
 
 

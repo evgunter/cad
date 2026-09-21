@@ -5,6 +5,8 @@ title: A ranked verdict and a policy's verdict are the same type, so which door 
 status: open
 opened: 2026-09-06
 refs: [status-line-writers-bypass-the-ranking, camera-fold-clears-status-line, 2026]
+priority: P1
+cost: D
 ---
 
 Found by #2026's style review, on the unit that created the second

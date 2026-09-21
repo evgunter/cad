@@ -5,6 +5,8 @@ title: MateFault::Band still badges every row in the cluster — the filed defec
 status: open
 opened: 2026-09-04
 refs: [1769, 1463]
+priority: P1
+cost: E
 ---
 
 Found by CHROME's style lane on PR 1769, judging that PR's own

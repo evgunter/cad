@@ -4,6 +4,8 @@ kind: issue
 title: the frame constructors are reachable only as pncad::geom_core::linalg::frame::*, while Python meets them as Frame methods
 status: open
 opened: 2026-09-12
+priority: P3
+cost: D
 ---
 
 

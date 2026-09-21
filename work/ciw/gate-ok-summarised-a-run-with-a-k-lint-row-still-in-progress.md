@@ -4,6 +4,8 @@ kind: issue
 title: gate ok ran while k-lint (gate, release-default) was still in_progress although needs: names k-lint — the roll-up reported red on a run whose every job concluded green
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

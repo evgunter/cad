@@ -4,6 +4,8 @@ kind: issue
 title: DocSession's at_rest badge reports a body-less document as a Refused product, three lines below the landing that classifies it as not-a-fault
 status: open
 opened: 2026-09-15
+priority: P1
+cost: E
 ---
 
 

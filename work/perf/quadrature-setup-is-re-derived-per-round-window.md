@@ -4,6 +4,8 @@ kind: issue
 title: a certified face lane re-derives its round-independent setup on every round window
 status: open
 opened: 2026-09-12
+priority: P4
+cost: D
 ---
 
 

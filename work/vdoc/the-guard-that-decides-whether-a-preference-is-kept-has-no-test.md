@@ -5,6 +5,8 @@ title: the guard and the badge that decide whether a preference is kept are unre
 status: open
 opened: 2026-09-10
 refs: [hover-route-for-an-absent-chooser-has-no-test, wasm-theme-choice-is-offered-and-silently-not-kept]
+priority: P4
+cost: E
 ---
 
 Disclosed by the close of

@@ -4,6 +4,8 @@ kind: issue
 title: shell10_r2_probes restates offset_together's scope-walk fixtures verbatim, by its own module doc
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

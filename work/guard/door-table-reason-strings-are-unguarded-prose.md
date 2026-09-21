@@ -4,6 +4,8 @@ kind: issue
 title: review_m1_pr5_internal's allowlist checks membership, never an entry's stated reason against its door
 status: open
 opened: 2026-09-19
+priority: P3
+cost: E
 ---
 
 

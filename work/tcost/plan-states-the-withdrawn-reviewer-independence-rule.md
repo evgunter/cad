@@ -4,6 +4,8 @@ kind: issue
 title: tcost's plan states the reviewer-independence rule the policy memory withdrew
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

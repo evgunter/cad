@@ -4,6 +4,8 @@ kind: issue
 title: viewer: error and check text runs off the page or wraps past its region, and the messages are wordy (Ev's request)
 status: open
 opened: 2026-09-17
+priority: P0
+cost: E
 ---
 
 **Ev reported this** (in chat, 2026-09-17). There are two halves.

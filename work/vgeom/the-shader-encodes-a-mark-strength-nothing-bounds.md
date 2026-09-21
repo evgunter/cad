@@ -4,6 +4,8 @@ kind: issue
 title: The paint path a NaN actually reaches is the shader, and the Rust/WGSL parity row compares constants only
 status: open
 opened: 2026-09-17
+priority: P1
+cost: D
 ---
 
 Found by the review of #2798, which asked the question that PR's own

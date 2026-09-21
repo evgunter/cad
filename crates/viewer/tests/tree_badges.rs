@@ -21,6 +21,7 @@ use crate::common;
 use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
+use viewer::frame::Tone;
 use viewer::session::{DocSession, SessionOp};
 use viewer::tree::{self, RowStatus};
 
@@ -67,6 +68,46 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
         other => panic!("expected Poisoned, got {other:?}"),
     }
     assert_eq!(poisoned.status.badge(), "POISONED");
+}
+
+/// **Only the row that refused is actionable**, over rows a real
+/// evaluation produced rather than hand-built statuses: the colour
+/// rule the Features pane draws is `RowStatus::tone()`'s answer, so a
+/// wrong tone is a wrong colour and this is where it goes red.
+#[test]
+fn only_the_row_whose_own_operation_refused_is_actionable() {
+    let tol = Tol::witness();
+    let (doc, extrude, moved) = common::broken_document(tol);
+    // A second, unrelated body, so an `Ok` row is in the population.
+    let (doc, other_profile) = common::framed_square(&doc, 0.02, tol);
+    let mut session = DocSession::inline(doc, tol);
+
+    // Unpumped: nothing has been evaluated, so nothing is actionable.
+    assert!(
+        session
+            .tree_rows()
+            .iter()
+            .all(|row| row.status.tone() == Tone::Advisory),
+        "a document nobody has evaluated yet gives a reader nothing to act on"
+    );
+
+    session.pump();
+    let rows = session.tree_rows();
+    let tone_of = |id| common::status_of(&rows, id).tone();
+    assert_eq!(tone_of(extrude), Tone::Actionable, "the node that refused");
+    assert_eq!(
+        tone_of(moved),
+        Tone::Advisory,
+        "a poisoned row points at the cause; the cause is where a reader acts"
+    );
+    assert_eq!(tone_of(other_profile), Tone::Advisory, "a healthy row");
+    assert_eq!(
+        rows.iter()
+            .filter(|row| row.status.tone() == Tone::Actionable)
+            .count(),
+        1,
+        "one broken feature makes one loud row, whatever it poisons"
+    );
 }
 
 #[test]
@@ -172,9 +213,10 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
 
     // Two seat mates joining all three instances into ONE cluster:
     // post_a under the shelf's middle, post_b under its quarter point.
-    // The second carries a clocking rider on a frame coincidence,
-    // which the coset table decides against (`mate_clocking_redundant`
-    // — a coincidence has already pinned the roll).
+    // The second is a planar rest alone, which leaves its pair free
+    // to slide and spin, so the solve refuses UNDER naming that mate
+    // — a verdict about the pair, which the edit door admits (a mate
+    // the table refuses on its own datum is refused at the insert).
     let add_mate = |session: &mut DocSession, post, alignment| {
         common::insert(
             session,
@@ -194,7 +236,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     let offender = add_mate(
         &mut session,
         bench.post_b,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, Some(0.3)),
+        common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
     );
     // ONE evaluation over both mates. Pumping between them would give
     // the same rows: a mate's key carries the solve's answer, so the
@@ -214,7 +256,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
         );
     };
     assert!(
-        message.contains("mate_clocking_redundant"),
+        message.contains(pncad::document::UNDER_RECOURSE),
         "the kernel's own words on the mate's row: {message}"
     );
     let causes: Vec<_> = rows
@@ -251,7 +293,9 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
                     "{what} points at the cause's row"
                 );
                 assert!(
-                    !message.unwrap_or_default().contains("mate_clocking"),
+                    !message
+                        .unwrap_or_default()
+                        .contains(pncad::document::UNDER_RECOURSE),
                     "{what} must not recite the refusal a user reads once, on the mate"
                 );
             }
@@ -412,7 +456,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
     let offender = add_mate(
         &mut session,
         bench.post_b,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, Some(0.3)),
+        common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
     );
     session.pump();
 
@@ -485,16 +529,19 @@ const BANDLESS_EPS: f64 = f64::MAX / 2.0;
 /// guard sends the child down its no-op return.
 const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 
-/// **A run-tolerance refusal reaches every mate and every instance in
-/// the DOCUMENT, blames none of them, and points the eye nowhere.**
+/// **A run-tolerance refusal reaches every instance in the DOCUMENT,
+/// blames none of them, and points the eye nowhere** — and no mate
+/// can be INSERTED under it, since the edit door asks the solve's own
+/// admission, which begins with the band (a loaded snapshot can still
+/// hold one).
 ///
 /// `MateFault::Band` is the one fault arm that reaches rows without
 /// naming a subject, so it is the one arm `blamed_mates` answers empty
 /// for on rows a user can actually meet. What this row pins is what
 /// that costs and what it must not buy back:
 ///
-/// - the refusal is the RUN's, not a cluster's — the instance no mate
-///   touches is reached exactly like the mated pair, which is why a
+/// - the refusal is the RUN's, not a cluster's — every instance is
+///   reached, each a singleton cluster of its own, which is why a
 ///   badge wording scoped to "this cluster" would name the wrong set;
 /// - every reached row keeps the payload's own words, byte-identical,
 ///   so nothing here composes a sentence onto a failing row;
@@ -507,8 +554,8 @@ const BAND_PROBE_DONE: &str = "BAND-PROBE-COMPLETE";
 #[test]
 fn child_band_refusal_rows() {
     use pncad::document::{
-        Alignment, AxisSense, DocRef, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind,
-        ProfileDoc, RecipeNodeId, content_pin,
+        Alignment, AxisSense, DocEdit, DocRef, MateFault, MateFrame, MatePrimitive, Node,
+        NodeErrorKind, ProfileDoc, RecipeNodeId, apply, content_pin,
     };
     use pncad::geom_core::Band;
     use pncad::geom_core::tolerance::{DEFAULT_K, Tolerance};
@@ -533,21 +580,24 @@ fn child_band_refusal_rows() {
     Band::linear(tol).expect_err("no band exists at this tolerance");
 
     // The document. Nothing in it carries geometry — a profile cannot
-    // be AUTHORED where no band exists — which is the shape a user
-    // meets when a saved document commits its own ε on open: three
-    // instances and a mate, authored elsewhere, read back at a
-    // tolerance that admits no band.
+    // be AUTHORED where no band exists, and neither can a mate: the
+    // edit door asks the solve's own admission, which begins with the
+    // band, so the mate refuses typed at the door (DOOR 2a below) —
+    // which is the shape a user meets when a saved document commits
+    // its own ε on open: three instances, authored elsewhere, read
+    // back at a tolerance that admits no band.
     let part = ProfileDoc::empty_derived("band-part", tol);
     let doc_ref = DocRef {
         id: part.id(),
         pin: content_pin(&part, tol).expect("the pin computes"),
     };
     let mut asm = ProfileDoc::empty_derived("band-asm", tol);
-    let mated_a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    let mated_b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
-    // The instance NO mate touches: its own singleton cluster, and the
-    // row that decides whether this refusal is a cluster's or the
-    // run's.
+    let a = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    let b = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
+    // A third instance, which no mate could touch: every instance is
+    // its own singleton cluster here, and the row that decides whether
+    // this refusal is a cluster's or the run's is that ALL of them
+    // refuse.
     let lone = common::insert_into(&mut asm, Node::instantiate_part(doc_ref), tol);
     let face_of = |instance| {
         common::head(StableName {
@@ -561,21 +611,38 @@ fn child_band_refusal_rows() {
         axis: [0.0, 0.0, 1.0],
         reference: [1.0, 0.0, 0.0],
     };
-    let mate = common::insert_into(
-        &mut asm,
-        Node::Mate {
-            a: face_of(mated_a),
-            b: face_of(mated_b),
-            class: ContactClass::Rest,
-            alignment: Alignment {
-                a: frame,
-                b: frame,
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
+    // DOOR 2a — a mate cannot be INSERTED where no band exists: the
+    // edit door refuses it with the solve's own `Band`. A snapshot
+    // loaded under this tolerance can still hold one, and the solve
+    // records `Band` against it the way it does against every
+    // instance below.
+    let refused = apply(
+        &asm,
+        &DocEdit::InsertNode {
+            node: Node::Mate {
+                a: face_of(a),
+                b: face_of(b),
+                class: ContactClass::Rest,
+                alignment: Alignment {
+                    a: frame,
+                    b: frame,
+                    primitive: MatePrimitive::FrameCoincidence,
+                    sense: AxisSense::Opposed,
+                    clocking: None,
+                },
             },
         },
         tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect_err("no band, no mate");
+    assert!(
+        matches!(
+            &refused,
+            pncad::document::EditError::MateRefused { fault, .. }
+                if matches!(fault.as_ref(), MateFault::Band { .. })
+        ),
+        "{refused:?}"
     );
 
     let evaluation: pncad::document::Evaluation<f64> = pncad::document::evaluate(
@@ -593,7 +660,7 @@ fn child_band_refusal_rows() {
     // user meets: if the evaluator ever refuses mates and instances
     // before the solve does, this goes red and there is no live
     // `MateFault::Band` left to badge.
-    let reached: Vec<RecipeNodeId> = [mated_a, mated_b, lone, mate]
+    let reached: Vec<RecipeNodeId> = [a, b, lone]
         .into_iter()
         .filter(|&id| {
             matches!(
@@ -606,9 +673,9 @@ fn child_band_refusal_rows() {
         .collect();
     assert_eq!(
         reached,
-        vec![mated_a, mated_b, lone, mate],
-        "the band refusal reaches every mate and every instance, the unmated one included — \
-         it is the RUN's refusal, not one cluster's"
+        vec![a, b, lone],
+        "the band refusal reaches every instance, each a cluster of its own — it is the \
+         RUN's refusal, not one cluster's"
     );
 
     // Every reached row draws its own FAILED, carrying the payload's

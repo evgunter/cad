@@ -4,6 +4,8 @@ kind: issue
 title: path_start_frame and Vec3::orthonormal_basis both answer 'an axis off a tangent' and nothing says which a caller uses
 status: open
 opened: 2026-09-15
+priority: P1
+cost: D
 ---
 
 ## Finding

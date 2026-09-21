@@ -4,6 +4,8 @@ kind: issue
 title: mate/member.rs hand-writes the third copy of "datum axis", which eval::phrase::DATUM_AXIS is now the home for
 status: open
 opened: 2026-09-12
+priority: P1
+cost: E
 ---
 
 

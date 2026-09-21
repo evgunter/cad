@@ -4,6 +4,8 @@ kind: issue
 title: authored lines land inside merge commits, where git log -p does not show them and nothing detects it
 status: open
 opened: 2026-09-05
+priority: P3
+cost: D
 ---
 
 

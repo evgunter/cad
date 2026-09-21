@@ -283,3 +283,65 @@ lane and returned a MAJOR, two upheld MINORs and a rule change. On this
 program's posture that is the trigger working as written: a census's
 failure mode is a population that looks complete and is not, which is a
 confident wrong answer and not a refusal.
+
+## 2026-09-20 — wave 1 closed: four units, two negative results, 23 rows open
+
+All four wave-1 units are on `main`. The slate went from 14 rows to 23,
+which is the wave's largest single output and the thing to read it by.
+
+| unit | outcome | PR |
+|---|---|---|
+| `a-disabled-control-says-why-in-four-shapes` | the rule, the population, four rows filed | #2908 |
+| `seat-line-spells-the-list-mark-as-a-literal` | **negative result** — no code change | #2917 |
+| `is-instance-collapses-absent-and-wrong-kind` | `instance_check -> Result<(), AdmissionFault>` | #2916 |
+| `tone-is-a-value-in-frame-and-a-comment-in-two-panes` | `RowStatus::tone()`, and `app::toned` | #2915 |
+
+**Both rows closed at this entry were merged and still read `review`.**
+A row whose unit is on `main` and whose board entry says otherwise is
+the same defect as a stale citation, one level up; the census row closes
+too, because its deliverable — the rule and the classified population —
+landed, and each control that owes the rule is its own scheduled row.
+
+**Two of four units changed no behaviour a reader can see, and one
+changed no code at all.** That is the wave's real finding and it is
+about SPEC time, not about the lanes:
+
+- `seat_line` closed as a negative result. Its central argument rested
+  on a consumer `LIST_SEPARATOR` had lost the day after the row was
+  filed, and its subject fails the same two-part test that removed that
+  consumer. The argument is written into the row so the next sweep does
+  not re-mint it.
+- `is_instance` is a better door with no reader-visible difference, and
+  nothing said so until a reviewer read the Charter back at it.
+
+`plan.md` §Dispatch rules now carries what both cost: read a row's
+STATUS before its premise; apply the Charter's reader test at spec
+time; an orchestrator's fix shape is a claim and gets checked before it
+is issued; a `keep_out` carve-out beats a general fence ruling; fixing a
+sentence and adding a function are different acts.
+
+**Three lanes falsified something the orchestrator told them**, and in
+every case the lane was right: the two sibling rows were closed and not
+open; the `pane/create.rs` citation was stale in its number and exact
+in its subject, and the third copy was real; the absent-node sentence I
+recommended would have minted the node-side twin of a row open on this
+slate, and the shape I proposed would have needed an `[ev]` PR because
+`Standing`'s second clause is GQ7's ratified constraint.
+
+**The review tiers held.** The one unit given a correctness arm — the
+census — returned a MAJOR that a style lane alone would have recorded
+as taste. Both style reviews caught defects that would otherwise have
+merged: `seat_line`'s whole premise, and `tone`'s silent loss of
+compile-time exhaustiveness.
+
+**Operationally**: four concurrent code lanes saturated the box (load
+37, 0 GB free of 9), one lane's broad `pkill` damaged another's build,
+and GitHub Actions was billing-locked repo-wide for roughly five hours
+mid-wave. #2937 withdrew the local workspace-test instruction that
+caused most of it. Wave 2 mixes at most two code lanes with reading
+work.
+
+**Wave 2's order is `plan.md` §Order group 6**, which the census
+produced: the three controls that owe the rule, in the order that
+section states. Every one of them changes what a reader is told, which
+is the test this wave learned to apply first.
