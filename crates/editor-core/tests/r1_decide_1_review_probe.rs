@@ -57,10 +57,22 @@ fn r1_the_invalid_count_at_wider_scales() {
     let rules = SymRules::shipped();
     for s in [0.2631_f64, 0.5, 1.0, 2.0] {
         let plate = crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0;
-        count(&format!("plate / whole box / s={s}"), &plate, true, rules, tol);
+        count(
+            &format!("plate / whole box / s={s}"),
+            &plate,
+            true,
+            rules,
+            tol,
+        );
     }
     for s in [0.8419_f64, 1.0, 2.0] {
         let ann = crate::m10_8_r1_probes_interval::annulus(s, tol).0;
-        count(&format!("annulus / whole box / s={s}"), &ann, true, rules, tol);
+        count(
+            &format!("annulus / whole box / s={s}"),
+            &ann,
+            true,
+            rules,
+            tol,
+        );
     }
 }
