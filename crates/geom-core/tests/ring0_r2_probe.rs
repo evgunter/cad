@@ -427,3 +427,76 @@ fn probe_why_powi_minus_one() {
     }
     println!("div overflow scan done");
 }
+
+/// The three end-to-end witnesses, at the ring and at the newtype
+/// (`DInterval` IS the newtype: the dry run forwards every op to it).
+#[test]
+fn probe_end_to_end_witnesses() {
+    println!("--- certified_door: poison reachable by arithmetic");
+    for (tag, r, d) in [
+        (
+            "[1,2]/[0,0]",
+            ring(1.0, 2.0) / ring(0.0, 0.0),
+            dint(1.0, 2.0) / dint(0.0, 0.0),
+        ),
+        (
+            "[0,1]*[0,inf]",
+            ring(0.0, 1.0) * ring(0.0, f64::INFINITY),
+            dint(0.0, 1.0) * dint(0.0, f64::INFINITY),
+        ),
+        (
+            "[-2,-1]/[0,5e-324]  (a Trv with REAL endpoints)",
+            ring(-2.0, -1.0) / ring(0.0, 5e-324),
+            dint(-2.0, -1.0) / dint(0.0, 5e-324),
+        ),
+        (
+            "([-2,-1]/[-1,1])*[0,0]  (a Trv with FINITE endpoints)",
+            (ring(-2.0, -1.0) / ring(-1.0, 1.0)) * ring(0.0, 0.0),
+            (dint(-2.0, -1.0) / dint(-1.0, 1.0)) * dint(0.0, 0.0),
+        ),
+    ] {
+        println!(
+            "  {tag}: ring {} (poison={}) | newtype {} (poison={}) endpoints ({:e},{:e})",
+            show_ring(r),
+            r.is_poison(),
+            show_d(d),
+            d_refuses(d),
+            d.lo(),
+            d.hi()
+        );
+    }
+
+    println!("--- the sign clamp (review_m5_pr2_scratch::lane_sign_clamp)");
+    let (a, b) = (2.2250738585072014e-308f64, -1.8669573922462645e-308f64);
+    let rp = ring(a, a) * ring(b, b);
+    let dp = dint(a, a) * dint(b, b);
+    println!(
+        "  [a,a]*[b,b] with a>0>b: ring {} | newtype {}",
+        show_ring(rp),
+        show_d(dp)
+    );
+    let (c, e) = (1.902e-308f64, 1.902e-308f64);
+    println!(
+        "  same-sign [c,c]*[e,e]: ring {} | newtype {}",
+        show_ring(ring(c, c) * ring(e, e)),
+        show_d(dint(c, c) * dint(e, e))
+    );
+
+    println!("--- the zero annihilator");
+    println!(
+        "  [0,0]*[-inf,inf]: ring {} | newtype {}",
+        show_ring(ring(0.0, 0.0) * ring(f64::NEG_INFINITY, f64::INFINITY)),
+        show_d(dint(0.0, 0.0) * dint(f64::NEG_INFINITY, f64::INFINITY))
+    );
+
+    println!("--- powi(3) on a production-shaped weight hull (quad.rs `wm.powi(3)`)");
+    for w in [(0.5f64, 2.0f64), (1e-200, 1e200), (0.0, 1.0)] {
+        println!(
+            "  [{:e},{:e}].powi(3): ring {} | newtype {}",
+            w.0,
+            w.1,
+            show_ring(ring(w.0, w.1).powi(3)),
+            show_d(dint(w.0, w.1).powi(3))
+        );
+    }
+}
