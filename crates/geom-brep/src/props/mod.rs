@@ -113,20 +113,30 @@
 //! altogether — a rim-only polar cap — that traversal supplies the
 //! missing extreme instead of refusing the face
 //! (`curved::sphere_rim_only_pole_level`). Both live on the sphere arm
-//! because that is where the extent can be silent and where a face's
-//! complement shares its whole boundary; the linear kinds' rim-only
-//! faces have no extent to name at all.
+//! because that is where the extent can be silent AND where the sense
+//! bit is what settles it: a rim of a ball bounds the cap under one
+//! bit and the ball minus the cap under the other.
 //!
-//! **The SHAPE DOOR asks only the first of the two**, and that is a
-//! divergence rather than an oversight: σ reads the face's sense bit
-//! and [`require_iso_rectangle`] is handed a surface and a loop, with
-//! no face, so that it answers a question about the boundary alone.
-//! The executed case is issue 1598's L-shaped complement — `Ok(())`
-//! from the door, `NotIsoRectangle { what: "props_rim_interior_side" }`
+//! **The cone's rim-only face has a missing extreme too, and it needs
+//! no bit** (`curved::cone_apex_level`): a cone is bounded on the apex
+//! side only, so `0` is the single candidate, and the fold sits in the
+//! shared parse where all three doors read it. What it does require is
+//! the sphere's premise transposed — every rim's traversal agreeing,
+//! which is unanimity of σ without σ, since σ is `d_u_sign` under one
+//! bit. A cylinder is unbounded along its axis both ways and has no
+//! candidate at all, so its rim-only face stays extent-less.
+//!
+//! **The SHAPE DOOR cannot ask the second, and asks its sense-free
+//! residue instead.** σ reads the face's sense bit and
+//! [`require_iso_rectangle`] is handed a surface and a loop, with no
+//! face, so that it answers a question about the boundary alone. What
+//! needs no bit is that every rim encodes the SAME side
+//! (`curved::unanimous_rim_side`), and the door takes that. The
+//! divergence it leaves is one rim: issue 1598's L-shaped complement
+//! has nothing for unanimity to compare — `Ok(())` from the door,
+//! `NotIsoRectangle { what: "props_rim_interior_side" }`
 //! from the flux lane, on one face. The door's own docs say what a
-//! consumer that needs the stronger premise reads instead, and the
-//! sense-free residue it could take is
-//! `work/props/the-shape-door-could-take-the-sense-free-rim-side-residue.md`. The total
+//! consumer that needs the stronger premise reads instead. The total
 //! `u`-measure `w(v)` changes only where a rim is (between rim levels
 //! the boundary is meridians, which move no `u`-endpoint), so the rule
 //! establishes `w ≡ Δu`. Before S58 the property was re-derived per
@@ -312,6 +322,17 @@ impl<T: SpanLocate> LoopEdge<T> {
     /// The vertex tag at the interval start `t0` (`he_plus` start).
     pub(crate) fn tag_at_t0(&self) -> u32 {
         if self.forward { self.start } else { self.end }
+    }
+
+    /// The carrier points at the edge's TRAVERSAL ends, in traversal
+    /// order — `(p0, p1)` forward, swapped otherwise, the geometric
+    /// twin of the `(start, end)` tag pair.
+    pub(crate) fn traversal_ends(&self) -> (Point3<T>, Point3<T>) {
+        if self.forward {
+            (self.p0(), self.p1())
+        } else {
+            (self.p1(), self.p0())
+        }
     }
 }
 

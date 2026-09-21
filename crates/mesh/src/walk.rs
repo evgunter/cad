@@ -1545,8 +1545,9 @@ mod tests {
     /// refuses with the face and the kind it was handed, however many
     /// rims carry it; one meridian anywhere in the cycle admits it, and
     /// so does a loop of meridians only (the sphere's pole-to-pole
-    /// band). The ids and raw coordinates play no part: every fixture
-    /// here carries the same `v_raw`/`u_raw`.
+    /// band). It is an existence test on kinds and not a span test on
+    /// levels: the last refused fixture is two rims at two different
+    /// `v_raw`, and it refuses as the one-level loops do.
     #[test]
     fn a_loop_is_refused_exactly_when_no_traversal_is_a_meridian() {
         let face = FaceKey::default();
@@ -1558,6 +1559,10 @@ mod tests {
             vec![rim(&[2, 2])],
             vec![rim(&[2, 3]), rim(&[3, 2])],
             vec![rim(&[2, 3]), rim(&[3, 4]), rim(&[4, 2])],
+            vec![
+                trav(TravKind::Rim { v_raw: 0.3 }, &[2, 3]),
+                trav(TravKind::Rim { v_raw: 0.7 }, &[3, 2]),
+            ],
         ] {
             let kinds = LoopKinds::of(&rims_only);
             assert_eq!(

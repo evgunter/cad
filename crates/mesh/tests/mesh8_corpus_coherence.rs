@@ -31,9 +31,8 @@
 //!    can add a rim-continuation positive to any corpus; its only
 //!    reachable witness is a rim-only cap through the Euler doors,
 //!    which this corpus cannot contain because `tessellate` refuses it
-//!    typed, `MeridianFreeCurvedFace`
-//!    (`topo/tests/mesh12_rim_row_reach.rs`,
-//!    `the_mesh_lane_refuses_the_rim_only_cap_at_every_gap`).
+//!    typed (`topo/tests/mesh12_rim_row_reach.rs`,
+//!    `the_mesh_lane_refuses_the_rim_only_cap_typed_at_zero_gap_and_in_the_band`).
 //! 2. **Every body here goes through the ISO WALK, and the
 //!    examination has no shape door.** It reads faces the walk never
 //!    walks, and `zero findings` says nothing about those. The

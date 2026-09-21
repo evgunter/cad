@@ -4314,3 +4314,54 @@ Spec note at deletion: §3's survey sentence that `nurbs_tighten`
 "skips `Harmonic`" was wrong (the harmonic arm answers a UV speed
 bound); PR-2's spiric-adjacent refusal at that site was the right
 disposition and the spiric spec's PR-1b said so.
+
+## Per-merge deletion — CURVE3-JET's spec (2026-09-21)
+
+Recoverable at `git show 1960e94732:docs/CURVE3-JET-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "`param_near`'s
+`Circle` arm … NOT a site" — folded in the fix pass (R1 showed it was
+the one remaining same-receiver pair in production and that the door
+removes exactly the frame duplication the item priced), so the class is
+closed at fourteen sites and fifteen pairs; "`Circle` → ONE
+`azimuth::frame` and both its fields" — the point half goes through a
+private `circle_point(center, &frame, radius)` that `circle_at` also
+calls, so `eval` and `ders1` share one expression rather than two
+spellings; "the `ders` walk with `ders1_in_span` … and two hulls" —
+the located-span walk is written once (`located_walk(t, door, hull)`)
+and `eval`, `deriv`, `ders1`, `ders` are each one call of it, bit
+identity pinned by both `span_bit_identity` digests unchanged; "a
+one-ulp mutant … also reds the `topo` tier-3 rows or the tour" — it
+does not, structurally: a NURBS-carried `Curve3` cannot reach the
+enum-door sites through any user program today (the boolean refuses
+NURBS input carriers before tier 3), which both arms reproduced end to
+end, and the closing row is a curved-boolean row on CURVED's ground;
+"the `Tangent` arm's interior branch" fold — the arm is decided once,
+each `match` arm taking its point through its own door. Recorded in
+the PR body and the unit's `## Closed` section.
+
+- `CURVE3-JET-SPEC.md` — CURVE3-JET, the whole-curve order-1 jet door `ders1`; the eval/deriv pairs fold onto it (#2708)
+## Per-merge deletion — RING-1's spec (2026-09-21)
+
+Recoverable at `git show cdf3767ed7:docs/RING-1-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the ten `cfg(test)` sites
+in `geom-core` stay" — there are nine, all under `#[cfg(test)]`, and
+none became unconditional by construction; "the 47 cfg sites in the 23
+other `src` files" — 48, re-derived after the merge of `origin/main`
+(plus four in `demos/tour` and 126 test files carrying the crate-level
+gate), RING-3's starting count; "the feature gates the kernel's
+instantiation" — over-claims: what it gates is the lane-trait impls
+above `geom-core` and the interval test files, and both reviews showed
+end to end that the lane traits, not the feature, are what keeps a
+default-build caller out of the kernel doors at `Interval`
+(`chart_region_overlap::<Interval>` — `Decide + CertifiedBounds` —
+instantiates and runs in a default build; `validate_geometric::
+<Interval>` refuses on `PropsQuadLane`); "the same crate is already an
+unconditional dev-dependency" — the duplicate `[dev-dependencies]`
+entry is removed, the normal dependency being the same edge; "if
+`test-features-dev-only.sh` asserts that `interval-transcendentals` is
+dev-only or optional" — it does not (its subject is `test-support` /
+`*-testing` features on non-dev edges), nothing in it changed;
+"`crates/geom-core/README.md`'s scalar list, if it names the gate" — it
+does not. Recorded in the PR body and the unit's `## Closed` section.
+
+- `RING-1-SPEC.md` — RING-1, `geom_core::interval` compiles unconditionally; the feature gates only the instantiation (#2971)

@@ -63,10 +63,42 @@ fn the_pole_crossing_half_cap_refuses_at_the_door() {
 /// the shape door admitted it and the walk mis-read it exactly as it
 /// mis-read the half-cap (a debug build panicked at the issue-897
 /// census at δ = 0.5, `CertificateExceeded` below it).
+///
+/// **The shape door now reaches this body first, and by its own
+/// name.** `require_iso_rectangle` requires every rim to encode the
+/// same material side, and the bow tie's second face states two rims
+/// that do not: its refusal is `props_rim_side`, raised before
+/// `require_one_chart_branch` is asked. What the row pins is unchanged
+/// — no mesh is minted, at every δ, and the refusal is typed and names
+/// a premise rather than a chord budget — but the premise it names is
+/// the shape one. The branch premise's own cone witness is the
+/// props-level row `an_apex_crossing_generator_is_not_one_chart_branch`
+/// (`geom-brep`), on a hand-built bow whose rims do not contradict;
+/// this body no longer reaches the branch door through `tessellate`,
+/// and the row for a body that does is
+/// `work/tess/apex-crossing-branch-premise-has-no-body-level-witness.md`.
 #[test]
-fn the_apex_crossing_bowtie_refuses_at_the_door() {
+fn the_apex_crossing_bowtie_refuses_at_the_shape_door() {
     let (body, f0, f1) = apex_crossing_bowtie();
-    refuses_the_branch_premise("bow tie", &body, [f0, f1]);
+    let tol = Tol::witness();
+    for delta in [0.5, 0.3, 0.2, 0.1, 0.05, 0.02] {
+        match mesh::tessellate(&body, delta, tol) {
+            Err(TessellateError::UnsupportedCurvedShape {
+                face,
+                source:
+                    PropsError::NotIsoRectangle {
+                        what: "props_rim_side",
+                    },
+            }) => assert!(
+                [f0, f1].contains(&face),
+                "bow tie at δ={delta}: refused a face that is not one of {:?}",
+                [f0, f1]
+            ),
+            other => {
+                panic!("bow tie at δ={delta}: expected the shape premise refusal, got {other:?}")
+            }
+        }
+    }
 }
 
 /// **The props-side finding is closed by the INTERIOR-SIDE premise,

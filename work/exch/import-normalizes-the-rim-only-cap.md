@@ -33,7 +33,7 @@ Fixtures: `crates/step-import/tests/fixtures/tess-cap-diag/`
 `tess/rim-only-cap-diag` at `83833e586`; TESS-1 lands them on main with
 `mesh`'s typed refusal, which is what such a body meets until this
 lands. Order: this before TOPO's validity rule
-(`work/topo/validity-refuses-an-interior-chart-singularity.md`), or
+(`work/atrest/validity-refuses-an-interior-chart-singularity.md`), or
 import starts refusing files it accepts today.
 
 Signed: (TESS orchestrator)
