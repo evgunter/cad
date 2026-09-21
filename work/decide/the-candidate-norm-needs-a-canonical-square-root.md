@@ -155,3 +155,69 @@ count, ceiling and split that moves is re-baselined with what moved
 said. Taken by unit `DECIDE-3` (`docs/DECIDE-3-SPEC.md`), cut from
 `sym/10-decision-door`'s head; this row stays open until DECIDE-3
 lands or stops.
+
+## DECIDE-3 Phase 1 (2026-09-21, branch `decide/3-canonical-root` at `e88987915`)
+
+### The mint sites, enumerated
+
+Every place a `Sqrt` atom is minted, and whether it reaches the one
+door rule G lives at. Line numbers ride along and are allowed to go
+stale; the names are the citation.
+
+| site | where | the argument it passes | reaches the door |
+| --- | --- | --- | --- |
+| `combine`'s `atom1`, from the `Sqrt \| Abs` rule arm | `sym.rs`, after A0, rule F and rule C (`:2207`) | the node's kid form, EARLY walk | **yes** — rule G's call is this site |
+| `combine`'s `atom1`, from the op-list arm | `sym.rs` (`:2230`) | the node's kid form, PLAIN walk (and the early walk with every dial off) | **no, by design**: rule G is early-only like every other rule, so the plain form stays M10-7's and no theorem is re-labelled |
+| `combine`'s `atom1`, from rule D's `Sin`/`Cos` fallback | `sym.rs` (`:2219`) | never a `Sqrt` — only `Sin`/`Cos` reach it | n/a |
+| `trig::sqrt_atom` (rule D's hand-built roots) | `sym/trig.rs` (`:305`) | `1 + X²` for `S`, and `(D + C)/(2D)` for each half-angle `c₂`, after rule E's cancel | **yes** — routed through `root::mint` |
+| the registered-identity door | `sym.rs`'s `form_in`, the `registry` arm | mints nothing of its own: an aliased node takes the registered node's form, built by the same EARLY walk | **yes, by construction** |
+| `algebra::reduce`'s rule A | `sym/algebra.rs` (`:82`) | reads `AtomInfo`, mints nothing | n/a |
+| `manifest::magnitude` | `sym/manifest.rs` (`:298`) | mints an `Abs` atom, never a `Sqrt` | n/a |
+| `signed::fold` (rule C) | `sym/signed.rs` (`:287`) | folds a root to a polynomial, mints nothing | n/a |
+
+So the door is reached from every site that mints a `Sqrt` except the
+plain walk's, which is excluded on purpose.
+
+### The side condition, argued once
+
+`sqrt(N/D) = sqrt(N)/sqrt(D)` needs `D > 0` where it is used, not
+merely `N/D ≥ 0`: at `N ≤ 0, D < 0` the left side is real and neither
+root on the right is. `D ≠ 0` is rule E's four-source denominator
+argument. Non-negativity comes from, in this order: (1) `D` a
+non-negative rational constant; (2) `manifest::nonneg`, rule F's own
+predicate; (3) the session already holding `sqrt` of `D`'s PRIMITIVE
+part — a `Sqrt` atom exists only because a node of this DAG computes
+that root, and a real root has a value only where its argument is
+non-negative, and `D` differs from its primitive by the positive
+content; (4) a certified bracket over the leaf's box, which READS a
+value, rides rule C's dial and gates the form. `N ≥ 0` then follows
+from `N/D ≥ 0` with `D > 0` and is never tested on its own. The
+argument lives in `crates/geom-core/src/sym/root.rs`'s header, beside
+what it governs.
+
+Source 3 depends on minting ORDER, and that is said rather than
+hidden: whether `sqrt(D')` is already in the session is a fact about
+the walk's traversal. What does not depend on order is the KEY — an
+atom this rule mints is keyed on the primitive polynomial and nothing
+else — so what order can change is whether a root splits at all, never
+which atom it splits into.
+
+### The baseline, re-taken on this branch's head
+
+`e88987915` (the spec and the unit on `sym/10-decision-door`'s closing
+head, with `origin/main` of 2026-09-21 merged; `props/sign-hull` was
+already in). `--features interval`, dev profile, this box.
+
+| row | at head |
+| --- | --- |
+| `m10_8_pins_interval` (5) | green. Plate ceiling, plain tier and A0 alone, `eps=1e-9`: certifies `7.738768852289407e-7`, refuses `7.84388558145157e-7`. Bracket, plain tier: `3.701343361154913e-8` / `3.75161920154464e-8`; shipped tier: `3.8716012820540445e-7` / `3.924189758484525e-7`. Bracket at `1e2·ε`: shipped `sym0 1083 / gated 0 / registered 144 / numeric 794 / frozen 1637`, certified 1, share 0.536; plain `3360 / 0 / 0 / 10787 / 1637`, share 0.238. Slab inert: `shipped` serializes what `none` does, byte for byte. |
+| `m10_9_pins_interval` (7 + 1 ignored) | green. At `eps=1e-9`: plate `803/0/140/470`, frozen 1044; annulus `328/0/140/209`, frozen 1056; link `515/0/90/497`, frozen 1060; bracket `1083/0/144/794`, frozen 1637; pad `854/0/128/971`, frozen 2750. Rim registrant on the plate: door shut `518/0/0/303` refusing `carrier_endpoint_start`, door open `518/0/6/303` refusing `carrier_matches_mapped_source`. |
+| `m10_10_pins_interval` (7) | green — including the nominal split `carrier_matches_mapped_source [180, 0, 8, 64]` on the plate (the door's eight registered decisions), the bound at ceiling + δ per document, and the eps-relative ceilings. |
+| `m10_bulge_interval` (3) | green — the boss's and both `d_tabs` splits at the nominal. |
+| `m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does` | **RED**, `half = ε/8`, `Guided`: cap plane `newell_plane_residual`, enclosure `[-1.4199563802552717e-8, 1.4199563941330595e-8]` against `escalate = 1e-8`. |
+| `m10_the_derived_frames_refusal_is_not_a_freeze` | **RED**, `none` rung at `5e-2`, `Pinned`: the boss's SIDE plane `newell_plane_residual`, `margin is invalid (NaN or a poisoned enclosure)`, where the row asserts `carrier_endpoint_start`. |
+| `the_forms_the_walks_build_are_pinned_per_eps_row` | **RED** on the plate's ledger: every count identical, every digest moved (SYM-10's Phase 1 measured it; the re-baseline is DECIDE-3's). |
+
+The six measured documents are the plate, the annulus, the link, the
+filleted bracket, the rounded pad and the slab; the pad's shape report
+OOMs on this box and is measured on the ceiling instrument only.
