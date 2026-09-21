@@ -1124,3 +1124,34 @@ frozen head with the brief stored (sha256 `5e733a1ae1e4…`); allowed to
 fetch the dry-run branch the brief names. Three lanes live: LANE-2's
 R1 and RING-2's pair. Disk 27 G free with the implementer's target
 reclaimed.
+
+## LANE-2 dual concluded; the verdict move ruled to stand (2026-09-21)
+
+R1 (OPUS, resumed) APPROVE WITH FIXES 1/4/8; R2 (FABLE, resumed)
+APPROVE WITH FIXES 1/4/5. **The one MAJOR is the same finding on both
+arms, by execution ⇒ BILATERAL, no tally candidate**: the
+`_structural` pseudomanifold door at `f64` on the declared straddle
+seat answers `Ok(())` at the merge base and, at the head, a refusal
+plus two `UndeclaredContact` crossings the declaration used to back —
+the twin hands the census `None` at every scalar now. Ruled: the fold
+stands (ruling 3's twin holds no certified lane at any scalar; the
+base's `f64` reach of Door 2 through the supertrait was the
+lane-keeping hybrid the cut removes; a branch on the scalar is what
+the cut forbids), and the unit owes the door docs (which enumerate two
+absences and now have three), the PR body's disclosure of the
+base→head verdict, the allowlist entry's honesty (its selector moved
+from scalar-keyed to door-keyed — not naming-only as the body claimed;
+written by an agent lane, no ratification owed), and a row for the
+verdict, not only the sentence. Bilateral MINORs: the scalar-keyed
+prose left inside the changed functions; the D9 dumps blind to the one
+behaviour that moved. Unique R1: the red-first set is 17 that notice
+of 24 that reach (seven negative "backs no crossing" rows stay green
+with the door gone); the roster census finds `where` by the letter
+`w`; the `Display` names the conformal arm where the confirm arm
+raises the same variant. Unique R2: two `git log -S` citations
+resolve to the shallow checkout's graft commit; 35 more `editor-core`
+rows red under the mutant. Both: the second copy of the wiring module
+(LANE-4 makes three). Both corrected the merge base (`ff1e982788`, not
+the branch point). Rubric 4/4/3 on both arms. Fix pass dispatched on
+the FABLE arm (thirteen items, `lane2-fix-pass.md`). Three lanes live:
+RING-2's pair and this fix pass.
