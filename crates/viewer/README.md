@@ -34,7 +34,8 @@ x/y/z fields in the instance section of the Properties panel
 (display-only, mm).
 
 In the Properties panel, the document-parameters list ends with an
-add-parameter row (name + dimension + value, one undoable edit); an
+add-parameter row (name + dimension + value, written in the unit the
+form's picker names, one undoable edit); an
 expression that names an undeclared parameter refuses typed, and the
 refusal offers to create it — prefilled into that row, with the
 dimension left as your pick.

@@ -57,10 +57,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, LoggedEdit,
-    LoopProgram, MateReach, Node, ParamName, PartReach, PartResolver, ProductError, ProfileProgram,
-    RecipeNodeId, SlotId, Subject, apply, assemble_gathered, cascade_delete_order, parse_expr,
-    product_recorded, run_checks_on,
+    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr,
+    LoggedEdit, LoopProgram, MateReach, Node, ParamName, PartReach, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, SlotId, Subject, apply, assemble_gathered, cascade_delete_order,
+    parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -91,7 +91,7 @@ pub mod select;
 
 pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{CancelDoor, OpOutcome, SessionOp};
+pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, admits, face_frame_seat,
@@ -149,14 +149,25 @@ impl GestureTarget {
         SlotValue::of(self.dimension(), value)
     }
 
-    /// What an operation has to name to drive this gesture.
-    fn name(&self) -> GestureName {
+    /// What an operation has to name to drive this gesture: the
+    /// subject half of this target, without the facts the begin
+    /// looked up.
+    ///
+    /// A target carries the display unit or the declared dimension
+    /// its begin read off the base document; an operation arriving
+    /// from the chrome carries neither and has no business asserting
+    /// them. So the comparison that decides whether a preview belongs
+    /// to the open gesture is over [`ValueGestureName`], and this is
+    /// the one place a target becomes one — exhaustive over the
+    /// target's arms, so a third kind of gesture target cannot skip
+    /// the question.
+    fn name(&self) -> ValueGestureName {
         match self {
-            Self::Slot { node, slot, .. } => GestureName::Slot {
+            Self::Slot { node, slot, .. } => ValueGestureName::Slot {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param { name, .. } => GestureName::Param(name.clone()),
+            Self::Param { name, .. } => ValueGestureName::Param(name.clone()),
         }
     }
 
@@ -171,25 +182,6 @@ impl GestureTarget {
             Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
         }
     }
-}
-
-/// **Which gesture an operation NAMES** — the subject half of
-/// [`GestureTarget`], without the facts the begin looked up.
-///
-/// A gesture's target carries the display unit or the declared
-/// dimension its begin read off the base document; an operation
-/// arriving from the chrome carries neither and has no business
-/// asserting them. So the comparison that decides whether a preview
-/// belongs to the open gesture is over this, and
-/// [`GestureTarget::name`] is the one place a target becomes one —
-/// exhaustive over the target's arms, so a third kind of gesture
-/// target cannot skip the question.
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum GestureName {
-    /// A node's slot.
-    Slot { node: RecipeNodeId, slot: SlotId },
-    /// A document parameter.
-    Param(ParamName),
 }
 
 /// What a value gesture holds for its life: layer-3 state only.
@@ -1193,20 +1185,22 @@ impl DocSession {
                 self.set_slot_expression(node, slot, &text)
             }
             SessionOp::SetParam { name, value } => self.set_param(&name, value),
+            SessionOp::SetParamUnit { name, unit } => self.set_param_unit(name, unit),
+            SessionOp::SetParamText { name, text } => self.set_param_text(name, &text),
             SessionOp::CreateParam { name, value } => self.create_param(name, value),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
             SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
             SessionOp::PreviewGesture { node, slot, value } => {
-                self.preview_gesture(&GestureName::Slot { node, slot }, value)
+                self.preview_gesture(&ValueGestureName::Slot { node, slot }, value)
             }
             SessionOp::CommitGesture { node, slot } => {
-                self.commit_gesture(&GestureName::Slot { node, slot })
+                self.commit_gesture(&ValueGestureName::Slot { node, slot })
             }
             SessionOp::PreviewParamGesture { name, value } => {
-                self.preview_gesture(&GestureName::Param(name), value)
+                self.preview_gesture(&ValueGestureName::Param(name), value)
             }
             SessionOp::CommitParamGesture { name } => {
-                self.commit_gesture(&GestureName::Param(name))
+                self.commit_gesture(&ValueGestureName::Param(name))
             }
             SessionOp::CancelGesture => match self.gesture.cancel(gesture_words()) {
                 // Only a drag that actually put a scratch document on
@@ -1475,7 +1469,7 @@ impl DocSession {
         }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
         match props::slot_edit(node, slot, value, unit) {
-            Ok(edit) => self.commit(edit),
+            Ok(edit) => self.commit_written(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
         }
     }
@@ -1536,17 +1530,23 @@ impl DocSession {
         }
     }
 
-    fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        // `parse_expr` needs the document's declared dimensions so a
-        // parameter reference records the dimension `apply` will
-        // re-check it against.
-        let dims: std::collections::BTreeMap<ParamName, Dimension> = self
-            .committed_doc()
+    /// **The declared dimensions `parse_expr` reads text against** —
+    /// every text door's first argument, and one function because
+    /// both of them wanted it.
+    ///
+    /// The parser needs them so a parameter reference records the
+    /// dimension `apply` will re-check it against; a door that built
+    /// the map itself would be free to build a different one.
+    fn param_dims(&self) -> std::collections::BTreeMap<ParamName, Dimension> {
+        self.committed_doc()
             .params()
             .iter()
             .map(|(name, param)| (name.clone(), param.dim()))
-            .collect();
-        let expr = match parse_expr(text, &dims) {
+            .collect()
+    }
+
+    fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
+        let expr = match parse_expr(text, &self.param_dims()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
@@ -1558,7 +1558,17 @@ impl DocSession {
         } else {
             DocEdit::SetParam { node, slot, expr }
         };
-        self.commit(edit)
+        // **Through the written door**, like every other door that
+        // writes a panel field's value. The field's own guard cannot
+        // answer for this one: a literal slot that evaluated shows its
+        // NUMBER, so the render the echo compares against is the bare
+        // `8.0` while the slot's source is `8 mm`, and re-typing the
+        // source is no echo of anything. `Self::writes_nothing` asks the question
+        // that is actually being asked here — whether the expression
+        // offered is the expression standing — and the `unparse` /
+        // `parse_expr` round trip preserves both the bits and the
+        // display unit, so a source re-typed as itself compares equal.
+        self.commit_written(edit)
     }
 
     /// The value door: write a declared parameter's value.
@@ -1569,7 +1579,91 @@ impl DocSession {
     /// forward and refuses `EditError::DocParamNotDeclared` when there
     /// is none.
     fn set_param(&mut self, name: &ParamName, value: SlotValue) -> OpOutcome {
-        self.commit(props::param_edit(name.clone(), value))
+        self.commit_written(props::param_edit(name.clone(), value))
+    }
+
+    /// The notation door: rewrite a declared parameter's display unit,
+    /// its value untouched.
+    ///
+    /// No pre-check, for [`Self::set_param`]'s reason: every way this
+    /// can refuse — an undeclared name, a `Count`, a unit that does
+    /// not measure the declared dimension — is refused by
+    /// `DocEdit::SetDocParamUnit` in the door's own words, and a
+    /// second opinion here could only agree or disagree.
+    fn set_param_unit(&mut self, name: ParamName, unit: UnitDef) -> OpOutcome {
+        self.commit_written(props::param_unit_edit(name, unit))
+    }
+
+    /// The text door: a number, and the notation to write it in, from
+    /// one piece of typed text.
+    ///
+    /// **One parser.** `parse_expr` reads `50 mm` into a literal that
+    /// already carries the canonical value and remembers the unit —
+    /// the one multiply is the parser's — so what arrives here is read
+    /// off the literal and never scaled again.
+    ///
+    /// **One action, therefore one undo.** The value and the notation
+    /// go through [`Self::commit_action`], which is all-or-nothing: a
+    /// unit that does not measure the parameter's dimension refuses
+    /// the whole action rather than landing a value in a notation the
+    /// document would then refuse to save. The notation edit is first
+    /// for that reason — the pairing is judged before any value moves.
+    ///
+    /// **Only the edits that change something are submitted**, and
+    /// that is a DIFFERENT rule from the field's own guard. The
+    /// field's ([`props::echoed`]) is about the text: a render the
+    /// field handed back at itself is not something a person typed.
+    /// This one is about the document: an edit that writes what the
+    /// declaration already holds is submitted by nobody, so `50 mm`
+    /// typed over a parameter already declared `50 mm` costs no undo
+    /// step even though the text is not the field's render of it. It
+    /// is asked over the PAIR, because this door carries a pair —
+    /// `0.05 m` over `50 mm` moves the notation and not the value.
+    ///
+    /// The number door has no such check and needs none: it changes
+    /// one fact, and a number that reads back as the one standing
+    /// cannot have got past the field's guard as anything but a
+    /// deliberate re-type.
+    fn set_param_text(&mut self, name: ParamName, text: &str) -> OpOutcome {
+        let expr = match parse_expr(text, &self.param_dims()) {
+            Ok(expr) => expr,
+            Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
+        };
+        // A literal is the whole of what a parameter can hold. Every
+        // other kind of expression — a reference, an operator, a count
+        // — is refused by name rather than flattened to a number,
+        // because flattening would store a value the text does not
+        // say.
+        let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
+            return OpOutcome::refused(Refusal::ParamNotANumber { name });
+        };
+        let declared = self.committed_doc().params().get(&name).map(DocParam::dim);
+        let notation = props::param_unit_edit(name.clone(), unit);
+        let written = props::param_edit(name.clone(), SlotValue::Continuous(value));
+        match declared {
+            // An undeclared name takes the commit path so the typed
+            // refusal comes from the door rather than from here, the
+            // way [`Self::set_param`]'s does.
+            None => return self.commit(written),
+            // **A `Count` gets the VALUE edit and only that.** A count
+            // names no notation at all, so the notation half of this
+            // door has nothing to say about one, and submitting it
+            // anyway answers what the user did — typing a value — in
+            // the words of a change nobody asked for ("it has no
+            // display unit to change"). The value edit is the act, and
+            // refusing it names the right half: a count declared where
+            // a continuous value was typed.
+            Some(Dimension::Count) => return self.commit(written),
+            Some(Dimension::Length | Dimension::Angle | Dimension::Scalar) => {}
+        }
+        let edits: Vec<DocEdit<ProfileProgram>> = [notation, written]
+            .into_iter()
+            .filter(|edit| !self.writes_nothing(edit))
+            .collect();
+        if edits.is_empty() {
+            return OpOutcome::default();
+        }
+        self.commit_action(edits)
     }
 
     /// The create door: refuse an already-declared name typed, commit
@@ -1664,7 +1758,7 @@ impl DocSession {
     /// a drag is open (`permitted_during_value_gesture`, which every
     /// driving operation has to be), and what it is not is about this
     /// drag.
-    fn preview_gesture(&mut self, named: &GestureName, value: f64) -> OpOutcome {
+    fn preview_gesture(&mut self, named: &ValueGestureName, value: f64) -> OpOutcome {
         let resolver = self.resolver_seam();
         let tol = self.tol;
         let previewed = self.gesture.preview(
@@ -1692,8 +1786,9 @@ impl DocSession {
                 // argued.** Every display predicate is a function of
                 // the node graph, and the free-move probe is admitted
                 // against the COMMITTED document while the view and
-                // the panel's own admission test resolve against this
-                // scratch — so the two agree only while a gesture's
+                // the panel — which run ONE admission test between
+                // them, `display::instance_check` — resolve against
+                // this scratch, so the two agree only while a gesture's
                 // edits leave the graph alone. This holds the half a
                 // check can hold; the other half is that
                 // [`GestureTarget::edit`] can produce nothing but
@@ -1730,7 +1825,7 @@ impl DocSession {
     /// of another, and a gesture that ends here would end with nobody
     /// having let go of it. What is this door's own is what a landed
     /// value becomes: one `DocEdit` on the history, and one undo step.
-    fn commit_gesture(&mut self, named: &GestureName) -> OpOutcome {
+    fn commit_gesture(&mut self, named: &ValueGestureName) -> OpOutcome {
         let landed = match self
             .gesture
             .commit(gesture_words(), |gesture| gesture.target.name() == *named)
@@ -2184,6 +2279,115 @@ impl DocSession {
         } else {
             Err(Refusal::WrongNodeKind { node, wanted })
         }
+    }
+
+    /// **An edit that writes what the document already holds is not
+    /// submitted** — one rule, one home, asked of the EDIT so every
+    /// door that writes a panel field's value or its notation gets
+    /// the same answer.
+    ///
+    /// **A different rule from the field's own guard, and they are
+    /// two because they answer two questions.** `props::echoed` asks
+    /// whether a TEXT came out of the field itself, which is the
+    /// question about a click that typed nothing. This asks whether
+    /// the DOCUMENT would move, which is the question about the undo
+    /// step — and it has to be asked separately, because a widget
+    /// hands one typed text over on more than one frame and because a
+    /// person may re-type, in different characters, the number that
+    /// already stands.
+    ///
+    /// **It is asked AFTER a door's refusals, never before.** A
+    /// driven slot is owed its affordance even when the number
+    /// offered happens to match what the computation produced, so
+    /// [`Self::set_slot`] guards first and reaches this second.
+    ///
+    /// **Every other edit submits**, and that is the conservative
+    /// direction rather than a gap: an insert, a delete or a rename
+    /// has no standing value of its own to be equal to. The match
+    /// below NAMES every one of them rather than wildcarding — a
+    /// `DocEdit` added later has to be answered here, in a compile
+    /// error, instead of quietly inheriting a guard nobody asked
+    /// whether it wanted.
+    fn writes_nothing(&self, edit: &DocEdit<ProfileProgram>) -> bool {
+        let doc = self.committed_doc();
+        match edit {
+            // A slot's literal, against the expression the node
+            // stands at — the same comparison for a structural slot,
+            // which differs only in which edit carries it.
+            DocEdit::SetParam { node, slot, expr }
+            | DocEdit::SetStructuralParam { node, slot, expr } => {
+                doc.node(*node).and_then(|node| node.expr(*slot)) == Some(expr)
+            }
+            // A declaration's two independent fields, each against
+            // its own half. A kind that does not match is no match:
+            // the edit is a redeclaration and the door refuses it.
+            DocEdit::SetDocParamValue { name, value } => match (doc.params().get(name), value) {
+                (
+                    Some(DocParam::Continuous { value: stood, .. }),
+                    DocParamValue::Continuous(offered),
+                ) => stood == offered,
+                (Some(DocParam::Count { value: stood }), DocParamValue::Count(offered)) => {
+                    stood == offered
+                }
+                _ => false,
+            },
+            DocEdit::SetDocParamUnit { name, unit } => matches!(
+                doc.params().get(name),
+                Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
+            ),
+            // **Every other edit submits — and the match NAMES them
+            // all**, so a `DocEdit` added later is a compile error at
+            // the one site that has to decide whether it wants this
+            // guard. A wildcard would give the next value-writing
+            // edit no guard and nothing would go red; this is the
+            // same preference `SessionOp::permitted_during_value_gesture`
+            // states for the gesture table.
+            //
+            // The structure of the recipe and the shape of the
+            // product: a node inserted, deleted, re-parented or
+            // re-pointed has no standing value of its own for an
+            // offered one to equal.
+            DocEdit::InsertNode { .. }
+            | DocEdit::DeleteNode { .. }
+            | DocEdit::SetMembers { .. }
+            | DocEdit::SetRoots { .. }
+            | DocEdit::Rebind { .. }
+            | DocEdit::UpdateReference { .. }
+            | DocEdit::SetPlacement { .. }
+            // The declaration doors that are not the value or the
+            // notation half. `SetDocParam` is create-or-replace: a
+            // redeclaration is an act — it is how a parameter's
+            // DIMENSION changes — and the door refuses or performs it
+            // on its own terms. A distribution is an annotation no
+            // panel field shows.
+            | DocEdit::SetDocParam { .. }
+            | DocEdit::SetDocParamDistribution { .. }
+            // A subtree rewrite at an `ExprPath`, which no panel door
+            // emits: the comparison it would want is against the
+            // REBUILT ancestor rather than against the payload, and
+            // inventing one here would be a second opinion about what
+            // that edit means.
+            | DocEdit::SetExpression { .. }
+            // Presentation, tolerance and witnesses — none of them a
+            // value a panel field writes.
+            | DocEdit::SetAppearance { .. }
+            | DocEdit::ClearAppearance { .. }
+            | DocEdit::SetAppearanceMeta { .. }
+            | DocEdit::ClearAppearanceMeta { .. }
+            | DocEdit::SetTolerance { .. }
+            | DocEdit::ReWitness { .. }
+            | DocEdit::ReWitnessBulk { .. } => false,
+        }
+    }
+
+    /// [`Self::commit`] under [`Self::writes_nothing`]: the door for
+    /// an edit that CHANGES a value or a notation, where writing what
+    /// already stands is not an action and costs no undo step.
+    fn commit_written(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
+        if self.writes_nothing(&edit) {
+            return OpOutcome::default();
+        }
+        self.commit(edit)
     }
 
     /// **The one door an edit enters the document through**: apply,

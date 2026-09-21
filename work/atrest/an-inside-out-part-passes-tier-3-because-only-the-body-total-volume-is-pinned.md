@@ -2,11 +2,12 @@
 id: an-inside-out-part-passes-tier-3-because-only-the-body-total-volume-is-pinned
 kind: issue
 title: A multi-solid body whose one solid is inside-out (negative signed volume) passes tier 3 when the body's total volume is positive — validate pins only the total, never per solid
-status: open
+status: dispatched
 opened: 2026-09-16
 refs: [2767]
 priority: P0
 cost: D
+parent: ATREST-1
 ---
 
 Found by BOOL-4's R2 review (PR 2767) as a side observation while

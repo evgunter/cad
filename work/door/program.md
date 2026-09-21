@@ -2,7 +2,7 @@
 id: door
 kind: program
 title: DOOR — the doors whose fix is already written
-status: ready
+status: active
 opened: 2026-09-11
 area: kernel
 prefix: door/
