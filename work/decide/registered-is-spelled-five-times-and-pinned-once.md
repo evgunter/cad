@@ -2,10 +2,11 @@
 id: registered-is-spelled-five-times-and-pinned-once
 kind: issue
 title: the discharge vocabulary is spelled five times across two crates and only one pair is pinned
-status: open
+status: closed
 opened: 2026-09-06
 priority: P1
 cost: E
+closed: 2026-09-21
 ---
 
 **Found by M10-9's fix pass** (the registered-identity door, branch
@@ -14,13 +15,13 @@ is wrong today, and the shape is the kind that goes wrong quietly.
 
 A discharge outcome is spelled **five** times, in two crates:
 
-| spelling | where | what it is |
-| --- | --- | --- |
-| `SymCounts::registered` | `crates/geom-core/src/sym.rs` | the session receipt's column |
-| `Discharge::Registered` | `crates/geom-core/src/sym.rs` | how the tier answered |
-| `ShapeOutcome::Registered` | `crates/geom-core/src/sym/report.rs` | the shape report's row |
-| `SampleOutcome::Registered` | `crates/geom-core/src/k_stats.rs` | the K sample's token |
-| `Scan::registered` | `tools/k-lint/src/lib.rs` | the linted CSV column |
+| spelling | where | what it is | pinned by |
+| --- | --- | --- | --- |
+| `SymCounts::registered` | `crates/geom-core/src/sym.rs` | the session receipt's column | `sym::discharge_pins::every_discharge_kind_increments_one_receipt_column_of_its_own` |
+| `Discharge::Registered` | `crates/geom-core/src/sym.rs` | how the tier answered | all four rows — it is the side every seam shares |
+| `ShapeOutcome::Registered` | `crates/geom-core/src/sym/report.rs` | the shape report's row | `sym::discharge_pins::every_discharge_kind_records_a_report_row_of_its_own` |
+| `SampleOutcome::Registered` | `crates/geom-core/src/k_stats.rs` | the K sample's token | `geom-core`'s `k_stats_doors::every_discharge_kind_retags_its_sample_with_a_token_of_its_own` |
+| `Scan::registered` | `tools/k-lint/src/lib.rs` | the linted CSV column | `k-lint`'s `tests/outcome_vocabulary.rs` (pinned before this row) |
 
 They are five different types by design — a count, a discharge reason,
 a report row, a K token and a lint column are not one concept — but
@@ -71,3 +72,31 @@ and is the one pair already pinned across the workspace boundary; a sixth discha
 kind moves all five together, so the row travels with the tier that would mint it.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## CLOSED (2026-09-21, DECIDE-2)
+
+**The ruling: shape 2, a pin per seam** (the orchestrator's,
+2026-09-21). Not shape 1 — one enum projected would make `k_stats`
+depend on `sym`, a dependency the tier's design keeps absent, and a
+`From` impl pins only where the compiler's exhaustiveness reaches,
+which it does not across `tools/k-lint`'s workspace boundary. Not
+shape 3 — the door's five edits were made by hand and the order they
+were made in is why one pair was pinned and three were not, so the
+next discharge kind should red somewhere. Five spellings stay five
+types by design; what changed is that a sixth kind reaching four of
+them cannot compile-and-pass.
+
+The three rows are named in the table above. What they assert is not
+totality — a new `Discharge` variant already forces an arm at every
+`match` — but INJECTIVITY: each kind reaching a receipt column, a
+report row and a K token of its OWN, with the members of the other
+side that no discharge reaches named in each row as excluded
+(`numeric`, `frozen`, `registrations_refused`,
+`registrations_contradicted`; `Definite`, `NumericZero`,
+`Indeterminate`, `Invalid`; the definite signs, `Indeterminate`,
+`Invalid`). Each was demonstrated to red under a sixth discharge kind
+planted in one side of its seam and then reverted; the plant table is
+in the unit's PR.
+
+`enum Discharge`'s doc now names the three rows, so a person adding a
+sixth kind reads where it has to be spelled.
