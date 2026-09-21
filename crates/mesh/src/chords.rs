@@ -1051,7 +1051,11 @@ mod tests {
             .expect("multiplicity = p is a C0 kink, which a Lipschitz bound survives");
         let (wu, wv) = sampled_uv_speeds(&image, 4096);
         println!("C0 KINK: certified ({su:.17e}, {sv:.17e}) vs sampled ({wu:.17e}, {wv:.17e})");
-        assert!(wu > 0.0 && wv > 0.0 && wu <= su && wv <= sv);
+        let d = Domination::sampled_under_certified(&[("u'", wu, su), ("v'", wv, sv)]);
+        assert!(
+            wu > 0.0 && wv > 0.0 && d.holds(),
+            "C0 kink: sampled speeds must be positive and under the certified sups: {d}"
+        );
     }
 
     /// **The domain premise is checked, not assumed.** The hull bounds
