@@ -18,7 +18,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Dimension, RecipeNodeId};
+use pncad::document::{Dimension, Frame, RecipeNodeId};
 use pncad::geom_core::Point2;
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, SpecForms, Step, Target, TargetKind, TipState, Verb,
@@ -32,7 +32,9 @@ use crate::forms::{
 };
 use crate::props;
 use crate::readout;
-use crate::session::{DocSession, SessionOp};
+use crate::session::{
+    DocSession, FreeMoveName, GestureName, SessionOp, ValueGestureName,
+};
 use crate::sketch;
 
 /// **The text a numeric field shows**, and the one rule every field in
@@ -145,6 +147,14 @@ pub(crate) fn install_number_formatter(ctx: &egui::Context) {
 /// lands what the user abandoned and abandons what they landed, with
 /// nothing between the mistake and the user to catch it.
 ///
+/// **The four name ONE gesture, and the fields are private so that
+/// they cannot name four.** The only way to build one outside this
+/// module is [`value_gesture`] or [`free_move_gesture`], each of which
+/// takes the gesture's name once and mints all four operations from
+/// it ([`GestureName`]); a panel that spelled the target per operation
+/// could preview into one field and commit another, which is a
+/// convention away from a real edit landing on the wrong slot.
+///
 /// **The value [`Self::preview`] carries is the GESTURE's, not a
 /// widget's.** A slot and a parameter each drag one number, so for
 /// those two the distinction is invisible; the free-move probe drags a
@@ -154,15 +164,51 @@ pub(crate) fn install_number_formatter(ctx: &egui::Context) {
 /// [`drag_ops`] and [`drag_gesture_ops`] where the value is applied.
 pub(crate) struct GestureVocabulary<Preview> {
     /// Open the gesture: emitted on the press.
-    pub(crate) begin: SessionOp,
+    begin: SessionOp,
     /// Move it: emitted on every frame the value changes under the
     /// pointer, carrying that value. Nothing it emits is committed.
-    pub(crate) preview: Preview,
+    preview: Preview,
     /// Land it: emitted when a pointer release ends the drag.
-    pub(crate) commit: SessionOp,
+    commit: SessionOp,
     /// Abandon it: emitted when Escape ends the drag instead
     /// ([`drag_gesture_ops`]).
-    pub(crate) cancel: SessionOp,
+    cancel: SessionOp,
+}
+
+/// **The four operations of a VALUE drag**, minted from the one slot
+/// or parameter they all name.
+///
+/// The caller spells the target once and writes no operation at all,
+/// so the begin, the preview and the commit cannot come to name
+/// different fields and the cancel cannot be the other drag's.
+pub(crate) fn value_gesture(
+    name: ValueGestureName,
+) -> GestureVocabulary<impl Fn(f64) -> SessionOp> {
+    GestureVocabulary {
+        begin: name.begin(),
+        commit: name.commit(),
+        cancel: GestureName::Value(name.clone()).cancel(),
+        preview: move |value| name.preview(value),
+    }
+}
+
+/// **The four operations of a FREE-MOVE probe**, minted from the one
+/// instance they all name.
+///
+/// `frame_of` is the panel's own writing — the millimetres its three
+/// boxes show composed into the rigid frame a preview carries — and is
+/// the only part of the probe's vocabulary that is not the name's.
+pub(crate) fn free_move_gesture(
+    instance: RecipeNodeId,
+    frame_of: impl Fn([f64; 3]) -> Frame,
+) -> GestureVocabulary<impl Fn([f64; 3]) -> SessionOp> {
+    let name = FreeMoveName { instance };
+    GestureVocabulary {
+        begin: name.begin(),
+        commit: name.commit(),
+        cancel: GestureName::FreeMove(name).cancel(),
+        preview: move |mm| name.preview(frame_of(mm)),
+    }
 }
 
 /// **The one mapping from a `DragValue` to session operations**, and
@@ -877,8 +923,10 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{GestureVocabulary, drag_gesture_ops, number_field, vec3_row_ops};
-    use crate::session::SessionOp;
+    use super::{
+        drag_gesture_ops, free_move_gesture, number_field, value_gesture, vec3_row_ops,
+    };
+    use crate::session::{SessionOp, ValueGestureName};
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
 
@@ -966,15 +1014,7 @@ mod tests {
                             ui,
                             0.5,
                             mm,
-                            GestureVocabulary {
-                                begin: SessionOp::BeginFreeMove { instance: NODE },
-                                preview: |mm| SessionOp::PreviewFreeMove {
-                                    instance: NODE,
-                                    frame: frame_of(mm),
-                                },
-                                commit: SessionOp::CommitFreeMove { instance: NODE },
-                                cancel: SessionOp::CancelFreeMove,
-                            },
+                            free_move_gesture(NODE, frame_of),
                             |mm| {
                                 vec![
                                     SessionOp::BeginFreeMove { instance: NODE },
@@ -1001,16 +1041,7 @@ mod tests {
                             drag_gesture_ops(
                                 &widget,
                                 *component,
-                                GestureVocabulary {
-                                    begin: SessionOp::BeginGesture { node: NODE, slot },
-                                    preview: |value| SessionOp::PreviewGesture {
-                                        node: NODE,
-                                        slot,
-                                        value,
-                                    },
-                                    commit: SessionOp::CommitGesture { node: NODE, slot },
-                                    cancel: SessionOp::CancelGesture,
-                                },
+                                value_gesture(ValueGestureName::Slot { node: NODE, slot }),
                                 ops_ref,
                             );
                         }

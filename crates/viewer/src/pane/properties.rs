@@ -11,9 +11,12 @@ use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
-use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing};
+use crate::session::{
+    BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName,
+};
 use crate::widgets::{
-    GestureVocabulary, delete_button, drag_gesture_ops, drag_ops, number_field, vec3_row_ops,
+    delete_button, drag_gesture_ops, drag_ops, free_move_gesture, number_field, value_gesture,
+    vec3_row_ops,
 };
 
 impl ViewerBehavior<'_> {
@@ -96,15 +99,7 @@ impl ViewerBehavior<'_> {
                         drag_ops(
                             &widget,
                             field.authored(value),
-                            GestureVocabulary {
-                                begin: SessionOp::BeginParamGesture { name: name.clone() },
-                                preview: |value| SessionOp::PreviewParamGesture {
-                                    name: name.clone(),
-                                    value,
-                                },
-                                commit: SessionOp::CommitParamGesture { name: name.clone() },
-                                cancel: SessionOp::CancelGesture,
-                            },
+                            value_gesture(ValueGestureName::Param(name.clone())),
                             |value| {
                                 vec![SessionOp::SetParam {
                                     name: name.clone(),
@@ -446,15 +441,7 @@ impl ViewerBehavior<'_> {
                         ui,
                         field.tick,
                         &mut mm,
-                        GestureVocabulary {
-                            begin: SessionOp::BeginFreeMove { instance: node },
-                            preview: |mm| SessionOp::PreviewFreeMove {
-                                instance: node,
-                                frame: frame_of(mm),
-                            },
-                            commit: SessionOp::CommitFreeMove { instance: node },
-                            cancel: SessionOp::CancelFreeMove,
-                        },
+                        free_move_gesture(node, frame_of),
                         |mm| {
                             vec![
                                 SessionOp::BeginFreeMove { instance: node },
@@ -617,22 +604,10 @@ impl ViewerBehavior<'_> {
         drag_gesture_ops(
             &widget,
             field.authored(number),
-            GestureVocabulary {
-                begin: SessionOp::BeginGesture {
-                    node,
-                    slot: row.slot,
-                },
-                preview: |value| SessionOp::PreviewGesture {
-                    node,
-                    slot: row.slot,
-                    value,
-                },
-                commit: SessionOp::CommitGesture {
-                    node,
-                    slot: row.slot,
-                },
-                cancel: SessionOp::CancelGesture,
-            },
+            value_gesture(ValueGestureName::Slot {
+                node,
+                slot: row.slot,
+            }),
             self.ops,
         );
         // **Text that says what the slot already says is not an
