@@ -185,3 +185,22 @@ entry moved to the tail's end). S9 declined as taste.
 
 **Costs:** implementer ≈271k tokens / ≈4.4 h; reviewer ≈163k tokens /
 ≈20 min.
+
+## DECIDE-2 spec'd and dispatched (2026-09-21): one pin per seam
+
+With DECIDE-1 merged (#3001) and SYM-10 still waiting on Ev's ruling
+(#2970), the plan's order is re-read: `declared-tangency` waits on
+BLEND's constructor change, `revolve-carriers` on a document that is
+bounded by a revolve carrier (E6), `rule-d-reaches-the-unit-bulge-only`
+on the ring's width (SYM-9's subject), and SYM-9 itself on SYM-10 so
+that it is an edit to the manifest rather than a re-design. The
+drive-by `registered-is-spelled-five-times-and-pinned-once` (E) is
+free of all of that and is taken now, with the decision it asks for
+RULED by the orchestrator: shape 2, a pin per seam (shape 1 would
+make `k_stats` depend on `sym` and pins nothing across the k-lint
+workspace boundary; shape 3 is what let three seams go unpinned when
+the door was built). Three rows in `outcome_vocabulary.rs`'s shape,
+each shown to red under a planted sixth kind; no behaviour changes.
+**Triaged OUT of protocol v7, mechanical tier**: OPUS implementer,
+green CI and the orchestrator's read, no review lane, no draw, no row.
+Spec `docs/DECIDE-2-SPEC.md`; branch `decide/2-discharge-pins`.
