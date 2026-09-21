@@ -7624,10 +7624,17 @@ its implementation as this is drawn):
   `_via` body; `None` keeping today's typed `CensusLaneUnsupported` and
   the `false` fold read-for-read; two public doors untouched; every bit
   and every refusal at every scalar unchanged).
-- slot 1 — `LANE-3` (`ShellLane` folded into `AtRestPolicy`; DL3's
-  wording moves, a re-wording not a decision; dispatched after LANE-2
-  lands) — **E / structural** (the plan's class; the sub-unit's own
-  sentence is written when it is cut).
+- slot 1 — `lane-3-shell-lane-folded` (LANE-3; `docs/LANE-3-SPEC.md`;
+  `ShellLane` folded into `AtRestPolicy`; DL3's wording moves, a
+  re-wording not a decision; dispatched after LANE-2 landed) —
+  **E / structural** (the plan's class, kept when the sub-unit was cut
+  on 2026-09-21 after the byte — the arm, OPUS, was known: the trait
+  and its five impls go; a one-pointer `ShellDoor` value in LANE-0's
+  shape answered by `AtRestPolicy::shell_door()` as an `Option`, `None`
+  from the `Dual` arm; the verb takes the door by value, the witness a
+  function over `Lane`; `EvalScalar` loses one term; every evaluation
+  output at every scalar and the refusal's name, tag and `Display`
+  unchanged).
 - slot 2 — `RING-3` (the newtype dissolves into `Interval` file by
   file; the `interval` feature dropped; `Enclosure`, its blanket impl
   and DL4's gate line deleted; C9, Q1, DL4 re-worded — Ev's text, the

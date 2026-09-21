@@ -1199,3 +1199,28 @@ R1 saw main's claim commit naming the draw its brief already carries.
 Fix pass dispatched on the OPUS arm (sixteen items,
 `ring2-fix-pass.md`). Block SCALAR-B5 concludes on this fix pass's
 merge with one tally candidate (RING-0's, on the OPUS reviewing arm).
+
+## LANE-2 landed; LANE-3 dispatched — block SCALAR-B6 slot 1 (2026-09-21)
+
+LANE-2 (PR 3038) merged at `70cde285df`, sample #233 by main's
+first-parent order (#3010 took #231; SYM-11's #3028 is #232 by this
+order and recorded #230 on main by the landed-highest rule — the
+collision row); its row is on the B6 table here. LANE-3
+(`docs/LANE-3-SPEC.md`, item `lane-3-shell-lane-folded`, branch
+`scalar/lane-3` — main plus the spec commit — the OPUS arm by byte 153)
+dispatched on LANE-2's merged shape: `ShellLane` goes; `topo::ShellDoor<T>`
+(one fn-pointer field, one constructor at `Decide + CertifiedBounds +
+AtRestPolicy`) is answered by `AtRestPolicy::shell_door()` as an
+`Option`, `None` from the `Dual` arm with its reason; the verb takes
+the door by value; `wire_shell` keeps `ShellLaneUnsupported` exactly on
+`None`; the witness is a function over `Lane`; `EvalScalar`'s eleventh
+term goes and the e4 set rows are re-written. The pre-draw sentence was
+cut after the byte with the arm known (the plan's class E, kept).
+Fences announced here: the unowned `editor-core/src/verbs/shell.rs`,
+`lib.rs`, `lane.rs` (prose); WIRE (`eval/mod.rs`, `eval/wire.rs`,
+`verbs/src/run.rs`, `verbs/README.md`); the unowned `topo/src/props.rs`;
+PROPS (DL3's list, naming-only; `e4_dual_door.rs` with TCOST/TINT);
+TCOST/TINT (`pncad/tests/all.rs`, the shell test files the pins
+touch); GUARD (`evalscalar-allowlist.sh` header, naming-only). Not
+`demos/` beyond `cargo check`, not `pncad-py`. RING-2's fix pass is
+still building on the other lane.
