@@ -131,7 +131,10 @@ fn adversarial() -> Vec<(&'static str, NurbsCurve3<f64>)> {
     out.push(("lopsided", curve3(&k, vec![1.0; n])));
     out.push(("lopsided_rat", curve3(&k, vec![0.3, 1e-9, 7.0, 2.0])));
     // Interior multiplicity == degree (C0), degree 3.
-    let k = kv(&[0.0, 0.0, 0.0, 0.0, 0.25, 0.25, 0.25, 1.0, 1.0, 1.0, 1.0], 3);
+    let k = kv(
+        &[0.0, 0.0, 0.0, 0.0, 0.25, 0.25, 0.25, 1.0, 1.0, 1.0, 1.0],
+        3,
+    );
     let n = k.control_count();
     out.push(("c0_deg3", curve3(&k, vec![1.0; n])));
     let w: Vec<f64> = (0..n).map(|i| 0.2 + 1.7 * (i % 3) as f64).collect();
@@ -170,7 +173,12 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_f64_and_dual() {
         let enum_c = Curve3::Nurbs(Arc::new(c.clone()));
         for t in probe_params(&c) {
             same3(&c, t, bf64, &format!("{name} f64 @{t}"));
-            same3(&cd, Dual64::variable(t), bdual, &format!("{name} dual @{t}"));
+            same3(
+                &cd,
+                Dual64::variable(t),
+                bdual,
+                &format!("{name} dual @{t}"),
+            );
             same2(&c2, t, bf64, &format!("{name} 2d @{t}"));
             same2(
                 &cd2,
@@ -238,11 +246,11 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_interval() {
     assert!(checked > 400, "probe corpus shrank: {checked}");
 }
 
-/// Totality and poison for the new door, which `curves.rs`'s own
-/// `poison_parameter_poisons_the_point`,
+/// Totality and poison for the jet door in one place — the same census
+/// `curves.rs`'s `poison_parameter_poisons_the_point`,
 /// `extreme_parameters_do_not_panic` and
-/// `nurbs_placeholder_evaluates_to_poison` rows enumerate for
-/// `eval`/`deriv`/`deriv2` by hand and do not enumerate for `ders1`.
+/// `nurbs_placeholder_evaluates_to_poison` rows keep beside the doors
+/// they enumerate — with both halves read at every poison input.
 #[test]
 fn probe_ders1_is_total_and_poisons_like_its_evaluators() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
@@ -255,13 +263,19 @@ fn probe_ders1_is_total_and_poisons_like_its_evaluators() {
     };
     let (p, d) = circle.ders1(f64::NAN);
     assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "point {p:?}");
-    assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan(), "tangent {d:?}");
+    assert!(
+        d.x.is_nan() && d.y.is_nan() && d.z.is_nan(),
+        "tangent {d:?}"
+    );
     for t in [f64::INFINITY, f64::NEG_INFINITY, 1e300, -1e300, f64::MAX] {
         let _ = circle.ders1(t);
     }
     let (p, d) = circle.ders1(f64::INFINITY);
     assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "point {p:?}");
-    assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan(), "tangent {d:?}");
+    assert!(
+        d.x.is_nan() && d.y.is_nan() && d.z.is_nan(),
+        "tangent {d:?}"
+    );
 
     let line = Curve3::Line {
         origin: Point3::origin(),
@@ -273,7 +287,10 @@ fn probe_ders1_is_total_and_poisons_like_its_evaluators() {
     let n: Curve3<f64> = Curve3::nurbs_placeholder();
     let (p, d) = n.ders1(0.5);
     assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "point {p:?}");
-    assert!(d.x.is_nan() && d.y.is_nan() && d.z.is_nan(), "tangent {d:?}");
+    assert!(
+        d.x.is_nan() && d.y.is_nan() && d.z.is_nan(),
+        "tangent {d:?}"
+    );
 }
 
 /// The enum's analytic arms at parameters the unit's row does not
