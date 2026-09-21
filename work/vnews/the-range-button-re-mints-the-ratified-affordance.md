@@ -108,41 +108,75 @@ not edited — `Refusal::affordance` already has the shape this needs.
 
 Landed on `vnews/properties-controls-read-their-refusals`.
 
-`range_button` reads `probe_affordance(row)`, which answers `None` for
-a literal driver and `Refusal::affordance(params, current)` for a
-driven one — `Refusal::affordance`'s one composition, the same call
-`slot_notes_ui` makes for the same row. The minted literal is gone.
+`range_button` reads `Panel::probe_refusal(node, row)`, which answers
+`None` for a literal driver and, for a driven one, the
+[`Refusal::DrivenByExpression`] `guard_driven` builds from that same
+row — **a value, not a sentence**. The button gates on whether there is
+one and renders it through the refusal's own `Display`, which is
+`Refusal::affordance`'s composition. The minted literal is gone.
+
+The first draft of this fix returned `Option<String>`, and the style
+review was right to refuse it: `session/op.rs` states the rule in terms
+— *"`CancelDoor::blocked` is a `Refusal` and not a sentence, and the
+disabled control's words are the refused operation's own"* — and
+`crates/viewer/README.md` names a pre-composed string handed to
+`on_disabled_hover_text` as the shape
+`environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
+is about. Returning the value is what lets a test assert the variant
+and its payload rather than only the rendered string.
 
 **The second conjunct: the state is UNREACHABLE, and the predicate now
 says so.** `row.value.is_ok()` is dropped; the gate is the driver
 alone, which is exactly `guard_driven`'s condition. The witness the row
-asked for does not exist, and the chain is short:
+asked for does not exist:
 
 - `SlotDriver::of` answers `Literal` only for a leaf with no parameter
   reference — `ExprKind::Literal` or `ExprKind::CountLiteral`.
 - `props::slot_row` evaluates with the branch `SlotId::dimension`
-  picks. A leaf with no parameter reference can only fail that
-  evaluation on the Count/continuous divide
-  (`CountExprInContinuousEval` / `ContinuousExprInCountEval`) — the
-  other `EvalError` arms need a parameter, arithmetic, or a non-finite
-  value that `Expr::literal` refuses at construction (door 1).
-- Every door refuses that divide through one predicate,
-  `Node::slot_dimension_fault`: the edit doors ask it
-  (`edit.rs`'s `check_node_slots` and the per-slot
-  `SlotId::dimension_fault`) and the load door's walk asks the same one
-  (`persist/check.rs`). So no document the panel can be handed holds a
-  literal whose dimension disagrees with its slot's.
+  picks. Such a leaf can only fail on the Count/continuous divide
+  (`CountExprInContinuousEval`, `ContinuousExprInCountEval`); the other
+  `EvalError` arms need a parameter, arithmetic, or a non-finite value
+  `Expr::literal` refuses at construction (door 1).
+- One predicate answers that divide at every door —
+  `Node::slot_dimension_fault` over `Node::slots()` — asked by the edit
+  doors (`check_node_slots`, and `SlotId::dimension_fault` per slot)
+  and by the load door's walk (`persist/check.rs`).
 
-`a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension`
-(`crates/viewer/tests/panel_edits.rs`) holds both halves — the rows a
-literal document produces, and the door that refuses the expression
-which would break them. Verified red by disabling
-`SlotId::dimension_fault` at the `SetParam` door: a `CountLiteral`
-then lands in a `Length` slot, which is the witness, and it exists only
-with the door removed.
+**And the one `Err` with no `EvalError` behind it**, which the
+argument above does not cover and which a reader should not have to
+find: `SlotFault::NoExpression`, a node listing a slot its `expr` does
+not answer for. It closes the other way rather than being excluded —
+`props::slot_row` reports that row as DRIVEN with an empty parameter
+list, the refusing direction — so the button refuses it as a driven
+slot and the affordance names no parameter.
 
-`a_driven_slots_range_button_carries_the_refusals_own_sentence` and two
-siblings (`crates/viewer/src/pane/properties.rs`'s test module) hold
-the button's words against `Refusal::DrivenByExpression`'s own
-rendering. Verified red by re-minting the old literal in
-`probe_affordance`, and by refusing the literal arm.
+### What each test holds, and how it was verified red
+
+- `a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension`
+  (`crates/viewer/tests/panel_edits.rs`) — the rows a literal document
+  produces for both a continuous and a structural `Count` slot, and
+  **both directions of the divide refused at the edit doors**
+  (`SetParam` with a Count literal, `SetStructuralParam` with a Length
+  one). Verified red by disabling `SlotId::dimension_fault` at the
+  `SetParam` door: a `CountLiteral` then lands in a `Length` slot,
+  which is the witness, and it exists only with the door removed.
+  **The file modality is executed elsewhere and cited rather than
+  copied**: `crates/editor-core/tests/load_door_slot_dimension.rs`
+  doctors a saved wire and asserts
+  `SnapshotError::SlotDimension` for two node kinds. It uses the
+  Length/Angle pair, which is immaterial — the predicate is one
+  comparison with no per-pair arm.
+- `a_driven_slots_range_button_reads_the_refusal_the_probe_would_give`
+  and two siblings (`pane/properties.rs`'s test module) — the
+  variant, its four payload fields, and the rendering. Verified red by
+  re-minting a literal in `probe_refusal`, and by refusing the literal
+  arm. The door's own half is already held by
+  `story_parametric.rs`, which asserts `ProbeBounds` on a driven slot
+  refuses `DrivenByExpression` naming the driving parameter.
+
+**What no test buys, for this row as much as for its sibling.** No test
+holds the PANEL to calling `probe_refusal`: `ViewerBehavior` is
+`pub(crate)` with about twenty borrowed fields and nothing in the crate
+constructs one, so a revert of `range_button`'s call alone stays green.
+That gap is now a row rather than a sentence in a PR body:
+`work/vnews/no-test-can-reach-a-pane-function`.

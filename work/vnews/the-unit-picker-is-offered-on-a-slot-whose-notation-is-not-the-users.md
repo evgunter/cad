@@ -49,10 +49,17 @@ its own words.
   sentence**, the shape the hide toggle just took. Straightforward for
   `SlotGroup::Scalar`.
 - **The vector case is what makes this more than an E.** One picker
-  serves three component rows and writes the unit to all three
-  (`slot_unit_ui`'s ONE-picker rule, which is itself ratified reasoning:
-  *"three components of a point are written in one unit or the user is
-  being told something they did not mean to say"*). A family with one
+  serves three component rows and writes the unit to all three —
+  `slot_unit_ui`'s ONE-picker rule: *"three components of a point are
+  written in one unit or the user is being told something they did not
+  mean to say"*. **That sentence is a code comment and nothing more**:
+  it occurs once in the tree, in `slot_unit_ui`, and zero times in
+  `crates/viewer/GUI-DESIGN.md`, `docs/DESIGN.md` and
+  `crates/viewer/README.md`. An earlier draft of this row called it
+  *"itself ratified reasoning"*, which was the same unchecked claim
+  `ratified-is-asserted-across-viewer-src-and-some-was-never-ratified`
+  is the census of; it is good reasoning and it is not a ratification,
+  so a row that departs from it does not thereby need Ev. A family with one
   driven component and two literals has no single answer to "is this
   control usable" — so the row has to decide whether the picker is
   refused for the family, or applies to the components it can and says

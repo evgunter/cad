@@ -140,3 +140,25 @@ that cites one.
 
 Corrected at `work/vnews/plan.md` §Dispatch rules, which now carries the
 retraction rather than a quiet rewrite.
+
+## A second tracker-side member, minted and corrected in one pass — 2026-09-20
+
+`work/vnews/the-unit-picker-is-offered-on-a-slot-whose-notation-is-not-the-users`,
+filed by the properties-pane controls lane, called `slot_unit_ui`'s
+one-picker rule — *"three components of a point are written in one unit
+or the user is being told something they did not mean to say"* —
+**"itself ratified reasoning"**. Verified by grep: the sentence occurs
+**once** in the tree, in that code comment, and **zero** times in
+`crates/viewer/GUI-DESIGN.md`, `docs/DESIGN.md` and
+`crates/viewer/README.md`. Corrected in the row on the same branch that
+filed it.
+
+**What this member adds to the census is the RATE.** The row already
+records that the class was still minting members on the day it was
+opened. This one was minted by a lane that had, in the same PR, caught
+the orchestrator's GQ7 claim — so catching an instance is not
+inoculation against writing one, and the sorting test has to be a step
+in filing a row rather than a thing careful readers do. The cost here
+was the smaller one the row predicts: the claim decides whether a row
+believes it needs Ev, and this row's fix touches a code comment's rule,
+which does not.

@@ -95,22 +95,45 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
 
 /// **A slot the document holds a bare literal for always has a value**
 /// — which is why the range button beside it is gated on the driver
-/// alone.
+/// alone, with no second conjunct on the value.
 ///
 /// `props::slot_row` evaluates each slot with the branch
 /// `SlotId::dimension` picks, so the only way a leaf carrying no
 /// parameter reference fails to evaluate is a Count/continuous
-/// disagreement between the slot and its expression. Every door asks
-/// one predicate about that (`Node::slot_dimension_fault`, asked by
-/// the edit doors and by the load door alike), so no document reaches
-/// the panel holding one. A second conjunct on the value would
-/// therefore gate on a state nothing can reach — and would owe a
-/// sentence for it, which the panel used to answer with *"a computed
-/// slot has no range of its own to probe"* about a slot that is not
-/// computed.
+/// disagreement between the slot and its expression —
+/// `CountExprInContinuousEval` one way, `ContinuousExprInCountEval`
+/// the other. One predicate answers that disagreement for every door,
+/// `Node::slot_dimension_fault` over `Node::slots()`, so no document
+/// can reach the panel carrying one.
 ///
-/// Both halves are asserted: the rows a literal document produces, and
-/// the door that refuses the expression which would break them.
+/// **Enumerated by the modality a document arrives through**, because
+/// a claim about every document is only as good as its list of ways
+/// in:
+///
+/// * **an edit** — both directions, below: a Count literal into a
+///   continuous slot (`DocEdit::SetParam`) and a continuous literal
+///   into a structural Count slot (`DocEdit::SetStructuralParam`).
+///   These are the two the panel itself can author, through
+///   `SessionOp::SetSlot` and `SetSlotExpression`, which reach `apply`
+///   and nothing else.
+/// * **a file** — `editor-core`'s
+///   `load_door_slot_dimension.rs` holds both doors against each
+///   other for two node kinds, doctoring the saved wire and asserting
+///   `PersistError::Snapshot(SnapshotError::SlotDimension { .. })`.
+///   It exercises the Length/Angle pair rather than the Count divide,
+///   which is immaterial to what is being claimed: the predicate is
+///   `expr.dim() != slot.dimension()`, one comparison with no per-pair
+///   arm, and the load walk either asks it for a node kind or does
+///   not.
+/// * **a hand-built `Node`** — refused at the moment it is inserted,
+///   because insertion is an edit; there is no door that puts a `Node`
+///   into a `Doc` without `apply`.
+///
+/// The one way a row reaches the panel with an `Err` value and no
+/// `EvalError` at all is `SlotFault::NoExpression`, and it closes the
+/// other way: `props::slot_row` reports such a row as DRIVEN with an
+/// empty parameter list, so the range button refuses it as a driven
+/// slot rather than offering it.
 #[test]
 fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
     let tol = Tol::witness();
@@ -125,28 +148,52 @@ fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
         },
         tol,
     );
-
-    let rows = props::slot_rows(&doc, extrude);
-    assert!(
-        rows.iter().any(|row| row.driver == SlotDriver::Literal),
-        "the fixture is about literal rows"
+    // A structural Count slot beside the continuous one, so both
+    // directions of the divide have a subject in one document.
+    let (doc, pattern) = common::inserted(
+        &doc,
+        pncad::document::Node::Pattern {
+            input: extrude,
+            count: pncad::document::Expr::count(3),
+            kind: pncad::document::PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.03),
+            },
+        },
+        tol,
     );
-    for row in &rows {
-        if row.driver == SlotDriver::Literal {
-            assert!(
-                row.value.is_ok(),
-                "{} is a literal with no value: {:?}",
-                row.slot.label(),
-                row.value
-            );
+
+    for node in [extrude, pattern] {
+        let rows = props::slot_rows(&doc, node);
+        assert!(
+            rows.iter().any(|row| row.driver == SlotDriver::Literal),
+            "node {} is about literal rows",
+            node.0
+        );
+        for row in &rows {
+            if row.driver == SlotDriver::Literal {
+                assert!(
+                    row.value.is_ok(),
+                    "{} is a literal with no value: {:?}",
+                    row.slot.label(),
+                    row.value
+                );
+            }
         }
     }
+    // The Count row really is one of them — otherwise the loop above
+    // proves nothing about the second direction.
+    assert!(
+        props::slot_rows(&doc, pattern)
+            .iter()
+            .any(|row| row.slot == SlotId::Count && row.driver == SlotDriver::Literal),
+        "the pattern's count is a literal row"
+    );
 
-    // The door that keeps it that way: a Count literal in a continuous
-    // slot is the shape whose row would evaluate to
-    // `CountExprInContinuousEval`, and it is refused rather than
-    // stored.
-    let refused = pncad::document::apply(
+    // The doors that keep it that way, one per direction of the
+    // divide. Each is the expression whose row WOULD carry the
+    // matching `EvalError`, refused rather than stored.
+    let count_into_continuous = pncad::document::apply(
         &doc,
         &DocEdit::SetParam {
             node: extrude,
@@ -158,13 +205,36 @@ fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
     );
     assert!(
         matches!(
-            refused,
+            count_into_continuous,
             Err(pncad::document::EditError::SlotDimensionMismatch {
                 slot: SlotId::Distance,
                 ..
             })
         ),
-        "the slot's dimension is the address's, not the expression's: {refused:?}"
+        "a Count literal in a Length slot would evaluate to \
+         CountExprInContinuousEval: {count_into_continuous:?}"
+    );
+
+    let continuous_into_count = pncad::document::apply(
+        &doc,
+        &DocEdit::SetStructuralParam {
+            node: pattern,
+            slot: SlotId::Count,
+            expr: common::len(0.03),
+        },
+        tol,
+        &pncad::document::RefusingReach,
+    );
+    assert!(
+        matches!(
+            continuous_into_count,
+            Err(pncad::document::EditError::SlotDimensionMismatch {
+                slot: SlotId::Count,
+                ..
+            })
+        ),
+        "a Length literal in a Count slot would evaluate to \
+         ContinuousExprInCountEval: {continuous_into_count:?}"
     );
 }
 
