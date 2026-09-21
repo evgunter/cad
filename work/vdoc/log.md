@@ -79,3 +79,58 @@ README's *"composed six ways across five modules"* does not say whether
 it counts ways or sites, so AUTH-1's new recourse-composing site
 neither confirms nor breaks it. Three sibling rows on this slate are
 the same shape and are named on it.
+
+## 2026-09-21 — VDOC-counts: five count rows closed, one filed
+
+**`vdoc/readme-counts`.** Five `status: open` P4 rows, one class: a
+number stated in prose that does not re-derive under its own stated
+rule. Four are `crates/viewer/README.md` and are fixed there; the
+fifth is not the README at all and is closed on a verification.
+
+- **`viewer-readme-driver-count-says-two-over-a-roster-of-eleven`** —
+  *Two* over eleven rows. The table counts MODULES and the rule counts
+  DRIVERS; the prose now says which answers to which, with the
+  `//! Module kind: **driver**` scan beside it. **Eleven**, and
+  `viewer-module-kinds.sh` says the same in its OK line. The ratified
+  *exactly two drivers* clause is untouched, so this is not an Ev PR.
+- **`census-table-in-the-viewer-readme-is-not-its-own-population`** —
+  nine rows over a population of ten. Re-derived rather than topped up:
+  **22 destructuring binds**, four `Debug` dumps, four parameter
+  unpacks, **thirteen censuses**. Four rows added
+  (`PruneReport::is_empty`, `PickCache::forget`, `Display for Unusable`,
+  `Unusable::refusal`). Three counts in the same paragraphs moved with
+  it: *two of the eight* → three of the thirteen, *five Displays of 36,
+  other 31* → six of 41, other 35, and the `Debug` walk's *22
+  `.field(…)` calls* → 21.
+- **`viewer-readme-multi-field-write-sweep-count-does-not-reproduce`** —
+  the count is **retired**, which is the repair the row itself
+  proposed. Three instruments, three answers (23/24/28), two of them
+  over one tree: the rule does not determine which `fn` a write belongs
+  to. *None is a census* is what carried the weight and it stays.
+- **`viewer-readme-recourse-count-does-not-say-what-it-counts`** — it
+  counts **shapes**, settled by the section's own claim and by
+  `aba7ee8ef3`'s log entry (*"six shapes across five modules"*). Since a
+  shape has no grep, the enumeration rule is the LIST, now written into
+  the section with every site. Still six — but `AtRestBadge` moves
+  INSIDE the count, so the population changed where the digit did not.
+- **`the-citation-receipts-summary-numbers-are-not-re-derivable`** —
+  **the premise the dispatch carried was wrong and the row's four
+  numbers live in VIEW's tracker, not in this crate's README.** #2089's
+  own fix pass had already repaired all four; nobody had checked it.
+  Re-derived here by reading the line at `bc44531e1` and on `main`:
+  *60* has its rule and its trees, *six move by −13* is five (the sixth
+  was a three-line span already wrong on `main`), *twelve lines* is ten
+  for the block and eight for the paragraph, *two public items* is
+  three, and 51/51 is now 51 → 47. The class sweep the row asks for
+  runs over VIEW's item files, which `program.md`'s `keep_out` forbids
+  editing from here; the one other row it names (#2083's) was checked
+  and is whole. One residue disclosed on the row.
+
+**One row filed**,
+`viewer-readme-session-refuse-row-predates-the-face-frame-vocabulary`
+(P4, this slate): the `session::refuse` `Holds` cell names three
+composers and not `FaceFrameFault`, `face_frame_seat` or
+`NO_FACE_PICKED`, which AUTH-1 put in that module.
+
+**No `.rs` file is touched and no behaviour changes** — the charter's
+own test. `scripts/ci-filter.py --base origin/main` reads `TIER=docs`.

@@ -2,10 +2,12 @@
 id: viewer-readme-driver-count-says-two-over-a-roster-of-eleven
 kind: issue
 title: The README's drivers section says Two over the eleven-row table the gate reads as its roster
-status: open
+status: closed
 opened: 2026-09-20
 priority: P4
 cost: E
+closed: 2026-09-21
+branch: vdoc/readme-counts
 ---
 
 
@@ -48,3 +50,33 @@ leans on for *a driver may name any vocabulary, and no vocabulary may
 name a driver or the toolkit* — that clause is elsewhere in the section
 and is unaffected, but a reader checking the argument meets this
 contradiction on the way.
+
+## Closed — the prose states the roster's shape; the ratified rule is untouched (#vdoc/readme-counts)
+
+**The fork this row named, taken on its first branch.** The row offered
+two: state the roster's real shape, or amend the ratified *"There are
+exactly two [drivers]"* rule in `## Module boundaries`. The first is
+taken. Nothing this PR writes changes what that clause decides, so it
+is not an Ev PR: the clause counts DRIVERS and the table is a roster of
+MODULES, and the only defect was a sentence that let a reader take one
+for the other.
+
+**The enumeration rule, written at the sentence.** `### The drivers`
+now says the table counts modules, and gives the scan that produces the
+same population from the other side:
+
+    rg --files-with-matches '^//! Module kind: \*\*driver\*\*' crates/viewer/src
+
+**The number: eleven**, derived on the merged tree at `f45df59dc5`.
+Eleven files carry the declaration — `session`, `app`, `pane`,
+`pane::create`, `pane::features`, `pane::profile`, `pane::properties`,
+`pane::view`, `pane::viewport`, `widgets`, `gpu` — one per table row.
+`scripts/gates/viewer-module-kinds.sh` holds the two sides to each
+other and says so in its own OK line: *"11 drivers match
+crates/viewer/README.md's own table of 11 rows"* (exit 0, run here).
+
+**Two is still true of the drivers** and the paragraph now says which
+number answers to which question: two drivers, the app one drawn across
+ten of the eleven modules, which `### The app driver, split for size`
+already stated six hundred lines further down and nothing near the
+table pointed at.
