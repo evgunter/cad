@@ -214,7 +214,8 @@ fn closed() -> SymRules {
     }
 }
 
-/// **The door SHIPS, and it is the only difference from M10-8's set.**
+/// **The door SHIPS, and `shipped_without_the_door` differs from `shipped`
+/// in the door and nothing else.**
 #[test]
 fn m10_9_the_shipped_set_carries_the_door() {
     let s = SymRules::shipped();

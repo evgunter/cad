@@ -7,12 +7,11 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## The slate
 
-**28.5 budget points** of dispatchable work against a ceiling of 30.
+**23.5 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P1 | `SYM-10` | H | the decision door and the floor: manifest order, a manifest bound, and rule C's read of a Select — the folds the sign-hull frame needs |
-| P1 | `SYM-8` | H | the manifest sign: abs and copysign atoms whose sign the form already shows, measured first on the tilt-U wall |
 | P1 | `SYM-9` | H | what a refused decision may retry: the wider ring and the kept atom, measured first on the six documents |
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `interval-self-dot-straddles-before-rule-a` | H | clause 1 refuses rule A on wide boxes because Vec::dot's v·v is an interval product, not a square |
@@ -23,9 +22,9 @@ Opened 2026-09-20 by SYM's priority-seam cut
 ## Order
 
 `SYM-10` first — the decision door and the floor. It is the ruled unit
-with a written spec (`docs/SYM-10-SPEC.md`), and `SYM-8` and `SYM-9`
-both describe changes to the manifest it defines, so taking it first
-means the other two are edits rather than re-designs.
+with a written spec (`docs/SYM-10-SPEC.md`), and `SYM-9` describes a
+change to the manifest it defines, so taking it first means SYM-9 is
+an edit rather than a re-design (`SYM-8`, rule F, merged 2026-09-21).
 
 Then `interval-self-dot-straddles-before-rule-a`, which is the reach
 row with the clearest reproducer, and
