@@ -131,8 +131,14 @@ and say why in place: `every_fit_error_arm_names_a_recourse`'s `Lsq` and
 and `every_pcurve_mint_error_arm_names_a_recourse`'s `Certify`, which
 becomes transitive when the cut row above closes.
 
-**What pinned these messages: nothing**, at all four carriers and at
-`KnotVectorIssue` — the finding this file already recorded, re-checked
-by grepping every fragment of every rendering across `crates/`,
-`demos/` and `tools/`. The enforcement rows are the first pins these
-types have had.
+**What pinned these messages: one pin, of the kind the repo's own
+convention forbids.** `crates/geom/tests/curves/domain_door.rs`
+asserted `SplineError::DomainInvalid`'s rendering with a full-string
+`assert_eq!` — the spelling `COINCIDENCE_RECOURSE`'s doc rules out
+("message-pinning tests pin the fragment with `contains`, never with
+full-string pins that rot"), and it made the recourse clause
+unwritable. It is now a fragment pin. **Nothing else pins any
+rendering at any of the five carriers**, so the enforcement rows are
+the first pins those types have had. The first sweep for pins here was
+too narrow — it read the crates' `--lib` rows and a fragment grep that
+did not cover every sentence — and CI found the one it missed.
