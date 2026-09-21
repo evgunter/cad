@@ -441,6 +441,71 @@ code. But:
 
 ---
 
+## 9. Addendum — the TYPE and the INSTANTIATION priced apart (2026-09-15)
+
+§4d above measures the feature as one thing. It is two, and they price
+differently: the `geom_core::interval` MODULE (the scalar, its
+arithmetic and its `Real`/`Decide`/`Bounds`/`SpanLocate` impls, over the
+`interval-transcendentals` backend) and the kernel's INSTANTIATION at
+that scalar (the lane impls in the crates above `geom-core` and the
+interval test files).
+
+Method as in "Reproducing" below, with the CI build job's env block
+(`CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL=1`, `line-tables-only` debug,
+`CARGO_PROFILE_TEST_STRIP=debuginfo`), `CARGO_INCREMENTAL=0` and a fresh
+target directory per row on a 4-vCPU box. Min of two runs. Another lane
+was compiling on the same box throughout, so the rows carry that noise
+and the `--tests` deltas are ±50 s at best.
+
+| # | measurement | run 1 | run 2 | **min** | target |
+|---|---|---|---|---|---|
+| 1 | `build --workspace`, default (baseline) | 107.3 | 112.2 | **107.3** | 410M |
+| 2 | `build --workspace`, type ungated, instantiation still gated | 105.6 | 107.9 | **105.6** | 410M |
+| 3 | `build --workspace --features interval` (= the feature dropped) | 155.6 | 145.9 | **145.9** | 551M |
+| 4a | `build --workspace --tests`, default | 617.3 | 567.7 | **567.7** | 2.1G |
+| 4b | `build --workspace --tests`, type ungated | 578.0 | — | **578.0** | 2.1G |
+| 4c | `build --workspace --tests --features interval` | 631.2 | 771.5 | **631.2** | 2.4G |
+| 5a | `build -p geom-core`, default | 8.0 | 9.0 | **8.0** | 34M |
+| 5b | `build -p geom-core`, type ungated | 8.3 | 8.7 | **8.3** | 34M |
+
+Against the baseline: the **type** is **−1.7 s (0%, noise)** on the lib
+build, +10 s (+2%, one run, inside the noise) on `--tests`, +0.3 s
+(+4%, noise) at `-p geom-core`, and +0 target either way. Dropping the
+**feature** is **+38.6 s (+36%)** on the lib build, **+63.5 s (+11%)**
+on `--tests`, +141 MB / +0.3 GB of target.
+
+The dependency graph (`cargo tree --workspace -e normal --prefix none |
+sort -u | wc -l`) goes **84 → 85** when the type is ungated, and the one
+addition is `interval-transcendentals`: in-repo, `libm`-only, and its
+own gmp-backed oracle is a dev-dependency of *that* crate, so it enters
+no kernel build.
+
+So the gate's cost is the instantiation, which is what §3 and §4d
+already showed from the other side (`Interval`: 0 symbols in a default
+build; +22.3%/+17.3% of LLVM IR in geom-brep/topo with the feature on).
+The type was ungated on that basis; re-taken at the landing on the same
+box under the same noise, a clean `build --workspace` reads 153 s before
+and 152 s after.
+
+Read §3's table with that split in mind: its `Interval` row's "no —
+behind the `interval` feature" is the INSTANTIATION's answer and stays
+the measurement it was, but the impls themselves are compiled in every
+build now: `geom-core`'s own default-build rlib carries **43** text
+symbols from the module (`nm --defined-only … | grep ' T '`, 2026-09-21),
+while the consuming crates' `Interval` counts stay at zero without the
+feature.
+
+Two of §7's five reasons NOT to merge the lanes were about the type and
+have gone with it: `docs/DESIGN.md` Q1 no longer says the scalar lives
+behind the feature (it says the feature gates the instantiation), and
+`ring_interval.rs` no longer leans on the module being absent from a
+default build. The other three — the wall-vs-billed asymmetry, the
+f64-only build having live consumers, and the ~90 interval-gated test
+files being a test cost rather than a build cost — are untouched by
+this, and row 3 above is what merging the lanes would cost today.
+
+---
+
 ## Reproducing
 
 The measurement scripts are not committed — they are throwaway harnesses,

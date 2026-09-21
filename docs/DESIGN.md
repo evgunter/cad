@@ -1305,9 +1305,10 @@ Cross-milestone commitments; each binds at the layer named.
 
 - Evaluation code (evaluators, derivatives, transforms, measurements)
   is generic over a `Real` trait we define. Instantiations: `f64`,
-  `Interval` (the in-house `interval-transcendentals` backend, behind
-  the `interval` feature), `Dual<T>` (one in-house generic type;
-  `num-dual` is a dev-only oracle because its std-backed
+  `Interval` (the in-house `interval-transcendentals` backend; the
+  `interval` feature gates the kernel's instantiation at it, not the
+  type, which compiles in every build), `Dual<T>` (one in-house
+  generic type; `num-dual` is a dev-only oracle because its std-backed
   transcendentals cannot satisfy the value-channel bit-identity
   contract), and `Sym`.
 - Every topology-determining branch goes through a *named predicate
