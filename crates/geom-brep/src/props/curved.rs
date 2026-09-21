@@ -872,6 +872,13 @@ fn require_zero<T: Decide>(
 /// is deliberate — the answers differ in what they DO, not in what
 /// they measure — and a meridian-free rim-bearing face therefore
 /// records both.
+///
+/// `props_rim_only_extent` is a name the cone shares
+/// ([`cone_apex_level`]) and this comparand is not: a cone level is a
+/// bare slant length, so its fold reads `require_extent`'s cone
+/// comparand exactly as this reads the sphere's. One name, one
+/// question, each kind's own metering — as `props_face_extent`
+/// already is across all four.
 fn sphere_extent_margin<T: Real>(lo: T, hi: T, radius: T) -> Margin<T> {
     Margin::levered(hi - lo, radius)
 }
@@ -2531,11 +2538,16 @@ fn sphere_meridian_span_levels<T: Decide>(
 /// **Sphere-only, and that is a claim about the OTHER kinds' faces,
 /// not about the geometry.** The derivation is chart-generic — it is
 /// the interior-left rule at any `∂u × ∂v` — but the premise it
-/// underwrites is the one the sphere's extent can be silent about and
-/// whose complement shares a whole boundary. The cylinder and cone
-/// reach neither shape: their rim-only faces have no extent to name
-/// (`a_cylinder_rim_only_face_is_extent_less`) and
-/// `cone-apex-cap-refuses-degenerateface` records the cone's.
+/// underwrites is the one whose answer the sense BIT settles: a rim of
+/// a ball bounds the cap under one bit and the ball minus it under the
+/// other, two valid solids sharing a whole boundary. The cone's
+/// rim-only face is the shape without the ambiguity — its missing
+/// extreme is the apex whichever way the rim runs
+/// ([`cone_apex_level`]), so what the two traversals differ in is a
+/// SIDE, read bit-free by [`linear_rim_side`] and checked against the
+/// bit at tier 3's check 6. A cylinder reaches neither: its rim-only
+/// face has no extent to name at all
+/// (`a_cylinder_rim_only_face_is_extent_less`).
 fn rim_interior_side<T: Real>(rim: &Rim<T>, sense: bool) -> Sign {
     sign_mul(
         rim.d_u_sign,
