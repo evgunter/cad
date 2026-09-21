@@ -2,10 +2,11 @@
 id: add-profile-ui-doc-comment-states-a-premise-the-tree-falsified
 kind: issue
 title: add_profile_ui's doc comment says the form authors on world XY and that no planarity door exists; both are false
-status: open
+status: review
 opened: 2026-09-15
 priority: P4
 cost: E
+pr: 2955
 ---
 
 
@@ -47,9 +48,10 @@ was filed with the premise it had.
 
 ## Where the same premise was already corrected
 
-`work/chrome/add-profile-placement-on-picked-face-frame.md` carried
+`work/author/add-profile-placement-on-picked-face-frame.md` carried
 both falsehoods and was re-cut on 2026-09-15
-(`chrome/citation-repoint`). That unit's fence was `work/chrome/*.md`
+(`chrome/citation-repoint`). (The row was CHROME's then and is AUTHOR's now, by the
+2026-09-20 priority-seam cut.) That unit's fence was `work/chrome/*.md`
 and touched no source file, so the doc comment was left for this row.
 
 ## Shape
@@ -64,4 +66,32 @@ what the deferral note should point at if it keeps one.
 
 ## Home
 
-CHROME. One file, `crates/viewer/src/pane/create.rs`.
+VDOC — this row sits on VDOC's slate, which is the claim; `## Home`
+said CHROME because that is where it was filed before the 2026-09-20
+cut sent the prose rows here. One file,
+`crates/viewer/src/pane/create.rs`.
+
+## Discharged by AUTHOR's AUTH-1, in review (2026-09-21)
+
+**Both sentences are gone.** AUTH-1
+(`work/author/add-profile-placement-on-picked-face-frame.md`, PR 2955,
+branch `author/face-frame-seat`) rewrote `add_profile_ui`'s doc
+comment as part of building the face-frame seat, because this row's
+second falsehood — *"the interrogation vocabulary deliberately answers
+no 'is this face planar' verdict"* — is a claim that unit falsifies by
+existing, and its first is the same premise re-cut one door over. The
+replacement states the invariant per implementer-discipline §4: the
+plane is a pick of a frame node that exists, the picker lists both
+frame kinds, and the residue is the one-gesture version.
+
+Recorded here rather than left for VDOC to re-derive, and the header
+set to `review` on that PR: the row is not closed until 2955 merges,
+and if 2955 does not merge this row is open again exactly as written.
+**The seam is announced on VDOC's log** — AUTHOR touched VDOC's row,
+not just its ground.
+
+This row's `## Shape` asked for precisely what landed, including its
+last sentence: *"The remaining gap, that no chrome can mint a
+`Datum::FaceFrame`, is the re-cut row above and is what the deferral
+note should point at if it keeps one."* AUTH-1 is that gap closing, so
+the rewritten comment points at the two-form residue instead.

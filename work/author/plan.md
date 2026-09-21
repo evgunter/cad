@@ -40,20 +40,31 @@ gesture there is and the viewer cannot do it at all, which is why this
 row leads. `add-profile-mints-no-frame` is the same wall from the
 form's side, and is **next**.
 
+`parameter-row-field-has-no-text-door` — what makes every other
+authored value un-typeable — went out in PARALLEL with AUTH-1 as
+**AUTH-2** (`docs/AUTH-2-SPEC.md`, branch `author/param-notation`),
+with the create-door E row riding it. The two lanes share only
+`drafts.rs`, and additively; the build slot is a machine-wide mutex
+(`memories/agent-lane-operations.md`), so parallel lanes serialize
+their builds rather than starving each other.
+
 Then the two node-kind gaps (`viewer-cannot-author-a-part-node`,
 `viewer-cannot-author-a-duplicate-node` — the second is Ev's own
-request and is the cheaper of the pair), then
-`parameter-row-field-has-no-text-door`, which is what makes every
-other authored value un-typeable.
+request and is the cheaper of the pair).
 
 `addboolean-doc-names-a-vocabulary-that-does-not-exist` waits on
 EDIT's `DocEdit` vocabulary rather than on anything here; ask before
-specifying it. The two E rows
-(`add-parameter-form-authors-canonical-only`,
-`a-negative-extrude-distance-probes-as-valid`) are drive-bys for
-whoever is next in `forms.rs` and `props.rs` — take them there rather
-than dispatching them (`work/README.md`, "The tracker is not
-comprehensive").
+specifying it. The two E rows are drive-bys rather than dispatches
+(`work/README.md`, "The tracker is not comprehensive"), and they ride
+different lanes because they are in different files.
+`add-parameter-form-authors-canonical-only` is
+`pane/properties.rs` and `props.rs` and rides **AUTH-2**, whose
+carrier says why: the notation design call is shared between the two
+parameter doors. `a-negative-extrude-distance-probes-as-valid` is
+`crates/viewer/src/bounds.rs` and `crates/viewer/tests/valid_range.rs`
+— not `forms.rs` or `props.rs`, which this paragraph said until
+2026-09-21 — so it waits for a lane in `bounds.rs` and is otherwise
+unclaimed.
 
 ## Review posture
 
