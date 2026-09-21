@@ -2308,6 +2308,19 @@ fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session, early: bool) ->
                 m.gated = a.gated || b.gated;
                 return Some(m);
             }
+            // SYM-12 Phase 1.3, HAND-PLANTED and reverted after the
+            // measurement: `copysign(Y, X) = −|Y|` for a manifestly
+            // NEGATIVE `X`.
+            if node.op == SymOp::Copysign
+                && f_sign
+                && manifest::negative_arm()
+                && manifest::negative(b, sess)
+                && let Some(m) = manifest::magnitude(a, sess)
+                && let Some(mut m) = m.neg()
+            {
+                m.gated = a.gated || b.gated;
+                return Some(m);
+            }
             // min(0, 0) and max(0, 0) are zero; a one-sided zero says
             // nothing, so only the both-zero fold is taken. copysign
             // carries `a`'s MAGNITUDE, so a zero first argument is zero

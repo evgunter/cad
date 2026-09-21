@@ -269,9 +269,38 @@ pub(super) fn positive(f: &Form, sess: &Session) -> bool {
     positive_at(f, sess, 0)
 }
 
-/// **`abs(X) → X`** for a manifestly positive `X`; `None` otherwise.
+/// SYM-12 Phase 1.3, HAND-PLANTED for the measurement and reverted
+/// after it: the manifest-NEGATIVE arm, on while the process carries
+/// `CAD_SYM12_NEGATIVE_ARM`.
+pub(super) fn negative_arm() -> bool {
+    static DIAL: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *DIAL.get_or_init(|| std::env::var_os("CAD_SYM12_NEGATIVE_ARM").is_some())
+}
+
+/// **A manifestly NEGATIVE form**: `< 0` at every point of the box
+/// where it has a value — the reflection of [`positive`], stated
+/// once: `N / D` is manifestly negative exactly when `(−N) / D` is
+/// manifestly positive (every coefficient of `N` non-positive, one
+/// strictly negative term of manifestly positive indeterminates, over
+/// a manifestly non-negative `D`).
+pub(super) fn negative(f: &Form, sess: &Session) -> bool {
+    if f.poisoned || f.num.is_zero() {
+        return false;
+    }
+    f.neg().is_some_and(|n| positive(&n, sess))
+}
+
+/// **`abs(X) → X`** for a manifestly positive `X`, and — under the
+/// planted negative arm — **`abs(X) → −X`** for a manifestly negative
+/// one; `None` otherwise.
 pub(super) fn fold_abs(arg: &Form, sess: &Session) -> Option<Form> {
-    positive(arg, sess).then(|| arg.clone())
+    if positive(arg, sess) {
+        return Some(arg.clone());
+    }
+    if negative_arm() && negative(arg, sess) {
+        return arg.neg();
+    }
+    None
 }
 
 /// **`copysign(Y, X) → |Y|`** for a manifestly positive `X`: the
