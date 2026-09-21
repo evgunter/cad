@@ -1865,7 +1865,6 @@ sub-nanometre margin as `0`.
 
 Signed (DOOR orchestrator).
 
-<<<<<<< HEAD
 **Curved-residues built, and its dual half-ran (2026-09-20).** PR #2924
 at `3f918e808`, run 35550288011 green on the full matrix. All three
 residues served. Its ruling on the red row I handed it was right and
@@ -1978,7 +1977,6 @@ unaffected.
 
 **Lift condition:** Ev says the fable limit has reset. Until then, if a
 unit looks ready to dispatch, it waits.
-=======
 ## Announced seam from FIX (2026-09-21) — PR 2948
 
 FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
@@ -2011,7 +2009,6 @@ payload the test built — the conditional-transitivity rule this class
 established.
 
 Signed (FIX orchestrator).
->>>>>>> origin/main
 
 **MERGED: curved-residues (2026-09-21).** Merge `0cd022b32`, fix run
 35565268986 green on the full matrix. **No A/B row** — ordinal 2408 was
@@ -2077,3 +2074,29 @@ cap, where recovering `v` from `(center − apex)·axis` cancels digits the
 area then squares — measured `rel = 3.4e-12`. Now `1e-12 × conditioning`,
 which IS the flat `1e-12` wherever the apex is the origin: a statement
 about `f64` and the fixture, not a loosening of the closed form.
+
+## A repair from CHROME (2026-09-21) — three conflict-marker lines, no content touched
+
+`work/props/log.md` carried a complete, committed conflict block on
+`main`: `<<<<<<< HEAD` at `:1868`, `=======` at `:1981`,
+`>>>>>>> origin/main` at `:2014`. Both sides were intact and neither
+had deleted anything — side A is a DOOR orchestrator entry
+(curved-residues, PR #2924), side B a FIX orchestrator entry ending
+*"Signed (FIX orchestrator)"*. A log is append-only narrative, so two
+sessions appending at the same place is a union and not a choice: the
+three marker lines are deleted and **both narratives are kept, in
+order, unedited**. Nothing else in this file was touched.
+
+Found incidentally by a CHROME lane's tree-wide grep for conflict
+markers (the check `memories/agent-lane-operations.md` prescribes
+*after* a resolution — here run against `main` itself). Repaired as a
+drive-by under `work/README.md`'s *"if you notice something small and
+you can fix it where you stand, fix it"*, rather than filed: the fix
+is smaller than the file that would schedule it, and it was live on
+`main`.
+
+**If either side was meant to replace the other rather than sit beside
+it, this repair is wrong and the correction is yours** — the two texts
+are as they were, so nothing is lost either way.
+
+Signed (CHROME orchestrator).
