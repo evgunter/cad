@@ -2906,3 +2906,71 @@ support is the same discipline wave 3's best lane showed about guards.
   carrying an old hint, a pin's roster being two representatives rather
   than a census, two inherited dispositions not re-derived. None rose to
   a defect; all four were cheaper to adjudicate than to re-find.
+
+## Wave 4, second half: two more closed, and a wall-clock lesson (2026-09-21)
+
+### `fillet-leg-carrier` CLOSED (PR 2946)
+
+`FilletLegCarrier::Arc`'s two `f64` fields route through `path::num`,
+now `pub(crate)`. Three things worth carrying forward:
+
+- **The pin STATES the defect rather than illustrating it.** Its
+  scalars are subtracted, not typed, because `0.008` and `0.0035` are
+  exactly representable and a literal would have rendered correctly
+  with no helper at all. It asserts the premise before the rendering,
+  so it cannot pass by the subtraction quietly becoming exact, and it
+  asserts `to_bits()` to pin that the shortening is display-only.
+- **Two instruments, not one.** The `{ident} m` sweep keys on a unit
+  word, so the lane also read all 22 `Display` impls in the crate —
+  which found `CornerRefusal` rendering two ordinates with no unit word
+  at all, invisible to the pattern by construction.
+- **The fence question was flagged, not decided**, and the seat ruled:
+  a second consumer of `num` WITHIN the crate does not trip PROPS's
+  cross-crate home question, whose sentence is about where the helper
+  lives across crates and names `geom-core`.
+
+### `remap-name-misses` CLOSED (PR 2945), after one round back
+
+Ten sites, not the row's six — the extra four route through a function
+that did not exist when the row was written, which is the re-derive
+instruction earning its place for the third time this wave.
+
+**The round back is the one worth recording.** The lane REPLACED a case
+in `asm4_split_inline.rs` (S-TCOST's and S-TINT's) with a stronger one,
+for a correct reason: under a flat name the failed node and the name's
+mint coincide, so the old row was blind by construction. The seat sent
+it back anyway. **Narrowing which shapes another program's suite covers
+is not a side effect a FIX unit gets to have** — a case removed for
+convenience is invisible to its owners once it merges, a case added is
+not. Both shapes run now, and the pair pins the property better than
+either: the id and the name coincide in the ordinary shape and come
+apart in the nested one.
+
+### The wall-clock lesson: a docs-only conflict does not re-earn CI
+
+Both of these PRs went green, then conflicted against main — because a
+parallel session added `priority:` and `cost:` to every tracker item
+while our lanes were adding `branch:` and `pr:` to the same headers.
+Purely additive collisions in YAML front matter.
+
+**The seat resolved them and then waited ~35 minutes for two full
+matrices to re-prove a markdown edit.** Ev, in chat, 2026-09-21:
+*"if ci has gone green and then there's a merge conflict but the merge
+conflict is docs/comments only then you don't need to wait for ci to go
+green again to merge."*
+
+The rule was already in the tree for the adjacent case —
+`memories/orchestration-model.md` says to merge without a fresh run
+when a commit touches only docs/comments on an already-green head — but
+it is scoped there to STATE-SYNC commits, so the seat did not read it
+as covering a conflict resolution. It does. **What matters is what the
+resolution TOUCHED, not that a conflict happened.** A resolution that
+reaches code still re-earns the gate.
+
+### Slate
+
+Four of five closed: `subject-refused`, `quantity-fmt-error`,
+`fillet-leg-carrier`, `remap-name-misses`. Only
+`recourse-chain-stops-at-the-second-hop-carriers` remains, still in a
+lane. Every closed row landed with a pin that could not have existed
+before it, which is instruction 3 paying out four times in one wave.

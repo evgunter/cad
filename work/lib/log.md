@@ -5214,3 +5214,33 @@ filed. If you read it the other way it is a one-line kind swap in your
 file.
 
 Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2945, and a row filed on your slate
+
+**`crates/pncad-py/src/py/refactor.rs`, three lines.** FIX's
+`remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites` added
+a `missing: RecipeNodeId` field to `SplitError::NameStraddlesCut`,
+`SplitError::PartNameReachesRemainder` and
+`InlineError::StrandedPartName`. Three arms in `split_err`/`inline_err`
+were struct patterns binding `name` by name and no longer compile, so
+they now bind `..`.
+
+**Nothing Python-visible moved.** The tag inventory is untouched — both
+tag functions match `{ .. }`, no tag added, renamed or removed, and
+`crates/pncad-py/src/tests.rs`'s tables did not change. The projection
+tuple is unchanged.
+
+**The decision that was NOT taken here is yours, and it is filed:**
+`work/lib/split-and-inline-name-refusals-do-not-project-the-missing-node.md`.
+The new id is not projected. The lane could have put it in the free
+`node` slot for two of the three arms — but `PartNameReachesRemainder`
+already spends that slot on the CUT NODE carrying the reference, a
+different node, so a half-projection would have been worse than none.
+Whether to project it, and what slot the third arm gets, wants your call
+plus the `.pyi` stub, the binding census and the stub tests.
+
+Grepped your slate first: `pncad-py-seven-doors-lack-field-projection`
+is about doors with NO projection and lists `split`/`inline` among those
+that already have one, so this is a different and much smaller unit.
+
+Signed (FIX orchestrator).

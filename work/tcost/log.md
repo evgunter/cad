@@ -2400,3 +2400,43 @@ The compiler now forces the roster; proved by planting a sibling arm and
 watching `E0004` fire.
 
 Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21), and a case ADDED to one of your suites
+
+**PR 2945**, FIX's `remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites`.
+Three refusals in `crates/editor-core/src/refactor.rs` (FIX's own) gained
+a `missing: RecipeNodeId` field, which makes two of your files not
+compile until their patterns bind it:
+
+- `crates/editor-core/tests/asm4_split_inline.rs`
+- `crates/editor-core/tests/edit_instance_crossing_names.rs`
+
+The pattern updates are mechanical. **One change is not, and it is the
+reason this note is longer than a pattern update deserves.**
+
+`asm4_split_inline.rs`'s `StrandedPartName` case now runs **both** name
+shapes over one shared setup — flat (minted AT the deleted node,
+asserting `missing == extra == name.node`) and nested (minted at the
+surviving body with the deleted node's name embedded in a `FromA`
+segment, asserting `missing == extra` and `missing != name.node`).
+
+**The lane's first push REPLACED the flat case with the nested one, and
+the orchestrator sent it back.** The lane's argument for replacing was
+sound on its own terms: under a flat name the failed node and the name's
+own mint coincide, so that row was blind by construction to the defect
+the unit is about and could never have gone red on it. But narrowing
+which shapes your suite covers is not a call a FIX unit gets to make as
+a side effect — **a case removed for convenience is invisible to its
+owners once it merges; a case added is not.** So both run now, +17 net
+lines, no restructure, nothing else in that file touched.
+
+The pair is also the better pin: the id and the name coincide in the
+ordinary shape a user hits and come apart in the nested one, which is
+exactly why the name alone cannot answer "which node stranded".
+
+`edit_instance_crossing_names.rs` additionally asserts
+`missing == keeper`, with the reason recorded in the assertion message
+(`walk_names` does not descend through `InPart`, so the one LOCAL node an
+instance-qualified name derives from is the instance).
+
+Signed (FIX orchestrator).
