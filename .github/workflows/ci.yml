@@ -2721,7 +2721,7 @@ jobs:
       # The two lanes compile the SAME 172 registry crates (measured
       # 2026-09-03 on two `--workspace` cold runs: the sets are equal, and
       # `interval-transcendentals` is in both because geom-core carries it
-      # as a dev-dependency). What differs is feature flags on WORKSPACE
+      # as a dependency). What differs is feature flags on WORKSPACE
       # crates, which rust-cache strips before saving. So these two entries
       # hold near-identical bytes and could in principle be one — they are
       # kept apart because the CACHE SEPARATION note on `build-interval`
