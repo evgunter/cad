@@ -5,15 +5,23 @@
 //! [`crate::session::DocSession`] because the wording it draws is the
 //! session's own answer.
 //!
-//! Every other function here draws one row or one field from values
-//! the caller already holds, and returns what the user did with it.
 //! None of the others reads the application or the session: the pane
 //! modules own that, and hand these numbers, units and labels.
 //!
-//! [`drag_ops`] is the exception worth naming — it is the one mapping
-//! from a `DragValue` to session operations, and the whole reason a
-//! dragged number in this crate emits one committed edit rather than
-//! one per frame.
+//! **Most of what is here draws one row or one field** from values the
+//! caller already holds, and returns what the user did with it. The
+//! rule that produces the exceptions is *a function that takes no
+//! `ui: &mut egui::Ui`*, and there are eight: [`number_text`] and
+//! [`number_field`], which render and build rather than draw;
+//! [`install_number_formatter`], which writes a style; [`new_row_step`],
+//! which mints a value; [`value_gesture`] and [`free_move_gesture`],
+//! which mint a gesture's operations from its name; and [`drag_ops`]
+//! with [`drag_gesture_ops`], which read a `Response`.
+//!
+//! [`drag_ops`] is the one worth naming — it is the one mapping from a
+//! `DragValue` to session operations, and the whole reason a dragged
+//! number in this crate emits one committed edit rather than one per
+//! frame.
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
@@ -182,31 +190,45 @@ pub(crate) struct GestureVocabulary<Preview> {
 pub(crate) fn value_gesture(
     name: ValueGestureName,
 ) -> GestureVocabulary<impl Fn(f64) -> SessionOp> {
+    let gesture = GestureName::Value(name.clone());
     GestureVocabulary {
-        begin: name.begin(),
-        commit: name.commit(),
-        cancel: GestureName::Value(name.clone()).cancel(),
+        begin: gesture.begin(),
+        commit: gesture.commit(),
+        cancel: gesture.cancel(),
         preview: move |value| name.preview(value),
     }
 }
 
-/// **The four operations of a FREE-MOVE probe**, minted from the one
-/// instance they all name.
+/// **A FREE-MOVE probe's whole vocabulary**, minted from the one
+/// instance every operation in it names: the four a drag emits, and
+/// the one-shot triple a TYPED value spells.
+///
+/// The typed arm is minted here rather than beside the call because it
+/// names the same probe — a begin, a preview and a commit in one
+/// batch — and a hand-written copy of it is the one place the panel
+/// could still name a second instance. Both arms go to [`drag_ops`],
+/// which is why they are returned together.
 ///
 /// `frame_of` is the panel's own writing — the millimetres its three
 /// boxes show composed into the rigid frame a preview carries — and is
 /// the only part of the probe's vocabulary that is not the name's.
 pub(crate) fn free_move_gesture(
     instance: RecipeNodeId,
-    frame_of: impl Fn([f64; 3]) -> Frame,
-) -> GestureVocabulary<impl Fn([f64; 3]) -> SessionOp> {
+    frame_of: impl Fn([f64; 3]) -> Frame + Copy,
+) -> (
+    GestureVocabulary<impl Fn([f64; 3]) -> SessionOp>,
+    impl Fn([f64; 3]) -> Vec<SessionOp>,
+) {
     let name = FreeMoveName { instance };
-    GestureVocabulary {
-        begin: name.begin(),
-        commit: name.commit(),
-        cancel: GestureName::FreeMove(name).cancel(),
+    let gesture = GestureName::FreeMove(name);
+    let vocabulary = GestureVocabulary {
+        begin: gesture.begin(),
+        commit: gesture.commit(),
+        cancel: gesture.cancel(),
         preview: move |mm| name.preview(frame_of(mm)),
-    }
+    };
+    let typed = move |mm| vec![name.begin(), name.preview(frame_of(mm)), name.commit()];
+    (vocabulary, typed)
 }
 
 /// **The one mapping from a `DragValue` to session operations**, and
@@ -1006,23 +1028,8 @@ mod tests {
                 let laid_out = ui.horizontal(|ui| match vocabulary {
                     Vocabulary::FreeMove => {
                         let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
-                        vec3_row_ops(
-                            ui,
-                            0.5,
-                            mm,
-                            free_move_gesture(NODE, frame_of),
-                            |mm| {
-                                vec![
-                                    SessionOp::BeginFreeMove { instance: NODE },
-                                    SessionOp::PreviewFreeMove {
-                                        instance: NODE,
-                                        frame: frame_of(mm),
-                                    },
-                                    SessionOp::CommitFreeMove { instance: NODE },
-                                ]
-                            },
-                            ops_ref,
-                        );
+                        let (gesture, typed) = free_move_gesture(NODE, frame_of);
+                        vec3_row_ops(ui, 0.5, mm, gesture, typed, ops_ref);
                     }
                     Vocabulary::Slot => {
                         // Three components, three SLOTS, three

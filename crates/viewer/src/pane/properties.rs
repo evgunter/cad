@@ -434,24 +434,9 @@ impl ViewerBehavior<'_> {
                 // zero y and z. The chrome offers the translation
                 // components; the op vocabulary takes any rigid frame.
                 let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
+                let (gesture, typed) = free_move_gesture(node, frame_of);
                 ui.horizontal(|ui| {
-                    vec3_row_ops(
-                        ui,
-                        field.tick,
-                        &mut mm,
-                        free_move_gesture(node, frame_of),
-                        |mm| {
-                            vec![
-                                SessionOp::BeginFreeMove { instance: node },
-                                SessionOp::PreviewFreeMove {
-                                    instance: node,
-                                    frame: frame_of(mm),
-                                },
-                                SessionOp::CommitFreeMove { instance: node },
-                            ]
-                        },
-                        self.ops,
-                    );
+                    vec3_row_ops(ui, field.tick, &mut mm, gesture, typed, self.ops);
                 });
             }
         }

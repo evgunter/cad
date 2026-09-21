@@ -92,6 +92,8 @@
 
 use crate::common;
 
+use std::collections::BTreeSet;
+
 use common::{len, len3, scl3};
 use pncad::document::{
     Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Expr, Frame,
@@ -900,76 +902,62 @@ fn every_gesture_cancel_has_a_chrome_door() {
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
-/// **Which operations drive a gesture**, written out a second time.
+/// **One name per family**, and the witness that the list is complete.
 ///
-/// [`SessionOp::names_gesture`]'s own match is exhaustive, so a
-/// forty-third operation cannot join without an answer; what an
-/// exhaustive match cannot catch is a WRONG answer, and this is the
-/// second hand-written copy that does — the same job [`expected`] does
-/// for the mid-drag policy, in the same shape as
-/// [`cancels_a_gesture`].
-///
-/// **The two cancels are false here.** A cancel names no target, so
-/// it drives whichever gesture is open; naming is the property, and a
-/// cancel has none.
-fn drives_a_gesture(op: &SessionOp) -> bool {
-    match op {
-        SessionOp::BeginGesture { .. }
-        | SessionOp::PreviewGesture { .. }
-        | SessionOp::CommitGesture { .. }
-        | SessionOp::BeginParamGesture { .. }
-        | SessionOp::PreviewParamGesture { .. }
-        | SessionOp::CommitParamGesture { .. }
-        | SessionOp::BeginFreeMove { .. }
-        | SessionOp::PreviewFreeMove { .. }
-        | SessionOp::CommitFreeMove { .. } => true,
-        SessionOp::CancelGesture
-        | SessionOp::CancelFreeMove
-        | SessionOp::Select(_)
-        | SessionOp::Hover(_)
-        | SessionOp::DeleteNode { .. }
-        | SessionOp::SetSlot { .. }
-        | SessionOp::ProbeBounds { .. }
-        | SessionOp::SetSlotUnit { .. }
-        | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetParam { .. }
-        | SessionOp::CreateParam { .. }
-        | SessionOp::Undo
-        | SessionOp::Redo
-        | SessionOp::CancelEvaluation
-        | SessionOp::Reevaluate
-        | SessionOp::Open(_)
-        | SessionOp::Save(_)
-        | SessionOp::SetInstanceHidden { .. }
-        | SessionOp::AddMate { .. }
-        | SessionOp::NewDocument { .. }
-        | SessionOp::AddDatum { .. }
-        | SessionOp::AddProfile { .. }
-        | SessionOp::EditProfile { .. }
-        | SessionOp::AddExtrude { .. }
-        | SessionOp::AddRevolve { .. }
-        | SessionOp::AddBoolean { .. }
-        | SessionOp::AddSplit { .. }
-        | SessionOp::AddTransform { .. }
-        | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
-        | SessionOp::AddFillet { .. }
-        | SessionOp::AddChamfer { .. }
-        | SessionOp::AddInstance { .. } => false,
+/// `family` is an exhaustive match, so a third kind of gesture does not
+/// compile until it is sampled here; the rows below then range over
+/// every family rather than over the two their author had in mind.
+fn family(name: &GestureName) -> usize {
+    match name {
+        GestureName::Value(ValueGestureName::Slot { .. }) => 0,
+        GestureName::Value(ValueGestureName::Param(_)) => 1,
+        GestureName::FreeMove(_) => 2,
     }
+}
+
+/// Two distinct names per family, which is what an injectivity check
+/// needs: the pairs differ in the payload and in nothing else.
+fn sample_names() -> Vec<GestureName> {
+    let names = vec![
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(3),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(4),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+        GestureName::Value(ValueGestureName::Param(ParamName("w".into()))),
+        GestureName::FreeMove(FreeMoveName {
+            instance: RecipeNodeId(3),
+        }),
+        GestureName::FreeMove(FreeMoveName {
+            instance: RecipeNodeId(4),
+        }),
+    ];
+    let covered: BTreeSet<usize> = names.iter().map(family).collect();
+    assert_eq!(
+        covered,
+        BTreeSet::from([0, 1, 2]),
+        "a gesture family with no sample name"
+    );
+    names
 }
 
 /// The three operations a gesture name mints, which is the other
 /// direction of [`SessionOp::names_gesture`].
+///
+/// The begin and the commit are asked of [`GestureName`] itself, which
+/// is the door a chrome builds a vocabulary through
+/// (`widgets::value_gesture`, `widgets::free_move_gesture`); only the
+/// preview goes to the half, because its value kind is the half's.
 fn minted(name: &GestureName) -> [SessionOp; 3] {
-    match name {
-        GestureName::Value(value) => [value.begin(), value.preview(1.0), value.commit()],
-        GestureName::FreeMove(probe) => [
-            probe.begin(),
-            probe.preview(Frame::translation([1.0, 0.0, 0.0])),
-            probe.commit(),
-        ],
-    }
+    let preview = match name {
+        GestureName::Value(value) => value.preview(1.0),
+        GestureName::FreeMove(probe) => probe.preview(Frame::translation([1.0, 0.0, 0.0])),
+    };
+    [name.begin(), preview, name.commit()]
 }
 
 /// **The three spellings are one concept, and the tree says so
@@ -978,35 +966,46 @@ fn minted(name: &GestureName) -> [SessionOp; 3] {
 /// Six driving operations name their gesture three ways — a node and
 /// a slot, a parameter name, an instance — and
 /// [`SessionOp::names_gesture`] is where they become one
-/// [`GestureName`]. Three things are asserted over `every_op`'s
-/// samples, which `the_table_answers_for_every_op` holds to one per
-/// variant, so the population is the whole enum:
+/// [`GestureName`]. Asserted over `every_op`'s samples, which
+/// `the_table_answers_for_every_op` holds to one per variant, so the
+/// population is the whole enum:
 ///
-/// - an operation names a gesture exactly when [`drives_a_gesture`]
-///   says it drives one — the wrong-answer check, against a second
-///   hand-written copy;
+/// - an operation names a gesture exactly when its VARIANT is one a
+///   gesture name mints. The population that answers comes from
+///   [`sample_names`] through [`minted`] rather than from a second
+///   hand-written list of the enum: this file's own rule is that a
+///   second copy catches a wrong entry, and a copy in the same order
+///   and grouping as the original catches a typist, not an author.
 /// - reading a name off an operation and minting the operations back
-///   from that name are INVERSE, so a driving operation cannot answer
-///   with a gesture whose own vocabulary does not contain it;
-/// - every operation a name mints reads back as that same name, which
-///   is what a chrome relies on when it spells its target once.
+///   from that name land on the same VARIANT.
+/// - every operation a name mints reads back as that same name.
+///
+/// **What the last two are together, and what they are not.** Each
+/// alone is weak: the variant check ignores the payload, and the
+/// round trip is a FIXED-POINT check, which any idempotent wrong
+/// answer satisfies — `names_gesture` returning `RecipeNodeId(0)` for
+/// every slot drag passes both. `a_name_is_injective_over_its_payload`
+/// is the row that closes it, and the two together are the identity:
+/// a map that is idempotent and injective on a set is the identity on
+/// that set.
 #[test]
 fn every_driving_operation_names_one_gesture() {
     let tol = Tol::witness();
     let dir = common::tempdir("view-gesture-name-census");
     let (_, node) = fixture(tol);
+    let mintable: Vec<SessionOp> = sample_names().iter().flat_map(|name| minted(name)).collect();
     for op in every_op(node, &dir.join("saved.pncad")) {
         let named = op.names_gesture();
         assert_eq!(
             named.is_some(),
-            drives_a_gesture(&op),
+            mintable.iter().any(|minted| same_variant(minted, &op)),
             "whether {op:?} names a gesture"
         );
         let Some(name) = named else { continue };
         let vocabulary = minted(&name);
         assert!(
             vocabulary.iter().any(|minted| same_variant(minted, &op)),
-            "{op:?} names a gesture whose own operations do not include it"
+            "{op:?} names a gesture whose own operations are not of its variant"
         );
         for minted in vocabulary {
             assert_eq!(
@@ -1017,6 +1016,43 @@ fn every_driving_operation_names_one_gesture() {
         }
     }
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A name carries the payload it was read off**, which is the half
+/// `every_driving_operation_names_one_gesture` structurally cannot
+/// see.
+///
+/// That row's containment arm compares VARIANTS, and its round trip is
+/// a fixed point, so a `names_gesture` that discarded the node and
+/// answered `RecipeNodeId(0)` for every slot drag satisfies both. What
+/// it does not satisfy is this: two operations that drive DIFFERENT
+/// gestures must not read back as one name, or a chrome that spells
+/// its target once would steer whichever drag happened to collide
+/// with it.
+///
+/// Injective here, idempotent there, and a map that is both on a set
+/// is the identity on it — so the pair pins the payload over the
+/// sampled targets. It is the sampled targets and not all of them:
+/// two nodes, two parameters and two instances, one pair per family
+/// by [`sample_names`]'s own witness.
+#[test]
+fn a_name_is_injective_over_its_payload() {
+    let names = sample_names();
+    for (i, name) in names.iter().enumerate() {
+        for (j, other) in names.iter().enumerate() {
+            if i == j {
+                continue;
+            }
+            assert_ne!(name, other, "two sample names are one name");
+            for op in minted(name) {
+                let read = op.names_gesture().expect("a minted operation names its gesture");
+                assert_ne!(
+                    &read, other,
+                    "{op:?} reads back as another gesture's name, so a name drops what it carries"
+                );
+            }
+        }
+    }
 }
 
 /// **A gesture's cancel is its DRAG's**, and the name is what decides
