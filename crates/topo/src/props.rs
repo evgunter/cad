@@ -46,6 +46,7 @@ use slotmap::Key;
 use crate::body::Body;
 use crate::boolean::ContactRecords;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey};
+use crate::shell::{ShellError, Shelled};
 use crate::validate::ValidationError;
 
 /// Exact-B-rep integral properties of a body.
@@ -2034,6 +2035,81 @@ impl<T: Decide> QuadLane<T> {
     }
 }
 
+/// **The shell's op door**, as a value the passes take rather than a
+/// trait a scalar implements.
+///
+/// [`crate::shell_open`] validates what it built — its last act is the
+/// certified at-rest validator, whose `+V` invariant is a certified
+/// claim — so the call is formed only at a scalar with certification
+/// rights. Holding one of these IS that statement about the scalar it
+/// is parameterised by, and the one constructor
+/// ([`ShellDoor::certified`]) is the only way to make one.
+///
+/// The shape is [`QuadLane`]'s, for [`QuadLane`]'s reason: the door is
+/// injected, so the layers above it — the verb seat and the document
+/// lowering — stay generic over every evaluation scalar and refuse
+/// typed where the seam answers [`None`]. The seam that answers it is
+/// [`AtRestPolicy::shell_door`], the per-scalar policy home.
+///
+/// A scalar that may not certify cannot hold one — the constructor's
+/// `impl` block is bounded on the right, so the value cannot be
+/// written, let alone handed to a verb:
+///
+/// ```compile_fail,E0599
+/// use geom_core::Dual64;
+/// use topo::ShellDoor;
+/// let _ = ShellDoor::<Dual64>::certified();
+/// ```
+///
+/// The code is `E0599` for [`QuadLane`]'s reason: `certified` EXISTS on
+/// `ShellDoor<Dual64>` and its `impl` block's bounds are not met, which
+/// `rustc` reports as "the associated function exists … but its trait
+/// bounds were not satisfied". Stable rustdoc verifies only that the
+/// block fails to build, so the code beside the fence is a statement
+/// and not a check.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)]
+pub struct ShellDoor<T: Decide> {
+    /// [`ShellDoor::open`]'s body — `crate::shell_open`, and nothing
+    /// else can be written here (`wiring_rows` pins the pointer).
+    open: fn(&Body<T>, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
+}
+
+impl<T: Decide + geom_core::CertifiedBounds + AtRestPolicy> ShellDoor<T> {
+    /// The certified hollowing door — the whole inventory of this
+    /// door, and the only constructor there is. Its body is
+    /// [`crate::shell_open`], so the sealed hollow ([`crate::shell`],
+    /// an empty designation) is reached through the same door.
+    #[must_use]
+    pub const fn certified() -> Self {
+        Self {
+            open: crate::shell::shell_open::<T>,
+        }
+    }
+}
+
+impl<T: Decide> ShellDoor<T> {
+    /// The door's one operation: hollow `body` to `thickness`, opening
+    /// the designated faces into rims.
+    ///
+    /// Every check, every refusal and every minted entity is
+    /// [`crate::shell_open`]'s; this hands the arguments on and adds no
+    /// decision of its own.
+    ///
+    /// # Errors
+    ///
+    /// [`ShellError`] — the door's own, verbatim.
+    pub fn open(
+        self,
+        body: &Body<T>,
+        thickness: T,
+        open_faces: &[FaceKey],
+        tol: Tol,
+    ) -> Result<Shelled<T>, ShellError<T>> {
+        (self.open)(body, thickness, open_faces, tol)
+    }
+}
+
 // SHELL-TOLERANCE-CHAIN END.
 
 /// **The door's WIRING** — the rows that say which free function
@@ -2134,11 +2210,15 @@ mod wiring_rows {
 /// bounds admit; this trait only decides which scalars'
 /// evaluation-service gates consult them.
 ///
-/// The trait also carries the OFFSET FIT's seam
-/// ([`AtRestPolicy::offset_fit_lane`]), for the same reason it carries
-/// the gates: it is the per-scalar policy home, and the fit's absence
-/// is a per-scalar fact. The two absences are different facts, and the
-/// doc on that method says which is which.
+/// The trait also carries the two INJECTED DOORS whose presence is a
+/// per-scalar fact, for the same reason it carries the gates: it is
+/// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
+/// the offset fit's, and [`AtRestPolicy::shell_door`] is the
+/// hollowing verb's; each answers `None` for its own reason — a
+/// derivation written at one scalar, and certification rights (DL1) —
+/// and the doc on each method says which. What a reader gets from the
+/// one trait is every per-scalar answer the at-rest machinery needs,
+/// in one place, rather than a lane trait apiece.
 ///
 /// **Why the one lane trait rides along.**
 /// [`geom_brep::PcurveFittedLane`] is a supertrait because it is the
@@ -2182,8 +2262,26 @@ pub trait AtRestPolicy: Decide + geom_brep::PcurveFittedLane {
     /// (`work/scalar/H5.md` §RATIFIED ruling 3, which keeps this trait
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
-    /// the one place each scalar's answer is written.
+    /// the one place each scalar's answer is written. The same holds
+    /// of the shell door beside it ([`AtRestPolicy::shell_door`]) —
+    /// two doors, one policy, no trait apiece.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
+
+    /// **This scalar's shell door, or `None` where it may not form the
+    /// call** — the ONE seam the `Some` comes from, read by the verb
+    /// seat's `verbs::Verb::run_shell` and, above it, the document
+    /// layer's shell lowering.
+    ///
+    /// `None` is an answer and never a fallback: [`ShellDoor`]'s body
+    /// is [`crate::shell_open`], whose last act is the certified
+    /// at-rest validator, so a scalar without certification rights
+    /// cannot hold one and the lowering refuses TYPED rather than
+    /// building an unvalidated hollow. That makes it the same fact as
+    /// [`AtRestOutcome::NotRunAtThisScalar`] below — certification
+    /// rights (DL1) — and a different one from
+    /// [`AtRestPolicy::offset_fit_lane`] above, which is about where a
+    /// derivation is written.
+    fn shell_door() -> Option<ShellDoor<Self>>;
 
     /// The at-rest gate over a body ([`crate::validate_geometric`] at
     /// certifying scalars; absent at duals, and the outcome says
@@ -2230,6 +2328,11 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::OffsetFitLane::fit())
     }
 
+    /// The decide-with-escalation lane certifies, so it runs the door.
+    fn shell_door() -> Option<ShellDoor<Self>> {
+        Some(ShellDoor::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2253,6 +2356,12 @@ impl AtRestPolicy for geom_core::Probe {
         None
     }
 
+    /// The recording scalar is `f64` with a sink attached, so it
+    /// carries exactly what `f64` carries — here, the door.
+    fn shell_door() -> Option<ShellDoor<Self>> {
+        Some(ShellDoor::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2274,6 +2383,12 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// certification rights, which it has in full.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
         None
+    }
+
+    /// The certified interval scalar runs the door: its brackets are
+    /// what the validator's certified claim is made of.
+    fn shell_door() -> Option<ShellDoor<Self>> {
+        Some(ShellDoor::certified())
     }
 
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -2307,6 +2422,14 @@ where
         None
     }
 
+    /// The tier changes how an identically-zero margin decides and
+    /// nothing else, so wrapping a certifying base must not demote a
+    /// certifying door to an absent one — the driver's leaf replay
+    /// would otherwise stop hollowing the bodies it certifies.
+    fn shell_door() -> Option<ShellDoor<Self>> {
+        Some(ShellDoor::certified())
+    }
+
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
@@ -2335,6 +2458,15 @@ where
     /// arm here gives, and a separate fact from the gates below, which
     /// are absent because a dual does not certify.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
+        None
+    }
+
+    /// **A dual does not certify** (the DL3 ruling, unmoved), and the
+    /// shell door's last act is a certified validation of what it
+    /// built, so no `Dual` can hold one: a document evaluated for
+    /// sensitivities meets a typed refusal at its shell node rather
+    /// than an unvalidated hollow.
+    fn shell_door() -> Option<ShellDoor<Self>> {
         None
     }
 
@@ -2400,6 +2532,22 @@ mod at_rest_policy_tests {
             "gate_at_rest_declared must be validate_pseudomanifold verbatim at a certifying \
              scalar"
         );
+        // The shell door is a VALUE, so what can go wrong is which
+        // function it holds; a row comparing outputs cannot see a door
+        // re-pointed at a hollowing that agrees on the fixture in
+        // front of it, and this compares the stored pointer instead
+        // (`wiring_rows`' reason, and its caveat: `fn_addr_eq` is not
+        // a language guarantee, which costs nothing because a false
+        // PASS would need the re-pointed routine to be
+        // instruction-identical to `shell_open`).
+        let door = T::shell_door().expect("a certifying scalar holds the shell door");
+        assert!(
+            std::ptr::fn_addr_eq(
+                door.open,
+                crate::shell::shell_open::<T> as fn(_, _, _, _) -> _
+            ),
+            "the shell door must hold shell_open at a certifying scalar"
+        );
     }
 
     #[test]
@@ -2450,6 +2598,13 @@ mod at_rest_policy_tests {
                 tol
             ),
             Ok(AtRestOutcome::NotRunAtThisScalar)
+        );
+        // The shell door's absence is the same fact one step earlier:
+        // the call is never formed at all, so there is no refusal to
+        // read and nothing validated the caller could mistake for one.
+        assert!(
+            <geom_core::Dual64 as AtRestPolicy>::shell_door().is_none(),
+            "a dual may not certify, so it holds no shell door"
         );
     }
 }

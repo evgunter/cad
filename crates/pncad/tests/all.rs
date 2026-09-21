@@ -4364,12 +4364,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry; the fourth, `ShellLane` — which scalars can form
-///   the shell door's call at all, a lane fact decided by the type: a
-///   dual does not certify, and the door validates what it built; and
-///   the identity the lane seams share, `Lane` with its `BracketEnd`,
-///   which is how a lane names itself and reads a bracket's end when a
-///   refusal's number crosses into the scalar-free vocabulary).
+///   can carry; and the identity the lane seams share, `Lane` with its
+///   `BracketEnd`, which is how a lane names itself and reads a
+///   bracket's end when a refusal's number crosses into the
+///   scalar-free vocabulary).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
 ///   behind the `interval` feature (M10-6): the driver and its box,
@@ -4407,7 +4405,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 92] = [
+const NOT_CARRIED: [&str; 91] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4463,7 +4461,6 @@ const NOT_CARRIED: [&str; 92] = [
     "SectionScalar",
     "SeedScalar",
     "ShadowExecRefusal",
-    "ShellLane",
     "SideVerdict",
     "StructureFlip",
     "SummaryDelta",

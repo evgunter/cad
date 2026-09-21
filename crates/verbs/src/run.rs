@@ -3,7 +3,7 @@
 
 use core::fmt;
 
-use geom_core::{Bounds, CertifiedBounds, Decide, Real, Tol};
+use geom_core::{Bounds, Decide, Real, Tol};
 use profile::ValidatedProfile;
 use sweep::blend::BlendRefusal;
 use sweep::blend::naming::BlendNaming;
@@ -11,8 +11,8 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords,
-    ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy,
-    boolean_op_with, shell_open, split,
+    ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
+    SweepStrategy, boolean_op_with, split,
 };
 
 use crate::verb::{Arity, Verb, VerbKind};
@@ -423,41 +423,35 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb
             }),
         }
     }
-}
 
-/// **The shell door, under its own bound.**
-///
-/// It is a second `impl` block rather than a fifth method on the one
-/// above because the op door it dispatches to asks for more of the
-/// scalar than the rest of the vocabulary does: `topo::shell_open` is
-/// `Decide + CertifiedBounds + AtRestPolicy`, because a shell
-/// validates what it built and the `+V` invariant of that validation is
-/// a certified claim. Tightening the other block's header to match is
-/// not available — `geom-core`'s `Bounds` allowlist entry for this file
-/// records the measurement: `Decide + CertifiedBounds +
-/// PcurveFittedLane` compiles here and breaks
-/// `editor_core::eval::wire`'s blend lowering, which runs beneath a
-/// mixed pass instantiated at `Dual`, and no `Dual` certifies. So the
-/// bounds are split at the impl, each door asking for exactly what its
-/// callee asks for, and the `Dual` caller stays green by construction:
-/// it names [`Verb::run`], which lives in the block that has not moved.
-///
-/// The split is a fact of the SIGNATURE, not a refusal: a verb built at
-/// a non-certifying scalar cannot be handed to this door at all, so
-/// there is no run-time arm for it and nothing for [`Arity`] to speak.
-/// What `Arity` does speak, unchanged, is the mismatch at every other
-/// door: a `Shell` handed to [`Verb::run`], [`Verb::run_pair`],
-/// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
-impl<T: Decide + CertifiedBounds + topo::AtRestPolicy> Verb<T> {
-    /// **Run this hollowing verb against its operand body.**
+    /// **Run this hollowing verb against its operand body**, through
+    /// the certified door the caller hands in.
+    ///
+    /// The DOOR is what says the scalar may certify. `topo::shell_open`
+    /// validates what it built and the `+V` invariant of that
+    /// validation is a certified claim, so a
+    /// [`topo::ShellDoor`] has one constructor
+    /// ([`topo::ShellDoor::certified`]) and it is bounded on
+    /// `Decide + CertifiedBounds + AtRestPolicy`: holding the value IS
+    /// the right, and passing it here is how this door asks for more
+    /// of the scalar than the rest of the vocabulary does without
+    /// asking it of every other door on this block. The one seam that
+    /// answers it per scalar is
+    /// [`topo::AtRestPolicy::shell_door`]; a caller that gets
+    /// [`None`] there has nothing to pass and refuses typed where it
+    /// stands, so there is no run-time arm here for the absence and
+    /// nothing for [`Arity`] to speak. What `Arity` does speak,
+    /// unchanged, is the mismatch at every other door: a `Shell`
+    /// handed to [`Verb::run`], [`Verb::run_pair`],
+    /// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
     ///
     /// The operand comes in borrowed, never in the payload, exactly as
     /// at [`Verb::run`]; an EMPTY `open` is the sealed hollow, which is
     /// the kernel door's own contract and not a case decided here.
-    /// Every check, every refusal and every minted entity is
-    /// `topo::shell_open`'s — this dispatches and re-wraps, and adds no
-    /// decision of its own; the tolerance witness travels down
-    /// unaltered and no number is derived from it here.
+    /// Every check, every refusal and every minted entity is the
+    /// door's — this dispatches and re-wraps, and adds no decision of
+    /// its own; the tolerance witness travels down unaltered and no
+    /// number is derived from it here.
     ///
     /// # Errors
     ///
@@ -467,13 +461,19 @@ impl<T: Decide + CertifiedBounds + topo::AtRestPolicy> Verb<T> {
     /// refusals, the designation gates and a result that does not
     /// validate); [`VerbError::Arity`] if this verb answers another
     /// door.
-    pub fn run_shell(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError<T>> {
+    pub fn run_shell(
+        &self,
+        operand: &Body<T>,
+        tol: Tol,
+        door: ShellDoor<T>,
+    ) -> Result<VerbOut<T>, VerbError<T>> {
         match self {
             Self::Shell { thickness, open } => {
                 // Exhaustive destructure, deliberately: a field grown
                 // onto `Shelled` breaks this door at compile time
                 // instead of silently vanishing in the move.
-                let Shelled { body, naming } = shell_open(operand, *thickness, open, tol)
+                let Shelled { body, naming } = door
+                    .open(operand, *thickness, open, tol)
                     .map_err(|error| VerbError::Shell(Box::new(error)))?;
                 Ok(VerbOut {
                     body,
