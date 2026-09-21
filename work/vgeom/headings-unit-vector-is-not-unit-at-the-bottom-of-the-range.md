@@ -2,11 +2,12 @@
 id: headings-unit-vector-is-not-unit-at-the-bottom-of-the-range
 kind: issue
 title: heading promises a unit vector and a subnormal separation answers one of length 1.414
-status: dispatched
+status: review
 opened: 2026-09-21
 priority: P4
 cost: E
 branch: vgeom/deletions
+pr: 3027
 ---
 
 

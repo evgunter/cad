@@ -2,9 +2,10 @@
 id: mixfraction-has-two-constructors-where-one-would-do
 kind: issue
 title: MixFraction's private literal constructor is redundant now that new is a const fn
-status: dispatched
+status: review
 opened: 2026-09-20
 branch: vgeom/deletions
+pr: 3027
 ---
 
 
