@@ -48,6 +48,7 @@ use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
@@ -459,19 +460,24 @@ fn the_sampled_pixel_is_one_pixel_wide_and_correctly_oriented() {
     };
     let aspect = pane.aspect().expect("a positive aspect");
     let camera = camera_on(&box_of([0.0, 0.0, 0.0], [0.06, 0.04, 0.008]), aspect);
-    let matrix = camera.view_projection(aspect).expect("defined");
-    let vp = matrix.map(|column| column.map(|v| v as f32));
+    let vp = camera.view_projection_f32(aspect).expect("defined");
     let centre = [pane.width_px * 0.5, pane.height_px * 0.5];
+    // `ViewportSize::ndc_of` is the one home for the pixel-to-NDC
+    // flip, and the seam is the one home for the narrowing: this row
+    // spelled both itself, which is two of the four spellings that
+    // door's own doc names.
     let ndc = |c: [f64; 2]| {
-        [
-            (2.0 * c[0] / pane.width_px - 1.0) as f32,
-            (1.0 - 2.0 * c[1] / pane.height_px) as f32,
-        ]
+        pane.ndc_of(c)
+            .expect("a positive area")
+            .narrow()
+            .expect("an ordinary cursor")
     };
     let sampled = cursor_projection(
         &vp,
         ndc(centre),
-        [pane.width_px as f32, pane.height_px as f32],
+        [pane.width_px, pane.height_px]
+            .narrow()
+            .expect("a viewport of ordinary size"),
     );
     // A world point on the ray through a cursor `n` pixels to the
     // right of the sampled one must land at target-x ≈ `n` — one at
@@ -481,7 +487,8 @@ fn the_sampled_pixel_is_one_pixel_wide_and_correctly_oriented() {
             .ray_through([centre[0] + dx, centre[1] + dy], pane)
             .expect("un-projects");
         let p = ray.origin + ray.dir * 0.2;
-        let v = [p.x as f32, p.y as f32, p.z as f32, 1.0];
+        let [px, py, pz] = p.narrow().expect("a point the seam draws");
+        let v = [px, py, pz, 1.0];
         let mut out = [0.0f32; 4];
         for (row, slot) in out.iter_mut().enumerate() {
             *slot = sampled[0][row] * v[0]

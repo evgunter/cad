@@ -37,6 +37,8 @@ use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
 use pncad::topo::Body;
 
+use crate::narrowing::Narrow;
+
 /// Millimetres per world unit — the one factor the δ render and the δ
 /// door both read.
 ///
@@ -227,6 +229,22 @@ pub enum SceneError {
         /// How many positions the table actually holds.
         positions: usize,
     },
+    /// A tessellated corner does not narrow to the `f32` a GPU
+    /// position buffer holds ([`crate::narrowing::Narrow`]).
+    ///
+    /// **Every coordinate here is an ordinary finite `f64`** — that is
+    /// the whole of the arm. `f32::MAX` is about `3.40e38`, so a body
+    /// a few dozen orders of magnitude out tessellates cleanly, passes
+    /// every finiteness guard above, and reaches the seam as a number
+    /// whose narrowing is an infinity. Refused whole for
+    /// [`SceneError::BrokenPatchIndex`]'s reason: a solid drawn
+    /// without one of its triangles is a lie about the solid, and the
+    /// alternative is an infinity in a vertex buffer, which poisons
+    /// the shading of everything the rasterizer blends it with.
+    UndrawablePosition {
+        /// The offending corner, in world units.
+        position: [f64; 3],
+    },
 }
 
 impl core::fmt::Display for SceneError {
@@ -270,6 +288,15 @@ impl core::fmt::Display for SceneError {
                 f,
                 "a face patch names vertex {index}, but the mesh's shared position \
                  table holds only {positions} positions"
+            ),
+            // Scientific, for `DisplayToleranceOverflowsMillimetres`'s
+            // reason: every coordinate that reaches this arm is large
+            // enough that its plain decimal expansion is unreadable.
+            Self::UndrawablePosition { position } => write!(
+                f,
+                "a tessellated corner is past the largest coordinate this viewer can \
+                 draw: [{:e}, {:e}, {:e}] does not narrow to a finite f32",
+                position[0], position[1], position[2]
             ),
         }
     }
@@ -588,7 +615,19 @@ impl SceneMesh {
                     // so a probed part is lit by where it is drawn.
                     let normal = triangle_normal(&corner_points);
                     for p in corner_points {
-                        positions.push([p.x as f32, p.y as f32, p.z as f32]);
+                        // **The display seam, and the whole scene
+                        // rides on it.** A corner the GPU cannot hold
+                        // refuses here for the reason the broken index
+                        // above refuses: a solid drawn without one of
+                        // its triangles is a lie about the solid, and
+                        // the alternative this replaces was an
+                        // infinity in a vertex buffer.
+                        let Some(position) = p.narrow() else {
+                            return Err(SceneError::UndrawablePosition {
+                                position: [p.x, p.y, p.z],
+                            });
+                        };
+                        positions.push(position);
                         normals.push(normal);
                         ids.push(id);
                         flags.push(flags_word);
@@ -1419,11 +1458,20 @@ fn fetch(points: &[Point3<f64>], corners: &[u32; 3]) -> Option<[Point3<f64>; 3]>
 /// The unit normal of a triangle wound counterclockwise as seen from
 /// the side the normal points to.
 ///
-/// A degenerate (zero-area) triangle has no normal; it gets `+Z`
-/// rather than a NaN, because a NaN in a vertex buffer poisons the
-/// shading of everything the rasterizer blends it with, while a
-/// wrong-facing sliver is invisible at the size a degenerate triangle
-/// has.
+/// A degenerate (zero-area) triangle has no normal; it gets
+/// [`DEGENERATE_NORMAL`] rather than a NaN, because a NaN in a vertex
+/// buffer poisons the shading of everything the rasterizer blends it
+/// with, while a wrong-facing sliver is invisible at the size a
+/// degenerate triangle has.
+///
+/// **A direction is the one thing at this seam that cannot overflow**,
+/// which is why it falls back where a POSITION refuses
+/// ([`SceneError::UndrawablePosition`]): `len` is at least the largest
+/// `|n[i]|`, so every component of the quotient is within `±1` and the
+/// narrowing is exact to `f32`'s precision. The door is still the door
+/// — one test, not two — and what differs is what an answerless
+/// triangle is worth, which is a shading nobody can see rather than a
+/// solid nobody can trust.
 fn triangle_normal(corners: &[Point3<f64>; 3]) -> [f32; 3] {
     let [a, b, c] = corners;
     let u = [b.x - a.x, b.y - a.y, b.z - a.z];
@@ -1434,16 +1482,18 @@ fn triangle_normal(corners: &[Point3<f64>; 3]) -> [f32; 3] {
         u[0] * v[1] - u[1] * v[0],
     ];
     let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-    if len > 0.0 && len.is_finite() {
-        [
-            (n[0] / len) as f32,
-            (n[1] / len) as f32,
-            (n[2] / len) as f32,
-        ]
-    } else {
-        [0.0, 0.0, 1.0]
-    }
+    (len > 0.0 && len.is_finite())
+        .then(|| [n[0] / len, n[1] / len, n[2] / len].narrow())
+        .flatten()
+        .unwrap_or(DEGENERATE_NORMAL)
 }
+
+/// What a triangle with no normal is shaded by.
+///
+/// One constant rather than a literal at each arm, because both arms
+/// of [`triangle_normal`] answer it and a second spelling of a
+/// fallback is a second fallback.
+const DEGENERATE_NORMAL: [f32; 3] = [0.0, 0.0, 1.0];
 
 /// **The ladder's own policy rows**, driven over a probe door rather
 /// than a body: what a rung costs is a property of the tessellator,
