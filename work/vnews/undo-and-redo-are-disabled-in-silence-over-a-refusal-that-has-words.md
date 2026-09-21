@@ -121,3 +121,31 @@ for putting it on the button.
 Asserted by `crates/viewer/tests/chrome_labels.rs`'s
 `a_disabled_toolbar_control_says_what_its_own_operation_refuses`,
 mutation-proven red three ways on a committed tree.
+
+### The reason above is wrong, and this is the reason (2026-09-20, review of #2960)
+
+The section above argued that the joint sentence *"nothing to undo or
+redo"* is false **on the status line**. That argument is dead on this
+tree and the row should not carry it: this unit's own reachability
+finding kills it. The two buttons are the only producers of
+`SessionOp::Undo` and `SessionOp::Redo`, and they are disabled exactly
+while `Refusal::nothing_to_step` is `Some` — so the op is never pushed
+in the state that refuses, and `Refusal::NothingToDo` never reaches the
+status line from the chrome at all.
+
+**The tooltip argument alone carries the decision, and it carries it.**
+The sentence's only reader is a tooltip, a tooltip hangs off ONE
+button, and a sentence naming both directions is false of the button it
+is not about whenever the other direction is live — which is the
+ordinary state one step back from the tip. That is enough, and it is
+the whole of it.
+
+**And it is a departure from answer 2 as this row wrote it**, which
+said *"the status line keeps the joint sentence while each button gets
+its own half"*. There is no joint sentence on this tree: `Display`
+renders the direction, full stop. Keeping a joint composition for the
+status line would have been words written for a surface that never
+reads them — the second composition this program exists to remove,
+minted on purpose. If a keyboard route or a second producer is ever
+added, the status line becomes a real reader and the question re-opens
+with a real second surface behind it; it does not have one today.

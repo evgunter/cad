@@ -288,14 +288,11 @@ impl ViewerBehavior<'_> {
                                     // read off the entry, not minted
                                     // here.
                                     let refusal = entry.refusal();
-                                    let mut pick = ui.add_enabled(
-                                        refusal.is_none(),
-                                        egui::Button::new(entry.file_name()),
-                                    );
-                                    if let Some(refusal) = refusal {
-                                        pick = pick.on_disabled_hover_text(refusal.to_string());
-                                    }
-                                    if pick.clicked() {
+                                    if crate::app::refusable_button(
+                                        ui,
+                                        entry.file_name(),
+                                        refusal.as_ref(),
+                                    ) {
                                         chosen = Some(entry.id);
                                     }
                                     ui.weak(entry.id.to_string());

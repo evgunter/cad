@@ -1,47 +1,25 @@
 ---
 id: refuse-roster-and-chrome-labels-header-predate-the-disabled-reason-doors
 kind: issue
-title: The refuse-module roster in the viewer README and chrome_labels.rs's header both predate the disabled-reason doors
+title: chrome_labels.rs's header was already false at its own merge base, and the viewer README's refuse roster is short by four members
 status: open
 opened: 2026-09-20
 priority: P4
 cost: E
 ---
 
-Filed by VNEWS's `vnews/app-controls-read-their-refusals`, which is the
-diff that falsified both sentences. **Filed rather than fixed** because
-`crates/viewer/README.md` and `crates/viewer/tests/*` are named
-specifically in VNEWS's `keep_out` — *"a prose or census or citation
-defect found here is filed on vdoc and never fixed across that fence"*
-— and `work/vnews/plan.md` §Dispatch rules settles that the carve-out
-beats the general rule that prose one's own diff falsified is one's own
-to repair.
+Filed by VNEWS's `vnews/app-controls-read-their-refusals` (#2960).
+**Filed rather than fixed** because `crates/viewer/README.md` and
+`crates/viewer/tests/*` are named specifically in VNEWS's `keep_out` —
+*"a prose or census or citation defect found here is filed on vdoc and
+never fixed across that fence"*. Both defects below are **older than
+that diff**; an earlier draft of this item said the diff caused the
+first one and that was wrong, so the cause is stated plainly here
+rather than left for VDOC to re-derive.
 
-## Two sentences, one cause
+## 1. `crates/viewer/tests/chrome_labels.rs`'s header, already false
 
-The unit added two predicate doors to
-`crates/viewer/src/session/refuse.rs` — `Refusal::nothing_to_step` and
-`Refusal::empty_name` — plus the `Step` payload enum, so that the
-toolbar's Undo, Redo and Create buttons gate on, and show the words of,
-the same refusal value their doors raise.
-
-**1. `crates/viewer/README.md`, the `session::refuse` row of the
-vocabulary table** (~`:341`) enumerates the module's members:
-
-> `Refusal` with its `rank`/`preferred` ladder, its `Display`, and the
-> recourse composers `affordance`/`exists_wording`/`offer_wording`;
-> `NodeKindWanted` and `admits`, since they are a `Refusal` payload and
-> its predicate
-
-It was already incomplete before this unit — `Refusal::self_instance`
-has never been in it, and it is the tree's canonical statement of
-exactly the rule the new doors follow. It is now short by `Step`,
-`nothing_to_step` and `empty_name` as well. The sentence's own shape
-tells VDOC what to do with them: `Step` is there *"since"* it is a
-payload and `nothing_to_step` is its predicate, which is the clause the
-row already carries for `NodeKindWanted`/`admits`.
-
-**2. `crates/viewer/tests/chrome_labels.rs`'s module header** says:
+The header says:
 
 > Two of the names a user reads are pure functions of state rather than
 > pixels, so they are pinned here: the toolbar's name for the open
@@ -49,26 +27,51 @@ row already carries for `NodeKindWanted`/`admits`.
 > wording lives inside widget calls and is not testable without a
 > window; this suite claims only what it can see.
 
-The unit added a third row to that suite,
-`a_disabled_toolbar_control_says_what_its_own_operation_refuses`, and
-it is exactly a name a user reads that has become a pure function of
-state: three controls' disabled reasons, read off
-`Refusal::nothing_to_step` / `Refusal::empty_name` rather than composed
-at the widget. So "two" is short by one subject and "the rest … is not
-testable without a window" is now false of the class the new row holds.
+**The second sentence was false before this item was filed and before
+#2960 touched anything.** Two headless egui harnesses already existed,
+and one of them lays out *this very toolbar*:
 
-**What the repair is not.** The header's real claim — *this suite
-claims only what it can see* — is still true and is the reason the file
-is worth having; what moved is which wording a test can see, and the
-count in front of it. A repair that only bumps "two" to "three" leaves
-the second sentence saying the thing the new row disproves.
+- `crates/viewer/src/app.rs`'s `toolbar_row` runs the real
+  `ViewerApp::toolbar_ui` through an `egui::Context::default()` with no
+  window at all, for the two wrapping rows.
+- `crates/viewer/src/pane/view.rs` injects real `egui::Event::Key`
+  values and reads the draft that results.
+
+So "not testable without a window" is not a property of the chrome's
+wording; it is a property of what anybody had tried. #2960 is the
+demonstration — it reads `on_disabled_hover_text`'s words back off the
+painted frame — but it is evidence, not cause.
+
+**What the repair is not.** Bumping "two" to "three" leaves the second
+sentence saying the thing the harnesses disprove, and the second
+sentence is the load-bearing one: it is the reason a reader stops
+looking for chrome rows here. The honest version says what this suite
+claims and why, without a claim about what is reachable.
+
+## 2. `crates/viewer/README.md`'s `session::refuse` roster, short by four
+
+The vocabulary table's row (~`:341`) enumerates the module's members:
+
+> `Refusal` with its `rank`/`preferred` ladder, its `Display`, and the
+> recourse composers `affordance`/`exists_wording`/`offer_wording`;
+> `NodeKindWanted` and `admits`, since they are a `Refusal` payload and
+> its predicate
+
+It was already short by `Refusal::self_instance` — which is the tree's
+canonical statement of the very rule the module's newer doors follow —
+before #2960, and is now short by `Step`, `Refusal::nothing_to_step`
+and `Refusal::new_document_name` as well. The row's own shape says what
+to do with `Step`: it is there *"since"* it is a payload and
+`nothing_to_step` is its predicate, which is the clause the row already
+carries for `NodeKindWanted`/`admits`.
 
 ## Where the evidence is
 
-- `crates/viewer/src/session/refuse.rs` — `Step`,
-  `Refusal::nothing_to_step`, `Refusal::empty_name`,
-  `Refusal::self_instance`, and the module header, which this unit DID
-  update because that file is VNEWS's own ground.
-- `crates/viewer/tests/chrome_labels.rs` — the new row and the header
-  above it.
+- `crates/viewer/tests/chrome_labels.rs` — the header.
+- `crates/viewer/src/app.rs` — `toolbar_row`, and (from #2960)
+  `a_disabled_toolbar_control_says_what_its_own_operation_refuses`.
+- `crates/viewer/src/pane/view.rs` — the key-event harness.
+- `crates/viewer/src/session/refuse.rs` — `Step`, `nothing_to_step`,
+  `new_document_name`, `self_instance`, and the module header, which
+  #2960 DID update because that file is VNEWS's own ground.
 - `crates/viewer/README.md` — the `session::refuse` vocabulary row.

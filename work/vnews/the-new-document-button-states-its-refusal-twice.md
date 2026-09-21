@@ -135,3 +135,32 @@ comment above the form, where it is the reason the field exists, and in
 Asserted by `crates/viewer/tests/chrome_labels.rs`'s
 `a_disabled_toolbar_control_says_what_its_own_operation_refuses`, whose
 Create half goes red if the trim leaves `empty_name`.
+
+### Amended after the review of #2960
+
+Two things in the section above no longer describe the tree.
+
+**The door is `Refusal::new_document_name`, not `Refusal::empty_name`,
+and it hands back the NAME.** The first spelling answered a verdict and
+left both callers trimming on their own — one home for the emptiness
+and three for the normalisation, which is exactly half of the drift
+this row names. `new_document_name(typed) -> Result<&str, Refusal>` is
+the whole rule: the button gates on the `Err`, shows its words, and
+pushes the `Ok` the door itself would have derived the id from.
+
+**It is named for the document on purpose.** A blank *parameter* name
+is a different question with a different answer — no door refuses one
+at all — and `pane/properties.rs`'s own Create button gates on an
+UNTRIMMED `!name.is_empty()`. A generally-named `empty_name` beside
+that would be an inviting wrong door for whoever closes
+`work/edit/no-door-refuses-a-blank-parameter-name`, which is where that
+asymmetry is recorded.
+
+**The row's assertion moved out of `crates/viewer/tests/`.** It is
+`crates/viewer/src/app.rs`'s
+`a_disabled_toolbar_control_says_what_its_own_operation_refuses`, which
+lays the real toolbar out headlessly and reads the words back off the
+painted frame. An integration row could assert the refusal a control
+was BUILT from and never which control got it — `add_enabled` and
+`on_disabled_hover_text` keep no value — and "which control got it" is
+the half a reader sees.

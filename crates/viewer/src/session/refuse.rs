@@ -111,10 +111,23 @@ impl NodeKindWanted {
 /// [`Refusal::NothingToDo`], so the refusal names the direction that
 /// had nothing rather than hedging over both.
 ///
-/// Lives here for the reason [`NodeKindWanted`] does: it is a
-/// `Refusal` payload and [`Refusal::nothing_to_step`] is its
-/// predicate. [`crate::history::History`] holds the two moves
-/// themselves.
+/// **It is the direction as a VALUE, which is why a third naming of
+/// undo-and-redo earns its place.** [`super::SessionOp::Undo`] and
+/// [`super::SessionOp::Redo`] are two operations and
+/// [`crate::history::History`]'s `undo`/`redo` are two moves; neither
+/// distinction can be passed to anything. This one can, and that is
+/// what lets the direction-to-sentence map below and the toolbar's
+/// two-row table each be written once instead of twice — which is the
+/// whole of what this program asked for here.
+///
+/// It lives in this module rather than beside the moves for the
+/// reason [`NodeKindWanted`] does — it is a `Refusal` payload and
+/// [`Refusal::nothing_to_step`] is its predicate — and the stronger
+/// reason is the one that answers the obvious alternative: folding
+/// `History::can_undo`/`can_redo` into one `can_step(Step)` would
+/// replace two predicates that say which way they go, at eleven
+/// reading sites that know their direction already, with one that
+/// makes every reader carry an argument.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     /// Toward the root — [`super::SessionOp::Undo`].
@@ -460,18 +473,24 @@ impl Refusal {
         (open == id).then_some(Self::SelfInstance { id })
     }
 
-    /// **The nothing-to-step rule and its refusal, in one place**:
-    /// `Some` exactly when the history has no state to move to in
+    /// **The nothing-to-step answer, ahead of the move**: `Some`
+    /// exactly when the history has no state to move to in
     /// `direction`.
     ///
-    /// Both consumers of the rule call this — `DocSession::step`,
-    /// which refuses, and the toolbar's Undo and Redo buttons, which
-    /// disable and show the words — so the predicate has one home and
-    /// the chrome's disabled reason is the same value the click would
-    /// have been answered with. Those two buttons are the only hand
-    /// that pushes [`super::SessionOp::Undo`] or
-    /// [`super::SessionOp::Redo`], so a refusal they do not show is a
-    /// sentence no reader ever meets.
+    /// This is the CHROME's door. `DocSession::step` does not call it
+    /// and must not: a door reports what its own attempt found, so it
+    /// moves and refuses on the `None` the move itself answers with,
+    /// which is the only reading that cannot go stale between the ask
+    /// and the act. What this composes is the same refusal VALUE, for
+    /// the toolbar's Undo and Redo buttons, which have to decide
+    /// whether to offer the move BEFORE it is attempted and owe the
+    /// reader the sentence the attempt would have given.
+    ///
+    /// Those two buttons are the only hand that pushes
+    /// [`super::SessionOp::Undo`] or [`super::SessionOp::Redo`], and
+    /// they are disabled exactly while this is `Some` — so the
+    /// tooltip is the only place that sentence is ever read, and the
+    /// status line is not a second surface for it.
     pub fn nothing_to_step(history: &History, direction: Step) -> Option<Self> {
         let available = match direction {
             Step::Undo => history.can_undo(),
@@ -480,18 +499,34 @@ impl Refusal {
         (!available).then_some(Self::NothingToDo { direction })
     }
 
-    /// **The blank-name rule and its refusal, in one place**: `Some`
-    /// exactly when `name` carries no non-whitespace text.
+    /// **The new-document name rule, and its one home**: the name a
+    /// [`super::SessionOp::NewDocument`] is built from, or the refusal
+    /// a blank one is answered with.
     ///
     /// Both consumers call this — `DocSession::new_document`, which
     /// refuses, and the New-document form's Create button, which
-    /// disables and shows the words. The trim is part of the rule
-    /// rather than each caller's own step: a control that gated on the
-    /// raw text would offer a click the door then refuses, and a
-    /// control that trimmed on its own would be a second copy of the
-    /// rule with nothing holding the two in step.
-    pub fn empty_name(name: &str) -> Option<Self> {
-        name.trim().is_empty().then_some(Self::EmptyName)
+    /// disables and shows the words.
+    ///
+    /// **It hands back the NAME rather than a verdict** because the
+    /// trim is part of the rule and not each caller's own step. A
+    /// control that gated on the raw text would offer a click the door
+    /// refuses; a caller that trimmed again on its own would be a
+    /// second copy of the normalisation with nothing holding the two
+    /// in step — which is the defect one home for the emptiness alone
+    /// still leaves open.
+    ///
+    /// The name says `new_document` and not `name`: a blank
+    /// *parameter* name is a different question with a different
+    /// answer — no door refuses one at all
+    /// (`work/edit/no-door-refuses-a-blank-parameter-name`) — and a
+    /// general name here would be an inviting wrong door for it.
+    pub fn new_document_name(typed: &str) -> Result<&str, Self> {
+        let name = typed.trim();
+        if name.is_empty() {
+            Err(Self::EmptyName)
+        } else {
+            Ok(name)
+        }
     }
 
     /// **The ratified affordance sentence, and its one home.**

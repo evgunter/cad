@@ -1764,23 +1764,23 @@ impl DocSession {
 
     /// Undo or redo, by the direction the op names.
     ///
-    /// The refusal is asked for BEFORE the move rather than read off
-    /// its `None`, because the toolbar's two buttons ask the same
-    /// question of the same history to decide whether to draw
-    /// themselves enabled ([`Refusal::nothing_to_step`]): one
-    /// predicate, so a button cannot offer a step this refuses.
+    /// **The refusal is the MOVE's own answer**, not a pre-check: the
+    /// door attempts the step and refuses on the `None` the attempt
+    /// returns, so a history whose `can_step` half ever disagreed with
+    /// its move half would fail here rather than report a clean
+    /// outcome for a step that did not happen. The chrome's
+    /// [`Refusal::nothing_to_step`] composes the same refusal VALUE
+    /// ahead of the click, because a button has to decide whether to
+    /// offer the move; one composition of the words, two readings of
+    /// the history, and this one is the one that acts.
     fn step(&mut self, direction: Step) -> OpOutcome {
-        if let Some(refusal) = Refusal::nothing_to_step(&self.history, direction) {
-            return OpOutcome::refused(refusal);
-        }
         let moved = match direction {
             Step::Undo => self.history.undo(),
             Step::Redo => self.history.redo(),
         };
-        debug_assert!(
-            moved.is_some(),
-            "the predicate that let this through answers the same field the move reads"
-        );
+        if moved.is_none() {
+            return OpOutcome::refused(Refusal::NothingToDo { direction });
+        }
         // The document moved, so the display state's derived facts
         // (which instances exist; which are mate-constrained) may have
         // too — an undo past a mate's insertion does NOT resurrect a
@@ -1843,10 +1843,10 @@ impl DocSession {
     /// fields going the other way: no path and no resolver, because
     /// nothing backs this document until it is saved.
     fn new_document(&mut self, name: &str) -> OpOutcome {
-        if let Some(refusal) = Refusal::empty_name(name) {
-            return OpOutcome::refused(refusal);
-        }
-        let name = name.trim();
+        let name = match Refusal::new_document_name(name) {
+            Ok(name) => name,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
         self.history = History::new(Doc::empty_derived(name, self.tol));
         self.path = None;
         self.resolver = None;
