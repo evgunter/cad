@@ -14161,3 +14161,56 @@ subject**, and the register rule generalises to cover it: a fence, a
 posture or a status **written by a cut** has no independent authority,
 because nothing re-derives what a cut writes. Two instances in one day,
 from two different cuts, one of them mine.
+
+## 2026-09-21 — the rule register is deleted
+
+Ev's ruling, in chat: lift out anything that reports an **actual
+problem** and that **a prompt update could actually fix** — not
+something categorisable in retrospect that an advance warning would not
+have prevented — *"otherwise it should just be deleted"*.
+
+**Seven candidates were offered and none survived as new text.** Three
+were already written down, and that is the finding rather than an
+embarrassment beside it:
+
+- *verify a tier by its shape, not a job total* →
+  `docs/prompts/implementer-discipline.md` §2 already says *"if you
+  cannot see twelve test jobs and five `k-lint (gate, …)` jobs on a
+  code-tier run, something narrowed it and you should find out what."*
+- *a receipt for a command never run in the form it was written down*
+  → §5 Sweeps already says *"a pattern with no hits recorded is a
+  claim; a hit list is a receipt."* Ev remembered this one by
+  description before I found it.
+- *an un-mergeable PR's CI looks like broken infrastructure* →
+  `memories/agent-lane-operations.md`'s conflicting-PR bullet.
+
+The other four were retrospective categorisation — true after the
+fact, useless before it. **One amendment came of it** (#3019): that
+memory bullet said such a PR gets NO CI run, and its third face is a
+run that COMPLETES with every job dead in 2-3 seconds, a healthy docs
+tier except for `gate ok`, diagnosed with `git merge-tree --write-tree`
+and never from the logs. Six lines, plus one word so the file's own
+restatement sixty lines down stops contradicting it.
+
+**What went.** 1,502 lines to 198. Eighty-seven rules in eighteen days,
+inherited by reference by four live programs each told to read it in
+full before every dispatch. The four `plan.md` §The register sections
+and four `program.md` pointers now name
+`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md` instead, which is where a lane's
+standing obligations were supposed to be all along.
+
+**`the-lane-register-has-no-home-after-views-directory-goes` closes
+without being answered.** It asked where the register should live after
+VIEW's directory goes; it lives nowhere, and VIEW's exit walk loses a
+precondition rather than gaining a step.
+
+**The argument for the ruling, in one line:** three of the last day's
+failures were covered by text that is read at the start of every
+session and was not applied. The register was not preventing those. It
+was recording them, at about five rules a day.
+
+Recoverable at `66d7357417`. One row filed —
+`work/vdoc/register-citations-in-item-files-point-at-deleted-text` —
+for the ten item files that cite a rule of it by a path that still
+resolves to a different file.

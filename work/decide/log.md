@@ -204,3 +204,33 @@ each shown to red under a planted sixth kind; no behaviour changes.
 **Triaged OUT of protocol v7, mechanical tier**: OPUS implementer,
 green CI and the orchestrator's read, no review lane, no draw, no row.
 Spec `docs/DECIDE-2-SPEC.md`; branch `decide/2-discharge-pins`.
+
+## DECIDE-2 merged (2026-09-21): one pin per seam — and DECIDE-1's merge, recorded
+
+DECIDE-1 merged at `dc224d2f5` (#3001; its own entry above carries the
+review line, the five deviations and the costs; the fix leg cost a
+further ≈428k tokens / ≈2.75 h on the same agent, two `DOC-LEDGER`
+tail conflicts with main resolved on the way). DECIDE-2 merged at
+`ced1eb040` (#3011, head `f08190e8b`, run 35605501274 green): three
+pins in `outcome_vocabulary.rs`'s shape — `sym::discharge_pins`
+(`Discharge` ↔ `SymCounts`, `Discharge` ↔ `ShapeOutcome`, library rows
+because `Discharge` is private) and `k_stats_doors`'s
+`every_discharge_kind_retags_its_sample_with_a_token_of_its_own`
+(`Discharge` ↔ `SampleOutcome`, an integration row reading a new
+`probe`-only door `sym::discharge_sample_outcomes`, because a
+`probe`-gated library `#[test]` is compiled by CI and run by nothing —
+filed on GUARD as
+`feature-gated-lib-unit-tests-are-compiled-and-never-run`). The lane's
+correction to the item's premise, kept: every `match` on `Discharge`
+is exhaustive already, so what compiles-and-passes is an arm folding a
+sixth kind into an EXISTING column, row or token; the rows assert
+INJECTIVITY, not totality, and each red under the planted sixth kind
+(`46e984c82`, reverted). The retag site's mapping is factored into
+`Discharge::sample_outcome()` so the pin reads the production
+projection. Mechanical tier: merged on green and the orchestrator's
+read of the diff and the plant table; no review lane, no row.
+Implementer ≈204k tokens / ≈53 min. The spec is deleted with its
+ledger entry; the item and the unit are closed. The slate drops 6
+points (17.5 remain); what is left waits on Ev (SYM-10, #2970), on
+SYM-10 (SYM-9, `rule-d-reaches-the-unit-bulge-only`), on BLEND
+(`declared-tangency`) or on a document (`revolve-carriers`, E6).
