@@ -1449,5 +1449,102 @@ my note claimed. Retracted in place. LANE-1 had filed the instance
 correctly — citing the closed class without reopening it — and that
 row is now closed as repaired. The repair was right; the argument
 around it was re-litigating a settled decision.
+## 2026-09-21 — CHROME-ONE-NUMBER landed (PR 3022); wave 1 complete
+
+`bounds.rs`, `scene.rs`, `app.rs` and `tests/display_budget.rs`: the
+panel's divide has one home and three constants a suite copied have
+theirs. Rows closed: `bounds-reading-respells-the-panels-one-divide`
+and `display-budget-rows-restate-three-private-constants`.
+
+**The lane overturned half my adjudication, with measurement, and it
+was right.** The review found that `display_budget.rs`'s rung bound
+now read `PROBE_FACTOR` from the code it tests — agree-by-construction
+about the probe placement, the mirror of the argument the same lane
+used correctly to leave `reads_back_as_a_delta` alone. I recommended
+restating `8.0` deliberately. The lane instead put `PROBE_FACTOR`
+**back to private** and exposed the derived contract,
+`scene::placed_rung_cost() = TRIANGLE_BUDGET / PROBE_FACTOR`. That is
+`Camera::pitch_limit`'s precedent exactly — `pitch_limit` exposes
+`FRAC_PI_2 - POLE_MARGIN` and hides `POLE_MARGIN`; this exposes the
+bound and hides the knob — so the review's objection to widening a
+library crate's public API for one in-repo suite disappears rather
+than being traded away. And it is not circular: the row compares the
+door against a rung's MEASURED count from a real body, where
+`reads_back_as_a_delta` would have derived both sides from one
+constant. Proved by mutation: dividing `fit_delta`'s placement by 8
+reds with *"a single rung tessellated 234516 triangles, past the
+125000 a rung is placed at"*.
+
+**It also declined to derive `OVER_BUDGET_DELTA`, and the reason is
+better than the fix I asked for.** I read it as a live instance of the
+unit's own blind spot — a literal that is an arithmetic consequence of
+a constant, three lines from the import that closes it. It is not: it
+is a threshold the ROW chooses. Deriving it as `INITIAL_DELTA / 10.0`
+would break the row the moment the starting δ coarsened, because a
+decade under a coarser start is a δ the same file records as INSIDE
+the budget. The doc now says chosen-not-derived, and the class was
+swept with seven hits disposed one line each.
+
+**A claimed sweep that could not have produced its own hit list.** The
+committed description said every numeric `const` in `src` was matched
+against numerically equal literals in `tests` — which would have
+returned 55 hits in the file it edited, plus six more elsewhere, not
+the one it reported. The real filter (a third stage keying on a
+name-match or a comment within seven lines) was in the lane's report
+to me and not in the row. §5 is exactly this: a sweep whose blind spot
+is unstated is an unverified claim. The row now states all three
+stages and names stage 3 as itself a blind spot — a copy with neither
+a matching name nor a nearby comment is invisible to it.
+
+**The `ANSWERS` table, 56 restatements of the starting δ in the file
+this unit edited, is the argued opposite and is now recorded as one.**
+It is a golden, and it is precisely what reddens under the
+`INITIAL_DELTA` mutation. A census that leaves the largest population
+of its own shape unmentioned reads as a guarantee.
+
+**`MM_PER_METRE`'s doc adjudicated as doc rot, by ruling out the other
+reading rather than assuming.** Reviewer-style-lane Q4 asks which of
+two a stale sentence is. The lane checked: the sentence is accurate
+about the two sites it names, and setting `MM_PER_METRE` to `1.0e6`
+reds four rows — so divergence IS caught and this is not a latent
+defect wearing a documentation costume. What is missing is a HOME for
+the inverse factor, not a guard. The four production sites that spell
+it went as evidence to VGEOM's existing row.
+
+**A duplicate row deleted rather than filed.** The camera-readout
+finding was already a section on
+`work/vgeom/renders-that-multiply-a-finite-guarded-length-spell-the-product-inf`,
+attributed to the same AUTH-2 sweep the bounds row cites. §6 says add
+evidence to the existing row; the lane's evidence went there and its
+own file was removed.
+
+**Rows filed**:
+`work/vdoc/the-starting-delta-has-one-home-and-five-prose-spellings`
+(P2 — five prose spellings of `0.1 mm` that a mutation leaves silently
+wrong while two tests red; it asks for a DECISION, since a doc-comment
+number cannot be derived) and
+`a-flat-rung-row-uses-an-absolute-epsilon-on-a-scaled-value` (P3 — an
+`f64::EPSILON` admitting ~2000 neighbours at magnitude 8e-4).
+
+**Merge note.** This branch conflicted with `main` in `scene.rs` after
+PR 3018 landed: `main` had added `use crate::narrowing::Narrow;` while
+this branch narrowed the `MM_PER_METRE` doc sentence on the adjacent
+line. Resolved as a union — both kept, nothing chosen between — and
+the merged tree re-checked with clippy before pushing rather than the
+diff alone.
+
+**And this entry's own merge was the defect this session repaired in
+another program's log**: two CHROME log entries appended on two
+branches, conflicting in `work/chrome/log.md`, resolved the same way
+and for the same reason — a log is append-only narrative, neither side
+deleted anything, so it is a union. Reordered to chronological, since
+PR 3021 merged before PR 3022. Worth one line because the class showed
+up twice in one afternoon, in two programs, which is the population
+Ev's closed ruling already priced as rare-and-self-limiting: found on
+sight, repaired in the same breath, nothing built on it meanwhile.
+
+Wave 1 is complete: three units, five rows closed, seven rows filed
+across four programs. What the wave evidences about this program's
+review posture is in `work/chrome/plan.md`, stated once.
 
 Signed (CHROME orchestrator).

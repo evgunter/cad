@@ -39,14 +39,27 @@ use pncad::topo::Body;
 
 use crate::narrowing::Narrow;
 
-/// Millimetres per world unit — the one factor the δ render and the δ
-/// door both read.
+/// Millimetres per world unit, as the δ render and the δ door form it.
 ///
-/// **Spelled once because the two have to agree.**
+/// **Spelled once because those two have to agree.**
 /// [`DisplayTolerance::new`] refuses a δ whose millimetre value is not
 /// an `f64` and [`DisplayTolerance::render_mm`] forms that value; a
 /// second literal at either site would be a bound on one number
 /// guarding a conversion by another.
+///
+/// **It is not every metre-to-millimetre factor in the crate, and the
+/// inverse is not held here at all.** A field that parses millimetres
+/// commits `mm * 1.0e-3` and spells that itself, at four production
+/// sites ([`crate::pane::view`]'s δ request and its
+/// `DisplayTolerance::new` beside it, `pane::viewport`'s, and
+/// `widgets`' `frame_of`); the panel fields convert through
+/// [`crate::props::in_written`] and the unit table instead. What ties
+/// the commit factor to this one is that the two are inverses —
+/// which is the coincidence [`DisplayTolerance::new`]'s bound is
+/// argued from, and which `display_budget.rs`'s
+/// `the_door_refuses_a_delta_whose_millimetre_value_is_not_one`
+/// measures against its own literals rather than this constant, so a
+/// change here that the commit sites did not follow reds there.
 pub const MM_PER_METRE: f64 = 1.0e3;
 
 /// The chordal display tolerance δ: how far the drawn triangles may
@@ -960,6 +973,28 @@ pub const TRIANGLE_BUDGET: usize = 1_000_000;
 /// replaced that).
 const PROBE_FACTOR: f64 = 8.0;
 
+/// The cost a rung is placed at: `TRIANGLE_BUDGET / PROBE_FACTOR`
+/// triangles, the predicted cost of the rung [`fit_delta`] descends
+/// to.
+///
+/// Public because it is the *contract*, and [`PROBE_FACTOR`] is the
+/// ingredient it is derived from — a row wants the bound a rung is
+/// placed at, not the factor that bound is computed with, the way
+/// [`crate::camera::Camera::pitch_limit`] exposes an elevation limit
+/// and not the pole margin under it.
+///
+/// **Reading this does not make a row about placement true by
+/// construction**: what a row compares against it is a rung's MEASURED
+/// triangle count, tessellated from a real body, and a ladder that
+/// placed its probe somewhere else would exceed this bound and say so.
+/// The circular case is a row that would derive both sides of its
+/// comparison from the same number.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn placed_rung_cost() -> f64 {
+    TRIANGLE_BUDGET as f64 / PROBE_FACTOR
+}
+
 /// The δ the scale probe runs at: coarser than any body this viewer
 /// opens, so nothing subdivides and the tessellation is the body's
 /// FLOOR — the cheapest one it has at any δ, and the one whose points
@@ -970,7 +1005,24 @@ const PROBE_FACTOR: f64 = 8.0;
 /// (the count is non-increasing in δ); all that is lost is the
 /// floor's tightness, and the ladder in [`fit_delta`] walks down from
 /// wherever it starts.
-const SCALE_PROBE_DELTA: f64 = 1.0e9;
+///
+/// Public for the same reason as [`PROBE_FACTOR`]: it is the δ a row
+/// about the ladder's first rung has to run at, and a literal copy of
+/// it in a suite goes stale without the build noticing.
+pub const SCALE_PROBE_DELTA: f64 = 1.0e9;
+
+/// The display tolerance a session opens on: 0.1 mm, fine enough that
+/// a 24 mm hole reads as a circle and coarse enough to redraw
+/// instantly.
+///
+/// It lives beside the δ vocabulary rather than in the application
+/// that starts at it, because the application module is `cfg`-gated
+/// behind the `app` feature and this number is not: what a document
+/// COSTS at the opening δ is a fact about [`fit_delta`] and the
+/// budget, asserted by builds that link no toolkit. A copy of it on
+/// the far side of that gate would be a hand-synced constant whose
+/// drift the build cannot see.
+pub const INITIAL_DELTA: f64 = 1.0e-4;
 
 /// What [`fit_delta`] decided, and why — a value, so the chrome can
 /// say it and a row can assert it.
