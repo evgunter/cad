@@ -2,11 +2,13 @@
 id: add-profile-mints-no-frame
 kind: issue
 title: The add-profile form cannot mint the frame it needs, and names the ones it finds by node number
-status: dispatched
+status: closed
 opened: 2026-09-03
 refs: [1829]
 priority: P0
 cost: D
+closed: 2026-09-21
+pr: 3023
 ---
 
 ## What
@@ -164,3 +166,51 @@ Dispatched as **AUTH-3** (`docs/AUTH-3-SPEC.md`, branch
 `author/profile-frame`), both halves in one unit because both live in
 `add_profile_ui`'s ComboBox and splitting them would put two lanes in
 the same widget.
+
+## Closed 2026-09-21 — PR 3023 merged (`58fe4023`)
+
+**Both halves.** The add-profile form offers "a new xy frame" first
+and unconditionally, minting the frame and the profile as ONE
+committed action and one undo, so the dead end this row was filed
+against — *"none in this document — add a frame datum first"* — is
+unreachable from the form. And a frame says which frame it is:
+`feature 3 — xy at (0, 0, 0) m` in the picker, `Datum frame — xy at
+(0, 0, 0) m` in the tree.
+
+**The design calls the spec left open, and how they went.**
+`ProfilePlane::{Existing, NewXy}` as an enum on `AddProfile`'s plane
+rather than a second op — two ops would be two commits and two undos,
+and a distinct op would re-declare the loops and the insert-door
+contract and answer three exhaustive matches twice. The label reads
+the NODE and never an evaluation, because `tree::rows` draws a row for
+every node including the unevaluated and the failed, so an
+evaluation-sourced pose goes blank on exactly the rows a person is
+diagnosing. When the node cannot say, the label says LESS rather than
+guessing: `xy, origin driven` for a non-literal component, the bare
+origin for axes that are not the world's, `on feature 4's face` for a
+face frame — which says whose and cannot say which.
+
+**Site 3 of the label defect is NOT closed** and is filed as
+`face-pick-cannot-name-which-face`. The spec asserted that fixing
+`Display for BlendTarget` would move the face-pick site with the blend
+sites; the lane falsified it. True of the node half, false of the face
+half, and the face half is the whole defect — `BlendTarget` is
+deliberately a body scope, and a face's identity is its role path,
+which `RoleSeg` has no `Display` for and whose comment rules that
+prose never renders it. Both outside AUTHOR's ground.
+
+**What the reviews caught that the unit had not.** The feature-tree
+half's label composition was held by nothing — deleting it reddened no
+test in 674 — in the unit whose brief warned that a unit-tested helper
+is not a wired one; it now has a `pane::headless` drive and four rows.
+The create-pane suite never opened the combo, so "the mint goes first
+and unconditionally" was unasserted; a mutation making the mint appear
+only in empty documents passed all four rows. And two `NewXy` submits
+minted two coincident frames, which needed `OpOutcome` to carry
+`minted` so the pick settles onto the frame the first submit made —
+not the doc fix it was first taken for.
+
+**Residue**: `chrome-calls-one-node-two-names` (the chrome says
+`feature N` in widgets and `node N` in refusals, including in two
+widgets), `held-face-pick-is-invisible-in-the-viewport`, and rows on
+VIEW, CHROME and CIW.
