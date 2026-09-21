@@ -7830,3 +7830,8 @@ when the block's last slot's reviews conclude.
 Block SYM-B3 slot record (branch-side, appended as each slot concludes):
 
 slot 0 = SYM-11 implementer dispatch (2026-09-21, ~14:30Z): arm OPUS per the draw above (byte 178); `docs/SYM-11-SPEC.md` (H / STRUCTURAL, pre-draw); brief `/home/user/sym-briefs/unit-11-brief.md` (lane-local; the spec is the binding text), sha256 ca22c4f4fa42d5ac… (full digest in the brief file's sidecar `unit-11-brief.sha`). Review ordinal claimed on main at the dual's dispatch (SYM's band 4700–4799, next 4705).
+
+slot 0 = SYM-11 review dispatch (2026-09-21, ~17:35Z): PR #3028 open, frozen head `df23fca26fa3ff00a9bec5b9ae75bf1b635b5606`, run 35627074636 GREEN on the full matrix (twelve `test (…)`, five `k-lint (gate, …)`); ordinal 4705 claimed on main (the orchestrator's tracker PR); R1/R2 byte 69 ⇒ parity 1 ⇒ R1 = FABLE, R2 = OPUS; briefs stored here before dispatch —
+361d4e41d6232f6bb61123924afc500ac255f297d42bb0dcfd2d2c0f2757672e  sym-11-review-brief-r1.md
+34bad24d0657e57a6b5aaddbf180b080fba85078f56e9a1df46137f28169da1b  sym-11-review-brief-r2.md
+Method note for THIS slot: the box is the cloud session's 4-core / ~15 GB machine; both arms are dispatched together on private targets seeded before dispatch (`geom-core` at `interval` and `probe`, `sweep` at `interval`; `editor-core`'s interval binary not seeded — its rows ride the hosted gate), concurrent with DECIDE-3's implementer lane — applied to both arms equally. The implementer arm is OPUS (block draw byte 178); the implementer's one intermediate red (the probe census's executed floor) was fixed on the branch before the freeze.
