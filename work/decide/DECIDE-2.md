@@ -2,12 +2,13 @@
 id: DECIDE-2
 kind: unit
 title: one pin per seam: the discharge vocabulary's five spellings held together
-status: dispatched
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: E
 branch: decide/2-discharge-pins
 refs: [registered-is-spelled-five-times-and-pinned-once]
+closed: 2026-09-21
 ---
 
 ## What
