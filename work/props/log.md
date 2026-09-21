@@ -1864,3 +1864,65 @@ defect `1e-9 * x.abs().max(1.0)` FLOORED it and rendered every
 sub-nanometre margin as `0`.
 
 Signed (DOOR orchestrator).
+
+**Curved-residues built, and its dual half-ran (2026-09-20).** PR #2924
+at `3f918e808`, run 35550288011 green on the full matrix. All three
+residues served. Its ruling on the red row I handed it was right and
+well-argued: the door's escalation is CORRECT and the row's `Ok(())`
+was what became wrong — margin `−1.3163737899724026e-9` is the
+axial-sine reading of `R·Δv = 1.5e-9` shrunk by `cos v̄`, the two
+extremes are 1.3 nm apart at a 1 nm zero band, and escalate-never-guess
+is ratified. It re-baselined with the reason rather than widening a
+meshing gate, which is what the spec asked for.
+
+**The fable arm is out of credits.** Ordinal 2408 drew R1 = FABLE, and
+R1 died on its first request — not the session limit but account-level
+`You've reached your Fable limit`. R2 (opus) ran to completion. I have
+NOT substituted opus for the fable arm: that would quietly convert a
+cross-model dual into two same-model reviews, which is the one thing the
+row exists to measure. Recorded as an amendment under the claim rather
+than an edit to it, and put to Ev, whose call the credits are.
+
+**R2's MAJOR is a live defect on main, and it is my premise failing a
+third time.** `require_rim_only_closed` — the guard the sphere unit
+added to close its OWN major — decides a span **SUM**, not a **cover**.
+`du_of_rims` sums a group's arc spans, so any multiset of same-level,
+same-direction arcs summing to a turn passes: the same HALF rim stated
+twice answers the whole cap's area on half a circle. The four shapes the
+unit red-firsts are instances of the non-covering class, not the class.
+
+The guard has two callers, and the sphere's is **on main today**, so a
+rim-only sphere cap built that way is measured as a full cap right now.
+I verified the guard body and both call sites against `origin/main`
+before dispatching anything.
+
+The lineage is worth stating because it is three failures of one
+premise, and the first was mine: the sphere SPEC asserted that
+`du_of_rims` already sums a full rim to `2π` instead of requiring a
+decide; the unit inherited the assertion and shipped a MAJOR; the fix
+added a guard that checks the SUM, which is the same premise one level
+down. Filed as `closure-guard-decides-a-sum-not-a-cover` and handed to
+the fix pass with the instruction not to patch it a fourth time at the
+same depth — the guard must decide that the arcs TILE the circle, every
+comparison through the funnel under its own name, with a red-first row
+at BOTH call sites and the property generated rather than enumerated.
+If the cover check needs interval machinery past a fix pass, the lane
+stops and it becomes its own unit.
+
+Also adopted from R2: a falsified sentence the unit's four-sentence
+sweep missed, in `topo/src/coherence.rs` — the file that cites the very
+row the unit moved; the door's new refusal is not band-continuous with
+its own charter (a cylinder wall passes at `Δv = 0`, refuses at 1.5e-9
+and 5e-9, passes again at 1e-7) and the 40-pair corpus was structurally
+incapable of seeing it; a gate that reads a side off an extent it never
+checks closes; and the deleted sphere row's prose landing on an
+unrelated test's doc comment.
+
+Confirmed clean and not to be re-litigated: the transposed premise
+holds (`rim_interior_side` is a fixed involution of `d_u_sign`), the
+MESH-12 arithmetic and its audit citation, the manufactured-escalation
+removal under an independent widened sweep, and the `work/tess/`
+coverage-loss filing. R2 also re-derived the cone's closed form on
+general cones — α ∈ {0.05, π/6, 1.4}, both nappes, both traversals,
+off-origin apex — and found the code right where the committed fixtures
+could not have caught a sin/cos swap.
