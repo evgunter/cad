@@ -58,6 +58,7 @@ use pncad::geom_core::Point3;
 use pncad::prelude::{NameOrigin, attribute};
 
 use crate::display::DisplayView;
+use crate::narrowing::Narrow;
 use crate::pickindex::{EdgeId, IdMap, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
 use crate::vocab::vocabulary;
@@ -130,8 +131,12 @@ pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovere
 /// neither is asserted here.
 ///
 /// The buffers are `f32` because that is what a GPU consumes and this
-/// is the display seam — the same cast, at the same boundary, that
-/// [`crate::scene::SceneMesh`] makes.
+/// is the display seam. **The narrowing itself is not spelled here**
+/// — [`crate::narrowing::Narrow`] is the one door every lane crosses,
+/// so this doc no longer holds sites in correspondence by naming
+/// them, which is a job a sentence cannot keep: the one it replaced
+/// said *the same cast that `SceneMesh` makes* and there were three
+/// such casts, not two.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct EdgeOverlay {
     /// The selected edge's segments, two positions per segment.
@@ -375,11 +380,22 @@ pub fn edge_id_segments(index: &PickIndex, display: &DisplayView, id: EdgeId) ->
 }
 
 /// A polyline as the line-list pairs a GPU draws.
+///
+/// **A leg with an end the display seam refuses is not drawn**, and
+/// the rest of the polyline is. An overlay lane is a list of
+/// independent pairs, so a leg the GPU cannot hold is the one thing
+/// here that has an answer short of refusing the mark: what
+/// [`crate::narrowing::Narrow`] declines is a coordinate past
+/// `f32::MAX`, where the leg's two ends are not places on the screen
+/// in the first place, and the alternative is a pair of infinities
+/// the rasterizer smears across the pane. The lane's emptiness
+/// already carries "this is not in the picture"
+/// ([`edge_id_segments`]).
 fn segments_of(polyline: &[Point3<f64>]) -> Vec<[f32; 3]> {
-    let corner = |point: &Point3<f64>| [point.x as f32, point.y as f32, point.z as f32];
     polyline
         .windows(2)
-        .flat_map(|pair| [corner(&pair[0]), corner(&pair[1])])
+        .filter_map(|pair| Some([pair[0].narrow()?, pair[1].narrow()?]))
+        .flatten()
         .collect()
 }
 

@@ -1116,8 +1116,7 @@ pub struct PcurveCertificate<T: Real> {
 }
 
 /// **Which scalars can derive which certificate** — the static lane
-/// splits, in the `topo::props::PropsQuadLane` shape (M5 PR 11's
-/// ratified pattern; `topo/src/props.rs`).
+/// split (M5 PR 11's ratified pattern).
 ///
 /// What it carries is the **fitted-pcurve derivations**
 /// ([`Self::fitted_certificate`], [`Self::general_image`],
@@ -1145,8 +1144,8 @@ pub struct PcurveCertificate<T: Real> {
 /// have no fit to offer.
 ///
 /// The trait is also what keeps `Bounds` out of `topo`'s signatures:
-/// consumers write `T: PcurveFittedLane` and get the lane, exactly as
-/// they write `T: PropsQuadLane` for the quadrature one.
+/// consumers write `T: PcurveFittedLane` and get the lane; the
+/// quadrature lane travels as a value instead (`topo::QuadLane`).
 pub trait PcurveFittedLane: Decide {
     /// The full C2 certificate of a fitted chart image against its
     /// operand pair, or `None` when this scalar has no certified lane.
