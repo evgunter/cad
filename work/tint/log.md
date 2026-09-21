@@ -1236,3 +1236,32 @@ Nothing else in your trees is touched, and the five new enforcement rows
 are the first pins those five types have ever had.
 
 Signed (FIX orchestrator).
+
+## Announced seam from DOOR (2026-09-21) — PR 2986, one case ADDED
+
+**`crates/editor-core/tests/asm2a_instantiate.rs`** gains one test and
+loses nothing. DOOR's `part-fault-partproduct-degrades-the-product-refusal`
+typed `PartFault::PartProduct` (it carried a `String` where a
+`ProductErrorKind` now sits beside it), and **nothing in the tree
+constructed or asserted that arm** — not in `editor-core`, `pncad`,
+`pncad-py`, `viewer` or the demos. So the unit owed its own pin.
+
+`a_gather_refusal_crosses_as_its_class_beside_its_sentence` instantiates
+two part documents that refuse the gather for different reasons — one
+with no body-denoting root (`NoBodyRoots`), one whose only root is
+poisoned through a failed ancestor (`RootPoisoned`) — and asserts both
+arrive as `PartProduct` with **different** classes, that
+`means_no_body` answers differently for them, and that the gather's own
+sentence still travels beside the class. Mutation-checked: hard-coding
+the call site to one class reds the poisoned case, so it is a row a bug
+breaks rather than a compile-time restatement.
+
+**Why it is in your suite rather than the source file**: `parts.rs` has
+no `#[cfg(test)]` module, and the row needs the stub resolver and two
+instantiated part documents that already live here beside the sibling
+arms' pins. The lane named this as the call it was least sure of; the
+orchestrator agrees with it, on the line this wave already drew —
+**adding a case to another program's suite, announced, is ordinary;
+narrowing one is not a side effect a unit gets to have.**
+
+Signed (DOOR orchestrator).

@@ -2,10 +2,12 @@
 id: vgeom-plan-has-no-register-section-and-no-charter
 kind: issue
 title: work/vgeom/program.md points every lane at a plan.md section that does not exist, and the priority-seam cut took VGEOM's charter with it
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
 cost: E
+closed: 2026-09-21
+branch: claude/view-orchestrator-review-2lnz3t
 ---
 
 
@@ -84,3 +86,33 @@ be the same defect as the cut writing a fence nobody re-derived
 (`work/view/plan.md`, *a fence written in the same commit as the
 program it fences has no independent authority*). The §The register
 restoration is mechanical and could ride any VGEOM PR.
+
+
+## Closed (2026-09-21) — both sections restored, and the posture with them
+
+`work/vgeom/plan.md` carries §Charter and §The register again, and a
+third section the row did not ask about turned out to be the same
+defect: **§Review posture had been overwritten with the template for a
+newly opened program.**
+
+The 2026-09-20 cut applied the new-program shape to VGEOM, which is a
+parent of that cut rather than a child of it. `docs/MODEL-AB-LOG.md`'s
+own entry for the cut names which programs the v7 triage question is
+open for — EMIT, GATHER and FIT, the three it opened — in the same
+sentence that says *"WIRE and VGEOM are NOT closed and keep their bands
+3700-3799 and 5300-5399"*. The roster's 2026-09-17 clause is explicit
+the other way: *"All four inherit VIEW's posture verbatim … no duals
+and no row recorded … Each program's `plan.md` §Review posture states
+it."*
+
+So the corrected text asserts nothing new. It restores what the roster
+already records, quotes it, and says where the template came from.
+
+**The head line was stale the same way.** *"Nothing dispatched"* was
+true on 2026-09-20 and false by 2026-09-21, when #2967 closed two rows
+and #3000 four more. Re-pointed at the log's tail.
+
+The class is one the register now names: **a fence, a posture or a
+status written by a cut has no independent authority.** Nothing
+re-derives what a cut writes, and this one silently reopened a question
+Ev had answered twice.

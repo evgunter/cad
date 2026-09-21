@@ -822,6 +822,11 @@ use crate::tolerance::Tol;
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
 mod algebra;
+/// The seam pins: the discharge vocabulary's spellings held against
+/// one another, one row per seam.
+#[cfg(test)]
+#[path = "sym/discharge_pins.rs"]
+mod discharge_pins;
 /// The normal form itself: the polynomial, the quotient of two of them,
 /// and the pure operations on a form.
 #[path = "sym/form.rs"]
@@ -2625,6 +2630,16 @@ fn door_form(sess: &mut Session, root: SymId) -> Arc<Form> {
 }
 
 /// How the symbolic tier discharged a decision.
+///
+/// **A sixth kind reds three pins**, and is not to be added without
+/// them: `sym::discharge_pins` holds this enum against
+/// [`SymCounts`]'s receipt columns and against
+/// [`report::ShapeOutcome`]'s report rows, and `k_stats_doors`'s
+/// `every_discharge_kind_retags_its_sample_with_a_token_of_its_own`
+/// holds it against [`crate::k_stats::SampleOutcome`]'s K tokens —
+/// whose own agreement with the lint that reads them is
+/// `k-lint`'s `tests/outcome_vocabulary.rs`, the fourth row a kind
+/// with a new token reaches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Discharge {
     /// An unconditional theorem: the form is the zero polynomial, no
@@ -2640,6 +2655,68 @@ enum Discharge {
     /// when it was registered, counted apart from both theorem kinds
     /// (`registered`).
     Registered,
+}
+
+#[cfg(any(test, feature = "probe"))]
+impl Discharge {
+    /// **Every discharge kind, once** — the roster the seam pins
+    /// enumerate instead of writing a `match` of their own.
+    ///
+    /// The `match` below answers nothing and exists to be EXHAUSTIVE:
+    /// a kind missing from the list beside it is a compile error here,
+    /// so a pin that iterates this roster iterates the whole
+    /// vocabulary rather than the part someone remembered.
+    fn all() -> [Self; 3] {
+        let all = [Self::Theorem, Self::SignGated, Self::Registered];
+        for kind in all {
+            match kind {
+                Self::Theorem | Self::SignGated | Self::Registered => {}
+            }
+        }
+        all
+    }
+}
+
+#[cfg(feature = "probe")]
+impl Discharge {
+    /// **The K sample token a decision this kind answered is retagged
+    /// with** — the projection [`Sym::sign_within`] applies at its
+    /// [`crate::k_stats::retag_at`], in ONE place, so the pin that
+    /// holds the seam reads the production mapping rather than a copy
+    /// of it.
+    fn sample_outcome(self) -> crate::k_stats::SampleOutcome {
+        match self {
+            Self::Theorem => crate::k_stats::SampleOutcome::SymbolicZero,
+            Self::SignGated => crate::k_stats::SampleOutcome::SignGated,
+            Self::Registered => crate::k_stats::SampleOutcome::Registered,
+        }
+    }
+}
+
+/// **Every discharge kind with the K token it retags its sample
+/// with**, in roster order — the seam
+/// [`Discharge::sample_outcome`] crosses, published so that the pin
+/// holding it can be an INTEGRATION suite.
+///
+/// It has to be one: [`Discharge`] is private to this module, and a
+/// `probe`-gated `#[test]` inside the library is COMPILED by CI and
+/// run by nothing — the sweep that runs the probe suites invokes
+/// `--test all` (`scripts/k_probe_sweep.sh`), so a lib row under this
+/// feature would report the same green whether it passed or never
+/// executed. The pin is
+/// `every_discharge_kind_retags_its_sample_with_a_token_of_its_own`,
+/// in `geom-core`'s `k_stats_doors` suite.
+///
+/// A test-support door and not a widening of the shipped surface:
+/// `probe` is the K-telemetry feature, off in every build that ships
+/// (see its entry in this crate's `Cargo.toml`).
+#[cfg(feature = "probe")]
+#[must_use]
+pub fn discharge_sample_outcomes() -> Vec<(String, crate::k_stats::SampleOutcome)> {
+    Discharge::all()
+        .into_iter()
+        .map(|kind| (format!("{kind:?}"), kind.sample_outcome()))
+        .collect()
 }
 
 /// **The identity test**: is this node's expression identically zero in
@@ -3355,14 +3432,7 @@ impl<T: Decide> Decide for Sym<T> {
         count_decision(symbolic);
         if let Some(how) = symbolic {
             #[cfg(feature = "probe")]
-            crate::k_stats::retag_at(
-                mark,
-                match how {
-                    Discharge::Theorem => crate::k_stats::SampleOutcome::SymbolicZero,
-                    Discharge::SignGated => crate::k_stats::SampleOutcome::SignGated,
-                    Discharge::Registered => crate::k_stats::SampleOutcome::Registered,
-                },
-            );
+            crate::k_stats::retag_at(mark, how.sample_outcome());
             report::record(&numeric, Some(how), None, self.value.enclosure_probe());
             return Ok(Sign::Zero);
         }

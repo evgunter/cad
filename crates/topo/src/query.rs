@@ -1323,7 +1323,7 @@ mod tests {
     /// writes the honest new total in the one arm the compiler pointed
     /// at leaves the other arms — and the assertion — reading the old
     /// one. Measured, and filed on
-    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// `work/census/all-census-idiom-forces-the-visit-not-the-update`
     /// with this macro offered as the instrument that closes it.
     ///
     /// The remaining ways to defeat this are edits that state something
