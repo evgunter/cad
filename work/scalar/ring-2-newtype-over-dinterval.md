@@ -2,9 +2,10 @@
 id: ring-2-newtype-over-dinterval
 kind: unit
 title: RING-2: RingInterval is a newtype over DInterval; poison is dec < Def; every certificate re-pinned with its cause
-status: dispatched
+status: review
 opened: 2026-09-21
 branch: scalar/ring-2
+pr: 3032
 ---
 
 ## What
