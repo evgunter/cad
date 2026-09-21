@@ -973,7 +973,7 @@ fn rule_patch(
         // the wrong way round, which rules NONE; `last == first` is a
         // region that is one lattice line exactly and rules it; wider
         // rules the lines between.
-        (all_finite([first, last]) && last >= first).then_some(capped_span(first, last))
+        (all_finite([first, last]) && last >= first).then(|| capped_span(first, last))
     };
     let (Some(along_u), Some(along_v)) = (span(u_lo, u_hi), span(v_lo, v_hi)) else {
         return;
