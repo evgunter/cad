@@ -247,7 +247,7 @@ use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 use crate::body::Body;
 use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
 use crate::boolean::{ContactRecords, ContainError, FaceContainment, SolidContainment, contfp};
-use crate::chart_region::ChartRegionError;
+use crate::chart_region::{ChartRegionError, RegionLane};
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
 };
@@ -605,17 +605,19 @@ impl Candidates {
 /// docs); returns every failure in deterministic sweep order. Assumes
 /// tiers 1–3-local already passed (the caller gates). Production
 /// entry: the realized strategy, no trace.
-pub(crate) fn census_and_certify<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+pub(crate) fn census_and_certify<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
+    region: Option<RegionLane<T>>,
 ) -> Vec<ValidationError> {
     census_with(
         body,
         contacts,
         band,
         tol,
+        region,
         CensusStrategy::Realized,
         None,
         None,
@@ -626,15 +628,25 @@ pub(crate) fn census_and_certify<T: Decide + Bounds + crate::chart_region::Chart
 /// sweep's examined and accepted pairs recorded. Reference surface
 /// (`sweep-testing`), exactly like [`crate::boolean::sweep_traces`].
 #[cfg(feature = "sweep-testing")]
-pub fn census_traces<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+pub fn census_traces<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
+    region: Option<RegionLane<T>>,
     strategy: CensusStrategy,
 ) -> (Vec<ValidationError>, CensusTrace) {
     let mut trace = CensusTrace::default();
-    let errors = census_with(body, contacts, band, tol, strategy, None, Some(&mut trace));
+    let errors = census_with(
+        body,
+        contacts,
+        band,
+        tol,
+        region,
+        strategy,
+        None,
+        Some(&mut trace),
+    );
     (errors, trace)
 }
 
@@ -642,11 +654,12 @@ pub fn census_traces<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
 /// examined against nothing: the degradation the differential suites'
 /// superset comparator must catch (`boolean::reduce`'s pin (iii)).
 #[cfg(feature = "sweep-testing")]
-pub fn census_traces_planted<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+pub fn census_traces_planted<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
+    region: Option<RegionLane<T>>,
     strategy: CensusStrategy,
     plant: crate::boolean::PlantedDegradation,
 ) -> (Vec<ValidationError>, CensusTrace) {
@@ -656,6 +669,7 @@ pub fn census_traces_planted<T: Decide + Bounds + crate::chart_region::ChartRegi
         contacts,
         band,
         tol,
+        region,
         strategy,
         Some(plant.face),
         Some(&mut trace),
@@ -666,11 +680,12 @@ pub fn census_traces_planted<T: Decide + Bounds + crate::chart_region::ChartRegi
 /// `tol` rides beside `band` for one consumer: the instance-containment
 /// arm's material test, whose at-infinity fold reads a closed-form
 /// volume through the props lane (`Tol` is never witnessed here).
-fn census_with<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+fn census_with<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
     tol: Tol,
+    region: Option<RegionLane<T>>,
     strategy: CensusStrategy,
     plant: Option<FaceKey>,
     mut trace: Option<&mut CensusTrace>,
@@ -718,13 +733,14 @@ fn census_with<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
         &geo,
         &declared,
         band,
+        region,
         &cands,
         trace.as_deref_mut(),
         &mut errors,
     );
-    sweep_conformal_patches(body, &geo, &declared, band, &mut errors);
+    sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
     sweep_cross_solid_backstop(body, &geo, &declared, band, tol, &cands, trace, &mut errors);
-    confirm_declarations(body, &geo, contacts, band, &mut errors);
+    confirm_declarations(body, &geo, contacts, band, region, &mut errors);
     errors
 }
 
@@ -942,11 +958,12 @@ fn pair_holds_edges<T: Decide>(
 /// geometry refusals, so a reader of the vector can tell *replay this
 /// at a certifying scalar* from *this pair's geometry is outside the
 /// lane* without knowing which arm swallowed what.
-fn pair_region_verified<T: Decide + crate::chart_region::ChartRegionLane>(
+fn pair_region_verified<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     band: Band,
+    region: Option<RegionLane<T>>,
 ) -> bool {
     let Ok(verdict) = crate::boolean::contact_pair_verdict(
         body,
@@ -960,7 +977,7 @@ fn pair_region_verified<T: Decide + crate::chart_region::ChartRegionLane>(
         return false;
     };
     matches!(
-        T::declared_overlap(body, fa, body, fb, verdict, band),
+        region.map(|lane| lane.declared_overlap(body, fa, body, fb, verdict, band)),
         Some(Ok(crate::chart_region::ChartOverlap::PositiveArea))
     )
 }
@@ -1721,11 +1738,12 @@ fn ef_overlap_lane<T: Decide>(
 /// Census pass 5: edge × edge — proper interior crossings (backable
 /// at the unified strength through [`ee_cross_backed`]) and collinear
 /// positive-length overlaps (D3-certified at both bounds).
-fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
+fn sweep_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
     errors: &mut Vec<ValidationError>,
@@ -1734,7 +1752,7 @@ fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
         for j in cands.trees.edges.later(i) {
             let eb = candidate(&geo.edges, j);
             let before = errors.len();
-            pair_edge_edge(body, geo, declared, band, ea, eb, errors);
+            pair_edge_edge(body, geo, declared, band, region, ea, eb, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ee.note(
                     (EntityId::Edge(ea.key), EntityId::Edge(eb.key)),
@@ -1746,11 +1764,12 @@ fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
 }
 
 /// One edge pair of pass 5.
-fn pair_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
+fn pair_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
     errors: &mut Vec<ValidationError>,
@@ -1767,7 +1786,9 @@ fn pair_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
         band,
         errors,
     ) {
-        Some(false) => ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, errors),
+        Some(false) => {
+            ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, region, errors);
+        }
         Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, errors),
         None => {}
     }
@@ -1891,7 +1912,7 @@ enum CrossingBacking {
 /// `EdgeFacePierce` takes NO rung at all (the MATE-4b staging: a
 /// transverse dive is interpenetration until C6's era, by name).
 #[allow(clippy::too_many_arguments)] // the rung's whole state, no less
-fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
+fn ee_cross_backed<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
@@ -1899,6 +1920,7 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
     eb: &EdgeGeo<T>,
     q: Point3<T>,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) -> CrossingBacking {
     // Pass 1: one collected outcome per unordered candidate pair.
@@ -1953,7 +1975,8 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
                 }
             };
         if side == CrossingSideVerdict::OppositeSides {
-            if pair_region_verified(body, fa, fb, band) || pair_region_verified(body, fb, fa, band)
+            if pair_region_verified(body, fa, fb, band, region)
+                || pair_region_verified(body, fb, fa, band, region)
             {
                 backed = true;
             }
@@ -1987,7 +2010,7 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
 /// ([`ee_cross_backed`]) or a hard finding, with the side verdict
 /// NAMED in the witness when a region-holding pair refused it.
 #[allow(clippy::too_many_arguments)] // the lane's whole state, no less
-fn ee_crossing_lane<T: Decide + crate::chart_region::ChartRegionLane>(
+fn ee_crossing_lane<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
@@ -1995,6 +2018,7 @@ fn ee_crossing_lane<T: Decide + crate::chart_region::ChartRegionLane>(
     eb: &EdgeGeo<T>,
     ncross: Vec3<T>,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     let d = eb.p0 - ea.p0;
@@ -2020,7 +2044,7 @@ fn ee_crossing_lane<T: Decide + crate::chart_region::ChartRegionLane>(
         return;
     }
     let q = ea.p0 + ea.dir * sa;
-    match ee_cross_backed(body, geo, declared, ea, eb, q, band, errors) {
+    match ee_cross_backed(body, geo, declared, ea, eb, q, band, region, errors) {
         CrossingBacking::Backed => {}
         CrossingBacking::Unanswered => {
             errors.push(ValidationError::UndeclaredContact {
@@ -2189,11 +2213,12 @@ fn ee_bound_backed<T: Decide>(
 /// refusal so the recourse can quote exactly what would verify —
 /// and, unbacked by a face-granularity record, refuses as
 /// `UndeclaredContact` (discovery is never declaration, F1).
-fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
+fn sweep_conformal_patches<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     use crate::geometry::SurfaceKey;
@@ -2214,13 +2239,13 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                 if da.sense == db.sense {
                     continue; // SameOriented: flush material, not contact (C1)
                 }
-                match T::chart_overlap(body, fa, body, fb, band) {
+                match region.map(|lane| lane.chart_overlap(body, fa, body, fb, band)) {
                     None => {
-                        // No CERTIFIED lane at this scalar (dual):
-                        // `ChartRegionLane` refuses, so the pair cannot
-                        // be decided here — typed, never silent. (Since
-                        // D1, 2026-08-19, a dual DOES carry a bracket;
-                        // the refusal is the lane's ruling, not a
+                        // The pass holds no CERTIFIED region door (the
+                        // `_structural` twin, a dual's only route), so
+                        // the pair cannot be decided here — typed,
+                        // never silent. (A dual DOES carry a bracket;
+                        // the refusal is the door's absence, not a
                         // missing `Bounds` impl.)
                         //
                         // Its own variant, and not the one the typed
@@ -3733,11 +3758,12 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
-fn confirm_declarations<T: Decide + crate::chart_region::ChartRegionLane>(
+fn confirm_declarations<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     contacts: &ContactRecords,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     for c in &contacts.vv {
@@ -3757,7 +3783,7 @@ fn confirm_declarations<T: Decide + crate::chart_region::ChartRegionLane>(
             Some(false) => errors.push(stale),
         }
     }
-    confirm_curve_and_patch_records(body, contacts, band, errors);
+    confirm_curve_and_patch_records(body, contacts, band, region, errors);
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
         let stale = ValidationError::StaleContactDeclaration {
             declaration: StaleDeclaration::VertexOnFace {
@@ -3817,10 +3843,11 @@ fn confirm_declarations<T: Decide + crate::chart_region::ChartRegionLane>(
 /// mate's declaration lands in the product body's `ContactRecords` —
 /// the boolean 3′ currency, same type, no adapter — and THIS is the
 /// at-rest evidence door those records certify through.
-fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionLane>(
+fn confirm_curve_and_patch_records<T: Decide>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     for c in &contacts.curves {
@@ -3953,8 +3980,10 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         // positive (the PR-1 predicate through the per-scalar lane),
         // the chart being either the structural one or the declared
         // pair's shared world carrier.
-        match T::declared_overlap(body, c.face_a, body, c.face_b, door_one, band) {
-            // The SCALAR has no certified region lane, exactly as at
+        match region
+            .map(|lane| lane.declared_overlap(body, c.face_a, body, c.face_b, door_one, band))
+        {
+            // The pass holds no certified region door, exactly as at
             // the sweep arm and split from the geometry refusals below
             // for the same reason: this absence is a fact about the
             // RUN, the same record is confirmed at every certifying
@@ -4160,7 +4189,13 @@ mod tests {
     #[test]
     fn the_conformal_arm_finds_an_undeclared_pair_and_carries_the_finding() {
         let (body, w1, w2) = conformal_pair();
-        let errors = census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness());
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         let hit = errors
             .iter()
             .find_map(|e| match e {
@@ -4247,17 +4282,23 @@ mod tests {
             let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
             let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-            census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness())
-                .into_iter()
-                .filter_map(|e| match e {
-                    ValidationError::CensusUndecidable {
-                        a: EntityId::Solid(a),
-                        b: EntityId::Solid(b),
-                        what,
-                    } => Some(format!("{a:?}~{b:?}: {what}")),
-                    _ => None,
-                })
-                .collect()
+            census_and_certify(
+                &body,
+                &ContactRecords::default(),
+                band(),
+                Tol::witness(),
+                Some(RegionLane::certified()),
+            )
+            .into_iter()
+            .filter_map(|e| match e {
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Solid(a),
+                    b: EntityId::Solid(b),
+                    what,
+                } => Some(format!("{a:?}~{b:?}: {what}")),
+                _ => None,
+            })
+            .collect()
         };
         let near = refusals(0.3, 0.7);
         assert!(
@@ -4335,7 +4376,13 @@ mod tests {
             p.z += 1.2;
         }
         crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
-        let errors = census_and_certify(&body, &ContactRecords::default(), band(), tol);
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            tol,
+            Some(RegionLane::certified()),
+        );
         let whats: Vec<&str> = errors
             .iter()
             .filter_map(|e| match e {
@@ -4368,7 +4415,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let errors = census_and_certify(&body, &records, band(), Tol::witness());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         let findings = face_findings(&errors);
         assert!(
             findings.is_empty(),
@@ -4387,12 +4440,179 @@ mod tests {
             face_a: w1,
             face_b: w3,
         });
-        let errors = census_and_certify(&body, &records, band(), Tol::witness());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             errors
                 .iter()
                 .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
             "overlap Empty ⇒ stale (C3's letter): {errors:?}"
+        );
+    }
+
+    // ================= The `None` path, observed =================
+
+    /// The sentence [`ValidationError::CensusLaneUnsupported`] renders
+    /// for `pair`, so the `None` rows below pin the `Display` and not
+    /// only the variant.
+    fn lane_unsupported_sentence(pair: (FaceKey, FaceKey)) -> String {
+        format!(
+            "tier-3′ census: this scalar has no certified chart-overlap lane, so the conformal \
+             face-pair arm could not examine the candidate {} — a fact about the RUN and not \
+             about the geometry, refused rather than skipped. Replay the body at f64, the \
+             telemetry probe or the interval scalar to get the candidate examined",
+            CensusSubject::FacePair(pair.0, pair.1)
+        )
+    }
+
+    /// The one [`ValidationError::CensusLaneUnsupported`] in `errors`,
+    /// with its subject and `Display` pinned to `pair`.
+    fn the_one_lane_refusal(errors: &[ValidationError], pair: (FaceKey, FaceKey)) {
+        let lane: Vec<&ValidationError> = errors
+            .iter()
+            .filter(|e| matches!(e, ValidationError::CensusLaneUnsupported { .. }))
+            .collect();
+        assert_eq!(
+            lane.len(),
+            1,
+            "exactly one lane refusal, for the one pair the arm could not examine: {errors:?}"
+        );
+        assert_eq!(
+            *lane[0],
+            ValidationError::CensusLaneUnsupported {
+                subject: CensusSubject::FacePair(pair.0, pair.1),
+            }
+        );
+        assert_eq!(lane[0].to_string(), lane_unsupported_sentence(pair));
+    }
+
+    /// **The `None` path at the conformal face-pair arm, observed.** The
+    /// same conformal pair the arm finds UNDECLARED with the region door
+    /// in hand is, with the pass holding `None`, exactly one
+    /// [`ValidationError::CensusLaneUnsupported`] naming the pair — the
+    /// typed refusal, never a silent skip, and never the undeclared
+    /// finding (nothing was examined).
+    #[test]
+    fn a_pass_holding_no_region_door_refuses_the_conformal_pair_typed() {
+        let (body, w1, w2) = conformal_pair();
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            None,
+        );
+        let findings = face_findings(&errors);
+        assert_eq!(
+            findings.len(),
+            1,
+            "the arm's whole verdict on the pair is the one refusal: {errors:?}"
+        );
+        the_one_lane_refusal(&errors, (w1, w2));
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            "nothing was examined, so nothing is found undeclared: {errors:?}"
+        );
+    }
+
+    /// **The `None` path at the confirm pass, observed, and the crossing
+    /// rung's `false` with it.** The straddle seat's declared pair (its
+    /// one patch record) certifies through both doors with the region
+    /// door in hand and backs the seat's two edge crossings; with the
+    /// pass holding `None` the record is exactly one
+    /// [`ValidationError::CensusLaneUnsupported`] naming the pair, and
+    /// the two crossings are the hard findings the undeclared seat has
+    /// — the backing consult folded to `false`, so the declaration
+    /// backs nothing, exactly as a scalar with no door would see it.
+    #[test]
+    fn a_pass_holding_no_region_door_refuses_the_declared_pair_typed_and_backs_no_crossing() {
+        let seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
+        let pair = (seat.post_top, seat.shelf_bottom);
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: pair.0,
+            face_b: pair.1,
+        });
+        let crossings = |errors: &[ValidationError]| -> Vec<String> {
+            errors
+                .iter()
+                .filter_map(|e| match e {
+                    ValidationError::UndeclaredContact {
+                        contact: contact @ CensusContact::EdgeEdgeCross { .. },
+                        witness,
+                    } => Some(format!("{contact:?} at {witness}")),
+                    _ => None,
+                })
+                .collect()
+        };
+
+        let with = census_and_certify(
+            &seat.body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
+        assert!(
+            with.is_empty(),
+            "the declared seat certifies and backs both crossings: {with:?}"
+        );
+
+        let bare = census_and_certify(
+            &seat.body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            None,
+        );
+        assert!(
+            !crossings(&bare).is_empty(),
+            "the undeclared seat's crossings are hard findings: {bare:?}"
+        );
+        assert!(
+            !bare
+                .iter()
+                .any(|e| matches!(e, ValidationError::CensusLaneUnsupported { .. })),
+            "no declaration, no consult, no lane refusal: {bare:?}"
+        );
+
+        let without = census_and_certify(&seat.body, &records, band(), Tol::witness(), None);
+        the_one_lane_refusal(&without, pair);
+        assert_eq!(
+            crossings(&without),
+            crossings(&bare),
+            "the declared pair backs nothing when the consult holds no door: {without:?}"
+        );
+    }
+
+    /// **The backing consult's fold, at the consult itself**: the
+    /// straddle seat's declared pair verifies with the region door in
+    /// hand (Door 1's rest verdict, Door 2's positive area) and answers
+    /// `false` without one — the silent half of the `None` path, whose
+    /// loud twin is the confirm pass's refusal in the row above.
+    #[test]
+    fn the_backing_consult_holding_no_region_door_answers_false() {
+        let seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
+        assert!(
+            pair_region_verified(
+                &seat.body,
+                seat.post_top,
+                seat.shelf_bottom,
+                band(),
+                Some(RegionLane::certified()),
+            ),
+            "the declared seat's pair verifies through both doors"
+        );
+        assert!(
+            !pair_region_verified(&seat.body, seat.post_top, seat.shelf_bottom, band(), None),
+            "no door, no verification"
         );
     }
 
@@ -4409,7 +4629,13 @@ mod tests {
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let arm = census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness());
+        let arm = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             arm.iter()
                 .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
@@ -4430,7 +4656,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let cert = census_and_certify(&body, &records, band(), Tol::witness());
+        let cert = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             cert.iter()
                 .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
@@ -4461,7 +4693,13 @@ mod tests {
         // no strut/vertex coincidences muddy the face-pair question.
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let arm = census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness());
+        let arm = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             arm.iter().any(|e| matches!(
                 e,
@@ -4477,7 +4715,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let cert = census_and_certify(&body, &records, band(), Tol::witness());
+        let cert = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         let findings = face_findings(&cert);
         assert!(
             findings.is_empty(),
@@ -4498,7 +4742,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let errors = census_and_certify(&body, &records, band(), Tol::witness());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             errors
                 .iter()
@@ -4507,8 +4757,13 @@ mod tests {
         );
         // And the ARM stays quiet on the aligned pair: SameOriented
         // is flush, not a conformal candidate.
-        let arm_only =
-            census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness());
+        let arm_only = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             !arm_only.iter().any(|e| matches!(
                 e,
@@ -4691,7 +4946,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let errors = census_and_certify(&body, &records, band(), Tol::witness());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         let findings = face_findings(&errors);
         assert!(
             findings.is_empty(),
@@ -4714,7 +4975,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let errors = census_and_certify(&body, &records, band(), Tol::witness());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             errors
                 .iter()
@@ -4778,11 +5045,16 @@ mod tests {
                 let b = crate::boolean::boxes::face_box(&body, f, 1e-9);
                 reaches.push(format!("face_box: {b:?}"));
             }
-            let errs =
-                census_and_certify(&body, &ContactRecords::default(), band(), Tol::witness())
-                    .into_iter()
-                    .map(|e| format!("{e:?}"))
-                    .collect();
+            let errs = census_and_certify(
+                &body,
+                &ContactRecords::default(),
+                band(),
+                Tol::witness(),
+                Some(RegionLane::certified()),
+            )
+            .into_iter()
+            .map(|e| format!("{e:?}"))
+            .collect();
             (reaches, errs)
         };
         let (near_reach, near) = run(0.3, 0.7);
@@ -5016,6 +5288,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         let (ideal_errors, ideal) = census_traces(
@@ -5023,6 +5296,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
         assert_eq!(rendered(&real_errors), rendered(&ideal_errors));
@@ -5054,6 +5328,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
         let &(_, EntityId::Face(face)) = ideal
@@ -5070,6 +5345,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
             plant,
         );
@@ -5091,6 +5367,7 @@ mod tests {
             &ContactRecords::default(),
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         assert!(!errors.is_empty(), "flush cubes have undeclared contacts");
@@ -5103,6 +5380,7 @@ mod tests {
             &ContactRecords::default(),
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         assert!(errors.is_empty(), "{errors:?}");
@@ -5202,6 +5480,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         let (ideal_errors, _) = census_traces(
@@ -5209,6 +5488,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
         assert_eq!(rendered(&real_errors), rendered(&ideal_errors));
@@ -5251,6 +5531,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         let (ideal_errors, ideal) = census_traces(
@@ -5258,6 +5539,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
         assert!(real_errors.is_empty(), "{real_errors:?}");
@@ -5303,6 +5585,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         let (ideal_errors, ideal) = census_traces(
@@ -5310,6 +5593,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
         assert!(real_errors.is_empty(), "{real_errors:?}");
@@ -5347,6 +5631,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         let (ideal_errors, ideal) = census_traces(
@@ -5354,6 +5639,7 @@ mod tests {
             &records,
             band(),
             Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
         let is_refusal = |e: &ValidationError| {

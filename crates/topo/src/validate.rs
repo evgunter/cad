@@ -5367,6 +5367,7 @@ pub fn validate_pseudomanifold_certificate<
         tol,
         Some(&geom_brep::plane_nurbs_limbs::<T>),
         Some(crate::props::QuadLane::certified()),
+        Some(crate::chart_region::RegionLane::certified()),
     )
 }
 
@@ -5391,11 +5392,16 @@ pub fn validate_pseudomanifold_certificate_structural<
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
 ) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
-    pseudomanifold_certificate_via(body, contacts, tol, None, None)
+    pseudomanifold_certificate_via(body, contacts, tol, None, None, None)
 }
 
-/// The tier-3′ pass with its two lanes as arguments — the shared body
-/// of the certified door and its `_structural` twin.
+/// The tier-3′ pass with its three lanes as arguments — the shared
+/// body of the certified door and its `_structural` twin. The region
+/// lane is the census's: `None` is the census's own typed refusal at
+/// its two chart-region arms
+/// ([`ValidationError::CensusLaneUnsupported`]) and a `false` at the
+/// crossing rung's backing consult — the `_structural` twin's path,
+/// and a [`Dual`](geom_core::Dual)'s only one.
 fn pseudomanifold_certificate_via<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
@@ -5404,6 +5410,7 @@ fn pseudomanifold_certificate_via<
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
+    region: Option<crate::chart_region::RegionLane<T>>,
 ) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = match Band::linear(tol) {
@@ -5430,7 +5437,9 @@ fn pseudomanifold_certificate_via<
     let (mut errors, certificate) =
         tier3_local_checks(body, &declarations, band, tol, nurbs_lane, quad_lane);
     if errors.is_empty() {
-        errors.extend(crate::census::census_and_certify(body, contacts, band, tol));
+        errors.extend(crate::census::census_and_certify(
+            body, contacts, band, tol, region,
+        ));
     }
     if errors.is_empty() {
         Ok(certificate_of_a_clean_verdict(certificate))

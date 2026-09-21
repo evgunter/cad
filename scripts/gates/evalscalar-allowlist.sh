@@ -9,8 +9,8 @@
 # bound — eleven supertraits at `editor-core/src/eval/mod.rs`, of which
 # `geom_core::Bounds` is the bracket door: `Decide + ContentBits +
 # geom_core::Bounds + Send + Sync + topo::AtRestPolicy` (whose own
-# supertraits are `Decide` and the two lane traits, `PcurveFittedLane`
-# and `ChartRegionLane` — it hands out no bracket door) `+
+# supertraits are `Decide` and the one lane trait, `PcurveFittedLane`
+# — it hands out no bracket door) `+
 # crate::analysis::AxisScalar + crate::analysis::SeedScalar +
 # crate::measure::MinClearanceLane + SectionScalar +
 # crate::verbs::shell::ShellLane` — declared once at

@@ -1190,13 +1190,15 @@ pub mod bounds_allowlist {
     //! `0.0`; the `props.rs` rectangle-trim read) plus the
     //! bit-identical-region fast path — so a sole-bound form is unsatisfiable.
     //!
-    //! **The door and the lane guard different things, and both are needed.**
+    //! **The door and the hook guard different things, and both are needed.**
     //! The door's bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds), which no `Dual`
     //! satisfies, so the predicate is uninstantiable at one however it is
-    //! reached — including from outside the crate, where the lane is never
-    //! consulted. `ChartRegionLane`'s refusing `Dual` impl is not redundant
-    //! with that: it is what lets the census, a MIXED pass, decline this one
-    //! arm and keep going, which no bound on a whole function can express.
+    //! reached — including from outside the crate, where no census is
+    //! running. The census's `Option<topo::RegionLane<T>>` parameter (one
+    //! constructor, at the door's bound; `None` from the `_structural` twin)
+    //! is not redundant with that: its `None` is what lets the census, a
+    //! MIXED pass, decline this one arm and keep going, which no bound on a
+    //! whole function can express.
     //! The tightening replaced an audit rather than a wrong answer, and
     //! **the discriminator is that nothing generic calls this door** — which
     //! is why `topo::separation`, whose caller is a mixed pass, was not
