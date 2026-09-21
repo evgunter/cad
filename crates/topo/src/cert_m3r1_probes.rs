@@ -74,7 +74,7 @@ fn m7_8_cube() -> (
     describe_as_intersections(&mut body, Tol::witness());
     let front = cube.mefs[1].face;
     // `mefs[1]` is the y = 0 wall by the bundle's ORDER, which is a
-    // property of `GeoCube` and not of anything the lengths pin: a
+    // property of `CubeOps` and not of anything the lengths pin: a
     // reordering that kept `[MefCreated; 5]` full would move this probe
     // onto another face and still pass everything below.
     {
@@ -89,7 +89,7 @@ fn m7_8_cube() -> (
                 && normal.y < -0.5
                 && normal.x.abs() < 1e-12
                 && normal.z.abs() < 1e-12,
-            "`GeoCube::mefs[1]` is the outward-−y wall this probe corrupts"
+            "`CubeOps::mefs[1]` is the outward-−y wall this probe corrupts"
         );
     }
     let wall = body

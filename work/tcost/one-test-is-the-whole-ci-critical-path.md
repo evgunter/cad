@@ -6,6 +6,8 @@ status: parked
 opened: 2026-09-12
 blocked_on: [m10-3-chamber-row-reads-ten-times-its-recorded-cost]
 refs: [nextest-shard-count-needs-remeasure]
+priority: P4
+cost: D
 ---
 
 Found by the shard-count re-measure

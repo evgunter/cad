@@ -220,6 +220,38 @@ pub(crate) fn target_kind_label(kind: TargetKind) -> &'static str {
     }
 }
 
+/// **Whether a path editor may change its program's SHAPE** — the
+/// verbs, their order and number, each arc's mode, side and winding,
+/// each target's form, a split circle's count — or only its numbers.
+///
+/// The add-profile form's editor is one editor with two doors. Opened
+/// on nothing it authors a new node and every control is live
+/// ([`ShapeEdits::Free`]). Opened on a committed profile it commits as
+/// slot writes, and the document's edit vocabulary writes a program's
+/// ARGUMENTS and has no door that rewrites its shape, so the controls
+/// that would are shown and not taken ([`ShapeEdits::Locked`], said
+/// once over the list as [`SHAPE_LOCKED`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ShapeEdits {
+    /// Every control is live.
+    Free,
+    /// The shape controls are drawn disabled.
+    Locked,
+}
+
+impl ShapeEdits {
+    /// Whether the shape controls take input.
+    pub(crate) fn free(self) -> bool {
+        self == Self::Free
+    }
+}
+
+/// What a locked editor says about its greyed controls, once, above
+/// the list.
+pub(crate) const SHAPE_LOCKED: &str = "the numbers are editable here; the shape (the steps, \
+     their verbs and order, arc modes, sides and targets) is not — the document has no edit that \
+     rewrites a committed profile's program";
+
 /// The fewest subdivisions the `circle_split` count field offers —
 /// the kernel's own floor (`profile::Step::CircleSplit`'s `n`, which
 /// refuses below two at replay).
@@ -231,6 +263,12 @@ pub(crate) const MIN_CIRCLE_SPLIT: usize = 2;
 /// the form's preview replays the loop every frame, and replaying it
 /// builds one vertex per subdivision. A thousand vertices is far past
 /// any subdivision a seam is aligned with and still cheap to redraw.
+///
+/// **It binds AUTHORING only.** A committed profile can hold a larger
+/// count (the document admits any), and the same field shows it when
+/// the editor is opened on that profile: the field is drawn with
+/// `clamp_existing_to_range(false)`, so the cap limits what a drag or
+/// a typed number can make and never rewrites a count it was handed.
 pub(crate) const MAX_CIRCLE_SPLIT: usize = 1024;
 
 /// One drag tick of a LENGTH field, in metres — half a millimetre.

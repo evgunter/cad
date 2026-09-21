@@ -139,6 +139,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
                 to: meridian.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("rebinding a selected edge onto a cavity meridian")
         .doc;
@@ -260,9 +261,14 @@ fn the_selection_survives_the_corpus_bump_and_names_stay_covariant() {
     let doc = die_composed::document();
     let (fillet, target) = fillet_and_target(&doc.doc);
     let before = eval(&doc.doc);
-    let bumped = apply(&doc.doc, &doc.bump, Tol::witness())
-        .expect("the corpus bump applies")
-        .doc;
+    let bumped = apply(
+        &doc.doc,
+        &doc.bump,
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the corpus bump applies")
+    .doc;
     let after = eval(&bumped);
 
     // The bump really recomputes the fillet's cone.
@@ -331,6 +337,7 @@ fn rebind_repairs_a_selection_and_can_never_grow_it() {
             to: to.clone(),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("rebinding one selected edge onto another")
     .doc;

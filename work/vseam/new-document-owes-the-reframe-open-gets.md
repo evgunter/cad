@@ -5,6 +5,8 @@ title: app.rs re-frames and drops the delta budget for Open only, though NewDocu
 refs: [session-clearing-walk-is-hand-maintained-three-times, 1885]
 status: open
 opened: 2026-09-05
+priority: P1
+cost: E
 ---
 
 

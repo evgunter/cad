@@ -28,7 +28,7 @@ use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, MAX_CIRCLE_SPLIT, MIN_CIRCLE_SPLIT,
-    UNIT_DRAG_SPEED, arc_mode_label, target_kind_label,
+    ShapeEdits, UNIT_DRAG_SPEED, arc_mode_label, target_kind_label,
 };
 use crate::props;
 use crate::readout;
@@ -445,18 +445,21 @@ pub(crate) fn target_fields(
     salt: &str,
     unit: UnitDef,
     admitted: Option<&Admitted<'_, TargetKind>>,
+    shape: ShapeEdits,
     target: &mut Target<f64>,
 ) {
     let mut kind = target.kind();
     let before = kind;
-    egui::ComboBox::from_id_salt(("path_target", salt))
-        .selected_text(target_kind_label(kind))
-        .width(152.0)
-        .show_ui(ui, |ui| {
-            for &option in TargetKind::ALL {
-                offer(ui, admitted, &mut kind, option, target_kind_label(option));
-            }
-        });
+    ui.add_enabled_ui(shape.free(), |ui| {
+        egui::ComboBox::from_id_salt(("path_target", salt))
+            .selected_text(target_kind_label(kind))
+            .width(152.0)
+            .show_ui(ui, |ui| {
+                for &option in TargetKind::ALL {
+                    offer(ui, admitted, &mut kind, option, target_kind_label(option));
+                }
+            });
+    });
     if kind != before {
         *target = sketch::fresh_target(kind);
     }
@@ -542,6 +545,11 @@ pub(crate) fn winding_picker(ui: &mut egui::Ui, salt: &str, winding: &mut ArcSwe
 /// but a `via` point is not a radius at all — so a carried number
 /// would sometimes be the right one and sometimes be a coincidence,
 /// and a form cannot tell which.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the row's context is seven independent facts: where, which arc, two notations, the \
+              tip, whether its shape may change, and the spec itself"
+)]
 pub(crate) fn arc_fields(
     ui: &mut egui::Ui,
     salt: &str,
@@ -549,6 +557,7 @@ pub(crate) fn arc_fields(
     length_unit: UnitDef,
     angle_unit: UnitDef,
     at: Option<(TipState, &SpecForms)>,
+    shape: ShapeEdits,
     spec: &mut ArcData<f64>,
 ) {
     // What to call this arc's own radius. A step can hold TWO arcs and
@@ -576,20 +585,22 @@ pub(crate) fn arc_fields(
     });
     let mut mode = spec.mode();
     let before = mode;
-    egui::ComboBox::from_id_salt(("arc_mode", salt))
-        .selected_text(arc_mode_label(mode))
-        .width(88.0)
-        .show_ui(ui, |ui| {
-            for &option in ArcMode::ALL {
-                offer(
-                    ui,
-                    modes.as_ref(),
-                    &mut mode,
-                    option,
-                    arc_mode_label(option),
-                );
-            }
-        });
+    ui.add_enabled_ui(shape.free(), |ui| {
+        egui::ComboBox::from_id_salt(("arc_mode", salt))
+            .selected_text(arc_mode_label(mode))
+            .width(88.0)
+            .show_ui(ui, |ui| {
+                for &option in ArcMode::ALL {
+                    offer(
+                        ui,
+                        modes.as_ref(),
+                        &mut mode,
+                        option,
+                        arc_mode_label(option),
+                    );
+                }
+            });
+    });
     if mode != before {
         *spec = match at {
             Some((_, forms)) => sketch::fresh_arc_in(mode, forms),
@@ -600,31 +611,31 @@ pub(crate) fn arc_fields(
     match spec {
         ArcData::Radius { r, side } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
-            side_picker(ui, salt, side);
+            ui.add_enabled_ui(shape.free(), |ui| side_picker(ui, salt, side));
         }
         ArcData::Bulge { target, b } => {
-            target_fields(ui, salt, length_unit, targets, target);
+            target_fields(ui, salt, length_unit, targets, shape, target);
             named_scalar(ui, "bulge", UNIT_DRAG_SPEED, b);
         }
         ArcData::Via { q, target } => {
             ui.label("via");
             point_fields(ui, length_unit, q);
-            target_fields(ui, salt, length_unit, targets, target);
+            target_fields(ui, salt, length_unit, targets, shape, target);
         }
         ArcData::Center { c, winding, target } => {
             ui.label("centre");
             point_fields(ui, length_unit, c);
-            winding_picker(ui, salt, winding);
-            target_fields(ui, salt, length_unit, targets, target);
+            ui.add_enabled_ui(shape.free(), |ui| winding_picker(ui, salt, winding));
+            target_fields(ui, salt, length_unit, targets, shape, target);
         }
         ArcData::Sweep { r, side, angle } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
-            side_picker(ui, salt, side);
+            ui.add_enabled_ui(shape.free(), |ui| side_picker(ui, salt, side));
             named_field(ui, "sweep", angle_unit, ANGLE_DRAG_SPEED, angle);
         }
         ArcData::ArcLen { r, side, len } => {
             named_field(ui, &radius, length_unit, FIELD_DRAG_SPEED, r);
-            side_picker(ui, salt, side);
+            ui.add_enabled_ui(shape.free(), |ui| side_picker(ui, salt, side));
             named_field(ui, "arc length", length_unit, FIELD_DRAG_SPEED, len);
         }
     }
@@ -653,6 +664,7 @@ pub(crate) fn path_step_fields(
     length_unit: UnitDef,
     angle_unit: UnitDef,
     state: Option<TipState>,
+    shape: ShapeEdits,
     step: &mut Step<f64>,
 ) {
     // The forms each of this step's arc specs takes at the tip, in the
@@ -687,17 +699,17 @@ pub(crate) fn path_step_fields(
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
         Step::LineTo(target) | Step::ContinueTo(target) | Step::TangentArcTo(target) => {
-            target_fields(ui, salt, length_unit, None, target);
+            target_fields(ui, salt, length_unit, None, shape, target);
         }
-        Step::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, at(0), spec),
+        Step::ArcTo(spec) => arc_fields(ui, salt, "", length_unit, angle_unit, at(0), shape, spec),
         // The two mixed verbs read in the order their names do, so the
         // row is the step spelled left to right.
         Step::FilletArc { radius, spec } => {
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
-            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), spec);
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), shape, spec);
         }
         Step::ArcFillet { spec, radius } => {
-            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), spec);
+            arc_fields(ui, salt, "arc", length_unit, angle_unit, at(0), shape, spec);
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
         }
         Step::ArcFilletArc {
@@ -712,6 +724,7 @@ pub(crate) fn path_step_fields(
                 length_unit,
                 angle_unit,
                 at(0),
+                shape,
                 spec,
             );
             named_field(ui, "fillet r", length_unit, FIELD_DRAG_SPEED, radius);
@@ -722,6 +735,7 @@ pub(crate) fn path_step_fields(
                 length_unit,
                 angle_unit,
                 at(1),
+                shape,
                 spec2,
             );
         }
@@ -744,9 +758,20 @@ pub(crate) fn path_step_fields(
             // the form does not offer that; above the cap the preview
             // would build the whole subdivision every frame, and a
             // typed count is enough to exhaust memory doing it.
-            ui.add(
+            // The count is the loop's vertex count — its SHAPE, not one
+            // of its arguments — so a locked editor shows it and
+            // does not take it.
+            //
+            // The range bounds what a person AUTHORS here, never what
+            // is shown: the field can be handed a committed profile's
+            // count, which the document admits above the cap, and a
+            // drawn widget must not rewrite a document value. egui
+            // clamps an existing value into the range by default.
+            ui.add_enabled(
+                shape.free(),
                 number_field(n, COUNT_DRAG_SPEED)
                     .range(MIN_CIRCLE_SPLIT..=MAX_CIRCLE_SPLIT)
+                    .clamp_existing_to_range(false)
                     .prefix("n "),
             );
             named_field(ui, "phase", angle_unit, ANGLE_DRAG_SPEED, phase);

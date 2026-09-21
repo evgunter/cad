@@ -4,6 +4,8 @@ kind: issue
 title: the per-session scratchpad is shared between concurrent lanes, and two lanes had files overwritten mid-task
 status: deferred
 opened: 2026-09-11
+priority: P3
+cost: E
 ---
 
 Filed in `work/issues/` because the owner is genuinely undecided: the

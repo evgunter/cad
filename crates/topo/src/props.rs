@@ -2463,7 +2463,7 @@ mod at_rest_policy_tests {
 mod quad_lane {
     use geom_brep::Pcurve;
     use geom_brep::props::quad::{
-        self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimEdgeQ,
+        self, FaceCutBounds, HarmChan, RoundOutcome, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
     };
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
     use geom_core::Tol;
@@ -2711,6 +2711,20 @@ mod quad_lane {
                        mid-surgery body has no mass properties (tier 2 refuses it at rest)",
             });
         }
+        // **The dispatch is by pcurve KIND** (TRIM-2 §8.1): a loop
+        // whose every image is an iso class pins the trim region to an
+        // axis-aligned rectangle and keeps the rectangle certificate
+        // below, bit for bit; a loop carrying a `General` image bounds
+        // a region that is not a rectangle of its chart at all, and
+        // takes the trimmed lane. `Fitted` keeps its own refusal in
+        // both — no shipped construction mints one here.
+        if hes
+            .iter()
+            .filter_map(|he| body.pcurve(*he))
+            .any(|c| matches!(c.pcurve(), Pcurve::General(_)))
+        {
+            return trimmed_face(body, payload, outer, hes, band, tol, window);
+        }
         let eps = tol.eps();
         // Exact-structure read of a T scalar (point bracket required).
         let exact = |x: RingInterval| -> Result<f64, PropsError> {
@@ -2775,30 +2789,7 @@ mod quad_lane {
                 polygon.push((bx, by));
             }
             // Metric boundary length bound + the map-residual defect.
-            let len = match &le.carrier {
-                geom::Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
-                    * RingInterval::from_certified(t1 - t0))
-                .mag(),
-                geom::Curve3::Nurbs(c) => {
-                    let mut l = RingInterval::zero();
-                    for w in c.control().windows(2) {
-                        l = l + RingInterval::from_certified(w[0].distance(w[1]));
-                    }
-                    l.mag()
-                }
-                // An ARC cap rim on a rational wall (M8-3): the metric
-                // length is exactly `r·Δθ` — the carrier's own
-                // parameter IS the angle, so no bound is needed.
-                geom::Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
-                    * RingInterval::from_certified(t1 - t0))
-                .mag(),
-                _ => {
-                    return Err(PropsError::QuadratureUnsupported {
-                        what: "a NURBS-face boundary carrier outside the loft inventory \
-                               (line, spline and circle rims are the minted classes)",
-                    });
-                }
-            };
+            let len = carrier_metric_length(&le.carrier, t0, t1)?;
             perimeter += len;
             boundary_defect +=
                 len * RingInterval::from_certified(cache.certificate().envelope).mag();
@@ -2871,6 +2862,184 @@ mod quad_lane {
             flux: if winding < 0.0 { -b.flux } else { b.flux },
             area: b.area,
         }))
+    }
+
+    /// A certified UPPER bound on a trim carrier's METRIC length, in
+    /// metres — the lever of both honesty pads (`Σ L·envelope` widens
+    /// the area, and `× p_bound` the flux) and of the extent gate's
+    /// perimeter. ONE home: the rectangle certificate and the trimmed
+    /// lane bound the same quantity the same way, and two spellings of
+    /// it would be two things to keep equal.
+    fn carrier_metric_length<T: Decide + Bounds + CertifiedEnclosure>(
+        carrier: &Curve3<T>,
+        t0: T,
+        t1: T,
+    ) -> Result<f64, PropsError> {
+        Ok(match carrier {
+            Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
+                * RingInterval::from_certified(t1 - t0))
+            .mag(),
+            // The control polygon bounds the spline's arc length
+            // (the convex-hull/variation-diminishing fact).
+            Curve3::Nurbs(c) => {
+                let mut l = RingInterval::zero();
+                for w in c.control().windows(2) {
+                    l = l + RingInterval::from_certified(w[0].distance(w[1]));
+                }
+                l.mag()
+            }
+            // An ARC cap rim on a rational wall (M8-3): the metric
+            // length is exactly `r·Δθ` — the carrier's own parameter
+            // IS the angle, so no bound is needed.
+            Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
+                * RingInterval::from_certified(t1 - t0))
+            .mag(),
+            _ => {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a NURBS-face boundary carrier outside the loft inventory \
+                           (line, spline and circle rims are the minted classes)",
+                });
+            }
+        })
+    }
+
+    /// **The TRIMMED-region flux lane** (TRIM-2): a described NURBS
+    /// face whose loop carries a `General` chart image, so its trim
+    /// region is what the image bounds rather than a rectangle of the
+    /// chart.
+    ///
+    /// This function assembles; the certification is
+    /// [`quad::trimmed_patch_face_rounds`]'s. The traversal's own
+    /// direction is carried per chord and the S10 winding is the chord
+    /// polygon's shoelace sign, read inside the engine — winding-derived
+    /// end to end, exactly as the rectangle certificate and the cylinder
+    /// lane are.
+    #[allow(clippy::too_many_arguments)]
+    fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
+        body: &Body<T>,
+        payload: &geom::NurbsSurface<T>,
+        outer: &[LoopEdge<T>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+        tol: Tol,
+        window: RoundWindow,
+    ) -> Result<RoundOutcome, PropsError> {
+        let ring = |x: T| RingInterval::from_certified(x);
+        let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
+        for (le, he) in outer.iter().zip(hes) {
+            let Some(cache) = body.pcurve(*he) else {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "NURBS face half-edge carries no stored pcurve cache — the \
+                           loft assembly mints them; a body that lost its caches must \
+                           re-mint before mass properties",
+                });
+            };
+            let (t0, t1) = cache.params();
+            let (pa, pb) = (cache.pcurve().eval(t0), cache.pcurve().eval(t1));
+            let (a, b) = if le.forward {
+                ((ring(pa.x), ring(pa.y)), (ring(pb.x), ring(pb.y)))
+            } else {
+                ((ring(pb.x), ring(pb.y)), (ring(pa.x), ring(pa.y)))
+            };
+            let piece = match cache.pcurve() {
+                // An iso image is one exact chord: its endpoints are
+                // structure, so there is no arc to bound.
+                Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => None,
+                Pcurve::General(image) => {
+                    // The engine subdivides the WHOLE stored image, so
+                    // a cache whose carrier interval is a sub-range of
+                    // its image's domain would have the lane integrate
+                    // along chart the face does not bound. Exact
+                    // structure, like every other read on this path.
+                    let (d0, d1) = image.domain();
+                    let (r0, r1) = (ring(t0), ring(t1));
+                    // NO ROW AND NO KNOWN PRODUCER, stated so a reader
+                    // does not take the guard for evidence of the case:
+                    // `derive_general_image` mints an image over the
+                    // carrier's whole interval, so nothing at rest
+                    // stores a sub-range, and nothing in the suites
+                    // hand-builds one. It is here because the trimmed
+                    // lane subdivides the STORED image whole, and a
+                    // future producer that stored a sub-range would get
+                    // a certified number for chart the face does not
+                    // bound rather than a refusal.
+                    if !(r0.lo() == r0.hi() && r1.lo() == r1.hi() && r0.lo() == d0 && r1.hi() == d1)
+                    {
+                        return Err(PropsError::QuadratureUnsupported {
+                            what: "a General trim image whose carrier interval is not its \
+                                   own knot domain — the trimmed lane subdivides the \
+                                   stored image whole, and a sub-range would integrate \
+                                   along chart the face does not bound",
+                        });
+                    }
+                    Some(TrimPiece {
+                        knots: image.knots().clone(),
+                        control: image
+                            .control()
+                            .iter()
+                            .map(|p| (ring(p.x), ring(p.y)))
+                            .collect(),
+                        weights: image.weights().to_vec(),
+                    })
+                }
+                Pcurve::Fitted(_) => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a FITTED (rung-3) pcurve — \
+                               the trimmed lane certifies the General class, whose \
+                               agreement with its carrier is a measurement; nothing \
+                               ships that mints a Fitted image on a spline chart",
+                    });
+                }
+                Pcurve::Harmonic { .. } => {
+                    return Err(PropsError::QuadratureUnsupported {
+                        what: "a NURBS-face half-edge carries a HARMONIC pcurve — that is \
+                               an analytic chart's closed form, and this chart is a \
+                               spline patch",
+                    });
+                }
+            };
+            chords.push(TrimChord {
+                a,
+                b,
+                piece,
+                forward: le.forward,
+                env: ring(cache.certificate().envelope),
+            });
+        }
+        // **One bracket per shared vertex.** Two consecutive half-edges
+        // meet at a vertex, and each reads it through its OWN pcurve —
+        // an `IsoLine`'s `eval(t)` against a `General`'s clamped end —
+        // so at `f64` the two reads can differ by the certification's
+        // own size (2.2e-16 on the P-2 fixture, where the image's
+        // control box is `u ∈ [2 − 2.2e-16, 2]` against the rim's exact
+        // `u = 2`). Hulling them makes the walk close by construction
+        // and hands the door the honest bracket for the vertex; the
+        // door's own closure check then guards a CALLER, not this
+        // assembler's rounding.
+        for i in 0..chords.len() {
+            let j = (i + 1) % chords.len();
+            let merged = (
+                RingInterval::hull(chords[i].b.0, chords[j].a.0),
+                RingInterval::hull(chords[i].b.1, chords[j].a.1),
+            );
+            chords[i].b = merged;
+            chords[j].a = merged;
+        }
+        let control: Vec<quad::RVec3> = payload
+            .control()
+            .iter()
+            .map(|p| [ring(p.x), ring(p.y), ring(p.z)])
+            .collect();
+        quad::trimmed_patch_face_rounds::<T>(
+            payload.knots_u(),
+            payload.knots_v(),
+            &control,
+            payload.weights(),
+            &chords,
+            tol.eps(),
+            band,
+            window,
+        )
     }
 
     /// The vertex POINT at a half-edge's carrier-interval start (its
@@ -3118,15 +3287,9 @@ mod face_list_door_tests {
         let bodies = corpus();
         let (_, pair) = &bodies[3];
         for (solid, _) in pair.solids() {
-            let faces: Vec<FaceKey> = pair
-                .faces()
-                .filter(|&(k, _)| {
-                    pair.get_face(k)
-                        .and_then(|d| pair.get_shell(d.shell))
-                        .is_some_and(|s| s.solid == solid)
-                })
-                .map(|(k, _)| k)
-                .collect();
+            let faces = pair
+                .faces_of_solid(solid)
+                .expect("a solid the body yielded");
             assert_eq!(faces.len(), 6);
             let one = mass_properties_closed_form_of(pair, &faces, band, tol).unwrap();
             // Both prisms of the pair are unit cubes.

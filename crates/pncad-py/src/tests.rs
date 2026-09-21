@@ -542,6 +542,14 @@ fn picking_refusal_tags_are_stable() {
         "evaluation_of_another_document"
     );
 
+    // The certified tie between faces, under the word the name-level
+    // interrogation already answers with for "this denotes more than
+    // one thing".
+    assert_eq!(
+        hit_test_error_tag(&H::Ambiguous { hits: Vec::new() }),
+        "ambiguous"
+    );
+
     // The pick door's own two arms: "never draws" and "draws nothing
     // today" are different states and keep different tags.
     assert_eq!(node_pick_error_tag(&N::NotABody { node }), "not_a_body");
@@ -561,7 +569,7 @@ fn picking_refusal_tags_are_stable() {
         },
     ] {
         assert_eq!(
-            node_pick_error_tag(&N::Standing(standing)),
+            node_pick_error_tag(&N::Standing(standing.clone())),
             hit_test_error_tag(&standing)
         );
     }
@@ -644,7 +652,7 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 /// The arm table, executable and TOTAL: all thirteen arms are built
 /// here and every field each carries is read.
 /// `crate::mate_payload::mate_payload` is the projection
-/// `MateFault`'s thirty-one Python attributes are read off, and this
+/// `MateFault`'s Python attributes are read off, and this
 /// pin says what each arm puts on the wire: the exact set it CARRIES,
 /// in publication order, with the rest `None`.
 ///
@@ -660,11 +668,12 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
-        DocumentId, LeverRefusal, MateFault as F, MateSide, NodeErrorKind, NodeRefusal,
-        RecipeNodeId, Subgroup,
+        Clash, DocumentId, Lever, LeverRefusal, MateFault as F, MateSide, NodeErrorKind,
+        NodeRefusal, RecipeNodeId, Subgroup,
     };
     use pncad::geom_core::{
         Band, BandError, BandField, FrameError, FrameInput, FrameVector, Indeterminate, MarginDiag,
+        UnitVec3,
     };
 
     let id = RecipeNodeId;
@@ -854,22 +863,25 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::Unleverable {
             mate: id(1),
-            refusal: LeverRefusal::DatumTooSmall {
-                extent: 1.0e-9,
-                floor: 1.0e-6,
+            refusal: LeverRefusal::PartUnresolved {
+                instance: id(0),
+                fault: pncad::document::PartFault::NoResolver,
             },
         },
-        &["mate", "inner_variant", "extent", "floor"],
+        &["mate", "instance", "inner_variant"],
     );
-    // A levered clash carries both halves of the lever beside it;
-    // one measured without a lever carries neither.
+    // A levered clash carries both halves of the lever beside it —
+    // the tilt for an authored roll, the residual for a pure number
+    // — and one measured without a lever carries none of the three.
     carries(
         &F::Contradictory {
             held: id(1),
             added: id(1),
             predicate: "mate_clocking_redundant",
-            clash: 0.5,
-            lever: Some((0.25, 2.0)),
+            clash: Clash::Levered(Lever::Roll {
+                radians: 0.25,
+                arm: 2.0,
+            }),
         },
         &[
             "held",
@@ -879,6 +891,36 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             "lever_tilt",
             "lever_arm",
         ],
+    );
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(2),
+            predicate: "mate_member_axis_fixed",
+            clash: Clash::Levered(Lever::Residual {
+                value: 0.25,
+                arm: 2.0,
+            }),
+        },
+        &[
+            "held",
+            "added",
+            "predicate",
+            "clash",
+            "lever_residual",
+            "lever_arm",
+        ],
+    );
+    // A length measured outright carries the clash and no lever; the
+    // structural refusal measures nothing and carries no clash.
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(2),
+            predicate: "mate_member_translation_zero",
+            clash: Clash::Length { metres: 0.01 },
+        },
+        &["held", "added", "predicate", "clash"],
     );
     carries(
         &F::TableLacks {
@@ -892,10 +934,9 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             held: id(1),
             added: id(2),
             predicate: "mate_member_empty",
-            clash: 0.25,
-            lever: None,
+            clash: Clash::Structural,
         },
-        &["held", "added", "predicate", "clash"],
+        &["held", "added", "predicate"],
     );
     carries(
         &F::Under {
@@ -903,7 +944,12 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             parent: id(2),
             child: id(3),
             residual: Subgroup::Planar {
-                normal: pncad::authoring::v3(0.0, 0.0, 1.0),
+                normal: UnitVec3::new(
+                    pncad::authoring::v3(0.0, 0.0, 1.0),
+                    "pncad_py_test_normal",
+                    Band::new(1e-9, 1e-8).expect("a band"),
+                )
+                .expect("a unit normal"),
             },
         },
         &["mate", "parent", "child", "residual"],
@@ -1001,15 +1047,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     let unleverable = F::Unleverable {
         mate: id(1),
-        refusal: LeverRefusal::DatumTooSmall {
-            extent: 1.0e-9,
-            floor: 1.0e-6,
+        refusal: LeverRefusal::PartUnresolved {
+            instance: id(0),
+            fault: pncad::document::PartFault::NoResolver,
         },
     };
     let payload = mate_payload(&unleverable);
-    assert_eq!(payload.inner_variant, Some("datum_too_small"));
-    assert_eq!(payload.extent, Some(1.0e-9));
-    assert_eq!(payload.floor, Some(1.0e-6));
+    assert_eq!(payload.inner_variant, Some("part_unresolved"));
+    assert_eq!(payload.instance, Some(id(0)));
 
     // The classifier's numbers are the ones the band and the margin
     // held, on the frame door's own names.
@@ -1029,13 +1074,17 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // **`clash` IS the product of the lever's two halves.** The
     // kernel computes the deviation at the raising site and stores
     // it; the two halves ride beside it, and a caller multiplying
-    // them gets the number it was handed.
+    // them gets the number it was handed. A roll sets the tilt and a
+    // residual the residual; the other half is `None`, and which is
+    // set is how the kind crosses.
     let levered = F::Contradictory {
         held: id(1),
         added: id(1),
         predicate: "mate_clocking_redundant",
-        clash: 0.25 * 2.0,
-        lever: Some((0.25, 2.0)),
+        clash: Clash::Levered(Lever::Roll {
+            radians: 0.25,
+            arm: 2.0,
+        }),
     };
     let payload = mate_payload(&levered);
     let (tilt, arm) = (
@@ -1045,18 +1094,44 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         payload.lever_arm.expect("and its arm"),
     );
     assert_eq!(payload.clash, Some(tilt * arm));
-    // A margin measured without a lever carries neither half — the
-    // pair is `None` rather than a pair of zeroes claiming a lever
-    // nothing measured.
-    let unlevered = F::Contradictory {
+    assert_eq!(payload.lever_residual, None);
+    let levered = F::Contradictory {
+        held: id(1),
+        added: id(2),
+        predicate: "mate_rotation_two_axis_reachable",
+        clash: Clash::Levered(Lever::Residual {
+            value: 0.75,
+            arm: 3.0,
+        }),
+    };
+    let payload = mate_payload(&levered);
+    let (residual, arm) = (
+        payload
+            .lever_residual
+            .expect("a residual clash carries its pure number"),
+        payload.lever_arm.expect("and its arm"),
+    );
+    assert_eq!(payload.clash, Some(residual * arm));
+    assert_eq!(payload.lever_tilt, None);
+    // The structural refusal measures nothing: no clash and none of
+    // the three halves — `None` rather than zeroes claiming a
+    // measurement nothing made.
+    let structural = F::Contradictory {
         held: id(1),
         added: id(2),
         predicate: "mate_member_empty",
-        clash: f64::NAN,
-        lever: None,
+        clash: Clash::Structural,
     };
-    let payload = mate_payload(&unlevered);
-    assert_eq!((payload.lever_tilt, payload.lever_arm), (None, None));
+    let payload = mate_payload(&structural);
+    assert_eq!(
+        (
+            payload.clash,
+            payload.lever_tilt,
+            payload.lever_residual,
+            payload.lever_arm
+        ),
+        (None, None, None, None)
+    );
 }
 
 /// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
@@ -1162,7 +1237,13 @@ fn resolution_status_tags_are_stable() {
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
 
     let insert = |doc: &ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the node inserts");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the node inserts");
         let id = applied.record.minted.expect("an inserted id");
         (applied.doc, id)
     };
@@ -1216,9 +1297,14 @@ fn resolution_status_tags_are_stable() {
 
     // FAILED: the minting node is gone from the document, so the name
     // is stranded and the repair is an explicit rebind.
-    let pruned = apply(&doc, &DocEdit::DeleteNode { id: extrude }, tol)
-        .expect("the leaf deletes")
-        .doc;
+    let pruned = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: extrude },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the leaf deletes")
+    .doc;
     let after = run(&pruned, &live);
     let verdict = resolve(
         RunCtx {
@@ -1582,6 +1668,7 @@ fn expression_evaluation_tags_are_stable() {
                 value: param,
             },
             tol,
+            &pncad::document::RefusingReach,
         )
         .expect("a parameter declaration applies")
         .doc
@@ -1698,6 +1785,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
@@ -1710,6 +1798,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the profile inserts");
     let text = save(&applied.doc, &[], tol).expect("the document saves");
@@ -2248,6 +2337,18 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
     carries(&E::NonFinitePlacement { node: id(1) }, &["node"]);
     carries(&E::NonFiniteAlignment { node: id(1) }, &["node"]);
+    // The door's per-mate admission carries the solve's fault WHOLE
+    // beside the mate: the one payload that crosses as a value.
+    carries(
+        &E::MateRefused {
+            node: id(1),
+            fault: Box::new(pncad::document::MateFault::TableLacks {
+                mate: id(1),
+                what: "a clocking rider on a planar rest",
+            }),
+        },
+        &["node", "fault"],
+    );
     carries(&E::UpdateOnNonInstance { node: id(1) }, &["node"]);
     carries(&E::UnresolvedInput { input: id(2) }, &["input"]);
     carries(
@@ -2341,14 +2442,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- document parameters ----
     carries(
-        &E::UnknownPayloadParam {
+        &E::PayloadUnknownDocParam {
             name: param(),
             node: id(1),
         },
         &["node", "param"],
     );
     carries(
-        &E::PayloadParamDimensionMismatch {
+        &E::PayloadDocParamDimension {
             name: param(),
             node: id(1),
             declared: Dimension::Length,
@@ -2357,7 +2458,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "param", "expected", "found"],
     );
     carries(
-        &E::UnknownDocParam {
+        &E::SlotUnknownDocParam {
             name: param(),
             node: id(1),
             slot: SlotId::Count,
@@ -2365,7 +2466,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "slot", "param"],
     );
     carries(
-        &E::DocParamDimensionMismatch {
+        &E::SlotDocParamDimension {
             name: param(),
             node: id(1),
             slot: SlotId::Count,
@@ -3795,6 +3896,119 @@ fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
     );
 }
 
+/// **Two doors spell one param-table fault the same way.**
+///
+/// The kernel names the eight param-ref refusal arms under one
+/// convention, stated once on `editor_core::EditError` and guarded
+/// there; this is that convention's image on the wire. A caller that
+/// branches on `EditError.variant` and one that branches on the
+/// snapshot door's `variant` are reading ONE fault at ONE address, so
+/// learning two words for it would be a fact about this crate rather
+/// than about the kernel.
+///
+/// Pinned by CONSTRUCTION, so it pins the MAPPING and not just the
+/// vocabulary: each of the four (address, fact) pairs is built at both
+/// doors and the two words compared. A door that re-mints a word of
+/// its own reds here by name. The four entries `SHARED_TAG_WORDS`
+/// carries are the population half of the same fact; this row is why
+/// they are one concept rather than a coincidence.
+#[test]
+fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
+    use crate::tags::{edit_error_tag, snapshot_error_tag};
+    use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
+
+    let node = RecipeNodeId(5);
+    let name = || ParamName::new("width");
+
+    let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
+        (
+            "slot",
+            "unknown",
+            EditError::SlotUnknownDocParam {
+                name: name(),
+                node,
+                slot: SlotId::Radius,
+            },
+            SnapshotError::SlotUnknownDocParam {
+                node,
+                slot: SlotId::Radius,
+                name: name(),
+            },
+        ),
+        (
+            "slot",
+            "dimension",
+            EditError::SlotDocParamDimension {
+                name: name(),
+                node,
+                slot: SlotId::Radius,
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+            SnapshotError::SlotDocParamDimension {
+                node,
+                slot: SlotId::Radius,
+                name: name(),
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+        ),
+        (
+            "payload",
+            "unknown",
+            EditError::PayloadUnknownDocParam { name: name(), node },
+            SnapshotError::PayloadUnknownDocParam { node, name: name() },
+        ),
+        (
+            "payload",
+            "dimension",
+            EditError::PayloadDocParamDimension {
+                name: name(),
+                node,
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+            SnapshotError::PayloadDocParamDimension {
+                node,
+                name: name(),
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+        ),
+    ];
+
+    for (address, fact, edit, snapshot) in &pairs {
+        assert_eq!(
+            edit_error_tag(edit),
+            snapshot_error_tag(snapshot),
+            "the edit and load doors have drifted apart on the {fact} fact at the {address} \
+             address"
+        );
+    }
+
+    // The words themselves, against the `{address} x {fact}` product
+    // written once: the pairing above stays true if BOTH maps drift
+    // together, and this is what catches that.
+    let mut spoken: Vec<&str> = pairs
+        .iter()
+        .map(|(_, _, edit, _)| edit_error_tag(edit))
+        .collect();
+    let mut convention: Vec<String> = ["slot", "payload"]
+        .into_iter()
+        .flat_map(|address| {
+            ["unknown_doc_param", "doc_param_dimension"]
+                .into_iter()
+                .map(move |fact| format!("{address}_{fact}"))
+        })
+        .collect();
+    spoken.sort_unstable();
+    convention.sort_unstable();
+    assert_eq!(
+        spoken, convention,
+        "the four param-ref words have left the address-then-fact convention on the wire"
+    );
+}
+
 /// **The class table's `no_at_rest_record` arm predicts the mint
 /// door's refusal in the mint door's own word.**
 ///
@@ -4103,7 +4317,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "dimension",
             "doc_param_count_has_no_distribution",
             "doc_param_count_has_no_unit",
-            "doc_param_dimension_mismatch",
             "doc_param_not_declared",
             "doc_param_unit_mismatch",
             "doc_param_value_kind_mismatch",
@@ -4115,6 +4328,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
+            "maintenance_refused",
+            "maintenance_unrecorded",
+            "mate_refused",
             "measure_malformed",
             "meta_non_finite",
             "meta_not_set",
@@ -4125,7 +4341,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_placement",
             "not_structural_slot",
             "path_off_tree",
-            "payload_param_dimension_mismatch",
+            "payload_doc_param_dimension",
+            "payload_unknown_doc_param",
             "pin_unchanged",
             "placement_axis",
             "placement_on_non_instance",
@@ -4143,11 +4360,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "selection_not_canonical",
             "set_members_on_non_list",
             "slot_dimension_mismatch",
+            "slot_doc_param_dimension",
+            "slot_unknown_doc_param",
             "structural_slot_needs_structural_edit",
             "too_few_members",
-            "unknown_doc_param",
             "unknown_node",
-            "unknown_payload_param",
             "unknown_slot",
             "unresolved_input",
             "update_on_non_instance",
@@ -4159,9 +4376,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "edit_inner_variant_tag",
         values: &[],
+        // `mate_fault_tag` twice: the maintenance's refusal and the
+        // per-mate admission's each forward the solve's fault whole.
         delegates: &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
+            "mate_fault_tag",
+            "mate_fault_tag",
             "measure_node_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -4281,8 +4502,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "frame_fault_tag",
+        values: &["improper", "non_finite"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "hit_test_error_tag",
         values: &[
+            "ambiguous",
             "evaluation_of_another_document",
             "node_failed",
             "node_not_evaluated",
@@ -4330,7 +4557,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &["datum_too_small"],
+        values: &[
+            "face_unbounded",
+            "malformed_body",
+            "no_extent",
+            "no_finite_bound",
+            "not_an_instance",
+            "part_unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -4355,6 +4589,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "drop",
             "gauge_rewrite",
             "join",
+            "orphaned_declare",
             "split",
             "strand",
             "stranded_appearance",
@@ -4368,7 +4603,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_dangling_head",
-            "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
             "mate_part_selects_another_copy",
@@ -4377,6 +4611,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_self",
             "mate_table_lacks",
             "mate_under",
+            "mate_unleverable",
         ],
         delegates: &[],
     },
@@ -4447,8 +4682,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chamfer_selection_resolve",
             "crossing_unverified",
             "curved_solid_frontier",
-            "declare_both_operands",
             "declare_resolve",
+            "declare_site_not_an_operand",
             "declare_unsupported_pair",
             "degenerate_direction",
             "derived_frame_section",
@@ -4500,9 +4735,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_conflict",
             "transform",
             "tube",
+            "undeclarable_contact",
             "undeclared_contact",
             "underflowed_direction",
-            "union_declare_step",
             "unschedulable_cycle",
             "verb_arity",
             "witness_bifurcation",
@@ -4663,6 +4898,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edit_replay",
             "header_id",
             "id_mismatch",
+            "maintenance_frame",
             "non_finite",
             "parse",
             "profile_program",
@@ -4756,6 +4992,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "recorded_program_error_tag",
         values: &[
             "carrier_in_chain",
+            "notation_before_any_step",
             "notation_off_program",
             "subdivision_count",
         ],
@@ -5275,7 +5512,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// whenever a map does, and a prose count of it has gone stale twice.
 ///
 /// The row does not say which of the entries below are one concept and
-/// which are coincidence — all but eight are unread, and `work/census/`'s
+/// which are coincidence — all but twelve are unread, and `work/census/`'s
 /// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
 /// is where that question lives. What it does is make the population
 /// OBSERVED: a word that starts colliding, or stops, or picks up a
@@ -5289,7 +5526,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
 /// the guard on THAT is this row's two directions: an entry no longer
 /// shared fails exactly as a new sharing does.
 const SHARED_TAG_WORDS: &[(&str, usize)] = &[
-    ("ambiguous", 2),
+    ("ambiguous", 3),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
     ("assertion_target", 2),
@@ -5320,12 +5557,21 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("node_failed", 4),
     ("node_not_evaluated", 3),
     ("node_poisoned", 2),
-    ("non_finite", 4),
+    ("non_finite", 5),
     ("non_finite_direction", 2),
     ("non_finite_placement", 2),
     ("not_a_body", 2),
+    ("not_an_instance", 2),
     ("null_scaffold_edge", 2),
     ("op", 3),
+    ("part_unresolved", 2),
+    // ONE concept, and pinned as one: the param-ref convention
+    // `editor_core::EditError`'s enum doc states. That the two maps
+    // agree word for word is held by
+    // `the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`;
+    // these four rows say only that the sharing is deliberate.
+    ("payload_doc_param_dimension", 2),
+    ("payload_unknown_doc_param", 2),
     ("pcurve", 5),
     ("pcurves", 3),
     ("placement_rule_mismatch", 2),
@@ -5336,6 +5582,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("skin", 2),
     ("sliver_join", 2),
     ("sliver_rim", 2),
+    // The slot-addressed half of the four above, same pin.
+    ("slot_doc_param_dimension", 2),
+    ("slot_unknown_doc_param", 2),
     ("split", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
@@ -5346,10 +5595,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("unknown_param", 4),
     ("unnamed", 2),
     ("unreadable", 2),
-    // `program_refusal_tag`'s profile-program validator and
-    // `validation_refusal_tag`'s `Body.validate`: two vocabularies that
-    // share an English word and nothing else — different attributes on
-    // different classes. Coincidence, decided here.
     ("validate", 2),
     ("vertex", 2),
     ("vertex_on_edge", 2),
@@ -9003,8 +9248,13 @@ mod product_memo_rows {
         doc: d::ProfileDoc,
         node: d::Node<d::ProfileProgram>,
     ) -> (d::ProfileDoc, d::RecipeNodeId) {
-        let applied = d::apply(&doc, &d::DocEdit::InsertNode { node }, Tol::witness())
-            .expect("the edit is accepted");
+        let applied = d::apply(
+            &doc,
+            &d::DocEdit::InsertNode { node },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("the edit is accepted");
         let minted = applied.record.minted.expect("an insert mints an id");
         (applied.doc, minted)
     }

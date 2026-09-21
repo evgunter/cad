@@ -4,6 +4,8 @@ kind: issue
 title: The pick tie-break's NaN disposition is a comment, not a guard
 status: open
 opened: 2026-09-16
+priority: P1
+cost: E
 ---
 
 

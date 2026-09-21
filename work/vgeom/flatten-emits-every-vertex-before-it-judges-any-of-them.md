@@ -4,6 +4,8 @@ kind: issue
 title: A non-finite vertex position is emitted unconditionally, above the arc guards that would refuse it
 status: open
 opened: 2026-09-17
+priority: P1
+cost: E
 ---
 
 Found by the review of #2798, against the guard that PR added.

@@ -100,8 +100,7 @@ Filed 2026-09-17 from Ev's own list of UI nits, and **ahead of the
 order below**: Ev asked for these directly, so they are taken before
 anything else on this slate. Each row carries Ev's note verbatim.
 
-- `frame-arrows-differ-in-length`
-- `datum-arrow-marks-are-about-twice-too-long`
+None open: the two rows filed here landed in PR 2856 on 2026-09-19.
 
 ## Unit order
 

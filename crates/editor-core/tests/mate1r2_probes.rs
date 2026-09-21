@@ -21,12 +21,11 @@
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
-    Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
-    RoleSeg, StableName, assemble, solve_document,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, Expr, Frame,
+    MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, StableName, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame, run, scl, step};
+use fixture::{in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -52,17 +51,6 @@ fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> Pr
 
 fn leg_part(label: &str) -> ProfileDoc {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
-}
-
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
@@ -277,7 +265,8 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
     );
     let mate = mate.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.fault(mate),
         None,
@@ -366,7 +355,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(m0), None);
     assert_eq!(poses.fault(m1), None);
     assert_eq!(poses.role(m1), Some(MateRole::Declaring));
@@ -374,7 +364,7 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
     // NOTE: the pattern direction is a DOCUMENT-coordinate map applied
     // outside the placement, so the copies march along document x̂ even
     // though the leg is rotated; the top must land so both seats hold.
-    let ev = run(&doc, &with_resolver(store));
+    let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     match &result {
         Ok(_) => {}
@@ -439,7 +429,8 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
     );
     let mate = mate.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
     assert_eq!(poses.gauge(leg2), Some(leg1), "leg1 is document-first");
@@ -497,7 +488,8 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
     );
     let mate = mate.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "{:?}", poses.fault(mate));
     assert_eq!(poses.gauge(leg), Some(top), "the top is document-first");
 
@@ -515,8 +507,10 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
 
 // ---- P4: an out-of-range copy on a DECLARING mate ----
 
-/// PROBE (claims 5+7+8): copy 5 of a count-2 pattern, as the SECOND
-/// (non-tree) mate of the pair graph.
+/// PROBE (claims 5+7+8): a copy past the pattern's count, as the
+/// SECOND (non-tree) mate of the pair graph — the pattern shrunk under
+/// a mate that named copy 1, since a head past the count at insert is
+/// the edit door's to refuse.
 ///
 /// It refuses at the SOLVE, naming the pattern — not "somewhere" and
 /// not at the gate. The index-against-the-count check is a fact about
@@ -554,11 +548,15 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
             ),
         },
     );
+    // The second mate names copy 1, well formed at insert (the edit
+    // door refuses a head that resolves to no member where it is
+    // authored); the pattern then shrinks to one copy under it, which
+    // is how a head stops resolving after insert (N5).
     let (doc, m1) = step(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
                 in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
@@ -566,8 +564,17 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
         },
     );
     let (m0, m1) = (m0.expect("mate 0 mints"), m1.expect("mate 1 mints"));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetStructuralParam {
+            node: pattern,
+            slot: editor_core::SlotId::Count,
+            expr: Expr::count(1),
+        },
+    );
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     let fault = poses
         .fault(m1)
         .cloned()
@@ -588,7 +595,7 @@ fn r2_an_out_of_range_copy_on_a_declaring_mate_refuses_at_the_solve() {
     // not the pair's, and not the document's.
     assert_eq!(poses.role(m0), Some(editor_core::MateRole::Determining));
     assert!(poses.fault(m0).is_none());
-    let _ = (store, m0);
+    let _ = m0;
 }
 
 // ---- P5: a nested pattern head ----
@@ -647,7 +654,8 @@ fn r2_nested_pattern_head_is_a_member() {
         },
     );
     let mate = mate.expect("the mate mints");
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "a nested pattern head resolves through both levels: {:?}",
@@ -658,7 +666,7 @@ fn r2_nested_pattern_head_is_a_member() {
         Some(editor_core::MateRole::Determining),
         "the nested copy's reference places its pair"
     );
-    let _ = (store, inner);
+    let _ = inner;
 }
 
 // ---- P6: plain-document pose bits (cross-revision instrument) ----
@@ -700,7 +708,8 @@ fn r2_plain_document_pose_bits() {
         },
     );
     let _ = (m0.expect("m0 mints"), m1.expect("m1 mints"));
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     for id in [ia, ib, ic] {
         let f = poses.relative(id).expect("a pose");
         let bits: Vec<u64> = f

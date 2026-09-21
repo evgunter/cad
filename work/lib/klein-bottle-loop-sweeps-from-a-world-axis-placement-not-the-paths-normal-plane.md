@@ -4,6 +4,8 @@ kind: issue
 title: the klein scene's loop sweep starts from a world-axis placement, not the plane normal to its spine
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 ## Finding

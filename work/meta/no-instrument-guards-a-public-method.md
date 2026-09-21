@@ -5,6 +5,8 @@ title: A CLASS - the surface censuses guard exported NAMES and declared MEMBERS,
 status: open
 opened: 2026-09-12
 refs: [2487]
+priority: P3
+cost: D
 ---
 
 

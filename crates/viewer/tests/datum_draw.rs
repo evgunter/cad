@@ -226,10 +226,11 @@ fn a_frames_grid_follows_its_own_axes() {
             off_axis += 1;
         }
     }
-    // Every RULED line runs along an axis: the four barbs are the only
-    // segments that may not, so the count below is what "the grid
-    // follows the frame" means once the arrows are subtracted.
-    assert_eq!(off_axis, 4, "only the four barbs may leave the axes");
+    // Every RULED line runs along an axis: the six barbs — two per
+    // head, and +x wears two heads — are the only segments that may
+    // not, so the count below is what "the grid follows the frame"
+    // means once the arrows are subtracted.
+    assert_eq!(off_axis, 6, "only the six barbs may leave the axes");
     assert!(along_u > 0 && along_v > 0, "{along_u} / {along_v}");
     // The third line of the triad: a frame says which side is up as
     // well as which way it is turned, so a reader can see which way an
@@ -276,52 +277,101 @@ fn a_frames_arrows_cannot_hide_in_its_grid() {
         })
         .count();
     assert_eq!(
-        off_axis, 4,
-        "two barbs per arrow have to point off both axes, or the arrow \
-         is drawn on top of a grid line and shows nothing",
+        off_axis, 6,
+        "two barbs per head (one head on +y, two on +x) have to point off \
+         both axes, or the arrow is drawn on top of a grid line and shows \
+         nothing",
     );
 }
 
-/// **The two arrows are unequal, so the drawing says which axis is x.**
+/// **The two arms are one length, and +x wears two heads.**
 ///
 /// A grid is symmetric under a quarter turn, so a frame drawn with two
-/// arms of one length would name the PAIR of directions without naming
+/// identical arrows would name the PAIR of directions without naming
 /// which of them the sketch's x is — and that is the difference
-/// between a frame and the plane it lies in.
+/// between a frame and the plane it lies in. The difference is carried
+/// by the HEAD, not the arm: two arms of unequal length read as an
+/// unbalanced mark, and a head is the part of an arrow a reader
+/// actually sees against a ruling that runs along its shaft.
+///
+/// **The values that make this false**: arms of two lengths, the
+/// same number of barbs rooted on each axis, or two +x heads drawn at
+/// (nearly) one place, which is one head drawn twice.
 #[test]
-fn a_frames_arms_name_which_axis_is_x() {
+fn a_frames_arms_match_and_the_x_head_is_doubled() {
     let (doc, tol) = evaluated(vec![frame(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
     )]);
     let segments = &draws(&doc, tol, [0.0, -0.15, 0.1])[0].segments;
-    // The arms found by what they ARE — a segment leaving the origin
-    // along one of the frame's two axes — rather than by their index in
-    // the list. The arrow barbs moved that index once already, and a
-    // positional read is a test that breaks on a drawing change instead
-    // of on a behaviour change. The normal tick also leaves the origin
-    // and is excluded by running along neither axis.
+    // The marks found by what they ARE, not by their index in the
+    // list: an arm is a segment leaving the origin along one of the
+    // frame's two axes (the normal tick also leaves the origin and is
+    // excluded by running along neither); a barb is a segment that
+    // starts ON an axis, away from the origin, and leaves it. A
+    // positional read is a test that breaks on a drawing change
+    // instead of on a behaviour change.
+    let on_axis = |p: [f64; 3], axis: usize| {
+        p[axis] > 1.0e-12 && (0..3).all(|i| i == axis || p[i].abs() < 1.0e-12)
+    };
     let mut arms: Vec<(usize, f64)> = Vec::new();
+    let mut barbs = [0usize; 2];
+    // Per +x barb: where along x its tip is, and how far back it runs.
+    let mut x_heads: Vec<(f64, f64)> = Vec::new();
     for pair in segments.chunks_exact(2) {
-        if reach(&[pair[0]], [0.0, 0.0, 0.0]) > 1.0e-12 {
-            continue;
-        }
-        let d = [pair[1][0], pair[1][1], pair[1][2]];
+        let d = [
+            pair[1][0] - pair[0][0],
+            pair[1][1] - pair[0][1],
+            pair[1][2] - pair[0][2],
+        ];
         let n = (d[0].powi(2) + d[1].powi(2) + d[2].powi(2)).sqrt();
-        if (d[0] / n).abs() > 1.0 - 1.0e-9 {
-            arms.push((0, n));
-        } else if (d[1] / n).abs() > 1.0 - 1.0e-9 {
-            arms.push((1, n));
+        let along = (0..3).find(|&i| (d[i] / n).abs() > 1.0 - 1.0e-9);
+        if reach(&[pair[0]], [0.0, 0.0, 0.0]) < 1.0e-12 {
+            if let Some(axis @ (0 | 1)) = along {
+                arms.push((axis, n));
+            }
+        } else if along.is_none() {
+            for (axis, count) in barbs.iter_mut().enumerate() {
+                if on_axis(pair[0], axis) {
+                    *count += 1;
+                }
+            }
+            if on_axis(pair[0], 0) {
+                x_heads.push((pair[0][0], pair[0][0] - pair[1][0]));
+            }
         }
     }
     arms.sort_by_key(|&(axis, _)| axis);
     assert_eq!(arms.len(), 2, "one arm per axis, got {arms:?}");
     let (x_arm, y_arm) = (arms[0].1, arms[1].1);
     assert!(
-        x_arm > y_arm * 1.2,
-        "the x arm ({x_arm:e} m) has to read as longer than the y one \
-         ({y_arm:e} m) or the picture is symmetric under a quarter turn",
+        (x_arm - y_arm).abs() <= 1.0e-9 * x_arm,
+        "the arms have to be one length from the origin, not {x_arm:e} m \
+         against {y_arm:e} m",
+    );
+    assert_eq!(
+        barbs,
+        [4, 2],
+        "+x carries two heads and +y one, or the picture is symmetric \
+         under a quarter turn",
+    );
+    // The two +x heads are two, not one drawn twice: their tips stand
+    // apart along the axis by a real share of a head's length.
+    let head = x_heads
+        .iter()
+        .map(|&(_, back)| back)
+        .fold(0.0_f64, f64::max);
+    let (near, far) = x_heads
+        .iter()
+        .fold((f64::INFINITY, 0.0_f64), |(lo, hi), &(tip, _)| {
+            (lo.min(tip), hi.max(tip))
+        });
+    assert!(
+        head > 0.0 && far - near >= 0.5 * head,
+        "the +x tips sit {:e} m apart against a {head:e} m head — the \
+         doubled head has collapsed into one",
+        far - near,
     );
 }
 

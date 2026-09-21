@@ -2,9 +2,10 @@
 id: reconcile-solves-with-no-resolver
 kind: issue
 title: The edit door's cluster-record maintenance solves the prior document with no resolver, and the lever now needs the parts
-status: parked
+status: closed
 opened: 2026-09-07
 blocked_on: [MSOLVE-6]
+closed: 2026-09-19
 ---
 
 
@@ -65,3 +66,16 @@ replay re-applies them without solving, so `load`, `save` and
 undo/redo stay store-free; old logs whose edits moved a gauge refuse
 typed and migrate through a reach-taking door. The amendment is
 `docs/MSOLVE-6-SPEC.md`'s last section. Parked on MSOLVE-6.
+
+## Closed (2026-09-19, PR 2116)
+
+Fixed by MSOLVE-6's amendment under Ev's option (a) with the replay
+refinement: `apply` takes the reach and asks it only when a gauge
+moves; a maintenance solve with no verdict refuses the edit typed
+(`EditError::MaintenanceRefused`); the log records the maintenance
+rows and replay re-applies them without solving, so `load`, `save`
+and undo/redo stay store-free; an old log whose edit moved a gauge
+refuses `MaintenanceUnrecorded` at load and migrates through
+`load_with`. The reviews' finding that a recorded row's frame was
+trusted bytes at load is closed in the fix pass (the row is held to
+the `SetPlacement` predicate).

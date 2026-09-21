@@ -56,7 +56,6 @@ use crate::common::{
     arc_section, bulged_extrusion, quad, quintic_prism, stacked, tilted_cut_upper,
 };
 use geom_core::Tol;
-use profile::{Profile, SketchPlane};
 use sweep::loft_body;
 use topo::Body;
 
@@ -121,15 +120,11 @@ fn arc_taper() -> Body<f64> {
 
 /// The box: every face closed-form, both pads exactly zero.
 fn box_extrusion() -> Body<f64> {
-    let prof = Profile::new(
-        SketchPlane::xy(),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
+    sweep::test_support::prism::<f64>(
+        sweep::test_support::corners(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
+        2.0,
+        Tol::witness(),
     )
-    .validate(Tol::witness())
-    .expect("the profile validates");
-    sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("extrude")
-        .body
 }
 
 /// The roster, in a fixed order (the digest is compared as one block,

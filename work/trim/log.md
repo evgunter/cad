@@ -574,3 +574,88 @@ the census for its face kind (the row's own doc had named the day).
 Filed: `curved-trim-e2e-fixture-waits-for-a-producer`. **Merge gate**:
 no PROPS acknowledgement through 2026-09-19; per the spec's Amendments
 the merge proceeds no earlier than 2026-09-22 absent an objection.
+
+## TRIM-2 PR-1 merged (2026-09-19) — block TRIM-B2 slot 0 concludes
+
+PR #2564, ordinal 2503, sample #222. Ev, in-chat: PROPS is paused —
+merge; so the spec's §4 acknowledgement gate closes on Ev's ruling
+rather than the amendment's 2026-09-22 fallback (both recorded). The
+merge carried main forward 63 commits (78 crate files) after the
+verified fix-pass head, so the merged head ran CI before the merge.
+Next in the lane: TRIM-2 PR-2 (tessellation; seam to TESS announced
+at dispatch), TRIM-B2 slot 1.
+
+## TRIM-2 PR-2 dispatched; TESS acked the seam (2026-09-19)
+
+PR-1 merged at a833156d4 (sample #222). TESS acknowledged the PR-2 seam
+within the hour (#2564 comment 5739504272): both arms' shape fine; one
+ask — a domination row for `nurbs_tighten`'s `General` sup against
+densely sampled UV speeds (via `nurbs_cert::tests::Domination` from
+#2848 if on main) — folded into the brief; two in-flight TESS PRs on
+the same files' test modules and the error enum noted; PROPS's
+`rational_cells` hull finding passed on as not-this-unit's. TRIM-B2
+slot 1 = TRIM-2 PR-2, pre-draw S / NUMERIC, arm OPUS by the block's
+draw; brief stored (sha256 7ac2e42863…); lane `trim-2-pr2`, branch
+`trim/2-tess`. The sign-off watchlist is empty: all three seams this
+orchestrator owed are closed (TRIM-3's by silence, TRIM-2 PR-1's by
+Ev's ruling, PR-2's by TESS's ack).
+
+## TRIM-2 PR-2 delivered; dual dispatched (2026-09-19)
+
+PR #2863 (head f46673cd6, run 35435586012 green): the two arms, E2
+(108 416 positions vs the oracle's 143 360, a factor-of-two band —
+deviation 2, the widened chart's face bound over its whole domain),
+TESS's domination row hand-spelled (`Domination` not on main), M1
+seen by that row and not by E2 (said plainly). Nothing moved in
+goldens or renders. Dual: ordinal 2504, byte 185 ⇒ R1 Fable, R2 Opus.
+
+## TRIM-2 PR-2 dual adjudicated (2026-09-19)
+
+Both arms MERGEABLE-AFTER-FIXES (R1 Fable 1 MAJOR/3 MINOR/4 NOTE,
+rubric 3/4/4/4/5; R2 Opus 2 MAJOR/6 MINOR/2 NOTE, rubric 3/4/3/4/5).
+The certified sup is sound for the stated reason (both re-derived the
+derivative net's scaling; convexity's slack shown on interior-maximum
+fixtures; the rational refusal load-bearing at 5×). Headline,
+bilateral by per-patch attribution: E2's committed rationale is false
+— the widened wall's patch is bit-identical to the oracle's and the
+whole 34 944-position deficit is the P-2 route's plane-restated wall;
+the factor-of-two band (deviation 2) was bought for an effect that
+does not exist and is vacuous under every sup mutant. Also bilateral:
+the domination row's cubic leg is attained at an end coefficient
+(R2's `endsonly` mutant leaves it byte-identical), two typed refusals
+are dead by construction, the `trimmed.rs` header is stale, a third
+copy of the hull fold. Adjudication on the PR (comment 5743420032);
+eleven items; fix pass dispatched. Tally: no candidate (every
+substantive finding bilateral); neither arm killed or paused — the
+first clean pair this orchestrator has run since the weekly hold.
+
+## TRIM-2 PR-2 merged (2026-09-20) — block TRIM-B2 slot 1 concludes; TRIM-2 delivered
+
+PR #2863, ordinal 2504, sample #224. Fix pass from the dual: all eleven
+items; E2 now asserts the per-patch equality (stronger than the spec's
+"schedule's own ±") and deviation 2 is withdrawn; the domination row
+has three measured legs; the dead guards are gone. The merged head
+carried main forward 254 commits and ran CI before the merge. The
+unit `general-pcurve-face-props-and-tess-refuse` is CLOSED —
+`docs/TRIM-2-SPEC.md` is fully delivered and leaves `docs/` per the
+ledger in the post-merge docs PR. Seam: merged on TESS's pre-dispatch
+ack (TESS paused; Ev, in-chat). TRIM-B2 slot 2 (FABLE by the draw)
+is the next TRIM dispatch: `boundary-iso-doors-panic-before-they-can-refuse`
+(E) or `loft-seam-carrier-exact-knot-compare` if S-CERT's file is
+free — chosen at dispatch.
+
+## The cut (2026-09-20)
+
+Ev, in-chat (see CURVED's log for the words): TRIM keeps what closes
+this session — `boundary-iso-doors-panic-before-they-can-refuse` and
+the P-2 spec's deletion at the walk — and **CHART** (`work/chart/`,
+band 6200–6299) opens with the chart-side residue, 31 items from here
+plus CURVED's three SSI drive-bys; the chord-count arithmetic class
+moves to TESS's slate as its item names TESS the owner (a line on
+TESS's log). Program and plan re-cut; the former order and residue
+lists are in this plan's history. **Protocol v7 note**: TRIM-2 PR-2
+(S / NUMERIC) was dispatched into the v6 dual on 2026-09-19, the day
+v7 was recorded and before this orchestrator read it — under v7 it
+would have run opus/opus outside the protocol; its row T2T is a
+seam-day row and any readout spanning 2026-09-19 treats it per the
+entry's item 4. The remaining E unit runs outside the protocol.

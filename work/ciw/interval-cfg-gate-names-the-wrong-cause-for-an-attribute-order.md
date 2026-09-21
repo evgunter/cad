@@ -4,6 +4,8 @@ kind: issue
 title: check-interval-cfg-additive's tests-half message names block-gating for what is really an attribute order
 status: open
 opened: 2026-09-17
+priority: P4
+cost: E
 ---
 
 ## Finding

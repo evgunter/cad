@@ -19,7 +19,7 @@ use editor_core::{
     appearance_rebind_suggestions, enrich_appearance_loss, enrich_appearance_loss_with_prior,
     evaluate,
 };
-use fixture::{insert, len, on_frame, scl, step};
+use fixture::{insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -40,14 +40,6 @@ fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node,
-        path: vec![seg],
-    }
 }
 
 fn red() -> Attr {
@@ -140,7 +132,7 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
             declare: None,
         },
     );
-    let cap = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     (doc, a, uni, cap)
 }
@@ -207,7 +199,7 @@ fn node_gone_loss_enriches_with_the_derived_deletion_edit() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: ext });
     let ev = run(&doc);
@@ -399,7 +391,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc2 = set(doc2, cap, red());
     let cancel = CancelToken::new();
     cancel.cancel();
@@ -472,6 +464,7 @@ fn suggestions_offer_the_final_wrapping_derivation_and_rebind_repairs_the_gap() 
                 to: target.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("an appearance key is a rebind site");
     assert!(!applied.record.structural);
@@ -505,7 +498,8 @@ fn appearance_only_rebind_counts_as_a_site_not_no_references() {
                 from: cap,
                 to: target
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .is_ok()
     );
@@ -526,7 +520,8 @@ fn rebind_appearance_collision_is_refused_typed() {
                 from: cap.clone(),
                 to: target.clone(),
             },
-            Tol::witness()
+            Tol::witness(),
+            &editor_core::RefusingReach
         )
         .unwrap_err(),
         EditError::RebindAppearanceCollision {
@@ -551,6 +546,7 @@ fn rebind_appearance_collision_is_refused_typed() {
                 to: target.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("disjoint attribute kinds merge");
     let merged = applied.doc.appearance_of(&target).unwrap();
@@ -569,7 +565,7 @@ fn suggestion_map_is_total_over_the_store() {
         0.0,
         1.0,
     );
-    let cap = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
     let ev = run(&doc);
     let suggestions = appearance_rebind_suggestions(doc.appearance(), &ev);

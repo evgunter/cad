@@ -266,10 +266,15 @@ pub mod test_support {
     use geom_core::Real;
 
     use crate::body::Body;
+    // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
+    // is the only suite that wants the literal, and it restates it on
+    // purpose — a guard that reached for the constant the builder uses
+    // would be comparing that constant against itself.
     pub use crate::test_support_fixtures::{
-        GeoCube, Prism, PrismOps, StraddleSeat, assert_every_chord_named_by_both_rules, brick,
-        cube_into, describe_as_intersections, face_surface_of_he, flush_declarations,
-        geometric_cube, line, mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
+        CubeOps, CylFrame, FaceGeometry, Prism, PrismOps, StraddleSeat,
+        assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet, declined_cube,
+        describe_as_intersections, face_surface_of_he, flush_declarations, geometric_cube, line,
+        mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
 

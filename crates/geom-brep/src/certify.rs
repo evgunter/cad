@@ -59,7 +59,7 @@ use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
-use crate::dihedral::{DihedralClass, classify_dihedral, decide};
+use crate::dihedral::{DihedralClass, classify_dihedral, decide, decide_positive};
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
@@ -1716,16 +1716,7 @@ fn run_checks<T: Decide>(
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();
             let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
-            match decide("nurbs_span_meter", net_length, band).map_err(span_escalated)? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => {
-                    return Err(span_escalated(Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
-                        band,
-                        predicate: Some("nurbs_span_meter"),
-                    }));
-                }
-            }
+            decide_positive("nurbs_span_meter", net_length, band).map_err(span_escalated)?;
             let arc = Margin::metered(span, meter);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}

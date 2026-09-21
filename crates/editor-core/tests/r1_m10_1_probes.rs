@@ -236,6 +236,7 @@ fn the_quantile_box_is_deterministic_monotone_and_covers_its_mass() {
                 value: DocParam::continuous_with(Dimension::Length, 0.0, dist),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -312,6 +313,7 @@ fn every_annotation_pair_is_visible_to_bit_eq_and_diff() {
                 value,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -354,6 +356,7 @@ fn a_distribution_only_edit_invalidates_no_memoized_evaluation() {
             ),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a distribution-only edit applies")
     .doc;
@@ -398,6 +401,7 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
                 value: DocParam::continuous(Dimension::Angle, 0.25),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -418,6 +422,7 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
                 ),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc
@@ -486,6 +491,7 @@ fn a_mixed_document_analyzes_end_to_end() {
                 value,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("applies")
         .doc;

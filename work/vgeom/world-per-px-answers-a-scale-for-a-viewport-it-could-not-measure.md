@@ -4,6 +4,8 @@ kind: issue
 title: world_per_px's height guard does not bound a NaN, so it answers Some(NaN) where None is its refusal
 status: open
 opened: 2026-09-17
+priority: P1
+cost: E
 ---
 
 Found by the sweep `a-clamp-is-not-a-bound-against-nan` ran over

@@ -2,9 +2,10 @@
 id: ci-draw-rows-tree-rs-citation-does-not-locate-the-unleverable-arm
 kind: issue
 title: The closed ci-draw row's tree.rs citation names a different arm of the same match
-status: open
+status: closed
 opened: 2026-09-15
 refs: [ci-draw-can-hide-a-compile-break-on-main]
+closed: 2026-09-20
 ---
 
 
@@ -69,3 +70,18 @@ appendix (`work/README.md`: a residue disclosed inside another item's
 prose is invisible to the re-homing sweep).
 
 Signed: (CHROME implementer lane, `chrome/band-refusal-badging`)
+
+## Closed (2026-09-20)
+
+Taken as a drive-by, on the row's own second option — *"drop the number
+and keep the quoted arm, which is what was carrying the meaning
+anyway."* `work/ciw/ci-draw-can-hide-a-compile-break-on-main.md`'s
+"Note for whoever takes it" now names the file without a line number
+and keeps the quoted arm, with one parenthesis recording why the
+number went. The closed row it edits stays a record of the tree it was
+written against; what changed is a pointer inside it that pointed
+wrong, which is not the same thing.
+
+This is the shape `work/README.md`'s new "The tracker is not
+comprehensive" clause is about: a one-line edit that cost a file, a
+header, a lint run and a reader's attention to schedule.

@@ -6,6 +6,8 @@ status: review
 branch: view/stale-pick
 opened: 2026-09-15
 pr: 2662
+priority: P0
+cost: D
 ---
 
 

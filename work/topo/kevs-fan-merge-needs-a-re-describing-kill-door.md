@@ -1,11 +1,13 @@
 ---
 id: kevs-fan-merge-needs-a-re-describing-kill-door
 kind: issue
-title: "kev's fan merge re-bases carriers and no precondition can refuse it: the kill needs a re-describing door"
+title: kev's fan merge re-bases carriers and no precondition can refuse it: the kill needs a re-describing door
 status: open
 opened: 2026-09-14
 parent: S93
 refs: [S93]
+priority: P1
+cost: H
 ---
 
 ## What

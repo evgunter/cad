@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-14
 parent: S93
 refs: [S93]
+priority: P0
+cost: H
 ---
 
 ## What

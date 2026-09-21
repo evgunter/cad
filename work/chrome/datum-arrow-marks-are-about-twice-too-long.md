@@ -2,8 +2,11 @@
 id: datum-arrow-marks-are-about-twice-too-long
 kind: issue
 title: Datum arrow marks are about twice as long as they need to be (Ev-requested, high priority)
-status: open
+status: closed
 opened: 2026-09-17
+branch: chrome/frame-arrows
+pr: 2856
+closed: 2026-09-19
 ---
 
 ## Ev's note (verbatim)
@@ -33,3 +36,7 @@ Related marks that "arrow marks generally" may also cover:
 
 Pairs with `frame-arrows-differ-in-length`. Both change the same two
 constants, so one unit should take both.
+
+## Closed
+
+Landed by PR 2856 (`chrome/frame-arrows`): both arms run `FRAME_ARM_PX` (44 px, down from 108) from the origin; +x carries a doubled head, +y a single one (`FRAME_HEADS`); the arm is held inside the first grid cell by a const assert against the floor derived from `PITCH_STEPS` (`LADDER_STEP`) and a runtime sweep of `grid_pitch`. `sketch::TIP_MARK_PX` (profile heading arrows, 20 px) was left as is and raised with Ev in chat.

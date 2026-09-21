@@ -5,6 +5,8 @@ title: the pick to pickcache rename leaves four open rows on two other programs'
 status: open
 opened: 2026-09-06
 refs: [2083, stale-file-citations-after-the-split]
+priority: P4
+cost: E
 ---
 
 

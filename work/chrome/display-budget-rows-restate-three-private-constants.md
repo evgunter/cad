@@ -4,6 +4,8 @@ kind: issue
 title: display_budget.rs restates three of viewer's private constants as literals
 status: open
 opened: 2026-09-15
+priority: P1
+cost: E
 ---
 
 

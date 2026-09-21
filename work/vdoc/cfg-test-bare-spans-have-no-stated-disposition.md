@@ -5,6 +5,8 @@ title: seven bare spans inside cfg(test) doc comments sit beside ten bracketed l
 status: open
 opened: 2026-09-11
 refs: [named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites, 2332]
+priority: P4
+cost: E
 ---
 
 
