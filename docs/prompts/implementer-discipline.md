@@ -20,6 +20,14 @@ that** (2026-09-04, Ev's two authorisations). A code-tier run gates EVERY point
 of {default features, `interval`} x {default eps, 1e-6, 1e-12} — twelve
 `test (…)` jobs, each naming its lane, its eps row and its shard — and all five
 `k-lint (gate, <row>)` feature unifications. **Nothing is sampled any more.**
+**Count those twelve by SUBSTRING, never by prefix**: a lane moved into a
+reusable workflow carries its file's name ahead of the job's, so the six
+`interval` rows now arrive as `interval / test (interval, eps = …)`. A
+prefix match reads **six on a fully green run** and invites the reader to
+report a narrowed matrix that never narrowed. The shape of the names is CI's
+to change and not a lane's to rely on; the count is what this paragraph
+promises.
+
 The gates, the discipline and parity rows and the render lanes are unchanged and
 still run on every code-tier run. **The python suite runs whenever a seed is a
 crate a build of the wheel compiles** — `pncad-py`'s non-dev dependency closure,
