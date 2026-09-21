@@ -1032,7 +1032,12 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
 #[test]
 #[ignore = "evidence-only: SYM-8 Phase 1.1, the tilt-U wall with and without rule F"]
 fn sym8_phase1_the_tilt_u_wall_with_and_without_the_manifest_sign() {
-    render_wall("tiltU derived", Base::TiltU, Place::Derived(1), &[1.0e-3, 5.0e-2]);
+    render_wall(
+        "tiltU derived",
+        Base::TiltU,
+        Place::Derived(1),
+        &[1.0e-3, 5.0e-2],
+    );
 }
 
 /// **SYM-12 Phase 1.1 — `tiltUV`, rendered.** Both SYM-8 reviews
@@ -1250,7 +1255,11 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
                 // The widest certifying half-width under this lift and
                 // arm: cheap on these cubes (a replay is well under a
                 // second each way with the report off).
-                let certifies = |h: f64| sym(&r2_document(h, base, place), lift, rules, budget()).0.is_empty();
+                let certifies = |h: f64| {
+                    sym(&r2_document(h, base, place), lift, rules, budget())
+                        .0
+                        .is_empty()
+                };
                 let (mut lo, mut hi) = (1.0e-4_f64, 5.0e-2_f64);
                 let ceiling = if !certifies(lo) {
                     (f64::NAN, lo)

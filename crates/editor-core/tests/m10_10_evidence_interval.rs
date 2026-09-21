@@ -749,7 +749,9 @@ fn sym12_the_copysign_census_at_the_nominal() {
         println!(
             "   {name} ({:.2}s) {counts:?}\n      first refusal {:?}",
             t.elapsed().as_secs_f64(),
-            refusal.as_deref().map(|r| crate::m10_8_harness::head(r, 160))
+            refusal
+                .as_deref()
+                .map(|r| crate::m10_8_harness::head(r, 160))
         );
         let mut per: BTreeMap<&'static str, (usize, usize, usize)> = BTreeMap::new();
         let mut atoms: BTreeMap<&str, Vec<String>> = BTreeMap::new();
