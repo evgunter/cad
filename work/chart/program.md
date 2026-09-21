@@ -2,7 +2,7 @@
 id: chart
 kind: program
 title: CHART — the chart boundary and its consumers: the polygon, the metring arms and the clearance window that reads them
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: chart/

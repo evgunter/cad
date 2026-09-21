@@ -2,7 +2,7 @@
 id: vacuity
 kind: program
 title: VACUITY — rows that cannot fail: assertions on their own codomain, probes that print, floors that count what they discard
-status: open
+status: ready
 opened: 2026-09-20
 area: infra
 prefix: vacuity/

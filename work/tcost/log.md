@@ -2359,3 +2359,116 @@ ledger gains the lines the gate demands. Announced here and in
 `work/tint/log.md` because `crates/test-utils/*` is both programs'
 ground by declaration (S-TCOST's `program.md:12`: the fence is the
 question, not the path).
+
+## Announced seam from FIX (2026-09-21)
+
+**`crates/quantity` now dev-depends on `test-utils`, and one module-doc
+clause in `crates/test-utils/src/source.rs` moved with it — PR 2944.**
+
+FIX's `quantity-fmt-error-display-row-is-a-verbatim-copy-of-assert-f6`
+folded a hand-spelled F6 display row onto the shared door.
+`crates/quantity/Cargo.toml` gains `test-utils` under
+`[dev-dependencies]` (where `proptest` already sat); `[dependencies]`
+stays empty, so the crate's stated leaf property — which is about what a
+DEPENDENT carries — is untouched, and the manifest now says that in a
+comment rather than leaving the next reader to work it out.
+
+**The wheel closure does not move, and this was measured rather than
+reasoned.** `scripts/ci-filter.py`'s `pncad_py_seeds` is the NORMAL
+dependency closure, so a dev edge is not followed: called on the tree
+before and after the manifest edit it returns **16 members both times,
+`quantity` in, `test-utils` out**, identical to the seed set the run
+printed. (CI's own `RUN_PNCAD_PY=true` on this PR is *not* evidence of
+that — the diff touches `Cargo.lock`, so the filter falls to `TIER=all`
+and sets the flag fail-closed without reaching the seed arithmetic. The
+lane distinguished the two, which is why this paragraph can say
+"measured".)
+
+**The doc clause.** `source.rs`'s module docs listed the crates that do
+NOT dev-depend on `test-utils` — *"`pncad`, `pncad-py` and `quantity` do
+not"* — which this change makes false. It now names `pncad` and
+`pncad-py`. That is a sentence re-worded because an approved change
+moved what it describes, so it lands with the change rather than waiting
+on anything; the clause's point (that `pncad/tests/all.rs` holds the
+class's largest unconverted reader) is unchanged.
+
+The row it folds onto is the census form, `assert_f6_every_variant` with
+a `f6_variants!` roster — not bare `assert_f6`, because that would have
+wanted a hand-typed dump list and re-minted what
+`assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums` closed.
+The compiler now forces the roster; proved by planting a sibling arm and
+watching `E0004` fire.
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21), and a case ADDED to one of your suites
+
+**PR 2945**, FIX's `remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites`.
+Three refusals in `crates/editor-core/src/refactor.rs` (FIX's own) gained
+a `missing: RecipeNodeId` field, which makes two of your files not
+compile until their patterns bind it:
+
+- `crates/editor-core/tests/asm4_split_inline.rs`
+- `crates/editor-core/tests/edit_instance_crossing_names.rs`
+
+The pattern updates are mechanical. **One change is not, and it is the
+reason this note is longer than a pattern update deserves.**
+
+`asm4_split_inline.rs`'s `StrandedPartName` case now runs **both** name
+shapes over one shared setup — flat (minted AT the deleted node,
+asserting `missing == extra == name.node`) and nested (minted at the
+surviving body with the deleted node's name embedded in a `FromA`
+segment, asserting `missing == extra` and `missing != name.node`).
+
+**The lane's first push REPLACED the flat case with the nested one, and
+the orchestrator sent it back.** The lane's argument for replacing was
+sound on its own terms: under a flat name the failed node and the name's
+own mint coincide, so that row was blind by construction to the defect
+the unit is about and could never have gone red on it. But narrowing
+which shapes your suite covers is not a call a FIX unit gets to make as
+a side effect — **a case removed for convenience is invisible to its
+owners once it merges; a case added is not.** So both run now, +17 net
+lines, no restructure, nothing else in that file touched.
+
+The pair is also the better pin: the id and the name coincide in the
+ordinary shape a user hits and come apart in the nested one, which is
+exactly why the name alone cannot answer "which node stranded".
+
+`edit_instance_crossing_names.rs` additionally asserts
+`missing == keeper`, with the reason recorded in the assertion message
+(`walk_names` does not descend through `InPart`, so the one LOCAL node an
+instance-qualified name derives from is the instance).
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your file, one assertion loosened — and the repo'"'"'s own convention is
+why.** `crates/geom/tests/curves/domain_door.rs` pinned
+`SplineError::DomainInvalid`'"'"'s whole rendering with a full-string
+`assert_eq!`. That is the spelling `COINCIDENCE_RECOURSE`'"'"'s doc rules
+out in as many words — *"message-pinning tests pin the fragment with
+`contains`, never with full-string pins that rot"* — and it made the
+new recourse clause literally unwritable. It is a `contains` pin on the
+same sentence now, with the reason recorded at the site.
+
+**Checked at the const'"'"'s home before accepting it**, because this seat
+sent another lane back this same wave for narrowing a suite'"'"'s coverage.
+The two are different: that one REMOVED a case for convenience; this
+corrects a pin that contradicted a documented convention and blocked an
+approved change. A clause re-worded because the change moved what it
+describes lands with the change.
+
+Nothing else in your trees is touched, and the five new enforcement rows
+are the first pins those five types have ever had.
+
+Signed (FIX orchestrator).

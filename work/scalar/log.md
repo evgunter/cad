@@ -576,3 +576,23 @@ lanes' figures on the PR thread (compile cost measured on the shared
 4-vCPU box; the no-lane count: 3 kernel traits, 15 impls, 959 lines, 14
 call sites, 104 bounded signatures).
 
+## CURVE3-JET merged (2026-09-21)
+
+PR 2708, block SCALAR-B4 slot 0, ordinal 4109. What landed: the item's
+§Closed. The spec is deleted per the ledger. The implementer lane died
+on a usage limit after its final push and the box sat idle five days;
+main's new `Spiric` curve variant then broke the exhaustive match at
+the merge and took one arm on the implementer's arm. The fix pass
+folded the one pair the spec had excused and wrote the located-span
+walk once. Two protocol exposures recorded on the row.
+## RING-1 merged (2026-09-21)
+
+PR 2971, block SCALAR-B4 slot 2, ordinal 4110. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual concluded with no
+tally candidate (the one MAJOR bilateral and pre-fixed); the fix pass
+took thirteen items and declined one. Both reviews' end-to-end programs
+established that the lane-trait impls, not the feature, are what keeps a
+default-build caller out of the kernel doors at `Interval` — RING-3 and
+LANE-1..4 specs carry it. One exposure: the PR body's auto-appended
+footer names a vendor and re-appends on every body update; the row
+records it.

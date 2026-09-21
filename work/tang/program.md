@@ -2,7 +2,7 @@
 id: tang
 kind: program
 title: TANG — declared tangency (kiss and cusp), the germ and pierce remainder, and the pinch machinery
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: tang/

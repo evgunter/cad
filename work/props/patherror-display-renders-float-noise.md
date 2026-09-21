@@ -5,7 +5,7 @@ title: `PathError`'s Display arms render scalars with `{:?}`, so refusal sentenc
 status: open
 opened: 2026-08-30
 github: 1282
-refs: [1267, num-relative-tolerance-collides-above-a-decimetre]
+refs: [1267]
 priority: P1
 cost: E
 ---
@@ -215,6 +215,12 @@ to any user-facing render and could plausibly be lowered into the
 kernel; it crosses program lines and that is fine, the conflict risk
 there being low.
 
+Scope correction (2026-09-21, from the FIX evidence section above):
+`crates/profile/src/` is now **clean of the class**, so what is left of
+this row is entirely outside it — and the sweep must look for plain
+`f64` fields, not only `T: Real` ones, since `FilletLegCarrier` reached
+the identical defect with concretely-typed scalars.
+
 So the unit is: **one vocabulary module, kernel-side, and two spellings
 retired onto it** — then every `Display` arm carrying a scalar payload
 re-pointed at it, across `PathError`, `ProfileError` and the other
@@ -225,10 +231,16 @@ matter claims** — it is a three-owner consolidation.
 
 ### Seams to announce before landing
 
-- **FIX** — owns `path::num` and has three closed rows on it. The
-  small-end relative form is theirs and is not to be regressed; #2366's
-  removal of the absolute floor is the row most easily undone by a
-  careless unification.
+- **FIX — CLOSED, so this seam has no owner to announce to.** Corrected
+  2026-09-21 on merge: FIX swept out at sweep 18 and `work/fix/` is
+  deleted, `docs/DOC-LEDGER.md` being its done-state of record. Its three
+  rows on `path::num` still bind as *constraints* even though no program
+  holds them: the purely relative small-end form must stay, and PR
+  #2366's removal of a `.max(1.0)` — which had pinned the tolerance
+  ABSOLUTE at 1e-9 for `|x| <= 1` and so rendered every sub-nanometre
+  margin as `0` — is the row a careless unification would most easily
+  undo. Whoever takes this row inherits those without a counterparty to
+  ask, so they are written out here rather than left as a pointer.
 - **VIEW / VIEWER** — owns `readout.rs`, `DisplayTolerance::render_mm`
   and `widgets::number_text`. Lowering the module must leave those two
   doors working, and `number_text` is on a COMMIT path (an
@@ -252,3 +264,6 @@ it"), which moved this row back OUT of DOOR and into `work/props/`,
 where it is now. The row is PROPS'. The DOOR paragraph is left in place
 rather than deleted because it is the record of a real move; this
 heading is what makes it not read as current.
+## Reference note (FIX's sweep, 2026-09-21)
+
+`num-relative-tolerance-collides-above-a-decimetre` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/num-relative-tolerance-collides-above-a-decimetre.md`.

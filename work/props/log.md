@@ -1865,6 +1865,7 @@ sub-nanometre margin as `0`.
 
 Signed (DOOR orchestrator).
 
+<<<<<<< HEAD
 **Curved-residues built, and its dual half-ran (2026-09-20).** PR #2924
 at `3f918e808`, run 35550288011 green on the full matrix. All three
 residues served. Its ruling on the red row I handed it was right and
@@ -1977,3 +1978,102 @@ unaffected.
 
 **Lift condition:** Ev says the fable limit has reset. Until then, if a
 unit looks ready to dispatch, it waits.
+=======
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your ground:** `crates/geom-core/src/spline/knots.rs` (NURBS and
+PROPS) and `crates/geom/src/curves/fit.rs` (PROPS).
+
+**A sixth carrier the row never named.** `KnotVectorIssue` — reached
+through `SplineError::KnotVectorInvalid` — had **7 of 7** renderings
+stopping at the condition. Without it `SplineError`'"'"'s one delegating
+arm could not be asserted transitively and the chain was false at one
+remove. Both now carry enforcement rows.
+
+`FitError`'"'"'s `Lsq` and `KnotAlgebra` arms are asserted as
+**delegations only**, and **a row is filed on PROPS'"'"'s slate** saying
+why: `fit-error-delegates-to-two-carriers-that-name-no-recourse`.
+`LsqError` (`linalg/lsq.rs`) and `KnotAlgebraError`
+(`spline/algebra.rs`) state their conditions and name no repair, and
+`FitError` contributes five characters over them, so whatever they omit
+is simply absent from what a caller of `NurbsCurve3::interpolate` reads.
+Asserting a recourse over them would have been a claim about the one
+payload the test built — the conditional-transitivity rule this class
+established.
+
+Signed (FIX orchestrator).
+>>>>>>> origin/main
+
+**MERGED: curved-residues (2026-09-21).** Merge `0cd022b32`, fix run
+35565268986 green on the full matrix. **No A/B row** — ordinal 2408 was
+retired on Ev's ruling and the single opus review is the unit's review
+of record.
+
+**The live defect on main is closed, and closed at the right depth.**
+`require_rim_only_closed` now decides a COVER: the span sum as before,
+AND `props_rim_only_join`, which requires each edge's traversal END to
+be the next one's traversal START, cyclically — a point deviation in
+metres through the funnel at `require_rim_incidence`'s own dimension, no
+raw `f64` comparison. Both call sites, so the sphere arm on main is
+fixed by the same change.
+
+I checked the argument rather than taking it. Same-direction arcs have
+non-negative spans, so a chained arc `k` covers `[S_{k−1}, S_k]`; the
+joins fix each start azimuth modulo `τ` and the cumulative sum lifts it
+to `ℝ`; consecutive non-overlapping intervals totalling `τ` cover the
+circle exactly once. **Neither half suffices and each catches what the
+other cannot**: three arcs of `2τ/3` chain into a closed cycle and
+double-cover, which only the sum refuses; a half rim stated twice totals
+a turn and covers half, which only the joins refuse.
+
+**The lane declined my stop condition with a measurement, correctly.**
+I said to stop if the cover check needed interval machinery. The obvious
+"sorted, contiguous, no gap, no overlap" reading does need it — `atan2`,
+modular normalisation, a tolerance on wrapped joins. The head-to-tail
+formulation decides the same property with one length margin per join
+and no normalisation at all, so it fitted a fix pass. It said so rather
+than smuggling it, which is the behaviour the escape hatch exists for.
+
+Three further things worth keeping:
+
+- **Tested as a property, not a list.** Tilings for `n ∈ 1..=6` measured
+  at every anchor, and four generated refusing families — including `n`
+  copies of one arc and a tiling with two adjacent arcs exchanged, both
+  summing to exactly `τ`. Those last two are precisely what a sum cannot
+  see, and an enumeration of shapes would not have contained them.
+- **The `_folded_apex` finding closed by construction, not by patch.**
+  Moving the guard into the fold means `cone_boundary` returns a
+  `LinearBoundary` again and no caller can forget the flag, because
+  there is no flag.
+- **The lane checked a claim I passed on rather than trusting me.** I
+  relayed the reviewer's finding that a zero-width slit claim was
+  falsified; the lane executed the row, found the claim still TRUE, and
+  reworded it to say why instead of deleting it. Relayed findings are
+  not established findings, and it treated mine accordingly.
+
+**Argued and accepted: the two folds stay two.** What they genuinely
+share is now shared — `unanimous_rim_dir` with the σ-involution argument
+at it, `span_sum`, and the fixed `require_rim_only_closed`. What is left
+per kind is the extent MARGIN and which extreme is pushed, the two
+things this file insists each kind states for itself, and each fold is
+about ten lines. An indirection that hides the metering would not earn
+its place. Accepted as argued.
+
+**Two adoption costs found on the matrix rather than reasoned about**,
+both fixtures rather than kernel: a probe cap at a literal `v = 1e-4`
+was a 5 µm rim levered at exactly that radius, decidable at default ε
+and escalating at 1e-6 (now `1e3 × escalate / sin α`); and a flat
+`1e-12` area tolerance on a row placing the apex 62 mm out with a 10 µm
+cap, where recovering `v` from `(center − apex)·axis` cancels digits the
+area then squares — measured `rel = 3.4e-12`. Now `1e-12 × conditioning`,
+which IS the flat `1e-12` wherever the apex is the origin: a statement
+about `f64` and the fixture, not a loosening of the closed form.

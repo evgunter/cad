@@ -9,6 +9,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Datum, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::prelude::StableName;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
 /// in canonical units. The SESSION mints the `Expr` literals and
@@ -68,6 +69,35 @@ pub enum DatumSpec {
         /// Sketch +y components (`Scalar`), orthogonalized against
         /// `u` at evaluation.
         v: [Expr; 3],
+    },
+    /// A sketch frame read off a PICKED FACE: its origin and normal
+    /// are the face's, and `spin` is the only number an author
+    /// chooses.
+    ///
+    /// Two PICKS and one field — [`Self::AxisInPlane`]'s shape, not
+    /// [`Self::Plane`]'s.
+    ///
+    /// **`at` is the node whose BODY the ray met, never the feature
+    /// that minted the face.** The name is read out of that body's own
+    /// table ([`crate::session::FaceSelection::node`] is that node;
+    /// `FaceSelection::feature` answers the different question), so a
+    /// flat swept by an extrude and shrunk by a later fillet is
+    /// authored on the FILLET's body — reading it through the extrude
+    /// would name a face of a different size. The two sit beside each
+    /// other in `FaceSelection` and the wrong one compiles, which is
+    /// why it is said here.
+    FaceFrame {
+        /// The body-denoting node the face is read out of — a PICK,
+        /// and a DAG input exactly as [`Self::AxisInPlane`]'s `plane`
+        /// is.
+        at: RecipeNodeId,
+        /// The picked face, frozen — a PICK, resolved through `at`'s
+        /// value under the N5 ladder.
+        face: StableName,
+        /// The rotation of sketch +x about the outward normal
+        /// (`Angle`) — the node's only slot, because the origin and
+        /// the normal are read off the face.
+        spin: Expr,
     },
 }
 
@@ -129,5 +159,6 @@ pub(crate) fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
             origin,
             direction,
         },
+        DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame { at, face, spin },
     })
 }

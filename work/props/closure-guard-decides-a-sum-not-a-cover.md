@@ -2,7 +2,8 @@
 id: closure-guard-decides-a-sum-not-a-cover
 kind: issue
 title: The rim-only closure guard decides a span sum, not a cover: a half rim stated twice measures a whole cap
-status: open
+status: closed
+closed: 2026-09-21
 opened: 2026-09-20
 ---
 
