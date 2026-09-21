@@ -7386,5 +7386,5 @@ EXCH-H1 RECORDED AT MERGE (2026-09-17, PR #1798 merged, sample #220 — prior hi
 
 Block TESS-B1 (2026-09-18, protocol v6, ratio fable:opus 1:2): `/dev/urandom` byte **87** (<252, accepted) → 87 mod 3 = **0** = fable's position. Slots: 0 FABLE, 1 OPUS, 2 OPUS.
 - slot 0 — **TESS-1** (a meridian-free curved face refuses typed). Pre-draw fields, logged on `tess/orchestrator`'s `work/tess/log.md` before this draw: **M / structural**. Arm: FABLE.
-- slot 1 — unassigned.
+- slot 1 — **TESS-2** (the patch bound encloses the described patch: knot refinement inside the ring). Pre-draw fields, logged on `work/tess/log.md` (main, PR 2953) before this slot was read: **L / numeric**. Arm: OPUS. Dispatched after TESS-1's head freezes.
 - slot 2 — unassigned.
