@@ -7096,6 +7096,27 @@ SYM-7 RECORDED AT MERGE (2026-09-15, PR #2609 merged; sample #199 — prior high
 
 SYM-8 RECORDED AT MERGE (2026-09-21, PR #2616 merged; sample #226 — prior highest #225 on main at merge; block SYM-B2 slot 1 concluded; the block record stays on `sym/b2-block`). **Protocol v7 triage, recorded late (v7 is 09-19; the unit was spec'd 09-14 under v6): SYM-8 triaged IN — a rule of the atom algebra, H / NUMERIC; the dual is the v6 full dual, dispatched 09-19 22:50Z.** **The orchestrator's model, per phase:** spec, dispatch and adjudication FABLE (the local fork); fix pass, state-sync and merge FABLE (the cloud session); the unit changed hands at the fork of 09-19. Method notes applying to both arms: the dual ran on Ev's shared local box (load 26–58, four orchestrators) where NEITHER arm could run its editor-core re-takes (R1's interval test binary did not link in 2.5 h; R2's was OOM-killed twice), so both arms' numeric claims ride the hosted gate and the PR's tables; both arms were stopped by an account session limit and resumed with state intact; R2's report was written by the resumed agent from its finished rows; the reports, the union brief and the delta crossed sessions through PR #2949. R1 disclosed two glimpses (an `ls -la` of the lanes directory, one `pgrep -af` on its own path), neither carrying a finding; the pair is FLAGGED. No unilateral MAJOR. Tokens per phase: impl + fix ~614k (one agent), reviews ~245k (R1) + ~275k (R2), delta ~35k; adjudication ~1 h on the local fork.
 
+## SYM-11 review ordinal fixed at dispatch (2026-09-21)
+
+SYM-11 (the point channel is not a proof — the theorem-vs-numeric
+contradiction charged per witness kind; PR #3028 open — frozen head
+`df23fca26fa3ff00a9bec5b9ae75bf1b635b5606`, run 35627074636 GREEN on
+the full matrix, twelve `test (…)` and five `k-lint (gate, …)`):
+**ordinal 4705** (SYM's band — 4700–4799, as SYM-4..8's ordinals
+4700–4704 show; the 2026-09-20 roster line that reads "SYM … keeps its
+band 5800–5899" collides with ENCL's 5800–5899 and is a roster slip,
+corrected by this sentence). Protocol v7 IN (an architectural decision
+on the `Decide` door's contract per witness kind; H / STRUCTURAL,
+pre-draw on `sym/b3-block`). The v6 dual: draw = `/dev/urandom` byte
+**69**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**, concurrent on the frozen
+head, read-side isolation (v6 item 5), briefs identical but for the
+lane name and stored on the block record before either ran. Implementer
+arm OPUS per block SYM-B3's draw (byte 178 ⇒ fable at slot 1). Impl
+phase: tokens and wall recorded at merge from the harness; the lane's
+one intermediate red was the probe census's executed floor (the two
+`probe`-gated suites rostered), fixed on the branch before the freeze.
+Sample number at merge. Row at merge.
+
 ## S393 review ordinal fixed at dispatch (2026-09-15)
 
 S393 (SCALAR; PR #2466 open — frozen head `e83f22f41`): **ordinal

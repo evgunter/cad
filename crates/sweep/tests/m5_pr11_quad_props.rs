@@ -212,8 +212,9 @@ fn halves_sum_to_the_cylinder() {
     );
 }
 
-/// The LANE SPLIT (Ev's PR 11 ruling): the dual lane instantiates
-/// none of the certified quadrature — a trimmed face at `Dual64`
+/// The LANE SPLIT (Ev's PR 11 ruling): the `_structural` door a dual
+/// measures through instantiates none of the certified quadrature — a
+/// trimmed face at `Dual64`
 /// keeps the closed form's typed refusal (volume certification is the
 /// CERTIFYING lanes' business; derivative transport is the dual's — a
 /// dual carries a bracket since D1, 2026-08-19, and still may not
@@ -240,7 +241,7 @@ fn dual_lane_keeps_the_closed_form_refusal() {
     let SplitPart::Body(above) = &result.above else {
         panic!("above carries material");
     };
-    match topo::mass_properties(above, Tol::witness()) {
+    match topo::mass_properties_structural(above, Tol::witness()) {
         Err(topo::MassPropsError::Face { source, .. }) => {
             let msg = format!("{source}");
             assert!(msg.contains("ellipse arc"), "{msg}");

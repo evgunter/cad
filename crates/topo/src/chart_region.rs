@@ -440,7 +440,8 @@ impl std::error::Error for ChartRegionError {}
 /// holding a chart-region predicate: bracket-carrying scalars (`f64`,
 /// `Probe`, the interval scalar) reach [`chart_region_overlap`]; the
 /// dual scalar REFUSES statically, its impl instantiating none of the
-/// predicate (the `PropsQuadLane` shape). The census maps that `None`
+/// predicate (the lane-trait shape [`geom_brep::PcurveFittedLane`]
+/// shares). The census maps that `None`
 /// to its typed unsupported refusal.
 ///
 /// **What this lane is for, and what it is not.** It is what lets a
@@ -450,8 +451,9 @@ impl std::error::Error for ChartRegionError {}
 /// predicate: [`chart_region_overlap`]'s own bound is
 /// `Decide + `[`CertifiedBounds`], which [`geom_core::Dual`] does not
 /// satisfy, so the door refuses an external caller structurally whether
-/// or not this lane is consulted. That matches the other three lanes'
-/// doors, all of which carry [`geom_core::CertifiedEnclosure`]. See the
+/// or not this lane is consulted. That matches the other lane doors
+/// (`topo::QuadLane::certified`, the fitted-pcurve lane's), all of which
+/// carry [`geom_core::CertifiedEnclosure`]. See the
 /// M9-2 entry in `geom-core/src/real.rs`'s `Bounds` scope rule.
 pub trait ChartRegionLane: Decide {
     /// The overlap door at this scalar, or `None` when the scalar has

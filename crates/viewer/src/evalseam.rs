@@ -778,9 +778,10 @@ mod threaded {
     ///   `waiting` rather than queueing behind it;
     /// - **a worker ends in exactly one of two ways, and they are not
     ///   the same event**: [`Coalescing::close`] took its request
-    ///   channel, which is an orderly shutdown and clears `running`
-    ///   and `waiting` so no indicator stays lit for an answer that is
-    ///   not coming ([`Coalescing::forget_worker`]); or the worker
+    ///   channel, which is an orderly shutdown and forgets the work
+    ///   quietly, clearing `running` and `waiting` so `busy` stops
+    ///   claiming an answer that is not coming
+    ///   ([`Coalescing::forget_worker`]); or the worker
     ///   CRASHED under a job, which is a bug in this process and ends
     ///   it ([`Coalescing::crashed`]). Both are noticed at the same
     ///   two places — a `send` that fails and a `Disconnected` receive

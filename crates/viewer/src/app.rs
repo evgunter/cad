@@ -2234,16 +2234,6 @@ pub fn initial_layout() -> Tree<Pane> {
     Tree::new("viewer_tree", root, tiles)
 }
 
-/// Column-major `f64` matrix to the `f32` the GPU consumes.
-///
-/// Written as a `map` rather than an indexed loop on purpose: the
-/// earlier shape wrote through `get_mut` at statically-in-range
-/// indices, so a wrong index would have produced a *partly converted*
-/// matrix and no error at all. `map` cannot miss a slot.
-pub(crate) fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
-    matrix.map(|column| column.map(|value| value as f32))
-}
-
 /// Run the application, optionally opening `open` at startup.
 ///
 /// The path goes through [`SessionOp::Open`] — the same typed door
