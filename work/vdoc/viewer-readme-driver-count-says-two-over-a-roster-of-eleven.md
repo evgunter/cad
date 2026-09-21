@@ -65,9 +65,10 @@ for the other.
 now says the table counts modules, and gives the scan that produces the
 same population from the other side:
 
-    rg --files-with-matches '^//! Module kind: \*\*driver\*\*' crates/viewer/src
+    rg --files-with-matches '^//! Module kind: \*\*driver\*\*' crates/viewer/src | wc -l
 
-**The number: eleven**, derived on the merged tree at `f45df59dc5`.
+which prints the number rather than leaving it to be read off a list.
+**Eleven**, run exactly as printed on the merged tree at `f45df59dc5`.
 Eleven files carry the declaration — `session`, `app`, `pane`,
 `pane::create`, `pane::features`, `pane::profile`, `pane::properties`,
 `pane::view`, `pane::viewport`, `widgets`, `gpu` — one per table row.

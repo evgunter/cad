@@ -134,3 +134,56 @@ composers and not `FaceFrameFault`, `face_frame_seat` or
 
 **No `.rs` file is touched and no behaviour changes** — the charter's
 own test. `scripts/ci-filter.py --base origin/main` reads `TIER=docs`.
+
+## 2026-09-21 — the census rule did not reproduce, and the shape it failed in has a name now
+
+**Caught in review of #2998, in the repair rather than in the defect.**
+The census section printed
+
+    rg -U --no-heading -o 'let\s+&?[A-Z]\w*\s*\{[^}]*\}\s*=' crates/viewer/src
+
+and told the reader to *"read for the lines that begin `let`"*. Without
+`-n`, `--no-heading` prefixes each match with `path:`, so **no output
+line begins with `let`** and a reader following the page literally gets
+**0** against a stated 22. The PR body's receipt carried the `-n` form
+and got 22; the page did not. **A rule that yields zero where the prose
+says twenty-two is worse than the bare number it replaced, because it
+reads as a receipt.** This unit's own class, inside this unit's own fix.
+
+**The tell, and it is general.** All three instances of this shape today
+— a whitespace-row literal re-minted after its author last saw it, the
+un-mergeable-PR signature listing four symptoms of which three fire on
+healthy runs, and this — are **a receipt that was never run in the form
+it was written down in**. And in all three the sentence gives itself
+away the same way: **the rule is stated as a DESCRIPTION OF THE OUTPUT
+rather than as the command that produces the answer.** *"Read for the
+lines that begin `let`"*, *"lists eleven files"*, *"summed"* — each
+puts a step between the command and the number, and that step is where
+the drift lives, because nobody runs it.
+
+So the standing practice this leaves: **print a command whose output IS
+the number, then run the exact text you printed, out of the file, and
+quote it with its exit code.** Every command `crates/viewer/README.md`
+now prints was extracted from the page with `sed -n Np` and run through
+`bash -c` — drivers `| wc -l` → `11`, censuses `| wc -l` → `24`,
+`Display` impls `| wc -l` → `41`, all exit 0.
+
+**And re-deriving under the corrected rule moved a population.** The
+old pattern demanded `[A-Z]` immediately after `let`, so it could not
+see a qualified path; widening it to `([a-z_]\w*::)*[A-Z]` finds
+`pane::viewport`'s `let egui::Modifiers { … }` and `let egui::Vec2
+{ … }`, and the census population is **24 binds**, not 22. Both new
+members carry a completeness argument and neither is a row: the
+declaration they are held to is the toolkit's, so a field arriving
+there is a version bump's news rather than one of this crate's values
+falling behind its own account. The thirteen censuses are unchanged.
+
+**Two rulings recorded from the same review.** `crates/viewer/README.md`
+is **not ratified text** — `docs/DESIGN.md:33` calls it *"the
+implementation record, which the program maintains itself"* — so a
+change to what one of its sentences decides is this program's to make
+and owes no `[ev]` PR. And no SHA goes into these pages: CLAUDE.md has
+them present-tense-only, a SHA in prose is a second number to keep
+stale, and the rule is what makes a count checkable at any tree. The
+commit each number was derived at lives on the item rows, here, and in
+the PR.

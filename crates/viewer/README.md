@@ -321,10 +321,10 @@ declare `driver` in its own header, and refuses a `driver` declaration
 on a module the table does not list. The rule that re-derives the number is the other
 side of that pairing — the modules that declare the kind:
 
-    rg --files-with-matches '^//! Module kind: \*\*driver\*\*' crates/viewer/src
+    rg --files-with-matches '^//! Module kind: \*\*driver\*\*' crates/viewer/src | wc -l
 
-which lists eleven files, one per row below, and is exactly what the
-gate holds the two sides to. So a new module OF the app driver is a row
+which prints **11**, one per row below; drop the `| wc -l` and it names
+them. That pairing is exactly what the gate holds the two sides to. So a new module OF the app driver is a row
 here plus its own header; a third DRIVER is an amendment to the rule
 above as well, and neither is a header edit alone.
 
@@ -603,15 +603,16 @@ is not a dump's.
 
 **The rule that produces the table below**, stated here because a
 population certified in prose is where the next defect hides. The
-mechanical half is every destructuring `let` bind under
-`crates/viewer/src`:
+mechanical half is every line under `crates/viewer/src` that opens a
+destructuring `let`, and the command IS the answer rather than
+something to read an answer off:
 
-    rg -U --no-heading -o 'let\s+&?[A-Z]\w*\s*\{[^}]*\}\s*=' crates/viewer/src
+    rg -n --no-heading 'let\s+&?([a-z_]\w*::)*[A-Z]\w*\s*\{' crates/viewer/src | wc -l
 
-read for the lines that begin `let` (the others are the continuation
-lines of a multi-line pattern). That is **22 binds**. The reading half
-sorts those 22, and every member is named so the sort can be argued
-with rather than trusted:
+which prints **24**. Drop the `| wc -l` and it prints one line per
+bind, and no hit is in a comment. The reading half sorts those 24, and
+every member is named so the sort can be argued with rather than
+trusted:
 
 - **Four are `Debug` dumps**, the walks above: `Derived`, `LandedRun`
   and `DocSession` (`session`), `PickCache` (`pickcache`).
@@ -620,6 +621,14 @@ with rather than trusted:
   `widgets::drag_gesture_ops` over `GestureVocabulary`,
   `widgets::value_field_ops` over `FieldShowing`, and the two
   `ProbeOps` unpacks in `pane::properties` and `widgets`.
+- **Two destructure a TOOLKIT type at the chrome boundary** and are
+  not rows: `pane::viewport`'s `viewer_modifiers` over
+  `egui::Modifiers` and `scroll_event` over `egui::Vec2`. Each carries
+  a completeness argument of its own and each is worth having, but the
+  declaration they are held to is the toolkit's rather than this
+  crate's — a field arriving there is a version bump's news, which is
+  the upgrade hold `scroll_event`'s own doc calls nominal, and not a
+  value of ours whose account has fallen behind it.
 - **The remaining fourteen binds are the thirteen censuses below.**
   `PartialEq for Camera` spends two of them, the second over
   `Point3`'s coordinates, which is the one place a census here reaches
@@ -631,7 +640,10 @@ instead of in a `let`, and one over a value reached through an
 accessor. Neither exists under `src/` today and both would be members
 if one did — so the table is the population of record and this
 paragraph is how a reader re-takes it, not a claim that no other shape
-could hold a census.
+could hold a census. The qualified-path arm of the pattern is there
+because leaving it out is how the two toolkit binds above went unseen
+by an earlier taking of this rule, which then reported a smaller
+population with nothing to say it was short.
 
 Thirteen censuses, none of them a dump:
 
@@ -677,8 +689,9 @@ the chrome says to itself.
 
 **A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
 The six `Display`s above are the struct half of a population of 41
-`Display` impls under `src/` — `rg -c 'impl.*fmt::Display for '
-crates/viewer/src`, summed — and the other 35 are over enums, where
+`Display` impls under `src/` — `rg 'impl.*fmt::Display for '
+crates/viewer/src | wc -l` prints that 41, and no hit of it is in a
+comment — and the other 35 are over enums, where
 being a `match` settles nothing about their fields. Sweeping those 35
 for a
 pattern that drops a field of the variant it renders — `{ .. }` or

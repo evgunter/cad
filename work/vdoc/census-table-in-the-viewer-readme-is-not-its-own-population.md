@@ -59,26 +59,49 @@ VIEW's: `crates/viewer/README.md`, `crates/viewer/src/display.rs`.
 row asked for. `PruneReport::is_empty` is a member and so are three
 more the table never carried.
 
-**The enumeration rule, now written above the table.** The mechanical
-half is every destructuring `let` bind under `crates/viewer/src`:
+**The enumeration rule, now written above the table**, and the printed
+command IS the answer rather than something to read an answer off:
 
-    rg -U --no-heading -o 'let\s+&?[A-Z]\w*\s*\{[^}]*\}\s*=' crates/viewer/src
+    rg -n --no-heading 'let\s+&?([a-z_]\w*::)*[A-Z]\w*\s*\{' crates/viewer/src | wc -l
 
-read for the lines that BEGIN `let` — the rest are continuation lines
-of a multi-line pattern, which is why this row's own suggested regex
-(`'let (&)?Self \{|\} = (self|report);'`) reported *24 binds* over a
-tree that has 22: it counted the opening and the closing line of eight
-multi-line patterns and missed every bind over a named type rather than
-`Self`. **22 binds** at `f45df59dc5`.
+**24** at `f45df59dc5`, run exactly as printed. No hit is in a comment.
+
+This is the second rule this row has been given and the first one did
+not reproduce. The version that first landed on this branch printed a
+`-U -o` command and told the reader to *"read for the lines that begin
+`let`"* — without `-n`, `--no-heading` prefixes every match with
+`path:`, so nothing in that output begins with `let` and a reader
+following the page literally counts **0** against a stated 22. That is
+this row's own class re-minted inside its repair, and the tell is the
+shape of the sentence: a rule written as a DESCRIPTION OF THE OUTPUT
+rather than as the command that produces the number. Every command this
+branch prints is now run verbatim out of the file and quoted with its
+exit code.
+
+**Widening it to qualified paths moved the population from 22 to 24.**
+`let egui::Modifiers { … }` and `let egui::Vec2 { … }`
+(`pane::viewport`'s `viewer_modifiers` and `scroll_event`) were
+invisible to a pattern that demanded `[A-Z]` immediately after `let`,
+and both carry a completeness argument of their own. They are a stated
+bucket and not rows: the declaration they are held to is the toolkit's,
+so a field arriving there is a version bump's news rather than one of
+this crate's values falling behind its own account.
+
+This row's own suggested regex (`'let (&)?Self \{|\} = (self|report);'`)
+is a third reading again: it reports *24 hits* for a different reason
+— it counts the opening AND the closing line of eight multi-line
+patterns and cannot see a bind over any named type but `Self` — so its
+agreement with the number above is a coincidence of two errors.
 
 **The reading half is stated with every member named**, so the sort can
 be argued with: four are the `Debug` dumps (`Derived`, `LandedRun`,
 `DocSession`, `PickCache`); four bind a parameter or a returned
 vocabulary struct and claim nothing about completeness
 (`widgets::drag_gesture_ops`, `widgets::value_field_ops`, the two
-`ProbeOps` unpacks); the remaining fourteen binds are **thirteen
-censuses** — `PartialEq for Camera` spends two, the second over
-`Point3`.
+`ProbeOps` unpacks); two destructure a toolkit type at the chrome
+boundary (`viewer_modifiers`, `scroll_event`); the remaining fourteen
+binds are **thirteen censuses** — `PartialEq for Camera` spends two,
+the second over `Point3`.
 
 **The four that were missing**, each carrying the census argument in its
 own doc comment already:
@@ -103,9 +126,9 @@ fix is class-wide over the file or it makes the file worse:
   `PickCache::forget`'s `seam: _`.
 - *"The five `Display`s above are the struct half of a population of 36
   `Display` impls under `src/`; the other 31 are over enums"* — **six**,
-  **41** and **35** (`rg -c 'impl.*fmt::Display for ' crates/viewer/src`,
-  summed, at `f45df59dc5`; six of the 41 subjects are structs, the rest
-  enums). The sweep's own finding was re-run and is unchanged: no
+  **41** and **35** (`rg 'impl.*fmt::Display for ' crates/viewer/src | wc -l`
+  prints 41 at `f45df59dc5`, no hit in a comment; six of the 41
+  subjects are structs, the rest enums). The sweep's own finding was re-run and is unchanged: no
   catch-all over a subject enum, no tuple-arity drop, exactly two `..`
   (`CameraOp::Frame` drops `bounds`, `MateToolEvent::PickLost` drops
   `resolution`).
