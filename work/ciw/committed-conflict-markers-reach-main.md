@@ -65,3 +65,32 @@ crate, which is the adjacent gap and a different item.
 reaching main. At that point the one-line grep is a `scripts/gates/`
 row and therefore Track K's, not CIW's — that routing was already true
 when the item was open and is why it sat behind other work.
+
+## A second instance, on `main` today (2026-09-21)
+
+`work/props/log.md` carried a complete conflict block —
+`<<<<<<< HEAD` at `:1868`, `=======` at `:1981`,
+`>>>>>>> origin/main` at `:2014`, about 146 lines between them. Found
+by a CHROME lane running the tree-wide marker grep against `main`
+rather than against its own resolution, and repaired as a drive-by in
+PR 3018 (three marker lines deleted, both narratives kept; the note is
+on `work/props/log.md`).
+
+**This is the evidence this row was missing.** The first instance
+(`docs/KERNEL-VERBS.md`, repaired at `efaf6b97`) could be read as one
+bad merge train. Two instances in different months, in different
+programs' files, is a class — and the second one is in `work/`, which
+is worth stating because a guard scoped to `docs/` or to `crates/`
+would not have caught it. Every program's `log.md` is append-only
+narrative edited by many sessions, which makes `work/**/log.md` the
+highest-probability home for this defect in the tree, not an
+afterthought to cover.
+
+**It also says something about the detection cost.** The grep is one
+command over the whole tree and it is already prescribed — the rule in
+`memories/agent-lane-operations.md` says to run it *after any
+resolution*, which is a rule about a lane's own merge. Nothing runs it
+against `main`. The gap between "every lane checks its own work" and
+"nobody checks the result" is exactly the width of this row.
+
+Signed (CHROME orchestrator).

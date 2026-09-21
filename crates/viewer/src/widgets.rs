@@ -108,10 +108,36 @@ use crate::sketch;
 /// (`1e7` once a sign is spent) — and a drag moves `FIELD_DRAG_SPEED`
 /// per pixel, so reaching either would take twenty million pixels of
 /// dragging. The substituted band is out of a drag's reach at the top
-/// exactly as it is at the bottom.
+/// exactly as it is at the bottom. Millimetres are the worst case
+/// rather than the only one measured: `UNITS` offers no length
+/// smaller, and the scalar, count and angle ticks are all coarser.
+///
+/// # An INTEGER field is exempt, because it has no search to end
+///
+/// [`crate::readout::MAX_CHARS`] is what ENDS A SEARCH — `readout`'s
+/// own doc says so, and [`crate::readout::number`] is a loop over
+/// precisions that has to stop somewhere. A range of `0..=0` offers
+/// ONE spelling, so there is no search here to end, and applying the
+/// bound anyway substitutes the render's answer for the widget's: a
+/// count of `-1000000000` was rendered `-1.000e9`, and a count of
+/// `12345678901` renders as whatever reads back within
+/// [`crate::readout::REL_TOLERANCE`] — **a different count**. For a
+/// continuous quantity that band is the ratified render accuracy; for
+/// an integer, every value inside it is a different value, so the
+/// substitution is the wrong-number-on-screen defect this door exists
+/// to prevent rather than an instance of the rule.
+///
+/// `0..=0` is the range `egui::DragValue::new` gives an INTEGRAL
+/// `Numeric`, which it also `range`s to that type's own bounds — so
+/// the exemption is bounded by the integer type and not open-ended:
+/// twenty characters for an `i64`, where the band this section is
+/// about was three hundred and eleven. A caller that spells
+/// `max_decimals(0)` over an `f64` has told this door the same thing.
 pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>) -> String {
+    let integral = *decimals.start() == 0 && *decimals.end() == 0;
     let spelling = egui::emath::format_with_decimals_in_range(value, decimals);
-    if spelling.chars().count() <= readout::MAX_CHARS && readout::reads_back(&spelling, value) {
+    let fits = integral || spelling.chars().count() <= readout::MAX_CHARS;
+    if fits && readout::reads_back(&spelling, value) {
         spelling
     } else {
         readout::number(value)
@@ -162,6 +188,16 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
 /// [`value_field_ops`], which replaces both closures because it also
 /// has to say which DOOR a typed text took; it asks
 /// [`crate::props::echoed`] the same question in the same words.
+///
+/// **`egui`'s builders REPLACE rather than compose, so at that one
+/// call site the cell and both closures below are built and
+/// discarded** — `custom_formatter` and `custom_parser` each
+/// overwrite an `Option`. The rule there is carried by
+/// [`value_field_ops`]' own pair and by nothing here, so deleting
+/// that parser as redundant would not fall back to this one: it would
+/// leave the field on `egui`'s default parser with no echo veto at
+/// all. Two spellings of one rule, and this sentence is the only
+/// thing standing between them and a silent merge.
 ///
 /// **What this does not reach is the twelfth site** — see
 /// [`install_number_formatter`], which can carry the render as a
@@ -565,6 +601,13 @@ pub(crate) fn value_field_ops(
             // field needs from it: the fixed text a row with source
             // rather than a number shows, and a copy of whatever it
             // returned.
+            //
+            // These two REPLACE the constructor's pair rather than
+            // wrapping it — `egui`'s builders overwrite an `Option` —
+            // so the echo veto below is the one that runs here and
+            // the constructor's is inert. Deleting either of these
+            // leaves this field on `egui`'s default parser, not on
+            // `number_field`'s.
             .custom_formatter(|value, decimals| {
                 let text = fixed
                     .clone()
@@ -1862,10 +1905,34 @@ mod field_tests {
     /// **An integer field is untouched, and by construction.**
     /// `DragValue::new` gives an integral value one `max_decimals(0)`,
     /// so the range is `0..=0` and the only spelling is the exact one.
+    ///
+    /// **The construction is now the exemption and not an accident of
+    /// width.** Every fixture below used to fit
+    /// `crate::readout::MAX_CHARS` and so passed whatever the door
+    /// did with the ones that do not; the second half is the band
+    /// where the width bound would substitute
+    /// `crate::readout::number`'s answer, which for an integer is a
+    /// DIFFERENT integer. Each of those is asserted to be past the
+    /// bound, so the row is a row for a reason it states.
     #[test]
     fn an_integer_field_is_spelled_the_way_it_always_was() {
         for value in [3.0_f64, -12.0, 0.0, 1.0e9] {
             assert_eq!(number_text(value, 0..=0), format!("{value:.0}"));
+        }
+        for value in [-1.0e9_f64, 1.0e10, -1.0e10, 1.0e15, i64::MAX as f64] {
+            let exact = format!("{value:.0}");
+            assert!(
+                exact.chars().count() > crate::readout::MAX_CHARS,
+                "{value} is only a row here because its exact spelling is \
+                 {} characters",
+                exact.chars().count()
+            );
+            assert_eq!(
+                number_text(value, 0..=0),
+                exact,
+                "an integer field spells its integer, not \
+                 crate::readout::number's nearest reading of it"
+            );
         }
     }
 

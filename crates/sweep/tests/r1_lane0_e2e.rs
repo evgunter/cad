@@ -63,8 +63,8 @@ fn the_f64_seam_answers_every_public_door() {
             topo::validate_geometric_structural(&body, Tol::witness()),
         ),
         (
-            "validate_pseudomanifold_certified",
-            topo::validate_pseudomanifold_certified(&body, &contacts, Tol::witness()),
+            "validate_pseudomanifold_structural",
+            topo::validate_pseudomanifold_structural(&body, &contacts, Tol::witness()),
         ),
     ] {
         if let Err(errors) = r {

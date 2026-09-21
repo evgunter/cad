@@ -103,4 +103,40 @@ is re-baselined to the new ceiling with the derivation written at it.
 **Mutation**: dropping the `chars().count() <= MAX_CHARS` conjunct reds
 those two rows and nothing else.
 
+## Two corrections from the review fix pass (2026-09-21)
+
+**The `desired_width` population above is wrong and the sentence it
+supports does not survive as written.** There are **four**
+`.desired_width` calls in `crates/viewer`, not two: `app.rs:1449`,
+`pane/properties.rs:216`, `pane/view.rs:161` and `pane/view.rs:461`
+(a row). And `pane/view.rs:161` IS a numeric field — the δ box at
+`FIELD_WIDTH = 88.0`, sized against `MAX_CHARS`, which `readout`'s own
+doc says shows a δ in the top band CLIPPED. What survives is the
+narrower claim that carries the argument: **nothing this door feeds is
+width-bounded**, because the δ field is fed by
+`DisplayTolerance::render_mm` and never by `number_text`. The
+conclusion (nothing needed widening) is unchanged; the census under it
+is re-derived rather than repeated.
+
+**The bound reached a field it should not have: an INTEGER's.** With
+the width test applied to every range, `number_text(-1.0e9, 0..=0)`
+answered `-1.000e9` and `number_text(1.0e10, 0..=0)` answered
+`1.000e10` — the widget's exact spelling replaced by
+`readout::number`'s nearest reading of it. For a length that band is
+the ratified render accuracy; for a count every value inside it is a
+**different count**, which is the wrong-number-on-screen defect this
+door exists to prevent. `drafts.rs`'s `pattern_count: i64` is a live
+field through it.
+
+`MAX_CHARS` is what ENDS A SEARCH, and a range of `0..=0` — what
+`egui::DragValue::new` gives an integral `Numeric`, which it also
+`range`s to that type's bounds — offers one spelling and has no search
+to end. So that range is exempt, and the exemption is bounded by the
+integer type rather than open-ended: twenty characters for an `i64`
+against the three hundred and eleven this row was filed about.
+`widgets::field_tests::an_integer_field_is_spelled_the_way_it_always_was`
+now covers both signs and four values past the bound, each asserted to
+be past it. **Mutation**: removing the exemption reds that row and
+nothing else in the 807-row app-feature run.
+
 PR: `vgeom/p0-fields`.

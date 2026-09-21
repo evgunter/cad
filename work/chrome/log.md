@@ -1288,3 +1288,87 @@ example for both is in Ev's 2026-09-17 chat; a torus face against a
 plane face in a union reproduces it.
 
 Signed (VIEW orchestrator).
+
+## 2026-09-21 — CHROME-DATUM-HONESTY landed (PR 3018)
+
+`datums.rs`: one finiteness door became two, and `MAX_GRID_LINES`
+stopped returning a truncated ruling in the shape of a complete one.
+Rows closed: `four-spellings-of-one-finiteness-predicate-in-datums-rs`
+and `max-grid-lines-truncates-a-ruling-and-calls-it-one`.
+
+**The review blocked this unit, and the reason is the thing to
+remember.** The first cut shrank the over-cap patch **centred on the
+region** — and the region is not centred on what the camera is aimed
+at, because at a grazing seat the near edge is a metre away and the
+far edge sits at the `MIN_CELL_PX` cut-off. Measured through
+`datums::draws`: past a pane about 6900 px tall the grid was a
+complete, closing rectangle floating in front of the reader with
+**nothing at the aim point**, monotone in height so it worsened. Worse
+than a defect, it was a REGRESSION — the truncation it replaced kept
+the span from the near end and did cover the aim. And it defeated the
+disposition the row chose: *"a coarse grid might still orient a
+reader"* is worthless if the grid is not where the reader is. The unit
+built to end complete-looking-and-wrong shipped complete-looking-and-
+wrong.
+
+`capped_span` now takes the aim — `grid` already computed the
+looked-at point for the pitch — and clamps the survivor inside the
+region. All three failing windows now rule the span the truncation
+did.
+
+**Three premises of this program's own rows fell to measurement.**
+`MAX_GRID_LINES` is 512, not the 96 its row asserts (caught at
+dispatch). The `is_finite` census was eight sites, not four — the row
+predicted that growth in writing and it happened. And the cap is NOT
+dead at every ordinary view: crossed between 6000 and 6200 px, an
+ordinary orbit seat on an 8K panel. The row's *"about 26 lines"* came
+from the head-on case, where extent scales with eye height rather than
+with the cell cut-off. **The sentence that caused all of it is one
+line of the const's own rustdoc** — *"Not a budget the design expects
+to spend"* — which is why the previous sweep read the site as a
+backstop and left it standing. It is deleted, not appended to.
+
+**The lane then failed one of its own claims, unprompted.** Dropping
+the region clamp reddened nothing, so *"the patch never leaves the
+region"* was a claim at the code with no row behind it — the same
+defect the reviewer had just caught on the aim, inside the fix for it.
+The new assertion derives its tolerance from the drawing (the pitch
+read off the minimum gap between adjacent lines) rather than choosing
+one. Five mutations now, one per claim.
+
+**A finding that reaches every lane, routed to Ev.** The lane counted
+six `test (…)` jobs and went looking for the narrowing
+`docs/prompts/implementer-discipline.md` told it to hunt. There was
+none: the interval lane runs from a called workflow
+(`ci.yml:3581`), so six of the twelve are named `interval / test
+(interval, eps = …, n/2)`. The discipline handed to every lane by path
+is wrong about how to count a full run, and it tells readers that six
+is the signature of a break. `docs/prompts/` is Ev's, so it went out
+as PR 3033 (`[ev]`) with the row on CIW's slate carrying
+`needs_ev: true`; the substantive half of the amendment is that
+counting job NAMES is the wrong instrument at all, since a workflow
+refactor renames every job it moves without touching a step.
+
+**Drive-by, disclosed here because it is not CHROME's ground.**
+`work/props/log.md` carried a complete committed conflict block on
+`main` — three marker lines around ~146 lines, two orchestrators'
+appends, neither side having deleted anything. Repaired by deleting
+the three lines and keeping both narratives; noted on PROPS's log and
+added as the second instance to
+`work/ciw/committed-conflict-markers-reach-main`, whose guard would
+have to cover `work/**/log.md` to catch it. Found by running the
+tree-wide marker grep against `main` rather than against a lane's own
+resolution, which is the gap that row now names.
+
+**Rows filed by this unit**:
+`camera-project-answers-with-a-screen-position-for-a-projection-that-
+overflowed` (P1 — driven to `Ok(Some([6.502, 1.394, 3.44e-304]))` for
+a point 1e300 m away, through a door documented to answer `None`
+there, with `pickindex.rs` as the consumer),
+`features-share-row-asserts-a-conjunct-its-neighbour-subsumes` (P3),
+and `positive-finite-predicate-has-six-homes-outside-datums-rs`
+extended to cover both doors and re-swept — that re-sweep found
+`camera.rs`'s `finite` and `op_finite`, the typed refusal hand-copied
+into two differing only in error type.
+
+Signed (CHROME orchestrator).

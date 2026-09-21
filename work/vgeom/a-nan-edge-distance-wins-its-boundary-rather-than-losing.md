@@ -87,17 +87,49 @@ the thing that makes it true. `pickindex-tie-break-rests-on-a-comment`
 the sort* — and this unit did not claim it; its own section records the
 overlap.
 
-## Reachability: unchanged, and the public door cannot carry a row
+## Reachability: ESTABLISHED, through the public door (corrected 2026-09-21, review fix pass)
 
-Still not established in either direction, as the row says. What this
-unit adds is a negative result about testing it: **every public door
-seeds on a ray through the same cursor and refuses first.**
-`hovered_for` and `edge_at_for` both call `seed`, which un-projects the
-cursor and runs the face pick; a cursor that is not a number, or a
-`DisplayView::moved_roots` frame that is not, makes that pick miss, so
-`edge_near` is never entered and no projected pixel is ever taken. The
-rows are therefore at `best_segment`, with the projection handed to it,
-and the reason is written at them.
+**The negative result this section first carried was false, and the
+row it said could not be written is now in the tree.** It read: *every
+public door seeds on a ray through the same cursor and refuses first
+… `edge_near` is never entered and no projected pixel is ever taken.*
+That is true of a cursor that is not a number and of a placement that
+is not. It is not true of **a projected pixel that stops being a
+measurement while every input is finite**, which is the arm the
+register's *hunt the producer, not the input* rule exists for.
+
+`segment_distance_px` mints the `NaN` itself: `length2 = dx² + dy²`
+overflows once a pixel separation passes about `1.34e154`, the
+numerator overflows with it, and `inf / inf` puts a `NaN` in `t` and
+so in the distance. A projected pixel is an NDC scaled by
+`ViewportSize`, which nothing bounds above — so the walk is entered,
+and poisoned, with every argument to the door an ordinary finite
+number.
+
+Measured through `PickIndex::edge_at_for` on the plate fixture, at a
+viewport of `1.28e155 × 7.2e154` physical pixels with the cursor
+derived as the pixel midpoint of a drawn rim segment:
+
+| tree | 1e2, 1e100, 1e150 | 1e155 | 1e160, 1e200 |
+|---|---|---|---|
+| before the admission | the rim, distance 0 | `Err(the camera's cursor x is NaN)` | the same `Err` |
+| after it | the rim, distance 0 | the rim | `Ok(None)` |
+
+So the pre-fix door did not merely rank a `NaN` first: it installed
+it, sorted it first, handed its `NaN` pixel to the occlusion probe's
+`Camera::ray_through`, and **refused the pick by naming the caller's
+cursor for a pixel the walk had computed**. This unit repaired a live
+defect reachable through the public API, not a door with no producer.
+
+**What is NOT claimed.** `ViewportSize` is a door-level input with no
+upper bound; no screen is `1e155` pixels across, and no user-reachable
+producer was found. Two routes that WOULD need a poisoned input are
+closed, exactly as first written: `Camera::ray_through` refuses a
+cursor that is not a number, and `Camera::project` answers `None` for
+a mesh position that is not.
+
+The in-module rows stay where they are, for the arithmetic; the public
+door has its own row beside them.
 
 **Rows**: `pickindex::tests::a_segment_whose_projection_is_not_a_measurement_does_not_win_the_boundary`
 (a poisoned segment first, a legitimate one third; the answer is the
@@ -108,5 +140,32 @@ and `the_radius_still_ends_where_it_did`.
 
 **Mutation**: restoring `if distance > EDGE_PICK_RADIUS_PX { continue }`
 reds the first two and nothing else.
+
+## The guard's spelling, and the fourth row (review fix pass, 2026-09-21)
+
+The admission landed as
+`!(distance.is_finite() && distance <= EDGE_PICK_RADIUS_PX)`, whose
+`is_finite` conjunct the unit's own fourth mutation showed to be
+inert: a square root is never negative and never `-inf`, so `inf` and
+`NaN` both fail `<=` and the term cannot change an answer. It is now
+
+```
+        if distance > EDGE_PICK_RADIUS_PX || distance.is_nan() {
+```
+
+— both terms load-bearing, no negated partial comparison, and nothing
+for `clippy::neg_cmp_op_on_partial_ord` to refuse.
+
+**Rows**, adding the public door's:
+`edge_pick::a_viewport_no_pixel_distance_can_be_measured_in_picks_no_edge`
+— the pair, at one picture in five pixel units: the rim is answered at
+a measurable scale and nothing is refused about the cursor past it.
+
+**Mutations**, each against the whole 720-row default-feature run:
+
+| mutation | red |
+|---|---|
+| drop `\|\| distance.is_nan()` (the pre-fix guard) | the two in-module rows **and the public-door row**, and nothing else |
+| drop `distance > EDGE_PICK_RADIUS_PX`, keeping `is_nan` | nine rows, `the_radius_still_ends_where_it_did` among them |
 
 PR: `vgeom/p0-fields`.
