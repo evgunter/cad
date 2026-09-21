@@ -2,8 +2,10 @@
 id: recourse-chain-stops-at-the-second-hop-carriers
 kind: issue
 title: five second-hop carriers stop at the condition, so the recourse chain is unproved one delegation past the ValidationError arms
-status: open
+status: review
 opened: 2026-09-12
+branch: fix/recourse-second-hop
+pr: 2948
 ---
 
 
