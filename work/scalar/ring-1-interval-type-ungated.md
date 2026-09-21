@@ -2,9 +2,10 @@
 id: ring-1-interval-type-ungated
 kind: unit
 title: RING-1: geom_core::interval compiles unconditionally; the feature gates only the instantiation
-status: open
+status: review
 opened: 2026-09-21
 branch: scalar/ring-1
+pr: 2971
 ---
 
 ## What
