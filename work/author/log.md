@@ -601,3 +601,78 @@ learned that are not obvious from the diffs:
    correct as a pure function and dead code at the panel, because a
    second emitter above it ran first. No row covered the panel's op
    emission; the reviewer had to build an egui harness to see it.
+
+## 2026-09-21 04:09 — the box hit 100% disk, and I was late
+
+**76K free on `/`.** Caught by a check-in, not by a monitor (none are
+armed — `local-scripts/monitors/README.md`'s temporary note still
+stands) and not by a lane failing. The first symptom was a harness
+error: the session's task directory could not be written.
+
+Freed to 11 GB: a finished review lane's 5.6 GB target that I should
+have reclaimed when its report arrived, three finished review clones,
+and **3.3 GB of in-tree build artifacts in AUTH-1's clone**.
+
+**The reclaim was mine and I did it late.**
+`memories/agent-lane-operations.md` is explicit — *"Reclaiming a
+finished lane is the ORCHESTRATOR's job… Do it WHEN A REVIEW RETURNS,
+not when a lane runs out of disk — a review lane's `target/` is pure
+waste the moment its report is in hand, and review lanes are the
+biggest consumers."* I reclaimed the two implementer targets on
+report and left the review ones. That is the rule working exactly as
+written and me not following it.
+
+**The genuinely new fact, for whoever hits this next.** The 3.3 GB was
+**in-tree**, under `demos/tour/target`, `demos/wild/target`,
+`benches/target` and `tools/*/target` — the cargo roots `Cargo.toml`
+EXCLUDES from the workspace. Each is its own cargo root, so a
+`CARGO_TARGET_DIR` that does not reach the subshell running them
+(`(cd demos/tour && cargo clippy …)`, the shape the discipline itself
+suggests) builds into the worktree. The memory's reclaim advice globs
+`/home/user/*-target` and names `/root/<lane>-target` as the wandering
+case; this is a third location it does not name, and it is inside the
+clone rather than beside it.
+
+**Nothing was committed** — working tree clean, zero untracked, and
+all four paths are covered by `.gitignore` / `demos/.gitignore`, so
+the CERT-M2 hazard (a lane pushing its build directory) did not
+recur. Checked rather than assumed, because that is the one failure
+here that would have been unfixable under merge-only rules.
+
+Not filed as a row and not proposed as a memory line: one instance,
+and the existing rule already covers the part I got wrong. If a second
+lane does it, it has earned a sentence in
+`memories/agent-lane-operations.md` beside the wandering-target
+paragraph.
+
+## 2026-09-21 — AUTH-1's fix pass is green
+
+Run 35558347640 on head `7a5b41609`: 39 jobs, **twelve `test (…)`**,
+**five `k-lint (gate, …)`**, zero failures, nothing narrowed. Eleven
+of the twelve items landed.
+
+**F12 was MINE and was wrong about the tree.** I adjudicated that the
+`partial_mirror!` macro expands to a fn returning `()`; that is the
+`@exhaustive` helper arm. The `DatumSpec, onto DatumKindChoice`
+invocation takes the `onto` arm, which returns
+`Option<DatumKindChoice>` exactly as the original PR body said. The
+lane answered rather than implemented, with the macro source quoted.
+**Third dispatcher premise falsified in this program** — the first two
+were in specs, this one in an adjudication, which is worse: a spec is
+read by a lane that will check it, and an adjudication arrives as a
+list of things to do.
+
+**F4 produced a finding rather than the fix I asked for**, and the
+lane was right to report it. I asked for the boss volume to be made
+discriminating by unioning it into the block. It cannot be authored:
+a boss drawn on a face frame is FLUSH with the block by construction,
+and the kernel refuses an undeclared coincident contact
+(`UndeclaredContact`, `FlushFinding`), while the declaration is a
+`Declare` node that `SessionOp::AddBoolean` has no seat for. So the
+sum-of-volumes assertion is unreachable through this op vocabulary.
+The lane asserted the frame's landed POSE whole instead — origin,
+normal and sketch +x — which discriminates strictly more than the
+previous `z`-only assertion, and verified it by mutation
+(`CapEnd::Start` now reds). **That gap is worth knowing about beyond
+this unit**: the viewer cannot author a union of two bodies it made
+flush, which is an ordinary CAD gesture.
