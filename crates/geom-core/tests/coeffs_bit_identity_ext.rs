@@ -182,6 +182,12 @@ const DIGEST: u64 = 0x9897_c316_665d_3ab0;
 #[test]
 fn the_extended_coefficient_corpus_is_bit_identical_to_its_retired_spelling() {
     let rows = rows();
+    if std::env::var_os("COEFFS_DUMP").is_some() {
+        for (name, bits) in &rows {
+            println!("{name} {bits:#018x}");
+        }
+        println!("rows {} digest {:#018x}", rows.len(), digest(&rows));
+    }
     assert_eq!(rows.len(), ROW_COUNT, "corpus size drifted");
     assert_eq!(digest(&rows), DIGEST, "a coefficient door's bits moved");
 }
