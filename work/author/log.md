@@ -805,3 +805,40 @@ no headless egui harness; it does, in `widgets.rs`, over a real
 there before they were fixed — the click-in/click-away emitted
 `SetParam(0.04)` over a field holding 0.040000019, and the typed
 `1000.4` emitted nothing.
+
+## 2026-09-21 — correcting an earlier entry in this log (append, not rewrite)
+
+The 2026-09-21 entry above, "AUTH-2's fix pass: the text guard worked,
+and found a toolkit quirk", explains the two-frame duplicate this way:
+
+> a text guard cannot, because by frame 2 the document has moved and
+> the render is no longer what is in the box
+
+**That is wrong, and the truth is narrower.** `egui`'s formatter runs
+before BOTH parse sites, so `rendered` is populated on both frames.
+The second hand-over escapes `props::echoed` because the formatter
+spells at least one decimal (`widgets::number_text(_, 1..=3)`) while
+the user typed none — `"1002"` against `"1002.0"`. Where the render
+round-trips exactly, the field guard already swallows the second one,
+which AUTH-2's `the_field_swallows_the_second_hand_over_when_its_render_round_trips`
+now pins: typing `1000.4` emits ONE operation where `1002` emits two.
+
+Found by the targeted correctness arm and confirmed empirically by the
+second fix pass, against the vendored `egui-0.36.1` source.
+
+**Appended rather than edited, deliberately.** `work/README.md` calls
+this file an append-only narrative, and the entry above is an honest
+record of what was believed at that hour. What binds a future reader
+is the claim, not the paragraph, so the claim is corrected here and
+the original stands as what it was. The fix-pass lane raised this and
+declined to rewrite the entry itself, which was the right instinct and
+the right half of the job to hand back.
+
+A second thing that entry got wrong by omission: it reported the door
+rule as necessary because the second emission "cannot be told apart at
+the field". It can — `egui::Memory::had_focus_last_frame(id)` is
+public and is exactly the discriminator, where `lost_focus()` is
+sticky across both frames by design. `DocSession::writes_nothing`
+stays at the door anyway, for reasons now written on
+`work/vgeom/a-typed-field-hands-its-text-over-on-two-frames.md` as
+declined-with-reasons rather than as a door that does not exist.
