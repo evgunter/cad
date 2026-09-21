@@ -1030,3 +1030,22 @@ two per-file counts, the evalscalar header line), WIRE (prose only),
 TCOST/TINT (`perf12_census_bvh_diff.rs`, the census test files),
 `docs/GENERICS-BUILD-COST.md`. RING-2 is still fixing its red head on
 the other lane.
+
+## LANE-2's PR opened; RING-2's second head red on one row; a sample-number collision (2026-09-21)
+
+LANE-2 opened PR 3038 at 20:07Z (head `991108fbe0`, run 35649109217
+in progress); the fence comment is posted (the write path appended a
+footer; it was removed and the live body re-read). RING-2 pushed its
+fixed head `7594fa3f1e` (run 35649776591): the five rows of the first
+run are green and one new row is red, `step-export`'s
+`kernel_sidecar_fields_match_live_kernel` — main's own run on
+`e0a76cc594` is green, so it is this PR's (a committed sidecar
+carrying a certified number the newtype tightened, most likely); handed
+to the lane with the reproduction. SYM-11 (PR 3028) merged after
+LANE-1 and recorded sample #230 on main by the landed-highest rule,
+the number RING-0 carries here by first-parent order; filed as
+`ab-sample-230-claimed-twice-on-main-and-branch-side` — this program's
+numbers stay as first-parent order until the rule is stated, and the
+B5 record will name the row. The LANE-2 review byte is drawn (126,
+parity 0 ⇒ R1 OPUS, R2 FABLE) and the brief drafted; ordinal 4115
+is claimed when the head freezes.
