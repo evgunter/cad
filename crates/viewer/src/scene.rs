@@ -1508,10 +1508,12 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::{
-        DisplayTolerance, PROBE_FACTOR, Probe, ProbeStop, SCALE_PROBE_DELTA, TRIANGLE_BUDGET,
-        fit_from_probes,
+        DisplayTolerance, PROBE_FACTOR, Probe, ProbeStop, SCALE_PROBE_DELTA, SceneError, SceneMesh,
+        TRIANGLE_BUDGET, fit_from_probes,
     };
-    use pncad::mesh::TessellateError;
+    use pncad::geom_core::Point3;
+    use pncad::mesh::{FacePatch, Mesh, TessellateError};
+    use pncad::topo::FaceKey;
 
     /// A body obeying the law exactly: `triangles = constant / δ`,
     /// never below a floor it reaches at coarse δ.
@@ -1678,5 +1680,47 @@ mod tests {
             Err(TessellateError::InvalidChordalTolerance { value: d })
         });
         assert!(fitted.is_err());
+    }
+
+    /// One triangle, whose corner is where the row wants it.
+    fn one_triangle(far: f64) -> Mesh {
+        Mesh {
+            positions: vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(far, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            patches: vec![FacePatch {
+                face: FaceKey::default(),
+                triangles: vec![[0, 1, 2]],
+            }],
+            boundaries: Vec::new(),
+        }
+    }
+
+    /// **A corner the display seam cannot carry refuses the scene**,
+    /// through the public door and over a coordinate that is finite at
+    /// every guard above it.
+    ///
+    /// `1e39` is past `f32::MAX` (about `3.40e38`) and nowhere near
+    /// `f64`'s range, so the mesh is well formed, the patch index is in
+    /// range, and the only thing wrong with it is that the narrowing
+    /// [`SceneMesh::build`] performs would put an infinity in a vertex
+    /// buffer. The pair below is what the refusal has to be worth: the
+    /// same mesh at an ordinary coordinate builds.
+    #[test]
+    fn a_corner_past_the_display_seam_refuses_the_whole_scene() {
+        let ordinary = SceneMesh::build(&one_triangle(1.0), delta(1.0e-3))
+            .expect("an ordinary triangle is a scene");
+        assert_eq!(ordinary.stats().triangles, 1);
+
+        let far = 1.0e39_f64;
+        assert!(far.is_finite(), "the witness is a number at every guard");
+        match SceneMesh::build(&one_triangle(far), delta(1.0e-3)) {
+            Err(SceneError::UndrawablePosition { position }) => {
+                assert_eq!(position, [far, 0.0, 0.0], "the refusal names the corner");
+            }
+            other => panic!("a corner past f32::MAX is not a scene: {other:?}"),
+        }
     }
 }
