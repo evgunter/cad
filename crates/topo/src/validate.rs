@@ -9411,19 +9411,6 @@ mod offset_fit_door_rows {
             .expect("the surface re-certifies at the tolerance it was minted at");
         let free = geom_brep::recertify_approx(&approx, tol, band)
             .expect("the free function agrees that it re-certifies");
-        for (name, a, b) in [
-            ("distance", door.distance, free.distance),
-            ("on_locus_max", door.on_locus_max, free.on_locus_max),
-            ("hull_sup", door.hull_sup, free.hull_sup),
-            ("normal_floor", door.normal_floor, free.normal_floor),
-            (
-                "curvature_reach",
-                door.curvature_reach,
-                free.curvature_reach,
-            ),
-        ] {
-            assert_eq!(a.to_bits(), b.to_bits(), "{name} moved behind the door");
-        }
-        assert_eq!((door.cells, door.samples), (free.cells, free.samples));
+        crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
     }
 }

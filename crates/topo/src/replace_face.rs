@@ -2265,19 +2265,8 @@ mod offset_fit_door_rows {
             panic!("the free function mints the same surface");
         };
         let (a, b) = (through_door.certificate(), free.certificate());
-        for (name, x, y) in [
-            ("distance", a.distance, b.distance),
-            ("on_locus_max", a.on_locus_max, b.on_locus_max),
-            ("hull_sup", a.hull_sup, b.hull_sup),
-            ("normal_floor", a.normal_floor, b.normal_floor),
-            ("curvature_reach", a.curvature_reach, b.curvature_reach),
-        ] {
-            assert_eq!(x.to_bits(), y.to_bits(), "{name} moved behind the door");
-        }
-        assert_eq!(
-            (a.cells, a.samples, a.rounds),
-            (b.cells, b.samples, b.rounds)
-        );
+        crate::fixtures::assert_certificates_agree("the mint door", a, b);
+        assert_eq!(a.rounds, b.rounds, "the refinement history moved");
         assert_eq!(
             through_door.tolerance().to_bits(),
             free.tolerance().to_bits(),

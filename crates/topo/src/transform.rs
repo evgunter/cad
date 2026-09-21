@@ -990,19 +990,7 @@ mod offset_fit_door_rows {
         let reference = geom_brep::certify_offset_over(base, &spec.fit, *d, spec.window, tol, band)
             .expect("`geom-brep`'s certifier measures the mapped pair");
         let got = mapped.certificate();
-        for (name, x, y) in [
-            ("distance", got.distance, reference.distance),
-            ("on_locus_max", got.on_locus_max, reference.on_locus_max),
-            ("hull_sup", got.hull_sup, reference.hull_sup),
-            ("normal_floor", got.normal_floor, reference.normal_floor),
-            (
-                "curvature_reach",
-                got.curvature_reach,
-                reference.curvature_reach,
-            ),
-        ] {
-            assert_eq!(x.to_bits(), y.to_bits(), "{name} moved behind the door");
-        }
+        crate::fixtures::assert_certificates_agree("the mapped pair", got, &reference);
         assert_eq!(
             got.rounds,
             approx.certificate().rounds,

@@ -1079,6 +1079,41 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
 // The offset-fit door's subject
 // ---------------------------------------------------------------------
 
+/// **Two offset certificates agree, limb for limb, by bits.**
+///
+/// The five limbs are the whole certificate's numeric content, and a
+/// row that compares four of them is a row with a hole in it — which
+/// is why this is one function rather than a loop each caller writes.
+/// `what` names the pair so a failure says which comparison broke.
+pub(crate) fn assert_certificates_agree(
+    what: &str,
+    got: &geom::OffsetCertificate,
+    expected: &geom::OffsetCertificate,
+) {
+    for (limb, a, b) in [
+        ("distance", got.distance, expected.distance),
+        ("on_locus_max", got.on_locus_max, expected.on_locus_max),
+        ("hull_sup", got.hull_sup, expected.hull_sup),
+        ("normal_floor", got.normal_floor, expected.normal_floor),
+        (
+            "curvature_reach",
+            got.curvature_reach,
+            expected.curvature_reach,
+        ),
+    ] {
+        assert_eq!(
+            a.to_bits(),
+            b.to_bits(),
+            "{what}: {limb} moved behind the door ({a:e} vs {b:e})"
+        );
+    }
+    assert_eq!(
+        (got.cells, got.samples),
+        (expected.cells, expected.samples),
+        "{what}: the schedule moved"
+    );
+}
+
 /// A gently bowed polynomial patch over `[0,1]²` — a base whose offset
 /// is genuinely not a NURBS, so the fit has real work to do.
 ///
