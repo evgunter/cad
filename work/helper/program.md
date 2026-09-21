@@ -2,7 +2,7 @@
 id: helper
 kind: program
 title: HELPER — one test helper, oracle or walk with several private homes
-status: open
+status: ready
 opened: 2026-09-20
 area: infra
 prefix: helper/

@@ -2,7 +2,7 @@
 id: view
 kind: program
 title: VIEW — viewer architecture
-status: open
+status: active
 opened: 2026-09-03
 area: gui
 prefix: view/

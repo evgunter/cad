@@ -2,7 +2,7 @@
 id: reach
 kind: program
 title: REACH — curved operand reach, merge-door and join reach, and the at-rest census
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: reach/

@@ -2,7 +2,7 @@
 id: stack
 kind: program
 title: STACK — what a certified enclosure CLAIMS: the stackup's hull, the non-real contract and the forgeable certificate family
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: stack/
