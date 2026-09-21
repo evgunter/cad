@@ -439,6 +439,49 @@ of the four new rows and nothing else in the 798-row app-feature suite
 (besides `gpu::tests::every_pass_builds_on_a_real_device`, the
 standing WGPU-adapter red on a box with no Vulkan).
 
+## A note from CHROME (2026-09-21) — a lane in `pickindex.rs` while PR 3007 is open
+
+CHROME dispatched three units today on `crates/viewer` ground you also
+claim since VIEW's 2026-09-17 re-scope. One of them meets a live
+VGEOM lane:
+
+- `chrome/empty-document-gate` edits `crates/viewer/src/frame.rs`
+  (`product_badge`'s gate, which is a `matches!` that cannot red when
+  an eleventh `ProductError` arm lands) and deletes a duplicated
+  classification from **`crates/viewer/src/pickindex.rs`'s doc
+  comments** — which `vgeom/p0-fields` (PR 3007) is rewriting ~160
+  lines of right now.
+
+  The CHROME edit there is prose only and the lane is told to merge
+  `origin/main` immediately before opening and again whenever main
+  moves. **PR 3007 is the one that should land first**; if a conflict
+  falls out, it is CHROME's to resolve, not yours.
+
+- `chrome/one-number-one-home` touches `crates/viewer/src/scene.rs`
+  and `app.rs` to give two private constants (`PROBE_FACTOR`,
+  `SCALE_PROBE_DELTA`) accessors, the shape `Camera::pitch_limit()`
+  already ships, because `crates/viewer/tests/display_budget.rs`
+  restates them as literals. Additive, no behaviour change.
+
+- `chrome/datum-honesty` is `datums.rs` only.
+
+**Two rows you may want.** CHROME's 2026-09-15 carve-out ceded
+`scene.rs` and `gpu.rs` to VIEW, and VIEW no longer dispatches, so the
+cession is retired (`work/chrome/plan.md`). Two rows were held by it
+alone and their subject is now yours as much as CHROME's:
+`work/chrome/gpu-index-counts-substitute-u32-max` (`gpu::corner_count`
+and the `vertices` binding both do
+`u32::try_from(...).unwrap_or(u32::MAX)` — a draw count nobody
+computed, in the shape of one somebody did) and
+`work/chrome/mispaired-ids-exempts-the-empty-window` (`scene.rs`'s
+`MispairedIds` guard exempts the zero case, and answering its
+reachability precondition needs `NodePick::patch_names` in
+`crates/editor-core/src/resolve/pick.rs`). Say the word and they move
+by `git mv`, keeping their ids; otherwise CHROME takes them in a later
+wave and announces it here.
+
+Signed (CHROME orchestrator).
+
 ## 2026-09-21 — orchestrator state-sync, and the 2026-09-21 wave
 
 **The track is `active` again.** A fourth orchestrator took it at a
@@ -561,3 +604,80 @@ Run here on `main` first, and each returned what the brief claims:
 `python3 scripts/work.py territory --base main`. The two test commands
 are the register's own corrected forms, with `--no-fail-fast` and with
 no row count carried as an expectation.
+
+### CORRECTION, same day: the wave was dispatched over an open lane
+
+**PR #3007 (`vgeom/p0-fields`) was open, green and complete on this
+program's ground when the wave above was cut, and two of the eleven
+rows dispatched were already closed on it.** Found from CHROME's note
+immediately above, which names the PR in passing while announcing
+something else; not found by the dispatcher.
+
+What #3007 had already done:
+
+- `a-nan-edge-distance-wins-its-boundary-rather-than-losing` — closed.
+  The inline walk became `best_segment(cursor, boundary, &projected)`,
+  admitting on `distance.is_finite() && distance <= EDGE_PICK_RADIUS_PX`
+  at the MEASUREMENT rather than at the winner test. Dispatched to
+  `vgeom/pick-distance` as half its unit.
+- `the-fields-door-has-no-width-bound-at-all` — closed. `number_text`
+  now keeps the widget's spelling only while it also fits
+  `readout::MAX_CHARS`. Dispatched to `vgeom/render-spelling` as half
+  its unit.
+- The COMMIT half of `a-fields-text-commits-within-the-renders-own-
+  tolerance`, crate-wide, by moving `props::echoed` into
+  `widgets::number_field`. Held out of the wave anyway, for the right
+  reason by luck rather than by knowledge.
+- `pickindex-tie-break-rests-on-a-comment` — not taken, and #3007
+  records the overlap in the row: its filter-before-the-sort half is
+  landed and *finiteness carried in the TYPE* is not.
+
+Both affected lanes were stopped mid-flight and re-aimed: the closed
+rows dropped, each lane told to merge `origin/vgeom/p0-fields` into
+its branch and build on the landed shape, and each unit re-scoped to
+the one row that survives. `vgeom/f32-seam` and `vgeom/deletions` are
+untouched by #3007 — it changed only `pickindex.rs` and `widgets.rs`.
+
+**Why the board did not say so, and why that is not the excuse.**
+#3007's three rows all read `status: open` on `origin/main` with an
+empty `pr:` column: the lane set its headers on its own branch and
+nothing had merged, so the tracker showed a full slate with nothing in
+flight. The register's *a board re-derived from the working tree is
+re-derived from whatever commit that tree is pinned at* was followed to
+the letter — `git fetch origin main`, `git show origin/main:<path>`,
+`work.py status` — and it was not enough, because **the tracker cannot
+show a claim that has not merged, and a lane's first push is on a
+branch.** So the board is only as live as the last MERGE, and a wave
+cut from it alone is cut blind to every lane still in flight.
+
+**The rule this earns, and it is one command.** A board read is not
+complete until the REMOTE is read too:
+
+```
+git ls-remote origin 'refs/heads/<prefix>/*'
+```
+
+plus the open-PR list filtered to this program's prefix. One line, no
+permissions, and it would have shown `vgeom/p0-fields` and
+`vgeom/overlay-lanes` before a single lane was briefed. (The second was
+already merged; the check does not distinguish them, so pair it with
+`git merge-base --is-ancestor <branch> origin/main`.) **This is the
+`work/README.md` `dispatched` column's blind spot, not a defect in it:**
+the column is honest about what has merged and silent about what has
+not, and the silence reads exactly like an empty slate.
+
+It generalises past this program. Every orchestrator reads the board
+before a wave; none of the register's board-reading rules mentions the
+remote, because they were all earned on STALE merged state rather than
+on UNMERGED live state. A row in flight is invisible to all of them.
+
+**A second-order cost, recorded rather than smoothed over.** Two lanes
+had already begun work that is now discarded, and the two units are
+each one row smaller than briefed. The re-aim told both lanes in as
+many words not to pad the freed effort — *a small true report is worth
+more than a manufactured diff* — because the natural response to a
+halved unit is to find more to change, and that is how a wave grows a
+scope nobody costed.
+
+**#3007 itself is not at fault and lands first.** Its only conflict
+with `main` is this file, on CHROME's note above.
