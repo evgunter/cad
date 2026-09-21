@@ -203,10 +203,13 @@ the logic of a change.
 ## 5. Sweeps
 
 If your unit fixes an instance of a class, say what pattern you swept with and
-**what that pattern could not match**. A sweep whose blind spot is unstated is
-an unverified claim, not a negative result. Note also that a sweep is accurate
-as of your merge base, not your merge: a long-running lane owes a re-sweep
-before it lands.
+**what that pattern could not match** — then try to check that blind spot,
+with a second pass shaped at the gap you just named, and report that one too.
+A sweep whose blind spot is unstated is an unverified claim, not a negative
+result; one stated and never looked into is where the next instance tends to
+be. Where a gap genuinely cannot be searched, say that and say why. Note also
+that a sweep is accurate as of your merge base, not your merge: a long-running
+lane owes a re-sweep before it lands.
 
 **Assume it is a class.** The trigger above is your own judgement that the
 defect has siblings, and that judgement is where this rule misses. Before you
