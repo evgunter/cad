@@ -1433,6 +1433,33 @@ pub trait CertifiedEnclosure: Copy {
     /// through `f64` combinators (`f64::max` returns the non-NaN operand),
     /// whereas a `None` the caller must destructure cannot be ignored.
     fn certified_bracket(self) -> Option<(f64, f64)>;
+
+    /// The endpoints this value carries, refused or not — **for a
+    /// consumer whose own refusal channel is a decoration** rather than
+    /// an absence, so the refusal travels in that channel instead of
+    /// erasing the bracket that came with it.
+    ///
+    /// This is **not** a second certified door and promises nothing:
+    /// the pair brackets the reals the value stands for and says
+    /// nothing about the computation behind it, exactly as
+    /// [`Bounds`] does. A caller that may ACT on the bracket asks
+    /// [`Self::certified_bracket`], whose `None` it cannot ignore; a
+    /// caller that reads this one is obliged to carry the refusal
+    /// itself, and the C9 ring's crossing
+    /// (`RingInterval::from_certified`) is the one in the tree — it
+    /// pairs this with the certified door's verdict and caps the
+    /// decoration at `Trv` when the verdict is a refusal, which keeps
+    /// the refusal readable at a type where NaN endpoints would not be.
+    ///
+    /// The default is the honest answer for a scalar whose refusal has
+    /// no bracket to report: `f64`'s refusal IS its NaN, so the pair is
+    /// `(NaN, NaN)` and nothing is lost. A scalar that records a domain
+    /// violation *beside* a sound bracket — the interval scalar's `Trv`
+    /// after a clamp, the ring's zero-touching quotient — overrides
+    /// this and reports those endpoints.
+    fn crossing_bracket(self) -> (f64, f64) {
+        self.certified_bracket().unwrap_or((f64::NAN, f64::NAN))
+    }
 }
 
 /// `f64` refuses on NaN and only on NaN: the bracket is the value, so

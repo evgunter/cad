@@ -1341,6 +1341,10 @@ impl crate::real::CertifiedEnclosure for Probe {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         crate::real::CertifiedEnclosure::certified_bracket(self.0)
     }
+
+    fn crossing_bracket(self) -> (f64, f64) {
+        crate::real::CertifiedEnclosure::crossing_bracket(self.0)
+    }
 }
 
 /// `Probe` locates spans through its `f64` (module docs of
