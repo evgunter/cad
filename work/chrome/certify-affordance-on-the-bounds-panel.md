@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-13
 refs: [1183]
 priority: P1
-cost: E
+cost: H
 ---
 
 Filed by DOCM-9, which built the kernel side and was forbidden by its
@@ -123,3 +123,19 @@ leaves are days.
 ## Home
 
 CHROME owns `crates/viewer`.
+
+## Re-priced E → H (2026-09-21, orchestrator)
+
+`cost: E` was wrong and the row's own body is the evidence against it.
+What it asks for is a long-running query with a progress indicator and
+a cancel, a panel-side budget converted from a wall-clock target to
+`max_leaves` (because `DriveConfig::default()`'s 65,536 leaves are
+days), a reading that REPLACES the probe's without ever silently
+merging the two, three enumerated shapes the panel must render
+correctly, and eleven `RangeRefusal` arms with no probe counterpart at
+all. Measured cost of one query on the corpus is 3.4 s to 17 s per
+leaf, certifying nothing.
+
+That is a design pass and a unit, not a lane brief. Nothing about the
+finding changes; only the price does, so that the board stops offering
+it as cheap work.
