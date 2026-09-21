@@ -1288,3 +1288,166 @@ example for both is in Ev's 2026-09-17 chat; a torus face against a
 plane face in a union reproduces it.
 
 Signed (VIEW orchestrator).
+
+## 2026-09-21 — CHROME-DATUM-HONESTY landed (PR 3018)
+
+`datums.rs`: one finiteness door became two, and `MAX_GRID_LINES`
+stopped returning a truncated ruling in the shape of a complete one.
+Rows closed: `four-spellings-of-one-finiteness-predicate-in-datums-rs`
+and `max-grid-lines-truncates-a-ruling-and-calls-it-one`.
+
+**The review blocked this unit, and the reason is the thing to
+remember.** The first cut shrank the over-cap patch **centred on the
+region** — and the region is not centred on what the camera is aimed
+at, because at a grazing seat the near edge is a metre away and the
+far edge sits at the `MIN_CELL_PX` cut-off. Measured through
+`datums::draws`: past a pane about 6900 px tall the grid was a
+complete, closing rectangle floating in front of the reader with
+**nothing at the aim point**, monotone in height so it worsened. Worse
+than a defect, it was a REGRESSION — the truncation it replaced kept
+the span from the near end and did cover the aim. And it defeated the
+disposition the row chose: *"a coarse grid might still orient a
+reader"* is worthless if the grid is not where the reader is. The unit
+built to end complete-looking-and-wrong shipped complete-looking-and-
+wrong.
+
+`capped_span` now takes the aim — `grid` already computed the
+looked-at point for the pitch — and clamps the survivor inside the
+region. All three failing windows now rule the span the truncation
+did.
+
+**Three premises of this program's own rows fell to measurement.**
+`MAX_GRID_LINES` is 512, not the 96 its row asserts (caught at
+dispatch). The `is_finite` census was eight sites, not four — the row
+predicted that growth in writing and it happened. And the cap is NOT
+dead at every ordinary view: crossed between 6000 and 6200 px, an
+ordinary orbit seat on an 8K panel. The row's *"about 26 lines"* came
+from the head-on case, where extent scales with eye height rather than
+with the cell cut-off. **The sentence that caused all of it is one
+line of the const's own rustdoc** — *"Not a budget the design expects
+to spend"* — which is why the previous sweep read the site as a
+backstop and left it standing. It is deleted, not appended to.
+
+**The lane then failed one of its own claims, unprompted.** Dropping
+the region clamp reddened nothing, so *"the patch never leaves the
+region"* was a claim at the code with no row behind it — the same
+defect the reviewer had just caught on the aim, inside the fix for it.
+The new assertion derives its tolerance from the drawing (the pitch
+read off the minimum gap between adjacent lines) rather than choosing
+one. Five mutations now, one per claim.
+
+**A finding that reaches every lane, routed to Ev.** The lane counted
+six `test (…)` jobs and went looking for the narrowing
+`docs/prompts/implementer-discipline.md` told it to hunt. There was
+none: the interval lane runs from a called workflow
+(`ci.yml:3581`), so six of the twelve are named `interval / test
+(interval, eps = …, n/2)`. The discipline handed to every lane by path
+is wrong about how to count a full run, and it tells readers that six
+is the signature of a break. `docs/prompts/` is Ev's, so it went out
+as PR 3033 (`[ev]`) with the row on CIW's slate carrying
+`needs_ev: true`; the substantive half of the amendment is that
+counting job NAMES is the wrong instrument at all, since a workflow
+refactor renames every job it moves without touching a step.
+
+**Drive-by, disclosed here because it is not CHROME's ground.**
+`work/props/log.md` carried a complete committed conflict block on
+`main` — three marker lines around ~146 lines, two orchestrators'
+appends, neither side having deleted anything. Repaired by deleting
+the three lines and keeping both narratives; noted on PROPS's log and
+added as the second instance to
+`work/ciw/committed-conflict-markers-reach-main`, whose guard would
+have to cover `work/**/log.md` to catch it. Found by running the
+tree-wide marker grep against `main` rather than against a lane's own
+resolution, which is the gap that row now names.
+
+**Rows filed by this unit**:
+`camera-project-answers-with-a-screen-position-for-a-projection-that-
+overflowed` (P1 — driven to `Ok(Some([6.502, 1.394, 3.44e-304]))` for
+a point 1e300 m away, through a door documented to answer `None`
+there, with `pickindex.rs` as the consumer),
+`features-share-row-asserts-a-conjunct-its-neighbour-subsumes` (P3),
+and `positive-finite-predicate-has-six-homes-outside-datums-rs`
+extended to cover both doors and re-swept — that re-sweep found
+`camera.rs`'s `finite` and `op_finite`, the typed refusal hand-copied
+into two differing only in error type.
+
+Signed (CHROME orchestrator).
+
+## 2026-09-21 — CHROME-EMPTY-DOC landed (PR 3021)
+
+`frame.rs` and `pickindex.rs`: the empty-document rule is cited once,
+and the site that gates on it reds when `ProductError` grows an arm.
+Row closed:
+`viewer-states-the-empty-document-rule-in-four-places-and-the-one-that-gates-cannot-red`.
+
+**Correction to this log.** The entry of 2026-09-15 (and the row, and
+the dispatch) named the classification's home
+`ProductErrorKind::is_empty_document`. **That function does not
+exist** — WIRE renamed it `means_no_body` inside PR 2629's own lane,
+so the name was already dead when the row was written citing it. Zero
+hits in `crates/` today. The unit corrected the row's body; this
+paragraph is the log's correction, since the log is append-only. Five
+live documents carried the dead spelling; the two WIRE hits are the
+closed row that PROPOSED the name, which even says *"or whatever it is
+called"*, so nothing of WIRE's is stranded.
+
+**The design call was a three-valued enum**, not a `bool`:
+`badge_site(ProductErrorKind) -> BadgeSite` with `Frame`,
+`FeatureTree`, `NotAFault`. The two silences are silent for unrelated
+reasons, and under a `bool` the mutation that moves `NoBodyRoots`
+between them is **invisible** — both spellings answer `false` and
+`product_badge` is `None` either way. Verified by the reviewer, not
+argued: it reds only under the enum.
+
+**And the shape mattered more than the enum.** A naive exhaustive
+match would have re-named the no-body classes and made the citation
+decorative. The `match` answers the three tree-owned classes from
+local policy and every remaining class reaches its answer **through a
+call to `means_no_body`**, so the cited rule stays load-bearing. The
+correctness arm confirmed the ordering moves no badge: `product_badge`
+driven over all ten classes on the head and on the merge base gives
+**identical tables**, and it is algebraically forced.
+
+**The trap landed here too — four instances, one found by the lane.**
+`BadgeSite::NotAFault`'s doc restated `means_no_body`'s own sentence
+at a brand-new site with no citation at all, in the diff whose subject
+is a rule restated where its citation did not reach. Two more were
+restate-then-cite. The lane found the fourth itself while filing the
+row about it: a ``[`badge_site`]`` in a `//` comment, the checked
+spelling on an unchecked citation.
+
+**CI caught what neither the lane nor the orchestrator had.**
+`scripts/gates/viewer-vocab-declared-once.sh` reds on an unratified
+`const` array of `Type::Variant` entries under `crates/viewer/src`,
+and the lane's ten-class census was exactly that. The gate was right:
+`crates/viewer/README.md` ratifies two kinds of hand-written list, a
+complete census of another crate's enum is neither, and a third kind
+is an amendment to that page — Ev's, not a lane's. The census moved
+inline and both halves of the guard were re-proved red afterwards.
+
+**Rows filed**: `has-faults-cannot-red-on-a-new-rowstatus` (P2) and
+`a-citation-in-a-line-comment-is-not-checked` (P3). The first is
+cross-referenced **both ways** with `band-refusal-still-badges-every-row`,
+and the pair is the useful part: that row's fix is to ADD a
+`RowStatus` variant, and `tree.rs::has_faults` is a `matches!` over
+`RowStatus` that cannot red when one arrives. Neither row could see
+that from its own side.
+
+**A correction the lane made to itself, worth more than the row it
+came with**: its instrument sweep excluded `has_faults` on the word
+*external*, and *external* was doing no work — a `matches!` over a
+viewer-owned enum is exactly as silent as one over another crate's.
+
+**And a drive-by whose framing I got wrong.** A tree-wide marker grep
+turned up a committed conflict block in `work/props/log.md` on `main`;
+it was repaired in PR 3018 (three lines, both narratives kept). But I
+appended to `work/ciw/committed-conflict-markers-reach-main` an
+argument that the class needs a gate, **having read neither its status
+nor its closing section**: the row is CLOSED on Ev's explicit call of
+2026-09-04, and its title already says three instances, not the "one"
+my note claimed. Retracted in place. LANE-1 had filed the instance
+correctly — citing the closed class without reopening it — and that
+row is now closed as repaired. The repair was right; the argument
+around it was re-litigating a settled decision.
+
+Signed (CHROME orchestrator).

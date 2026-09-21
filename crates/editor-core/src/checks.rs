@@ -47,10 +47,7 @@ use std::sync::Arc;
 use core::fmt;
 
 use geom_core::{BandError, CertifiedBounds, Decide, Tol};
-use topo::{
-    AtRestPolicy, Body, ContactRecords, PropsQuadLane, ShellClassifyError, ShellRole,
-    classify_shells,
-};
+use topo::{AtRestPolicy, Body, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
 use crate::eval::Evaluation;
@@ -1082,7 +1079,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
 /// body before the registry grew a second resident, moved out
 /// unchanged so each resident is independently `Off`-able.
-fn connectedness<P, T: Decide + PropsQuadLane>(
+fn connectedness<P, T: Decide + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,

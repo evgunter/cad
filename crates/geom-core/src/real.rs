@@ -920,7 +920,7 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 /// **The file now carries TWO compound headers, and the second is the
 /// answer to the paragraph above rather than an exception to it**
 /// (SEAT-9). `verbs::run`'s shell door delegates to `topo::shell_open`,
-/// which is `Decide + PropsQuadLane + `[`CertifiedBounds`] — already
+/// which is `Decide + `[`CertifiedBounds`]` + AtRestPolicy` — already
 /// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02 certified
 /// at-rest entry — so the delegation rule covers it on the same terms
 /// as the first header: the shell arm passes its operand, its thickness
@@ -1122,8 +1122,8 @@ pub mod bounds_allowlist {
     //! certified-quadrature plumbing**, which decides (its `props_quad_*`
     //! funnel margins) and reads brackets into the C9 ring. Its split from
     //! scalars that may not certify is STATIC and stands on two things:
-    //! `PropsQuadLane`'s explicit per-scalar impls are the only entry and the
-    //! dual impl instantiates none of it, and the `quad_lane::*` signatures
+    //! `topo::QuadLane::certified`, at `Decide + CertifiedBounds`, is the only
+    //! entry from the reporting walks, and the `quad_lane::*` signatures
     //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
     //!
     //! **Re-counted when the certified half grew a LEVEL** (tier 3's +V
@@ -1181,7 +1181,7 @@ pub mod bounds_allowlist {
     //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
     //! counterexample shape when it is not. A read that MINTS a certificate
     //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
-    //! needs a refusing lane in the `PropsQuadLane` shape, and admitting one
+    //! needs a lane door in the `topo::QuadLane` shape, and admitting one
     //! without a lane would be a ratified REVERSAL of DL5 on its own
     //! evidence — not an entry this rule can grow.
     //!
@@ -1233,9 +1233,11 @@ pub mod bounds_allowlist {
     //! the call, and the refusal variant is retired with the impl that raised
     //! it. **What a mixed pass does instead** is take the lane as an
     //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
-    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` the composed
-    //! certified entry fills and the structural half and the two lane-keeping
-    //! at-rest passes leave empty — the M7-8 class is then not re-derived
+    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` every door
+    //! bounded on the certification right fills (`validate_geometric`,
+    //! `validate_pseudomanifold`, `contact_marks` and their certificate and
+    //! declared forms) and every `_structural` door leaves empty — the M7-8
+    //! class is then not re-derived
     //! and, being outside those doors' rights, not reported either
     //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
     //! **The symbolic tier needs no arm of its own and gains none**:
@@ -1291,37 +1293,42 @@ pub mod bounds_allowlist {
     //! which any deciding scalar answers and one of which — the +V global
     //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE. The
     //! battery is therefore two functions, `validate_geometric_structural`
-    //! at `T: PropsQuadLane` and a private certified half at
+    //! at `T: Decide + Bounds + AtRestPolicy` and a private certified half at
     //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds), and the public entry is their
     //! composition, so its bound is the union and IS the compound one this
     //! file ratifies. `shell`/`shell_open` take the same bound because their
     //! last act is that entry.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
-    //! not at the grep.** No `lo`/`hi` call appears in `validate.rs`, and the
-    //! certified half's own bracket read is `props`' certified quadrature,
-    //! already ratified at the `props.rs` seam — but the clearance would be
-    //! false if it stopped there, because ONE tier-3 site does read a bracket
-    //! end and branch on it, through a renamed accessor a grep for `lo`/`hi`
-    //! cannot see: check 1's `minor_radius.datum_lo()`, which is
-    //! `PropsQuadLane::datum_lo`, i.e. [`Bounds::lo`](super::Bounds::lo).
-    //! It is disclosed here rather than left to be discovered, and the reason
-    //! it is admissible is the reason that accessor has its own name: a torus
+    //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
+    //! disclosed here rather than left to be discovered: check 1's
+    //! [`Bounds::lo`](super::Bounds::lo) of a torus's tube radius, the
+    //! representability read. The certified half's own bracket read is
+    //! `props`' certified quadrature, already ratified at the `props.rs`
+    //! seam; this one compares a STORED DATUM's lower bound with zero — a
     //! tube radius that is zero, negative or poison does not describe a small
-    //! torus, it fails to describe one, so the read is about a STORED DATUM's
-    //! representability and not about where geometry lies. It takes no
-    //! `k_stats` name and no band precisely because it meters nothing — the
-    //! chamfer's `NonpositiveSize` precedent — and the geometric question
-    //! beside it (`R - r`) does go through `decide`. This is `S88`'s named
-    //! blind spot (a bracket read behind a renamed accessor) with its one
-    //! in-fence instance written down. The weakest bound that works is this one, checked
+    //! torus, it fails to describe one — so the read is about whether the
+    //! datum is a number at all and not about where geometry lies, and the
+    //! value never crosses into a certificate. It takes no `k_stats` name and
+    //! no band precisely because it meters nothing — the chamfer's
+    //! `NonpositiveSize` precedent — and the geometric question beside it
+    //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a
+    //! bracket read behind a renamed accessor) has no instance here any
+    //! more: the accessor is gone and the read is spelled `Bounds::lo`
+    //! where a grep sees it. What this entry discloses is a different
+    //! shape — a bracket read that DECIDES NOTHING — with its one in-fence
+    //! instance written down, and the count is not left to prose:
+    //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
+    //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
+    //! counts the file's bracket reads over the code view against the
+    //! one disclosed here and reds on a second. The weakest bound that works is this one, checked
     //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! alone does NOT compile, because the certified quadrature reads
     //! [`Bounds`](super::Bounds) as well.
     //!
     //! **Why the obligation had to become literal at all**, since the door
     //! was already closed to a dual before this row and by construction: it
-    //! was not closed. `T: PropsQuadLane` ADMITS a dual — the lane answers
+    //! was not closed. The quadrature lane TRAIT admitted a dual — its arm answered
     //! "no certified quadrature" and the +V check reported that refusal at
     //! run time — so the certification duty rode a trait name that spells
     //! none of this gate's, invisible to every instrument. What changed is
@@ -1332,8 +1339,8 @@ pub mod bounds_allowlist {
     //!
     //! **What a future row owes instead of citing this one.** Two negative
     //! results carried its first draft and neither reaches the question: that
-    //! `topo::PropsQuadLane` does not imply [`Bounds`](super::Bounds) (true, checked by
-    //! deleting the term), and that a `PropsQuadLane`-style lane would have an
+    //! the quadrature lane trait did not imply [`Bounds`](super::Bounds) (true, checked by
+    //! deleting the term), and that a refusing lane in that shape would have an
     //! empty refusing side since D1 (also true). Both establish that SOME
     //! bracket bound is needed, never that the WEAK one is.
     //!

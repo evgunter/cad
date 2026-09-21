@@ -83,6 +83,8 @@ mod bool6_r2_probes;
 mod bool6r1_probes;
 #[path = "bool6r1_probes_interval.rs"]
 mod bool6r1_probes_interval;
+#[path = "lane1_r2_probes.rs"]
+mod lane1_r2_probes;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]

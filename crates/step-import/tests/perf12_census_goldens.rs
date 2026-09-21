@@ -1,6 +1,6 @@
 //! **The import census golden**: every STEP fixture the import door
 //! puts through the tier-3′ census (`gate3` →
-//! `topo::validate_pseudomanifold_certificate_certified`) — the
+//! `topo::validate_pseudomanifold_certificate`) — the
 //! step-export solids and the FreeCAD set, `twobody_importexport` and
 //! `compound_two` among them the multi-solid rows — with the import's
 //! outcome serialized and compared byte-exact against a committed
