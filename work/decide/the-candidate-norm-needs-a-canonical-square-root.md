@@ -221,3 +221,30 @@ already in). `--features interval`, dev profile, this box.
 The six measured documents are the plate, the annulus, the link, the
 filleted bracket, the rounded pad and the slab; the pad's shape report
 OOMs on this box and is measured on the ceiling instrument only.
+
+## DECIDE-3's result (2026-09-21, PR #3039)
+
+Shape 1 landed as ruled. The tilted row is green at both halves and
+both lifts with its assertion untouched, the tilt-`u` row certifies
+outright, and **no decision is lost on any of the six measured
+documents**: per document at the nominal, `symbolic_zero` never falls
+and `symbolic_zero + sign_gated + registered` moves up or not at all
+(plate 803/0/140 → 803/8/140, annulus unmoved, link 515/0/90 →
+541/0/96, bracket 1083/0/144 → 1098/13/144, pad 854/0/128 →
+890/6/150, slab 482 theorems unmoved with eight `numeric` → gated).
+The plate's eight registered decisions meet again by construction.
+
+The loss this row predicted DID happen on the first cut — the plate
+fell to 723 theorems — and the defect was in rule A, not in the
+canonical form: `sqrt(R²)` spelled as `|R|` left a square rule A could
+not reduce, because rule A knew `sqrt(X)² → X` and nothing knew
+`abs(X)² → X²`. Extending rule A to `Abs` atoms restored every one.
+
+What it cost: the plate's largest early form 288 → 252, its
+`Early/Assertion` and `Door/Decision` freezes 104 → 0, the early and
+door digests on both documents, and the splits listed in the PR body.
+No ceiling moved down. The decision read's deep enclosure is 3.7–3.9x
+on the pin suites' wall time and is filed as
+`decision-read-triples-the-plate-pin-suites-wall-time`.
+
+This row closes with DECIDE-3's merge.
