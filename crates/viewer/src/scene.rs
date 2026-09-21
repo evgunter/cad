@@ -1716,11 +1716,13 @@ mod tests {
 
         let far = 1.0e39_f64;
         assert!(far.is_finite(), "the witness is a number at every guard");
-        match SceneMesh::build(&one_triangle(far), delta(1.0e-3)) {
-            Err(SceneError::UndrawablePosition { position }) => {
-                assert_eq!(position, [far, 0.0, 0.0], "the refusal names the corner");
-            }
-            other => panic!("a corner past f32::MAX is not a scene: {other:?}"),
-        }
+        let refusal = SceneMesh::build(&one_triangle(far), delta(1.0e-3)).err();
+        assert!(
+            matches!(
+                refusal,
+                Some(SceneError::UndrawablePosition { position }) if position == [far, 0.0, 0.0]
+            ),
+            "a corner past f32::MAX is not a scene, and the refusal names it: {refusal:?}"
+        );
     }
 }
