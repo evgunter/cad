@@ -3,6 +3,8 @@
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
+use std::collections::BTreeMap;
+
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
 
@@ -19,9 +21,10 @@ use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::PartChooser;
 use crate::seats::{Seat, seat_line};
-use crate::session::{FaceFrameFault, Selection, SessionOp, face_frame_seat};
+use crate::session::{FaceFrameFault, ProfilePlane, Selection, SessionOp, face_frame_seat};
 use crate::sketch;
 use crate::tools::ToolKind;
+use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
 };
@@ -36,32 +39,86 @@ use crate::widgets::{
 /// does not have.
 pub(crate) const MIN_PATTERN_COUNT: i64 = 1;
 
-/// **A form's frame pick**: a combo over the document's frames, or a
-/// line saying there are none. One widget for every form that writes
-/// against a frame, so they name frames one way.
-fn frame_picker(
+/// **A form's frame pick**: a combo over the choices the form offers,
+/// or a line saying there are none. One widget for every form that
+/// writes against a frame, so they name frames one way.
+///
+/// `text` is a TOTAL function of a choice rather than a label stored
+/// beside it, because the closed combo has to name a pick the list no
+/// longer offers: a held pick outlives the frame it names (the
+/// document swap row,
+/// `work/chrome/a-creation-forms-held-pick-survives-a-document-swap`),
+/// and a picker that fell silent there would read as no pick while the
+/// commit still carried one.
+fn frame_picker<T: Copy + PartialEq>(
     ui: &mut egui::Ui,
     label: &str,
     salt: &str,
-    frames: &[RecipeNodeId],
-    picked: &mut Option<RecipeNodeId>,
+    choices: &[T],
+    picked: &mut Option<T>,
+    text: impl Fn(&T) -> String,
 ) {
     ui.horizontal(|ui| {
         ui.label(label);
-        if frames.is_empty() {
+        if choices.is_empty() {
             ui.weak("none in this document — add a frame datum first");
         } else {
-            let shown =
-                picked.map_or_else(|| "pick one".to_owned(), |id| format!("feature {}", id.0));
+            let shown = picked.as_ref().map_or_else(|| "pick one".to_owned(), &text);
             egui::ComboBox::from_id_salt(salt)
                 .selected_text(shown)
                 .show_ui(ui, |ui| {
-                    for id in frames {
-                        ui.selectable_value(picked, Some(*id), format!("feature {}", id.0));
+                    for choice in choices {
+                        ui.selectable_value(picked, Some(*choice), text(choice));
                     }
                 });
         }
     });
+}
+
+/// **What the add-profile form calls the frame it offers to mint.**
+///
+/// A choice in the same combo as the document's own frames, because
+/// that is the question being answered — which frame — and a document
+/// with none is the case this entry exists for.
+const NEW_XY_LABEL: &str = "a new xy frame";
+
+/// **The add-profile form's plane row**: the mint, then the document's
+/// own frames, in one combo.
+///
+/// A free function over the `Ui` rather than a private arm of
+/// [`ViewerBehavior::add_profile_ui`], because it is the only seam a
+/// headless test can DRIVE: `ViewerBehavior` borrows the whole
+/// application, and a labelling helper proved correct beside the panel
+/// is not a labelling helper the panel calls. `create::tests` runs this
+/// against a real `egui::Context` and reads the text it painted.
+///
+/// **The mint goes FIRST and unconditionally**, which is what retires
+/// the "none in this document — add a frame datum first" dead end at
+/// this form: the question the combo answers is *which frame*, and an
+/// empty document's honest answer to it is *a new one*. The list here
+/// is therefore never empty, so [`frame_picker`]'s empty line is
+/// reachable only from the add-datum form, whose axis-in-sketch kind
+/// genuinely does need a frame that already exists.
+pub(crate) fn profile_plane_row(
+    ui: &mut egui::Ui,
+    frames: &[RecipeNodeId],
+    names: &impl Fn(&RecipeNodeId) -> String,
+    picked: &mut Option<ProfilePlane>,
+) {
+    let planes: Vec<ProfilePlane> = core::iter::once(ProfilePlane::NewXy)
+        .chain(frames.iter().copied().map(ProfilePlane::Existing))
+        .collect();
+    frame_picker(
+        ui,
+        "on frame",
+        "profile_plane",
+        &planes,
+        picked,
+        |plane| match plane {
+            ProfilePlane::NewXy => NEW_XY_LABEL.to_owned(),
+            ProfilePlane::Existing(id) => names(id),
+        },
+    );
 }
 
 impl ViewerBehavior<'_> {
@@ -387,12 +444,14 @@ impl ViewerBehavior<'_> {
             }
             DatumKindChoice::AxisInPlane => {
                 let frames = self.frames();
+                let names = self.frame_names();
                 frame_picker(
                     ui,
                     "in frame",
                     "datum_frame",
                     &frames,
                     &mut self.drafts.datum_frame,
+                    names,
                 );
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
@@ -537,6 +596,38 @@ impl ViewerBehavior<'_> {
             .unwrap_or_default()
     }
 
+    /// **How a picker names one frame node**: [`tree::node_label`],
+    /// against the same landed document [`Self::frames`] listed.
+    ///
+    /// One reading for the list and for the closed text, and the SAME
+    /// sentence the feature tree draws on that node's own row — so a
+    /// person matching a combo entry to a tree row is matching two
+    /// copies of one string rather than two descriptions.
+    ///
+    /// Total, and that is what it is for: a held pick outlives the
+    /// frame it names, and an id the landed document does not hold is
+    /// named by its number alone — the text every refusal in this
+    /// crate calls a node by, and the text this combo drew for every
+    /// frame before it drew their poses.
+    fn frame_names(&self) -> impl Fn(&RecipeNodeId) -> String + use<> {
+        let named: BTreeMap<RecipeNodeId, String> = self
+            .session
+            .landed_pair()
+            .map(|(doc, _)| {
+                sketch::frames(doc)
+                    .into_iter()
+                    .filter_map(|id| doc.node(id).map(|node| (id, tree::node_label(node, id))))
+                    .collect()
+            })
+            .unwrap_or_default();
+        move |id| {
+            named
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| tree::node_number(*id))
+        }
+    }
+
     /// The add-profile form: a template shape with Length fields, one
     /// [`SessionOp::AddProfile`] on commit — on a frame picked from the
     /// document's frames.
@@ -572,12 +663,10 @@ impl ViewerBehavior<'_> {
         // document holds. A profile's plane is a node, so the form names
         // one — and a document with no frame in it says so rather than
         // conjuring one.
-        let frames = self.frames();
-        frame_picker(
+        profile_plane_row(
             ui,
-            "on frame",
-            "profile_plane",
-            &frames,
+            &self.frames(),
+            &self.frame_names(),
             &mut self.drafts.profile_plane,
         );
         let shape = self.drafts.profile_shape;
@@ -1181,5 +1270,138 @@ impl ViewerBehavior<'_> {
         if close {
             self.tools.close();
         }
+    }
+}
+
+/// **The creation forms' own widgets, DRIVEN** — a real
+/// `egui::Context`, laid out with no window and no renderer, and the
+/// text it painted read back off the frame's shapes.
+///
+/// This suite exists because the crate had no way to claim that a
+/// panel calls a labelling function: every wording row until now was
+/// over a pure function sitting beside the widget, which is the exact
+/// shape that let a correct guard be dead code at its panel. What is
+/// asserted here is what a person would SEE.
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use pncad::document::RecipeNodeId;
+
+    use super::{NEW_XY_LABEL, ProfilePlane, egui, profile_plane_row};
+
+    /// Every string one pass of `add_contents` PAINTED, in paint
+    /// order.
+    ///
+    /// The frame's shapes rather than the widget values: a combo that
+    /// computed the right text and drew a different one would pass a
+    /// read of its state and fail here, which is the whole reason this
+    /// suite is shaped this way.
+    fn painted(add_contents: impl FnOnce(&mut egui::Ui)) -> Vec<String> {
+        let ctx = egui::Context::default();
+        let mut contents = Some(add_contents);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                if let Some(contents) = contents.take() {
+                    contents(ui);
+                }
+            });
+        });
+        let mut text = Vec::new();
+        collect(&output.shapes, &mut text);
+        // `TexturesDelta` panics on drop unless a painter has taken
+        // it; there is no painter here, so the frame's font atlas is
+        // discarded explicitly.
+        output.textures_delta.set.clear();
+        output.textures_delta.free.clear();
+        text
+    }
+
+    /// The text of every `Shape::Text` in a tree of shapes.
+    fn collect(shapes: &[egui::epaint::ClippedShape], out: &mut Vec<String>) {
+        fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::Shape::Vec(inner) => {
+                    for shape in inner {
+                        walk(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for clipped in shapes {
+            walk(&clipped.shape, out);
+        }
+    }
+
+    /// The add-profile form's plane row, on an EMPTY document, offers
+    /// the mint and does not say the document is a dead end.
+    ///
+    /// The row this unit is filed against is that "on frame — none in
+    /// this document — add a frame datum first" is true and useless.
+    /// A drive of the widget is what can claim the sentence is gone,
+    /// because the sentence lives inside a widget call.
+    #[test]
+    fn the_plane_row_offers_a_new_frame_when_the_document_holds_none() {
+        let mut picked: Option<ProfilePlane> = None;
+        let names = |id: &RecipeNodeId| format!("feature {}", id.0);
+        let text = painted(|ui| profile_plane_row(ui, &[], &names, &mut picked));
+        let joined = text.join("\n");
+        assert!(joined.contains("on frame"), "{joined}");
+        assert!(
+            !joined.contains("add a frame datum first"),
+            "the empty-document dead end is unreachable from this form: {joined}"
+        );
+        assert!(
+            joined.contains("pick one"),
+            "an unfilled pick still asks to be filled: {joined}"
+        );
+    }
+
+    /// The mint's own name reaches the widget: with it picked, the
+    /// closed combo says so rather than naming a node number.
+    #[test]
+    fn the_plane_row_names_the_frame_it_would_mint() {
+        let mut picked = Some(ProfilePlane::NewXy);
+        let names = |id: &RecipeNodeId| format!("feature {}", id.0);
+        let text = painted(|ui| profile_plane_row(ui, &[], &names, &mut picked));
+        let joined = text.join("\n");
+        assert!(joined.contains(NEW_XY_LABEL), "{joined}");
+    }
+
+    /// **The panel draws the LABELLING FUNCTION's sentence**, not a
+    /// node number of its own.
+    ///
+    /// The one assertion that would go red if `profile_plane_row`
+    /// stopped calling the names it is handed — which is the failure
+    /// mode a test of the labelling function alone cannot see.
+    #[test]
+    fn the_plane_row_draws_the_name_it_is_handed() {
+        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(4)));
+        let names = |id: &RecipeNodeId| format!("feature {} — xy at (0, 0, 0) m", id.0);
+        let text = painted(|ui| profile_plane_row(ui, &[RecipeNodeId(4)], &names, &mut picked));
+        let joined = text.join("\n");
+        assert!(
+            joined.contains("feature 4 — xy at (0, 0, 0) m"),
+            "the closed combo says which frame, in the labeller's words: {joined}"
+        );
+    }
+
+    /// A pick the list no longer offers is still NAMED — the held-pick
+    /// case `frame_picker`'s `text` argument exists for.
+    #[test]
+    fn the_plane_row_names_a_pick_the_document_no_longer_holds() {
+        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(9)));
+        let names = |id: &RecipeNodeId| format!("feature {}", id.0);
+        let text = painted(|ui| profile_plane_row(ui, &[], &names, &mut picked));
+        let joined = text.join("\n");
+        assert!(
+            joined.contains("feature 9"),
+            "a pick outside the list is named, not silently drawn as unfilled: {joined}"
+        );
+        assert!(!joined.contains("pick one"), "{joined}");
     }
 }

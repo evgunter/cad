@@ -8,8 +8,9 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Datum, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Datum, Dimension, DimensionError, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
+use pncad::profile::SketchPlane;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
 /// in canonical units. The SESSION mints the `Expr` literals and
@@ -99,6 +100,75 @@ pub enum DatumSpec {
         /// the normal are read off the face.
         spin: Expr,
     },
+}
+
+/// **Which frame an add-profile form draws on**: one that already
+/// exists, or the world XY frame the same submit mints.
+///
+/// A CHOICE ON THE PICK, not a second creation op, because the two
+/// arms differ in exactly one thing — whether the id the profile
+/// names has to be checked. [`Self::Existing`] is a pick like every
+/// other and is gated `WrongNodeKind` at the door;
+/// [`Self::NewXy`] names an id the same action minted a line earlier,
+/// so there is no pick to be wrong and nothing to gate. A second
+/// [`super::SessionOp`] would have re-declared `loops` and the whole
+/// insert-door refusal contract beside the one that has it, and would
+/// have had to answer the three exhaustive matches over the op
+/// vocabulary twice.
+///
+/// **What [`Self::NewXy`] must not become is an implicit frame.** It
+/// inserts an ordinary [`pncad::document::Datum::Frame`] node — visible
+/// in the tree, editable in the property panel, pickable by the next
+/// profile — and the profile that follows it names it by id. The two
+/// inserts are ONE committed action and therefore one undo.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProfilePlane {
+    /// A `Datum::Frame` or `Datum::FaceFrame` node the document
+    /// already holds.
+    Existing(RecipeNodeId),
+    /// The world XY frame, minted by the same action: origin `(0, 0,
+    /// 0)`, sketch +x along world +x, sketch +y along world +y.
+    NewXy,
+}
+
+impl ProfilePlane {
+    /// The world XY frame's own numbers, as [`Self::NewXy`] authors
+    /// them.
+    ///
+    /// Spelled here rather than at the form, for [`DatumSpec`]'s
+    /// reason: the numbers a form authors are the vocabulary's, and
+    /// the session mints the literals. `Length` origin, `Scalar`
+    /// axes — the dimensions [`Datum::Frame`]'s own slots take.
+    ///
+    /// # Errors
+    ///
+    /// Never, in practice: every component is `0.0` or `1.0`, and
+    /// [`Expr::literal`] refuses only a non-finite one. It is a
+    /// `Result` so that "is this number authorable" keeps ONE home,
+    /// the expression door, rather than an `unwrap` here.
+    pub fn world_xy() -> Result<DatumSpec, DimensionError> {
+        let length = |value: f64| Expr::literal(value, Dimension::Length);
+        let scalar = |value: f64| Expr::literal(value, Dimension::Scalar);
+        Ok(DatumSpec::Frame {
+            origin: [length(0.0)?, length(0.0)?, length(0.0)?],
+            u: [scalar(1.0)?, scalar(0.0)?, scalar(0.0)?],
+            v: [scalar(0.0)?, scalar(1.0)?, scalar(0.0)?],
+        })
+    }
+
+    /// **The placement the chrome draws [`Self::NewXy`] on before its
+    /// node exists.**
+    ///
+    /// A preview needs a plane and there is nothing evaluated to read
+    /// one off, so this is the one place the choice's geometry is
+    /// stated twice — once as the node's numbers above, once as the
+    /// placement here. The kernel's own mint, not a hand-built affine,
+    /// and `creation_ops`'s `a_new_xy_frame_lands_where_its_preview_drew`
+    /// evaluates [`Self::world_xy`]'s node and holds the two together,
+    /// so the pair cannot drift in silence.
+    pub fn xy_placement() -> SketchPlane<f64> {
+        SketchPlane::xy()
+    }
 }
 
 /// **The add-profile door's loop vocabulary**, re-exported from the

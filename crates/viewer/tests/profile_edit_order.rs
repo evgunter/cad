@@ -16,7 +16,7 @@ use common::insert;
 use pncad::document::{Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, apply};
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
-use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::sketch::{self, Notation};
 
 fn polygon(points: &[(f64, f64)]) -> Vec<Step<f64>> {
@@ -47,7 +47,7 @@ fn with_profile(points: &[(f64, f64)]) -> (DocSession, RecipeNodeId) {
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: lowered(&polygon(points)),
         },
     );

@@ -24,7 +24,7 @@ use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
 use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
-use crate::session::{DatumSpec, FaceSelection, ProfileShape, SessionOp};
+use crate::session::{DatumSpec, FaceSelection, ProfilePlane, ProfileShape, SessionOp};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -84,9 +84,12 @@ pub(crate) struct Drafts {
     /// holds no frame yet.
     ///
     /// A pick rather than a constant: a profile's plane is a document
-    /// node, so the form names one that exists instead of minting one
-    /// as a side effect of adding a profile. One submit, one node.
-    pub(crate) profile_plane: Option<RecipeNodeId>,
+    /// node, so the form names one — an existing frame, or the world
+    /// XY frame the same submit mints beside the profile
+    /// ([`ProfilePlane`]). Either way the frame a person drew on is a
+    /// node they can see and edit afterwards, and one submit is one
+    /// undo.
+    pub(crate) profile_plane: Option<ProfilePlane>,
     /// The add-datum form's kind choice.
     pub(crate) datum_kind: DatumKindChoice,
     /// The add-datum form's origin/position, metres.
@@ -299,8 +302,9 @@ impl<T> ProfileDoors<T> {
 /// form's pick, `None` until one is made) and its loops.
 #[derive(Clone, Debug)]
 pub(crate) struct DoorLoops {
-    /// The frame the loops are drawn on.
-    pub(crate) frame: Option<RecipeNodeId>,
+    /// The frame the loops are drawn on — an existing node, or the
+    /// world XY frame the add-profile form would mint.
+    pub(crate) plane: Option<ProfilePlane>,
     /// The loops, in description order.
     pub(crate) loops: Vec<ProfileShape>,
 }
@@ -309,7 +313,7 @@ impl DoorLoops {
     /// Whether `other` previews the same thing — the same frame and
     /// loops that lower alike ([`sketch::authors_same_loops`]).
     pub(crate) fn previews_as(&self, other: &Self) -> bool {
-        self.frame == other.frame && sketch::authors_same_loops(&self.loops, &other.loops)
+        self.plane == other.plane && sketch::authors_same_loops(&self.loops, &other.loops)
     }
 }
 
@@ -603,11 +607,11 @@ impl Drafts {
     pub(crate) fn door_loops(&self) -> ProfileDoors<Option<DoorLoops>> {
         ProfileDoors {
             create: Some(DoorLoops {
-                frame: self.profile_plane,
+                plane: self.profile_plane,
                 loops: self.profile_loops(),
             }),
             edit: self.profile_edit.as_ref().map(|edit| DoorLoops {
-                frame: Some(edit.plane()),
+                plane: Some(ProfilePlane::Existing(edit.plane())),
                 loops: edit.shapes(),
             }),
         }
@@ -849,9 +853,37 @@ mod tests {
     use crate::seats::Seat;
     use crate::session::SessionOp;
     use crate::session::author::datum_node;
-    use crate::session::{DatumSpec, FaceSelection};
+    use crate::session::{DatumSpec, FaceSelection, ProfilePlane};
     use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
+
+    /// **The add-datum FRAME form opens on the frame the add-profile
+    /// form MINTS**, and they are one frame rather than two agreeing
+    /// numbers.
+    ///
+    /// Both spell the world xy frame — the form as the `[f64; 3]`
+    /// fields a person then edits, `ProfilePlane::world_xy` as the
+    /// literals its two-insert action commits — and the two currencies
+    /// cannot be the same expression. This is what holds them
+    /// together: a lane that moved either would have to move both or
+    /// come here.
+    #[test]
+    fn the_frame_forms_default_is_the_frame_the_profile_form_mints() {
+        let drafts = Drafts {
+            datum_kind: DatumKindChoice::Frame,
+            ..Drafts::default()
+        };
+        let form = drafts
+            .datum_spec(None)
+            .expect("the default frame lowers")
+            .expect("the frame kind needs no pick");
+        let mint = ProfilePlane::world_xy().expect("the mint's own numbers lower");
+        assert_eq!(
+            datum_node(form),
+            datum_node(mint),
+            "the form a person opens and the frame the profile door mints are one frame"
+        );
+    }
 
     /// **The add-datum drafts with every PICK filled**, for `kind` —
     /// the form as it stands when its button goes live.
@@ -983,7 +1015,7 @@ mod tests {
         };
         let (doc, plane) = insert(&Doc::empty_derived("drafts-accepted", tol), frame);
         let mut drafts = Drafts {
-            profile_plane: Some(plane),
+            profile_plane: Some(ProfilePlane::Existing(plane)),
             profile_shape: Some(ShapeKind::Circle),
             ..Drafts::default()
         };
@@ -1003,7 +1035,10 @@ mod tests {
                 loops: loops.clone(),
             }),
         );
-        drafts.accepted(&SessionOp::AddProfile { plane, loops });
+        drafts.accepted(&SessionOp::AddProfile {
+            plane: ProfilePlane::Existing(plane),
+            loops,
+        });
         let evaluation = evaluate(
             &doc,
             None,
@@ -1151,7 +1186,7 @@ mod tests {
         let plane = *doc.order().last().expect("the frame");
         let drafts = Drafts {
             profile_shape: Some(ShapeKind::Path),
-            profile_plane: Some(plane),
+            profile_plane: Some(ProfilePlane::Existing(plane)),
             ..Drafts::default()
         };
         let loops = drafts.profile_programs().expect("the default path lowers");
@@ -1294,7 +1329,9 @@ mod tests {
         );
         drafts.profile_edit(&doc, profile).expect("held");
         let held = drafts.door_loops().edit.expect("the edit door holds loops");
-        let plane = held.frame.expect("its own frame");
+        let ProfilePlane::Existing(plane) = held.plane.expect("its own frame") else {
+            panic!("the edit door draws on the committed profile's own frame node")
+        };
         let placement = sketch::frame_placement(&doc, &evaluation, plane).expect("placed");
         let preview = sketch::preview(placement, &held.loops, tol, chord);
         assert!(

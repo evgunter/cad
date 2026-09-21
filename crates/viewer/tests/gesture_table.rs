@@ -106,7 +106,7 @@ use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
     BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, FreeMoveName, GestureName,
-    Hovered, PatternRuleSpec, Refusal, Selection, SessionOp, ValueGestureName,
+    Hovered, PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -270,7 +270,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             },
         },
         SessionOp::AddProfile {
-            plane: node,
+            plane: ProfilePlane::Existing(node),
             loops: vec![],
         },
         SessionOp::AddExtrude {

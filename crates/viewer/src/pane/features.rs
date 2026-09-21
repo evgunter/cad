@@ -51,10 +51,20 @@ impl ViewerBehavior<'_> {
     pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
         ui.horizontal(|ui| {
             ui.add_space(indent(row.depth));
+            // **The kind, and which one of its kind it is.** A tree
+            // of rows reading `Datum frame` twice asks a person to
+            // tell two frames apart by clicking; the pose the node
+            // itself states is what separates them, and it is the
+            // same string the creation forms' picker offers that node
+            // by (`tree::node_label`).
+            let named = match &row.pose {
+                Some(pose) => format!("{} — {pose}", row.kind),
+                None => row.kind.to_owned(),
+            };
             let label = if row.root {
-                format!("{} {GLYPH_ROOT}", row.kind)
+                format!("{named} {GLYPH_ROOT}")
             } else {
-                row.kind.to_owned()
+                named
             };
             if ui.selectable_label(selected, label).clicked() {
                 self.ops.push(SessionOp::Select(Selection::Node(row.id)));

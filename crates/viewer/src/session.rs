@@ -89,7 +89,7 @@ pub mod probe;
 pub mod refuse;
 pub mod select;
 
-pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
+pub use author::{DatumSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
@@ -2033,17 +2033,60 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: RecipeNodeId, loops: Vec<LoopProgram>) -> OpOutcome {
-        // The plane is a PICK now, so it is gated where every other
-        // pick is: at this door, by kind, before the edit. Without
-        // this the reference would reach evaluation and refuse there
-        // — a typed refusal either way, but one the person gets after
-        // the node lands rather than instead of it.
-        if let Err(refusal) = self.require_kind(plane, NodeKindWanted::Frame) {
-            return OpOutcome::refused(refusal);
-        }
+    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram>) -> OpOutcome {
+        let plane = match plane {
+            // The plane is a PICK, so it is gated where every other
+            // pick is: at this door, by kind, before the edit. Without
+            // this the reference would reach evaluation and refuse
+            // there — a typed refusal either way, but one the person
+            // gets after the node lands rather than instead of it.
+            ProfilePlane::Existing(plane) => {
+                if let Err(refusal) = self.require_kind(plane, NodeKindWanted::Frame) {
+                    return OpOutcome::refused(refusal);
+                }
+                plane
+            }
+            // **No kind gate on this arm, and that is the point**: the
+            // id the profile names is one this action mints a line
+            // below, from a `DatumSpec::Frame`, so there is no pick
+            // that could be of the wrong kind. Asking `require_kind`
+            // here would be a question about a node that does not
+            // exist yet.
+            ProfilePlane::NewXy => return self.add_profile_on_new_xy(loops),
+        };
         self.commit(DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram { plane, loops }),
+        })
+    }
+
+    /// Insert the world XY frame and a profile drawn on it, as ONE
+    /// committed action and therefore one undo
+    /// ([`ProfilePlane::NewXy`]).
+    ///
+    /// The frame's id is not predicted: each edit is built from what
+    /// its predecessor MINTED ([`Self::commit_run`]), so the profile
+    /// names the node the door actually created. All-or-nothing comes
+    /// free with that — a profile the insert door refuses leaves no
+    /// orphan frame behind, because nothing is recorded until both
+    /// edits have landed.
+    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram>) -> OpOutcome {
+        let frame = match ProfilePlane::world_xy() {
+            Ok(frame) => datum_node(frame),
+            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+        };
+        let mut loops = Some(loops);
+        self.commit_run(|minted| match minted {
+            [] => Some(DocEdit::InsertNode {
+                node: frame.clone(),
+            }),
+            [Some(plane)] => Some(DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: *plane,
+                    loops: loops.take()?,
+                }),
+            }),
+            [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
+            _ => None,
         })
     }
 
@@ -2455,37 +2498,62 @@ impl DocSession {
     /// document it started from. That is purity doing the work — no
     /// rollback exists to be got wrong.
     fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
-        // Threaded rather than cloned up front: the first `apply`
-        // reads the history's value in place, and each later one reads
-        // its predecessor's output, so a group of one costs exactly
-        // what a single commit always cost.
-        assert!(!edits.is_empty(), "an action commits at least one edit");
+        let mut edits = edits.into_iter();
+        self.commit_run(|_| edits.next())
+    }
+
+    /// The same door again, for an action whose later edits name the
+    /// ids its earlier ones MINTED.
+    ///
+    /// `next` is handed what each edit so far minted, in order — an
+    /// `InsertNode`'s new id, `None` for every edit that creates no
+    /// node — and answers with the next edit, or `None` to end the
+    /// run. The slice's LENGTH is how many edits have landed, so a
+    /// caller that only inserts can match on its shape and a caller
+    /// with a fixed list ([`Self::commit_action`]) ignores it.
+    ///
+    /// **All or nothing**: each edit is applied to the value the last
+    /// one produced and nothing is recorded until every one has
+    /// succeeded, so a refusal anywhere leaves the session on the
+    /// document it started from. That is purity doing the work — no
+    /// rollback exists to be got wrong. The whole run is one history
+    /// state, so one user action is one undo.
+    fn commit_run<F>(&mut self, mut next: F) -> OpOutcome
+    where
+        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
+    {
         // ONE reach for the whole action, over the session's own seam
         // (the directory rule; `None` refuses typed): each edit's
         // maintenance asks it only when a cluster's gauge moves, and
         // what it decided rides the logged entry into the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        // Threaded rather than cloned up front: the first `apply`
+        // reads the history's value in place, and each later one reads
+        // its predecessor's output, so a group of one costs exactly
+        // what a single commit always cost.
         let mut produced: Option<Doc<ProfileProgram>> = None;
-        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::with_capacity(edits.len());
-        for edit in &edits {
+        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::new();
+        let mut minted: Vec<Option<RecipeNodeId>> = Vec::new();
+        while let Some(edit) = next(&minted) {
             let attempt = {
                 let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
-                apply(base, edit, self.tol, &reach)
+                apply(base, &edit, self.tol, &reach)
             };
             match attempt {
                 Ok(applied) => {
                     logged.push(LoggedEdit {
-                        edit: edit.clone(),
+                        edit,
                         maintenance: applied.cluster_rows(),
                     });
+                    minted.push(applied.record.minted);
                     produced = Some(applied.doc);
                 }
                 Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
             }
         }
         let Some(doc) = produced else {
-            unreachable!("the loop applied at least one edit and kept its output")
+            unreachable!("an action commits at least one edit")
         };
         self.record_action(logged, doc)
     }

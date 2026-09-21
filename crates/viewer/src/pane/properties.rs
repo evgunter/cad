@@ -356,7 +356,7 @@ impl ViewerBehavior<'_> {
             Standing::Empty => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(format!("feature {}", node.0));
+                    ui.label(crate::tree::node_number(*node));
                     if *present {
                         if delete_button(ui, self.session, *node) {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
