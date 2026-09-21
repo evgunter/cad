@@ -2,7 +2,7 @@
 id: suite
 kind: program
 title: SUITE — suites, fixtures and the helpers they copy
-status: open
+status: ready
 opened: 2026-09-11
 area: infra
 prefix: suite/

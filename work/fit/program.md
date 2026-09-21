@@ -2,7 +2,7 @@
 id: fit
 kind: program
 title: FIT — the camera, the display budget and the pick index: what the viewer decides to show and how much of it
-status: open
+status: ready
 opened: 2026-09-20
 area: gui
 prefix: fit/

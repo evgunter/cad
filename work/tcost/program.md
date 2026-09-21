@@ -2,7 +2,7 @@
 id: tcost
 kind: program
 title: S-TCOST — test-suite cost
-status: open
+status: ready
 opened: 2026-09-02
 area: infra
 prefix: tcost/

@@ -2,11 +2,14 @@
 id: remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites
 kind: issue
 title: refactor.rs discards remap_name's Err(RecipeNodeId) at six sites, so a miss inside a name's PATH segment is reported as the whole name being stranded
-status: open
+status: closed
 opened: 2026-09-11
 refs: [2378]
+branch: fix/remap-name-carries-the-id
+pr: 2945
 priority: P1
 cost: E
+closed: 2026-09-21
 ---
 
 
@@ -77,3 +80,59 @@ exactly that reason; read its argument before re-deriving one.
 - Whether a sibling remapper returns a located error into a
   name-shaped one at some other call site — the row names that as where
   else to look.
+
+## Closed (2026-09-21) — PR 2945, the id carried at ten sites
+
+`RemapMiss::Name` is a struct variant `{ name, missing }`; `remap_face`
+returns `Result<FaceName, RecipeNodeId>` like `remap_name` rather than
+collapsing the id on the way out, leaving `remap_node` the one place
+the id is paired with its name. `SplitError::NameStraddlesCut`,
+`SplitError::PartNameReachesRemainder` and
+`InlineError::StrandedPartName` carry it, and their `Display` impls say
+the node.
+
+**Ten sites, not six.** The row's list was accurate at `af8bbca` and the
+lane re-derived at its own merge base, as the standing instruction asks:
+the extra four route through `remap_face`, which did not exist when the
+row was written. `grep -n '|_|'` over the file now returns two value
+drops and a test panic — no discard left.
+
+**Two judgement calls the seat accepts:**
+
+- **`Option` on `NameStraddlesCut`.** Its two raise sites differ in
+  shape: the rewrites know one node, the straddle CLASSIFICATION weighs
+  the whole derivation set against the cut and singles out none. `None`
+  says that instead of inventing a culprit — the same refusal to make a
+  payload claim more than the code knows that this program's wave-3
+  lane showed about recourse transitivity.
+- **`PartNameReachesRemainder` pulled in off-row.** `RemapMiss::Name`
+  converts INTO it, so omitting it would have re-dropped the id one
+  level up. Its precondition grew a witness (`find` rather than
+  `is_subset`); verified at adjudication that `derivation_nodes` returns
+  a `BTreeSet`, so "lowest-numbered out-of-cut node" is deterministic,
+  not incidental.
+
+**One round back before merge, and the reason is worth keeping.** The
+first push REPLACED `asm4_split_inline.rs`'s flat stranded case with a
+nested one. The lane's reasoning for the swap was correct — under a flat
+name `missing == name.node` by construction, so the old row was blind to
+this defect and could never have gone red — but that file is S-TCOST's
+and S-TINT's, and **narrowing the shapes another program's suite covers
+is not a side effect a FIX unit gets to have**: a case removed for
+convenience is invisible to its owners after merge, a case added is not.
+Both shapes now run over one shared setup, and the pair states the
+property better than either alone — the id and the name coincide in the
+ordinary shape and come apart in the nested one.
+
+**Fences:** `asm4_split_inline.rs` and `edit_instance_crossing_names.rs`
+(S-TCOST, S-TINT); `crates/pncad-py/src/py/refactor.rs` (LIB, three
+or-patterns binding `..`, no Python-visible change, tag inventory
+unmoved). All three announced.
+
+**Filed:** `work/wire/anchor-rewrite-collision-refuses-without-naming-the-colliding-name`
+(WIRE — the same class one door over: a collision collapses to `None`
+and the refusal is a static string naming no name) and
+`work/lib/split-and-inline-name-refusals-do-not-project-the-missing-node`
+(LIB — whether the new id is projected to Python; the `node` slot is
+free on two arms and spent on the third, so it needs a slot decision
+rather than a copy).

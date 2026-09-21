@@ -2,7 +2,7 @@
 id: curved
 kind: program
 title: CURVED — the curved-operand boolean remainder
-status: open
+status: active
 opened: 2026-09-03
 area: kernel
 prefix: curved/
