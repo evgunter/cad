@@ -993,7 +993,10 @@ fn every_driving_operation_names_one_gesture() {
     let tol = Tol::witness();
     let dir = common::tempdir("view-gesture-name-census");
     let (_, node) = fixture(tol);
-    let mintable: Vec<SessionOp> = sample_names().iter().flat_map(|name| minted(name)).collect();
+    let mintable: Vec<SessionOp> = sample_names()
+        .iter()
+        .flat_map(|name| minted(name))
+        .collect();
     for op in every_op(node, &dir.join("saved.pncad")) {
         let named = op.names_gesture();
         assert_eq!(
