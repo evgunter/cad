@@ -121,7 +121,12 @@ impl MixFraction {
     /// items here, each weight written `MixFraction::new(w).unwrap()`;
     /// an `unwrap` in a `const` item is a build error and never a
     /// panic, which is what makes a checked constructor affordable in
-    /// a registry.
+    /// a registry. **That `unwrap` is held to a `const` item by the
+    /// lint rather than by this sentence**: the workspace denies
+    /// `clippy::unwrap_used`, and a const-evaluated call is exempt
+    /// while the same call in a running body is not — so the one
+    /// failure this design is written against, a build error turning
+    /// into a panic, reds `-D warnings` where it is written.
     #[allow(
         clippy::manual_range_contains,
         reason = "a `const fn` cannot call `RangeInclusive::contains`"
