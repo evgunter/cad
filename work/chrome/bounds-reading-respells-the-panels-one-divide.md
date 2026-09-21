@@ -52,12 +52,16 @@ AUTH-2's Q1 sweep for a second unit vocabulary in the viewer
 ## Measured
 
 `BoundsReading::wording` now calls `props::shown_in`; the
-hand-written `map_or` is gone. The reading is wired to the door
-rather than agreeing with it by coincidence: forcing
+hand-written `map_or` is gone. The rewrite is an identity arm for arm,
+including the `None` arm, a zero factor and a NaN value.
+
+The reading is wired to the door rather than agreeing with it by
+coincidence, and **both halves of that were measured**: forcing
 `props::in_written` to `canonical / (2.0 * unit.factor())` reddens
-`valid_range::a_bound_too_fine_for_four_decimals_is_still_said`,
-which the same mutation could not reach while `wording` did its own
-divide.
+`valid_range::a_bound_too_fine_for_four_decimals_is_still_said`, and
+the same mutation with `wording` reverted to the hand-written `map_or`
+leaves it **green**. The second half is the one that matters — it is
+what says the door was not already reaching this site.
 
 The sweep this unit ran was shaped for the case a `factor()` pattern
 cannot see — an `Option<UnitDef>` resolved by a hand-written
@@ -69,8 +73,13 @@ both outside this row:
   hand, in the inverse direction
   (`work/chrome/probe-seed-respells-props-authored-in.md`).
 - `pane/view.rs`'s camera readout spells the metre-to-millimetre
-  factor as `1000.0` beside `scene::MM_PER_METRE`
-  (`work/chrome/camera-readout-spells-the-millimetre-factor-itself.md`).
+  factor as `1000.0` beside `scene::MM_PER_METRE`. **Already filed**,
+  by AUTH-2's sweep on the same day, as a section of
+  `work/vgeom/renders-that-multiply-a-finite-guarded-length-spell-the-product-inf.md`;
+  this unit's evidence went onto that row rather than into a second
+  one. What it added there is the INVERSE spelling, which both
+  sweeps' patterns were structurally blind to: four production sites
+  commit `mm * 1.0e-3` themselves.
 
 **What the sweep could not match**: a conversion that computes its
 factor rather than spelling one; a conversion performed in another

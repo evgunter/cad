@@ -99,3 +99,51 @@ those rather than restate it — and a reader narrowing the guard at
 Found by AUTH-2's Q1 sweep for a second unit vocabulary in the viewer
 (`docs/AUTH-2-SPEC.md` C7): the pattern was a bare decimal scaling
 beside a length, and this was its only hit outside `props`.
+
+## The inverse factor is spelled at four production sites too (2026-09-21, CHROME-ONE-NUMBER)
+
+More evidence on the camera-readout member above, and a second
+spelling the section above it could not have found.
+
+CHROME-ONE-NUMBER re-swept for the metre-to-millimetre factor while
+routing `Bounds::wording` through `props::shown_in`, and reached the
+same site by a different pattern — the literals `1000.0`, `1_000.0`,
+`1.0e3` and the name `MM_PER_METRE` across `crates/viewer/`. It
+confirms the finding above: `pane/view.rs`'s `mm` closure is the
+pattern's only production hit outside `props` and `scene`.
+
+**What that pattern is structurally blind to is the INVERSE**, and
+nothing in either sweep said so. A field that parses millimetres
+commits `mm * 1.0e-3`, and four production sites spell that
+themselves:
+
+- `crates/viewer/src/pane/view.rs`, the δ request commit
+  (`*delta_request = Some(mm * 1.0e-3)`).
+- `crates/viewer/src/pane/view.rs` again, the
+  `DisplayTolerance::new(delta_mm * 1.0e-3)` beside it.
+- `crates/viewer/src/pane/viewport.rs`, `DisplayTolerance::new(mm * 1.0e-3)`.
+- `crates/viewer/src/widgets.rs`, `frame_of`'s `mm.map(|v| v * 1.0e-3)`.
+
+So the camera readout is not one restatement of a factor with two
+named homes — it is one of six sites, in two directions, around a
+constant that names only one of them.
+
+**The direction matters for whatever bound this row settles on.** The
+factor above multiplies UP and is how the `inf` is reached; these four
+multiply DOWN and cannot overflow. They are not new members of this
+row's class. They are here because the fix to the camera member —
+read the factor from a named home rather than restate it — has to
+decide what the named home for the inverse is, and there is no
+`MM_PER_METRE`-shaped answer today.
+
+**Not a silent hazard, measured.** `scene::MM_PER_METRE` set to
+`1.0e6` reddens four rows in `display_budget.rs`, including
+`the_door_refuses_a_delta_whose_millimetre_value_is_not_one`, which
+is the row that measures the two factors as inverses against its own
+literals. So the commit sites diverging from the constant is caught
+today; what is missing is a home, not a guard.
+
+`scene::MM_PER_METRE`'s own doc claimed to be *"the one factor the δ
+render and the δ door both read"*, which reads as a crate-wide claim
+it never held; CHROME-ONE-NUMBER narrowed that sentence in the same
+PR and pointed it at this row.
