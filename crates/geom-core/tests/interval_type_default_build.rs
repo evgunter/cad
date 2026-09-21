@@ -32,7 +32,10 @@ fn interval_constructs_decides_and_encloses_in_a_default_build() {
     assert_eq!(Bounds::hi(x), 1e-3, "from_f64 is the point enclosure");
     assert_eq!(x.sign_within(band), Ok(Sign::Positive));
     assert_eq!(Interval::from_f64(0.0).sign_within(band), Ok(Sign::Zero));
-    assert_eq!(Interval::from_f64(-1e-3).sign_within(band), Ok(Sign::Negative));
+    assert_eq!(
+        Interval::from_f64(-1e-3).sign_within(band),
+        Ok(Sign::Negative)
+    );
 
     // The arithmetic encloses: the true 1e-6 lies inside the product's
     // endpoints, which outward rounding may widen but never lose.
