@@ -4,6 +4,8 @@ kind: issue
 title: The wire's header/body split is spelled nine more times, by line, outside its one home
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

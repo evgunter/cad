@@ -5,6 +5,8 @@ title: a meridian-free curved face refuses typed, where today it meshes as a hol
 status: spec
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census]
+priority: P0
+cost: D
 ---
 
 

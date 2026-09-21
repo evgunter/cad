@@ -4,6 +4,8 @@ kind: issue
 title: The gating corpus reaches no collapsed-arm gate: five of the eight predicates have zero rows, three have only positive
 status: open
 opened: 2026-09-20
+priority: P3
+cost: D
 ---
 
 

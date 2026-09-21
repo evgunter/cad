@@ -4,6 +4,8 @@ kind: issue
 title: The viewer expresses no backend or adapter preference, and a faulting ICD cannot be refused typed
 status: open
 opened: 2026-09-04
+priority: P3
+cost: D
 ---
 
 

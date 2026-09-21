@@ -4,6 +4,8 @@ kind: issue
 title: Six longhand axis-aligned rectangle polygons beside common::rectangle, one of them in viewer/src
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

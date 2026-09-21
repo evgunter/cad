@@ -7,6 +7,8 @@ opened: 2026-09-15
 branch: fix/subject-refused-routes-no-body
 pr: 2943
 closed: 2026-09-21
+priority: P0
+cost: E
 ---
 
 

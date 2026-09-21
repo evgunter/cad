@@ -4,6 +4,8 @@ kind: issue
 title: Four spellings of the scene set in the one file that gives every other derivation one home
 status: open
 opened: 2026-09-16
+priority: P3
+cost: E
 ---
 
 

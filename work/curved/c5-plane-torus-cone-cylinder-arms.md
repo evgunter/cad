@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-27
 github: 1057
 refs: [VERBS-C5ARMS, 1048]
+priority: P1
+cost: H
 ---
 
 ## From GitHub issue 1057

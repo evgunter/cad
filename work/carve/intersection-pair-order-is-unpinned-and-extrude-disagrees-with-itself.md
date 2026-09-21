@@ -5,6 +5,8 @@ title: EdgeDescription::Intersection's (s1, s2) order is unpinned, and extrude w
 status: open
 opened: 2026-09-16
 refs: [brick-has-two-constructions-and-two-homes]
+priority: P0
+cost: D
 ---
 
 

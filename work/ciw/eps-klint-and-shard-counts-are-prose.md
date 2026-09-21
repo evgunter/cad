@@ -4,6 +4,8 @@ kind: issue
 title: the eps rows, k-lint unifications and test shards are counted in prose in eight places
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 

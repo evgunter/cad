@@ -5,6 +5,8 @@ title: route_declarations refuses UnionDeclareStep before the pair's kinds can b
 status: open
 opened: 2026-09-15
 refs: [a-declared-pairs-kinds-can-refuse-without-a-side]
+priority: P1
+cost: D
 ---
 
 

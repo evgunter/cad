@@ -10,6 +10,7 @@ tag: (CURVED orchestrator)
 ab_band: 2200-2299
 paths: [crates/topo/src/offset_axial.rs, crates/geom/src/curves.rs, crates/sweep/tests/spiric_rim.rs, docs/CURVED-SPIRIC-SPEC.md, docs/CURVED-SPIRIC-DESIGN.md]
 keep_out: [CUT 2026-09-20 (Ev, in-chat) to the spiric lane only — REACH took the boolean lanes and S-BOOL's residue (49 items), TANG the declared-tangency and germ/pierce lanes (8), CHART the three SSI drive-bys, this program closes on the spiric carrier's delivery and the klein elbow's hollow, pcurve_cache.rs and pcurves.rs are CHART's — the spiric certification arm landed by PR-1b and its residue is filed there by seam, step-export/writer.rs's spiric arm is EXCH's file by announced seam, the C9 ring sqrt [ev] conversation is this program's exit residue and lands on TANG if unasked at the walk]
+priority: P1
 ---
 
 The exact spiric rim carrier, delivered end to end, and nothing else:

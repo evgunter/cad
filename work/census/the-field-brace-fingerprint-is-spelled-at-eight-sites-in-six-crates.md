@@ -4,6 +4,8 @@ kind: issue
 title: the Display-vs-Debug field-brace fingerprint is spelled at seven executable sites in five crates outside the file that states the rule (the id says eight/six; read it as a name)
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

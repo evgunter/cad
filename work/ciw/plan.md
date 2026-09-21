@@ -1,287 +1,113 @@
-# CIW — hosted CI, workflows and scripts (plan)
+# CIW — the plan
 
-**STATUS: OPEN (2026-09-03).** Opened from
-`docs/WORK-TRACKS-2026-09.md` (CIW section); this plan supersedes that
-charter. Live state is `work/ciw/log.md`'s tail and the item files
-beside this plan, never this file.
+hosted CI, workflows and scripts
 
-Branch prefix (the #396 convention): **`ciw/`** — unit branches
-`ciw/<slug>`, orchestrator branch `ciw/orchestrator`. Away-channel tag
-`(CIW orchestrator)`. A/B ordinal band **CIW = 1500–1599**, claimed in
-`docs/MODEL-AB-LOG.md`.
+Re-scoped 2026-09-20 by CIW's priority-seam cut
+(`work/README.md`, Track size). Nothing dispatched.
 
-## Charter
+## The slate
 
-Hosted CI that reports what it ran and runs what it reports. The
-territory is retired code-quality Track J's ground plus the render
-lanes and the perf emitters.
+**31 budget points** of dispatchable work against a ceiling of 30.
 
-**Two of those overlap live programs, and the charter said otherwise
-until 2026-09-04.** It read "files no live program owns", which is false
-and was found false by unit 5's lane when `work.py territory` warned on
-its own diff:
+| pri | item | cost | title |
+|---|---|---|---|
+| P4 | `a-source-attribute-can-silence-a-ci-deny-unread` | E | a source-level allow can return a denying CI row to what it was, and nothing reads for it |
+| P4 | `an-unmergeable-pr-is-silently-ungated-not-visibly-red` | E | A PR whose merge ref cannot be computed gets ZERO check runs, which reads as green unless you count jobs |
+| P4 | `billed-minute-arguments-survive-across-ci-yml` | E | ci.yml still argues live configuration decisions in billed minutes, including one that decides the shard matrix |
+| P4 | `critical-path-citations-name-a-job-that-is-not-the-pole` | E | Five sites name the wrong last job on the critical path, and the run's shape has changed under all of them |
+| P4 | `dirty-pr-gets-no-actions-run` | E | A PR that goes mergeable_state dirty against a moved main gets NO Actions run on its next push — an absence, not a red — and the lane cannot tell it from a queue |
+| P4 | `eps-klint-and-shard-counts-are-prose` | E | the eps rows, k-lint unifications and test shards are counted in prose in eight places |
+| P4 | `fmt-cache-carries-the-toolkit-codegen` | E | The app-feature test row makes fmt's rust-cache carry toolkit codegen on every run, including runs that skip it |
+| P4 | `gate-ok-summarised-a-run-with-a-k-lint-row-still-in-progress` | E | gate ok ran while k-lint (gate, release-default) was still in_progress although needs: names k-lint — the roll-up reported red on a run whose every job concluded green |
+| P4 | `gate-reads-roster-has-two-copies-in-ciw-files` | E | Two CIW files state what the budget gate reads: the sweep script's copy is stale, and ci.yml's says the roster lives nowhere else in the file that carries it |
+| P4 | `guard-size-was-never-argued` | E | the apt guard is 1770 lines against an item that estimated a few, and only its siting was argued |
+| P4 | `inherited-red-is-not-attributed-to-its-merge` | E | A red inherited from main is not attributed to the merge that caused it - the diagnosis is re-derived by every lane that trips over it |
+| P4 | `interval-cfg-gate-names-the-wrong-cause-for-an-attribute-order` | E | check-interval-cfg-additive's tests-half message names block-gating for what is really an attribute order |
+| P4 | `interval-only-selection-premise-restored` | E | The interval-only selection's original premise holds again; hosted keeps the whole suite |
+| P4 | `loud-skip-marker-text-is-unchecked-against-its-own-file` | E | Nothing checks a loud-skip marker's text against its own file; three markers shipped saying their file's rows are the gated ones when most were not |
+| P4 | `loud-skip-row-did-not-stop-a-lane-verifying-the-wrong-build` | E | The loud-skip row makes the app-feature gap visible to a CI log and not to a lane, and a lane verified an entirely app-gated diff without it |
+| P4 | `nightly-rows-cannot-be-dispatched-by-a-lane` | E | no agent here can workflow_dispatch, so a nightly-only row lands unverified |
+| P4 | `no-local-script-builds-all-four-cargo-workspaces` | E | The repo has four Cargo workspaces plus tools/tess-meter and no local script builds them all, so a signature change sweeps crates/ and reaches hosted CI red from demos/ |
+| P4 | `perf-history-writers-are-guarded-three-different-ways` | E | the four docs/perf-data histories are written by three kinds of emitter with three different guard sitings |
+| P4 | `population-layer-duplicated-across-two-checkers` | E | two checkers carry the same population reader nine functions deep, and scripts/ already imports siblings by path |
+| P4 | `prose-digits-are-records-nothing-reconciles` | E | ci.yml's env block argues against itself about restating a pin in prose |
+| P4 | `python-suite-axis-skips-only-two-members` | E | the python-suite axis now skips only viewer and test-utils — does the exception still earn its machinery |
+| P4 | `reach-cannot-follow-every-ascent` | E | The read reach's chain resolver does not follow every ascent, and the fail-closed sweep is not total |
+| P4 | `step-import-freecad-job-is-named-for-the-wrong-door` | E | The 'step import (freecad)' job is named for the import door and gates on the export fixtures |
+| P4 | `third-party-fetches-on-the-critical-path-are-unretried` | E | seven hosted downloads from a third-party host carry no retry, beside three callers that do |
+| P4 | `three-shell-splitters-nothing-compares` | E | three hand-written shell command splitters in scripts/, with independent break sets and nothing holding them against each other |
+| P4 | `wasm-only-doc-comments-are-checked-by-nothing` | E | no browser rustdoc pass runs, so a doc comment on a wasm-only item gets neither a doc build nor a lint |
+| None | `apt-preamble-bypass-is-unguarded` | None | nothing stops a new workflow step spelling its own apt preamble again |
+| None | `apt-update-fails-on-the-runner-image-google-chrome-repo` | None | apt-get update fails repo-wide on the runner image's google-chrome list, and it reds four steps in two workflows |
+| None | `ci-draw-can-hide-a-compile-break-on-main` | None | The ci.yml filter draw can hide a hard compile break on main for an unbounded number of merges |
+| None | `ci-draw-rows-tree-rs-citation-does-not-locate-the-unleverable-arm` | None | The closed ci-draw row's tree.rs citation names a different arm of the same match |
+| None | `closure-reaches-tree-wide-guards` | None | The change closure reaches tree-wide guards, derived from what a suite reads |
+| None | `closure-tier-scope-hides-whole-tree-census-tests` | None | A closure-tier run seeded outside geom-core never executes geom-core's whole-tree census tests, so a door added elsewhere can land with the census red |
+| None | `closure-tier-skips-python-suite-on-geom-core-changes` | None | TIER=closure on a geom-core/geom public-signature change runs RUN_PNCAD_PY=false — the python wheel is never built although it compiles against those crates |
+| None | `committed-conflict-markers-reach-main` | None | Committed conflict markers keep reaching main — three instances in two days; CI owes a tree-wide marker/delimiter guard |
+| None | `configuration-sampling-outlives-its-premise` | None | The lane/eps draw was bought with billed minutes: price un-sampling, and say what the red record can and cannot attribute to it |
+| None | `criterion-selftest-nightly-only` | None | criterion-emit.py --selftest is invoked only from nightly.yml - a guard exercised only on a schedule |
+| None | `cut-regex-unanchored-admits-a-line-the-lint-refuses` | None | The cut script's CUT_RE is anchored only at the start, so it admits a stamp line tess-lint refuses |
+| None | `cut-script-header-claims-no-cross-language-gate-exists` | None | The cut script's header says its format is pinned by nothing; tools/tess-lint now pins it in two clauses |
+| None | `debug-only-gate-step-name-understates-its-subjects` | None | ci.yml's 'bit-identity debug-only guard (topo/source.rs)' step title names one subject of a gate that now scans a list |
+| None | `delete-config-trailer` | None | Delete the CI-Config commit-trailer configuration path |
+| None | `detached-demo-workspaces-are-gated-only-by-a-sampled-row` | None | demos/tour and demos/wild are detached workspaces, so the clippy a lane runs before pushing cannot see them and CI is the first thing that tells them |
+| None | `doc-gate-two-unread-axes` | None | The two axes the rustdoc gate still cannot read after pass 3: an in-half broken link, and the not(debug_assertions) profile axis |
+| None | `f3-recosting-on-a-public-repo` | None | F3 and the nightly demotions rest on an Actions allowance this repo no longer has: re-cost them on a public repo |
+| None | `facade-guards-defer-to-rustdoc-json` | None | Three facade guards defer to a rustdoc-JSON check that is not scheduled |
+| None | `geom-brep-test-unused-edgedescription-import` | None | geom-brep test binary carries an unused EdgeDescription import visible only under --all-features |
+| None | `gui-log-citations-do-not-resolve` | None | Twelve live citations of docs/GUI-LOG.md, and the ledger's recovery recipe does not resolve any of them |
+| None | `gui-wasm-build-is-not-gated-at-all` | None | the GUI's wasm32 build is gated by nothing: ci.yml's wasm row excludes viewer, and default features exclude the app feature where the wasm code lives |
+| None | `hosted-renderer-announces-itself-preview-only` | None | hosted-render-guard — the canonical renderer announces itself as PREVIEW ONLY, do NOT commit what this pass draws |
+| None | `keep-out-names-a-track-that-owns-nothing` | None | CIW's keep_out gives tools/* to code-quality Track K; INSTR has owned it since 2026-09-08 |
+| None | `klint-memory-false-after-unsampling` | None | memories/agent-lane-operations.md says the k-lint row is sampled; PR 1850 makes that false |
+| None | `klint-row-still-sampled` | None | The k-lint unification row is still drawn 1-in-5 after the lane/eps un-sampling |
+| None | `local-half-restates-ci-pins-as-literals` | None | the local half restates ci.yml's tool pins as literals in five places and nothing reconciles them |
+| None | `main-latently-red-at-tier-all` | None | Main is latently red at TIER=all: the pncad-py wheel does not compile (pyo3 create_exception) and doc-gate rejects the workspace pass |
+| None | `merge-order-semantic-break-reaches-main` | None | Two green PRs merged 22 minutes apart left main non-compiling: no run ever gates the union |
+| None | `merge-queue-trial` | None | Merge queue trial: designed and costed, then found unavailable — GitHub offers merge queues only to organization-owned repositories |
+| None | `mirror-pairs-context-beyond-env` | None | a mirrored pair's working directory and action inputs are still compared by nothing |
+| None | `mirror-pairs-env-divergence-unchecked` | None | no check compares the env a mirrored CI pair runs under, so a deliberate divergence and a dropped variable look the same |
+| None | `mirror-parity-never-compares-flags` | None | check-ci-mirror-parity compares which checks each half names, never their flags, so the two halves can drift on what a red run reports |
+| None | `nightly-demotions-have-never-run` | None | A row demoted to the nightly is not verified at the demotion - the three from 2026-09-03 first ran two nights later, unwatched |
+| None | `nightly-pin-reading-idiom-four-copies` | None | nightly.yml reads ci.yml's tool pins with a sed idiom that is now in four places and breaks silently on a second match |
+| None | `no-ci-run-on-a-conflicting-pr` | None | A push to a PR that conflicts with main gets no CI run at all — GitHub creates no refs/pull/N/merge, so a silent 'no run' after a push means a conflict, not a stalled queue |
+| None | `opt-level-selftest-runs-nowhere` | None | opt-level-calibrate.py --selftest is invoked by nothing in the tree - a guard that has never been shown to fire |
+| None | `perf-history-cannot-identify-its-host` | None | perf histories cannot identify the box that produced a sample - the environment block records nproc/mem/toolchain and nothing that distinguishes two ubuntu-latest hosts |
+| None | `pinned-version-named-in-present-tense-prose` | None | prose across both halves asserts what is pinned NOW by restating the value, and goes false on a bump |
+| None | `pipestatus-after-assignment-in-ci-yml` | None | a status capture that cannot fail: PIPESTATUS read after the assignment that clobbers it |
+| None | `probe-interval-lane-has-no-clippy-row` | None | the probe+interval feature combination has no clippy row anywhere, and four unused imports have accumulated in it |
+| None | `python-suite-zero-test-guard-three-copies` | None | The python suite's zero-test guard exists in three places because no shared runner does |
+| None | `reinstate-full-configuration-runs` | None | Reinstate full configuration runs in place of the lane/eps sampling draw |
+| None | `render-hosted-knows-four-lanes-and-there-are-six` | None | render-hosted.sh knows four lanes and the repo has six |
+| None | `render-lanes-red-at-missing-merge-ref` | None | render lanes: ~100 hosted reds are couldn't find remote ref refs/pull/N/merge at checkout |
+| None | `retire-render-automatic-matplotlib-fallback` | None | render.sh — retire the automatic matplotlib fallback; a crashed scene must fail loudly, not become a green preview |
+| None | `ruff-pin-read-shares-the-first-match-shape` | None | check-python-lint.py reads ci.yml's ruff pin with the same first-match-at-any-indentation shape ci-pin.py replaced |
+| None | `rustdoc-d-warnings-breakages-outside-the-doc-gate` | None | Pre-existing rustdoc -D warnings breakages the doc gate does not render |
+| None | `rustdoc-gate-disagrees-with-workspace-doc` | None | Workspace `cargo doc -D warnings` and the hosted rustdoc gate disagree about topo: a broken intra-doc link fails the workspace pass |
+| None | `sccache-trial-verdict-to-read` | None | sccache on trial - check in a few days whether it actually helped |
+| None | `seal-oracle-toolchain-read-first-match` | None | seal-oracle.sh reads the toolchain with a first-match sed against Cargo.toml, not the toolchain file |
+| None | `session-start-hook-restates-ci-pins` | None | the agent-container hook restates three ci.yml pins as literals, out of every gate's reach |
+| None | `tree-wide-guards-outside-the-change-closure` | None | Tree-wide guards are unreachable from the change closure - two main breaks in one night, and Ev's ruling: the closure reaches them |
+| None | `view-made-the-skip-mode-viewer-doc-pass-lint-inert` | None | NOTICE, not a request: VIEW changed scripts/doc-gate.sh's skip-mode viewer pass to RUSTDOC_LINTS_INERT on Ev's ruling — read and close |
+| None | `wasm-row-warning-debt-comment-names-a-closed-item-and-a-deleted-symbol` | None | ci.yml's wasm-row warning-debt comment describes a state that has been resolved, and names a symbol that no longer exists |
 
-- `docs/perf-data/*` is **PERF's** (`work/perf/program.md`, open). PERF
-  has *no orchestrator and no units* — it is a register that ranks cost
-  centres and keeps `benches/` and `docs/perf-data/` as the measurement
-  record. So it holds the record and does not do the work, which is why
-  `perf-history-cannot-identify-its-host` was re-homed here at CIW's
-  opening. CIW edits those READMEs; PERF owns what they say about
-  ranking.
-- `crates/*/tests/*` is **S-TCOST's**, and the third perf emitter lives
-  at `crates/editor-core/tests/m4_pr8_latency.rs`. Checked at unit 5's
-  merge: no open S-TCOST branch touches that file.
+## Order
 
-Territory warns and does not block (`work/README.md`), and neither of
-these is a claim on the other program's work — CIW touches these paths
-only where a unit's own item sends it. A unit whose diff widens either
-overlap says so in its PR rather than letting the warning stand
-unexplained.
+By what a reader of a red run needs, then by cost. `dirty-pr-gets-no-actions-run`
+and `an-unmergeable-pr-is-silently-ungated-not-visibly-red` are one
+family — a PR that is ungated rather than red — and
+`inherited-red-is-not-attributed-to-its-merge` is the third.
+
+Everything else is class `E` and is Ev's low band by name: the payoff
+is main being red less often or costing less. Take them as drive-bys
+where you are already in `ci.yml` (`work/README.md`, "The tracker is
+not comprehensive") rather than dispatching fifty PRs.
 
 ## Review posture
 
-**No A/B row and no A/B protocol** (Ev, 2026-09-04). Each unit is one
-PR, reviewed by a subagent against `docs/prompts/reviewer-style-lane.md`
-— a style review, not a dual. A unit that moves logic subtle enough to
-be worth a second opinion on correctness gets one extra reviewer for
-that, named in its PR with the reason; that is a judgement the
-orchestrator makes per unit and not a default. The band above exists
-for the case a unit moves kernel logic, and no unit of any slate so far
-has — it has never been drawn from.
-
-## The 2026-09-04 re-read
-
-The slate was audited against the tree on 2026-09-04 rather than
-inherited, and six items moved. The finding that moved most of them:
-**`evgunter/cad` went public on 2026-09-03**, so standard-runner minutes
-are free and the runner is 4 vCPU / 16 GB (was 2 / 7). Every cost
-argument in `docs/CI-MINUTES-2026-08.md` — the document opens *"the
-Actions allowance was being consumed faster than the work justified"* —
-now has a dead premise, and several items were costed against it. That
-re-costing is a unit of its own (10 below); until it reports, no figure
-from that document may be quoted forward.
-
-## The first slate landed (2026-09-05)
-
-All ten units of the 2026-09-04 order merged, and unit 11 closed as an
-avenue that does not exist: GitHub offers merge queues only to
-organization-owned repositories, and Ev has ruled that `evgunter/cad`
-stays personal-account-owned (`work/ciw/merge-queue-trial`, which keeps
-the design, the measurements and the process failure behind it). What
-each unit landed and what carries it on `main` is the table in
-`log.md`'s 2026-09-06 entry; the item files are the record.
-
-The one question that survived that slate is **answered**. Ev ruled on
-2026-09-07 that F3 stands and the `push: main` job set is not restored,
-because a detector nobody reads is not a control — an argument this
-program had already evidenced from the other end
-(`nightly-demotions-have-never-run`: three demoted rows ran unattended
-for two nights and their first reading was taken by an orchestrator
-going deliberately to the jobs API). `f3-recosting-on-a-public-repo`,
-`ci-draw-can-hide-a-compile-break-on-main` and
-`merge-order-semantic-break-reaches-main` all close on it; the
-composition-defect class is **accepted with its cost on the record**
-rather than left open as work nobody is doing.
-
-What the ruling does not answer, because the options table never priced
-it, is what the two recorded instances actually cost: **attribution**,
-not detection. Both breaks were found quickly; what they cost was 42 red
-runs on 20 branches and two agents diagnosing one line in the same hour.
-That is `inherited-red-is-not-attributed-to-its-merge`, opened with its
-three unmeasured numbers named and deliberately not dispatched until
-they are taken.
-
-## The second slate landed (2026-09-10)
-
-All seven units merged. What each landed, and the three-pass fight unit
-6 took to get a selftest that could fail, is the run of entries from
-2026-09-09 in `log.md`; the item files are the record. The pattern the
-slate closed on is worth carrying and is stated there: **the artifact
-was written against the instance rather than the property**, in four of
-seven units and from both ends, and what caught every one of them was
-injecting the failure and watching the row stay green — never reading.
-
-## The third slate landed (2026-09-11)
-
-All seven units merged — 1 (#2326), 2 (#2324), 3 (#2330), 4 (#2329),
-5 (#2345), 6 (#2325), 7 (#2327). What each landed is the run of entries
-from 2026-09-11 in `log.md`; the item files are the record.
-
-**Twelve rows closed, thirty-one filed.** That is the number the next
-slate has to answer, and the log's close-out entry says why it is a
-receipt rather than a backlog — every one of the 31 carries a
-measurement — and why it is still a problem: a program that opens 2.6
-rows per row closed does not converge.
-
-**Nineteen of the 31 are four subjects**, and that is what makes a fourth
-slate tractable rather than a pile:
-
-- **The parity checker (7 rows).** `mirror-parity-checker-growth`
-  (2983 → 4908 lines in three days, +892 in one PR, claim 10's block
-  ~63% of a docstring serving twelve claims), `mirror-three-copy-reader-
-  preamble`, `population-layer-duplicated-across-two-checkers`,
-  `three-shell-splitters-nothing-compares`,
-  `mirror-readers-blind-through-bash-c` (live: an allowlisted flag OR
-  variable inside a `bash -c` string passes silently — confirmed on
-  `main`), `semantic-env-is-fail-open-where-pin-free-is-fail-closed`,
-  `mirror-step-keys-still-discarded`.
-- **Selftests that cannot see their own failure (4 rows).**
-  `criterion-selftest-fixture-is-one-scalar-in-five-fields`,
-  `calibrator-cpuinfo-parser-selftest-cannot-see-a-broken-parse` (the
-  parity obligation is broken on two of three hand-kept copies, and both
-  blind ones are in the merge gate), `calibrator-record-writes-without-
-  its-selftest`, `perf-history-writers-are-guarded-three-different-ways`.
-- **The provisioning surface no gate reads (4 rows).**
-  `session-start-hook-is-exercised-by-nothing` — the largest of them:
-  the file provisions every container and every hosted job deletes it —
-  with `python-lint-row-is-locally-unverifiable-on-this-image`,
-  `tool-versions-outside-the-env-block-have-no-source-of-truth`, and
-  `two-anchored-pin-readers-two-homes`.
-- **One argument, three to five prose homes (4 rows).**
-  `prose-digits-are-records-nothing-reconciles`,
-  `tier-blind-rationale-has-five-prose-spellings`,
-  `eps-klint-and-shard-counts-are-prose`,
-  `criterion-lane-asymmetry-argued-in-four-prose-homes`.
-
-**The fourth slate's shape follows from that**, and is not yet ordered:
-the parity checker's cluster is one unit or an `[ev]` design question
-about splitting a 4900-line gate, not seven rows; the selftest cluster is
-one unit over one shared fixture discipline; the provisioning cluster
-needs the `[ev]` question of whether anything may gate `.claude/`; and
-the prose cluster is cheap and should ride along rather than lead.
-`shellcheck-is-not-run` and `doc-gate-error-sites-outside-the-gate-
-population` are still waiting on the decisions named below.
-
-**Two rows arrived from outside** and are not this program's findings:
-`no-ci-row-runs-the-suite-at-a-non-default-k` and
-`view-made-the-skip-mode-viewer-doc-pass-lint-inert`. Read them against
-the tree before dispatching either; this slate's re-read moved two
-premises and every unit corrected at least one dispatch fact.
-
-**The review posture earned its keep and should not change.** No A/B, no
-A/B protocol, style review per unit, a correctness lane where the unit
-earns one — units 1, 4 and 5 at dispatch, and **unit 6 in flight**, when
-what it delivered stopped being what was dispatched. Nine blockers were
-found across five units and **every one came from injecting the failure
-and watching the row stay green**, not from reading. Two more came from
-the orchestrator re-injecting mutants a lane had reported dead without
-ever applying them: **assert the mutation changed the file**, because a
-no-op edit and a surviving mutant look identical.
-
-## Not dispatched, and why
-
-- `interval-only-selection-premise-restored` — a cost lever pointing at
-  LESS execution, on a runner whose minutes are free. Its own text says
-  the boundary with S-TCOST's cost levers should be settled before
-  anyone edits the hosted `test-interval` shape. Not this slate's.
-- `reach-cannot-follow-every-ascent` — the tree spells every ascent five
-  ways and the resolver reads all five; no sixth spelling exists to
-  measure against, and `classify` bails to `TIER=all` if the reach finds
-  nothing at all. Open, not scheduled.
-- `dirty-pr-gets-no-actions-run` — three measured occurrences in one
-  day, across three programs, every one of them a tail-append conflict
-  in a log or a ledger rather than a code conflict. The cheap half is
-  one line in `docs/prompts/implementer-discipline.md`'s verification
-  section (a push with no run is a conflict to merge out, not a queue to
-  wait on) and rides the next unit that touches that file; the other
-  half — a workflow that posts a visible "no merge ref" status so the
-  absence becomes a red — is a design question nobody has costed.
-  `no-ci-run-on-a-conflicting-pr` was the same finding filed twice and
-  is closed into it.
-- `green-row-floor-has-no-watcher` — its option 2 is a `DESIGN.md`
-  revision and therefore Ev's; raised on PR #1842 and not re-asked here.
-- `rustdoc-gate-private-intra-doc-links` — on its stated trigger (a
-  public-only doc set, or Q9). The repository is public; nothing
-  publishes a doc set yet.
-- `cache-rendered-cells-on-input-hash` — parked on
-  `work/tcost/rust-cache-never-restores-across-branches`; its design
-  needs no revision and should be reused as-is when it unparks.
-- `shellcheck-is-not-run` — a unit of its own and not a residue, which
-  is what its 496-finding measurement bought: two codes are 87% of the
-  findings and each is one decision, and the seven errors are all false
-  positives in GATES' files. What it needs first is the severity
-  selection, and that is a sitting decision rather than a lane's.
-- `doc-gate-error-sites-outside-the-gate-population` — the reading it
-  asks for walks `scripts/gates/*.sh`, which is GATES' population. Both
-  of its shapes need GATES to agree to something (widen the
-  instrumentation, or take `doc-gate.sh` into its fence), so it is an
-  announcement before it is a unit.
-- `python-suite-axis-skips-only-two-members` — its own text names the
-  number that settles it (how many code-tier runs seed only `viewer` or
-  only `test-utils`) and says to take it first. Unmeasured, and the
-  edit is across S-TCOST's fence.
-- `inherited-red-is-not-attributed-to-its-merge` — unchanged from the
-  first slate: three numbers named in the item, none taken, and the
-  item forbids designing before they are.
-- `guard-size-was-never-argued` — filed by unit 5 against itself, and
-  the one row here that is about this program rather than the tree. The
-  item said "a few lines beside its existing invocation scan"; what
-  landed is 1770. The unit argued the deviation's SITING at length and
-  never its SIZE, which is the whole cost of the choice. It is not a
-  defect to fix; it is a question to answer before the next guard, and
-  the parity-checker cluster above is the same question with a longer
-  history.
-
-## Closed at the 2026-09-04 re-read, with the reason in each file
-
-- `main-latently-red-at-tier-all` — neither failure is live. The pyo3
-  half was fixed at `5859c8c6`; the viewer bin/lib doc collision is a
-  **cargo** diagnostic, not a rustdoc one, so `-D warnings` cannot
-  reach it and `scripts/doc-gate.sh --pr --scope '--workspace'` is
-  green on this tree (run at closing). Its class half became unit 8.
-- `rustdoc-gate-disagrees-with-workspace-doc` — answered by
-  measurement: the two halves document different feature selections,
-  not different verdicts. Residue folded into unit 9.
-- `sccache-trial-verdict-to-read` — PR 1648 merged.
-- `committed-conflict-markers-reach-main` — Ev, 2026-09-04: a committed
-  marker is self-limiting (obvious, repairable later, nothing compounds
-  on it), which makes it a poor subject for an absence detector.
-- `python-suite-zero-test-guard-three-copies` — Ev, 2026-09-04: never
-  observed, and the fix moves a developer tool's contract and a parity
-  seam. The guard itself is present and correct at all three sites.
-
-## Re-homed at the same re-read
-
-- `bounds-tripwire-blind-to-named-alias` → `work/code-quality/`. The
-  tripwire moved to `scripts/gates/bounds-allowlist.sh` (Track K's, and
-  in this program's `keep_out`), and that gate's ratified header now
-  argues against the ask as KNOWN GAP 3, with a fixture pinning it.
-- `d107-release-profile-job-lives-in-nightly` → `work/code-quality/`.
-  The whole fix is an edit to a Track P finding's disposition.
-- `rust-cache-never-restores-across-branches` → `work/tcost/` (filed
-  new, from PR 1648's finding (d)). Caches are a build knob and this
-  program's `keep_out` gives them to S-TCOST.
-
-## Fences
-
-- **`scripts/gates/*` is code-quality Track K's and `tools/*` is
-  INSTR's**, and this clause said otherwise until 2026-09-11. Track K was
-  claimed whole by two programs: GATES took the gates half and INSTR
-  (`work/instr/program.md`, opened 2026-09-08) took `tools/*`. GATES then
-  closed on 2026-09-08 (`docs/DOC-LEDGER.md` sweep 7; `work/gates/` is
-  gone) and its half **reverted to code-quality**, which is `status:
-  open` under `tag: (SMELL orchestrator)`. So the `tools/*` half of the
-  old sentence was wrong and the gates half was right — the opposite of
-  what this program's own `keep_out` was corrected FROM, and the reason
-  that correction took two attempts. INSTR cedes the other direction
-  explicitly: its `keep_out` names `scripts/tess_budget_cut.sh` and its
-  siblings as CIW's. The `clippy-panic-gate-blind-in-macros` /
-  `gated-marker-*` items are code-quality's and S-TCOST's and stay in
-  `work/issues/` for them.
-- **A cross-fence edit that a file INVITES by name is still announced.**
-  Unit 2 anchored `scripts/tess_budget_cut.sh`'s `CUT_RE`, which reds a
-  row in `tools/tess-lint/tests/cut_line_pin.rs` whose own alarm names
-  the item and the two edits that close it. Taking that invitation is
-  right; taking it silently is not, and the PR said so with the alarm
-  quoted. Anything past the invitation — a NEW row in that table — is
-  the owner's, and went to `work/instr/` as an item instead.
-- S-TCOST keeps its three scripts and the CI build knobs — profile,
-  cache and sharding — measured in-unit or not at all. Unit 8 cites
-  S-TCOST's cache measurement; it does not fix it.
-- Absorbing Track K's remaining gate rows when its live lane finishes
-  is an option the proposal names and this plan does not take.
-
-## Exit shape
-
-The ten units above land and unit 10's ruling is answered; the walk
-convention applies. Residue re-homes before the sweep.
+OPEN, for this program's first dispatch. CIW inherits protocol v7
+(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
+only, opus/opus outside it. Nobody has re-asked the triage question for
+this slate, so the first orchestrator answers it here rather than
+inheriting an answer.

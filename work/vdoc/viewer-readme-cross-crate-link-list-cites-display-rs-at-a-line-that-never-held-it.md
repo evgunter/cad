@@ -4,6 +4,8 @@ kind: issue
 title: the viewer README's cross-crate-link census cites display.rs:262 for a link that has never been near that line
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

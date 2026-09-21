@@ -4,6 +4,8 @@ kind: issue
 title: two census witness STRINGS repeat the subject in the slot documented for the witnessing position
 status: open
 opened: 2026-09-11
+priority: P4
+cost: E
 ---
 
 

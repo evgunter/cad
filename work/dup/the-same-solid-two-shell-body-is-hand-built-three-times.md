@@ -4,6 +4,8 @@ kind: issue
 title: The same-solid two-shell body is hand-built three times in topo/src, twice by the same three raw writes
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

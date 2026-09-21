@@ -5,6 +5,8 @@ title: MispairedIds exempts the zero case, which is the window shape most worth 
 status: open
 opened: 2026-09-04
 refs: [1768, 1098]
+priority: P3
+cost: E
 ---
 
 Found by CHROME's style lane on PR 1768, against that PR's own claim.

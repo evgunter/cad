@@ -5,6 +5,8 @@ title: The tree re-attributes a cluster-refused node; the properties panel and a
 status: open
 opened: 2026-09-04
 refs: [1769, 1463]
+priority: P1
+cost: D
 ---
 
 Found by CHROME's style lane on PR 1769, as a class rather than an

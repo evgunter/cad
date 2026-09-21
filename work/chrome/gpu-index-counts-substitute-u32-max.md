@@ -4,6 +4,8 @@ kind: issue
 title: gpu.rs substitutes u32::MAX for a draw count it could not convert
 status: open
 opened: 2026-09-12
+priority: P3
+cost: E
 ---
 
 ## Finding

@@ -4,6 +4,8 @@ kind: issue
 title: Two doors in a row carry an unguarded census sentence in their rustdoc; the tree has the machine for a guard
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

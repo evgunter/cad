@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-30
 github: 1282
 refs: [1267, num-relative-tolerance-collides-above-a-decimetre]
+priority: P1
+cost: E
 ---
 
 ## From GitHub issue 1282

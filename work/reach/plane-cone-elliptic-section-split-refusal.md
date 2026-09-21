@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-31
 github: 1339
 refs: [908, VERBS-CONE, VERBS-C5ARMS]
+priority: P0
+cost: H
 ---
 
 ## From GitHub issue 1339

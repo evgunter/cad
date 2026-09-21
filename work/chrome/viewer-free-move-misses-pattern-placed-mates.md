@@ -4,6 +4,8 @@ kind: issue
 title: Free-move admission misses pattern-placed mates — mates_naming is instance-keyed against a member-keyed vocabulary
 status: open
 opened: 2026-09-04
+priority: P1
+cost: D
 ---
 
 

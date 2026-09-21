@@ -5,6 +5,8 @@ title: window_of's chart_boundary Err arm is unreachable from any fixture on thi
 status: open
 opened: 2026-09-14
 refs: [clearance-window-tightening-needs-chart-boundary]
+priority: P3
+cost: E
 ---
 
 

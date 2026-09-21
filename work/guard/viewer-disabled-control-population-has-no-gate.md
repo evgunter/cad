@@ -5,6 +5,8 @@ title: The viewer's disabled-control population is a measurement with nothing re
 status: open
 opened: 2026-09-19
 refs: [measurements-have-no-mechanical-guard]
+priority: P3
+cost: E
 ---
 
 Filed by a VNEWS census lane (`work/vnews/a-disabled-control-says-why-

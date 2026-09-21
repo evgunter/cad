@@ -4,6 +4,8 @@ kind: issue
 title: A degree-1 direction's exactly-zero second partial reaches cell_component as 1.5e-323, so the == 0.0 arm split_steps decides on is dead
 status: open
 opened: 2026-09-18
+priority: P0
+cost: D
 ---
 
 

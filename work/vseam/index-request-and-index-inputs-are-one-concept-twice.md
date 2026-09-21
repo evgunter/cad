@@ -5,6 +5,8 @@ title: IndexRequest and IndexInputs carry the same five fields, owned and borrow
 refs: [pick-and-parts-name-the-session-driver, 1953]
 status: open
 opened: 2026-09-06
+priority: P1
+cost: E
 ---
 
 

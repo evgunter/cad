@@ -4,6 +4,8 @@ kind: issue
 title: the instance panel draws the hide toggle for a fused instance, and SetInstanceHidden refuses it on click
 status: open
 opened: 2026-09-20
+priority: P1
+cost: E
 ---
 
 
