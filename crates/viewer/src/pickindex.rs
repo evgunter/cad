@@ -2014,6 +2014,12 @@ fn placement(display: &DisplayView, node: RecipeNodeId) -> impl Fn(Point3<f64>) 
 /// probe and a `NaN` in [`EdgePick::distance_px`], whose own doc says
 /// *at most [`EDGE_PICK_RADIUS_PX`], by construction* — this is the
 /// construction, and it is what makes the sort's first key finite.
+///
+/// The NEGATION is what carries the domain test: `distance` is a
+/// square root, so it is never negative and never `-inf`, and both
+/// `inf` and `NaN` fail `<=`. The `is_finite` conjunct spells that
+/// out, and `clippy::neg_cmp_op_on_partial_ord` refuses the bare
+/// `!(a <= b)` that would say it alone.
 fn best_segment(
     cursor: [f64; 2],
     boundary: usize,
