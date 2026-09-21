@@ -187,3 +187,69 @@ them present-tense-only, a SHA in prose is a second number to keep
 stale, and the rule is what makes a count checkable at any tree. The
 commit each number was derived at lives on the item rows, here, and in
 the PR.
+
+## 2026-09-21 — four attributions, and the one the re-derivation turned into a live CI hole
+
+**`vdoc/readme-attributions`.** Four P4 rows, one class: the README
+states a fact about the code and attributes it to the wrong site, or
+states a population and omits a member that has since arrived. Sibling
+of the count class #2998 closed this morning — there the defect was in
+the number, here in the citation. No `.rs` file is touched and no
+behaviour changes; `scripts/ci-filter.py --base origin/main` reads
+`TIER=docs`.
+
+- **`attributes-the-tone-rule-to-the-pane`** — the rule that a poisoned
+  row stays `Advisory` is a `match` arm in `tree::RowStatus::tone`, not
+  an argument at `pane::features`, whose own comment says so in as many
+  words. Cited by symbol. `rg -n -- "-> (crate::frame::|frame::)?Tone\b"
+  crates/viewer/src` prints 2, and the second is `Badge::tone`, an
+  accessor — so the sentence's *one decider outside `frame`* is
+  falsifiable. `app::toned` is now named beside `app::draw_badge` as
+  the single tone-to-chrome mapping.
+- **`cross-crate-link-list-cites-display-rs-at-a-line-that-never-held-
+  it`** — the twelve hand-written line numbers are gone and the bullet
+  prints the sweep rule as a command, extracted back out of the page
+  with `sed -n Np` and run: **15** sites, exit 0, with the `use`-alias
+  blind spot stated at the sentence. **The conclusion moved.** Fourteen
+  target `pncad`; the fifteenth is
+  `session/refuse.rs:151`'s ``[`editor_core::edit::UNDECLARED_PARAM_RECOURSE`]``,
+  and `editor-core` is not in `VIEWER_TOOLKIT_SEEDS`. So the bullet's
+  *"that case is empty today"* is false and the ungated-link hole is
+  open rather than theoretical. Three further citations in the same
+  bullet were re-derived with it (`ci-filter.py:1428`→`:1436`,
+  `ci.yml:1833-1836`→`:1890-1894`, and the owning row's path, which
+  moved from `work/view/` to `work/mirror/` with CIW's cut);
+  `nightly.yml:291-293` was checked and is right.
+- **`two-marks-section-does-not-say-what-is-not-a-consumer`** — the
+  section now states the membership TEST and disposes both look-alikes,
+  `seats::seat_line` and `pane::create`'s mate panel, rather than
+  naming one and minting a second wrong population. Both printed
+  commands were run out of the file: `rg -n '"; "'` → 3, which cannot
+  see the mate panel's mark inside a format string, and
+  `rg -n '"[^"]*; '` → 43, which is every semicolon in the crate.
+  There is no pattern for *joins its own items* between them, which is
+  why the deliverable is a test.
+- **`session-refuse-row-predates-the-face-frame-vocabulary`** — the
+  cell leads with the rule (*every refusal vocabulary a session door
+  raises, with its `Display`, its payloads and predicates, and the
+  recourse text it spends*) and then names the two it produces:
+  `Refusal` and `FaceFrameFault`, with `face_frame_seat` and
+  `NO_FACE_PICKED`. **A neighbouring cell was behind the same way** and
+  was fixed with it: `session::op` omitted `ValueGestureName`,
+  `FreeMoveName`, `GestureName` and `CancelDoor`, and its reader list
+  named seven modules where `rg -l -e SessionOp -e OpOutcome
+  crates/viewer/src` gives 27. The other four cells were re-derived and
+  are whole.
+
+**One row filed, on MIRROR's slate**,
+`renderer-free-link-to-editor-core-opens-the-ungated-hole`: the parent
+row `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` says
+the hole is empty today and it no longer is. Filed beside it rather
+than added to it, because this program's `keep_out` forbids editing
+another program's item files.
+
+**What this unit is evidence for.** A citation fix that only repoints a
+number cannot find any of this. Three of the four rows moved something
+larger than an address — a rule's home, a population's size, and a
+bullet's conclusion — and the fourth's whole content was a negative
+that no number could carry.
