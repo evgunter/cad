@@ -328,3 +328,58 @@ PR says it is a knowing instance of the CHROME row instead), and the
 honest face label (the next unit's). The N5 ladder's rung 1 having no
 counterpart in `interrogate::entity_of` stays a NOTE — the reviewer
 could not reach it.
+
+## 2026-09-21 — AUTH-2 landed green; two reviewers out
+
+PR https://github.com/evgunter/cad/pull/2957, head `a44ca680b`, CI run
+35552454126 green at 39 jobs — twelve `test (…)` and five
+`k-lint (gate, …)`, nothing narrowed. Open, not merged.
+
+**The lane verified its own green the way it was asked to**, after the
+scratchpad warning: it re-derived the head SHA fresh and confirmed the
+run's head equalled it, rather than reading a job count back out of a
+file it had written. That is the difference between a green earned and
+a green indistinguishable from one.
+
+**The decision I am putting the hardest review on: the no-op guard was
+WIDENED, not just shared.** The lane gave both fields one guard
+(`props::typed_edit` over a new `readout::reads_as`) which judges what
+the field would SHOW after the edit against what it shows now — and
+the pre-existing SLOT field's guard was an exact value comparison. The
+lane discloses the cost in the PR: the chrome can no longer tell an
+echoed text from a re-typed one, so a user typing a number within the
+render's own accuracy of what the field displays gets no edit.
+
+That is a behaviour change to a door this unit was not asked to touch,
+traded for a different door's guard, and it deserves the question the
+reviewer is asked: **an echo is a value the field itself produced; a
+re-type is a value the user produced.** A guard that cannot tell them
+apart may be solving the wrong problem, and if it discards a genuine
+slot edit it is a MAJOR. Q1's pull toward one home is real and this
+project's standing defect is duplication — but "one home" is not a
+reason to make an exact test lossy, and adjudicating that is mine, not
+the lane's.
+
+**The spec was wrong on a line again, and the lane said so.** `base_r
+* 2` never reaches the new door: `2` is a count and the expression
+vocabulary refuses count × length without an explicit promotion, so
+the user reads the parser's sentence about the multiply.
+`base_r * 2.0` and bare `base_r` are the texts this door answers for,
+and the test asserts all three. Second dispatcher premise falsified in
+two units; the pattern is that my specs assert what the tree does
+where they should ask.
+
+**The seam narrowed to nothing.** `drafts.rs` was not touched at all —
+the form reuses the crate's single form-notation drafts rather than
+minting new fields — so `origin/main` merged clean against AUTH-1.
+What remains is `gesture_table.rs`'s hand-maintained op-index census:
+AUTH-2 takes 42 and 43 and raises `OP_COUNT` to 44, and AUTH-1 adds no
+`SessionOp` at all, so the two cannot collide. The reviewer is asked
+whether that census can still go red.
+
+**Filed outside the fence by the lane**: a new CHROME row
+(`bounds-reading-respells-the-panels-one-divide` — `BoundsReading::wording`
+hand-writes what `props::shown_in` exists to prevent, and that
+function's own doc names "a hand-written `map_or` at each" as the
+thing it prevents), plus evidence onto two VGEOM rows, one of which
+asks for exactly this unit's guard generalised.
