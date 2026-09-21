@@ -7,6 +7,8 @@ opened: 2026-09-05
 branch: vnews/tone-row-badge
 pr: 2915
 closed: 2026-09-20
+priority: P3
+cost: E
 ---
 
 

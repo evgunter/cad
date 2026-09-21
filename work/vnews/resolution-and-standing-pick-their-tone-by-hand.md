@@ -4,6 +4,8 @@ kind: issue
 title: The properties pane picks weak-or-coloured by hand from Resolution and Standing
 status: open
 opened: 2026-09-19
+priority: P1
+cost: E
 ---
 
 

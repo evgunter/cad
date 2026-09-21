@@ -4,6 +4,8 @@ kind: issue
 title: the hand-rolled vector-op sweep missed its own dot half, and one datum row asserts something no value can break
 status: open
 opened: 2026-09-16
+priority: P3
+cost: E
 ---
 
 

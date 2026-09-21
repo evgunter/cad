@@ -4,6 +4,8 @@ kind: issue
 title: A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial, and the tier's rule E makes the freeze population 300x worse without moving the refusal
 status: open
 opened: 2026-09-14
+priority: P0
+cost: H
 ---
 
 

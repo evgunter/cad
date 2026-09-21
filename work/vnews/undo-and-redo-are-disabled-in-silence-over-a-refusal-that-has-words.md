@@ -5,6 +5,8 @@ title: Undo and Redo are disabled on exactly the condition Refusal::NothingToDo 
 status: open
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
+priority: P1
+cost: E
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at

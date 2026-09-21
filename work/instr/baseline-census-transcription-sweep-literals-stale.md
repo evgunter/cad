@@ -4,6 +4,8 @@ kind: issue
 title: The transcription sweep's hit list certifies a sweep whose subject has moved, and nothing schedules a re-sweep
 status: open
 opened: 2026-09-16
+priority: P3
+cost: D
 ---
 
 

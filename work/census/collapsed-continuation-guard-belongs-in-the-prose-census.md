@@ -5,6 +5,8 @@ title: the collapsed-continuation class needs a mechanical guard, and PR 2364 me
 status: open
 opened: 2026-09-11
 refs: [2364, 1809]
+priority: P4
+cost: E
 ---
 
 

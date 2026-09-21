@@ -4,6 +4,8 @@ kind: issue
 title: frame::folded_moved answers true for a fold that refused and did not move, under a name and a doc line that say only moved
 status: open
 opened: 2026-09-19
+priority: P1
+cost: E
 ---
 
 Found by the sweep `is-instance-collapses-absent-and-wrong-kind`

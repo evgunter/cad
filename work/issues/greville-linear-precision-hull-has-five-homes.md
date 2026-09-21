@@ -4,6 +4,8 @@ kind: issue
 title: the Greville linear-precision hull is hand-copied in three production sites and two test re-derivations
 status: open
 opened: 2026-09-04
+priority: P1
+cost: D
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: The feature row's message line re-spells frame::Affordance as a link-or-weak choice
 status: open
 opened: 2026-09-20
+priority: P1
+cost: E
 ---
 
 

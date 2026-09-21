@@ -5,6 +5,8 @@ title: One line holds one subject, so a mixed frame's rank-2 join loses the fine
 status: open
 opened: 2026-09-05
 refs: [status-line-writers-bypass-the-ranking, 2026]
+priority: P3
+cost: E
 ---
 
 

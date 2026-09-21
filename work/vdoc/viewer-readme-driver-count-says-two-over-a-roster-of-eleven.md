@@ -4,6 +4,8 @@ kind: issue
 title: The README's drivers section says Two over the eleven-row table the gate reads as its roster
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

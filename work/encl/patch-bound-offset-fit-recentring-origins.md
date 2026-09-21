@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-01
 github: 1532
 refs: [1403, 1006]
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 1532

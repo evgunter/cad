@@ -4,6 +4,8 @@ kind: issue
 title: seat_line's item separator is an unnamed literal, and whether a panel line's mark deserves a name is undecided
 status: open
 opened: 2026-09-20
+priority: P3
+cost: E
 ---
 
 

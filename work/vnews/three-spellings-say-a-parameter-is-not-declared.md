@@ -5,6 +5,8 @@ title: Three spellings say a parameter is not declared, and one of them is Refus
 status: open
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
+priority: P3
+cost: E
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`,

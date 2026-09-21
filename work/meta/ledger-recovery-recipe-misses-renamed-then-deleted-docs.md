@@ -4,6 +4,8 @@ kind: issue
 title: The ledger's recovery recipe does not resolve for any doc renamed into work/ before it was deleted — five sweep-5 programs, ten spellings, 51 live citations
 status: open
 opened: 2026-09-10
+priority: P4
+cost: E
 ---
 
 

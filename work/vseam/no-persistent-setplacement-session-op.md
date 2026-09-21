@@ -5,6 +5,8 @@ title: SessionOp vocabulary gap - no persistent SetPlacement, free-move cannot b
 status: open
 opened: 2026-08-28
 github: 1120
+priority: P0
+cost: D
 ---
 
 ## From GitHub issue 1120

@@ -4,6 +4,8 @@ kind: issue
 title: No door refuses a blank parameter name — ParamName::new validates nothing and write_doc_param does not ask
 status: open
 opened: 2026-09-19
+priority: P1
+cost: E
 ---
 
 Filed by a VNEWS census lane (`work/vnews/a-disabled-control-says-why-

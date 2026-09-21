@@ -4,6 +4,8 @@ kind: issue
 title: Dragging a profile argument in the folded argument rows freezes the profile's outline
 status: open
 opened: 2026-09-19
+priority: P0
+cost: E
 ---
 
 

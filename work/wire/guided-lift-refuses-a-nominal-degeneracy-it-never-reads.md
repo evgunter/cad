@@ -5,6 +5,8 @@ title: Under ProfileLift::Guided the profile is placed by frame_plane_lane and n
 status: open
 opened: 2026-09-12
 refs: [2435]
+priority: P0
+cost: H
 ---
 
 

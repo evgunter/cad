@@ -5,6 +5,8 @@ title: decoration_seam.rs's header says the ssi::enclose crossing is pinned by n
 status: open
 opened: 2026-09-04
 track: W
+priority: P3
+cost: E
 ---
 
 

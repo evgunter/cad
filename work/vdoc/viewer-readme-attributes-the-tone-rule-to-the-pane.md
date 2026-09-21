@@ -4,6 +4,8 @@ kind: issue
 title: The viewer README says pane::features argues the tone rule, which a value now states
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

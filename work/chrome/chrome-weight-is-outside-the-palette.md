@@ -5,6 +5,8 @@ title: The tree's badge WEIGHT carries meaning no palette can tune, and no test 
 status: open
 opened: 2026-09-04
 refs: [1769, 1463]
+priority: P4
+cost: E
 ---
 
 Found by CHROME's style lane on PR 1769; judged a class question by the

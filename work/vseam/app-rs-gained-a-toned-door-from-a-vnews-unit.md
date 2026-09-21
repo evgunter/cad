@@ -4,6 +4,8 @@ kind: issue
 title: app.rs gained pub(crate) toned from a VNEWS unit, and its two callers are in two programs
 status: open
 opened: 2026-09-20
+priority: P1
+cost: E
 ---
 
 

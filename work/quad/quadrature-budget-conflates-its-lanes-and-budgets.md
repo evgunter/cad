@@ -5,6 +5,8 @@ title: PropsError::QuadratureBudget fires from six sites in three lanes under th
 status: open
 opened: 2026-09-06
 refs: [quad2-rational-max-rounds-dial-decision, budgetexhausted-conflates-three-terminations]
+priority: P1
+cost: D
 ---
 
 

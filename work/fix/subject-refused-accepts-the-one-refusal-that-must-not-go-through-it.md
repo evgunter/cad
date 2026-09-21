@@ -6,6 +6,8 @@ status: review
 opened: 2026-09-15
 branch: fix/subject-refused-routes-no-body
 pr: 2943
+priority: P0
+cost: E
 ---
 
 

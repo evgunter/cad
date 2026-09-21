@@ -5,6 +5,8 @@ title: Two frame.rs rows compose fold_status with apply over a composition no ca
 status: open
 opened: 2026-09-06
 refs: [status-line-writers-bypass-the-ranking, ranked-and-unranked-verdicts-are-one-type, 2026]
+priority: P3
+cost: E
 ---
 
 Found by the class sweep #2026's style review asked for, after fixing

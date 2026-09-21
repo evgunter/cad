@@ -4,6 +4,8 @@ kind: issue
 title: the startup preferences notices are rendered once into the status line and must be held before they can badge
 status: open
 opened: 2026-09-06
+priority: P1
+cost: D
 ---
 
 

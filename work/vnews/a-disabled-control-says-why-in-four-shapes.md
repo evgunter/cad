@@ -6,6 +6,8 @@ status: closed
 opened: 2026-09-11
 refs: [environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere, the-new-document-button-states-its-refusal-twice, the-range-button-re-mints-the-ratified-affordance, undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words, two-pickers-spell-one-not-well-typed-sentence-twice, three-spellings-say-a-parameter-is-not-declared, gesture-drags-have-no-cancel-door, a-disabled-controls-reason-has-one-home]
 closed: 2026-09-20
+priority: P3
+cost: E
 ---
 
 Filed 2026-09-11 by the review of the cancel-door unit (#2320) as a

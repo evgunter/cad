@@ -4,6 +4,8 @@ kind: issue
 title: Curve3::eval and Curve3::deriv at one t run two span locations and two basis passes, with no order-1 jet door to collapse them into
 status: open
 opened: 2026-09-11
+priority: P1
+cost: E
 ---
 
 ## What

@@ -4,6 +4,8 @@ kind: issue
 title: crates/viewer/README.md states the disabled-control rule for two families and owes the generalisation, with its sweep rule
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 Filed by a VNEWS census lane at merge base

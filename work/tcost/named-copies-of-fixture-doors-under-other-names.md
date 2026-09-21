@@ -4,6 +4,8 @@ kind: issue
 title: 121 StableName literals in editor-core's suites spell a fixture authoring door by hand
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

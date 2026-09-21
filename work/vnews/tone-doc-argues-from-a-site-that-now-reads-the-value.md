@@ -4,6 +4,8 @@ kind: issue
 title: The actionable-or-not rule is attributed to the pane in four prose homes the move made stale
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

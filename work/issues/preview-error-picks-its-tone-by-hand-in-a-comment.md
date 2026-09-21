@@ -4,6 +4,8 @@ kind: issue
 title: The profile pane's PreviewError render states the actionable rule in a comment and picks the colour by hand
 status: open
 opened: 2026-09-19
+priority: P1
+cost: E
 ---
 
 

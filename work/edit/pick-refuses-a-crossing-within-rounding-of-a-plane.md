@@ -4,6 +4,8 @@ kind: issue
 title: the certified determinant refuses a crossing whose ray lies within rounding of the triangle's plane
 status: open
 opened: 2026-09-16
+priority: P0
+cost: H
 ---
 
 

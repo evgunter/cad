@@ -4,6 +4,8 @@ kind: issue
 title: session/op.rs calls the Properties pane's admission test its own copy, and it is the shared door
 status: open
 opened: 2026-09-20
+priority: P1
+cost: E
 ---
 
 

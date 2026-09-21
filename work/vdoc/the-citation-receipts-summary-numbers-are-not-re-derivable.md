@@ -5,6 +5,8 @@ title: The citation receipt's summary numbers do not re-derive: 60 has no enumer
 status: open
 opened: 2026-09-06
 refs: [2089]
+priority: P4
+cost: E
 ---
 
 

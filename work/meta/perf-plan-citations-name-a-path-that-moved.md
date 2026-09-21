@@ -5,6 +5,8 @@ title: Five citations name docs/PERF-PLAN.md, a path that became work/perf/plan.
 status: open
 opened: 2026-09-11
 refs: [perf-plan-is-cited-by-twenty-nine-files-and-absent-from-tree-and-ledger]
+priority: P4
+cost: E
 ---
 
 
