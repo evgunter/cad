@@ -107,6 +107,45 @@ user still reads two edges as broken for a face that is. Pinned as
 the day the wedge arm stops reading a reversed wall as lamina the row
 says so.
 
+## Residuals 3 and 4 have a CONJUNCTION, and it is a whole body (ATREST-2, 2026-09-20)
+
+Measured, not argued. `sweep::loft_body` over a bulged profile — the
+`arc_section` three-station loft — carries residual 4 on its caps
+(arc-bounded planar faces, `all_lines`-gated out of check 6's planar
+arm) and residual 3 on all four of its walls (spline charts, skipped
+by name by the curved arm) at the same time. **Every** `Face::sense`
+in the body is therefore unread by the at-rest battery, so inverting
+all six bits at once leaves `validate_geometric` `Ok(())` with the
+metered enclosure bit-identical and positive.
+
+That is the first body found in which the two residuals cover the
+whole face population rather than part of it, and it does not need a
+conic-trimmed wall to get there (residual 1's counterexample shape) —
+an ordinary loft over an ordinary bulged sketch suffices. The
+line-bounded control loft, same constructor, refuses exactly two
+`LoopRoleInverted` — one per cap, none from its four walls — which
+isolates `all_lines` as the whole discriminant.
+
+Two further facts for the file. The inversion is reachable through the
+PUBLIC `topo::Body::set_face_sense`, not only through
+`flipped_face_sense_for_tests`, so this is a gap rather than a
+test-door artefact. And a fifth gate belongs in the residual list
+beside the four already there: tier 2's C7 material arm reads
+`Face::sense` on both sides of a definitely-smooth edge, but
+`nurbs_adjacent` short-circuits before it, so on a body every edge of
+which touches a spline chart — every loft — that reader is unreachable
+too. Deliberate and documented (no derived contact class exists on a
+spline chart), recorded here so the enumeration is complete.
+
+Pinned in `crates/sweep/tests/m5_s10_face_sense.rs`:
+`only_the_line_bounded_cap_refuses_a_whole_body_sense_inversion`,
+`every_sense_reading_gate_shuts_on_the_arc_loft`,
+`the_public_sense_door_builds_an_inverted_arc_loft_tier_3_accepts`.
+Write-up:
+`work/atrest/sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts.md`.
+The import-side consequence is
+`work/exch/step-import-adopts-an-inverted-same-sense-outside-the-cylinder-cone-guard.md`.
+
 ## Home
 
 `work/issues/`: the four residuals span `validate` check 6, the props sense gate and the NURBS vocabulary, and no open program's charter claims the set — VERBS cites only residual 1, as VERBS-CONE's known trap.
