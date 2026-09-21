@@ -2,7 +2,8 @@
 id: rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify
 kind: issue
 title: The rim-level rule's structurally-impossible arm throws by feeding f64::NAN into classify, and unreachable_zero returns a 4-tuple of NaNs into live flux arithmetic
-status: review
+status: closed
+closed: 2026-09-21
 opened: 2026-09-11
 refs: [877, S40]
 priority: P0

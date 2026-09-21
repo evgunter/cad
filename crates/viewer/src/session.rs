@@ -91,7 +91,7 @@ pub mod select;
 
 pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{CancelDoor, OpOutcome, SessionOp};
+pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, admits, face_frame_seat,
@@ -144,19 +144,37 @@ impl GestureTarget {
     }
 
     /// Which arm a dragged `f64` becomes, through
-    /// [`SlotValue::of`] — the one home for that rule.
-    fn value_of(&self, value: f64) -> SlotValue {
+    /// [`SlotValue::of`] — the one home for that rule, refusal
+    /// included.
+    ///
+    /// # Errors
+    ///
+    /// [`SlotValue::of`]'s, which is `Expr::literal`'s own
+    /// finiteness refusal reached for a `Count` target, where the
+    /// literal door is not on the path.
+    fn value_of(&self, value: f64) -> Result<SlotValue, pncad::document::DimensionError> {
         SlotValue::of(self.dimension(), value)
     }
 
-    /// What an operation has to name to drive this gesture.
-    fn name(&self) -> GestureName {
+    /// What an operation has to name to drive this gesture: the
+    /// subject half of this target, without the facts the begin
+    /// looked up.
+    ///
+    /// A target carries the display unit or the declared dimension
+    /// its begin read off the base document; an operation arriving
+    /// from the chrome carries neither and has no business asserting
+    /// them. So the comparison that decides whether a preview belongs
+    /// to the open gesture is over [`ValueGestureName`], and this is
+    /// the one place a target becomes one — exhaustive over the
+    /// target's arms, so a third kind of gesture target cannot skip
+    /// the question.
+    fn name(&self) -> ValueGestureName {
         match self {
-            Self::Slot { node, slot, .. } => GestureName::Slot {
+            Self::Slot { node, slot, .. } => ValueGestureName::Slot {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param { name, .. } => GestureName::Param(name.clone()),
+            Self::Param { name, .. } => ValueGestureName::Param(name.clone()),
         }
     }
 
@@ -171,25 +189,6 @@ impl GestureTarget {
             Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
         }
     }
-}
-
-/// **Which gesture an operation NAMES** — the subject half of
-/// [`GestureTarget`], without the facts the begin looked up.
-///
-/// A gesture's target carries the display unit or the declared
-/// dimension its begin read off the base document; an operation
-/// arriving from the chrome carries neither and has no business
-/// asserting them. So the comparison that decides whether a preview
-/// belongs to the open gesture is over this, and
-/// [`GestureTarget::name`] is the one place a target becomes one —
-/// exhaustive over the target's arms, so a third kind of gesture
-/// target cannot skip the question.
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum GestureName {
-    /// A node's slot.
-    Slot { node: RecipeNodeId, slot: SlotId },
-    /// A document parameter.
-    Param(ParamName),
 }
 
 /// What a value gesture holds for its life: layer-3 state only.
@@ -1199,16 +1198,16 @@ impl DocSession {
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
             SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
             SessionOp::PreviewGesture { node, slot, value } => {
-                self.preview_gesture(&GestureName::Slot { node, slot }, value)
+                self.preview_gesture(&ValueGestureName::Slot { node, slot }, value)
             }
             SessionOp::CommitGesture { node, slot } => {
-                self.commit_gesture(&GestureName::Slot { node, slot })
+                self.commit_gesture(&ValueGestureName::Slot { node, slot })
             }
             SessionOp::PreviewParamGesture { name, value } => {
-                self.preview_gesture(&GestureName::Param(name), value)
+                self.preview_gesture(&ValueGestureName::Param(name), value)
             }
             SessionOp::CommitParamGesture { name } => {
-                self.commit_gesture(&GestureName::Param(name))
+                self.commit_gesture(&ValueGestureName::Param(name))
             }
             SessionOp::CancelGesture => match self.gesture.cancel(gesture_words()) {
                 // Only a drag that actually put a scratch document on
@@ -1766,14 +1765,14 @@ impl DocSession {
     /// a drag is open (`permitted_during_value_gesture`, which every
     /// driving operation has to be), and what it is not is about this
     /// drag.
-    fn preview_gesture(&mut self, named: &GestureName, value: f64) -> OpOutcome {
+    fn preview_gesture(&mut self, named: &ValueGestureName, value: f64) -> OpOutcome {
         let resolver = self.resolver_seam();
         let tol = self.tol;
         let previewed = self.gesture.preview(
             gesture_words(),
             |gesture| gesture.target.name() == *named,
             |gesture| {
-                let slot_value = gesture.target.value_of(value);
+                let slot_value = gesture.target.value_of(value).map_err(Refusal::Dimension)?;
                 let edit = gesture
                     .target
                     .edit(slot_value)
@@ -1794,8 +1793,9 @@ impl DocSession {
                 // argued.** Every display predicate is a function of
                 // the node graph, and the free-move probe is admitted
                 // against the COMMITTED document while the view and
-                // the panel's own admission test resolve against this
-                // scratch — so the two agree only while a gesture's
+                // the panel — which run ONE admission test between
+                // them, `display::instance_check` — resolve against
+                // this scratch, so the two agree only while a gesture's
                 // edits leave the graph alone. This holds the half a
                 // check can hold; the other half is that
                 // [`GestureTarget::edit`] can produce nothing but
@@ -1832,7 +1832,7 @@ impl DocSession {
     /// of another, and a gesture that ends here would end with nobody
     /// having let go of it. What is this door's own is what a landed
     /// value becomes: one `DocEdit` on the history, and one undo step.
-    fn commit_gesture(&mut self, named: &GestureName) -> OpOutcome {
+    fn commit_gesture(&mut self, named: &ValueGestureName) -> OpOutcome {
         let landed = match self
             .gesture
             .commit(gesture_words(), |gesture| gesture.target.name() == *named)

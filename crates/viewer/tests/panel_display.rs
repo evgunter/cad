@@ -602,7 +602,8 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
     let outcome = session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,
-        value: SlotValue::of(Dimension::Length, from_written(2.0, IN.def())),
+        value: SlotValue::of(Dimension::Length, from_written(2.0, IN.def()))
+            .expect("a finite length is a value"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let row = props::slot_rows(session.doc(), extrude)
@@ -665,7 +666,8 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     // notation beside it does not.
     let outcome = session.perform(SessionOp::SetParam {
         name: name.clone(),
-        value: SlotValue::of(before.dimension, from_written(60.0, unit)),
+        value: SlotValue::of(before.dimension, from_written(60.0, unit))
+            .expect("a finite angle is a value"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let after = row(&session);

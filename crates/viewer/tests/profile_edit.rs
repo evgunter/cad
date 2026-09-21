@@ -627,7 +627,8 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
             step: 2,
             arg: StepArg::TargetY,
         },
-        value: viewer::props::SlotValue::of(Dimension::Length, 0.02),
+        value: viewer::props::SlotValue::of(Dimension::Length, 0.02)
+            .expect("a finite length is a value"),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let between = session.committed_doc().clone();
