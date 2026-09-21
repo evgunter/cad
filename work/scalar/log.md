@@ -1006,3 +1006,27 @@ meter's source, never by widening the bound; the third is a message
 re-pin or a chain fix, the lane's call with the cause named. Recorded
 here because RING-3 dissolves this newtype into `Interval` and every
 such consumer is on its path.
+
+## LANE-1 landed; LANE-2 dispatched — block SCALAR-B6 slot 0 (2026-09-21)
+
+LANE-1 (PR 3010) merged at `9ed348d6ed`, sample #231 by main's
+first-parent order (#2993 took #230; the twenty merges between carried
+two ordinal claims — SYM-11's 4705, RING-2's 4113 — and no sample); its
+row is on the B5 table here. LANE-2 (`docs/LANE-2-SPEC.md`, item
+`lane-2-chart-region-lane-deleted`, branch `scalar/lane-2` at
+`d2e85a62db` — main plus the spec commit — the FABLE arm by byte 153)
+dispatched on LANE-1's merged shape: `ChartRegionLane` goes,
+`topo::RegionLane<T>` (two fn-pointer fields, one constructor at
+`Decide + CertifiedBounds`) is the census's `Option<_>` parameter,
+`None` keeps `CensusLaneUnsupported` and the `false` fold exactly, and
+the unit adds the first rows that observe them produced;
+`AtRestPolicy: Decide + PcurveFittedLane`. The spec's citations
+pre-date LANE-1's merge; the lane re-derives them at its merge base.
+Fences announced here: CONTACT (`census.rs`), CHART
+(`chart_region.rs`), ATREST (`validate.rs`), the unowned
+`props.rs`/`lib.rs`, PROPS (`real.rs` allowlist prose; DL3 only if it
+names the trait), GUARD (the `bounds-allowlist.sh` selftest fixture,
+two per-file counts, the evalscalar header line), WIRE (prose only),
+TCOST/TINT (`perf12_census_bvh_diff.rs`, the census test files),
+`docs/GENERICS-BUILD-COST.md`. RING-2 is still fixing its red head on
+the other lane.
