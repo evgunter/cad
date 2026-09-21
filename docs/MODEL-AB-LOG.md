@@ -7661,3 +7661,7 @@ local machine (8 cores, ~5 GB free, load ~30, three other orchestrators'
 lanes), the seeds in sequence and each arm `nice`d to one heavy row at a
 time — partial wall-clock concurrency, applied to both arms equally.
 Sample number at merge.
+
+## TESS program rows (work/tess/; band 5100–5199; blocks named TESS-B<n>)
+
+TESS-1 review ordinal fixed at dispatch (2026-09-20, PR #2852 open, frozen head `7a5fe831e`, hosted run 35550649883 green on the full matrix): **ordinal 5100** (TESS band, its first). Unit: a curved face whose loop classifies with no meridian traversal refuses typed (`TessellateError::MeridianFreeCurvedFace`) where it meshed as a hole. Pre-draw fields, logged in `work/tess/log.md` before the block draw: difficulty **M**, task-class **STRUCTURAL**; implementer arm per block TESS-B1 slot 0 (record branch-side on `tess/b1-block`). Protocol v6 dual: R1/R2 byte and assignment recorded branch-side with the block. Method, recorded before either review runs: CONCURRENT same-head, both briefs generated from one template and STORED with sha256 on `tess/b1-block` before either dispatches, neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and scratch per reviewer. Method note applying to BOTH arms equally: ~16 G free on the box, so `CARGO_INCREMENTAL=0`, debug, per-package builds, and a stop-building floor at 8 G, stated identically in both briefs. Implementer-phase gap annotated branch-side (a usage-limit outage, 2026-09-19 → 2026-09-20). Sample number assigned at merge.
