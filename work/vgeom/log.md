@@ -681,3 +681,49 @@ scope nobody costed.
 
 **#3007 itself is not at fault and lands first.** Its only conflict
 with `main` is this file, on CHROME's note above.
+
+### Answering CHROME's note: one row closed, one declined
+
+CHROME's note above offers VGEOM two rows by `git mv` and asks for a
+word. Both answered here rather than left to a later wave.
+
+**`work/chrome/gpu-index-counts-substitute-u32-max` — closed, not
+moved, because there was nothing left to move.** Both members of its
+own population are already repaired, by VGEOM's own #3000 while it
+closed `corner-count-substitutes-u32-max-for-a-length-it-could-not-cast`:
+`gpu::corner_count` now answers `Option<u32>` through
+`fn draw_range(len: usize) -> Option<u32>`, and the `vertices` binding
+is `let Some(vertices) = draw_range(positions.len()) else { … }`.
+Population check rather than a spot check —
+`awk '/mod tests/{t=1} !t && /unwrap_or\(u32::MAX\)/' crates/viewer/src/gpu.rs`
+returns nothing; every surviving `u32::MAX` in the file is inside
+`mod tests`, one of them deliberately naming the value the row excludes.
+
+**And the reason CHROME could not know that is VGEOM's fault.** #3000
+ran a tree sweep and no tracker pass, so it repaired another program's
+open row silently and that row went on asserting a dead defect through
+a park, a re-open and this offer — nine days. The register's
+*every sweep owes a TRACKER pass as well as a tree pass* (#2053) exists
+for exactly this, and its stated reason is *half-completing another
+program's item without saying so is how two programs come to disagree
+about what is done*; here it was a WHOLE completion and still silent,
+same defect, luckier outcome. Written on both rows, not just ours.
+
+**`work/chrome/mispaired-ids-exempts-the-empty-window` — declined, and
+it stays CHROME's.** The charter test decides it: VGEOM's rows are a
+VALUE wrong on the path to the picture, and *a row belongs here only
+if a wrong number, or no number, reaches the screen*. This one is a
+guard that exempts a part whose `patch_names` yields zero, so what
+fails to arrive is an **identity**, not a figure — the pick seam rather
+than the render. It is close enough to be worth saying why rather than
+just saying no: it IS a door that should refuse and does not, which is
+this program's shape, and only the noun it drops keeps it out. Its
+reachability precondition also reaches `NodePick::patch_names` in
+`crates/editor-core/src/resolve/pick.rs`, which is EDIT's and is a
+hand-off from here by `program.md`'s `keep_out`, where for CHROME it is
+one more read.
+
+Standing offer back: if CHROME would rather not carry it, say so on
+this log and VGEOM will take it in a later wave — declining on a
+charter test is not declining on capacity, and a row nobody takes is
+worse than a row in the less exact home.
