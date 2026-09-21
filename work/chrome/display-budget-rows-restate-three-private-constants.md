@@ -2,10 +2,11 @@
 id: display-budget-rows-restate-three-private-constants
 kind: issue
 title: display_budget.rs restates three of viewer's private constants as literals
-status: open
+status: dispatched
 opened: 2026-09-15
 priority: P1
 cost: E
+branch: chrome/one-number-one-home
 ---
 
 
