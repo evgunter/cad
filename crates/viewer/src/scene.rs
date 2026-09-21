@@ -37,14 +37,27 @@ use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
 use pncad::topo::Body;
 
-/// Millimetres per world unit — the one factor the δ render and the δ
-/// door both read.
+/// Millimetres per world unit, as the δ render and the δ door form it.
 ///
-/// **Spelled once because the two have to agree.**
+/// **Spelled once because those two have to agree.**
 /// [`DisplayTolerance::new`] refuses a δ whose millimetre value is not
 /// an `f64` and [`DisplayTolerance::render_mm`] forms that value; a
 /// second literal at either site would be a bound on one number
 /// guarding a conversion by another.
+///
+/// **It is not every metre-to-millimetre factor in the crate, and the
+/// inverse is not held here at all.** A field that parses millimetres
+/// commits `mm * 1.0e-3` and spells that itself, at four production
+/// sites ([`crate::pane::view`]'s δ request and its
+/// `DisplayTolerance::new` beside it, `pane::viewport`'s, and
+/// `widgets`' `frame_of`); the panel fields convert through
+/// [`crate::props::in_written`] and the unit table instead. What ties
+/// the commit factor to this one is that the two are inverses —
+/// which is the coincidence [`DisplayTolerance::new`]'s bound is
+/// argued from, and which `display_budget.rs`'s
+/// `the_door_refuses_a_delta_whose_millimetre_value_is_not_one`
+/// measures against its own literals rather than this constant, so a
+/// change here that the commit sites did not follow reds there.
 pub const MM_PER_METRE: f64 = 1.0e3;
 
 /// The chordal display tolerance δ: how far the drawn triangles may
@@ -919,12 +932,29 @@ pub const TRIANGLE_BUDGET: usize = 1_000_000;
 /// coarsen by more than this factor is a request whose probe costs
 /// more than the answer's whole picture ([`fit_delta`] says what
 /// replaced that).
+const PROBE_FACTOR: f64 = 8.0;
+
+/// The cost a rung is placed at: `TRIANGLE_BUDGET / PROBE_FACTOR`
+/// triangles, the predicted cost of the rung [`fit_delta`] descends
+/// to.
 ///
-/// Public because it is a *contract*: the ladder's shape is read
-/// against it, and a row that restates it as a literal holds a
-/// hand-synced copy that drifts without the build noticing. One home;
-/// read it.
-pub const PROBE_FACTOR: f64 = 8.0;
+/// Public because it is the *contract*, and [`PROBE_FACTOR`] is the
+/// ingredient it is derived from — a row wants the bound a rung is
+/// placed at, not the factor that bound is computed with, the way
+/// [`crate::camera::Camera::pitch_limit`] exposes an elevation limit
+/// and not the pole margin under it.
+///
+/// **Reading this does not make a row about placement true by
+/// construction**: what a row compares against it is a rung's MEASURED
+/// triangle count, tessellated from a real body, and a ladder that
+/// placed its probe somewhere else would exceed this bound and say so.
+/// The circular case is a row that would derive both sides of its
+/// comparison from the same number.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn placed_rung_cost() -> f64 {
+    TRIANGLE_BUDGET as f64 / PROBE_FACTOR
+}
 
 /// The δ the scale probe runs at: coarser than any body this viewer
 /// opens, so nothing subdivides and the tessellation is the body's

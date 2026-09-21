@@ -25,8 +25,7 @@ use editor_core::{DocEdit, ProfileDoc};
 use pncad::geom_core::Tol;
 use viewer::readout;
 use viewer::scene::{
-    self, DisplayTolerance, INITIAL_DELTA, PROBE_FACTOR, ProbeStop, SCALE_PROBE_DELTA,
-    TRIANGLE_BUDGET,
+    self, DisplayTolerance, INITIAL_DELTA, ProbeStop, SCALE_PROBE_DELTA, TRIANGLE_BUDGET,
 };
 use viewer::session::DocSession;
 
@@ -251,10 +250,18 @@ const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 /// twenty-two characters.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
     let text = d.render_mm();
-    // The metres-to-millimetres factor is spelled here DELIBERATELY
-    // rather than read from `scene::MM_PER_METRE`: what this row
-    // checks is that `render_mm` applies that conversion, and reading
-    // the render's own constant would make it agree by construction.
+    // BOTH factors below are spelled here DELIBERATELY rather than
+    // read from the code, and they are two different numbers.
+    //
+    // `1.0e3` is the render's: this row checks that `render_mm`
+    // applies it, so reading `scene::MM_PER_METRE` would make the
+    // check agree with the render by construction.
+    //
+    // `1.0e-3` is the δ FIELD's commit factor (`pane::view`'s
+    // `delta_field`), which the field spells itself. Restating it
+    // states independently that the two are inverses — which is the
+    // coincidence `DisplayTolerance::new`'s doc argues its bound
+    // from, and which no constant in the crate holds.
     let mm = d.get() * 1.0e3;
     let read: f64 = text.parse().unwrap_or_else(|error| {
         panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
@@ -1065,14 +1072,19 @@ fn the_budget_commits_the_delta_it_always_has() {
                 .unwrap_or_else(|error| panic!("{document} fits at {requested}: {error}"));
             // The per-rung bound, on every document the fit is ever
             // asked about: a rung is PLACED at
-            // `TRIANGLE_BUDGET / PROBE_FACTOR` triangles, and what it
-            // counts meets that up to the law's own error. The 1% is
-            // that error and nothing else — the largest rung the
-            // corpus produces is 121_272, under the placement itself.
-            // Sizing a probe off the REQUEST had no bound at all: at
-            // 0.01 mm `hollow_tube_ring` ran one of 1_452_960.
-            #[allow(clippy::cast_precision_loss)]
-            let placed = TRIANGLE_BUDGET as f64 / PROBE_FACTOR;
+            // `scene::placed_rung_cost` triangles, and what it counts
+            // meets that up to the law's own error. The 1% is that
+            // error and nothing else — the largest rung the corpus
+            // produces is 121_272, under the placement itself. Sizing
+            // a probe off the REQUEST had no bound at all: at 0.01 mm
+            // `hollow_tube_ring` ran one of 1_452_960.
+            //
+            // The bound is READ rather than restated, and that does
+            // not make this row circular: the other side of the
+            // comparison is a count tessellated from a real body, so a
+            // ladder that placed its probe elsewhere still exceeds
+            // this and says so.
+            let placed = scene::placed_rung_cost();
             #[allow(clippy::cast_precision_loss)]
             let largest = fitted.largest_probe as f64;
             assert!(
