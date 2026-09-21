@@ -2,7 +2,7 @@
 id: chrome
 kind: program
 title: CHROME — viewer chrome and coverage
-status: open
+status: ready
 opened: 2026-09-03
 area: gui
 prefix: chrome/

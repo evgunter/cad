@@ -62,7 +62,15 @@ ITEM_STATUS = ("open", "spec", "dispatched", "review", "closed", "parked", "defe
 # from dispatchable: `parked` waits on a named trigger, `deferred` is a
 # ratified not-now whose reason is prose in the body (see work/README.md).
 RULING_STATUS = ("open", "closed")
-PROGRAM_STATUS = ("open", "closed")
+# A PROGRAM's status is about the track, not about a row. Two facts tell the
+# four apart: whether an orchestrator holds the track, and whether anything on
+# it can be picked up (`DISPATCHABLE`, below). Only the second is in the tree,
+# so it is the only one lint checks; `active` is the program's own word.
+# `blocked` never has an orchestrator BY CONSTRUCTION: an orchestrator that has
+# run out of non-blocked units cuts the blocked rows into a new program and
+# closes what it finishes, rather than holding a whole track hostage to its
+# slowest blocker (Ev, in chat, 2026-09-21; work/README.md).
+PROGRAM_STATUS = ("ready", "active", "blocked", "closed")
 AREAS = ("kernel", "api", "gui", "infra")
 
 # The priority bands (work/README.md, "Priority"). P0 is most urgent. A band
@@ -531,6 +539,10 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                          f"goes unchecked")
     resolves = {gh: c[0] for gh, c in by_github.items() if len(c) == 1}
     programs = {it.id: it for it in items if it.kind == "program" and it.id}
+    owned: dict[str, list[Item]] = defaultdict(list)
+    for it in items:
+        if it.kind != "program" and it.program:
+            owned[it.program].append(it)
     tracked: list[str] | None = None
     for it in items:
         # status-coupled fields
@@ -589,10 +601,24 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
         if isinstance(carrier, str) and carrier in by_id and by_id[carrier].status == "closed" and it.status != "closed":
             errors.append(f"{it.path}: rides with `{carrier}`, which is closed — re-home it (a struck row may not delete its passengers)")
         if it.kind == "program":
+            live = [o for o in owned.get(it.id, []) if o.status != "closed"]
+            disp = [o.id for o in live if o.status in DISPATCHABLE]
             if it.status == "closed":
-                live = [o.id for o in items if o.program == it.id and o.kind != "program" and o.status != "closed"]
                 if live:
-                    errors.append(f"{it.path}: program is closed but {live} are not")
+                    errors.append(f"{it.path}: program is closed but {[o.id for o in live]} are not")
+            elif it.status == "blocked":
+                # What `blocked` claims about an orchestrator is unfalsifiable
+                # here; what it claims about the slate is not.
+                if disp:
+                    errors.append(f"{it.path}: program is blocked but {disp} are dispatchable — a track with "
+                                  f"a row to pick up is `ready`, or `active` if an orchestrator holds it")
+                elif not live:
+                    errors.append(f"{it.path}: program is blocked but holds no live row — a track waiting on "
+                                  f"nothing is finished, not blocked; close it")
+            elif it.status == "ready" and live and not disp:
+                errors.append(f"{it.path}: program is ready but none of its {len(live)} live rows is "
+                              f"dispatchable — a track nobody can pick up is `blocked`, or `active` if an "
+                              f"orchestrator holds it")
             prefix = it.get("prefix")
             if isinstance(prefix, str) and not prefix.endswith("/"):
                 errors.append(f"{it.path}: `prefix` must end in `/`")
@@ -708,7 +734,10 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     out.append("`P0`–`P4` count this program's LIVE rows in each band "
                "(`work/README.md`, Priority); a row is counted whatever its "
                "status, and the status columns say which of them are "
-               "dispatchable. `load` is the DISPATCHABLE weight against the "
+               "dispatchable. `status` is the TRACK's own state: `ready` "
+               "(no orchestrator, and a row to pick up), `active` (an "
+               "orchestrator holds it), `blocked` (no orchestrator, and "
+               "nothing dispatchable). `load` is the DISPATCHABLE weight against the "
                "track's budget (Track size); bold is over. `pri` is the band "
                "of the track's spine, never a ceiling on its rows.")
     out.append("")
@@ -729,6 +758,9 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
             out.append("Closed; every item is closed.")
             out.append("")
             continue
+        if p.status == "blocked":
+            out.append("Blocked: no orchestrator, and no row that can be picked up.")
+            out.append("")
         if not rows:
             out.append("No open items.")
             out.append("")
@@ -953,7 +985,7 @@ def _fixture(root: str) -> None:
     _write(root, "crates/topo/src/lib.rs", "")
     _write(root, "work/README.md", "contract\n")
     _write(root, "work/mesh/program.md",
-           "---\nid: mesh\nkind: program\ntitle: S-MESH\nstatus: open\nopened: 2026-08-31\n"
+           "---\nid: mesh\nkind: program\ntitle: S-MESH\nstatus: active\nopened: 2026-08-31\n"
            "area: kernel\nprefix: mesh/\nab_band: 1200-1299\npaths: [crates/mesh/*]\n---\n")
     _write(root, "work/mesh/plan.md", "plan\n")
     _write(root, "work/mesh/log.md", "log\n")
@@ -1077,6 +1109,31 @@ def selftest() -> int:
             _write(root, rel, original)
         expect("restored fixture", lint(root))
 
+        # THE PROGRAM'S OWN STATUS. `active` is unfalsifiable from the tree,
+        # so the two checkable halves are the ones tested: a blocked track with
+        # a row to pick up, and a ready track with nothing to pick up.
+        mp0 = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/program.md", mp0.replace("status: active", "status: blocked"))
+        expect("blocked with a dispatchable row", lint(root), "but ['MESH-2'] are dispatchable")
+        _write(root, "work/mesh/program.md", mp0.replace("status: active", "status: ready"))
+        expect("ready with a dispatchable row is clean", lint(root))
+        o2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: deferred"))
+        expect("ready with nothing dispatchable", lint(root), "none of its 2 live rows is dispatchable")
+        _write(root, "work/mesh/program.md", mp0.replace("status: active", "status: blocked"))
+        expect("blocked with nothing dispatchable is clean", lint(root))
+        text = render(root, today=far)
+        if "Blocked: no orchestrator" not in text:
+            failures.append("render: a blocked track does not say so on its slate")
+        _write(root, "work/mesh/MESH-2.md", o2)
+        _write(root, "work/topo/program.md",
+               open(os.path.join(root, "work/topo/program.md"), encoding="utf-8").read()
+               .replace("status: closed\nopened: 2026-08-01\nclosed: 2026-08-20", "status: blocked\nopened: 2026-08-01"))
+        expect("blocked with no live row at all", lint(root), "waiting on nothing is finished")
+        subprocess.run(["git", "-C", root, "checkout", "-q", "--", "work/topo/program.md"], check=True)
+        _write(root, "work/mesh/program.md", mp0)
+        expect("restored after the program-status cases", lint(root))
+
         # deferred: a ratified not-now, no blocker, its own render column, and
         # NOT the fired-trigger error's subject
         orig2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
@@ -1185,7 +1242,7 @@ def selftest() -> int:
         # silence once both keep_outs name the other
         mp = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
         _write(root, "work/verbs/program.md",
-               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: open\nopened: 2026-09-01\n"
+               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: ready\nopened: 2026-09-01\n"
                "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\n---\n")
         _write(root, "work/verbs/plan.md", "plan\n")
         _write(root, "work/verbs/log.md", "log\n")
@@ -1199,7 +1256,7 @@ def selftest() -> int:
             if want not in rep:
                 failures.append(f"the at-rest overlap report should still name it: {want!r} not in {rep!r}")
         _write(root, "work/verbs/program.md",
-               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: open\nopened: 2026-09-01\n"
+               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: ready\nopened: 2026-09-01\n"
                "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
         warns = []
         expect("a one-sided record is not an error", lint(root, warns))
@@ -1248,7 +1305,7 @@ def selftest() -> int:
         # program claims too was reported by nothing until 2026-09-11.
         mp2 = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
         _write(root, "work/verbs2/program.md",
-               "---\nid: verbs2\nkind: program\ntitle: VERBS2\nstatus: open\nopened: 2026-09-01\n"
+               "---\nid: verbs2\nkind: program\ntitle: VERBS2\nstatus: ready\nopened: 2026-09-01\n"
                "area: kernel\nprefix: verbs2/\npaths: [crates/mesh/*]\n---\n")
         _write(root, "work/verbs2/plan.md", "plan\n")
         _write(root, "work/verbs2/log.md", "log\n")

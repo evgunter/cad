@@ -2,7 +2,7 @@
 id: decide
 kind: program
 title: DECIDE — the symbolic decision door: what it may answer, what it may retry, and the ring it answers in
-status: open
+status: active
 opened: 2026-09-20
 area: kernel
 prefix: decide/
