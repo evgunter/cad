@@ -4678,7 +4678,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //   that circle's disc. `disc_side` decides the class exactly and
     //   belongs to `boolean::contain`; reaching it from here is a
     //   widening this unit does not take, so the arm is silent
-    //   (`work/topo/check-9-nesting-is-line-bounded-only.md`).
+    //   (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
     // - **`NoWalk`** — arc-bearing over fewer than three vertices,
     //   where the polygon has zero area and the walk answers `Out`
     //   for every interior point. Silent for the same reason.
