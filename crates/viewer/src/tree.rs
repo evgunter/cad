@@ -294,7 +294,7 @@ pub fn frame_pose(node: &Node<ProfileProgram>) -> Option<String> {
                 (None, None) => "origin driven".to_owned(),
             })
         }
-        Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on feature {}'s face", at.0)),
+        Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", node_number(*at))),
         _ => None,
     }
 }

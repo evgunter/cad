@@ -2082,7 +2082,14 @@ impl DocSession {
             [Some(plane)] => Some(DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
                     plane: *plane,
-                    loops: loops.take()?,
+                    // Loud, like the arm below: ending the run here
+                    // instead would commit the lone frame, which is
+                    // the exact orphan all-or-nothing promises
+                    // against. The generator is called once per
+                    // position and this position comes round once.
+                    loops: loops
+                        .take()
+                        .unwrap_or_else(|| unreachable!("the profile's position comes round once")),
                 }),
             }),
             [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
@@ -2555,7 +2562,12 @@ impl DocSession {
         let Some(doc) = produced else {
             unreachable!("an action commits at least one edit")
         };
-        self.record_action(logged, doc)
+        let mut outcome = self.record_action(logged, doc);
+        // The ids the run minted, out to whoever asked for the action
+        // — in the order the edits applied, which is the order a
+        // caller that built one edit from another's id reasoned in.
+        outcome.minted = minted.into_iter().flatten().collect();
+        outcome
     }
 
     /// **Record an action whose document is already produced** — the

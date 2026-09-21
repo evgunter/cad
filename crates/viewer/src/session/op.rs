@@ -1311,6 +1311,18 @@ pub struct OpOutcome {
     pub committed: Vec<DocEdit<ProfileProgram>>,
     /// The edits evaluated against scratch state and NOT recorded.
     pub previewed: Vec<DocEdit<ProfileProgram>>,
+    /// **The ids this operation's inserts MINTED**, in the order the
+    /// action applied them — empty for every operation that inserted
+    /// nothing.
+    ///
+    /// The `EditRecord::minted` the edit door already answers with,
+    /// carried out to the chrome instead of being dropped at the
+    /// session's edge. A form that has just committed a node it will
+    /// go on referring to has no other way to learn its id: a
+    /// `DocEdit::InsertNode` carries the payload and not the id, and
+    /// reading "the last node in document order" would be a guess
+    /// about an action nobody promised inserts only one thing.
+    pub minted: Vec<RecipeNodeId>,
     /// Why nothing (or nothing more) happened.
     pub refusal: Option<Refusal>,
     /// What this operation's document transition WITHDREW from the

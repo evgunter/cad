@@ -509,6 +509,17 @@ impl Drafts {
     /// frame picked and the field values stay, so a second profile on
     /// the same frame starts from where the first one left off.
     ///
+    /// **[`ProfilePlane::NewXy`] becomes the frame it minted**, which
+    /// is what makes the sentence above true of that arm too. A choice
+    /// that stayed `NewXy` would mint a SECOND world xy frame on the
+    /// next submit, and two coincident frames out of two ordinary
+    /// submits is the quiet kind of wrong — nothing refuses, the
+    /// picture is identical, and the recipe has a node in it nobody
+    /// asked for. The id is `minted`'s FIRST, because that arm inserts
+    /// the frame before the profile that names it
+    /// (`DocSession::add_profile_on_new_xy`) — held by
+    /// `an_accepted_new_xy_leaves_the_form_on_the_frame_it_minted`.
+    ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
     ///
@@ -518,9 +529,18 @@ impl Drafts {
     /// (`Drafts::sync_profile_edit`, at the top of the next frame) —
     /// untouched again, and still open on the node, which is where the
     /// person is still working.
-    pub(crate) fn accepted(&mut self, op: &SessionOp) {
-        if matches!(op, SessionOp::AddProfile { .. }) {
-            self.profile_shape = None;
+    pub(crate) fn accepted(&mut self, op: &SessionOp, minted: &[RecipeNodeId]) {
+        let SessionOp::AddProfile { plane, .. } = op else {
+            return;
+        };
+        self.profile_shape = None;
+        // The OP's plane, not the draft's: what settles is the choice
+        // the document accepted, and the draft is only where that
+        // choice was standing when the panel pushed it.
+        if *plane == ProfilePlane::NewXy
+            && let Some(frame) = minted.first()
+        {
+            self.profile_plane = Some(ProfilePlane::Existing(*frame));
         }
     }
 
@@ -857,6 +877,69 @@ mod tests {
     use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
 
+    /// **An accepted `NewXy` leaves the form on the frame it
+    /// minted**, so the next submit draws on that frame instead of
+    /// minting a second copy of it.
+    ///
+    /// The ids arrive as a VALUE — this module names no session (the
+    /// module-kinds gate holds that) — and
+    /// `creation_ops::a_new_xy_action_mints_the_frame_before_the_profile`
+    /// is the row that holds the real door to handing them over in
+    /// this order.
+    #[test]
+    fn an_accepted_new_xy_leaves_the_form_on_the_frame_it_minted() {
+        let (frame, profile) = (RecipeNodeId(1), RecipeNodeId(2));
+        let mut drafts = Drafts {
+            profile_plane: Some(ProfilePlane::NewXy),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+        let loops = drafts
+            .profile_programs()
+            .expect("the default circle lowers");
+        drafts.accepted(
+            &SessionOp::AddProfile {
+                plane: ProfilePlane::NewXy,
+                loops,
+            },
+            &[frame, profile],
+        );
+        assert_eq!(
+            drafts.profile_plane,
+            Some(ProfilePlane::Existing(frame)),
+            "the frame the action minted, not the profile and not `NewXy` again"
+        );
+        assert_eq!(drafts.profile_shape, None, "the shape still rests");
+    }
+
+    /// An accepted add on an EXISTING frame leaves the pick where it
+    /// was — the arm that must not follow the rule above, since the
+    /// one id it minted is the profile.
+    #[test]
+    fn an_accepted_add_on_an_existing_frame_leaves_the_pick_alone() {
+        let (plane, profile) = (RecipeNodeId(4), RecipeNodeId(9));
+        let mut drafts = Drafts {
+            profile_plane: Some(ProfilePlane::Existing(plane)),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+        let loops = drafts
+            .profile_programs()
+            .expect("the default circle lowers");
+        drafts.accepted(
+            &SessionOp::AddProfile {
+                plane: ProfilePlane::Existing(plane),
+                loops,
+            },
+            &[profile],
+        );
+        assert_eq!(
+            drafts.profile_plane,
+            Some(ProfilePlane::Existing(plane)),
+            "a second profile on the same frame starts where the first left off"
+        );
+    }
+
     /// **The add-datum FRAME form opens on the frame the add-profile
     /// form MINTS**, and they are one frame rather than two agreeing
     /// numbers.
@@ -1022,23 +1105,26 @@ mod tests {
 
         // The control: an accepted op that adds no profile leaves the
         // form composing.
-        drafts.accepted(&SessionOp::Hover(None));
+        drafts.accepted(&SessionOp::Hover(None), &[]);
         assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
 
         let loops = drafts
             .profile_programs()
             .expect("the default circle lowers");
-        let (doc, _) = insert(
+        let (doc, profile) = insert(
             &doc,
             Node::Profile(ProfileProgram {
                 plane,
                 loops: loops.clone(),
             }),
         );
-        drafts.accepted(&SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops,
-        });
+        drafts.accepted(
+            &SessionOp::AddProfile {
+                plane: ProfilePlane::Existing(plane),
+                loops,
+            },
+            &[profile],
+        );
         let evaluation = evaluate(
             &doc,
             None,

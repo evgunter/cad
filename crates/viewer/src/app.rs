@@ -1122,7 +1122,7 @@ impl ViewerApp {
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
-            let outcome = self.session.perform(op);
+            let mut outcome = self.session.perform(op);
             // **Where a withdrawal reaches the user**: everything
             // this operation's document transition took out of the
             // display state, onto the frame's notices like every other
@@ -1138,6 +1138,10 @@ impl ViewerApp {
             notices.extend(
                 frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
             );
+            // Read before the match below moves the refusal out: a
+            // form that just committed a node it will go on referring
+            // to learns its id here and nowhere else.
+            let minted = core::mem::take(&mut outcome.minted);
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -1160,11 +1164,11 @@ impl ViewerApp {
                 // op came from which panel.
                 None if tool_edit => {
                     self.tools.close();
-                    self.drafts.accepted(&accepted_op);
+                    self.drafts.accepted(&accepted_op, &minted);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
-                None => self.drafts.accepted(&accepted_op),
+                None => self.drafts.accepted(&accepted_op, &minted),
             }
         }
         let update = frame::frame_status(&notices, &performed, refusal.as_ref());

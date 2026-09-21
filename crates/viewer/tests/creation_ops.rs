@@ -1440,3 +1440,65 @@ fn a_new_xy_frame_lands_where_its_preview_drew() {
 fn xyz(v: pncad::geom_core::Vec3<f64>) -> [f64; 3] {
     [v.x, v.y, v.z]
 }
+
+/// **The frame is minted BEFORE the profile that names it**, and the
+/// action says so on its outcome.
+///
+/// The half of `Drafts::accepted`'s `NewXy` settle that lives at the
+/// door: the form takes `minted.first()` as the frame it drew on, and
+/// this is what makes that reading true rather than a convention two
+/// modules apart agree on by luck.
+#[test]
+fn a_new_xy_action_mints_the_frame_before_the_profile() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let outcome = session.perform(SessionOp::AddProfile {
+        plane: ProfilePlane::NewXy,
+        loops: vec![shape(&ProfileShape::Circle {
+            centre: [0.0, 0.0],
+            radius: RO,
+        })],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let doc = session.committed_doc();
+    let order = doc.order().to_vec();
+    assert_eq!(
+        outcome.minted, order,
+        "both ids, in the order the action applied them: {:?}",
+        outcome.minted
+    );
+    assert!(
+        matches!(
+            doc.node(outcome.minted[0]),
+            Some(Node::Datum(Datum::Frame { .. }))
+        ),
+        "the FIRST is the frame"
+    );
+    assert!(
+        matches!(doc.node(outcome.minted[1]), Some(Node::Profile(_))),
+        "the second is the profile"
+    );
+}
+
+/// An add on an existing frame mints exactly the profile — the arm
+/// whose `minted.first()` is NOT a frame, which is why the form's
+/// settle is gated on the choice rather than on the list.
+#[test]
+fn an_add_on_an_existing_frame_mints_only_the_profile() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
+    let outcome = session.perform(SessionOp::AddProfile {
+        plane: ProfilePlane::Existing(plane),
+        loops: vec![shape(&ProfileShape::Circle {
+            centre: [0.0, 0.0],
+            radius: RO,
+        })],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.minted.len(), 1, "{:?}", outcome.minted);
+    assert!(matches!(
+        session.committed_doc().node(outcome.minted[0]),
+        Some(Node::Profile(_))
+    ));
+}
