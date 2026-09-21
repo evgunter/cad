@@ -9,21 +9,20 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# The kernel's INSTANTIATION at the interval scalar (issue #4), opt-in:
-# the lane impls in the crates above this one and the interval test
-# files. An enclosure is a different cost regime from `f64`, so that
-# monomorphization never rides along in a default build — measured
-# 2026-09-15 at +36% on a clean `cargo build --workspace`
-# (`docs/GENERICS-BUILD-COST.md` §9).
+# The kernel's LANE impls at the interval scalar (issue #4), opt-in: the
+# lane-trait impls in the crates above this one, and the interval test
+# files and modules. An enclosure is a different cost regime from `f64`,
+# so that monomorphization never rides along in a default build; what it
+# costs is measured in `docs/GENERICS-BUILD-COST.md` §9.
 #
-# The TYPE is not gated. `geom_core::interval` — the scalar, its
-# arithmetic and its `Real`/`Decide`/`Bounds` impls — compiles in every
-# build over the in-repo `interval-transcendentals` backend, which is a
-# normal dependency below; that costs nothing measurable (107 s vs 106 s
-# on the same clean build) and is what lets code below the gate name the
-# type. So this feature activates no dependency and stays declared as an
-# empty one: every `--features interval` invocation and every
-# `geom-core/interval` forward from another member still resolves.
+# Neither the TYPE nor a generic body bounded by `Real`/`Decide`/`Bounds`
+# is gated: `geom_core::interval` — the scalar, its arithmetic and its
+# impls — compiles in every build over the in-repo
+# `interval-transcendentals` backend, which is a normal dependency below,
+# at no measurable build cost (§9 again). So this feature activates no
+# dependency and stays declared as an empty one: every
+# `--features interval` invocation and every `geom-core/interval` forward
+# from another member still resolves.
 interval = []
 # K-telemetry recording scalar (`k_stats::Probe`), opt-in. Probe is a
 # `Real` instantiation like `Interval`, so every generic-over-`Real` body

@@ -1,21 +1,25 @@
-//! The **C9 interval ring**: a small, MIT-clean, always-compiled
-//! enclosure type with `±`, `×`, `÷` and integer powers, and nothing
-//! else. This is the arithmetic every M5 fitted-cache certification
-//! stands on (`crates/geom-brep/README.md` C9, C2.2).
+//! The **C9 interval ring**: a small enclosure type with `±`, `×`, `÷`
+//! and integer powers, and nothing else. This is the arithmetic every
+//! M5 fitted-cache certification stands on
+//! (`crates/geom-brep/README.md` C9, C2.2).
 //!
 //! # Two interval roles, deliberately distinct
 //!
-//! The kernel now carries two interval-shaped types, and confusing them
-//! would be a design error:
+//! The kernel carries two interval-shaped types, and confusing them
+//! would be a design error. **Both compile in every build**, so nothing
+//! in the build configuration separates them: this text is the whole
+//! separation, and it stays that way until the two cuts that retire
+//! this type land — RING-2, which makes it a newtype over the backend's
+//! `DInterval`, and RING-3, which dissolves that newtype into
+//! [`Interval`](crate::interval::Interval).
 //!
 //! - [`Interval`](crate::interval::Interval) is a
 //!   **[`Real`](crate::Real) instantiation** — an evaluation scalar.
 //!   Geometry recipes are written generically over `Real` and
 //!   *replayed* at that type; it carries transcendentals, decorations,
 //!   and a [`Decide`](crate::Decide) impl. The `interval` cargo feature
-//!   gates the kernel's instantiation at it — the lane impls and the
-//!   interval test files — and not the type, which compiles in every
-//!   build.
+//!   gates the lane-trait impls above this crate and the interval test
+//!   files — not the type, and not the generic bodies that take it.
 //! - [`RingInterval`] (this module) is **certification
 //!   substrate**. It is *not* a `Real` instantiation and deliberately
 //!   does not implement `Real`: no transcendentals, no `Decide`, no

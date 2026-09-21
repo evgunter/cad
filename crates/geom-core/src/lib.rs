@@ -4,13 +4,13 @@
 //! scalar trait (instantiated at `f64` here, at forward-mode [`dual`]
 //! numbers, and at the certified [`Interval`] scalar over
 //! `interval-transcendentals`, including the dual-over-interval
-//! combination; the `interval` cargo feature gates the kernel's
-//! instantiation at that scalar, not the scalar itself), the single
-//! global [`Tolerance`] value, the
-//! trilean predicate machinery ([`Decide`] / [`Sign`] / [`Band`] — the
-//! single door from numbers to decisions), and the small fixed-dimension
-//! [`linalg`] layer — vectors, points, matrices, affine maps, generic
-//! over [`Real`] — that the geometry layers build upon. It carries the
+//! combination; the `interval` cargo feature gates the lane-trait impls
+//! above this crate and the interval test files, not the scalar and not
+//! the generic bodies that take it), the single global [`Tolerance`]
+//! value, the trilean predicate machinery ([`Decide`] / [`Sign`] /
+//! [`Band`] — the single door from numbers to decisions), and the small
+//! fixed-dimension [`linalg`] layer — vectors, points, matrices, affine
+//! maps, generic over [`Real`] — that the geometry layers build upon. It carries the
 //! determinism charter (D9) from the first line — no panics on input,
 //! typed errors, transcendentals via `libm`, essentially no unsafe. See
 //! `docs/DESIGN.md` (decisions D4, D9, and open question Q1) for the

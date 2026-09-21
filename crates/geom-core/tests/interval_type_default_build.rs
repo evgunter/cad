@@ -13,9 +13,12 @@
 //! The rows are the doors this crate ungated: the type and its
 //! arithmetic, the [`Decide`] impl in both its answers, the
 //! `bit_identity` arm in both its channels (endpoints and decoration)
-//! and the sealed [`SpanLocate`] impl — plus [`DualInterval`], the
+//! and the [`SpanLocate`] impl — plus [`DualInterval`], the
 //! dual-over-interval alias. Containment is the contract and tightness
-//! is the quality, so the arithmetic is pinned on both.
+//! is the quality, so the arithmetic is pinned on both. What the
+//! `SpanLocate` row pins is that impl's BEHAVIOUR, not the `Sealed`
+//! marker it needs: the crate's own `SpanLocate` impl requires the
+//! marker, so a build without it is not a build at all.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -75,9 +78,12 @@ fn the_bit_identity_channel_reads_intervals_in_a_default_build() {
     assert_eq!(geom_core::bit_identity::eq_bits(&a, &c), Some(false));
 }
 
-/// The sealed [`SpanLocate`] impl is compiled, and it is the
+/// The [`SpanLocate`] impl is compiled, and it is the
 /// interval-natured one: an enclosure straddling the interior knot
 /// overlaps BOTH spans, where a point scalar's locator answers one.
+/// That behaviour is what this row pins; the `Sealed` marker beneath
+/// it cannot be pinned separately, since the crate does not compile
+/// without it.
 #[test]
 fn interval_locates_a_span_range_in_a_default_build() {
     let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0], 2).unwrap();

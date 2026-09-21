@@ -1,7 +1,7 @@
 ---
 id: gate-on-the-type-in-prose-outside-geom-core
 kind: issue
-title: three prose sites outside geom-core still put the interval gate on the TYPE
+title: prose sites outside geom-core still put the interval gate on the TYPE
 status: open
 opened: 2026-09-21
 priority: P4
@@ -14,9 +14,10 @@ refs: [ring-1-interval-type-ungated, H5]
 
 RING-1 ungated `geom_core::interval`: the type, its arithmetic and its
 `Real`/`Decide`/`Bounds`/`SpanLocate` impls compile in every build, and
-the `interval` feature now gates only the kernel's instantiation at the
-scalar. Three prose sites outside that unit's fence still say the gate
-is on the TYPE, and each is false as written:
+what the `interval` feature gates is the lane-trait impls in the crates
+above `geom-core` and the interval test files. Prose sites outside that
+unit's fence still say the gate is on the TYPE, or name the backend as
+the FEATURE's, and each is false as written:
 
 - `crates/geom-brep/README.md`, clause **C9** ("the evaluation scalar
   `geom_core::Interval` (behind the `interval` feature, backend the
@@ -31,17 +32,50 @@ is on the TYPE, and each is false as written:
 - `interval-transcendentals/docs/inventory.md` ("the interval scalar
   … `crates/geom-core/src/interval.rs`, behind the `interval`
   feature", `:4`).
+- `crates/test-utils/src/lib.rs` ("`interval-transcendentals/` … is
+  path-depended on by `geom-core` (the `interval` feature's backend)",
+  `:41`) — the same naming class: it is the interval scalar's backend,
+  and the path dependency the sentence argues from is unconditional.
+- **WIRE's**: `crates/editor-core/src/lib.rs` (`:30-32`), the `drive`
+  module's gate — "Gated on `interval` because the leaf protocol
+  replays at the certified interval scalar: without that scalar there
+  is no leaf to certify". The GATE is right and stays; its stated
+  REASON is not, because the scalar is in every build now. What keeps
+  `drive` gated is the instantiation cost of replaying the kernel at
+  the scalar, which is what the reason should say.
 
-Not hits, checked in the same sweep: `docs/DESIGN.md`'s crate-landscape
-row for `interval-transcendentals` (the backend of the interval scalar,
-which is what it says) and `docs/CI-MINUTES-2026-08.md` (a dated
-measurement record, correct as of its date). Every other
-site in the tree that names the gate is about the instantiation — a lane impl, a gated suite, a demo cell, the wheel's
-uncertified half — and stays true.
+## Sweep, and what it could not match
+
+`rg -i "behind the .interval. feature|interval. feature's backend|feature-gated"`
+over `*.rs *.md *.toml *.yml` (R2's shape), read hit by hit. The
+`feature-gated` arm is mostly other features and the interval TEST
+files, which stay gated and stay true: the four consumer manifests'
+"exercised by the feature-gated test modules in CI's interval lane"
+(`crates/{geom,sweep,profile,geom-brep}/Cargo.toml`), the `cfg(test)`
+mod comments in `crates/geom/src/{curves,surfaces}.rs` and
+`crates/geom-core/src/dual.rs`, `docs/GUIDE.md:2111` (the wheel's
+uncertified half — the E6/E4/E5/E10 modules are gated), `demos/tour/
+src/plate.rs:14,95` (the tour's tolerance cell), `crates/pncad/tests/
+all.rs:4375` (`crate::analysis`), and `crates/geom-core/src/k_stats.rs:107`
+(the `probe` feature, a different gate).
+
+Two blind spots, stated rather than claimed away: the pattern matches
+a PHRASE, so a site that argues the gate in its own words is invisible
+to it — WIRE's site above was found by reading, not by the pattern —
+and it matches no source outside those four extensions (no python, no
+shell). `crates/editor-core/src/measure.rs:525` ("its own type, which
+lives behind the `interval` feature this door does not") reads as the
+gated engine module rather than the scalar and is left; the WIRE row
+above is the place to settle it.
 
 ## Why not fixed where it was found
 
 `docs/RING-1-SPEC.md` §5 fences that unit to `geom-core`, `ci.yml`,
 `scripts/gates/*`, `docs/DESIGN.md` and `docs/GENERICS-BUILD-COST.md`;
-these three sit outside it, and C9 belongs to a ruling that already
-named the PR that re-words it.
+these sit outside it, and C9 belongs to a ruling that already named
+the PR that re-words it. Three sites of the same class that the fence
+DOES cover were fixed in RING-1's PR rather than filed here:
+`docs/DESIGN.md:1018`'s crate-landscape row and
+`.github/workflows/ci.yml:3596,3997` — all three named the backend as
+the feature's. `docs/CI-MINUTES-2026-08.md` is a dated measurement
+record, correct as of its date, and stays.

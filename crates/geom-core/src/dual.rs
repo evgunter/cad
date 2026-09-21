@@ -6,10 +6,10 @@
 //! `Dual { value: x, deriv: 1 }` yields `Dual { value: f(x), deriv: f'(x) }`
 //! — exact forward-mode differentiation, no finite differences, one pass.
 //! The wrapper is generic over the base scalar: `Dual<f64>` ([`Dual64`])
-//! gives fast sensitivities, `Dual<Interval>` ([`DualInterval`], behind the
-//! `interval` cargo feature) gives *certified* derivative enclosures — the
-//! same chain-rule code serves both, which is the point of writing the
-//! chain rules in [`Real`]-surface operations.
+//! gives fast sensitivities, `Dual<Interval>` ([`DualInterval`]) gives
+//! *certified* derivative enclosures — the same chain-rule code serves
+//! both, which is the point of writing the chain rules in
+//! [`Real`]-surface operations.
 //!
 //! # In-house generic wrapper; num-dual demoted to a test oracle
 //!
@@ -151,8 +151,8 @@ use crate::interval::Interval;
 /// derivative of that value with respect to one scalar parameter.
 ///
 /// Implements [`Real`] for the kernel's base scalars (`f64` and
-/// [`Interval`]), so any evaluation code generic
-/// over [`Real`] differentiates itself when instantiated here. See the
+/// [`Interval`]), so any evaluation code generic over [`Real`]
+/// differentiates itself when instantiated here. See the
 /// [module docs](self) for the value-channel contract, the kink
 /// conventions, and the decide-by-value rule.
 ///
@@ -202,9 +202,8 @@ impl<T: Real> Dual<T> {
 /// The non-smooth selectors [`Dual`]'s chain rules need from their base
 /// scalar — a **sealed, crate-private helper trait** (written with
 /// [`Real`] as its supertrait) implemented for `f64` here and for
-/// [`Interval`] in `crate::interval` (feature-gated). It carries exactly
-/// the three kink selectors: the `abs` sign factor and the `min`/`max`
-/// tangent choice.
+/// [`Interval`] in `crate::interval`. It carries exactly the three kink
+/// selectors: the `abs` sign factor and the `min`/`max` tangent choice.
 ///
 /// [`Real`] deliberately has no comparisons, and `d|x|/dx` or "whose
 /// tangent does `min` keep" are order decisions *by nature* — not
