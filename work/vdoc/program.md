@@ -26,7 +26,8 @@ land invalidates more of it; the opening condition is in
 `work/vdoc/plan.md` §Order and is not a note.
 
 Charter and order: `work/vdoc/plan.md`; narrative in
-`work/vdoc/log.md`. The lane register that binds every lane dispatched
-here is `work/view/plan.md`'s, inherited by reference and not copied —
-`work/vdoc/plan.md` §The register says why and what happens to it when
-VIEW's directory goes.
+`work/vdoc/log.md`. The standing discipline every lane dispatched here is held to is
+`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md`, handed over by path —
+§The discipline a lane is held to in the plan says what became of
+the rule register that used to sit beside them.

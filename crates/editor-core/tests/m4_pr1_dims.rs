@@ -177,7 +177,7 @@ fn min_max_same_dimension_only() {
 /// forces the visit, not the edit. That is the idiom's hole and not
 /// this row's alone — it is inherited from the censuses cited above —
 /// so it is filed as
-/// `work/door/all-census-idiom-forces-the-visit-not-the-update` rather
+/// `work/census/all-census-idiom-forces-the-visit-not-the-update` rather
 /// than patched here in one of four places.
 #[test]
 fn all_is_every_dimension() {
