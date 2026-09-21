@@ -162,7 +162,7 @@
 #
 # THE EXCEPTION IS ONE ROOT, AND IT IS NAMED. `interval-transcendentals`
 # is documented under DEFAULT features, a ruling this repo has already
-# made once: ci.yml's `interval backend crate` job is "deliberately the
+# made once: interval.yml's `interval backend crate` job is "deliberately the
 # crate's DEFAULT feature set: without `oracle-inari` there is no
 # inari/gmp-mpfr-sys and no C toolchain in the graph". That crate's ONLY
 # feature is that test-only oracle (its manifest: `src/` must never
