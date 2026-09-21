@@ -3217,6 +3217,29 @@ the unit's log entry.
 
 - `SYM-7-SPEC.md` — SYM-7, the plain form outlives the leaf (#2609)
 
+## Per-merge deletion — SYM-8's spec (2026-09-21)
+
+Recoverable at `git show 7edff5e97:docs/SYM-8-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: Phase 1.3's stop clause
+("if a split moves DOWN or a ceiling falls under the fold ... the
+rule's predicate is narrowed until it does not") — literally tripped
+on R2's rounded pad (`symbolic_zero` 858 → 854, `registered`
+104 → 128, `numeric` 991 → 971; no decision lost, no ceiling moved),
+and RULED a ratified spec deviation by the SYM orchestrator on
+2026-09-21 with `symbolic_zero` pinned on all five pad documents
+(`work/decide/SYM-8.md`; Ev may overrule); the predicate as first
+written over `trig::manifestly_nonneg` (the shipped predicate is
+manifest POSITIVITY, `manifest::positive`, strict at the signed-zero
+edge, and `manifestly_nonneg` is retired); the denominator side
+condition argued from a retired sentence (it rides `quotient`'s
+four-source argument; rule F mints no new denominator); "M10-8's tier
+exactly" for `shipped_without_the_door()` (already false before rule
+F — the constructor is a door differential and keeps rule F;
+`a0_alone()` is M10-8's tier). Recorded in the PR body and the unit's
+log entry.
+
+- `SYM-8-SPEC.md` — SYM-8, the manifest sign (#2616)
+
 ## Per-merge deletion — CURVED-TORUS's spec (2026-09-15)
 
 Recoverable at `git show 4617fcc5b:docs/CURVED-TORUS-SPEC.md` (PR
