@@ -984,10 +984,10 @@ fn minted(name: &GestureName) -> [SessionOp; 3] {
 /// alone is weak: the variant check ignores the payload, and the
 /// round trip is a FIXED-POINT check, which any idempotent wrong
 /// answer satisfies — `names_gesture` returning `RecipeNodeId(0)` for
-/// every slot drag passes both. `a_name_is_injective_over_its_payload`
-/// is the row that closes it, and the two together are the identity:
-/// a map that is idempotent and injective on a set is the identity on
-/// that set.
+/// every slot drag passes both, and passed the whole viewer suite.
+/// `a_name_is_the_payload_it_was_read_off` is the row that closes it,
+/// by anchoring the round trip at a name this file wrote rather than
+/// at one `names_gesture` produced.
 #[test]
 fn every_driving_operation_names_one_gesture() {
     let tol = Tol::witness();
@@ -1018,37 +1018,56 @@ fn every_driving_operation_names_one_gesture() {
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
-/// **A name carries the payload it was read off**, which is the half
-/// `every_driving_operation_names_one_gesture` structurally cannot
-/// see.
+/// **A name carries the payload it was read off.**
 ///
-/// That row's containment arm compares VARIANTS, and its round trip is
-/// a fixed point, so a `names_gesture` that discarded the node and
-/// answered `RecipeNodeId(0)` for every slot drag satisfies both. What
-/// it does not satisfy is this: two operations that drive DIFFERENT
+/// `every_driving_operation_names_one_gesture` structurally cannot see
+/// this. Its containment arm compares VARIANTS, and its round trip is
+/// a FIXED POINT — it reads a name off an operation and checks that
+/// minting from THAT name reads back the same — so any wrong answer
+/// that is idempotent satisfies it. A `names_gesture` whose slot arm
+/// answered `RecipeNodeId(0)` for every slot drag, discarding the node
+/// the operation exists to carry, passes that row and passed the whole
+/// viewer suite.
+///
+/// **The anchor is what closes it**: [`sample_names`] is hand-written
+/// and owes nothing to `names_gesture`, so minting from one of those
+/// and reading it back is an IDENTITY check rather than a fixed-point
+/// one. That mutation reds here on the first name.
+///
+/// The second arm is injectivity — two operations that drive different
 /// gestures must not read back as one name, or a chrome that spells
-/// its target once would steer whichever drag happened to collide
-/// with it.
+/// its target once would steer whichever drag collided with it. It is
+/// the weaker of the two and kept because it fails differently: the
+/// identity arm names the payload that was dropped, this one names the
+/// two gestures that became one.
 ///
-/// Injective here, idempotent there, and a map that is both on a set
-/// is the identity on it — so the pair pins the payload over the
-/// sampled targets. It is the sampled targets and not all of them:
-/// two nodes, two parameters and two instances, one pair per family
-/// by [`sample_names`]'s own witness.
+/// Both range over the sampled targets and not over all of them: two
+/// nodes, two parameters and two instances, one pair per family, with
+/// [`sample_names`]'s own exhaustive witness that no family is missing.
 #[test]
-fn a_name_is_injective_over_its_payload() {
+fn a_name_is_the_payload_it_was_read_off() {
     let names = sample_names();
+    for name in &names {
+        for op in minted(name) {
+            let read = op
+                .names_gesture()
+                .expect("a minted operation names its gesture");
+            assert_eq!(
+                &read, name,
+                "{op:?} was minted by this name and reads back as another"
+            );
+        }
+    }
     for (i, name) in names.iter().enumerate() {
-        for (j, other) in names.iter().enumerate() {
-            if i == j {
-                continue;
-            }
+        for other in names.iter().skip(i + 1) {
             assert_ne!(name, other, "two sample names are one name");
             for op in minted(name) {
-                let read = op.names_gesture().expect("a minted operation names its gesture");
+                let read = op
+                    .names_gesture()
+                    .expect("a minted operation names its gesture");
                 assert_ne!(
                     &read, other,
-                    "{op:?} reads back as another gesture's name, so a name drops what it carries"
+                    "{op:?} reads back as another gesture's name, so two drags became one"
                 );
             }
         }
