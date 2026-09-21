@@ -103,8 +103,8 @@ use pncad::select::ContactClass;
 use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, Hovered, PatternRuleSpec,
-    Refusal, Selection, SessionOp,
+    BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, FreeMoveName, GestureName,
+    Hovered, PatternRuleSpec, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -898,6 +898,161 @@ fn every_gesture_cancel_has_a_chrome_door() {
         "a door with no cancelling operation behind it"
     );
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **Which operations drive a gesture**, written out a second time.
+///
+/// [`SessionOp::names_gesture`]'s own match is exhaustive, so a
+/// forty-third operation cannot join without an answer; what an
+/// exhaustive match cannot catch is a WRONG answer, and this is the
+/// second hand-written copy that does — the same job [`expected`] does
+/// for the mid-drag policy, in the same shape as
+/// [`cancels_a_gesture`].
+///
+/// **The two cancels are false here.** A cancel names no target, so
+/// it drives whichever gesture is open; naming is the property, and a
+/// cancel has none.
+fn drives_a_gesture(op: &SessionOp) -> bool {
+    match op {
+        SessionOp::BeginGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove { .. } => true,
+        SessionOp::CancelGesture
+        | SessionOp::CancelFreeMove
+        | SessionOp::Select(_)
+        | SessionOp::Hover(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Open(_)
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::AddMate { .. }
+        | SessionOp::NewDocument { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
+        | SessionOp::AddBoolean { .. }
+        | SessionOp::AddSplit { .. }
+        | SessionOp::AddTransform { .. }
+        | SessionOp::AddPattern { .. }
+        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFillet { .. }
+        | SessionOp::AddChamfer { .. }
+        | SessionOp::AddInstance { .. } => false,
+    }
+}
+
+/// The three operations a gesture name mints, which is the other
+/// direction of [`SessionOp::names_gesture`].
+fn minted(name: &GestureName) -> [SessionOp; 3] {
+    match name {
+        GestureName::Value(value) => [value.begin(), value.preview(1.0), value.commit()],
+        GestureName::FreeMove(probe) => [
+            probe.begin(),
+            probe.preview(Frame::translation([1.0, 0.0, 0.0])),
+            probe.commit(),
+        ],
+    }
+}
+
+/// **The three spellings are one concept, and the tree says so
+/// mechanically.**
+///
+/// Six driving operations name their gesture three ways — a node and
+/// a slot, a parameter name, an instance — and
+/// [`SessionOp::names_gesture`] is where they become one
+/// [`GestureName`]. Three things are asserted over `every_op`'s
+/// samples, which `the_table_answers_for_every_op` holds to one per
+/// variant, so the population is the whole enum:
+///
+/// - an operation names a gesture exactly when [`drives_a_gesture`]
+///   says it drives one — the wrong-answer check, against a second
+///   hand-written copy;
+/// - reading a name off an operation and minting the operations back
+///   from that name are INVERSE, so a driving operation cannot answer
+///   with a gesture whose own vocabulary does not contain it;
+/// - every operation a name mints reads back as that same name, which
+///   is what a chrome relies on when it spells its target once.
+#[test]
+fn every_driving_operation_names_one_gesture() {
+    let tol = Tol::witness();
+    let dir = common::tempdir("view-gesture-name-census");
+    let (_, node) = fixture(tol);
+    for op in every_op(node, &dir.join("saved.pncad")) {
+        let named = op.names_gesture();
+        assert_eq!(
+            named.is_some(),
+            drives_a_gesture(&op),
+            "whether {op:?} names a gesture"
+        );
+        let Some(name) = named else { continue };
+        let vocabulary = minted(&name);
+        assert!(
+            vocabulary.iter().any(|minted| same_variant(minted, &op)),
+            "{op:?} names a gesture whose own operations do not include it"
+        );
+        for minted in vocabulary {
+            assert_eq!(
+                minted.names_gesture().as_ref(),
+                Some(&name),
+                "{minted:?} was minted by a name it does not answer with"
+            );
+        }
+    }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A gesture's cancel is its DRAG's**, and the name is what decides
+/// which of the two.
+///
+/// The two cancels are one per drag rather than one per gesture, so
+/// [`GestureName::cancel`] is the only place the choice is made: a
+/// control that emitted the other drag's cancel would abandon a
+/// gesture nobody let go of, or refuse while the pointer still holds
+/// one. `widgets`' own escape rows drive both through a real widget;
+/// this is the mapping those two rest on, over both names of each
+/// drag.
+#[test]
+fn a_names_cancel_is_its_own_drags() {
+    for name in [
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(3),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+    ] {
+        assert!(
+            matches!(name.cancel(), SessionOp::CancelGesture),
+            "a value drag's cancel"
+        );
+    }
+    assert!(
+        matches!(
+            GestureName::FreeMove(FreeMoveName {
+                instance: RecipeNodeId(3)
+            })
+            .cancel(),
+            SessionOp::CancelFreeMove
+        ),
+        "a probe's cancel"
+    );
 }
 
 /// **A door that cannot act says the refusal its OWN operation gives.**

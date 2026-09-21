@@ -1284,6 +1284,57 @@ mod tests {
             );
         }
     }
+
+    /// **Every operation one drag emits names the SAME gesture.**
+    ///
+    /// The concept both vocabularies are spellings of is
+    /// [`crate::session::GestureName`], and this is the row that says a
+    /// control cannot drive two: the four operations are minted from
+    /// one name ([`value_gesture`], [`free_move_gesture`]) rather than
+    /// written per operation, so a preview cannot land in one field and
+    /// a commit in another.
+    ///
+    /// Driven through the real widget rather than off the constructor,
+    /// because what is being asserted is what a pointer causes: the
+    /// press, the move and the release each emit through
+    /// [`drag_gesture_ops`], and it is their ops that are read back.
+    /// Both vocabularies, because one mapping serves both.
+    #[test]
+    fn every_operation_one_drag_emits_names_the_same_gesture() {
+        for vocabulary in [Vocabulary::FreeMove, Vocabulary::Slot] {
+            let mut probe = Probe::of(vocabulary);
+            probe.frame(Vec::new());
+            probe.frame(Vec::new());
+            let x = probe.aim();
+            probe.frame(vec![egui::Event::PointerMoved(x)]);
+            let mut emitted = probe.frame(vec![egui::Event::PointerButton {
+                pos: x,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            emitted.extend(probe.frame(vec![egui::Event::PointerMoved(
+                x + egui::vec2(40.0, 0.0),
+            )]));
+            emitted.extend(probe.frame(vec![egui::Event::PointerButton {
+                pos: x + egui::vec2(40.0, 0.0),
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }]));
+            assert_eq!(
+                emitted.iter().map(kind).collect::<Vec<_>>(),
+                ["begin", "preview", "commit"],
+                "the drag this row reads back"
+            );
+            let named: Vec<_> = emitted.iter().filter_map(SessionOp::names_gesture).collect();
+            assert_eq!(named.len(), emitted.len(), "an operation named no gesture");
+            assert!(
+                named.windows(2).all(|pair| pair[0] == pair[1]),
+                "one drag drove more than one gesture: {named:?}"
+            );
+        }
+    }
 }
 
 /// **What a numeric field says, and what saying it commits.**
