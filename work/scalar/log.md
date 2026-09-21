@@ -880,3 +880,24 @@ binding census entry), WIRE (`verbs/*`, editor-core's `checks.rs`,
 `eval/mod.rs`, `verbs/shell.rs`), PROPS (`real.rs`'s allowlist prose,
 DL3's sentence), GUARD (two gate entries, naming-only), PCERT (prose),
 TCOST/TINT (eleven test files), the unowned `props.rs`.
+
+## RING-2 dispatched; block SCALAR-B5 slot 2 (2026-09-21)
+
+RING-2 (`docs/RING-2-SPEC.md`, a Fable spec; item
+`ring-2-newtype-over-dinterval`; branch `scalar/ring-2`; the OPUS arm
+by byte 244) dispatched on RING-0's merged artefacts: the dry-run
+branch at `f70cdcee67` as the starting diff, the 22-row red table with
+its classes, the 31-site register with its regenerating command, the
+allowlist's four classes. The spec makes the three choices RING-0
+could not: `from_certified` carries the decoration (the crossing
+RING-3 needs), `hull`/`clamped_to` keep the refusing guards, and the
+register becomes an executable census. Ruling 2 governs the re-pins:
+tighter with the cause named, looser filed and left refusing. Fences
+announced here: PROPS (`ring_interval.rs`, `spline/*`, `props/*`,
+`offset_fit.rs`, `patch_bound.rs`, `ssi/*`, `geom/src/*`), TRIM
+(`pcurve_cache.rs`), MESH (`chords.rs`, `nurbs_cert.rs`), SHELL
+(`offset_meters.rs`), INSTR (`docs/tess-budget-data/`, by its recipe),
+the unowned `topo/src/props.rs`, TCOST/TINT (36 test files),
+`crates/geom-brep/README.md` C9 (naming-only). Two lanes live (LANE-1,
+RING-2); the ring and the lane chains run in parallel until RING-3 and
+LANE-4, which both wait.
