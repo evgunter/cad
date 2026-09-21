@@ -195,7 +195,9 @@
 
 use std::path::Path;
 
-use pncad::document::{ChecksReport, ParamName, ParseError, ProductError, RecipeNodeId, SlotId};
+use pncad::document::{
+    ChecksReport, ParamName, ParseError, ProductError, ProductErrorKind, RecipeNodeId, SlotId,
+};
 use pncad::select::HitTestError;
 
 use crate::camera::CameraError;
@@ -1718,6 +1720,80 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
     )
 }
 
+/// **Where the chrome reports a gather refusal**, and whether it is a
+/// refusal at all — the whole of what this crate decides about a
+/// [`ProductError`], and the answer [`product_badge`] gates on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BadgeSite {
+    /// This frame badges it: a gather-level fault no per-node badge
+    /// can carry — a naming collision across roots, a graft the kernel
+    /// refused, a validity verdict on the assembled product, an
+    /// evaluation of the wrong document.
+    Frame,
+    /// The Features pane badges it AT the node, with the typed cause,
+    /// so the frame stays silent.
+    FeatureTree,
+    /// Nothing is wrong to report: the document denotes no body, which
+    /// is a state rather than a failure.
+    NotAFault,
+}
+
+/// Which channel reports a refusal of this class, if any.
+///
+/// A `match` rather than a predicate, and that is the point: it is
+/// exhaustive over [`ProductErrorKind`], so an eleventh class reds
+/// this crate — where a reader sees the consequence — instead of being
+/// silently badged or silently declined by whichever way an expression
+/// happened to be written.
+///
+/// **The local policy is the three the feature tree owns.**
+/// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
+/// `Failed`, `Poisoned`, `Unevaluated` — and
+/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
+/// [`ProductError::UnknownNode`] are those same three states seen from
+/// the gather. The tree badges each AT the node and carries the typed
+/// cause with it, so a frame badge would say strictly less, in a
+/// louder colour, one row above a status line already reporting the
+/// same root's tessellation refusal. The Features pane goes further
+/// and draws a poisoned row deliberately QUIET, reserving
+/// [`Tone::Actionable`] for the row a reader can act on; a badge
+/// shouting about the same poisoning would have the chrome saying both
+/// things at once. That is a decision about THIS chrome and not a
+/// classification of the refusal, which is why it is decided here.
+///
+/// **Whether what is left is a fault at all is not this crate's to
+/// decide**, and it is not re-derived here:
+/// [`ProductErrorKind::means_no_body`] is that reading's one home, and
+/// the classes it claims reach [`BadgeSite::NotAFault`] through the
+/// call rather than by being named again. The blank viewport is
+/// already the picture of such a document.
+///
+/// The two questions are asked in that order because they are
+/// independent. [`ProductErrorKind::means_no_body`]'s contract is that
+/// `false` says the class IS a refusal, not that this consumer is the
+/// one to report it — so a class the tree already badges is the
+/// tree's, whichever way the cited rule answers it.
+pub(crate) fn badge_site(kind: ProductErrorKind) -> BadgeSite {
+    match kind {
+        ProductErrorKind::RootFailed
+        | ProductErrorKind::RootPoisoned
+        | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
+        ProductErrorKind::EvaluationOfAnotherDocument
+        | ProductErrorKind::Naming
+        | ProductErrorKind::NoBodyRoots
+        | ProductErrorKind::Graft
+        | ProductErrorKind::SolidInvalid
+        | ProductErrorKind::ProductInvalid
+        | ProductErrorKind::ContactLineage => {
+            if kind.means_no_body() {
+                BadgeSite::NotAFault
+            } else {
+                BadgeSite::Frame
+            }
+        }
+    }
+}
+
 /// **What the chrome badges about the landed product**, and `None`
 /// when there is nothing to say.
 ///
@@ -1746,42 +1822,14 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 ///
 /// # The arms that stay silent, and why
 ///
-/// **A document with no body is not this channel's to report.** The
-/// class means there is nothing to gather rather than something wrong
-/// — the reading, and the documents in that state, are
-/// [`pncad::document::ProductErrorKind::means_no_body`]'s — and the
-/// blank viewport is already the picture of it. A badge here would
-/// make an ordinary state look like a failure.
-///
-/// **A per-node state the feature tree already badges is not this
-/// channel's to repeat.** [`crate::tree::RowStatus`] has exactly three
-/// non-`Ok` states — `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
-/// [`ProductError::UnknownNode`] are those same three states seen from
-/// the gather. The tree badges each AT the node and carries the typed
-/// cause with it, so this badge would say strictly less, in a louder
-/// colour, one row above a status line already reporting the same
-/// root's tessellation refusal. The Features pane goes further and
-/// draws a poisoned row deliberately QUIET, reserving
-/// [`Tone::Actionable`] for the row a reader can act on; a badge
-/// shouting about the same poisoning would have the chrome saying both
-/// things at once.
-///
-/// What is left is what this channel is FOR: the gather-level faults no
-/// per-node badge can carry — a naming collision across roots, a graft
-/// the kernel refused, a validity verdict on the assembled product, an
-/// evaluation of the wrong document.
+/// [`badge_site`] decides it, exhaustively over the error class: a
+/// refusal another channel already carries, and a class that is no
+/// fault at all, are both `None` here, and the argument for each is
+/// there. What is left is what this channel is FOR — the
+/// gather-level faults no per-node badge can carry.
 pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
     fault
-        .filter(|fault| {
-            !(fault.kind().means_no_body()
-                || matches!(
-                    fault,
-                    ProductError::RootFailed { .. }
-                        | ProductError::RootPoisoned { .. }
-                        | ProductError::UnknownNode { .. }
-                ))
-        })
+        .filter(|fault| badge_site(fault.kind()) == BadgeSite::Frame)
         .map(|fault| Badge::read(Subject::Document, fault.to_string(), Tone::Actionable))
 }
 
@@ -2405,18 +2453,25 @@ mod tests {
             badge.label()
         );
 
-        // The silent arms. An empty document is not malformed, and the
-        // three per-node states are the feature tree's to badge — at
-        // the node, with the cause, one of them deliberately quiet.
-        for quiet in [
-            ProductError::NoBodyRoots,
-            ProductError::RootFailed { node },
-            ProductError::RootPoisoned {
-                node,
-                through: RecipeNodeId(1),
-            },
-            ProductError::UnknownNode { node },
+        // The silent arms, each paired with the silence it gets:
+        // [`badge_site`] is where the argument for both lives.
+        for (quiet, site) in [
+            (ProductError::NoBodyRoots, BadgeSite::NotAFault),
+            (ProductError::RootFailed { node }, BadgeSite::FeatureTree),
+            (
+                ProductError::RootPoisoned {
+                    node,
+                    through: RecipeNodeId(1),
+                },
+                BadgeSite::FeatureTree,
+            ),
+            (ProductError::UnknownNode { node }, BadgeSite::FeatureTree),
         ] {
+            assert_eq!(
+                badge_site(quiet.kind()),
+                site,
+                "which channel reports it: {quiet}"
+            );
             assert_eq!(
                 product_badge(Some(&quiet)),
                 None,
@@ -2424,6 +2479,24 @@ mod tests {
             );
         }
         assert_eq!(product_badge(None), None);
+
+        // And the classes this channel is FOR, by name rather than by
+        // the one sample above — the half of the policy a badge that
+        // went silent would not fail.
+        for kind in [
+            ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::Naming,
+            ProductErrorKind::Graft,
+            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::ProductInvalid,
+            ProductErrorKind::ContactLineage,
+        ] {
+            assert_eq!(
+                badge_site(kind),
+                BadgeSite::Frame,
+                "no per-node badge carries it: {kind:?}"
+            );
+        }
     }
 
     #[test]
