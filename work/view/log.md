@@ -13970,3 +13970,122 @@ pass, and nothing re-derived the clauses afterwards. And **a `keep_out`
 that asserts a sign-off requirement is a claim about CLAUDE.md, so it
 is checkable**: the companion table either lists the page or it does
 not.
+
+## 2026-09-21 — the cut's residue: three rows, two closed, and the list had moved twice
+
+`view/cut-residue`, a tracker-only lane. All three rows are one class:
+**the cut of 2026-09-17 wrote four programs' territory and status in one
+pass and nothing re-derived what it wrote** — the class the register's
+newest rule names (*a fence written in the same commit as the program it
+fences has no independent authority*), whose fourth instance was the
+VDOC README fence corrected this morning at #3002.
+
+**Row 1 — the unclaimed files — closed, and re-derivation moved it
+twice.** The row said eleven files under `crates/viewer/src` were
+claimed by no successor. The difference, re-run with
+`fnmatch.fnmatchcase` as `scripts/work.py:459` matches a territory glob,
+gives **ten**: `tree.rs` left the set exactly as the row predicted it
+would, claimed by VNEWS in the commit that filed the row, with nothing
+announcing that the entry had closed.
+
+The second move is the row's own instrument. Its claim is that an
+unclaimed file has *"an owner that will not dispatch it and a
+dispatching program that does not claim it"* — a claim about every open
+program, tested against four of them. Widening the match to every
+`work/*/program.md`, ignoring `view` and `chrome` whose
+`crates/viewer/src/*` globs are the ones that die, puts **`drafts.rs` in
+AUTHOR's `paths` already**, where CHROME's cut of 2026-09-20 put it.
+AUTHOR dispatches. So the gap was **nine**, and a claim of it for VSEAM
+was written and then removed on that evidence. This is this register's
+proxy rule with the row holding the proxy.
+
+The nine went: `bin/viewer.rs`, `platform.rs`, `prefs.rs` → VNEWS;
+`blend.rs`, `matetool.rs`, `revolvetool.rs` → VSEAM; `pane/profile.rs`
+and `parts.rs` → VSEAM **and** VNEWS; `theme.rs` → VGEOM **and** VNEWS.
+Each split is written on both sides, which is the one-sidedness this
+class keeps producing. Nothing went to VDOC, which claims no
+`crates/viewer/src` file but `lib.rs` by design.
+
+**And one thing the sort could not place, said rather than papered
+over.** `bin/viewer.rs`, `platform.rs` and `prefs.rs` are the viewer's
+**process boundary** — what the run commits before the first frame, what
+the environment offers, what survives between runs — and no successor
+charter has that subject: VNEWS's test is that nothing it touches
+survives the frame, and a preference survives the run; VSEAM's is what
+the viewer holds *on behalf of the document*, and a `zenity` probe is
+not the document's. The three are claimed for the word-shaped rows live
+on them today, and `work/vnews/program.md`'s `keep_out` now says that a
+row about whether a preference is KEPT, or when a probe is re-read, goes
+to this orchestrator as a report rather than into a program whose own
+test excludes it.
+
+**Row 2 — the tier rule — closed, with a discriminator that is not a
+count.** *Which tier am I on* is now answered by
+`python3 scripts/ci-filter.py --base <base>` printing `TIER=`, named as
+authoritative because the workflow classifies with the same script; the
+docs tier on the run is `gate ok` **green with every code row skipped**,
+and `docs-only ok` is green on both tiers so it is never the marker. The
+**21** went and so did the **38-39**. Twelve `test (…)` and five
+`k-lint (gate, …)` stayed, because each carries an enumeration rule
+`ci.yml` states — `{default, interval}` x `{default, 1e-6, 1e-12}` x
+`shard: [1, 2]`, and the literal `klint_rows` list — which is the test
+for whether a count may be written down at all.
+
+The sweep for the same stale number found it in four other populations,
+all of them **receipts rather than rules**: log entries and item bodies
+recording what a named run showed on a named day. Those are not
+rewritten — rewriting a receipt makes it a receipt for a run nobody
+took. Nothing outside `work/view/plan.md` states the count AS a rule.
+
+**Row 3 — the register's home — stays open, with the options and the
+archaeology written in.** 1,470 lines; **92** bold-opening paragraphs in
+the register span, of which 5 are wave narrative and **87 are rules**;
+**twelve** of the 87 are VIEW-bound by the test *would this still be
+true if `crates/viewer` did not exist*, so **75 are general**. Six
+sevenths of the file has nothing to do with the viewer, which is the
+input the decision turns on. Twenty citing lines in fourteen files
+outside `work/view/`, ten of them the structural inheritance that
+dangles on sweep day. Recommended: **`work/LANE-REGISTER.md`**, a peer
+of `work/README.md` belonging to no program, with the split deferred and
+`docs/prompts/` put to Ev as its own governance question later — because
+87 rules in eighteen days, two of them written this morning within an
+hour of the failures that produced them, is a cadence a sign-off gate
+would not survive.
+
+**Two instrument errors while measuring, both in the file being
+measured.** The rule count came back **97** first, from an `awk` whose
+`NR>=165` guard sat on the `exit` rule rather than on the counting rule,
+so it counted the whole file. And the first draft of option B said a
+file at the top of `work/` is simply unparsed; `scripts/work.py:280`
+makes it a lint **ERROR** unless it is in `FREE_FILES`. Both are the
+register's *read it at the source* rule, committed against the register.
+
+**Filed elsewhere:**
+`work/vgeom/vgeom-plan-has-no-register-section-and-no-charter` —
+`work/vgeom/program.md` points every VGEOM lane at a
+`work/vgeom/plan.md` §The register that does not exist, and the
+priority-seam re-cut of 2026-09-20 took §Charter with it, so VGEOM is
+the only one of the four successors with no written charter test. That
+is why this lane had to reconstruct VGEOM's test from `program.md`'s
+description rather than apply the charter it was told to apply.
+
+**Not filed, because a row already owns it:**
+`work/vdoc/the-four-view-successors-are-a-one-sided-double-claim` asks
+CHROME to name the four successors in its own `keep_out`; the nine newly
+claimed files ride that row unchanged. `python3 scripts/work.py
+territory --overlaps` reports **58 lines before and 58 after** with no
+successor-to-successor pair in either (a pair recorded on both sides is
+not reported), and the `chrome`-side counts grow 11 → 17 (`vnews`),
+16 → 17 (`vgeom`), 21 → 27 (`vseam`).
+
+**A premise correction for whoever dispatches next.** The dispatch said
+`work.py lint` prints one-sided territory warnings and asked for before
+and after counts. It prints **none** — `ok (0 problems, 0 warnings)` on
+both trees. The double-claim lint warning was retired deliberately
+(`work/README.md`, Territory; `work/meta/double-claim-lint-rule-waits-
+on-the-tests-seam`), and the one-sided census is
+`work.py territory --overlaps`, a report run on demand. A dispatch that
+asks for a warning count nobody can produce teaches a lane to invent
+one.
+
+Signed (VIEW implementer lane `view/cut-residue`).
