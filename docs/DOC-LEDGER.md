@@ -4405,3 +4405,29 @@ dev-only or optional" — it does not (its subject is `test-support` /
 does not. Recorded in the PR body and the unit's `## Closed` section.
 
 - `RING-1-SPEC.md` — RING-1, `geom_core::interval` compiles unconditionally; the feature gates only the instantiation (#2971)
+## Per-merge deletion — DECIDE-1's spec (2026-09-21)
+
+Recoverable at `git show 1972f8cebb:docs/DECIDE-1-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "render the refused
+residual at `explain_depth` and say whether the `Invalid` descends from
+a `sqrt`…" — there is no refused residual to render, the census
+recording ZERO clause-1 `Invalid` on all six documents at three ε and
+both scales, so what the rows name instead is the `Indeterminate` each
+blocked replay stopped at; "at the nominal and at ceiling + δ on
+`m10_8_harness::ceiling`'s instrument" read together with the item's
+brackets — those are `m10_9_pins_interval::measured_studies`, M10-9's
+tier's, and this census runs the SHIPPED one, whose ceilings are five
+to six orders away on the plate and the annulus, so the ceiling is
+MEASURED per run and a replay at the table's refusing end would have
+counted over a replay that was never blocked; "the pad is measured on
+the ceiling instrument only, as SYM-8 did" — true of the whole-box
+report and also of the NOMINAL one, which is killed for memory on a box
+this size, so the pad contributes a bracket and no `Invalid` count at
+all; "Phase 2 — only if Phase 1 finds a site" — Phase 1 found one
+production self-dot at `Sym<Interval>` (`topo::transform::check_rigid`)
+that is not on a measured path and whose consumer is a `sign_within`
+rather than a `sqrt`, so Phase 2 stayed empty and the site is a filed
+row on SHELL's slate. Recorded in the PR body and the item's
+`## CLOSED` section.
+
+- `DECIDE-1-SPEC.md` — DECIDE-1, the self-dot straddle (#3001)
