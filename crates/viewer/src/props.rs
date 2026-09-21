@@ -33,34 +33,35 @@
 //!   `SessionOp::SetSlotUnit`, which rewrites the display unit and
 //!   leaves the canonical bits alone.
 //!
-//! **A document parameter keeps the FIRST of those rules and has no
-//! door for the second.** [`ParamRow::unit`] is the notation its
-//! DECLARATION names ([`DocParam::Continuous`]'s `display_unit`), the
-//! panel divides and multiplies by it exactly as it does for a slot
-//! ([`shown_in`] / [`authored_in`], through [`crate::app::FieldWriting`]), and a
-//! value edit leaves it alone for free — [`param_edit`] spells the
-//! value-only door, which writes a number into a standing declaration.
+//! **A document parameter keeps both rules, through its own pair of
+//! doors.** [`ParamRow::unit`] is the notation its DECLARATION names
+//! ([`DocParam::Continuous`]'s `display_unit`), the panel divides and
+//! multiplies by it exactly as it does for a slot ([`shown_in`] /
+//! [`authored_in`], through `crate::forms::FieldWriting`), and the
+//! two facts move separately: [`param_edit`] writes a number into a
+//! standing declaration and cannot mention the notation, and
+//! [`param_unit_edit`] rewrites the notation and cannot mention the
+//! value. Each is a carry-forward edit — `DocEdit::SetDocParamValue`
+//! and `DocEdit::SetDocParamUnit` read the declaration off the
+//! document and reuse it whole — so neither can drop the dimension or
+//! the distribution it never names.
 //!
-//! What a parameter has no door for is CHANGING that notation. A
-//! slot's is `SessionOp::SetSlotUnit`, which works because a literal's
-//! whole state is its value and its unit, so [`slot_unit_edit`] can
-//! rebuild one and lose nothing. A parameter's unit rides beside its
-//! `Distribution`, and the edit vocabulary offers create-or-replace
-//! (`DocEdit::SetDocParam`, which would drop the annotation) or
-//! value-only (`DocEdit::SetDocParamValue`, which leaves the unit
-//! alone, deliberately) — and nothing in between. Three consequences,
-//! each with a file rather than a sentence:
+//! The parameter pair differs from the slot pair in what it is made
+//! of, and only there. A slot's unit change rebuilds a literal
+//! ([`slot_unit_edit`]) because a literal's whole state is its value
+//! and its unit; a parameter's rides on the declaration beside the
+//! dimension and the distribution, so the kernel carries it forward
+//! rather than the panel rebuilding it. Neither door validates: the
+//! notation a parameter may be written in is
+//! `UnitSym::measures`'s answer, asked at the edit door.
 //!
-//! * no unit picker on a parameter row, and no way to add one until
-//!   the kernel door exists
-//!   (`work/issues/doc-param-unit-edit-has-no-door.md`);
-//! * the create-parameter form authors the canonical unit, which it
-//!   need NOT — `DocParam::written_length`/`written_angle` are total
-//!   authoring doors and the form could offer a picker today
-//!   (`work/chrome/add-parameter-form-authors-canonical-only.md`);
-//! * a parameter row's value field is a bare drag field, where a
-//!   slot's is the text door below
-//!   (`work/chrome/parameter-row-field-has-no-text-door.md`).
+//! **A parameter is authored in a notation at both of its doors.**
+//! [`doc_param`] mints a declaration through
+//! `DocParam::written_length`/`written_angle` — total doors, so the
+//! unit measures the dimension by construction — and the standing
+//! row's field reads `50 mm` through the ONE parser a
+//! unit-bearing number has in this workspace, `editor_core::parse`.
+//! Nothing here maps a symbol to a factor.
 //!
 //! # Structural is not continuous
 //!
@@ -90,13 +91,13 @@
 //!
 //! # One field for numbers and expressions
 //!
-//! **A SLOT's field, and only a slot's.** A parameter row's field is a
-//! plain drag field with no `custom_parser` on it, so none of the three
-//! rules below reaches it: typed text is a number or nothing, `50 mm`
-//! authors no unit, and re-typing what the field already says still
-//! costs an undo step. That gap is
-//! `work/chrome/parameter-row-field-has-no-text-door.md`; what follows
-//! describes the slot field as it stands.
+//! **A SLOT's field.** A parameter row's field reads the same two
+//! shapes through the same [`field_edit`] and differs in one: there is
+//! no expression a document parameter can be SET to — a
+//! `DocParam::Continuous` holds an `f64`, not an `Expr` — so its
+//! second door carries a number and its notation (`50 mm`) and refuses
+//! everything else. Both fields share the no-op guard below
+//! ([`typed_edit`]).
 //!
 //! A slot has ONE value field, and what a user types into it decides
 //! which door the edit takes ([`field_edit`]):
@@ -115,15 +116,18 @@
 //! number alone (the unit is the picker's to say, not the field's),
 //! and everything else shows its source.
 //!
+//! **Text that says what the field already says is not an edit**, at
+//! either field — [`typed_edit`], one function because it is one rule.
+//!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId, VectorSlot, eval, eval_count, unparse,
+    ProfileProgram, RecipeNodeId, SlotId, UnitSym, VectorSlot, eval, eval_count, unparse,
 };
 use pncad::prelude::{M, RAD};
-use pncad::quantity::{self, UNITS, UnitDef, UnitQuantity};
+use pncad::quantity::{self, UNITS, UnitDef, UnitQuantity, WrittenAngle, WrittenLength};
 
 /// What is in a slot right now.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -485,6 +489,59 @@ pub fn field_edit(text: &str) -> FieldEdit {
     }
 }
 
+/// **Text that says what a field already says is not an edit** — the
+/// one home of that rule, for both of the panel's value fields.
+///
+/// `unit` is the notation the field is written in ([`shown_in`]'s
+/// argument, `crate::forms::FieldWriting::unit`); `showing` is the
+/// number the field is displaying right now, in that notation; and
+/// `typed` is the number its parser just read.
+/// The answer is the value to author, or `None` when the field would
+/// go on showing what it already shows.
+///
+/// # Why a field commits anything it was not typed into
+///
+/// An `egui::DragValue` seeds its keyboard edit with the text it last
+/// rendered and writes the parse back when focus leaves, so clicking
+/// into a field and clicking away again hands the chrome's own render
+/// straight back at it. That text is accepted within the render's own
+/// accuracy ([`crate::readout::REL_TOLERANCE`], through
+/// `crate::widgets::number_text`), so writing it back can move the
+/// value by up to that much AND cost an undo step for a click nobody
+/// meant as one. `readout`'s own words: the number a value moves to on
+/// purpose is one a user types, never one the chrome echoed at them.
+///
+/// # Judged on what the field would SHOW
+///
+/// Not on the canonical value, and the difference is the whole of it:
+/// the text came out of the render, so the render's own predicate
+/// ([`crate::readout::reads_as`]) is the one that answers whether it
+/// names the number behind it. Comparing canonical values instead
+/// would call every echoed render an edit, which is the case this
+/// guard exists for. Taking the comparison through
+/// [`SlotValue::of`] and back is what makes a `Count` field answer on
+/// the count it would hold rather than on the fraction a parser read.
+///
+/// `None` for `showing` is a field displaying no number at all — a
+/// slot driven by an expression, a slot whose value did not evaluate —
+/// where every typed number is an edit because there is no number it
+/// could be echoing. A driven slot is owed that even when the number
+/// happens to match: writing a number over a computation is the
+/// refusal's own case, and it is owed its affordance.
+pub fn typed_edit(
+    unit: Option<UnitDef>,
+    dimension: Dimension,
+    showing: Option<f64>,
+    typed: f64,
+) -> Option<SlotValue> {
+    let value = SlotValue::of(dimension, authored_in(unit, typed));
+    let would_show = shown_in(unit, value.as_f64());
+    match showing {
+        Some(now) if crate::readout::reads_as(would_show, now) => None,
+        _ => Some(value),
+    }
+}
+
 /// The display unit a slot's expression currently REMEMBERS — the
 /// value [`slot_edit`] must be handed so that writing a number leaves
 /// the notation alone.
@@ -583,14 +640,66 @@ pub fn slot_edit(
     })
 }
 
-/// The `DocParam` a dimension and a value mint — the panel's
-/// CREATE-parameter affordance, where a declaration really is being
-/// authored from parts. Moving an existing parameter's value is
-/// [`param_edit`]'s door, which mints no declaration at all.
-pub fn doc_param(dimension: Dimension, value: SlotValue) -> DocParam {
-    match value {
-        SlotValue::Count(value) => DocParam::Count { value },
-        SlotValue::Continuous(value) => DocParam::continuous(dimension, value),
+/// The `DocParam` a dimension, a value and a NOTATION mint — the
+/// panel's CREATE-parameter affordance, where a declaration really is
+/// being authored from parts. Moving an existing parameter's value is
+/// [`param_edit`]'s door and re-noting it is [`param_unit_edit`]'s;
+/// neither mints a declaration at all.
+///
+/// `value` is canonical, as everything crossing this module is, and
+/// `unit` is the notation the declaration will REMEMBER — the shape
+/// [`slot_edit`] already has, for its reason: the two are independent
+/// facts about the thing being authored, and deriving one from the
+/// other is how a form comes to author a value it did not mean.
+/// `None` is the field that names no notation (a `Count`, a bare
+/// `Scalar`), and the canonical declaration is right for it.
+///
+/// **Minted through `DocParam::written_length` /
+/// `written_angle`, which are TOTAL**: each takes a typed view that is
+/// an index into a row of its own quantity, so the unit measures the
+/// dimension by construction and there is no pairing left for this
+/// function to check or for a caller to get wrong. A unit that does
+/// not measure `dimension` therefore cannot be passed through them —
+/// `UnitDef::as_length`/`as_angle` answer `None` for it, and the
+/// canonical declaration is what a caller who did that gets.
+///
+/// **No multiply.** `WrittenLength::canonical_in` attaches the
+/// notation to an already-canonical value, which is the form's shape:
+/// the draft behind a form field is canonical whatever the picker
+/// says (`crate::widgets::unit_field`), so applying the factor here
+/// would apply it twice.
+pub fn doc_param(dimension: Dimension, value: SlotValue, unit: Option<UnitDef>) -> DocParam {
+    let value = match value {
+        SlotValue::Count(value) => return DocParam::Count { value },
+        SlotValue::Continuous(value) => value,
+    };
+    let written = match dimension {
+        Dimension::Length => unit
+            .and_then(|unit| unit.as_length())
+            .map(|unit| DocParam::written_length(WrittenLength::canonical_in(value, unit))),
+        Dimension::Angle => unit
+            .and_then(|unit| unit.as_angle())
+            .map(|unit| DocParam::written_angle(WrittenAngle::canonical_in(value, unit))),
+        Dimension::Scalar | Dimension::Count => None,
+    };
+    written.unwrap_or_else(|| DocParam::continuous(dimension, value))
+}
+
+/// The edit that changes how a standing parameter's value is WRITTEN,
+/// leaving its exact value alone — [`param_edit`]'s mirror over the
+/// other field of the declaration, and [`slot_unit_edit`]'s
+/// counterpart for a parameter.
+///
+/// Unlike a slot's, this rebuilds nothing: `DocEdit::SetDocParamUnit`
+/// carries the declaration forward, so the dimension, the value and
+/// any distribution ride through without this function naming them.
+/// The refusals (an undeclared name, a `Count`, a unit that does not
+/// measure the declared dimension) belong to the edit door; this is
+/// the spelling, not a second validator.
+pub fn param_unit_edit(name: ParamName, unit: UnitDef) -> DocEdit<ProfileProgram> {
+    DocEdit::SetDocParamUnit {
+        name,
+        unit: UnitSym::from_def(&unit),
     }
 }
 

@@ -59,3 +59,36 @@ reaching it means either an exact spelling (17 significant figures for
 `in_written`/`from_written`) or not committing an untouched field at
 all, which is `work/chrome/parameter-row-field-has-no-text-door`'s
 no-op-guard half generalised to every field.
+
+## Both panel value fields now refuse the echo (2026-09-21, AUTH-2)
+
+The generalisation this row's last paragraph names — *"not committing
+an untouched field at all, which is
+`parameter-row-field-has-no-text-door`'s no-op-guard half generalised
+to every field"* — landed for the two fields of the property panel.
+`crate::props::typed_edit` is the rule's one home: it judges a typed
+number against what the field is SHOWING, by
+`crate::readout::reads_as` — the renderer's own predicate over
+`REL_TOLERANCE` — so a text the chrome echoed is not an edit and emits
+no operation. `pane::properties`' `slot_value_ui` and the
+`Selection::Param` arm both call it; before AUTH-2 the slot's guard
+compared canonical values exactly and therefore called every echoed
+render an edit, which is the band this row measures.
+
+**What is left here, stated rather than assumed.** This row's own
+question — whether the bound belongs to a RENDER or to a COMMIT — is
+not settled by that guard, and three things still sit inside it:
+
+- every OTHER field in the crate, which is most of them: the creation
+  forms' `widgets::unit_field` / `named_field` write back on
+  `response.changed()` and have no such guard, and neither does the δ
+  field;
+- the render itself, which still spells a text naming its value only to
+  `REL_TOLERANCE`;
+- the cost the guard pays, which is the honest half of it: the chrome
+  cannot tell an echoed text from a re-typed one, so a user who types a
+  number within the render's own accuracy of what the field displays is
+  told nothing and gets no edit. AUTH-2 took that trade on the reading
+  that a field showing `40` and a user typing `40` agree; a fix that
+  distinguished the two would need egui to say whether the text was
+  edited, which it does not.

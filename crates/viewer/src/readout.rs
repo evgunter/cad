@@ -179,7 +179,22 @@ fn scientific(value: f64) -> String {
 pub(crate) fn reads_back(spelling: &str, value: f64) -> bool {
     spelling
         .parse::<f64>()
-        .is_ok_and(|read| (read - value).abs() <= REL_TOLERANCE * value.abs())
+        .is_ok_and(|read| reads_as(read, value))
+}
+
+/// Whether a number `read` back off a render names `value` — the
+/// numeric half of [`reads_back`], for a caller holding the number
+/// rather than the text.
+///
+/// [`crate::props::typed_edit`] is that caller: a field hands its
+/// parse back as an `f64`, and asking whether that number is the one
+/// the field was already showing is the same question [`reads_back`]
+/// asks of the text, over the same bound. Spelled here so the bound is
+/// applied in one place; a second comparison against
+/// [`REL_TOLERANCE`] would be free to disagree with the render it is
+/// judging.
+pub(crate) fn reads_as(read: f64, value: f64) -> bool {
+    (read - value).abs() <= REL_TOLERANCE * value.abs()
 }
 
 #[cfg(test)]

@@ -873,3 +873,149 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     }
     assert_eq!(canonical(Dimension::Count), 1.0);
 }
+
+/// **A field's own render, typed back, is not an edit** — the whole of
+/// the no-op guard, over the band where it has something to refuse.
+///
+/// The band is the render's, not the parser's: `readout::number`
+/// spells the shortest text that reads back within
+/// `readout::REL_TOLERANCE` of the value, so a field can be showing a
+/// text that names its value only to 5·10⁻⁴. That text is also what an
+/// `egui::DragValue` commits when focus leaves it, so an exact
+/// comparison against the stored value would call every click-in and
+/// click-away an edit — and move the value by up to that much while
+/// costing an undo step.
+///
+/// **Each row is built on a value whose render is NOT exact**, which
+/// is what lets it go red: the `assert_ne!` below is the fixture's own
+/// guard, and a row over a value that renders exactly could not fail
+/// on the tolerance at all.
+#[test]
+fn a_fields_own_render_typed_back_is_not_an_edit() {
+    // Canonical values, one per dimension that has a notation, each
+    // chosen so the shortest text that reads back is not the value.
+    let cases: [(Dimension, f64); 3] = [
+        (Dimension::Length, 0.040_000_019),
+        (Dimension::Angle, 1.000_000_4),
+        (Dimension::Scalar, 7.000_002_5),
+    ];
+    for (dimension, canonical) in cases {
+        let unit = rendering_unit(dimension, None);
+        let showing = props::shown_in(unit, canonical);
+        let text = viewer::readout::number(showing);
+        let read: f64 = text
+            .parse()
+            .unwrap_or_else(|_| panic!("{showing} renders as {text}, which is not a number"));
+        assert_ne!(
+            read, showing,
+            "{dimension}: {showing} renders as {text}, which reads back exactly — this row \
+             would pass on an exact comparison and holds nothing"
+        );
+        assert_eq!(
+            props::typed_edit(unit, dimension, Some(showing), read),
+            None,
+            "{dimension}: the chrome's own render, handed back, is not an edit"
+        );
+        // And a number the user actually moved still is.
+        assert_eq!(
+            props::typed_edit(unit, dimension, Some(showing), showing * 2.0),
+            Some(SlotValue::of(
+                dimension,
+                props::authored_in(unit, showing * 2.0)
+            )),
+            "{dimension}: a number nobody echoed is an edit"
+        );
+    }
+}
+
+/// **A count field answers on the count it would hold.** The parser
+/// reads whatever `f64` the text spells, and `SlotValue::of` truncates
+/// it; the guard compares what the field would SHOW afterwards, so a
+/// fraction that truncates back to the standing count is not an edit.
+#[test]
+fn a_count_field_is_not_edited_by_a_fraction_that_truncates_back() {
+    assert_eq!(
+        props::typed_edit(None, Dimension::Count, Some(5.0), 5.4),
+        None
+    );
+    assert_eq!(
+        props::typed_edit(None, Dimension::Count, Some(5.0), 6.0),
+        Some(SlotValue::Count(6))
+    );
+}
+
+/// **A field showing no number at all has nothing to echo.** A slot
+/// driven by an expression, and a slot whose value did not evaluate,
+/// show their SOURCE — so every typed number is an edit there, which
+/// is also what the driven refusal is owed: it is raised at the door,
+/// and a guard that swallowed the write would leave the user with no
+/// sentence at all.
+#[test]
+fn a_field_with_no_number_on_it_takes_every_typed_number() {
+    let unit = rendering_unit(Dimension::Length, None);
+    assert_eq!(
+        props::typed_edit(unit, Dimension::Length, None, 0.04),
+        Some(SlotValue::Continuous(0.04))
+    );
+}
+
+/// **The create form mints the notation it was authoring in**, through
+/// the total doors — `props::doc_param` over a picked unit is a
+/// declaration whose `display_unit` is that unit and whose value is
+/// the canonical one it was handed, unscaled.
+#[test]
+fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
+    let minted = props::doc_param(
+        Dimension::Length,
+        SlotValue::Continuous(0.05),
+        Some(MM.def()),
+    );
+    assert_eq!(
+        minted,
+        DocParam::written_length(WrittenLength::canonical_in(0.05, pncad::prelude::MM))
+    );
+    let row = props::param_rows(&declared("mint-mm", "base_r", minted))
+        .pop()
+        .expect("the declared parameter");
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05), "and not rescaled");
+    assert_eq!(in_written(row.value.as_f64(), MM.def()), 50.0);
+
+    // The angle door is its mirror, and a dimension with no notation
+    // takes the canonical declaration — there is nothing to pick.
+    let angle = props::doc_param(
+        Dimension::Angle,
+        SlotValue::Continuous(1.0),
+        Some(DEG.def()),
+    );
+    assert_eq!(
+        props::param_rows(&declared("mint-deg", "sweep", angle))
+            .pop()
+            .and_then(|row| row.unit)
+            .map(|u| u.symbol()),
+        Some("deg")
+    );
+    assert_eq!(
+        props::doc_param(Dimension::Scalar, SlotValue::Continuous(2.0), None),
+        DocParam::continuous(Dimension::Scalar, 2.0)
+    );
+    assert_eq!(
+        props::doc_param(Dimension::Count, SlotValue::Count(6), None),
+        DocParam::Count { value: 6 }
+    );
+}
+
+/// A document holding one declared parameter.
+fn declared(label: &str, name: &str, value: DocParam) -> Doc<ProfileProgram> {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
+    common::edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new(name),
+            value,
+        },
+        tol,
+    )
+    .0
+}

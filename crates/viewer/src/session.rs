@@ -59,8 +59,8 @@ use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, LoggedEdit,
     LoopProgram, MateReach, Node, ParamName, PartReach, PartResolver, ProductError, ProfileProgram,
-    RecipeNodeId, SlotId, Subject, apply, assemble_gathered, cascade_delete_order, parse_expr,
-    product_recorded, run_checks_on,
+    RecipeNodeId, SlotId, Subject, UnitSym, apply, assemble_gathered, cascade_delete_order,
+    parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -1191,6 +1191,8 @@ impl DocSession {
                 self.set_slot_expression(node, slot, &text)
             }
             SessionOp::SetParam { name, value } => self.set_param(&name, value),
+            SessionOp::SetParamUnit { name, unit } => self.set_param_unit(name, unit),
+            SessionOp::SetParamText { name, text } => self.set_param_text(name, &text),
             SessionOp::CreateParam { name, value } => self.create_param(name, value),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
             SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
@@ -1568,6 +1570,90 @@ impl DocSession {
     /// is none.
     fn set_param(&mut self, name: &ParamName, value: SlotValue) -> OpOutcome {
         self.commit(props::param_edit(name.clone(), value))
+    }
+
+    /// The notation door: rewrite a declared parameter's display unit,
+    /// its value untouched.
+    ///
+    /// No pre-check, for [`Self::set_param`]'s reason: every way this
+    /// can refuse — an undeclared name, a `Count`, a unit that does
+    /// not measure the declared dimension — is refused by
+    /// `DocEdit::SetDocParamUnit` in the door's own words, and a
+    /// second opinion here could only agree or disagree.
+    fn set_param_unit(&mut self, name: ParamName, unit: UnitDef) -> OpOutcome {
+        self.commit(props::param_unit_edit(name, unit))
+    }
+
+    /// The text door: a number, and the notation to write it in, from
+    /// one piece of typed text.
+    ///
+    /// **One parser.** `parse_expr` reads `50 mm` into a literal that
+    /// already carries the canonical value and remembers the unit —
+    /// the one multiply is the parser's — so what arrives here is read
+    /// off the literal and never scaled again.
+    ///
+    /// **One action, therefore one undo.** The value and the notation
+    /// go through [`Self::commit_action`], which is all-or-nothing: a
+    /// unit that does not measure the parameter's dimension refuses
+    /// the whole action rather than landing a value in a notation the
+    /// document would then refuse to save. The notation edit is first
+    /// for that reason — the pairing is judged before any value moves.
+    ///
+    /// **Only the edits that change something are submitted.** Text
+    /// that says what the declaration already says is not an edit, the
+    /// same rule the field's own guard applies to a bare number
+    /// ([`props::typed_edit`]) — here over the pair, because the door
+    /// carries a pair.
+    fn set_param_text(&mut self, name: ParamName, text: &str) -> OpOutcome {
+        let dims: std::collections::BTreeMap<ParamName, Dimension> = self
+            .committed_doc()
+            .params()
+            .iter()
+            .map(|(name, param)| (name.clone(), param.dim()))
+            .collect();
+        let expr = match parse_expr(text, &dims) {
+            Ok(expr) => expr,
+            Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
+        };
+        // A literal is the whole of what a parameter can hold. Every
+        // other kind of expression — a reference, an operator, a count
+        // — is refused by name rather than flattened to a number,
+        // because flattening would store a value the text does not
+        // say.
+        let (Some(value), Some(unit)) = (expr.literal_value(), expr.display_unit()) else {
+            return OpOutcome::refused(Refusal::ParamNotANumber { name });
+        };
+        let declared = self.committed_doc().params().get(&name);
+        let notation = props::param_unit_edit(name.clone(), unit);
+        let written = props::param_edit(name.clone(), SlotValue::Continuous(value));
+        let Some(declared) = declared else {
+            // An undeclared name takes the commit path so the typed
+            // refusal comes from the door rather than from here, the
+            // way [`Self::set_param`]'s does.
+            return self.commit(written);
+        };
+        // A `Count` answers `None` to both halves, so both edits are
+        // submitted and the notation one refuses — a count names no
+        // notation, which is the door's sentence and not this one's.
+        let (stood_unit, stood_value) = match declared {
+            DocParam::Continuous {
+                value,
+                display_unit,
+                ..
+            } => (Some(*display_unit), Some(*value)),
+            DocParam::Count { .. } => (None, None),
+        };
+        let mut edits = Vec::with_capacity(2);
+        if stood_unit != Some(UnitSym::from_def(&unit)) {
+            edits.push(notation);
+        }
+        if stood_value != Some(value) {
+            edits.push(written);
+        }
+        if edits.is_empty() {
+            return OpOutcome::default();
+        }
+        self.commit_action(edits)
     }
 
     /// The create door: refuse an already-declared name typed, commit

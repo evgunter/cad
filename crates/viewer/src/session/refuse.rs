@@ -152,6 +152,23 @@ pub enum Refusal {
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
     NoSuchParam(ParamName),
+    /// A parameter's value field was given text that is not a number.
+    ///
+    /// **A document parameter holds a number, not an expression** —
+    /// `DocParam::Continuous` holds an `f64` — so there is no
+    /// `SetDocParamExpression` for such text to reach and no partial
+    /// reading of it that would be honest. A slot's field takes the
+    /// expression door here; a parameter's says why it has none, which
+    /// is itself the affordance.
+    ///
+    /// **Raised only for text that PARSED.** Text that did not carries
+    /// [`Self::Parse`], whose sentence names the token and its offset;
+    /// re-wording it at this door would be a second opinion about a
+    /// refusal the parser already made.
+    ParamNotANumber {
+        /// The parameter whose field was typed into.
+        name: ParamName,
+    },
     /// The CREATE door was asked for a name that is already declared.
     ///
     /// `DocEdit::SetDocParam` is create-or-replace and stays so at the
@@ -341,6 +358,7 @@ impl Refusal {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
+            | Self::ParamNotANumber { .. }
             | Self::ParamExists { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
@@ -488,6 +506,14 @@ impl core::fmt::Display for Refusal {
                 write!(
                     f,
                     "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
+                    name.0
+                )
+            }
+            Self::ParamNotANumber { name } => {
+                write!(
+                    f,
+                    "parameter {} holds a number, not an expression — write a number, with a \
+                     unit if you want one (50 mm)",
                     name.0
                 )
             }
