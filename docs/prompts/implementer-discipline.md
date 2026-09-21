@@ -17,7 +17,7 @@ hardware not shared with any other lane and its result is a durable artifact.
 
 **A code-tier run gates the whole configuration matrix** (Ev, 2026-09-04):
 every point of {default features, `interval`} x {default eps, 1e-6, 1e-12},
-and every `k-lint (gate, <row>)` feature unification. **Nothing is sampled.**
+and every `k-lint (gate, <row>)` feature unification.
 The gates, the discipline and parity rows and the render lanes run on every
 code-tier run too. **The python suite runs whenever a seed is a crate a build
 of the wheel compiles** — `pncad-py`'s non-dev dependency closure, which on this
