@@ -277,8 +277,10 @@ fn r2_the_atom_at_zero_folds_are_the_functions_own_values() {
 
 /// **`min`/`max`/`abs`/`floor`/`copysign` as atoms keyed by their
 /// arguments.** None of these may claim a cancellation the tier does
-/// not have: `min(x,x) − x`, `abs(x) − abs(−x)` and `floor` at an
-/// integer are all conservative misses, never theorems.
+/// not have. `floor` at an integer is a conservative miss; `min(x,x)`,
+/// `max(x,x)` and `|x| − |−x|` are NOT — each is an identity of reals
+/// that needs no value, and A0 and rule G reach them by arithmetic and
+/// by keying respectively, so the theorems below are earned.
 #[test]
 fn r2_the_kink_atoms_never_claim_a_cancellation() {
     let (out, counts) = with_session(budget(), || {
@@ -291,14 +293,16 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
             ("copysign(x,x)−x", sign_of(x.copysign(x) - x)),
         ]
     });
-    // The claim is about the SYMBOLIC channel: `floor(n) − n` on a
-    // degenerate box is a legitimate NUMERIC zero, so the sign alone
-    // cannot carry the row.
+    // `min(x,x)` and `max(x,x)` are their own argument — one digest
+    // comparison, no value read — so A0 folds them and the discharges
+    // are THEOREMS. `floor(n) − n` on a degenerate box is a
+    // legitimate NUMERIC zero, and `copysign(x,x) − x` is the
+    // conservative miss this row is about: the sign bit of `x` is not
+    // a fact of the form.
     assert_eq!(
-        counts.symbolic_zero + counts.sign_gated,
-        0,
-        "an atom keyed by its arguments claimed an identity it has no \
-         argument for, among {out:?}"
+        (counts.symbolic_zero, counts.sign_gated),
+        (2, 0),
+        "min and max of one form are theorems and nothing here is a READ, among {out:?}"
     );
     // `abs(x) − abs(−x)` IS a theorem, and it is not a value read:
     // `|Y|` and `|−Y|` name one magnitude, so DECIDE-3's rule G keys

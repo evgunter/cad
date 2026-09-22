@@ -513,17 +513,6 @@ pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
     if d.poisoned {
         return None;
     }
-    // **A comparison of two rational CONSTANTS is not a read.** Its
-    // answer is an exact fact about the form — A0's to fold — and
-    // returning it here would report a theorem-shaped fact as one
-    // conditional on the leaf's box, and make which of the two it is
-    // depend on whether the session happens to hold a parameter.
-    // `work/decide/a0-leaves-max-and-min-of-constants-opaque` is the
-    // fold that should answer these; until it does, the honest answer
-    // is the numeric channel's.
-    if d.num.as_constant().is_some() && d.den.as_constant().is_some() {
-        return None;
-    }
     let enclose = |p: &Poly| {
         enclose_deep(
             &strip_positive_content(p, sess),

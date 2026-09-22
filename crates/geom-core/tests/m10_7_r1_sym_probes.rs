@@ -285,9 +285,16 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
     assert!(ok && s == 1, "{ok} {s}");
 }
 
-/// Atoms keyed by arguments: `min(x, x) − x`, `floor(1) − 1`,
-/// `max(x, y) − max(y, x)` — none is reached (the conservative
-/// direction). Pinned so a future fold is a visible move.
+/// Atoms keyed by arguments: `floor(1) − 1` and
+/// `max(x, y) − max(y, x)` — neither is reached (the conservative
+/// direction: `floor` has no fold, and commuting the arguments of a
+/// `max` keys a second atom). Pinned so a future fold is a visible
+/// move.
+///
+/// `min(x, x) − x` was the first case here and is one no longer: the
+/// two arguments are ONE form, `min(A, A) = A` whatever `A` is worth,
+/// and A0 folds it on a digest comparison with no value read. It has
+/// moved to [`r1_min_and_max_of_one_form_are_that_form`] below.
 ///
 /// `abs(x) − abs(−x)` was the fourth case here and is one no longer.
 /// It was pinned as rule C's second shape (`|x| = ±x` by a certified
@@ -308,11 +315,7 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
 /// which asserts the fold rather than its absence.
 #[test]
 fn r1_argument_keyed_atoms_stay_conservative() {
-    let cases: [fn() -> Sym<f64>; 3] = [
-        || {
-            let x = p("x", 0.4);
-            x.min(x) - x
-        },
+    let cases: [fn() -> Sym<f64>; 2] = [
         || lit(1.0).floor() - lit(1.0),
         || {
             let (x, y) = (p("x", 0.4), p("y", 0.9));
@@ -325,6 +328,62 @@ fn r1_argument_keyed_atoms_stay_conservative() {
             counts.symbolic_zero + counts.sign_gated,
             0,
             "case {i} decided symbolically: {counts:?}"
+        );
+    }
+}
+
+/// **`min(A, A)` and `max(A, A)` are `A`** — one digest comparison, no
+/// value: A0's fold, a THEOREM, and the dial that decides it is A0's.
+/// Without it the certified read was the only thing that could answer
+/// a comparison the form settles, which reports a fact of the form as
+/// one conditional on the leaf's box.
+#[test]
+fn r1_min_and_max_of_one_form_are_that_form() {
+    for build in [
+        (|| {
+            let x = p("x", 0.4);
+            x.min(x) - x
+        }) as fn() -> Sym<f64>,
+        || {
+            let x = p("x", 0.4);
+            x.max(x) - x
+        },
+    ] {
+        let (_, on) = with_session_rules(budget(), SymRules::shipped(), || zero(build()));
+        assert_eq!(
+            (on.symbolic_zero, on.sign_gated),
+            (1, 0),
+            "a fact of the FORM, not of the box: {on:?}"
+        );
+        // With A0 shut the certified READ can still answer it, and
+        // that is the point: the same fact comes back GATED — a claim
+        // conditional on the leaf's box — where A0 makes it a theorem.
+        let (_, read_only) = with_session_rules(
+            budget(),
+            SymRules {
+                const_fold: false,
+                ..SymRules::shipped()
+            },
+            || zero(build()),
+        );
+        assert_eq!(
+            (read_only.symbolic_zero, read_only.sign_gated),
+            (0, 1),
+            "A0 is the dial that makes it a theorem rather than a read: {read_only:?}"
+        );
+        let (_, neither) = with_session_rules(
+            budget(),
+            SymRules {
+                const_fold: false,
+                decision_read: false,
+                ..SymRules::shipped()
+            },
+            || zero(build()),
+        );
+        assert_eq!(
+            neither.symbolic_zero + neither.sign_gated,
+            0,
+            "and with both shut the atom is opaque: {neither:?}"
         );
     }
 }

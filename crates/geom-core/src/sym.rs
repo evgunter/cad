@@ -2166,6 +2166,17 @@ fn indet_atom(tag: u64, payload: u64, args: &[u128]) -> u128 {
     h.finish()
 }
 
+/// The exact rational a form stands for, where both halves of the
+/// quotient are constants — the reading A0's folds are made of, in
+/// one place so `sqrt`, `abs`, the decision door and `min`/`max` all
+/// ask it the same way.
+fn constant_value(f: &Form) -> Option<Rat> {
+    if f.poisoned {
+        return None;
+    }
+    f.num.as_constant()?.mul(&f.den.as_constant()?.recip()?)
+}
+
 /// The value an opaque UNARY atom takes at argument zero, where that
 /// value is expressible in the form's own vocabulary — the fold that
 /// lets `‖a − b‖` decide `Zero` when `a − b` does, which is the shape
@@ -2407,6 +2418,44 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             // (`manifest::nonneg` carries the argument); a plain
             // parameter, a non-zero first argument, or a value-only
             // zero never folds, and every other atan2 stays an atom.
+            // **A0 at `min`/`max`**: two rational CONSTANTS compare
+            // EXACTLY, so the node is one of them. It reads no value —
+            // the comparison is arithmetic on the coefficient ring, the
+            // same fold A0 already makes at `sqrt`, at `abs` and at the
+            // decision door — and what it reaches is a THEOREM.
+            //
+            // Without it a frame's conditioning floor over an
+            // axis-aligned normal stayed an opaque atom chain on
+            // geometry with no parameter in it at all, and the only
+            // thing that could answer it was the certified READ: a
+            // fact of the form reported as one conditional on the
+            // leaf's box. `work/decide/a0-leaves-max-and-min-of-constants-opaque`
+            // is the row that measured that and this is its fix.
+            // **A0 at `min`/`max` of EQUAL forms**: `min(A, A)` and
+            // `max(A, A)` are `A`, whatever `A` is worth. One digest
+            // comparison, no value, and it subsumes the both-zero fold
+            // below on the arm A0 is on.
+            if a0 && matches!(node.op, SymOp::Min | SymOp::Max) && a.digest() == b.digest() {
+                let mut f = a.clone();
+                f.gated = a.gated || b.gated;
+                return Some(f);
+            }
+            if a0
+                && matches!(node.op, SymOp::Min | SymOp::Max)
+                && let Some(x) = constant_value(a)
+                && let Some(y) = constant_value(b)
+                && let Some(d) = y.add(&x.neg()?)
+            {
+                // `x ≤ y` exactly: the difference is non-negative.
+                let x_le_y = !d.is_negative();
+                let pick = match (node.op, x_le_y) {
+                    (SymOp::Min, true) | (SymOp::Max, false) => x,
+                    _ => y,
+                };
+                let mut f = Form::poly(Poly::constant(pick));
+                f.gated = a.gated || b.gated;
+                return Some(f);
+            }
             let folds = match node.op {
                 SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
                 SymOp::Copysign => a.is_zero(),
@@ -2460,12 +2509,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             if a.tainted(b) || a.tainted(third) || b.tainted(third) {
                 return Some(Form::poison());
             }
-            if a0
-                && let Some(n) = a.num.as_constant()
-                && let Some(d) = a.den.as_constant()
-                && let Some(inv) = d.recip()
-                && let Some(c) = n.mul(&inv)
-            {
+            if a0 && let Some(c) = constant_value(a) {
                 let arm = if c.is_zero() || c.is_negative() {
                     b
                 } else {

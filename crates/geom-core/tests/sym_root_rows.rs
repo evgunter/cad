@@ -495,14 +495,14 @@ fn a_certified_decision_is_gated_and_a_form_settled_one_is_not() {
     );
 }
 
-/// **A comparison of two CONSTANTS is not a read.** `max(1, 1/4)` is an
-/// exact rational comparison; whether the tier can answer it may not
-/// depend on the box, and answering it as a gated READ would report a
-/// theorem-shaped fact as one conditional on a bracket.
-/// `work/decide/a0-leaves-max-and-min-of-constants-opaque` is what has
-/// to fold it; until it does, the honest answer is `numeric`.
+/// **A comparison of two CONSTANTS is A0's, and it is a THEOREM.**
+/// `max(1, 1/4)` is arithmetic on the coefficient ring: the tier's
+/// ability to answer it may not depend on the leaf's box, and
+/// answering it as a gated READ would report a fact of the form as
+/// one conditional on a bracket. A0 folds it, so the discharge is
+/// `symbolic_zero`; with A0 shut nothing claims it.
 #[test]
-fn a_comparison_of_two_constants_is_not_read() {
+fn a_comparison_of_two_constants_is_a_theorem() {
     let l = row(
         "max(1, 1/4)·y - y, y in [3,4]",
         how(SymRules::shipped(), || {
@@ -510,10 +510,29 @@ fn a_comparison_of_two_constants_is_not_read() {
             lit(1.0).max(lit(0.25)) * y - y
         }),
     );
-    assert_ne!(
-        l, "sign_gated",
-        "an exact rational comparison reads no value: it is A0's to fold, not the read's to gate"
+    assert_eq!(
+        l, "theorem",
+        "an exact rational comparison reads no value, so what it reaches is a theorem"
     );
+    let l = row(
+        "min(1, 1/4) - 1/4",
+        how(SymRules::shipped(), || lit(1.0).min(lit(0.25)) - lit(0.25)),
+    );
+    assert_eq!(l, "theorem");
+    let l = row(
+        "[A0 off] max(1, 1/4)·y - y, y in [3,4]",
+        how(
+            SymRules {
+                const_fold: false,
+                ..SymRules::shipped()
+            },
+            || {
+                let y = over("y", 3.0, 4.0);
+                lit(1.0).max(lit(0.25)) * y - y
+            },
+        ),
+    );
+    assert_ne!(l, "theorem", "A0 is the dial that decides it");
 }
 
 /// The drive memo's key carries both dials by construction.
