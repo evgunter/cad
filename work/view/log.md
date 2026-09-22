@@ -14312,3 +14312,37 @@ Both rows closed. 714 rows green; five mutations recorded on the PR,
 one of which is a receipt for a weak guard rather than a strong one —
 `NotIndexed::Absent`'s sentence is held only by *differs from
 `Building`* and *contains "index"*.
+
+## 2026-09-22 — a row arrived overnight; re-homed, not dispatched
+
+The 6-hourly check-in re-derived the board and found **one open row**
+where yesterday's close-out left zero:
+`opoutcome-committed-doc-says-at-most-one`, filed by AUTHOR's AUTH-3
+lane on 2026-09-21. Moved to **VSEAM** by `git mv`.
+
+**This is the disposition `plan.md` already states**, exercised for the
+first time: *a row that lands on this program's ground from here on
+goes to the successor whose charter covers it, not onto this slate.*
+VIEW does not dispatch, so a row left here is a row nobody will take.
+
+**Territory decided it, not charter.** The fix is a single doc sentence
+and changes no viewer behaviour, which is VDOC's charter word for word
+— but VDOC's `paths` are `crates/viewer/README.md`,
+`crates/viewer/tests/*` and `crates/viewer/src/lib.rs`, and the file is
+`crates/viewer/src/session/op.rs`, which is VSEAM's. A VDOC lane could
+not edit the file its own fix needs. Worth recording as a rule of
+thumb: **when the charter test and the territory disagree, the program
+that can actually make the edit wins**, and the charter argument goes
+in the log so the next reader knows it was weighed.
+
+**And the row's own reason to wait is spent.** It defers to a sibling,
+`opoutcome-superseded-has-no-production-reader`, on the ground that
+taking both together is cheaper. That sibling is closed on `main`. Said
+in VSEAM's log so nobody schedules it expecting a pair.
+
+The check-in's instruction for an empty slate is *dispatch the next
+unit*; re-deriving rather than trusting yesterday's reading is what
+turned a "nothing to do" into a five-minute re-home. Its own text is
+now stale in one respect — it points at a rules register in
+`work/view/plan.md` that Ev's ruling deleted on 2026-09-21 — and that
+is with Ev.
