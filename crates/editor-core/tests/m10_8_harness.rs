@@ -164,15 +164,37 @@ pub(crate) fn head(s: &str, n: usize) -> String {
 }
 
 /// The split of `doc`'s NOMINAL replay under `rules` ([`split`] over
-/// [`nominal_box`]).
+/// [`nominal_box`]), the tier making ONE attempt per rung.
+///
+/// **No retry ladder**, deliberately: every caller of this door is a
+/// RULES differential — what one rule reaches on one document — and a
+/// ladder installed here would put a second rule set inside both sides
+/// of it. [`split_at_the_nominal_retried`] is the door for a row that
+/// wants the tier a drive actually runs.
 pub(crate) fn split_at_the_nominal(
     doc: &ProfileDoc,
     rules: SymRules,
     tol: Tol,
 ) -> BTreeMap<&'static str, [u64; 4]> {
+    split_at_the_nominal_retried(doc, rules, geom_core::SymRetry::none(), tol)
+}
+
+/// [`split_at_the_nominal`] with a RETRY LADDER installed
+/// (`geom_core::SymRetry`) — the tier a drive runs, dials and all.
+pub(crate) fn split_at_the_nominal_retried(
+    doc: &ProfileDoc,
+    rules: SymRules,
+    retry: geom_core::SymRetry,
+    tol: Tol,
+) -> BTreeMap<&'static str, [u64; 4]> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    let (shapes, _, _) =
-        crate::m10_8_arc_family_interval::replay(doc, &nominal_box(&analyzed), rules, tol);
+    let (shapes, _, _) = crate::m10_8_arc_family_interval::replay_retried(
+        doc,
+        &nominal_box(&analyzed),
+        rules,
+        retry,
+        tol,
+    );
     split(&shapes)
 }
 

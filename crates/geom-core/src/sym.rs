@@ -604,6 +604,34 @@
 //! past and the freeze discipline that bound keeps — are
 //! [`rational`]'s own docs.
 //!
+//! **A freeze is not the end of the ladder: a refused decision may
+//! RETRY** ([`SymRetry`]). The ladder makes one attempt per rung, and a
+//! decision every rung refuses is re-asked — on the early, top-residual
+//! and door rungs only, never the plain one — with a rule that opens an
+//! atom shut, or at a wider coefficient bound, each attempt in its own
+//! memos.
+//!
+//! The argument is this section's own, read backwards. Freezing is
+//! sound because an indeterminate denotes an unknown function, and it
+//! is also a REACH mechanism: two spellings that freeze at the same
+//! node cancel through it, without the ring ever seeing what the node
+//! was. So opening a node — by widening the ring, or by a rule that
+//! folds the atom — can LOSE a discharge the frozen node gave, and
+//! widening the tier is not monotone in what it proves
+//! (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`; R1's
+//! boss loses ten decisions to an `abs` fold, R2's link sixteen of one
+//! predicate to rule G). A LADDER cannot lose one, because the first
+//! attempt has already answered wherever it can and the second is asked
+//! only into its silence — so the receipt's three discharge columns can
+//! only rise and `numeric` can only fall.
+//!
+//! Each attempt is sound on its own terms: the ring's bound is a cost
+//! and not a soundness condition (the integers are exact at every
+//! width), and a rule set with fewer rules is a subset of the same
+//! algebra. A retry's zero is therefore the same kind of claim as the
+//! rung that reached it and lands in that rung's column, with
+//! [`SymCounts::retried`] counting it beside.
+//!
 //! # Cost: where the tier's time goes, by count
 //!
 //! Measured with two instruments — `valgrind --tool=callgrind` over
@@ -735,6 +763,36 @@
 //! no form on either document comes within 40× of it. Rule D's fold is
 //! 0.4 % of the plate's replay; the ring's heap path is 9 % of its
 //! operations, so the `i128` inline path holds on both documents.
+//!
+//! **What the RETRY LADDER costs, and where** ([`SymRetry`]; SYM-9's
+//! Phase 1 tables are in the unit's PR). A retry is paid ONLY on a
+//! decision every rung of the first attempt refused, so the cost is a
+//! second walk per refusal and nothing at all where there are none.
+//! **On four of the six measured documents there are none to speak of**
+//! — at the nominal the two-hole plate and R1's annulus refuse ZERO
+//! decisions the tier is asked (their whole `numeric` column is the
+//! numeric channel certifying a non-zero sign, where the tier is never
+//! consulted), and R1's segment boss refuses one. R2's filleted bracket
+//! refuses 74 of 1,947 and R2's link 107 of 1,102.
+//!
+//! One nominal replay, dev profile, one box, the shipped ladder against
+//! the same replay with `SymRetry::none()`: plate 2.22 → 2.40 s,
+//! annulus 2.53 → 2.42 s and boss 1.48 → 1.63 s — the three that never
+//! enter the ladder, so what those readings show is the measurement's
+//! noise — bracket 17.4 → 23.6 s (1.36×) and link 59.3 → 68.2 s
+//! (1.15×). What that buys is twelve decisions on the link and six on
+//! the bracket, and nothing anywhere else;
+//! `editor_core::drive::DEFAULT_SYM_RETRY` carries the table per shape
+//! and the argument for the two the ladder takes.
+//!
+//! **The freeze causes under the refusals** are what the ladder's
+//! shapes were chosen against, and the instrument is the per-decision
+//! attribution ([`profile::DecisionRecord`], `rung_table`). On the
+//! bracket's 74 refused decisions their own walks froze 204 nodes on
+//! the coefficient bound, 161 on degree and 35 on terms; on the link's
+//! 107, 90 / 154 / 152. The ring is a leading cause on both — and a
+//! wider ring is still not what the measurement chose, because keeping
+//! an atom closed reaches more of them for a fraction of the cost.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!

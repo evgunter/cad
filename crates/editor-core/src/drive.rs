@@ -311,13 +311,21 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// recovers at the nominal, against the same replay with the ladder
 /// off, and what the whole replay then costs:
 ///
-/// | document | rule G shut | rule A shut | both in ONE mask |
-/// | --- | --- | --- | --- |
-/// | two-hole plate | 0 (~1.0x) | 0 (~1.0x) | 0 |
-/// | R1's annulus | 0 (0.98x) | 0 (0.98x) | 0 |
-/// | R1's segment boss | 0 (1.00x) | 0 (1.07x) | 0 |
-/// | R2's filleted bracket | 0 (1.25x) | **6** (1.11x) | 6 (1.05x) |
-/// | R2's link | **12** (1.14x) | 0 (1.04x) | **0** (1.07x) |
+/// | document | rule G shut | rule A shut | both in ONE mask | **this ladder** |
+/// | --- | --- | --- | --- | --- |
+/// | two-hole plate | 0 (~1.0x) | 0 (~1.0x) | 0 | **0** (1.08x) |
+/// | R1's annulus | 0 (0.98x) | 0 (0.98x) | 0 | **0** (0.96x) |
+/// | R1's segment boss | 0 (1.00x) | 0 (1.07x) | 0 | **0** (1.10x) |
+/// | R2's filleted bracket | 0 (1.25x) | **6** (1.11x) | 6 (1.05x) | **6** (1.36x) |
+/// | R2's link | **12** (1.14x) | 0 (1.04x) | **0** (1.07x) | **12** (1.15x) |
+///
+/// The splits the last column comes to, pinned in
+/// `editor-core/tests/sym_9_retry_interval.rs`: the bracket
+/// `[1104, 7, 144, 766]` → `[1104, 7, 150, 760]` and the link
+/// `[541, 0, 96, 465]` → `[553, 0, 96, 453]`, the other three
+/// bit-identical. The three ~1.0x rows are the measurement's noise on
+/// a four-core box and not a cost: those documents refuse nothing the
+/// tier is asked, so the ladder is never entered on them.
 ///
 /// **The last column is why the ladder carries two masks and not one.**
 /// Shutting both rules in one attempt keeps the bracket's six and loses
@@ -331,7 +339,9 @@ pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 /// a 512-bit retry recovers a strict subset — the bracket's same six,
 /// and eight of the link's twelve — at 4.41x on the bracket against
 /// rule A's 1.11x for the same six decisions. At 1024 bits it reaches
-/// four more on the bracket, at 11.57x. So the ring's width buys
+/// more on the bracket — `tangent_on_surface_2` `[9, 0, 0, 9]` →
+/// `[18, 0, 0, 0]` among them, 19 in all — at 11.57x. So the ring's
+/// width buys
 /// nothing on a measured document that keeping an atom closed does not
 /// buy more cheaply, and it stays a dial with its numbers beside it
 /// rather than a default.

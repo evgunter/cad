@@ -13,11 +13,13 @@
 //! question — it moves the FIRST attempt, which is thenon-monotonicity
 //! this unit's item records.
 //!
-//! **NO TEST IN THIS FILE IS EXECUTED BY CI** — every row is an
-//! `#[ignore]`d evidence probe that prints and asserts nothing a gate
-//! could read ([[test-suite-cost]]); the pins the measurement justifies
-//! live in `m10_10_pins_interval.rs` and `decide_3_split_rows_interval.rs`.
-//! Run one document:
+//! **One row here GATES** — [`sym_9_the_ladder_recovers_what_it_was_shipped_for`],
+//! which pins what the shipped ladder recovers on the two documents
+//! that gain from it and pins ZERO on the three that do not. It costs
+//! about 160 s and it is `gated_to!` the tier, its dials and those
+//! documents' fixture doors, so a change elsewhere does not pay it. The
+//! rest are `#[ignore]`d evidence probes that print and assert nothing
+//! a gate could read ([[test-suite-cost]]). Run one document's evidence:
 //!
 //! ```sh
 //! CAD_SYM_9_DOC=r2_link cargo test -p editor-core \
@@ -26,6 +28,19 @@
 //! ```
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+// Gated to the ladder and to the documents it is measured on: the tier
+// and its rules, the dial that installs the shipped ladder, and the
+// fixture doors the two documents that gain from it are built through.
+test_utils::gated_to![
+    "crates/geom-core/src/sym.rs",
+    "crates/geom-core/src/sym/",
+    "crates/editor-core/src/drive.rs",
+    "crates/editor-core/tests/m10_7_r2_probes_interval.rs",
+    "crates/editor-core/tests/m10_8_arc_family_interval.rs",
+    "crates/editor-core/tests/m10_8_harness.rs",
+    "crates/editor-core/tests/m10_9_r2_probes_interval.rs",
+];
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -115,14 +130,22 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
 }
 
 /// The named study `CAD_SYM_9_DOC` selects, from
-/// `m10_10_evidence_interval`'s index (default the plate).
-fn document(tol: Tol) -> (String, ProfileDoc) {
+/// `m10_10_evidence_interval`'s index (default the plate), at the scale
+/// `CAD_SYM_9_SCALE` names (default 1).
+fn document_from_env(tol: Tol) -> (String, ProfileDoc) {
     let name = std::env::var("CAD_SYM_9_DOC").unwrap_or_else(|_| "two_hole_plate".into());
     let scale: f64 = std::env::var("CAD_SYM_9_SCALE")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(1.0);
-    let doc = match name.as_str() {
+    let doc = document(&name, scale, tol);
+    (name, doc)
+}
+
+/// One named study at one scale — the index the rows here share, the
+/// same eight `m10_10_evidence_interval` carries.
+fn document(name: &str, scale: f64, tol: Tol) -> ProfileDoc {
+    match name {
         "two_hole_plate" => crate::m10_7_plate::plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0,
         "r2_filleted_bracket" => crate::m10_7_r2_probes_interval::bracket(scale, tol).0,
         "r1_annulus" => crate::m10_8_r1_probes_interval::annulus(scale, tol).0,
@@ -132,8 +155,7 @@ fn document(tol: Tol) -> (String, ProfileDoc) {
         "r2_d_tab_literal" => crate::m10_10_r2_probes_interval::d_tab(scale, false, tol).0,
         "r2_d_tab_parameter" => crate::m10_10_r2_probes_interval::d_tab(scale, true, tol).0,
         other => panic!("no document {other:?}"),
-    };
-    (name, doc)
+    }
 }
 
 /// One replay at `Sym<Interval>` over `box_` with `retry`'s ladder
@@ -238,7 +260,7 @@ fn asked(shapes: &[DecisionShape]) -> [u64; 4] {
 #[ignore = "evidence-only: the rung funnel and the freeze causes of one document's refusals"]
 fn sym_9_where_the_refusals_are() {
     let tol = Tol::witness();
-    let (name, doc) = document(tol);
+    let (name, doc) = document_from_env(tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = nominal_box(&analyzed);
     geom_core::sym::profile::start_profile();
@@ -274,7 +296,7 @@ fn sym_9_where_the_refusals_are() {
 #[ignore = "evidence-only: what each retry shape recovers on one document, and its cost"]
 fn sym_9_what_each_retry_recovers() {
     let tol = Tol::witness();
-    let (name, doc) = document(tol);
+    let (name, doc) = document_from_env(tol);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = nominal_box(&analyzed);
     let t0 = Instant::now();
@@ -313,4 +335,78 @@ fn sym_9_what_each_retry_recovers() {
             println!("      {pred:<32} {was:?} -> {now:?}");
         }
     }
+}
+
+/// **THE LADDER'S PIN**: what `drive::DEFAULT_SYM_RETRY` recovers, per
+/// document, asserted on both sides.
+///
+/// It pins the two things the acceptance asks for and nothing else. On
+/// the two documents that gain, the whole split with the ladder against
+/// the same replay without it, so a decision that moved DOWN reds; and
+/// the `retried` column at its measured count, so a retry that stops
+/// carrying them reds even if something else picks them up. On the
+/// three that do not gain, `retried` is pinned at ZERO — which is the
+/// claim that the ladder is not quietly paying for itself somewhere
+/// unmeasured.
+///
+/// The `numeric` column can only FALL and the other three can only
+/// rise: a retry is asked only into the first attempt's silence
+/// (`geom_core::SymRetry`). A row here that moved the other way is a
+/// defect in the ladder, not a re-baseline.
+#[test]
+fn sym_9_the_ladder_recovers_what_it_was_shipped_for() {
+    let tol = Tol::witness();
+    let ladder = editor_core::drive::DEFAULT_SYM_RETRY;
+    // `(document, the receipt without the ladder, with it, retried)`.
+    let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
+        ("two_hole_plate", [811, 0, 140, 462], [811, 0, 140, 462], 0),
+        ("r1_annulus", [328, 0, 140, 209], [328, 0, 140, 209], 0),
+        ("r1_segment_boss", [374, 2, 96, 234], [374, 2, 96, 234], 0),
+        (
+            "r2_filleted_bracket",
+            [1104, 7, 144, 766],
+            [1104, 7, 150, 760],
+            6,
+        ),
+        ("r2_link", [541, 0, 96, 465], [553, 0, 96, 453], 12),
+    ];
+    let mut moved: Vec<String> = Vec::new();
+    for (name, want_off, want_on, want_retried) in expected {
+        let doc = document(name, 1.0, tol);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let box_ = nominal_box(&analyzed);
+        let (_, off) = replay(&doc, &box_, SymRetry::none(), tol);
+        let (_, on) = replay(&doc, &box_, ladder, tol);
+        println!(
+            "== {name}: {:?} -> {:?} (retried {})",
+            receipt(&off),
+            receipt(&on),
+            on.retried
+        );
+        if receipt(&off) != want_off {
+            moved.push(format!(
+                "{name} without the ladder {want_off:?} -> {:?}",
+                receipt(&off)
+            ));
+        }
+        if receipt(&on) != want_on {
+            moved.push(format!(
+                "{name} with the ladder {want_on:?} -> {:?}",
+                receipt(&on)
+            ));
+        }
+        if on.retried != want_retried {
+            moved.push(format!("{name} retried {want_retried} -> {}", on.retried));
+        }
+        assert_eq!(
+            off.retried, 0,
+            "{name}: `SymRetry::none()` installs no ladder, so nothing can be retried"
+        );
+    }
+    assert!(
+        moved.is_empty(),
+        "the ladder's measured recovery moved (theorem/gated/registered/numeric). A row that \
+         moved UP is re-baselined and said; one that moved DOWN is a retry taking a decision \
+         away, which `SymRetry` says cannot happen: {moved:?}"
+    );
 }

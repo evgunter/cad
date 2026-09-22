@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 
 use geom_core::{SymRules, Tol};
 
-use crate::m10_8_harness::split_at_the_nominal;
+use crate::m10_8_harness::{split_at_the_nominal, split_at_the_nominal_retried};
 
 /// The tier as it stood before this unit: the shipped set with rule G
 /// and the decision read shut. Rule G's companion rewrite in rule A
@@ -66,9 +66,19 @@ fn decide_3_no_predicate_loses_a_decision() {
     for (name, build) in &docs {
         let doc = build();
         let off = split_at_the_nominal(&doc, before(), tol);
-        let on = split_at_the_nominal(&doc, SymRules::shipped(), tol);
+        // **The `on` side is the tier a DRIVE runs**, retry ladder and
+        // all (`editor_core::drive::DEFAULT_SYM_RETRY`), so the clause
+        // this row asserts is about what ships and not about one attempt
+        // of it. SYM-9 put the ladder there and re-baselined this row;
+        // the ladder can only ADD, so nothing in the clause weakens.
+        let on = split_at_the_nominal_retried(
+            &doc,
+            SymRules::shipped(),
+            editor_core::drive::DEFAULT_SYM_RETRY,
+            tol,
+        );
         println!(
-            "== {name}: G + the read off {:?} -> shipped {:?}",
+            "== {name}: G + the read off {:?} -> shipped, with the ladder {:?}",
             total(&off),
             total(&on)
         );
@@ -98,15 +108,28 @@ fn decide_3_no_predicate_loses_a_decision() {
             // are asserted on both sides, so any further drift reds
             // and says which. The whole measurement, and the remedy
             // record, is
-            // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`,
-            // which stays open at P1 for SYM-9. At the DOCUMENT level
-            // rule G is a gain here — `[515, 0, 90, 497]` becomes
-            // `[541, 0, 96, 465]` — and a change that makes the code
-            // right is not skipped for the re-baseline it costs.
+            // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
+            // At the DOCUMENT level rule G is a gain here —
+            // `[515, 0, 90, 497]` becomes `[541, 0, 96, 465]` at one
+            // attempt per rung — and a change that makes the code right
+            // is not skipped for the re-baseline it costs.
+            //
+            // **SYM-9 RE-BASELINED IT UP.** The shipped retry ladder
+            // (`drive::DEFAULT_SYM_RETRY`) re-asks a refused decision
+            // with rule G shut, and that recovers the TEN: this
+            // predicate reads `[92, 0, 6, 10]` under the tier a drive
+            // runs, so it now discharges 98 of its 108 decisions,
+            // exactly as the rule-G-off base does, and the document
+            // reads `[553, 0, 96, 453]`. What is left of the sixteen is
+            // the SIX that were never a lost decision — they are
+            // `registered` where the base had them `symbolic_zero`,
+            // because `sqrt(R²) = |R|` hands them to the rim
+            // registrant's axiom — and that is the residue the row
+            // keeps.
             if *name == "r2_link" && *p == "carrier_on_surface_2" {
                 assert_eq!(
                     (*b, a),
-                    ([98, 0, 0, 10], [82, 0, 6, 20]),
+                    ([98, 0, 0, 10], [92, 0, 6, 10]),
                     "the re-baselined predicate moved: re-measure it and say what"
                 );
                 continue;
