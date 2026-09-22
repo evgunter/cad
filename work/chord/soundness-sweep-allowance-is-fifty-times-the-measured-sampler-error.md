@@ -48,3 +48,38 @@ thirty-eight times the bound it guards" at the rehearsal site.
   or the sampler evaluates in the ring so the comparison is enclosure
   against enclosure and bare. Until then a 1e-15-relative escape in
   any rational certificate is invisible to hosted CI.
+
+## The measurement TESS-2 owed, 2026-09-22
+
+Measured by TESS-2 on its own head, with the exact-rational referee
+now committed as `scripts/nurbs-exact-referee.py`: 400 random bilinear
+rational patches (degrees 1x1, knots `[0,0,1,1]²`, log-uniform weights
+1e-2..1e2 — `r1_random_rational_soundness_sweep`'s own draw restricted
+to the tight stratum), and for each one `sample_worst(&s, 60)`'s value
+against the exact truth AT THE SAMPLER'S OWN ARGMAX, per component.
+
+`|sampled − truth|`, in ulps of the certified figure:
+
+| component | median | p99 | max |
+| --- | --- | --- | --- |
+| `uu` | 0.274 | 1.207 | 1.386 |
+| `uv` | 0.134 | 1.070 | 1.230 |
+| `vv` | 0.273 | 1.393 | 1.629 |
+
+So **the sampler's own error on this stratum is under 2 ulps of the
+certified figure, and `SAMPLER_ULPS = 64` is ~39x it** — the same
+factor the PROPS row measured at the rehearsal site by a different
+route. The absolute figures scale with the value (max 7.19e-10 on a
+certified 2.63e6), which is why the relative spelling is the right one
+here even though the other two sites are absolute.
+
+Two figures to size against rather than one: the sampler's error above,
+and the escape the allowance must not hide. On TESS-2's merge base the
+certificate's proven escape was 1.8e-15 relative (8.3 ulps) on fixture
+A and 1.6e-15 (7.2 ulps) on fixture B — both inside 64 and outside 2.
+
+The certificate half is closed: TESS-2's rational arm refines in the
+ring, so a bare comparison of 30,000 bilinear trials shows 0 escapes
+where the same draw on its merge base showed 2 in 6,000. The allowance
+is still 64 and still hides anything under 1.4e-14 relative, so this
+row stays open on its own terms.

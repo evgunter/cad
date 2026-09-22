@@ -76,3 +76,20 @@ and measures the sampler error over a bilinear census so this row can
 size the allowance from data; the falsifier-side consequence is
 `work/chord/soundness-sweep-allowance-is-fifty-times-the-measured-
 sampler-error.md`.
+
+## A measured number for the rule, from TESS-2 (2026-09-22)
+
+TESS-2 refereed `crates/mesh/src/nurbs_cert.rs`'s sampler exactly, so
+the `SAMPLER_ULPS = 64` row now has a measurement beside the
+rehearsal's. Over 400 random bilinear rational patches, `sample_worst`
+against the exact rational truth at the sampler's own argmax,
+`|sampled − truth|` in ulps of the certified figure: median 0.13–0.27,
+p99 1.07–1.39, max 1.63 (worst component `vv`). The house 64 is ~39x
+that — the same factor the rehearsal site measured by a different
+route, which is the sharper form of this row's point: two independent
+measurements of the same obligation both land near 1 ulp and both sit
+under a house figure of 64.
+
+The referee is committed as `scripts/nurbs-exact-referee.py` (exact
+rational arithmetic, shares no code with the kernel), so the "how to
+size it" bullet has a re-runnable method and not only a number.

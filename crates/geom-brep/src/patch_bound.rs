@@ -19,9 +19,9 @@
 //! # One reading
 //!
 //! Every cell reports **signed componentwise enclosures**
-//! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]) — of the patch this
-//! module actually assembled, which on the rational arm is the
-//! REFINED net, not the described one ([`PatchCell`], "What the
+//! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]) of the DESCRIBED patch
+//! — on both arms and with no carve-out, because the refinement an arm
+//! performs is itself part of the enclosure ([`PatchCell`], "What the
 //! enclosure encloses"). An inf-side consumer
 //! needs them as such — a magnitude sup cannot bound `‖S_u × S_v‖`
 //! from below, because the cross product's sign structure is exactly
@@ -72,6 +72,17 @@
 //! CROSS terms survive — a rational degree-1 direction genuinely
 //! curves in parameter — and the recurrences carry that.
 //!
+//! **The refinement the arm performs first is itself part of the
+//! enclosure.** The homogeneous nets are refined IN THE RING from ring
+//! points of the described net
+//! ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
+//! an outward-rounded quotient of the knots it is made of, so what the
+//! cells enclose is the described patch and not a rounded neighbour of
+//! it. There is no refined `f64` surface on this arm: the cell extents
+//! come from the refined knot vectors, which are exact (the inserted
+//! knots are the `f64`s the schedule chose), and a refined control
+//! point is the ring quotient `A / w`.
+//!
 //! # Conservatism
 //!
 //! The answer is a bound, not an estimate. Ordinary walls measure
@@ -105,6 +116,14 @@ use geom_core::spline::{CurvePlan, KnotVector};
 /// insertion is evaluation-invariant in ℝ, so it changes no geometry;
 /// it only shrinks every hull the bound is assembled from, which is
 /// what keeps the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized.
+///
+/// **The schedule is not free of the arithmetic, which is why it is
+/// applied in the ring.** Each insertion the count buys is one more
+/// affine combination, and the count therefore also sets how much
+/// outward rounding the refined net carries. That width grows with the
+/// NUMBER of insertions rather than by a factor per insertion, which is
+/// what makes 16 affordable ([`geom_core::spline::CurvePlan::apply_ring`]
+/// argues the form that buys it).
 pub const RATIONAL_CERT_SPLITS: usize = 16;
 
 /// A typed refusal of the patch-bound assembly (fail-loud). Each
@@ -160,11 +179,12 @@ impl PatchBoundError {
                  carrying one is worth reporting too"
             }
             Self::RefinedWeightLostPositivity => {
-                "rational NURBS face whose refined weights lost positivity — outside the \
-                 certified inventory: positivity survives knot insertion in ℝ, so what \
-                 lost it is the f64 rounding of the fixed refinement on an extreme weight \
-                 ratio; describe the face with a ratio the refinement can hold, or report \
-                 the description, which is what sizes RATIONAL_CERT_SPLITS"
+                "rational NURBS face whose refined weight ENCLOSURE reaches zero — outside \
+                 the certified inventory: positivity survives knot insertion in ℝ, so what \
+                 lost it is the width the refinement's outward rounding adds on an extreme \
+                 weight ratio, which leaves the convex-combination licence unproven rather \
+                 than false; describe the face with a ratio the refinement can hold, or \
+                 report the description, which is what sizes RATIONAL_CERT_SPLITS"
             }
             Self::RefinementFailed => {
                 "NURBS face whose refinement fails to materialise — outside the certified \
@@ -193,39 +213,29 @@ impl core::error::Error for PatchBoundError {}
 /// One knot-span cell's certified bounds on the patch's partials, with
 /// the UV rectangle they hold on.
 ///
-/// # What the enclosure encloses (the rational arm's caveat, stated)
+/// # What the enclosure encloses
 ///
-/// The INTEGRAL arm assembles on the described control net, so its
-/// enclosures are enclosures of the described patch, full stop.
+/// **The DESCRIBED patch, on both arms, with no carve-out.** Refinement
+/// is part of the enclosure: where an arm inserts knots it inserts them
+/// into ring enclosures of the described homogeneous net
+/// ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
+/// an outward-rounded quotient of the knots it is made of, so the
+/// insertion widens like every later step instead of rounding the net
+/// to a nearby one.
 ///
-/// The RATIONAL arm first inserts [`RATIONAL_CERT_SPLITS`] knots per
-/// span. Knot insertion is evaluation-invariant **in ℝ**, but the
-/// refined control net is materialised in `f64` and therefore rounded:
-/// what these cells enclose is the refined-`f64` patch, which differs
-/// from the described one by insertion rounding. The gap is dust — at
-/// the scale of an ulp of the coordinate — and it is NOT bounded here.
+/// That makes a STRUCTURAL predicate sound to read off these cells. A
+/// component whose true value is identically zero — `S_vv` on a ruled
+/// (degree-1 in `v`) rational face, where the described surface is
+/// affine in `v` — comes back as an enclosure CONTAINING zero on every
+/// cell, which is what a `contains(0)` or an exact-sign test needs and
+/// what a bound on a nearby patch could never give.
 ///
-/// **It is visible, and it matters at exactly one place: a component
-/// whose true value is structurally zero.** On a ruled (degree-1 in
-/// `v`) rational face the true `S_vv` is identically zero, and 6 of
-/// the quarter cylinder's 256 cells report a `z` enclosure of
-/// `[-4.1e-15, -3.4e-15]` — sound about the refined patch, and it
-/// EXCLUDES the described patch's zero. A consumer that reads these
-/// as "the described surface's partial lies in here" is right to
-/// within insertion dust and wrong beyond it, and a consumer testing a
-/// STRUCTURAL predicate (`contains(0)`, an exact sign) must not use
-/// them on the rational arm.
-///
-/// This is not new with the signed reading — the rational arm has
-/// always refined — but the retired magnitude reading could never
-/// exhibit it: `[0, m]` contains zero by construction, so the sup
-/// spelling hid the gap rather than being free of it. Making the
-/// signed reading the only one is what puts the caveat in the
-/// contract, which is where it belongs.
-///
-/// Closing the gap needs an enclosure of the insertion rounding
-/// itself, carried through the refinement — a real piece of work with
-/// its own cost, deliberately not done here.
+/// What it costs is width, and the width is the honest one. On that
+/// same ruled face the zero `S_vv` is reported as dust at the scale the
+/// insertion contributed rather than as an exact zero, because that is
+/// all an enclosure of the refinement can say. A consumer sizing a grid
+/// pays that in the last decades of a bound; a consumer asking whether
+/// zero is in there gets the right answer.
 #[derive(Clone, Copy, Debug)]
 pub struct PatchCell {
     /// The cell's `u` extent, `[lo, hi]`.
@@ -233,20 +243,16 @@ pub struct PatchCell {
     /// The cell's `v` extent, `[lo, hi]`.
     pub v: (f64, f64),
     /// Signed componentwise enclosure of `S_u` on the cell — of the
-    /// assembled patch, refined-`f64` on the rational arm (see the
-    /// type's docs, "What the enclosure encloses").
+    /// DESCRIBED patch (see the type's docs, "What the enclosure
+    /// encloses").
     pub s_u: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_v` on the cell (the
-    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
+    /// Signed componentwise enclosure of `S_v` on the cell.
     pub s_v: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_uu` on the cell (the
-    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
+    /// Signed componentwise enclosure of `S_uu` on the cell.
     pub s_uu: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_uv` on the cell (the
-    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
+    /// Signed componentwise enclosure of `S_uv` on the cell.
     pub s_uv: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_vv` on the cell (the
-    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
+    /// Signed componentwise enclosure of `S_vv` on the cell.
     pub s_vv: [RingInterval; 3],
 }
 

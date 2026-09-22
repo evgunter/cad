@@ -18,8 +18,10 @@
 //! and lies in their hull — the C2.2 mechanism `chords` already uses
 //! for edge carriers, lifted to the surface. Componentwise hulls give
 //! `sup‖S_uu‖ ≤ √(Σ_c sup²)` = [`NurbsFaceBound::muu`], and likewise
-//! `muv`, `mvv`. Rounding: interval (ring) arithmetic end to end, with
-//! a final `next_up` on the square root.
+//! `muv`, `mvv`. Rounding: interval (ring) arithmetic end to end —
+//! including the rational arm's knot refinement, which is performed on
+//! ring enclosures of the described net rather than in `f64` — with a
+//! final `next_up` on the square root.
 //!
 //! # The per-triangle certificate
 //!
@@ -93,7 +95,9 @@
 //! inflate with the patch's distance from the origin (the M8-2
 //! template's trick, lifted to two parameters). The whole-domain bound
 //! is the max over cells of the per-cell sups, after the FIXED
-//! [`patch_bound::RATIONAL_CERT_SPLITS`] refinement (schedule docs there).
+//! [`patch_bound::RATIONAL_CERT_SPLITS`] refinement (schedule docs
+//! there) — which is taken in the ring, so the sups bound the
+//! DESCRIBED face and not the refined-`f64` one.
 //!
 //! A degree-1 direction's `Ã_dd`, `w_dd` are exactly zero, but its
 //! CROSS terms survive — a rational degree-1 direction genuinely
@@ -2622,6 +2626,150 @@ pub(crate) mod tests {
             escaped.is_empty(),
             "the certificate does not bound the DESCRIBED patch: {}",
             escaped.join(" | ")
+        );
+    }
+
+    /// **The tight stratum, enumerated.** Every escape this certificate
+    /// has ever been caught in — two hosted, both measured in exact
+    /// arithmetic — was a BILINEAR rational patch at a domain corner,
+    /// where the quotient rule's factors all take their extremes at the
+    /// same point and the cell hull has no slack left to absorb a
+    /// rounding. `r1_random_rational_soundness_sweep` reaches that
+    /// stratum on one draw in nine, which is why two hits took
+    /// thousands of hosted runs.
+    ///
+    /// This row reaches it on every run, and it is an ENUMERATION
+    /// rather than a sweep (`memories/test-suite-cost.md`'s shape
+    /// question): its content is a product of boundary cases — four
+    /// weights over a three-decade ladder, across a handful of nets
+    /// chosen for the corner geometries that matter — so it is written
+    /// out rather than drawn, and it carries no seed because there is
+    /// nothing random in it to replay.
+    ///
+    /// The sampling grid is deliberately COARSE (9x9). It includes all
+    /// four corners exactly, which is the whole subject; density in the
+    /// interior is what the random sweep buys and this row does not owe
+    /// it twice.
+    #[test]
+    fn the_bilinear_rational_stratum_is_dominated_at_every_weight_decade() {
+        // Four control nets whose corner geometry differs: a unit quad,
+        // a twisted one (the mixed term's tight case), a skewed one, one
+        // far from the origin (the recentring claim), and a tiny one.
+        let nets: [[[f64; 3]; 4]; 5] = [
+            [
+                [0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [1.0, 1.0, 0.7],
+            ],
+            [
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 1.0],
+                [0.0, 1.0, -1.0],
+                [1.0, 1.0, 0.0],
+            ],
+            [
+                [-0.3, -0.6, 0.9],
+                [1.6, -1.8, -0.08],
+                [1.1, -1.4, -1.8],
+                [-0.4, 1.1, -0.16],
+            ],
+            [
+                [1.0e3, 2.0e3, -5.0e2],
+                [1.0e3, 2.0e3 + 1.0, -5.0e2],
+                [1.0e3 + 1.0, 2.0e3, -5.0e2 + 0.5],
+                [1.0e3 + 1.0, 2.0e3 + 1.0, -5.0e2],
+            ],
+            [
+                [0.0, 0.0, 0.0],
+                [0.0, 1.0e-6, 0.0],
+                [1.0e-6, 0.0, 0.0],
+                [1.0e-6, 1.0e-6, 3.0e-7],
+            ],
+        ];
+        // Weight PATTERNS rather than the full product of a decade
+        // ladder. The escapes that were measured exactly sat at
+        // near-equal weights, once at 1e-2 and once at ~4, so what the
+        // stratum needs is each decade taken with the corners
+        // coinciding, plus the spreads that break that coincidence.
+        // The full 3^4 product costs 81 patches per net and buys
+        // nothing the six below do not: at ~0.19 s per patch in a debug
+        // build the product is a 75-second row, which is not what this
+        // claim is worth.
+        const WEIGHTS: [[f64; 4]; 6] = [
+            [1.0e-2, 1.0e-2, 1.0e-2, 1.0e-2],
+            [1.0, 1.0, 1.0, 1.0],
+            [1.0e2, 1.0e2, 1.0e2, 1.0e2],
+            [1.0e-2, 1.0, 1.0e2, 1.0],
+            [1.0e2, 1.0e-2, 1.0e-2, 1.0e2],
+            [1.03e-2, 1.07e-2, 1.35e-2, 1.24e-2],
+        ];
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let mut escaped = Vec::new();
+        let mut worst_ratio = 0.0f64;
+        let mut worst_excess_ulps = f64::NEG_INFINITY;
+        let mut worst_where = String::new();
+        let mut patches = 0usize;
+        for net in &nets {
+            for w in WEIGHTS {
+                let s = NurbsSurface::new(
+                    kv.clone(),
+                    kv.clone(),
+                    net.iter().map(|p| Point3::new(p[0], p[1], p[2])).collect(),
+                    w.to_vec(),
+                )
+                .unwrap();
+                let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+                patches += 1;
+                let (wuu, wuv, wvv) = sample_worst(&s, 8);
+                let d = Domination::second_partials((wuu, wuv, wvv), &b);
+                if !d.holds() {
+                    escaped.push(format!("weights {w:?}: {d}"));
+                }
+                // The sampled/certified ratio, and how far the sample
+                // sits ABOVE the certified figure in ulps of it. The
+                // second number is what the shipped allowance absorbs,
+                // so it is printed rather than left to the comparison:
+                // an escape inside the allowance is invisible in
+                // `holds` and visible here.
+                for (name, sampled, certified) in
+                    [("uu", wuu, b.muu), ("uv", wuv, b.muv), ("vv", wvv, b.mvv)]
+                {
+                    if certified <= 0.0 || !certified.is_finite() {
+                        continue;
+                    }
+                    worst_ratio = worst_ratio.max(sampled / certified);
+                    let ulps = (sampled - certified) / (certified.abs() * f64::EPSILON);
+                    if ulps > worst_excess_ulps {
+                        worst_excess_ulps = ulps;
+                        worst_where = format!(
+                            "{name} on weights {w:?}: sampled {sampled:.17e} \
+                             certified {certified:.17e}"
+                        );
+                    }
+                }
+            }
+        }
+        println!(
+            "bilinear stratum: {patches} patches, worst sampled/certified {worst_ratio:.17e}, \
+             worst excess {worst_excess_ulps:.3} ulps of the certified figure ({worst_where})"
+        );
+        assert!(
+            escaped.is_empty(),
+            "the certificate is escaped on the bilinear stratum: {}",
+            escaped.join(" | ")
+        );
+        // ANTI-VACUITY, and it is a static witness rather than a floor
+        // over a sample: this enumeration contains patches whose bound
+        // is tight at a corner, so a bound that had become loose enough
+        // to pass everything would fail here. The figure is the
+        // stratum's, not a tolerance — lowering it would be the repair
+        // this row exists to refuse.
+        assert!(
+            worst_ratio > 0.9,
+            "the bilinear stratum stopped being tight: worst sampled/certified \
+             {worst_ratio:.17e} is not above 0.9, so this row no longer challenges \
+             the bound it asserts"
         );
     }
 
