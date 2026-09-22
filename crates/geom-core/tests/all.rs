@@ -125,6 +125,10 @@ mod review_m5_pr7b_tensor;
 mod review_margin_probe;
 #[path = "ring0_review_probes.rs"]
 mod ring0_review_probes;
+#[path = "ring2_r2_probes.rs"]
+mod ring2_r2_probes;
+#[path = "ring_endpoint_census.rs"]
+mod ring_endpoint_census;
 #[path = "ring_interval_differential.rs"]
 mod ring_interval_differential;
 #[path = "ring_interval_fuzz.rs"]

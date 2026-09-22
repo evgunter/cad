@@ -196,6 +196,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // call census, code view + offsets
     },
     Entry {
+        path: "crates/geom-core/tests/ring_endpoint_census.rs",
+        disposition: Shared, // ring endpoint-read census, code view + balanced_end
+    },
+    Entry {
         path: "crates/geom/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },

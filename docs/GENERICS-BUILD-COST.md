@@ -546,6 +546,47 @@ build cost — are untouched by this, and row 3 above is what merging the lanes 
 
 ---
 
+## 10. Addendum — the C9 ring as a newtype over the backend (2026-09-21)
+
+`geom_core::RingInterval` is now `RingInterval(DInterval)`: the
+certification substrate's surface over `interval-transcendentals`'
+arithmetic, with the backend's decoration as its poison channel. §9
+priced the interval TYPE and the kernel's INSTANTIATION at it; this
+prices the ring's own body, which is the third thing in that family
+and the smallest.
+
+**No dependency is added, mechanically.** The ring names
+`interval_transcendentals` from `src` where it previously named
+nothing but `core`, and `geom-core` already depends on that crate
+unconditionally (RING-1, cut (i)). `cargo tree --workspace -e normal
+--prefix none | sort -u | wc -l` answers **85** on this head, which is
+§9's post-ungating number unchanged — the newtype reaches an edge that
+was already there.
+
+**The build delta is noise, as §9's row 5 predicted.** One run each on
+the landing box, the ring's file swapped and nothing else, a fresh
+target directory per row:
+
+| measurement | seconds | target |
+|---|---|---|
+| `build -p geom-core`, the retired ring | 8.86 | 49 MB |
+| `build -p geom-core`, the newtype | 8.99 | 49 MB |
+
+**+0.13 s, +1.5 %, +0 MB** — inside the ±4 % §9 measured between the
+same two shapes of this row, and a single sample either way.
+
+**Not a committed measurement of record.** The box is a shared
+container (4 vCPU, 15 GB RAM, rustc 1.97.0, `CARGO_INCREMENTAL=0`,
+`CARGO_PROFILE_DEV_OPT_LEVEL=1`, one-minute load 0.4 at the first row
+and 0.4 at the second, no other lane compiling), and
+`memories/local-battery-scope.md` puts committed timings on hosted CI
+with one reproducible box class. What this row is for is the negative
+claim the unit had to check — that making the ring a newtype costs no
+dependency and no measurable compile time — and one local pair at an
+idle box answers that without pretending to be a benchmark.
+
+---
+
 ## Reproducing
 
 The measurement scripts are not committed — they are throwaway harnesses,
