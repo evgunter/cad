@@ -24,7 +24,10 @@
 //! # The table, measured (σ = 0.01 rad at every joint, release)
 //!
 //! One leaf over the whole declared box, no splitting, in the driver's
-//! own lane:
+//! own lane. The costs are one box's wall clock and move with the
+//! load; what they are here for is the SHAPE — sub-second at four
+//! links, against the 219 s per replay the derived-frame family costs
+//! at two — and the cell prints its own on every run.
 //!
 //! | links | lane | | first refusal | cost |
 //! |---|---|---|---|---|
