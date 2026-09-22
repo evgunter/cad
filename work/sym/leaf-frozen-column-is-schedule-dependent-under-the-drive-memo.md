@@ -4,6 +4,8 @@ kind: issue
 title: A leaf receipt's frozen column is schedule-dependent under the drive-scoped plain memo
 status: open
 opened: 2026-09-14
+priority: P0
+cost: D
 ---
 
 

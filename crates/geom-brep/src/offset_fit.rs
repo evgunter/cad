@@ -184,7 +184,7 @@
 //! The **production** door takes [`Tol`] — [`fit_offset`],
 //! [`certify_offset`], [`certify_offset_over`],
 //! [`approx_offset_surface`], [`recertify_approx`]. That is the whole
-//! surface the kernel reaches: `topo::props`'s lane doors call the last
+//! surface the kernel reaches: [`crate::OffsetFitLane`] calls the last
 //! two, and the mint calls down to the first three. A caller has no
 //! number to pass, so two callers cannot fit against two epsilons, and
 //! the value is read once (`precision_target`, private — the doors
@@ -202,7 +202,7 @@
 //! `crates/sweep/tests/` are the whole population.
 //!
 //! **One production caller reaches an `_at` routine**, named at its own
-//! door: the transform lane's `PcurveFittedLane::remap_certificate`
+//! door: the transform door's [`crate::OffsetFitLane::remap`]
 //! classifies a MAPPED pair against the tolerance the surface's own
 //! claim was made at, which is a stored datum and deliberately not the
 //! run's ε. Nothing else does, and
@@ -704,8 +704,8 @@ impl std::error::Error for OffsetFitError {}
 // module never runs at. It arrives there as provenance and never as
 // authority: at `f64` the validator re-derives against the
 // description and never consults the stored copy, and at a scalar
-// with no re-derivation lane — `PropsQuadLane::recertify_approx` in
-// `topo::props` answering `None` — tier 3 REFUSES the face with
+// with no re-derivation lane — `topo::AtRestPolicy::offset_fit_lane`
+// answering `None` — tier 3 REFUSES the face with
 // `ValidationError::ApproxLaneUnsupported` rather than accepting the
 // carried record. That refusal is about the derivation missing at
 // that scalar, never about a value that could not arrive.
@@ -1053,9 +1053,9 @@ pub fn certify_offset_at(
 /// **The window rule and the certification behind it, one home.**
 /// Every door that certifies an offset fit against a described base
 /// goes through here: the storage mint ([`approx_offset_surface`]),
-/// the validator's re-derivation ([`recertify_approx`], which tier 3
-/// reaches through `topo::props::PropsQuadLane`) and the transform
-/// door's lane (`crate::PcurveFittedLane::remap_certificate`).
+/// the validator's re-derivation ([`recertify_approx`]) and the
+/// transform door's remap ([`crate::OffsetFitLane::remap`]) — all
+/// three reached through [`crate::OffsetFitLane`].
 ///
 /// The rule: [`certify_offset`] derives over the base's WHOLE chart
 /// rectangle, so a `window` is honoured exactly when it IS that
@@ -1083,7 +1083,7 @@ pub fn certify_offset_over(
 /// ε — the engine as an instrument (module docs).
 ///
 /// **It has one production caller**, and that is not a leak: the
-/// transform door's lane (`crate::PcurveFittedLane::remap_certificate`)
+/// transform door's remap ([`crate::OffsetFitLane::remap`])
 /// re-derives a MAPPED pair against the tolerance the surface's own
 /// claim was made at, which is the property that keeps the map and the
 /// validator agreeing about a given surface (`topo::transform`'s
@@ -2128,7 +2128,14 @@ impl Composite {
         let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        // The re-mint through `point` was poison-preserving only
+        // while a refused square had NaN endpoints. It does not: the
+        // refusal is asked by name and carried across by hand.
+        let e_mig_iv = if e_mig_sq.is_poison() {
+            RingInterval::poison()
+        } else {
+            RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt
+        };
         let m_sup = self.m_tilde_sup(su, sv);
         let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
             RingInterval::point(mig(self.dd.cell_hull(su, sv))) / (RingInterval::point(m_sup) * wt)
@@ -2150,9 +2157,15 @@ impl Composite {
     /// bound by ulps, which "certified" does not permit.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn cell_bound(&self, su: usize, sv: usize, floor: f64, d: f64) -> f64 {
+        // **Every refusal below is asked by name before its
+        // endpoint is read.** The ring's poison is its decoration, so
+        // a refused hull carries ordinary endpoints: `w_lo > 0.0` and
+        // `w_lo.is_finite()` are both TRUE of one, and so is the
+        // `hi.is_finite()` at the end. `f64::INFINITY` is the whole
+        // function's answer for anything not proved.
         let w = self.w.cell_hull(su, sv);
         let w_lo = w.lo();
-        if !(w_lo > 0.0) || !w_lo.is_finite() {
+        if w.is_poison() || !(w_lo > 0.0) || !w_lo.is_finite() {
             return f64::INFINITY;
         }
         // `w̃ = w·w_fit`, the weight `Ẽ`, `X` and the sign witness are
@@ -2160,18 +2173,20 @@ impl Composite {
         // both factors, and it is proved here rather than assumed.
         let wt = self.wt.cell_hull(su, sv);
         let wt_lo = wt.lo();
-        if !(wt_lo > 0.0) || !wt_lo.is_finite() {
+        if wt.is_poison() || !(wt_lo > 0.0) || !wt_lo.is_finite() {
             return f64::INFINITY;
         }
         // The sign witness: `sign(E·n) = sign(D)` (the denominator
         // `w·‖M̃‖` is positive), and the normal-component bound below
         // needs `E·n` to carry `d`'s sign.
         let dh = self.dd.cell_hull(su, sv);
-        if !(if d > 0.0 {
-            dh.lo() > 0.0
-        } else {
-            dh.hi() < 0.0
-        }) {
+        if dh.is_poison()
+            || !(if d > 0.0 {
+                dh.lo() > 0.0
+            } else {
+                dh.hi() < 0.0
+            })
+        {
             return f64::INFINITY;
         }
         let abs_d = RingInterval::point(d.abs());
@@ -2180,6 +2195,9 @@ impl Composite {
         // sound lower bound, and the only thing either is read for is
         // its low end — so the selection hands back that number
         // rather than the interval it came out of.
+        if e_mig_iv.is_poison() || e_proj_iv.is_poison() {
+            return f64::INFINITY;
+        }
         let e_hull_lo = e_mig_iv.lo().max(e_proj_iv.lo());
         // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
         let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
@@ -2201,11 +2219,17 @@ impl Composite {
         // that is larger. The three are lower bounds on the same
         // norm, so their max is one too — the same `max`, spelled the
         // same way.
+        if dist_iv.is_poison() {
+            return f64::INFINITY;
+        }
         let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return f64::INFINITY;
         }
         let bound = dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor);
+        if bound.is_poison() {
+            return f64::INFINITY;
+        }
         let hi = bound.hi();
         if hi.is_finite() { hi } else { f64::INFINITY }
     }
@@ -2776,7 +2800,8 @@ mod recourse_tests {
         // the lever the caller turns satisfies the claim the same way
         // an imperative does.
         const RECOURSE_WORDS: &[&str] = &[
-            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule",
+            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule", "split", "report",
+            "describe", "drop",
         ];
         let meter = MeterError::NormalFloor {
             floor: 0.0,
@@ -2857,9 +2882,17 @@ mod recourse_tests {
                 OffsetFitError::Structure(_) => Some(structure.to_string()),
                 _ => None,
             };
+            // The four carriers below each hold an enforcement row of
+            // their own (`every_meter_error_arm_names_a_recourse`,
+            // `every_patch_bound_error_arm_names_a_recourse`,
+            // `every_fit_error_arm_names_a_recourse`,
+            // `every_spline_error_arm_names_a_recourse`), so these arms
+            // are asserted TRANSITIVELY: the carrier is rendered whole
+            // AND its clause survives into the message a caller reads.
+            // The carrier's row is what makes that a statement about
+            // every payload rather than about the one built here.
             if let Some(carrier) = delegated {
                 assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
-                continue;
             }
             let lower = msg.to_lowercase();
             assert!(

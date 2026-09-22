@@ -145,7 +145,7 @@ mod certified {
     fn interval_one_pip_composed_die_is_bracketed() {
         let pipped = boolean_op_with(
             BooleanOp::Subtract,
-            &cube(iv(DIE_L), Tol::witness()),
+            &cube(DIE_L, Tol::witness()),
             &pip_ball(),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,

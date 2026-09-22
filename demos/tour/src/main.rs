@@ -1,4 +1,4 @@
-//! Pre-GUI visual demo tour: builds the highlight bodies through the
+//! The visual demo tour: builds the highlight bodies through the
 //! kernel's public profile/sweep/boolean/split APIs plus the M4 recipe
 //! layer, narrates each stop (operations, topology census, genus,
 //! validation tiers, exact vs meshed mass properties), and exports
@@ -445,9 +445,7 @@ fn run_body(
     // tier 3's is the sign and a continuation.
     let measured = match &sb.contacts {
         Some(contacts) if sb.at_rest => {
-            match pncad::topo::validate_pseudomanifold_certificate_certified(
-                &sb.body, contacts, tol,
-            ) {
+            match pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol) {
                 Ok(props) => {
                     println!("   [{label}] tier-3' at rest: every declaration certified");
                     Measured::Number(props)
@@ -468,7 +466,7 @@ fn run_body(
             }
         }
         Some(contacts) => Measured::Number(
-            pncad::topo::validate_pseudomanifold_certificate_certified(&sb.body, contacts, tol)
+            pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol)
                 .unwrap_or_else(|e| {
                     panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
                 }),

@@ -66,7 +66,8 @@
 //! A [`Band`] is a parameter to [`Decide::sign_within`], not something a
 //! predicate constructs on the fly. The idiom: an **operation** builds its
 //! band(s) once, at operation entry — `Band::linear(tol)?` /
-//! `Band::angular_at(tol, r)?` — where the operation's own richer error enum can
+//! `Band::angular_at(tol, r)?` (a suite pinning its own scale has
+//! `Band::linear_at(tol, eps)?` as well) — where the operation's own richer error enum can
 //! absorb a [`BandError`] (a misconfigured tolerance is the operation's
 //! problem to report), and then threads the `Band` down into the
 //! predicates it evaluates. Predicates and the classifier take the band as
@@ -75,7 +76,10 @@
 //! [`Band::linear`] takes the run's tolerance witness
 //! ([`Tol`]) and reads ε through it — so a function
 //! that builds a band says so in its own signature, and one that does not
-//! is visibly ε-free. [`Band::angular_at`] takes the same witness plus a
+//! is visibly ε-free. [`Band::linear_at`] takes the witness and an ε of
+//! the caller's own — the run's K over a named scale, for a probe that
+//! pins its ε and still wants the run's escalation; it is `#[doc(hidden)]`
+//! because that is an instrument, not a production door. [`Band::angular_at`] takes the same witness plus a
 //! lever arm r, and derives its coincidence threshold as the angle
 //! ε/r — there is deliberately **no** global angular tolerance (D4 ¶1, as
 //! revised 2026-07-16): an angle's tolerance is meaningless without the
@@ -334,7 +338,8 @@ impl std::error::Error for BandError {}
 /// `0 < zero < escalate`, both finite, enforced by [`Band::new`] with a
 /// typed [`BandError`]. Most callers want [`Band::linear`] or
 /// [`Band::angular_at`], which derive the thresholds from the run's global
-/// [`Tolerance`](crate::tolerance::Tolerance); derived scales (e.g. squared-distance comparisons) go
+/// [`Tolerance`](crate::tolerance::Tolerance), or [`Band::linear_at`] for a
+/// caller-named ε with the run's K; derived scales (e.g. squared-distance comparisons) go
 /// through `Band::new` at the geometry layer — no convenience constructor
 /// exists for them before a consumer does.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -384,15 +389,85 @@ impl Band {
     ///
     /// # Errors
     ///
-    /// [`BandError`] only when K·ε is not a valid escalation threshold —
-    /// i.e. the run's ε is within a factor K of `f64::MAX`, so the
-    /// product overflows to infinity. Unreachable for any physically
-    /// meaningful tolerance (D4 ¶4's session box is meters, ε ≈ 1e-9),
-    /// but [`Tolerance`](crate::tolerance::Tolerance) only guarantees ε finite and positive, and D9
-    /// makes the residue a typed error rather than a silently invalid
-    /// band or a panic.
+    /// Two arms are reachable, at opposite ends of the range
+    /// [`Tolerance`](crate::tolerance::Tolerance) admits (any finite
+    /// ε > 0, any finite K > 1), and they want **opposite** repairs —
+    /// which is why the returned [`BandError`] names which one it is:
+    ///
+    /// - [`BandError::InvalidValue`] on `escalate` when K·ε overflows to
+    ///   infinity: the run's ε is within a factor K of `f64::MAX`.
+    ///   Unreachable for any physically meaningful tolerance (D4 ¶4's
+    ///   session box is meters, ε ≈ 1e-9). The repair is a smaller ε.
+    /// - [`BandError::Empty`] when K·ε rounds back onto ε, so `zero` ==
+    ///   `escalate` and the open interval between them is empty. Writing
+    ///   a subnormal ε as n·2⁻¹⁰⁷⁴, this is exactly fl(K·n) == n — the
+    ///   product is rounded onto the subnormal grid, so the increment
+    ///   can round away entirely. It needs **both** knobs turned: a
+    ///   subnormal ε (and in fact ε ≤ 2⁻¹⁰²³, since above that even the
+    ///   least admissible K = 1 + 2⁻⁵² clears the half-ulp) **and** a K
+    ///   near 1 — at the smallest ε (n = 1) every K below 1.5 collapses
+    ///   the band, and the admitted K-region narrows as ε grows. **No
+    ///   normal ε collapses at any admitted K**, and at the ratified
+    ///   default K = 10 (`docs/K-REPORT.md`) no ε at all does. The
+    ///   repair is to raise ε, or K, or both.
+    ///
+    /// Neither is a panic and neither is a silently invalid band: D9
+    /// makes the residue a typed error. The arms are disjoint — no
+    /// tolerance reaches both.
+    ///
+    /// **This is the one home of that derivation.** The refusals that
+    /// carry a [`BandError`] outward cite it rather than restating it;
+    /// a second copy is a second thing to keep true, and the arithmetic
+    /// here is pinned by `geom-core`'s `tests/band_tolerance.rs`.
     pub fn linear(tol: Tol) -> Result<Self, BandError> {
-        Self::from_zero_threshold(tol, tol.eps())
+        Self::linear_at(tol, tol.eps())
+    }
+
+    /// The band for a **linear** margin at an ε the caller names: (ε,
+    /// K·ε) for the given ε and the run's K.
+    ///
+    /// The difference from [`Band::linear`] is which half comes from the
+    /// run. `linear` takes both halves from the committed
+    /// [`Tolerance`](crate::tolerance::Tolerance); this takes only the
+    /// **K**, and the coincidence threshold is the one handed in. That is
+    /// what a suite pinning its own ε — a bisection variable, an ε
+    /// ladder, a fixed scale a row is about — needs while still
+    /// escalating the way the run does: K is the run's escalation policy,
+    /// not a property of the scale being probed, and `CAD_AMBIGUITY_K`
+    /// admits any K > 1, so a literal multiplier beside a chosen ε pins
+    /// the row to one K rather than to the run's.
+    ///
+    /// It is exactly `Band::new(eps, tol.k() * eps)` — same product, same
+    /// bits — with the K-coupling named once instead of at each site. A
+    /// band at a scale that is **not** K·ε (a squared-distance
+    /// comparison, a deliberately fixed ratio) still goes through
+    /// [`Band::new`]; this door is only for the run's K.
+    ///
+    /// **`#[doc(hidden)]`: an INSTRUMENT, not a door**, on
+    /// `geom-brep`'s `offset_fit` precedent for the same `_at` shape —
+    /// *"the `_at` form takes a chosen target and is `#[doc(hidden)]`,
+    /// because it is an INSTRUMENT rather than a door"*. The reason
+    /// carries across exactly: naming your own ε beside the run's is
+    /// what D4 ¶1's witness rule exists to stop in production code, and
+    /// a documented door invites it. Every consumer today is a suite
+    /// pinning a scale its row is about — `sweep`'s `common/approx.rs`
+    /// and `sf2b_r1_probes.rs`, `geom-brep`'s `pcurve_p1b_r2_probes.rs`
+    /// and `curved_torus_arc_residual.rs` (twice). It stays `pub`
+    /// because those suites are outside this crate; a production caller
+    /// that wants a band wants [`Band::linear`].
+    ///
+    /// # Errors
+    ///
+    /// The two arms [`Band::linear`] documents, read at the given ε
+    /// rather than the run's — [`BandError::InvalidValue`] on `escalate`
+    /// if K·`eps` overflows, [`BandError::Empty`] if K·`eps` rounds back
+    /// onto `eps` — plus one `Band::linear` cannot have:
+    /// [`BandError::InvalidValue`] on `zero` if `eps` is not itself
+    /// finite and strictly positive. The run's ε is validated at commit;
+    /// this one is the caller's and is validated here.
+    #[doc(hidden)]
+    pub fn linear_at(tol: Tol, eps: f64) -> Result<Self, BandError> {
+        Self::from_thresholds(eps, tol.k())
     }
 
     /// The band for an **angular** margin (radians) at a named lever arm
@@ -425,31 +500,47 @@ impl Band {
     /// - [`BandError::InvalidLeverArm`] if `lever_arm` is not finite and
     ///   strictly positive — validated **first**, before ε is even read, so
     ///   the error names the actual input rather than a derived threshold.
-    /// - Otherwise the [`BandError`] from [`Band::new`]: a `lever_arm` small
-    ///   enough that K·(ε/`lever_arm`) overflows to infinity surfaces as
-    ///   [`BandError::InvalidValue`] on `escalate` (the same overflow
-    ///   residue [`Band::linear`] documents), a typed error rather than a
-    ///   silently invalid band.
+    /// - Otherwise the [`BandError`] from [`Band::new`] over the derived
+    ///   threshold θ = ε/`lever_arm`, in three reachable forms. The arm
+    ///   is a **caller argument** supplied per predicate, not a
+    ///   once-per-run configuration, so all three are reachable at an
+    ///   ordinary run ε by naming an extreme arm:
+    ///   - [`BandError::InvalidValue`] on `zero` if θ is not itself a
+    ///     valid coincidence threshold. The rule is about the **pair**:
+    ///     θ rounds to 0 exactly when `lever_arm` ≥ ε·2¹⁰⁷⁵ (equivalently
+    ///     ε ≤ 2⁻¹⁰⁷⁵·`lever_arm`) — at ε = 1e-16, for instance, the
+    ///     boundary arm is 4.0480450661462123e307, one ulp under which θ
+    ///     is still a nonzero subnormal. It overflows to infinity at the
+    ///     other extreme, a `lever_arm` below ε/`f64::MAX`, which is
+    ///     reachable only for ε above about 8.9e-16. Either way the
+    ///     repair is the arm, not ε.
+    ///   - [`BandError::InvalidValue`] on `escalate` if θ is finite but
+    ///     K·θ overflows — the same overflow residue [`Band::linear`]
+    ///     documents, reached here through a tiny arm rather than a huge ε.
+    ///   - [`BandError::Empty`] if K·θ rounds back onto θ, by
+    ///     [`Band::linear`]'s condition applied to θ rather than to ε.
+    ///     **A large arm reaches it at an ordinary ε**: ε = 1e-9 with
+    ///     arm = 1e300 gives the subnormal θ = 1e-309, which every K
+    ///     below about 1 + 2.5e-15 collapses. K still has to be near 1
+    ///     — the default K = 10 collapses no θ — but ε need not be
+    ///     extreme, and the session-box extent this method recommends as
+    ///     the conservative universal arm is the documented road to a
+    ///     large one.
+    ///
+    /// Each is a typed error rather than a silently invalid band.
     pub fn angular_at(tol: Tol, lever_arm: f64) -> Result<Self, BandError> {
         if !(lever_arm.is_finite() && lever_arm > 0.0) {
             return Err(BandError::InvalidLeverArm { value: lever_arm });
         }
-        Self::from_zero_threshold(tol, tol.eps() / lever_arm)
+        Self::linear_at(tol, tol.eps() / lever_arm)
     }
 
-    /// The shared part of [`Band::linear`] / [`Band::angular_at`]: the
-    /// band (t, K·t) for a coincidence threshold t, with K the run's
-    /// configured ambiguity multiplier ([`Tol::k`]
-    /// — ε-style once-per-run configuration since M2 PR 7; default
-    /// [`DEFAULT_K`] = 10). The pure scaling policy is
-    /// [`Band::from_thresholds`], unit-testable without the global.
-    fn from_zero_threshold(tol: Tol, zero: f64) -> Result<Self, BandError> {
-        Self::from_thresholds(zero, tol.k())
-    }
-
-    /// The pure scaling policy: the band (t, k·t) for a coincidence
-    /// threshold t and multiplier k (the funnel-test discipline in
-    /// `crate::tolerance` — testable without the global `OnceLock`).
+    /// The pure scaling policy behind all three tolerance-coupled
+    /// constructors: the band (t, k·t) for a coincidence threshold t and
+    /// multiplier k. It takes k as a number rather than off a witness,
+    /// which is what makes the scaling testable without the global
+    /// `OnceLock` (the funnel-test discipline in `crate::tolerance`);
+    /// [`Band::linear_at`] is this with k read off the run.
     fn from_thresholds(zero: f64, k: f64) -> Result<Self, BandError> {
         Self::new(zero, k * zero)
     }
@@ -898,6 +989,45 @@ pub struct Indeterminate {
 pub const COINCIDENCE_RECOURSE: &str =
     "declare the coincidence, move the geometry, or lower the tolerance";
 
+/// The one answer a refusal gives when the table that routes its
+/// recourse by predicate name does not carry the name that escalated:
+/// it NAMES the hole. Never a category asserted over the unknown name,
+/// never silence — both read as a statement about the escalation, and
+/// neither is one anybody made.
+///
+/// Every `Display` that routes a recourse by predicate name composes
+/// this on its fall-through arm. The home is here because the crates
+/// that route are `profile` and `sweep`, and this crate is the only
+/// ancestor they share: `sweep` depends on `profile`, `profile` on
+/// `geom-core` alone, so a sentence held in either of them is out of
+/// reach of the other.
+///
+/// **It reports an absence, never a denial.** The refusal it tails has
+/// already rendered [`Indeterminate`]'s own Display, which ends in
+/// [`COINCIDENCE_RECOURSE`] — real advice. So this says the TABLE holds
+/// nothing further, not that the advice above is not advice; a door
+/// that has DECIDED a predicate needs nothing further says so itself
+/// rather than reaching this sentence.
+///
+/// The predicate is spelled the way [`IndeterminatePayload`] spells it
+/// in the same refusal — `'name'`, and a nameless decision named as
+/// one — so one refusal does not carry two spellings of one field.
+#[derive(Debug, Clone, Copy)]
+pub struct MissingRecourse<'a>(pub Option<&'a str>);
+
+impl fmt::Display for MissingRecourse<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded")?,
+            None => f.write_str("no recourse is recorded for this unnamed decision")?,
+        }
+        f.write_str(
+            ": the shared clause above is all this door can say about it, and that absence \
+             is a gap in the error table rather than a finding that nothing further applies",
+        )
+    }
+}
+
 /// Borrowed margin-payload view of an [`Indeterminate`]: the predicate
 /// name, the margin/enclosure data, and the band — WITHOUT the shared
 /// recourse tail. For per-site Display impls that compose the
@@ -1101,12 +1231,17 @@ mod tests {
     use proptest::prelude::*;
 
     // Global-state discipline (see `crate::tolerance`'s test module):
-    // everything in this module is pure — bands are built with explicit
-    // thresholds via `Band::new`, never via `Band::linear`/`angular_at`,
-    // which would force the global `Tolerance` and race the lib test
-    // binary's single designated global-touching test. The tolerance-
-    // coupled constructors are covered in their own integration-test
-    // binary (`tests/band_tolerance.rs`), i.e. their own process.
+    // bands here are built with explicit thresholds via `Band::new` or
+    // the pure `Band::from_thresholds`, never via `Band::linear` /
+    // `Band::angular_at`, which derive ε from the global `Tolerance`
+    // and would race the lib test binary's single designated
+    // global-touching test. The one exception is the `linear_at`
+    // agreement row, which READS the witness (`Tol::witness().k()`) and
+    // never commits a value: every run reaches the same committed
+    // tolerance, so there is nothing to race. Anything that needs a
+    // PARTICULAR tolerance — both arms of the constructors' `# Errors`
+    // included — lives in `tests/band_tolerance.rs`, which re-execs a
+    // child process per row.
     //
     // The spec-pinning test here is `f64_boundary_table`: it nails every
     // closure choice at the exact thresholds. The proptests below are
@@ -1309,10 +1444,11 @@ mod tests {
         }
     }
 
-    /// The pure scaling policy behind `Band::linear`/`angular_at` (the
-    /// global-coupled wrappers are tested in `tests/band_tolerance.rs`).
+    /// The pure scaling policy the three tolerance-coupled constructors
+    /// share (the constructors themselves, and both reachable arms of
+    /// their `# Errors`, are tested in `tests/band_tolerance.rs`).
     #[test]
-    fn from_zero_threshold_scales_by_ambiguity_k() {
+    fn from_thresholds_scales_by_ambiguity_k() {
         let band = Band::from_thresholds(2.5e-7, DEFAULT_K).unwrap();
         assert_eq!(band.zero(), 2.5e-7);
         assert_eq!(band.escalate(), DEFAULT_K * 2.5e-7);
@@ -1321,12 +1457,59 @@ mod tests {
         // of f64::MAX overflows the escalate product to infinity and is
         // rejected as a typed error, not a silently invalid band.
         assert_eq!(
-            Band::from_zero_threshold(Tol::witness(), f64::MAX),
+            Band::from_thresholds(f64::MAX, DEFAULT_K),
             Err(BandError::InvalidValue {
                 field: BandField::Escalate,
                 value: f64::INFINITY,
             })
         );
+    }
+
+    /// **The door and the spelling it replaces are the same band.**
+    /// `Band::linear_at(tol, eps)` is `Band::new(eps, tol.k() * eps)`,
+    /// bit for bit, at whatever K the run is configured at — which is
+    /// what lets the suites that open-coded the product point here
+    /// without moving a threshold.
+    ///
+    /// Reads the committed tolerance through `Tol::witness` and never
+    /// initializes it: K is read off the run rather than written here,
+    /// so the row holds at every point of the CI's `CAD_TOLERANCE_EPS`
+    /// matrix, and `tests/ambiguity_k_env.rs` is what exercises a K
+    /// other than the default at all — it re-execs at K = 25, and
+    /// nothing in `.github/` or `scripts/` varies K.
+    #[test]
+    fn linear_at_agrees_with_the_inline_spelling() {
+        let tol = Tol::witness();
+        let k = tol.k();
+        for eps in [1e-12, 1e-9, 1e-6, 1.0, 2.5e-7, tol.eps()] {
+            assert_eq!(
+                Band::linear_at(tol, eps),
+                Band::new(eps, k * eps),
+                "eps = {eps:e}"
+            );
+            let band = Band::linear_at(tol, eps).expect("a band at a sane eps and the run's K");
+            assert_eq!(band.zero(), eps);
+            assert_eq!(band.escalate(), k * eps);
+        }
+        // At the run's own ε it IS the run's linear band — the door
+        // differs from `Band::linear` in where ε comes from, nothing
+        // else.
+        assert_eq!(Band::linear_at(tol, tol.eps()), Band::linear(tol));
+
+        // The ε is the CALLER's, so unlike `Band::linear` this door can
+        // be handed one no tolerance would have committed — refused on
+        // `zero`, and refused identically by the spelling it replaces.
+        for bad in [0.0, -1.0, f64::INFINITY] {
+            assert_eq!(
+                Band::linear_at(tol, bad),
+                Err(BandError::InvalidValue {
+                    field: BandField::Zero,
+                    value: bad,
+                }),
+                "eps = {bad:?}"
+            );
+            assert_eq!(Band::linear_at(tol, bad), Band::new(bad, k * bad));
+        }
     }
 
     /// `Band::angular_at` validates the lever arm *before* it reads the
@@ -1483,10 +1666,9 @@ mod tests {
             )
         );
 
-        // The interval variant's wording (the variant itself is not
-        // feature-gated — it is constructed here directly; the interval
-        // scalar that produces it organically lives behind the `interval`
-        // feature and has its own tests).
+        // The interval variant's wording; it is constructed here
+        // directly, because the interval scalar that produces it
+        // organically has its own tests.
         let enclosure = Indeterminate {
             margin: MarginDiag::Enclosure {
                 lo: -2e-9,

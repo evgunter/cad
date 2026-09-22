@@ -2,8 +2,9 @@
 id: baseline-sizing-census-pointers-stale
 kind: issue
 title: Seven mentions of tools/tess-lint/tests/baseline_sizing_census.rs survive the file, one of them in code; and one line citation had already moved
-status: open
+status: closed
 opened: 2026-09-08
+closed: 2026-09-16
 ---
 
 
@@ -135,3 +136,60 @@ Moved from `work/meter/` to `work/instr/` by `git mv` when METER's exit
 walk opened the successor (`docs/METER-EXIT-WALK.md` §4, ratified by Ev on
 2026-09-08 at PR #2212). Id, header and body unchanged; the directory is
 the claim. This row is one of the twenty on INSTR's opening slate.
+
+## Re-swept at the fix (2026-09-16), and four of the seven resolved by deletion
+
+The citations above were taken at `origin/main` merged at `ef3edaa3f`,
+when `work/meter/` still existed. **METER's closing sweep deleted that
+directory**, so rows 4, 5, 6 and 7 — every `work/meter/` row — went
+with it. They are not fixed; they stopped existing. The headline
+"seven mentions across six files" is therefore a figure this row
+reported on the day it reported it, and it is kept as one; what
+follows is the live list.
+
+Re-run at merge base `f8fbf916e`, with the pattern this row states:
+`grep -rn "baseline_sizing_census\|baseline_census"` over `*.rs`
+`*.md` `*.toml` `*.py` `*.yml` `*.yaml` `*.sh` from the repo root,
+plus the framing pattern. **Counted in the headline's own unit —
+mentions, and the files carrying them — the live figure is five
+mentions across four files**, plus the two path-free framing sentences
+(both in `docs/TESS-BUDGET.md`, which the four already counts). Every
+one of the five is fixed here. The bullets below group them by repair,
+so a bullet is not a mention:
+
+- `tools/tess-lint/tests/report_columns_pin.rs` — the one in code —
+  and `docs/TESS-BUDGET.md`'s two, all three re-pointed at
+  `the_committed_baseline_sizes_this_much` in
+  `tools/tess-lint/tests/baseline_census.rs`, by test name rather than
+  by line.
+- `docs/TESS-BUDGET.md`'s *"the neighbouring `baseline_census.rs`"* and
+  *"the two test files together"* — the claim survives, the mechanism
+  does not: one file, two censuses.
+- `work/instr/tess-lint-ungated-columns-fold-silently.md` — open, so
+  its pointer follows.
+- `work/instr/baseline-sizing-census-second-copy.md` — judged a dated
+  record whose POINTER still had to follow, on
+  `baseline_census.rs`'s own precedent (its dated list's paths
+  followed a tracker re-home while its figures stayed frozen). The
+  provenance claim is unchanged; the path now names where the sentence
+  went.
+
+Three further files carry the stem and are **NOT stale**, listed so a
+later reader does not re-file them: `work/instr/plan.md` names the
+deleted file AS DELETED, which is a record and not a pointer;
+`work/STATUS.md` is generated from this row's own title; and this row's
+own body names it nine times because the deleted path is its subject.
+None of the three is counted in the five.
+
+One further change rides here and is a NOUN, not a pointer.
+`docs/TESS-BUDGET.md`'s *"passes both tests silently"* is listed above
+as still true and still is — there are still two censuses. But
+`baseline_census.rs` holds seven `#[test]`s, so after the fold *"both
+tests"* reads correctly only to someone who already knows "test" means
+"census"; it now says *"both censuses"*, matching the two sentences
+this row re-pointed beside it.
+
+The line-citation half of this row —
+`work/instr/baseline-census-partition-assert-cannot-fail`'s
+`:228-233` range — was NOT done here: that file is another unit's,
+running concurrently, and the fix was handed to it.

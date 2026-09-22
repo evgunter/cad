@@ -116,7 +116,13 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
                 })
             }
         }
-        Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+        // A spiric is neither a rim nor a meridian traversal of its
+        // torus chart (its azimuth AND its minor angle both move), so it
+        // opens no iso side. The mesh's chord pass never asks this of a
+        // spiric (its chord arm sizes the carrier itself), so the
+        // `None` here is read by the coherence walk alone
+        // (`NonIsoCarrier`).
+        Curve3::Ellipse { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
     }
 }
 

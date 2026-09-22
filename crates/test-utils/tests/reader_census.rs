@@ -156,6 +156,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
+        path: "crates/editor-core/tests/msolve7_member_residue.rs",
+        disposition: Shared, // one-environment-per-solve build count over
+                             // mate/member.rs and mate/solve.rs, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/wire_entity_door.rs",
         disposition: Shared, // entity-door and entity-kind-carrier census over
                              // eval/wire.rs and eval/mod.rs, code view
@@ -169,6 +174,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/geom-brep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/geom-brep/tests/kstats_escalation_channel.rs",
+        disposition: Shared, // op-minted `Indeterminate` scan, code view
     },
     Entry {
         path: "crates/geom-brep/tests/pcurve_conic.rs",
@@ -185,6 +194,15 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/geom-core/tests/flagged_census.rs",
         disposition: Shared, // call census, code view + offsets
+    },
+    Entry {
+        path: "crates/geom-core/tests/ring_endpoint_census.rs",
+        disposition: Shared, // ring endpoint-read census, code view + balanced_end
+    },
+    Entry {
+        path: "crates/geom-core/tests/sym_rule_f_rows.rs",
+        disposition: Shared, // `copysign` mint-site register over crates/*/src,
+                             // code view, each file cut at its test module
     },
     Entry {
         path: "crates/geom/tests/all.rs",
@@ -211,7 +229,14 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to
                              // read; the kind words in src/node_kind.rs: literal view alone;
                              // the literal census of src/errors.rs: code, literal and comment
-                             // views together, so a literal adjoining a comment is told apart
+                             // views together, so a literal adjoining a comment is told apart;
+                             // the roster's and the blind-spot list's test names, re-derived
+                             // against this file's own source: code view, which is what keeps
+                             // a name written in prose from answering yes; and the instance
+                             // attributes pncad.pyi declares, which is a Python stub and no
+                             // Rust source at all — it is read by line prefix and triple-quote
+                             // parity, with tests/test_stubs.py's `ast` walk the second reader
+                             // of that one convention (work/census/one-stub-convention-…)
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
@@ -240,6 +265,13 @@ const LEDGER: &[Entry] = &[
         path: "crates/profile/tests/raw_door_census.rs",
         disposition: Shared, // production-writer census + the raw door's own
                              // gate, code+literal view
+    },
+    Entry {
+        path: "crates/profile/tests/recourse_roster.rs",
+        disposition: Shared, // the dispatch-order row reads path.rs's own match
+                             // patterns, code+literal view. The decide-site walk
+                             // it also runs is source::predicate_census, so that
+                             // half reads nothing here
     },
     Entry {
         path: "crates/profile/tests/seal.rs",
@@ -352,12 +384,16 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
-        path: "crates/topo/tests/readback_sense_kind.rs",
-        disposition: Shared, // the query seat's body, code view
+        path: "crates/topo/tests/r1_lane1_bracket_read_census.rs",
+        disposition: Shared, // validate.rs's bracket reads, code view
     },
     Entry {
-        path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
-        disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
+        path: "crates/topo/tests/certified_enclosure_impl_census.rs",
+        disposition: Shared, // CertifiedEnclosure impls vs wiring rows, code view
+    },
+    Entry {
+        path: "crates/topo/tests/readback_sense_kind.rs",
+        disposition: Shared, // the query seat's body, code view
     },
     Entry {
         path: "crates/topo/tests/shell_tolerance_chain.rs",

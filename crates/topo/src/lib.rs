@@ -237,6 +237,14 @@ pub mod surgery;
 // exists whenever `debug_assertions` does.
 #[doc(hidden)]
 mod test_support_impl;
+// The Euler-op fixture family, a sibling of the module above rather
+// than a section of it: nothing here has a non-test consumer, so it is
+// gated on the test arms alone and its file-level `#![allow]` stays
+// exactly as wide as the code that earns it. Its own docs state what
+// separates it from `fixtures`.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_fixtures;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
@@ -249,12 +257,25 @@ mod test_support_impl;
 // a rustdoc directive, not a visibility one.
 #[doc(hidden)]
 pub mod test_support {
-    //! The public door onto [`crate::test_support_impl`], open exactly
-    //! when a test needs to name its contents from another crate. That
-    //! module's docs state both gates and why they differ.
+    //! The public door onto this crate's test vocabulary, open exactly
+    //! when a test needs to name it from another crate. Two modules
+    //! come through it: [`crate::test_support_impl`], whose docs state
+    //! both gates, why they differ and which home a new item belongs
+    //! in, and [`crate::test_support_fixtures`], the Euler-op fixture
+    //! family, which carries this module's own gate exactly.
     use geom_core::Real;
 
     use crate::body::Body;
+    // `UNIT_SQUARE` is deliberately NOT here: `tests/cube_doors_agree.rs`
+    // is the only suite that wants the literal, and it restates it on
+    // purpose — a guard that reached for the constant the builder uses
+    // would be comparing that constant against itself.
+    pub use crate::test_support_fixtures::{
+        CubeOps, CylFrame, FaceGeometry, Prism, PrismOps, StraddleSeat,
+        assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet, declined_cube,
+        describe_as_intersections, face_surface_of_he, flush_declarations, geometric_cube, line,
+        mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
+    };
     pub use crate::test_support_impl::ArenaCounts;
 
     /// The topology-arena lengths of `body`. A free function because
@@ -283,12 +304,12 @@ pub use boolean::{
     ContactRecords, ContainError, CurveContact, FaceContainment, FacePairDeclaration,
     NullEdgePairRecord, Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc,
     PlaneEqError, PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment,
-    SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment,
-    VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
-    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
-    flush_pair_relation, insert_void, insert_voids, intersect, intersect_with, oriented_plane_eq,
-    point_in_solid, subtract, subtract_with, tangent_locus, tangent_pair_relation, union,
-    union_with,
+    SolidFaces, SweepStrategy, SweepTrace, TangentLocus, TangentLocusError, VfContact,
+    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, boolean_op_with,
+    boolean_reduce, boolean_reduce_declared, carrier_eq, contfp, curved_face_containment,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
+    oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of, subtract,
+    subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
 };
 pub use surgery::Surgery;
 // The contact vocabulary (C3/C4), defined once at the lowest crate
@@ -318,7 +339,7 @@ pub use chart::{Chart, ChartKind};
 pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
-    ChartOverlap, ChartRegionError, ChartRegionLane, WITNESS_BUDGET, WitnessBudget,
+    ChartOverlap, ChartRegionError, RegionLane, WITNESS_BUDGET, WitnessBudget,
     chart_region_overlap, declared_pair_overlap,
 };
 pub use coherence::{
@@ -346,9 +367,9 @@ pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 pub use props::{
-    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
-    ShellClassification, ShellClassifyError, ShellRole, SignCertificate, VolumeEnclosure,
-    classify_shells, classify_shells_of, mass_properties,
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
+    ShellClassifyError, ShellRole, SignCertificate, VolumeEnclosure, classify_shells,
+    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -377,11 +398,11 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
-    StaleDeclaration, ValidationError, contact_marks, contact_marks_certified,
-    contact_marks_declared, contact_marks_declared_certified, validate, validate_closed,
+    StaleDeclaration, ValidationError, contact_marks, contact_marks_declared,
+    contact_marks_declared_structural, contact_marks_structural, validate, validate_closed,
     validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
     validate_geometric_declared, validate_geometric_structural,
     validate_geometric_structural_declared, validate_pseudomanifold,
-    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_certified,
-    validate_pseudomanifold_certified,
+    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_structural,
+    validate_pseudomanifold_structural,
 };

@@ -11,8 +11,8 @@ use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
     Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords,
-    PropsQuadLane, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
-    SweepStrategy, boolean_op_with, shell_open, split,
+    ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy,
+    boolean_op_with, shell_open, split,
 };
 
 use crate::verb::{Arity, Verb, VerbKind};
@@ -234,7 +234,7 @@ impl<T: Real> fmt::Display for VerbError<T> {
 
 impl<T: Real> core::error::Error for VerbError<T> {}
 
-impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
+impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb<T> {
     /// **Run this one-operand verb against its operand.**
     ///
     /// The operand comes in borrowed, never in the payload. Every
@@ -430,7 +430,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
 /// It is a second `impl` block rather than a fifth method on the one
 /// above because the op door it dispatches to asks for more of the
 /// scalar than the rest of the vocabulary does: `topo::shell_open` is
-/// `Decide + PropsQuadLane + CertifiedBounds`, because a shell
+/// `Decide + CertifiedBounds + AtRestPolicy`, because a shell
 /// validates what it built and the `+V` invariant of that validation is
 /// a certified claim. Tightening the other block's header to match is
 /// not available — `geom-core`'s `Bounds` allowlist entry for this file
@@ -448,7 +448,7 @@ impl<T: Decide + Bounds + geom_brep::PcurveFittedLane> Verb<T> {
 /// What `Arity` does speak, unchanged, is the mismatch at every other
 /// door: a `Shell` handed to [`Verb::run`], [`Verb::run_pair`],
 /// [`Verb::run_profile`] or [`Verb::run_split`] refuses by name.
-impl<T: Decide + PropsQuadLane + CertifiedBounds> Verb<T> {
+impl<T: Decide + CertifiedBounds + topo::AtRestPolicy> Verb<T> {
     /// **Run this hollowing verb against its operand body.**
     ///
     /// The operand comes in borrowed, never in the payload, exactly as

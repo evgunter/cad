@@ -4,6 +4,8 @@ kind: issue
 title: Thirteen placeholder-or-described reads outside tier-3 check 1 hand a described net carrying poison to the described arm
 status: open
 opened: 2026-09-05
+priority: P0
+cost: H
 ---
 
 

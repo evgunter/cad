@@ -3,6 +3,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
+use pncad::prelude::MM;
 
 use crate::app::ViewerBehavior;
 use crate::frame;
@@ -44,18 +45,25 @@ impl ViewerBehavior<'_> {
         // `scene_radius * 0.05`, so `{:.1}` read `band 0.0–…` for every
         // part under about a millimetre — a distance the camera refuses,
         // stated as one it is at. The lengths go through the crate's
-        // render (`readout::number`); the angles stay a format.
+        // render (`props::written_text`, over `readout::number`); the
+        // angles stay a format.
+        //
+        // **The angles are not the class below either**, and that is
+        // the reachability half rather than a taste: `to_degrees` is a
+        // multiplication up by 180/π, but `Camera::yaw` answers inside
+        // `[−π, π)` and `Camera::pitch` inside `±(π/2 − margin)`, so
+        // neither product can leave the type. A multiplication up is
+        // only the defect when nothing bounds what it multiplies.
         ui.label(format!(
             "camera yaw {:.1}°, pitch {:.1}°",
             self.camera.yaw().to_degrees(),
             self.camera.pitch().to_degrees()
         ));
-        let mm = |metres: f64| crate::readout::number(metres * 1000.0);
         ui.label(format!(
-            "distance {} mm (band {}–{})",
-            mm(self.camera.distance()),
-            mm(self.camera.min_distance()),
-            mm(self.camera.max_distance())
+            "distance {} (band {}–{})",
+            camera_mm(self.camera.distance()),
+            camera_mm(self.camera.min_distance()),
+            camera_mm(self.camera.max_distance())
         ));
         ui.separator();
         ui.label(format!("history: {} states", self.session.history().len()));
@@ -82,18 +90,57 @@ impl ViewerBehavior<'_> {
     }
 }
 
+/// One camera distance, in millimetres, as text a person reads.
+///
+/// **The millimetre is the unit table's, not a literal.** The
+/// metre-to-millimetre factor has two named homes in this crate —
+/// [`crate::scene::MM_PER_METRE`] and the `mm` row of the closed unit
+/// table, which [`crate::props::in_written`] divides by — and a third
+/// spelling here would be a conversion nothing holds to either. This
+/// reads the table's, through [`crate::props::written_text`], which
+/// also carries the symbol, so the unit is said once per number
+/// rather than once per sentence.
+///
+/// **And it ASKS for the millimetre value rather than forming it.** A
+/// camera distance above `f64::MAX * MILLI` metres has no millimetre
+/// value at all, and `inf` names no distance;
+/// [`crate::props::written`] is the question and
+/// [`crate::props::no_reading`] is the answer.
+///
+/// **That is the half of this render owns, and there is another it
+/// does not.** `Camera::max_distance` is
+/// `scene_radius * MAX_DISTANCE_FACTOR`, and `Camera::new` admits
+/// every finite `scene_radius`, so from about `1.798e306` m up the
+/// band's top arrives here ALREADY infinite — a value this function
+/// can only report, since no bound inside a render reaches a product
+/// formed above it. The bound belongs at `Camera::new`, beside the
+/// finiteness check it already runs on that argument, and is filed as
+/// `camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite`.
+fn camera_mm(metres: f64) -> String {
+    crate::props::written_text(metres, MM.def())
+}
+
 /// How wide the δ field is, in points.
 ///
-/// Wide enough for the longest text
-/// [`crate::scene::DisplayTolerance::render_mm`] can return — which is
-/// [`crate::readout::MAX_CHARS`] characters, the bound the crate's
-/// render searches under — because a render the field cannot show is
-/// clipped, and a clipped render reads as a different δ, which is the
-/// defect the render's own bound exists to prevent.
-/// `the_field_shows_the_longest_render` measures it against egui's own
-/// font metrics rather than asserting it in prose. A pane narrower than
-/// this clips anyway; that is every field in the chrome and is not this
-/// number's to fix.
+/// Wide enough for [`crate::readout::MAX_CHARS`] characters, the bound
+/// the crate's render searches under — because a render the field
+/// cannot show is clipped, and a clipped render reads as a different δ,
+/// which is the defect the render's own bound exists to prevent.
+/// `the_field_shows_every_render_the_bound_covers` measures it against
+/// egui's own font metrics rather than asserting it in prose.
+///
+/// **What the bound does not cover is the top of `f64`.** Four
+/// significant figures round out of the type from `1.7975e308` up, so
+/// [`crate::readout::number`] spells a value there exactly instead, at
+/// twenty-two characters; a δ whose millimetre product lands in that
+/// band is shown clipped here. That is the right way round for a field:
+/// the draft holds the whole text and commits the whole text, so a
+/// clipped exact render round-trips where `1.798e308` committed
+/// infinity. Sizing this box for a δ within a decade of `f64::MAX` would
+/// widen every document's chrome for a tessellation no document has.
+///
+/// A pane narrower than this clips anyway; that is every field in the
+/// chrome and is not this number's to fix.
 const FIELD_WIDTH: f32 = 88.0;
 
 /// The δ field: the display tolerance as a number the user types, in
@@ -202,10 +249,46 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::delta_field;
+    use super::{camera_mm, delta_field};
     use crate::frame;
-    use crate::scene::DisplayTolerance;
+    use crate::scene::{DisplayTolerance, MM_PER_METRE};
     use eframe::egui;
+
+    /// **The camera readout reads its factor from the unit table, and
+    /// asks whether the product exists.**
+    ///
+    /// Two claims in one row because they are one line of code. The
+    /// factor: every distance the readout shows agrees with
+    /// [`MM_PER_METRE`], the other named home of the same conversion,
+    /// so a third spelling here would red rather than drift. The
+    /// product: a camera distance above `f64::MAX * MILLI` metres has
+    /// no millimetre value, and the render says which notation could
+    /// not name it instead of spelling `inf`.
+    ///
+    /// **The pair, because neither half says anything alone.** A
+    /// render that refused everything would satisfy the second claim
+    /// and fail the first, and one that multiplied blindly satisfies
+    /// the first and fails the second.
+    #[test]
+    fn the_camera_readout_writes_metres_in_the_tables_millimetre() {
+        for metres in [1.0e-6, 0.05, 1.0, 1234.5, 1.0e300] {
+            assert_eq!(
+                camera_mm(metres),
+                format!("{} mm", crate::readout::number(metres * MM_PER_METRE)),
+                "the readout's millimetre disagrees with the crate's other one at {metres} m"
+            );
+        }
+        let unnameable = 1.0e306;
+        assert!(
+            (unnameable * MM_PER_METRE).is_infinite(),
+            "this distance is supposed to have no millimetre value"
+        );
+        assert_eq!(camera_mm(unnameable), "no mm reading");
+        assert!(
+            !camera_mm(f64::INFINITY).contains("inf"),
+            "and a band top that arrives already infinite is still not spelled as a distance"
+        );
+    }
 
     /// One δ field, one button to tab the focus onto, and the three
     /// values the field writes.
@@ -418,17 +501,24 @@ mod tests {
         assert_eq!(field.request, Some(0.05 * 1.0e-3));
     }
 
-    /// **The field can show the longest render there is.** A render
-    /// wider than the box is clipped, and a clipped render reads as a
-    /// different δ — so the width is measured against egui's own font
-    /// metrics for the widest text `crate::readout::MAX_CHARS`
+    /// **The field can show every render the character bound covers.** A
+    /// render wider than the box is clipped, and a clipped render reads
+    /// as a different δ — so the width is measured against egui's own
+    /// font metrics for the widest text `crate::readout::MAX_CHARS`
     /// characters can spell out of the alphabet a render uses, rather
     /// than asserted in prose.
+    ///
+    /// **It is the bound that is measured, not the render's worst
+    /// case**, and those are two different things at the top of `f64`:
+    /// there the four-figure arm rounds out of the type and the render
+    /// is the exact twenty-two-character spelling, which this field
+    /// clips. `FIELD_WIDTH`'s own doc is where that is argued; this row
+    /// would not go red for it, so it does not claim it.
     ///
     /// The chrome sets no text styles of its own, so the headless
     /// context's metrics are the application's.
     #[test]
-    fn the_field_shows_the_longest_render() {
+    fn the_field_shows_every_render_the_bound_covers() {
         let ctx = egui::Context::default();
         let input = egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(

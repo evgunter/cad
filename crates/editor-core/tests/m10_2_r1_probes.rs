@@ -37,14 +37,19 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
 }
 
 fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
-    apply(doc, edit, Tol::witness())
+    apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
 
 fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, Tol::witness())
-        .unwrap_or_else(|e| panic!("insert refused: {e}"));
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode { node },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap_or_else(|e| panic!("insert refused: {e}"));
     (applied.doc, applied.record.minted.expect("insert mints"))
 }
 
@@ -1027,7 +1032,7 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     let corrupt = text.replace(&target, &replacement);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
-            measured: Some(Dimension::Length),
+            measured: Dimension::Length,
             bound: Dimension::Angle,
             ..
         })) => {}
@@ -1041,8 +1046,8 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     assert_eq!(text.matches(target).count(), 1, "{target:?} must be unique");
     let corrupt = text.replace(target, "\"measure\": 0");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionBound { measured: None, .. })) => {}
-        other => panic!("a non-measure target must refuse AssertionBound, got {other:?}"),
+        Err(PersistError::Snapshot(SnapshotError::AssertionTarget { .. })) => {}
+        other => panic!("a non-measure target must refuse AssertionTarget, got {other:?}"),
     }
 
     // (c) A reference whose minting node does not exist. The refs are
@@ -1082,10 +1087,11 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
             node: Node::measure(expr, at_mint([bottom, top])).expect("indices in range"),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("an undeclared parameter refuses");
     assert!(
-        matches!(err, EditError::UnknownPayloadParam { .. }),
+        matches!(err, EditError::PayloadUnknownDocParam { .. }),
         "got {err:?}"
     );
 }

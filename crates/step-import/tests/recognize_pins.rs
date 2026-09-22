@@ -399,11 +399,19 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
         // **First-class, end to end.** The three exactly-planar walls
         // promote, the arc wall stays NURBS under the honest envelope,
-        // the seam between them certifies through the declare-and-check
-        // plane × NURBS rung, and every face charts: the rational
-        // wall's rims through the arc iso image and its seam through
-        // the boundary-column one.
-        Ok(StepImport::Solid { body, .. }) => {
+        // every face charts, and the seam posture is the band's own:
+        // at 1e-9 the seam certifies through the declare-and-check
+        // plane × NURBS rung; at a coarser ε_in the straight corner
+        // carriers additionally promote to LINE (#388 — their Greville
+        // map fold is ~1.3e-7 at unit scale, between the two bands)
+        // and both arc-wall seams adopt through the banded wall-column
+        // candidate instead, charting through the seam-class Line
+        // limb. Both postures pinned below.
+        Ok(StepImport::Solid {
+            body,
+            curve_promotions,
+            ..
+        }) => {
             assert!(
                 eps >= 1e-9,
                 "the seam's certified sup is ~6.3e-12 m — a first-class import at a \
@@ -411,38 +419,95 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
             );
             topo::validate_geometric(&body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
-            let seams = plane_nurbs_seams(&body);
-            assert_eq!(
-                seams.len(),
-                1,
-                "exactly the arc wall's seam takes the declare-and-check rung: {seams:?}"
-            );
-            let (curve, _, wall) = &seams[0];
-            let stored: Vec<topo::Pcurve<f64>> = body
-                .edges()
-                .filter(|(_, e)| e.curve == *curve)
-                .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
+            let line_promotions: Vec<_> = curve_promotions
+                .iter()
+                .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
                 .collect();
-            assert_eq!(
-                stored.len(),
-                1,
-                "the NURBS wall charts the seam; the plane derives on demand: {stored:?}"
-            );
-            let topo::Pcurve::IsoLine { p0, pl } = stored[0] else {
-                panic!("a seam's chart image is the wall's boundary iso line: {stored:?}");
-            };
-            assert_eq!(pl.x, 0.0, "a seam image holds u constant: {pl:?}");
-            let (du0, du1) = wall.knots_u().domain();
-            assert!(
-                p0.x == du0 || p0.x == du1,
-                "on the chart's OWN boundary column: u = {} of [{du0}, {du1}]",
-                p0.x
-            );
-            println!(
-                "M8-4 seam #130 @ eps={eps:e}: first-class; seam charted at u = {}",
-                p0.x
-            );
+            let seams = plane_nurbs_seams(&body);
+            if line_promotions.is_empty() {
+                assert_eq!(
+                    seams.len(),
+                    1,
+                    "exactly the arc wall's seam takes the declare-and-check rung: {seams:?}"
+                );
+                let (curve, _, wall) = &seams[0];
+                let stored: Vec<topo::Pcurve<f64>> = body
+                    .edges()
+                    .filter(|(_, e)| e.curve == *curve)
+                    .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+                    .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
+                    .collect();
+                assert_eq!(
+                    stored.len(),
+                    1,
+                    "the NURBS wall charts the seam; the plane derives on demand: {stored:?}"
+                );
+                let topo::Pcurve::IsoLine { p0, pl } = stored[0] else {
+                    panic!("a seam's chart image is the wall's boundary iso line: {stored:?}");
+                };
+                assert_eq!(pl.x, 0.0, "a seam image holds u constant: {pl:?}");
+                let (du0, du1) = wall.knots_u().domain();
+                assert!(
+                    p0.x == du0 || p0.x == du1,
+                    "on the chart's OWN boundary column: u = {} of [{du0}, {du1}]",
+                    p0.x
+                );
+                println!(
+                    "M8-4 seam #130 @ eps={eps:e}: first-class; seam charted at u = {}",
+                    p0.x
+                );
+            } else {
+                assert_eq!(
+                    line_promotions.len(),
+                    4,
+                    "the four straight corner carriers promote: {line_promotions:?}"
+                );
+                for p in &line_promotions {
+                    assert!(
+                        p.residual <= eps && p.residual > 1e-9,
+                        "the corner promotion is the coarse band's own fold: {:e}",
+                        p.residual
+                    );
+                }
+                assert!(
+                    seams.is_empty(),
+                    "the promoted seams hold wall-column candidates; the declare-and-check \
+                     rung has no takers: {seams:?}"
+                );
+                let wall = body
+                    .surfaces()
+                    .find_map(|(_, s)| match s {
+                        geom::Surface::Nurbs(n) if !n.is_placeholder() => Some((**n).clone()),
+                        _ => None,
+                    })
+                    .expect("the arc wall stays NURBS at every band");
+                let (du0, du1) = wall.knots_u().domain();
+                let images: Vec<_> = body
+                    .edges()
+                    .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+                    .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
+                    .filter_map(|p| match p {
+                        topo::Pcurve::IsoLine { p0, pl } if pl.x == 0.0 => Some(p0),
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(
+                    images.len(),
+                    2,
+                    "both promoted seams chart as u-constant iso lines: {images:?}"
+                );
+                for p0 in &images {
+                    assert!(
+                        p0.x == du0 || p0.x == du1,
+                        "on the chart's OWN boundary columns: u = {} of [{du0}, {du1}]",
+                        p0.x
+                    );
+                }
+                println!(
+                    "M8-4 seams @ eps={eps:e}: promoted LINE corners; both seams charted \
+                     on their boundary columns"
+                );
+            }
         }
         // The ε-fine posture, UNCHANGED by the gate: at 1e-12 the
         // envelope's own slack refuses during adoption, so the body

@@ -60,7 +60,9 @@
 //! | `Cone` | `CONICAL_SURFACE` (apex placement, `radius = 0`) | yes as a LOCUS; `v` differs by the fixed factor cos α (STEP's `v` is axial, the kernel's is slant arc length) — invisible without pcurves |
 //! | `Sphere` | `SPHERICAL_SURFACE` | yes, identity |
 //! | `Torus` | `TOROIDAL_SURFACE` | yes, identity |
-//! | `Nurbs` | — | refuses (see below) |
+//! | `Nurbs` (described) | `B_SPLINE_SURFACE_WITH_KNOTS`, or the `RATIONAL_B_SPLINE_SURFACE` complex instance when any weight ≠ 1 | yes, structure for structure |
+//! | `Nurbs` (mvfs placeholder) | — | refuses (see below) |
+//! | `Approx` | — | refuses (see below) |
 //!
 //! | kernel `Curve3` | AP214 entity | exact? |
 //! |---|---|---|
@@ -86,10 +88,15 @@
 //! native entity wins wherever it exists, which for the kernel's conic
 //! rungs is everywhere.
 //!
-//! **What still refuses**, typed and named, never silently degraded:
-//! the mvfs "no description yet" NURBS placeholder
-//! ([`StepExportError::UnsupportedSurface`]) — a mid-surgery fact,
-//! never exportable. A DESCRIBED NURBS surface exports natively as
+//! **What still refuses**, typed and named, never silently degraded,
+//! both through [`StepExportError::UnsupportedSurface`]: the mvfs "no
+//! description yet" NURBS placeholder — a mid-surgery fact, never
+//! exportable — and an approximating surface (`Surface::Approx`),
+//! which refuses rather than printing its fit as though it were the
+//! described geometry (AP214 cannot carry "this B-spline stands in
+//! for an offset, to within ε", so the certificate that makes the fit
+//! honest would be lost; `OFFSET_SURFACE` is its own conversation).
+//! A DESCRIBED NURBS surface exports natively as
 //! `B_SPLINE_SURFACE_WITH_KNOTS` since M6-3 (the loft walls; the
 //! rational complex instance for weighted nets), and a described
 //! NURBS carrier as `B_SPLINE_CURVE_WITH_KNOTS` (the loft seams).
@@ -328,10 +335,11 @@ pub enum StepExportError {
         /// The rejected value.
         value: f64,
     },
-    /// A key held by the body fails to resolve, or the half-edge
-    /// structure is incoherent — corrupt input, surfaced rather than
-    /// trusted (the structural validators own the diagnosis; this is
-    /// the fail-loud surface).
+    /// A key held by the body fails to resolve, the half-edge
+    /// structure is incoherent, or a shell carries no faces where the
+    /// schema's cardinality demands at least one — corrupt input,
+    /// surfaced rather than trusted (the structural validators own the
+    /// diagnosis; this is the fail-loud surface).
     Corrupt {
         /// What failed to resolve (static description).
         what: &'static str,
@@ -355,7 +363,11 @@ impl fmt::Display for StepExportError {
             Self::UnsupportedSurface { face, kind } => write!(
                 f,
                 "step export: face {face:?}'s surface ({kind}) has no printer in the \
-                 analytic subset (every elementary surface prints; NURBS faces do not)"
+                 analytic subset (every elementary surface prints, and a DESCRIBED \
+                 NURBS surface prints as B_SPLINE_SURFACE_WITH_KNOTS; what refuses \
+                 is the no-description-yet placeholder, which is a mid-surgery fact, \
+                 and an approximating surface, which refuses rather than printing \
+                 its fit as though it were the described geometry)"
             ),
             Self::UnsupportedCurve { edge, kind } => write!(
                 f,

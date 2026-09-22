@@ -558,8 +558,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut a = crate::fixtures::ops_cube(Tol::witness()).body;
-        let mut b = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut a = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let mut b = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -608,8 +608,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut abody = crate::fixtures::ops_cube(Tol::witness()).body;
-        let mut bbody = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let mut bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
         let contact = VvContact {
             a: VertexKey::default(),
             b: VertexKey::default(),
@@ -656,8 +656,8 @@ mod tests {
             sb,
             intersect: true,
         };
-        let mut abody = crate::fixtures::ops_cube(Tol::witness()).body;
-        let mut bbody = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut abody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let mut bbody = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
         // A and B sector fans on NON-parallel face planes (the germ
         // direction z×x = +y is uniquely within both — `germ_dir`
         // refuses coplanar sector pairs by design).

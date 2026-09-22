@@ -23,6 +23,28 @@
 //! on every geometry type and `map` on every leaf; a reader looking for
 //! "where does this crate lift X" finds it on X.
 //!
+//! # The fallible direction, and where it exists
+//!
+//! A lift can REFUSE where whether a component has an image is decided
+//! by the target scalar's TYPE rather than by any component's value —
+//! the lane → `f64` crossing is the one such caller in the tree. That
+//! direction is named `try_map`: the same structural walk with
+//! `f: Fn(T) -> Result<U, E>`, the first refusal returned and no
+//! component after it consulted.
+//!
+//! **It is deliberately partial, and the convention above does not
+//! promise it everywhere.** `try_map` exists on `Vec3`, `Mat3` and
+//! `Affine3` — whose `map`s are written AS it, so each walk's
+//! component placement is stated once for both directions — and on
+//! `profile`'s `SketchPlane`. The other three leaves (`Point2`,
+//! `Point3`, `Vec2`), `profile`'s `ProfileVertex`, and every
+//! `map_scalar` rung have no fallible twin, because nothing has asked
+//! for one. The rule is one name per direction, on the types that have
+//! that direction — not both names on every type; minting the rest
+//! ahead of a consumer is what
+//! `work/props/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`
+//! is measuring.
+//!
 //! # What a lift is, and is not
 //!
 //! A lift is a **structural map**: every scalar field goes through `f`,
@@ -154,6 +176,21 @@ impl<T: Real> Curve3<T> {
                 major: f(*major),
                 minor: f(*minor),
                 u_ref: u_ref.map(&f),
+            },
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => Curve3::Spiric {
+                center: center.map(&f),
+                axis: axis.map(&f),
+                u_ref: u_ref.map(&f),
+                major_radius: f(*major_radius),
+                minor_radius: f(*minor_radius),
+                offset: f(*offset),
             },
             Curve3::Nurbs(n) => Curve3::Nurbs(std::sync::Arc::new(n.map_scalar(&f))),
         }

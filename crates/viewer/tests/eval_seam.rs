@@ -366,6 +366,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
             expr: common::len(0.02),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the edit applies")
     .doc;
@@ -838,4 +839,56 @@ fn the_fit_seams_traffic_is_send() {
     assert_send::<FitRequest>();
     assert_send::<FitDone>();
     assert_send::<FitSubject>();
+}
+
+/// **A panic raised inside an egui frame is not swallowed** — the fact
+/// the crash ruling rests on, executed rather than assumed.
+///
+/// A crashed worker is announced by panicking on the UI thread, at the
+/// point of detection (`evalseam`'s coalescing machine). That site is
+/// inside `<ViewerApp as eframe::App>::ui`, which runs inside
+/// `egui::Context::run`, which runs inside eframe's winit event loop.
+/// **If anything up that stack caught the unwind, the loudest thing
+/// this crate does would be a no-op** — strictly worse than the silence
+/// it replaced, because the loudness would be a lie.
+///
+/// This row executes the layer nearest the panic: it plants one inside
+/// a panel closure and asserts the unwind leaves `Context::run` rather
+/// than being absorbed by egui's own frame bookkeeping. **What it does
+/// NOT execute** is eframe and winit, which have no headless door here;
+/// those were established by reading, at the pinned versions the
+/// manifest names: `egui`, `eframe`, `egui-winit` and `egui-wgpu`
+/// 0.36.1 contain no `catch_unwind` at all (eframe's only panic
+/// machinery is `web/panic_handler.rs`, a `set_hook` on the wasm
+/// build), and `winit` 0.30.13 has none on the linux backends this
+/// crate builds against — it catches on macOS and Windows only, and
+/// both re-raise (`macos/event_loop.rs`'s two `resume_unwind` sites,
+/// `windows/event_loop.rs`'s one).
+///
+/// So the runtime value that would make this row false is a toolkit
+/// UPGRADE that adds a catch, which is exactly the change that would
+/// make the crash announcement worthless and exactly what nothing else
+/// here would notice.
+#[cfg(feature = "app")]
+#[test]
+fn a_panic_inside_an_egui_frame_is_not_swallowed() {
+    // `Context::run_ui` is eframe's own per-frame call, at this
+    // version, and its closure argument is where `eframe::App::ui` —
+    // and so `ViewerApp::ui`, and so the seam read — is invoked:
+    // `eframe-0.36.1/src/native/epi_integration.rs`'s
+    // `self.egui_ctx.run_ui(raw_input, |ui| …)`, mirrored in the wgpu
+    // and glow integrations and in the web runner. So this is the real
+    // door and not a door-shaped stand-in.
+    let ctx = egui::Context::default();
+    let escaped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = ctx.run_ui(egui::RawInput::default(), |_ui| {
+            panic!("the planted panic");
+        });
+    }));
+    let payload = escaped.expect_err("egui must not absorb a panic raised inside a frame");
+    assert_eq!(
+        payload.downcast_ref::<&str>().copied(),
+        Some("the planted panic"),
+        "and it must be the SAME panic, not one egui re-raised of its own",
+    );
 }

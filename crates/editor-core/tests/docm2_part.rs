@@ -514,6 +514,7 @@ fn a4_every_refusal_is_typed() {
             expr: Expr::count(2),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a structural edit")
     .doc;
@@ -574,6 +575,7 @@ fn a4_every_refusal_is_typed() {
             expr: Expr::count(1),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     );
     assert!(
         matches!(
@@ -619,6 +621,7 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
             expr: Expr::count(2),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("a structural edit")
     .doc;

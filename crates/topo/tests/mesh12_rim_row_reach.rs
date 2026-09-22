@@ -32,9 +32,10 @@
 //! import-door reach is nil by construction rather than by absence of
 //! a file.
 //!
-//! **Through the Euler doors the shape is a rim-only cap**, which the
-//! shape door admits, the flux lane refuses (`props_face_extent` in
-//! the band), and `mesh::tessellate` does not mesh: the walk emits no
+//! **Through the Euler doors the shape is a rim-only cap**, which both
+//! doors and the flux lane now answer on the same undecidable gap (the
+//! shape door on `props_rim_side`, the flux lane on
+//! `props_rim_only_extent`), and `mesh::tessellate` does not mesh: the walk emits no
 //! triangles for a loop with no meridian and the issue-897 cross-face
 //! census panics (orchestrator-filed issue 1615, on every ε row and at
 //! `Δv = 0` too — the panic is the rim-only loop's, not the gap's). So
@@ -238,38 +239,85 @@ fn the_remint_admits_no_gap_the_examination_reports() {
 }
 
 /// **Nothing that meshes or measures consumes the discarded
-/// coordinate.** The shape door and the branch door ADMIT the rim-only
-/// cap — a rim row is at its own extreme by definition and contains no
-/// pole in any span — and the flux lane refuses it: the face's
-/// latitude extent is the very gap, `R·Δv` inside the ambiguity band,
-/// so `props_face_extent` escalates (and is coincident with zero at
-/// `Δv = 0`). What the walk does with the admitted face is issue
-/// 1615's.
+/// coordinate**, and the branch door, the shape door and the flux lane
+/// each answer the rim-only cap on their own terms. The BRANCH door
+/// admits it either way — no span contains a pole, which is a question
+/// about arcs and not about the gap — while the other two turn on the
+/// GAP, which is the coordinate this unit's row is about:
+///
+/// * **`Δv = 0`** — the two arcs state ONE rim circle, so the body is a
+///   sphere split by one rim into two caps, and each face MEASURES.
+///   Its levels hold one latitude and carry no extent, so the missing
+///   extreme is the pole the rims' shared traversal points at
+///   (`props_rim_interior_side`'s σ; issue 1250, PROPS
+///   sphere-pole-side). The two caps sum to `4πR³/3`, which is what
+///   `topo/tests/props_sphere_cap_door.rs` weighs directly. The shape
+///   door admits it: with `lo == hi` no rim sits at an extreme rather
+///   than the other, so its rim-side companion has nothing to compare
+///   and extent is not a shape question.
+/// * **`R·Δv` inside the ambiguity band** — the levels carry an extent
+///   that is neither definitely zero nor definitely positive, so
+///   whether this is a cap whose pole should be folded in or a zone of
+///   sub-band height is exactly what cannot be decided. **Both** the
+///   shape door and the flux lane say so, one predicate apart: the
+///   door's rim-side unanimity asks which extreme each rim sits at and
+///   escalates `props_rim_side` typed, and the flux lane escalates
+///   `props_rim_only_extent` typed before any pole is pushed. One
+///   undecidable gap read at one lever under three names — the third
+///   being `props_face_extent`, which would have read it one step
+///   later still.
+///
+/// What the walk does with a face the door admits is issue 1615's.
 #[test]
-fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_refuses_it() {
+fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
-    for (f, degenerate) in [(1.5, false), (0.0, true)] {
+    let mut caps = Vec::new();
+    for (f, in_band) in [(1.5, true), (0.0, false)] {
         let body = two_level_rim_cap(f * tol.eps() / RS).unwrap();
         for (_, face) in body.faces() {
             let surface = body.get_surface(face.surface).unwrap();
             let (outer, _) = topo::props::loop_edges(&body, face.outer).unwrap();
             assert_eq!(outer.len(), 2, "a rim-only loop: two arcs, no meridian");
-            assert_eq!(require_iso_rectangle(surface, &outer, band), Ok(()));
             assert_eq!(require_one_chart_branch(surface, &outer, band), Ok(()));
+            let door = require_iso_rectangle(surface, &outer, band);
             let flux = curved_face(surface, &outer, face.sense, band);
-            if degenerate {
-                assert!(matches!(flux, Err(PropsError::DegenerateFace)), "{flux:?}");
-            } else {
+            if in_band {
+                assert!(
+                    matches!(
+                        &door,
+                        Err(PropsError::Escalated { cause })
+                            if cause.predicate == Some("props_rim_side")
+                    ),
+                    "the gap is undecidable at the door too: {door:?}"
+                );
                 assert!(
                     matches!(
                         &flux,
                         Err(PropsError::Escalated { cause })
-                            if cause.predicate == Some("props_face_extent")
+                            if cause.predicate == Some("props_rim_only_extent")
                     ),
                     "{flux:?}"
                 );
+            } else {
+                assert_eq!(door, Ok(()));
+                caps.push(flux.unwrap_or_else(|e| panic!("a rim-only cap measures: {e:?}")));
             }
         }
     }
+    // The two caps of one sphere: their areas sum to `4πR²` and their
+    // fluxes to `3V = 4πR³`, which is the closed form the gap was
+    // hiding.
+    let area: f64 = caps.iter().map(|c| c.area).sum();
+    let flux: f64 = caps.iter().map(|c| c.flux).sum();
+    let tau = core::f64::consts::TAU;
+    assert_eq!(caps.len(), 2, "one sphere, two rim-only caps");
+    assert!(
+        (area - 2.0 * tau * RS * RS).abs() < 1e-12 * area,
+        "the two caps' areas sum to 4πR²: {area}"
+    );
+    assert!(
+        (flux - 2.0 * tau * RS.powi(3)).abs() < 1e-12 * flux,
+        "and their fluxes to 3V = 4πR³: {flux}"
+    );
 }

@@ -47,9 +47,9 @@
 //! body, the SIGN it used to be given** — recorded at the doors and
 //! pinned by `topo/tests/geometric_cube.rs`'s
 //! `the_structural_half_does_not_judge_orientation_at_any_scalar`. The
-//! verdict is still reachable at a dual through the mixed passes that
-//! keep their lanes (`validate_pseudomanifold`, `contact_marks`,
-//! `mass_properties`).
+//! verdict is still reachable at a dual through the `_structural`
+//! passes (`validate_pseudomanifold_structural`, `contact_marks_structural`,
+//! `mass_properties_structural`).
 //!
 //! # What the memo rows assert
 //!

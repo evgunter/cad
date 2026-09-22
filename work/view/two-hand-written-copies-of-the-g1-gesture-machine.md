@@ -2,11 +2,14 @@
 id: two-hand-written-copies-of-the-g1-gesture-machine
 kind: issue
 title: session::Gesture and display::FreeMoveGesture are two hand-written copies of one G1 preview/commit state machine
-status: review
+status: closed
 opened: 2026-09-04
+closed: 2026-09-15
 branch: view/g1-gesture
 refs: [two-gestures-can-be-in-flight-together, gesture-drags-have-no-cancel-door, the-value-drags-in-flight-refusal-has-two-spellings]
 pr: 2672
+priority: P1
+cost: D
 ---
 
 

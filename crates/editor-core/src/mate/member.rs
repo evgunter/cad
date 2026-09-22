@@ -11,8 +11,8 @@
 //!
 //! Structural throughout: no expression is evaluated in the walk, so
 //! the cluster partition never depends on a slot value. The offset —
-//! which is arithmetic, not admission — does evaluate, at the
-//! document's own parameter bindings.
+//! which is arithmetic, not admission — does evaluate, in the solve's
+//! one nominal environment ([`super::solve::solve_document`]).
 
 use geom_core::linalg::{Affine3, Point3};
 use geom_core::predicate::Band;
@@ -20,7 +20,7 @@ use geom_core::predicate::Band;
 use super::{MateFault, MateSide};
 use crate::doc::Doc;
 use crate::eval::slots::{SlotValues, eval_slots};
-use crate::eval::{NodeErrorKind, NodeRefusal, SteppedOperands, need_scalar, need_vec3};
+use crate::eval::{NodeErrorKind, NodeRefusal, Seated, SteppedOperands, need_scalar, need_vec3};
 use crate::expr::ParamEnv;
 use crate::names::RoleSeg;
 use crate::node::{Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
@@ -162,9 +162,9 @@ pub(super) struct Walk {
 /// stand a member on. That is the node a refusal names, and it is not
 /// in general the reference's own head — a stranded operand stops the
 /// walk before the head is ever reached.
-pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Result<Walk, RecipeNodeId> {
+pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, RecipeNodeId> {
     let mut at = r.at;
-    let mut name = &r.name;
+    let mut name: &crate::names::StableName = &r.name;
     let mut chain: Vec<Placer> = Vec::new();
     // The `Part` the walk last passed with nothing pose-bearing since
     // — the one standing DIRECTLY above whatever node comes next, and
@@ -277,7 +277,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Result<Walk, R
 /// does not weld would mint a record for a mate that never solved,
 /// which is what AQ8 option (b) SKIP refuses (`ASSEMBLY.md`'s AQ8
 /// clause).
-pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedRef) -> Option<Member> {
+pub fn member_of<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Option<Member> {
     walk(doc, r).ok().map(|w| w.member)
 }
 
@@ -301,7 +301,7 @@ pub(super) fn walk_of<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
-    r: &crate::node::SitedRef,
+    r: &crate::node::SitedFace,
 ) -> Result<Walk, MateFault> {
     walk(doc, r).map_err(|head| MateFault::DanglingHead { mate, side, head })
 }
@@ -346,22 +346,25 @@ pub(super) fn walk_of<P>(
 /// both indices. A number this check needs that does not EXIST refuses
 /// [`MateFault::PlacerRefused`] instead, carrying the evaluation
 /// layer's own words for it: `Expr` for a count or a `Part` index
-/// whose expression does not evaluate at the document's own parameter
-/// bindings, `MissingInput` for a node the walk recorded and the
-/// document no longer holds.
+/// whose expression does not evaluate in `env`, `MissingInput` for a
+/// node the walk recorded and the document no longer holds.
 ///
 /// The two numbers are read one at a time with `eval_count` — the
 /// call [`eval_slots`] itself makes for a structural slot — rather
 /// than through the whole-node door [`derived_offset`] uses, because
 /// asking a pattern's direction to answer "does copy 0 exist" would
 /// refuse a member whose pose does exist.
+///
+/// `env` is the solve's one nominal environment — what it is and why
+/// there is one is stated where it is built, at
+/// [`super::solve::solve_document`].
 pub(super) fn check_reference<P: crate::ProfilePayload>(
     doc: &Doc<P>,
+    env: &ParamEnv<f64>,
     mate: RecipeNodeId,
     side: MateSide,
     w: &Walk,
 ) -> Result<(), MateFault> {
-    let env = doc.param_env::<f64>();
     // One pattern level of the chain, outermost first: the copy the
     // name says, its evaluated count, and the `Part` above it if any.
     struct Level {
@@ -377,7 +380,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
         error: NodeRefusal::from(kind),
     };
     let count_of = |node: RecipeNodeId, expr: &crate::expr::Expr, slot: SlotId| {
-        crate::expr::eval_count(expr, &env)
+        crate::expr::eval_count(expr, env)
             .map_err(|source| refused(node, NodeErrorKind::Expr { slot, source }))
     };
     // The copy exists: the name's index against the evaluated count.
@@ -464,11 +467,10 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 ///
 /// - a pattern contributes [`crate::eval::stepped_rule_map`] at the
 ///   named index — THE evaluation's own stepped rule, fed the
-///   pattern's authored slots evaluated at the document's own
-///   parameter bindings;
+///   pattern's authored slots evaluated in `env`;
 /// - a transform contributes [`crate::eval::transform_map`] — the
 ///   same construction `wire_transform` places the body by, fed the
-///   node's own expressions at those same bindings.
+///   node's own expressions in `env`.
 ///
 /// A `Part` contributes nothing at all — it selects a body, it does
 /// not move one. Whether it agrees with the name, and whether the
@@ -527,20 +529,24 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// module's: `docs/DOC-LEDGER.md`'s `work/seat/
 /// direction-normalization-two-doors-one-home` entry and the
 /// `decide_unit_direction` seat it closed on.
+///
+/// `env` is the solve's one nominal environment — what it is and why
+/// there is one is stated where it is built, at
+/// [`super::solve::solve_document`].
 pub(super) fn derived_offset<P: crate::ProfilePayload>(
     doc: &Doc<P>,
+    env: &ParamEnv<f64>,
     mate: RecipeNodeId,
     side: MateSide,
     w: &Walk,
     band: Band,
 ) -> Result<Option<Affine3<f64>>, Box<MateFault>> {
-    let env = doc.param_env::<f64>();
     let mut composed: Option<Affine3<f64>> = None;
     for placer in &w.chain {
         let node = placer.node();
         let derived = match *placer {
-            Placer::Pattern { i, .. } => pattern_map(doc, node, i, &env, band),
-            Placer::Transform(_) => transform_map(doc, node, &env, band).map(Some),
+            Placer::Pattern { i, .. } => pattern_map(doc, node, i, env, band),
+            Placer::Transform(_) => transform_map(doc, node, env, band).map(Some),
         };
         // ONE wrapping, at the arm's edge: the derivation answers with
         // the node that raised and the kind it raised, and this is
@@ -555,11 +561,6 @@ pub(super) fn derived_offset<P: crate::ProfilePayload>(
     }
     Ok(composed)
 }
-
-/// **A derivation's refusal**: the node that raised, and the kind it
-/// raised. Boxed because a [`NodeErrorKind`] is wide and this is the
-/// cold half of every derivation's result.
-type Refused = Box<(RecipeNodeId, NodeErrorKind)>;
 
 /// **A derivation's refusal, in the mate vocabulary.** Two arms and
 /// no relabelling: an escalation is the SOLVE's own indeterminacy and
@@ -600,7 +601,7 @@ fn pattern_map<P: crate::ProfilePayload>(
     i: u32,
     env: &ParamEnv<f64>,
     band: Band,
-) -> Result<Option<Affine3<f64>>, Refused> {
+) -> Result<Option<Affine3<f64>>, Seated> {
     let here = |kind| Box::new((node, kind));
     let Some(pattern @ Node::Pattern { kind, .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
@@ -621,9 +622,9 @@ fn pattern_map<P: crate::ProfilePayload>(
         },
         PatternKind::Circular { axis, .. } => {
             // The operand-KIND question is the pattern's wiring, and
-            // its refusal is the pattern's; everything read out of the
-            // datum below is the datum's.
-            let datum = axis_datum(doc, *axis).map_err(here)?;
+            // its refusal is seated where `axis_datum` says; everything
+            // read out of the datum below is the datum's.
+            let datum = axis_datum(doc, node, *axis)?;
             let at_datum = |kind| Box::new((*axis, kind));
             let dvals = node_slots(datum, env).map_err(at_datum)?;
             SteppedOperands::Circular {
@@ -660,7 +661,7 @@ fn pattern_map<P: crate::ProfilePayload>(
 
 /// **The map a transform contributes** — the same construction
 /// `wire_transform` places the body by, fed the node's own
-/// expressions at the document's bindings.
+/// expressions in `env`.
 ///
 /// # Errors
 ///
@@ -671,7 +672,7 @@ fn transform_map<P: crate::ProfilePayload>(
     node: RecipeNodeId,
     env: &ParamEnv<f64>,
     band: Band,
-) -> Result<Affine3<f64>, Refused> {
+) -> Result<Affine3<f64>, Seated> {
     let here = |kind| Box::new((node, kind));
     let Some(transform @ Node::Transform { .. }) = doc.node(node) else {
         return Err(here(NodeErrorKind::MissingInput { input: node }));
@@ -689,10 +690,10 @@ fn transform_map<P: crate::ProfilePayload>(
     ))
 }
 
-/// **The placer's slots, at the document's own parameter bindings** —
-/// [`eval_slots`], the evaluation's own door, so a slot that does not
-/// evaluate on this road refuses with the very
-/// [`NodeErrorKind::Expr`] the node's own evaluation raises for it.
+/// **The placer's slots, in `env`** — [`eval_slots`], the
+/// evaluation's own door, so a slot that does not evaluate on this
+/// road refuses with the very [`NodeErrorKind::Expr`] the node's own
+/// evaluation raises for it.
 fn node_slots<P: crate::ProfilePayload>(
     node: &Node<P>,
     env: &ParamEnv<f64>,
@@ -708,14 +709,471 @@ fn node_slots<P: crate::ProfilePayload>(
 /// [`crate::eval::node_value_kind`] — the recipe-side reading of the
 /// same question, written next to the payload one so the two cannot
 /// be moved apart unnoticed.
-fn axis_datum<P>(doc: &Doc<P>, axis: RecipeNodeId) -> Result<&Node<P>, NodeErrorKind> {
+///
+/// # Errors
+///
+/// At the pattern, as its own wiring: `MissingInput` for an operand
+/// that is no live node, `WrongOperand` for one that lands in a
+/// family other than a datum axis. At a transform on the operand's
+/// chain, as that transform's own: whatever [`crate::eval::
+/// node_value_kind`] seats there — a source that is not placeable, an
+/// input that is no live node — carried with its seat.
+fn axis_datum<P>(
+    doc: &Doc<P>,
+    pattern: RecipeNodeId,
+    axis: RecipeNodeId,
+) -> Result<&Node<P>, Seated> {
     match doc.node(axis) {
         Some(node @ Node::Datum(Datum::Axis { .. })) => Ok(node),
-        Some(other) => Err(NodeErrorKind::WrongOperand {
-            input: axis,
-            expected: "datum axis",
-            found: crate::eval::node_value_kind(doc, other)?,
-        }),
-        None => Err(NodeErrorKind::MissingInput { input: axis }),
+        Some(_) => match crate::eval::node_value_kind(doc, axis) {
+            Ok(found) => Err(Box::new((
+                pattern,
+                NodeErrorKind::WrongOperand {
+                    input: axis,
+                    expected: crate::eval::phrase::DATUM_AXIS,
+                    found,
+                },
+            ))),
+            Err(seated) => Err(seated),
+        },
+        None => Err(Box::new((
+            pattern,
+            NodeErrorKind::MissingInput { input: axis },
+        ))),
+    }
+}
+
+/// **The seat rows**: a circular pattern over a real body, its axis
+/// operand wired through transforms, refused on both roads and
+/// compared. The body is authored through `apply` so the evaluation's
+/// own reading of the pattern is not masked by an input it refuses;
+/// the datums, the transforms and the pattern are written straight
+/// into the map and the order, because the state some rows need — a
+/// transform whose input is no live node — is one the doors refuse
+/// (`DeleteWouldDangle` at `apply`, liveness at `load`), and a
+/// hand-built document is what the spec sanctions for it.
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use crate::edit::DocEdit;
+    use crate::eval::{CancelToken, EvalOptions, NodeResult, evaluate};
+    use crate::expr::{Dimension, Expr};
+    use crate::ident::DocumentId;
+    use crate::program::{LoopProgram, ProfileProgram};
+    use crate::{ProfileDoc, RefusingReach};
+    use geom_core::Tol;
+
+    /// The hand-pushed ids are chosen, not minted; the dangling one
+    /// names no node.
+    const AXIS: RecipeNodeId = RecipeNodeId(10);
+    const FRAME2: RecipeNodeId = RecipeNodeId(11);
+    const T1: RecipeNodeId = RecipeNodeId(12);
+    const T2: RecipeNodeId = RecipeNodeId(13);
+    const PATTERN: RecipeNodeId = RecipeNodeId(14);
+    const DANGLING: RecipeNodeId = RecipeNodeId(40);
+    const MATE: RecipeNodeId = RecipeNodeId(50);
+
+    fn len(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Length).unwrap()
+    }
+    fn ang(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Angle).unwrap()
+    }
+    fn scl(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Scalar).unwrap()
+    }
+    fn xf(input: RecipeNodeId) -> Node<ProfileProgram> {
+        Node::Transform {
+            input,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        }
+    }
+    fn frame_datum() -> Node<ProfileProgram> {
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        })
+    }
+    fn axis_datum_node() -> Node<ProfileProgram> {
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(0.0), scl(1.0)],
+        })
+    }
+
+    /// Which node an input names.
+    #[derive(Clone, Copy, Debug)]
+    enum Src {
+        Body,
+        Axis,
+        Frame,
+        T1,
+        T2,
+        Dangling,
+    }
+
+    /// Through `apply`: a frame, a profile on it, an extrude — the
+    /// BODY. Hand-pushed: `AXIS`, `FRAME2`, `T1 = xf(t1_in)`,
+    /// `T2 = xf(T1)`, and `PATTERN`, circular over the body with
+    /// `axis_operand` as its rule's axis.
+    fn build(label: &str, t1_in: Src, axis_operand: Src) -> (ProfileDoc, RecipeNodeId) {
+        let ins = |doc: ProfileDoc, node: Node<ProfileProgram>| {
+            let a = crate::apply(
+                &doc,
+                &DocEdit::InsertNode { node },
+                Tol::witness(),
+                &RefusingReach,
+            )
+            .expect("inserts");
+            (a.doc, a.record.minted.unwrap())
+        };
+        let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+        let (doc, plane) = ins(doc, frame_datum());
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![
+                    LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
+                ],
+            }),
+        );
+        let (mut doc, body) = ins(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
+        let id = |s: Src| match s {
+            Src::Body => body,
+            Src::Axis => AXIS,
+            Src::Frame => FRAME2,
+            Src::T1 => T1,
+            Src::T2 => T2,
+            Src::Dangling => DANGLING,
+        };
+        let mut push = |id: RecipeNodeId, node: Node<ProfileProgram>| {
+            doc.nodes.insert(id, node);
+            doc.order.push(id);
+        };
+        push(AXIS, axis_datum_node());
+        push(FRAME2, frame_datum());
+        push(T1, xf(id(t1_in)));
+        push(T2, xf(T1));
+        push(
+            PATTERN,
+            Node::Pattern {
+                input: body,
+                count: Expr::count(4),
+                kind: PatternKind::Circular {
+                    axis: id(axis_operand),
+                    step: ang(0.5),
+                },
+            },
+        );
+        doc.next_id = MATE.0 + 1;
+        (doc, body)
+    }
+
+    /// The walk a reference to copy 1 of the pattern records.
+    fn copy_one(instance: RecipeNodeId) -> Walk {
+        Walk {
+            member: Member {
+                instance,
+                copy: vec![(PATTERN, 1)],
+                at: PATTERN,
+            },
+            chain: vec![Placer::Pattern {
+                node: PATTERN,
+                i: 1,
+                part: None,
+            }],
+        }
+    }
+
+    /// **The derivation road's refusal**: the placer it names and the
+    /// kind it carries.
+    fn derivation(doc: &ProfileDoc, instance: RecipeNodeId) -> (RecipeNodeId, NodeRefusal) {
+        let env = doc.param_env::<f64>();
+        let band = Band::linear(Tol::witness()).unwrap();
+        let fault = derived_offset(doc, &env, MATE, MateSide::A, &copy_one(instance), band)
+            .expect_err("the axis operand refuses");
+        match *fault {
+            MateFault::PlacerRefused {
+                mate,
+                side,
+                placer,
+                error,
+            } => {
+                assert_eq!((mate, side), (MATE, MateSide::A));
+                (placer, error)
+            }
+            other => panic!("expected PlacerRefused, got {other:?}"),
+        }
+    }
+
+    /// **The evaluation road**, over the same document.
+    fn evaluation(doc: &ProfileDoc) -> crate::eval::Evaluation<f64> {
+        evaluate::<f64>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        )
+    }
+
+    /// **The two kinds this module seats, compared structurally** —
+    /// variant and every field — so a row that names one cannot pass
+    /// on a rendering.
+    fn same_refusal(a: &NodeErrorKind, b: &NodeErrorKind) -> bool {
+        match (a, b) {
+            (
+                NodeErrorKind::MissingInput { input: x },
+                NodeErrorKind::MissingInput { input: y },
+            ) => x == y,
+            (
+                NodeErrorKind::WrongOperand {
+                    input: xi,
+                    expected: xe,
+                    found: xf,
+                },
+                NodeErrorKind::WrongOperand {
+                    input: yi,
+                    expected: ye,
+                    found: yf,
+                },
+            ) => xi == yi && xe == ye && xf == yf,
+            _ => false,
+        }
+    }
+
+    /// The node's own row in the evaluation fails with `kind`.
+    fn fails_with(ev: &crate::eval::Evaluation<f64>, node: RecipeNodeId, kind: &NodeErrorKind) {
+        match ev.result(node) {
+            Some(NodeResult::Failed(err)) => {
+                assert_eq!(err.node, node);
+                assert!(
+                    same_refusal(&err.kind, kind),
+                    "{node:?}: the evaluation's own kind {:?} is the derivation's {kind:?}",
+                    err.kind
+                );
+            }
+            other => panic!("{node:?} fails on its own: {other:?}"),
+        }
+    }
+
+    /// The node's row in the evaluation is poisoned through `through`.
+    fn poisoned_through(
+        ev: &crate::eval::Evaluation<f64>,
+        node: RecipeNodeId,
+        through: RecipeNodeId,
+    ) {
+        assert!(
+            matches!(ev.result(node), Some(NodeResult::Poisoned { through: t }) if *t == through),
+            "{node:?} is poisoned through {through:?}: {:?}",
+            ev.result(node)
+        );
+    }
+
+    fn is_live(ev: &crate::eval::Evaluation<f64>, node: RecipeNodeId) {
+        assert!(
+            matches!(ev.result(node), Some(NodeResult::Ok(_))),
+            "{node:?} is live: {:?}",
+            ev.result(node)
+        );
+    }
+
+    /// **Both roads, one seat**: the derivation refuses at `placer`
+    /// with a kind matching `expect`, and the evaluation fails the
+    /// same node with the same kind.
+    fn both_roads(
+        label: &str,
+        t1_in: Src,
+        axis: Src,
+        placer: RecipeNodeId,
+        expect: impl FnOnce(&NodeErrorKind) -> bool,
+    ) -> crate::eval::Evaluation<f64> {
+        let (doc, body) = build(label, t1_in, axis);
+        let (at, kind) = derivation(&doc, body);
+        let kind = kind.kind();
+        assert_eq!(
+            at, placer,
+            "{label}: seated at {placer:?}, carrying {kind:?}"
+        );
+        assert!(expect(kind), "{label}: the kind the row names: {kind:?}");
+        let ev = evaluation(&doc);
+        fails_with(&ev, placer, kind);
+        ev
+    }
+
+    fn missing(input: RecipeNodeId) -> impl Fn(&NodeErrorKind) -> bool {
+        move |k| matches!(k, NodeErrorKind::MissingInput { input: i } if *i == input)
+    }
+
+    fn wrong(
+        input: RecipeNodeId,
+        expected: &'static str,
+        found: &'static str,
+    ) -> impl Fn(&NodeErrorKind) -> bool {
+        move |k| {
+            matches!(
+                k,
+                NodeErrorKind::WrongOperand { input: i, expected: e, found: f }
+                    if *i == input && *e == expected && *f == found
+            )
+        }
+    }
+
+    /// **A dangling input of the axis transform is seated at that
+    /// transform on both roads**, and the pattern is poisoned through
+    /// it rather than refused with it.
+    #[test]
+    fn a_dangling_input_of_the_axis_transform_seats_at_that_transform_on_both_roads() {
+        let ev = both_roads(
+            "msolve7-t1-dangling",
+            Src::Dangling,
+            Src::T1,
+            T1,
+            missing(DANGLING),
+        );
+        poisoned_through(&ev, PATTERN, T1);
+    }
+
+    /// **Two transforms down, the seat is the deeper one** — the
+    /// transform whose input dangles, not the operand the pattern
+    /// names.
+    #[test]
+    fn a_dangling_input_two_transforms_down_seats_at_the_deeper_transform_on_both_roads() {
+        let ev = both_roads(
+            "msolve7-t2-t1-dangling",
+            Src::Dangling,
+            Src::T2,
+            T1,
+            missing(DANGLING),
+        );
+        poisoned_through(&ev, T2, T1);
+        poisoned_through(&ev, PATTERN, T1);
+    }
+
+    /// **An axis operand that names no node is the pattern's own
+    /// wiring** on both roads.
+    #[test]
+    fn a_missing_axis_operand_seats_at_the_pattern_on_both_roads() {
+        both_roads(
+            "msolve7-axis-missing",
+            Src::Body,
+            Src::Dangling,
+            PATTERN,
+            missing(DANGLING),
+        );
+    }
+
+    /// **A frame datum as the axis is the wrong family, at the
+    /// pattern**, in the evaluation's own words.
+    #[test]
+    fn a_frame_datum_as_the_axis_seats_at_the_pattern_on_both_roads() {
+        both_roads(
+            "msolve7-axis-frame",
+            Src::Body,
+            Src::Frame,
+            PATTERN,
+            wrong(
+                FRAME2,
+                crate::eval::phrase::DATUM_AXIS,
+                crate::eval::family::DATUM,
+            ),
+        );
+    }
+
+    /// **A body as the axis is the wrong family, at the pattern.**
+    #[test]
+    fn a_body_as_the_axis_seats_at_the_pattern_on_both_roads() {
+        let (doc, body) = build("msolve7-axis-body", Src::Body, Src::Body);
+        let (at, kind) = derivation(&doc, body);
+        let kind = kind.kind();
+        assert_eq!(at, PATTERN);
+        assert!(
+            wrong(
+                body,
+                crate::eval::phrase::DATUM_AXIS,
+                crate::eval::family::BODY
+            )(kind),
+            "{kind:?}"
+        );
+        fails_with(&evaluation(&doc), PATTERN, kind);
+    }
+
+    /// **A live transform over the body as the axis**: the transform
+    /// evaluates, and the wrong family is the pattern's, read through
+    /// the transform to the body below.
+    #[test]
+    fn a_transform_over_the_body_as_the_axis_seats_at_the_pattern_on_both_roads() {
+        let ev = both_roads(
+            "msolve7-axis-t1-body",
+            Src::Body,
+            Src::T1,
+            PATTERN,
+            wrong(
+                T1,
+                crate::eval::phrase::DATUM_AXIS,
+                crate::eval::family::BODY,
+            ),
+        );
+        is_live(&ev, T1);
+    }
+
+    /// The same through two live transforms.
+    #[test]
+    fn two_transforms_over_the_body_as_the_axis_seat_at_the_pattern_on_both_roads() {
+        let ev = both_roads(
+            "msolve7-axis-t2-t1-body",
+            Src::Body,
+            Src::T2,
+            PATTERN,
+            wrong(
+                T2,
+                crate::eval::phrase::DATUM_AXIS,
+                crate::eval::family::BODY,
+            ),
+        );
+        is_live(&ev, T1);
+        is_live(&ev, T2);
+    }
+
+    /// **A transform over a DATUM as the axis is the TRANSFORM's own
+    /// refusal on both roads** — a datum is not placeable, so the
+    /// transform fails with `WrongOperand` in the placer's own words
+    /// and the pattern is poisoned through it. This shape is
+    /// admitted by `apply`, so it is the one seat a document author
+    /// can reach; the derivation seats it where the evaluation does
+    /// by inheriting the classifier's seat rather than reading the
+    /// operand's family for itself.
+    #[test]
+    fn a_transform_over_a_datum_as_the_axis_seats_at_the_transform_on_both_roads() {
+        for (label, src, datum) in [
+            ("msolve7-axis-t1-axis", Src::Axis, AXIS),
+            ("msolve7-axis-t1-frame", Src::Frame, FRAME2),
+        ] {
+            let ev = both_roads(
+                label,
+                src,
+                Src::T1,
+                T1,
+                wrong(
+                    datum,
+                    crate::eval::phrase::BODY_OR_INSTANCES,
+                    crate::eval::family::DATUM,
+                ),
+            );
+            poisoned_through(&ev, T2, T1);
+            poisoned_through(&ev, PATTERN, T1);
+        }
     }
 }

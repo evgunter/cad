@@ -37,10 +37,17 @@
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
 
-// The shared helper trees, declared ONCE for the whole binary. This file
-// is the crate root, so a plain `mod` resolves against `tests/` —
-// `tests/common/mod.rs`, `tests/fixture/mod.rs` — and every consumer
-// reaches that one instance through `use crate::<helper>;`.
+// The shared helper trees, named ONCE for the whole binary. This file is
+// the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/fixture/mod.rs` — and every consumer reaches that one instance
+// through `use crate::<helper>;`.
+//
+// `common` is the same name over a different thing: the Euler-op
+// fixture family lives in the library, where this crate's own `src/`
+// can name it too, and `topo::test_support` is the door the
+// `test-support` feature opens onto it. The alias keeps `common::X` as
+// every suite's spelling of it; a crate-root `use` is private but
+// visible to descendants, which is every suite module below.
 //
 // NO `#[path]` ON THESE, deliberately: a path attribute in this file is
 // the aggregation guard's census of SUITE files
@@ -51,19 +58,32 @@
 //
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
-mod common;
+use topo::test_support as common;
+
 mod fixture;
 
+#[path = "bool4_material_containment.rs"]
+mod bool4_material_containment;
+#[path = "bool4r1_probes.rs"]
+mod bool4r1_probes;
+#[path = "bool4r2_base_probe.rs"]
+mod bool4r2_base_probe;
+#[path = "bool4r2_probes.rs"]
+mod bool4r2_probes;
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
 #[path = "census_g2_carrier.rs"]
 mod census_g2_carrier;
+#[path = "cone_apex_cap_body.rs"]
+mod cone_apex_cap_body;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
 mod crosslap_rest;
 #[path = "cube_by_hand.rs"]
 mod cube_by_hand;
+#[path = "cube_doors_agree.rs"]
+mod cube_doors_agree;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "geom_origin_rows.rs"]
@@ -136,8 +156,10 @@ mod mesh12_parse_vs_certification;
 mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
-#[path = "quad_lane_is_the_certified_lane.rs"]
-mod quad_lane_is_the_certified_lane;
+#[path = "props_sphere_cap_door.rs"]
+mod props_sphere_cap_door;
+#[path = "r1_lane1_bracket_read_census.rs"]
+mod r1_lane1_bracket_read_census;
 #[path = "r1_mate4a_probes.rs"]
 mod r1_mate4a_probes;
 #[path = "r1_mate5_interval_probe.rs"]
@@ -249,3 +271,11 @@ mod rim_of_r1_probes;
 
 #[path = "r2_rim_probes.rs"]
 mod r2_rim_probes;
+
+#[path = "lane0_r2_probes.rs"]
+mod lane0_r2_probes;
+#[path = "lane2_r2_probes.rs"]
+mod lane2_r2_probes;
+
+#[path = "certified_enclosure_impl_census.rs"]
+mod certified_enclosure_impl_census;

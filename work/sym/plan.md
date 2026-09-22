@@ -1,121 +1,68 @@
-# SYM — the E12 symbolic identity tier (plan)
+# SYM — the plan
 
-**STATUS: OPEN (2026-09-13).** Opened at M10's exit sweep
-(`docs/DOC-LEDGER.md` sweep 13) on Ev's call, in chat that day, that
-the fourteen rows standing on the tier are a successor's opening slate
-rather than rows on PROPS' board. Live state is `work/sym/log.md`'s
-tail and the item files beside this plan, never this file.
+the E12 symbolic identity tier
 
-Branch prefix (the #396 convention): **`sym/`** — unit branches
-`sym/<unit>-<slug>`, orchestrator branch `sym/orchestrator`.
-Away-channel tag `(SYM orchestrator)`. A/B ordinal band
-**SYM = 4700–4799**, claimed in `docs/MODEL-AB-LOG.md`'s banding entry
-in the commit that opened this program, per that entry's rule (the
-first band taken from the 4700+ range the 2026-09-11 cut left free).
+Re-scoped 2026-09-20 by SYM's priority-seam cut
+(`work/README.md`, Track size). Nothing dispatched.
 
-## Charter
+## The slate
 
-`geom_core::sym` is a hash-consed DAG over a document's parameters
-beside the lane value, carrying a lazy exact-rational quotient normal
-form with opaque atoms and a freezing budget; `sign_within` answers
-`Zero` for a margin that is identically zero in the parameters, at any
-box width, so a certification identity does not widen with the box.
-ERROR-DESIGN E12 (ratified #1712) is the design and is **cited, never
-re-litigated**; `docs/ERROR-DESIGN.md` is PROPS' file.
+**25 budget points** of dispatchable work against a ceiling of 30.
 
-What this program owns is what M10 left standing on the tier after
-four units (M10-7 … M10-10): **its reach, its door, its cost and its
-hygiene.** What it does not own is the driver that replays it
-(`crates/editor-core/src/drive.rs`, PROPS' since the same sweep) and
-the `Real` trait the door hangs off (`geom-core/src/real.rs`, PROPS'
-file and SCALAR's subject) — both are reached by announced seam.
+| pri | item | cost | title |
+|---|---|---|---|
+| P0 | `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` | H | A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial, and the tier's rule E makes the freeze population 300x worse without moving the refusal |
+| P0 | `coefficient-ring-width-is-not-monotone-in-reach` | D | widening the coefficient ring can lose discharges: a frozen node matches itself as one opaque indeterminate, and the same node expanded may not close |
+| P0 | `derived-frame-placement-freezes-on-the-symbolic-lane` | H | A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane: the re-normalised stored unit vectors freeze on degree and the identity is not reached (on a purely TRANSLATED derived frame the chain is constant and rule A0 folds it) |
+| P0 | `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo` | D | A leaf receipt's frozen column is schedule-dependent under the drive-scoped plain memo |
+| P0 | `sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` | H | Sym<f64>/Sym<Probe> at a far placement panic in Decide's theorem-vs-numeric debug_assert: the point channel is not a proof |
+| P0 | `the-decision-door-is-opaque-to-the-tier` | H | a frame minted through Real::select_le_zero is opaque to the tier, and SYM-5's tilted derived-boss acceptance row goes red on it |
+| None | `SYM-1` | None | the profile inside the normal form: where the E12 tier's time goes on the M10-3 slab, and what freezes |
+| None | `SYM-2` | None | the tier's file split: the coefficient tower and the polynomial out of sym.rs, the header distributed with them |
+| None | `SYM-3` | None | what stands at a bulge that is not 1: the boss and the D-tab rendered, the parameter bulge's two routes counted |
+| None | `SYM-4` | None | the cost of a form: the polynomial's storage as a sorted vector and the ring's normalisation skipped on the dyadic shape, every decision bit-identical |
+| None | `SYM-5` | None | a stored unit vector does not double the degree: the derived-frame freeze measured and remedied by a rule of the atom algebra |
+| None | `SYM-6` | None | the door's witness moves with the run's eps: Tol threaded to register_equal, the slack relative and floored; the refusal arm split by witness kind and a fixture-scale zero-refusals row |
+| None | `SYM-7` | None | the plain form outlives the leaf: a drive-scoped memo, shared across the drive's workers, with frozen re-defined as distinct-over-the-drive |
+| None | `the-span-identity-is-not-a-theorem-of-the-floats` | None | the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness |
+| None | `the-witness-slack-is-eps-independent` | None | the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose |
 
-## Where the tier stands at opening
+## Order
 
-Read from `docs/M10-EXIT-WALK.md` at the sweep SHA, criterion 11 and
-honesty rows 1–4. The two-hole plate's real study (±0.05 mm spacing,
-σ = 0.01 mm radii) certifies 431 of 1,024 leaves — 89.07 % of its
-mass, hull `[0.419, 0.845]` mm against the 0.5 mm floor — and every
-refused leaf is bounded by the document's own `assert_bound`: the real
-flip, at 0.625 of the study. The widest box that certifies WHOLE is
-0.263 of the study, and what stands between 0.263 and 0.625 is
-dependency widening of the assertion's affine margin, which
-subdivision resolves. A link, a filleted bracket and a rounded pad do
-NOT certify their studies at any affordable dial.
+`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` first: a
+`Sym<f64>`/`Sym<Probe>` at a far placement PANICS in `Decide`'s
+theorem-vs-numeric assert, which is a live crash on ordinary input and
+the only row here that is not a refusal or a freeze.
 
-## Lanes (at opening)
+Then the two placement-freeze rows together
+(`derived-frame-placement-freezes-on-the-symbolic-lane`,
+`a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`) —
+both are a profile placed on a frame the tier cannot carry, and a boss
+on a revolved cap is ordinary modelling.
 
-- **The ceiling** — what bounds a document today:
-  `real-margin-dependency-widening` (H; the numeric channel's half of
-  E12's division of labour and the first thing a reader asks about) →
-  `plate-ceiling-is-now-the-scaffold-pushforward` (H; one predicate
-  bounds all five measured documents and its retirement for arc
-  carriers is a PCURVE/D3 question — `crates/geom-brep/src/certify.rs`
-  is in no program's paths) → `rule-d-reaches-the-unit-bulge-only`
-  (H; the next ceiling class after M10-10) →
-  `interval-self-dot-straddles-before-rule-a` (E; the fix is
-  `powi(2)` in PROPS' `linalg/vec.rs` and PROPS' linalg lane may
-  simply take it) → `param-box-certification-of-implicit-quantities`
-  (D; the frontier — an SSI march point has no expression in the
-  parameters at all — inherited from S-CERT through M10 and a design
-  conversation before it is a unit).
-- **The door** — the registered identity (E12's provenance reserve):
-  `declared-tangency-needs-the-registered-identity-door` (H; the
-  rounded pad is the live consumer and it waits on BLEND's
-  `fillet-tangency-is-not-the-constructors-node`, which is the
-  constructor change that makes the centre statable) →
-  `the-span-identity-is-not-a-theorem-of-the-floats` (H; a
-  registration is an AXIOM and an adversarial torus contradicts this
-  one at the witness) → `the-witness-slack-is-eps-independent` (H;
-  `WITNESS_REL` does not move with the run's ε — attempted once and
-  reverted by measurement) → `sym-registration-flattens-two-axes` (E;
-  the decision and its cost on the record).
-- **The cost** — measured once, never profiled inside:
-  `symbolic-tier-costs-95-percent-of-the-m10-3-drive` (H; S-TCOST's
-  measurement, filed on Ev's direction, and the first work in it is
-  the profile rather than a fix) →
-  `derived-frame-placement-freezes-on-the-symbolic-lane` (H; a
-  re-normalised stored unit vector freezes the budget, so a derived
-  frame does not certify where its authored twin does — DOCM found it
-  and the mechanism is this program's).
-- **The reference and the hygiene**: `symbolic-tier-census` (the
-  107-row table `sym.rs`'s module docs cite) ·
-  `sym-rs-is-one-file-with-a-347-line-header` (E) ·
-  `registered-is-spelled-five-times-and-pinned-once` (E; four
-  spellings here and one across INSTR's k-lint boundary).
-
-## Units
-
-- **SYM-1** — the profile inside the normal form (`docs/SYM-1-SPEC.md`;
-  carries `symbolic-tier-costs-95-percent-of-the-m10-3-drive`'s asks 1
-  and 2). Measurement; outside the experiment.
-- **SYM-2** — the tier's file split (`docs/SYM-2-SPEC.md`; carries
-  `sym-rs-is-one-file-with-a-347-line-header`). Hygiene; style review.
-- **SYM-3** — what stands at `bulge = 2` (cut when a lane frees;
-  `rule-d-reaches-the-unit-bulge-only`'s first ask). Measurement.
-- The first DUAL unit is cut from SYM-1's and SYM-3's numbers, and
-  opens block SYM-B1.
-- **Block SYM-B1** — SYM-4 (the cost of a form; merged), SYM-5 (the
-  derived-frame freeze, PR-1 measured / PR-2 rule E), SYM-6 (the
-  door's witness on the run's ε, with D2's arm split as Phase 3).
-- **Block SYM-B2** — opens with **SYM-7**, the drive-scoped plain memo
-  (D3 = (1) on `[ev]` #2581; carries
-  `symbolic-tier-costs-95-percent-of-the-m10-3-drive`'s volume ask);
-  H / STRUCTURAL; **SYM-8**, the manifest sign (`docs/SYM-8-SPEC.md`;
-  the tilt-U wall SYM-5's review found, measured first; H / NUMERIC);
-  **SYM-9**, the retry ladder (`docs/SYM-9-SPEC.md`; the ring's
-  non-monotone reach, measured first; H / NUMERIC). Pre-draw fields
-  and the draw on `sym/b2-block` once all three specs are on `main`.
+`the-decision-door-is-opaque-to-the-tier` is the fold FRAME is waiting
+on (`work/frame/program.md` names it), so it is owed outward as well
+as inward — take it early and tell FRAME when it lands.
 
 ## Review posture
 
-**Inherited from M10 unchanged: the full v6 dual on every unit that
-moves what the tier decides**, drawing ordinals from 4700 on. The
-tier's own history is the argument — three of M10's four tier units
-had a wrong premise corrected by a blinded review BY EXECUTION before
-they shipped (`docs/M10-EXIT-WALK.md` honesty rows 1 and 5) — and a
-tier that answers `Zero` for a margin no value was read for is exactly
-the place where a wrong premise ships green. A hygiene or reference
-row that moves no decision (`sym-rs-is-one-file-…`,
-`symbolic-tier-census`, `registered-is-spelled-…`) takes a style
-review and records no row.
+Protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on
+triaged-in units only, opus/opus outside it. **Answered per unit at
+spec time, recorded here:** `SYM-11`
+(`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`) IN — an
+architectural decision on the `Decide` door's contract per witness
+kind, H / STRUCTURAL, block SYM-B3 slot 0; the two placement-freeze
+rows are the default IN (they change what the tier decides on a
+document) and are triaged when spec'd (SYM-12 = the derived-frame
+freeze's next shape, H / NUMERIC, slot 1 — CLOSED 2026-09-22, #3046:
+rule F's negative arm; its seam with DECIDE-3,
+`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`,
+is scheduled at the `props/sign-hull` merge, whoever merges it owing
+the ladder and the eight with both units in);
+`leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+(SYM-13, D / STRUCTURAL, slot 2, Opus by the block's draw) is IN as a
+receipt-contract decision — DISPATCHED 2026-09-22, spec `docs/SYM-13-SPEC.md`,
+branch `sym/13-leaf-need`;
+the ring item and the pcurve row are triaged when spec'd (the latter
+is not certainly SYM's). The block's pre-draw fields and draw are on
+`sym/b3-block`.

@@ -1094,25 +1094,20 @@ impl core::fmt::Display for Unavailable {
         match self {
             Self::TangentDegraded { param } => write!(
                 f,
-                "parameter {:?}'s tangent degraded at the nominal (E9: forfeits its \
-                 advisory uses, refuses nothing)",
-                param.0
+                "parameter {param}'s tangent degraded at the nominal (E9: forfeits its \
+                 advisory uses, refuses nothing)"
             ),
-            Self::MeasureRefused { param } => write!(
-                f,
-                "parameter {:?}'s pass could not read the measure",
-                param.0
-            ),
+            Self::MeasureRefused { param } => {
+                write!(f, "parameter {param}'s pass could not read the measure")
+            }
             Self::Unliftable { param } => write!(
                 f,
-                "parameter {:?}'s seed could not reach the measure: the lift refused typed",
-                param.0
+                "parameter {param}'s seed could not reach the measure: the lift refused typed"
             ),
             Self::BandHasNoMeasure { param } => write!(
                 f,
-                "parameter {:?} carries a band: worst-case limits with no shape have \
-                 no σ, and a partial RSS is still a lie",
-                param.0
+                "parameter {param} carries a band: worst-case limits with no shape have \
+                 no σ, and a partial RSS is still a lie"
             ),
         }
     }

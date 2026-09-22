@@ -47,17 +47,30 @@
 //!   DESCRIPTION with no claim in it (a placeholder patch), not a
 //!   kind. A cross-key `PatchContact` on such a pair ESCALATES
 //!   through the chart predicate's divergence posture, so the class
-//!   can today be neither certified nor silently passed. And one
-//!   instance's extent box contained in another's (the
-//!   nested-instance class — C6's interference, representable only
-//!   through recorded gate-skips that do not exist yet).
+//!   can today be neither certified nor silently passed. One
+//!   instance's extent box inside another's (the nested-instance
+//!   class) is no longer refused on the box: the box is the GATE, and
+//!   the MATERIAL test decides — every vertex of each instance probed
+//!   against the other's material through the per-solid point-in-solid
+//!   door, a vertex strictly inside refusing typed as
+//!   [`ValidationError::InstanceInterference`] and a pair whose
+//!   vertices all lie outside-or-on clearing only under the arm's
+//!   stated conditions (its header); what the backstop still refuses
+//!   there is a witness the door cannot answer, or a touch the side
+//!   analysis cannot read.
 //! - **Genuinely undetected until C9/C6**: SAME-solid distinct-key
-//!   curved pairs only (the backstop is cross-solid — a single
-//!   solid's own curved faces are its constructor's obligations).
-//!   Cross-solid pairs the reach filter CLEARS are cleared soundly
-//!   (the pads are sound bounds for the kinds that take the test),
-//!   so clearance is a genuine no-touch certificate, not a skip.
-//!   Named, not sampled.
+//!   curved pairs (the backstop is cross-solid — a single solid's own
+//!   curved faces are its constructor's obligations), and one
+//!   CROSS-solid class the gate lets through: two instances whose
+//!   materials partly overlap while their boundaries meet only in
+//!   touches — half-overlapping cubes sharing two extents — are
+//!   cleared at arm 2's extent gate (neither hull is inside the
+//!   other's reach), and no arm asks the partial-overlap question
+//!   (`work/bool/partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate.md`;
+//!   pinned by `bool4r2_probes`). Cross-solid pairs the reach filter
+//!   CLEARS are cleared soundly (the pads are sound bounds for the
+//!   kinds that take the test), so clearance is a genuine no-touch
+//!   certificate, not a skip. Named, not sampled.
 //!
 //! A record or candidate a certifier could not certify refuses
 //! [`ValidationError::CensusUnsupported`], never samples. The refusal
@@ -70,6 +83,25 @@
 //! the point-in-face door cannot express or walk (through
 //! [`CensusUnsupportedCause::Containment`]). Five recourses, one
 //! variant, and the cause is which.
+//!
+//! **The chart-region door is a parameter of the pass, not a bound on
+//! its scalar.** Every pass here takes
+//! `region: Option<`[`RegionLane<T>`]`>` — the two chart-region doors
+//! as one `Copy` value, constructible only at a scalar holding
+//! `CertifiedBounds` — and the `pub` doors carry it to their callers:
+//! [`census_and_certify`] and, under `sweep-testing`, [`census_traces`]
+//! / [`census_traces_planted`]. It is read at three sites, and `None`
+//! is the same typed non-answer at each, at whatever scalar the pass
+//! runs: the conformal face-pair arm ([`sweep_conformal_patches`]) and
+//! the declared-record confirm arm ([`confirm_curve_and_patch_records`],
+//! its Door 2) each push [`ValidationError::CensusLaneUnsupported`]
+//! naming the pair instead of examining it, and the crossing rung's
+//! backing consult ([`pair_region_verified`]) answers `false`, so a
+//! crossing the pair would have backed stays an
+//! [`ValidationError::UndeclaredContact`]. `validate_pseudomanifold`
+//! hands `Some(RegionLane::certified())`; its `_structural` twin hands
+//! `None` at every scalar it is called at — a dual's only route, and
+//! an `f64` caller's when it chooses that door.
 //!
 //! **Sense-invariant** (M5 S10 audit), with ONE named exception.
 //! Every use of a face's plane `normal` in the COINCIDENCE sweeps is
@@ -229,12 +261,12 @@
 use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use crate::body::Body;
 use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
-use crate::boolean::{ContactRecords, ContainError, FaceContainment, contfp};
-use crate::chart_region::ChartRegionError;
+use crate::boolean::{ContactRecords, ContainError, FaceContainment, SolidContainment, contfp};
+use crate::chart_region::{ChartRegionError, RegionLane};
 use crate::entity::{
     EdgeKey, EntityId, Face, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey,
 };
@@ -592,26 +624,48 @@ impl Candidates {
 /// docs); returns every failure in deterministic sweep order. Assumes
 /// tiers 1–3-local already passed (the caller gates). Production
 /// entry: the realized strategy, no trace.
-pub(crate) fn census_and_certify<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+pub(crate) fn census_and_certify<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
+    tol: Tol,
+    region: Option<RegionLane<T>>,
 ) -> Vec<ValidationError> {
-    census_with(body, contacts, band, CensusStrategy::Realized, None, None)
+    census_with(
+        body,
+        contacts,
+        band,
+        tol,
+        region,
+        CensusStrategy::Realized,
+        None,
+        None,
+    )
 }
 
 /// The differential door: the census under `strategy`, with every
 /// sweep's examined and accepted pairs recorded. Reference surface
 /// (`sweep-testing`), exactly like [`crate::boolean::sweep_traces`].
 #[cfg(feature = "sweep-testing")]
-pub fn census_traces<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+pub fn census_traces<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
+    tol: Tol,
+    region: Option<RegionLane<T>>,
     strategy: CensusStrategy,
 ) -> (Vec<ValidationError>, CensusTrace) {
     let mut trace = CensusTrace::default();
-    let errors = census_with(body, contacts, band, strategy, None, Some(&mut trace));
+    let errors = census_with(
+        body,
+        contacts,
+        band,
+        tol,
+        region,
+        strategy,
+        None,
+        Some(&mut trace),
+    );
     (errors, trace)
 }
 
@@ -619,10 +673,12 @@ pub fn census_traces<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
 /// examined against nothing: the degradation the differential suites'
 /// superset comparator must catch (`boolean::reduce`'s pin (iii)).
 #[cfg(feature = "sweep-testing")]
-pub fn census_traces_planted<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+pub fn census_traces_planted<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
+    tol: Tol,
+    region: Option<RegionLane<T>>,
     strategy: CensusStrategy,
     plant: crate::boolean::PlantedDegradation,
 ) -> (Vec<ValidationError>, CensusTrace) {
@@ -631,6 +687,8 @@ pub fn census_traces_planted<T: Decide + Bounds + crate::chart_region::ChartRegi
         body,
         contacts,
         band,
+        tol,
+        region,
         strategy,
         Some(plant.face),
         Some(&mut trace),
@@ -638,10 +696,16 @@ pub fn census_traces_planted<T: Decide + Bounds + crate::chart_region::ChartRegi
     (errors, trace)
 }
 
-fn census_with<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
+/// `tol` rides beside `band` for one consumer: the instance-containment
+/// arm's material test, whose at-infinity fold reads a closed-form
+/// volume through the props lane (`Tol` is never witnessed here).
+#[allow(clippy::too_many_arguments)] // the census's whole state: the doors' four, the region door, and the trace's three
+fn census_with<T: Decide + Bounds>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
+    tol: Tol,
+    region: Option<RegionLane<T>>,
     strategy: CensusStrategy,
     plant: Option<FaceKey>,
     mut trace: Option<&mut CensusTrace>,
@@ -689,13 +753,14 @@ fn census_with<T: Decide + Bounds + crate::chart_region::ChartRegionLane>(
         &geo,
         &declared,
         band,
+        region,
         &cands,
         trace.as_deref_mut(),
         &mut errors,
     );
-    sweep_conformal_patches(body, &geo, &declared, band, &mut errors);
-    sweep_cross_solid_backstop(body, &geo, &declared, band, &cands, trace, &mut errors);
-    confirm_declarations(body, &geo, contacts, band, &mut errors);
+    sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
+    sweep_cross_solid_backstop(body, &geo, &declared, band, tol, &cands, trace, &mut errors);
+    confirm_declarations(body, &geo, contacts, band, region, &mut errors);
     errors
 }
 
@@ -888,8 +953,8 @@ fn pair_holds_edges<T: Decide>(
 /// itself answers through the SAME two doors the confirm pass runs —
 /// Door 1 (`contact_pair_verdict`, class `Rest`: carrier identity
 /// through the kind ladder, senses opposed) and Door 2 (the
-/// chart-region overlap through the per-scalar lane, the verdict
-/// carried between them, `interior_witness`'s rescue included) — and
+/// chart-region overlap through the [`RegionLane`] the pass holds, the
+/// verdict carried between them, `interior_witness`'s rescue included) — and
 /// the overlap region is definitely positive. Anything else is a
 /// non-answer HERE, deliberately unreported — a door ERROR included,
 /// and that asymmetry (loud doors at the confirm pass, a silent
@@ -905,19 +970,22 @@ fn pair_holds_edges<T: Decide>(
 /// loud). The doors are also RE-RUN per consult, unmemoised: a
 /// crossing-heavy seat pays the two doors once per (crossing ×
 /// opposite-sided candidate pair) — correctness first, the cache is
-/// PERF-PLAN's if it ever shows up in a profile. A scalar with no
-/// certified region lane (dual) answers `None` at Door 2 and lands in
-/// the same non-answer — and that half of the swallow is the one with a
+/// PERF-PLAN's if it ever shows up in a profile. A pass holding no
+/// region door (`None` — the `_structural` twin's value at every
+/// scalar, a dual's only one) has no Door 2 to ask and lands in the
+/// same non-answer — and that half of the swallow is the one with a
 /// loud twin of its own: the confirm pass reports it as
 /// [`ValidationError::CensusLaneUnsupported`], distinct from the
-/// geometry refusals, so a reader of the vector can tell *replay this
-/// at a certifying scalar* from *this pair's geometry is outside the
-/// lane* without knowing which arm swallowed what.
-fn pair_region_verified<T: Decide + crate::chart_region::ChartRegionLane>(
+/// geometry refusals, so a reader of the vector can tell *this pass
+/// held no region door; replay through the certified door* from *this
+/// pair's geometry is outside the lane* without knowing which arm
+/// swallowed what.
+fn pair_region_verified<T: Decide>(
     body: &Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     band: Band,
+    region: Option<RegionLane<T>>,
 ) -> bool {
     let Ok(verdict) = crate::boolean::contact_pair_verdict(
         body,
@@ -931,7 +999,7 @@ fn pair_region_verified<T: Decide + crate::chart_region::ChartRegionLane>(
         return false;
     };
     matches!(
-        T::declared_overlap(body, fa, body, fb, verdict, band),
+        region.map(|lane| lane.declared_overlap(body, fa, body, fb, verdict, band)),
         Some(Ok(crate::chart_region::ChartOverlap::PositiveArea))
     )
 }
@@ -1014,11 +1082,8 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             let v1 = body.half_edge_end(edge.he_plus)?;
             let p0 = *body.points.get(body.vertices.get(v0)?.point)?;
             let p1 = *body.points.get(body.vertices.get(v1)?.point)?;
-            let f_plus = body.loops.get(plus.parent_loop)?.face;
-            let f_minus = body
-                .loops
-                .get(body.half_edges.get(edge.he_minus)?.parent_loop)?
-                .face;
+            let f_plus = body.face_of_half_edge(edge.he_plus)?;
+            let f_minus = body.face_of_half_edge(edge.he_minus)?;
             let chord = p1 - p0;
             Some(EdgeGeo {
                 key,
@@ -1695,11 +1760,13 @@ fn ef_overlap_lane<T: Decide>(
 /// Census pass 5: edge × edge — proper interior crossings (backable
 /// at the unified strength through [`ee_cross_backed`]) and collinear
 /// positive-length overlaps (D3-certified at both bounds).
-fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
+#[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus the region door the rung consults
+fn sweep_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
     errors: &mut Vec<ValidationError>,
@@ -1708,7 +1775,7 @@ fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
         for j in cands.trees.edges.later(i) {
             let eb = candidate(&geo.edges, j);
             let before = errors.len();
-            pair_edge_edge(body, geo, declared, band, ea, eb, errors);
+            pair_edge_edge(body, geo, declared, band, region, ea, eb, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ee.note(
                     (EntityId::Edge(ea.key), EntityId::Edge(eb.key)),
@@ -1720,11 +1787,13 @@ fn sweep_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
 }
 
 /// One edge pair of pass 5.
-fn pair_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
+#[allow(clippy::too_many_arguments)] // one pair of pass 5, the region door riding to the rung
+fn pair_edge_edge<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
     errors: &mut Vec<ValidationError>,
@@ -1741,7 +1810,9 @@ fn pair_edge_edge<T: Decide + crate::chart_region::ChartRegionLane>(
         band,
         errors,
     ) {
-        Some(false) => ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, errors),
+        Some(false) => {
+            ee_crossing_lane(body, geo, declared, ea, eb, ncross, band, region, errors);
+        }
         Some(true) => ee_collinear_lane(ea, eb, geo, declared, band, errors),
         None => {}
     }
@@ -1865,7 +1936,7 @@ enum CrossingBacking {
 /// `EdgeFacePierce` takes NO rung at all (the MATE-4b staging: a
 /// transverse dive is interpenetration until C6's era, by name).
 #[allow(clippy::too_many_arguments)] // the rung's whole state, no less
-fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
+fn ee_cross_backed<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
@@ -1873,6 +1944,7 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
     eb: &EdgeGeo<T>,
     q: Point3<T>,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) -> CrossingBacking {
     // Pass 1: one collected outcome per unordered candidate pair.
@@ -1927,7 +1999,8 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
                 }
             };
         if side == CrossingSideVerdict::OppositeSides {
-            if pair_region_verified(body, fa, fb, band) || pair_region_verified(body, fb, fa, band)
+            if pair_region_verified(body, fa, fb, band, region)
+                || pair_region_verified(body, fb, fa, band, region)
             {
                 backed = true;
             }
@@ -1961,7 +2034,7 @@ fn ee_cross_backed<T: Decide + crate::chart_region::ChartRegionLane>(
 /// ([`ee_cross_backed`]) or a hard finding, with the side verdict
 /// NAMED in the witness when a region-holding pair refused it.
 #[allow(clippy::too_many_arguments)] // the lane's whole state, no less
-fn ee_crossing_lane<T: Decide + crate::chart_region::ChartRegionLane>(
+fn ee_crossing_lane<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
@@ -1969,6 +2042,7 @@ fn ee_crossing_lane<T: Decide + crate::chart_region::ChartRegionLane>(
     eb: &EdgeGeo<T>,
     ncross: Vec3<T>,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     let d = eb.p0 - ea.p0;
@@ -1994,7 +2068,7 @@ fn ee_crossing_lane<T: Decide + crate::chart_region::ChartRegionLane>(
         return;
     }
     let q = ea.p0 + ea.dir * sa;
-    match ee_cross_backed(body, geo, declared, ea, eb, q, band, errors) {
+    match ee_cross_backed(body, geo, declared, ea, eb, q, band, region, errors) {
         CrossingBacking::Backed => {}
         CrossingBacking::Unanswered => {
             errors.push(ValidationError::UndeclaredContact {
@@ -2163,11 +2237,12 @@ fn ee_bound_backed<T: Decide>(
 /// refusal so the recourse can quote exactly what would verify —
 /// and, unbacked by a face-granularity record, refuses as
 /// `UndeclaredContact` (discovery is never declaration, F1).
-fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
+fn sweep_conformal_patches<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     use crate::geometry::SurfaceKey;
@@ -2188,24 +2263,25 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                 if da.sense == db.sense {
                     continue; // SameOriented: flush material, not contact (C1)
                 }
-                match T::chart_overlap(body, fa, body, fb, band) {
+                match region.map(|lane| lane.chart_overlap(body, fa, body, fb, band)) {
                     None => {
-                        // No CERTIFIED lane at this scalar (dual):
-                        // `ChartRegionLane` refuses, so the pair cannot
-                        // be decided here — typed, never silent. (Since
-                        // D1, 2026-08-19, a dual DOES carry a bracket;
-                        // the refusal is the lane's ruling, not a
-                        // missing `Bounds` impl.)
+                        // The pass holds no CERTIFIED region door (the
+                        // `_structural` twin's value at every scalar,
+                        // a dual's only route), so the pair cannot be
+                        // decided here — typed, never silent. (A dual
+                        // DOES carry a bracket; the refusal is the
+                        // door's absence, not a missing `Bounds` impl.)
                         //
                         // Its own variant, and not the one the typed
                         // predicate refusals below raise: this absence
-                        // is a fact about the RUN's scalar and the same
-                        // candidate is examined at every certifying
-                        // one, while those are facts about THIS pair's
-                        // geometry that no replay changes. One variant
-                        // for both made a run-wide condition read as a
-                        // per-pair geometric refusal, and the two
-                        // recourses are opposite.
+                        // is a fact about the RUN — which door it came
+                        // through — and the same candidate is examined
+                        // through the certified door at any certifying
+                        // scalar, while those are facts about THIS
+                        // pair's geometry that no replay changes. One
+                        // variant for both made a run-wide condition
+                        // read as a per-pair geometric refusal, and the
+                        // two recourses are opposite.
                         errors.push(ValidationError::CensusLaneUnsupported {
                             subject: CensusSubject::FacePair(fa, fb),
                         });
@@ -2502,7 +2578,9 @@ fn boundary_axial<T: Decide>(
                         .and_then(CurveGeom::certified)
                         .map(geom_brep::EdgeCurve::carrier);
                     let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
-                        EdgeBoxRule::NoSoundBox => AxialCarrier::Unclaimable,
+                        // No axial-span closed form is written for the
+                        // spiric (the boolean lane's own reading).
+                        EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric => AxialCarrier::Unclaimable,
                         EdgeBoxRule::Chord => AxialCarrier::Chord,
                         EdgeBoxRule::ConicAmplitude {
                             center,
@@ -2595,6 +2673,46 @@ fn edge_reach<T: Decide>(
     match crate::boolean::boxes::edge_box_rule(carrier) {
         crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
         crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
+        // The spiric's whole-period amplitude box at this lane's
+        // scalar — `spiric_arc_aabb`'s construction without its
+        // outward rounding, as every conic arm here is: per axis the
+        // `m` channel ranges over `[f_min, f_max]` (the one
+        // `geom::spiric_f_range` spelling) and the `axis` channel over
+        // `r·[−1, 1]`, hulled with the chord. No public door builds a
+        // spiric-bearing operand that reaches the contact census at
+        // this head (the boolean's operand gate refuses the kind; a
+        // hollowed partial revolve stops at tier 3's check 7 before
+        // the census), so the arm is exercised by the box module's
+        // hand-built sector row (`boolean/boxes.rs`,
+        // `the_spiric_edge_box_and_reach_contain_a_dense_sample`).
+        crate::boolean::boxes::EdgeBoxRule::Spiric => {
+            let Some(geom::Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            }) = carrier
+            else {
+                return None;
+            };
+            let m = axis.cross(*u_ref);
+            let (f_min, f_max) = geom::spiric_f_range(*major_radius, *minor_radius, *offset);
+            let base = *center + *u_ref * *offset;
+            let per = |b: T, me: T, ae: T| {
+                let (p, q) = (me * f_min, me * f_max);
+                let amp = ae.abs() * *minor_radius;
+                (b + p.min(q) - amp, b + p.max(q) + amp)
+            };
+            let (xl, xh) = per(base.x, m.x, axis.x);
+            let (yl, yh) = per(base.y, m.y, axis.y);
+            let (zl, zh) = per(base.z, m.z, axis.z);
+            Some((
+                Point3::new(xl.min(chord.0.x), yl.min(chord.0.y), zl.min(chord.0.z)),
+                Point3::new(xh.max(chord.1.x), yh.max(chord.1.y), zh.max(chord.1.z)),
+            ))
+        }
         crate::boolean::boxes::EdgeBoxRule::ConicAmplitude {
             center,
             axis,
@@ -2684,27 +2802,74 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 ///    FACE OF THIS PAIR defers to the confirm pass (the declared
 ///    boss-on-plate class) — the record has to name both sides of the
 ///    pair it defers.
-/// 2. **Instance containment** (C6's interference class): one solid's
-///    vertex-extent box inside another's REACH box (the containing
-///    side must be a superset; the contained side is a subset of its
-///    own locus, which is what makes a clear sound) — a nested placement
-///    makes no boundary event at all (the reviewed nested-cube
-///    witness), and interference is representable only through C6's
-///    recorded gate-skips, which do not exist yet.
+/// 2. **Instance containment**: one solid's vertex-extent box against
+///    another's REACH box (the containing side must be a superset; the
+///    contained side is a subset of its own locus, which is what makes
+///    the box clear sound) — a nested placement makes no boundary
+///    event at all (the reviewed nested-cube witness), so this arm is
+///    the only one that sees it. **The box is the GATE and the MATERIAL
+///    test is the verdict.** A pair clears at the gate only when BOTH
+///    orderings separate — a definitely-negative extent margin on some
+///    axis each way. Otherwise the material test runs in BOTH orderings
+///    with no gate on either: every vertex of each instance is probed
+///    against the other's material through the per-solid point-in-solid
+///    door ([`crate::boolean::point_in_solid_faces`], at the run band, through that
+///    door's own predicates — no comparand of this arm's), and:
+///    - any vertex strictly `In` the other's material ⇒
+///      [`ValidationError::InstanceInterference`] (`outer` holds the
+///      witness, `inner` owns it), whatever else stands;
+///    - a vertex the door refuses (escalation, ray exhaustion, a kind it
+///      does not serve, …) and no `In` ⇒ [`ValidationError::CensusUndecidable`]
+///      naming the cause; every vertex `OnBoundary` ⇒ the typed refusal;
+///    - both orderings "every vertex `Out` or `OnBoundary`, at least one
+///      `Out`" ⇒ the CLEAR, and only under the precondition below.
 ///
-///    **This is the arm where a box that is too BIG is wrong**, and
-///    the direction is easy to get backwards: over-width in the
-///    containing reach box does not cost work here, it costs an
-///    answer — a solid genuinely outside stops having a definitely
-///    negative margin and is refused as the interference class. Each
-///    arm claims exactly its rule's construction and no more
-///    (`boxes`' ceiling rows pin that), so what is left here is the
-///    looseness the rules THEMSELVES state — a whole ball for a
-///    sphere band, a full turn for an arc — not slack in the code.
+///    **Why the clear is sound on planar boundaries, and what it does
+///    not cover.** Every vertex of each instance is outside-or-on the
+///    other; the exact sweeps pushed no pierce (`EdgeFacePierce`) and
+///    no transverse edge cross (`EdgeEdgeCross`) against either solid;
+///    and every touch between the two is a REST by a local side
+///    analysis — for a vertex on a face, every edge of the vertex's
+///    solid at that vertex leaves the face's plane on one side (or
+///    lies in it); for an edge in a face, both faces adjacent to the
+///    edge lie on one side (or in it); each direction decided under
+///    the run band with the vertex-face sweep's own residual. Then no
+///    face of one instance dips into the other's material: a planar
+///    face that did would carry a vertex `In`, or an edge crossing the
+///    other's face transversally (a pierce), or an edge crossing one
+///    of its edges (an edge cross), or a crossing at a lower-dimensional
+///    feature — a vertex or an edge in the other's face with material
+///    leaving to both sides, which the side analysis reports as
+///    `Mixed`. The analysis reads undeclared touches from the standing
+///    findings and DECLARED ones from the records (the confirm pass
+///    certifies a record's coincidence, never its side). What is NOT
+///    covered, and blocks instead: a touch kind with no local analysis
+///    yet (a coincident vertex pair, a vertex on an edge, a collinear
+///    edge overlap, a conformal patch — each wants the dihedral wedge;
+///    `work/bool`'s item), a declared face-pair record between the two
+///    (it backs vertex events without a side), a direction the band
+///    cannot decide, any escalation standing (it names no entity), and
+///    anything a curved face takes part in — arm 1 refuses a
+///    cross-solid pair with a curved side within reach BEFORE this arm
+///    runs, and that refusal is a PRECONDITION of the clear for curved
+///    instances: vertices are a thin sample of a curved body, and this
+///    arm adds no curved witness scheme. The arm is conservative, never
+///    clever: what the analysis does not cover refuses typed.
 ///
-/// Both arms clear a pair ONLY on a definitely-positive separation
-/// margin (`census_backstop_gap` / `census_backstop_containment` —
-/// metre coordinate differences); anything weaker refuses.
+///    **Over-width in the containing reach box costs a probe per
+///    vertex** where it costs anything: a pair whose margins are not
+///    definitely negative is sent to the material test instead of being
+///    cleared for free. On planar-only pairs the reach box is the
+///    vertex hull, so the case is not reached; a reach box a curved
+///    face inflates belongs to a pair arm 1 refuses first
+///    (`bool4r1_probes::probe_d`). Each box rule claims exactly its
+///    construction (`boxes`' ceiling rows pin that).
+///
+/// Arm 1 clears a pair ONLY on a definitely-positive separation margin
+/// (`census_backstop_gap` — metre coordinate differences) and refuses
+/// anything weaker; arm 2's box clears only on a definitely-negative
+/// margin (`census_backstop_containment`) and hands anything weaker to
+/// the material test.
 ///
 /// A planar × planar pair is skipped only when BOTH faces are bounded
 /// entirely by line edges. That — not the kind of solid the
@@ -2760,28 +2925,26 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 /// The unsound direction is a deferral keyed on *whether* records
 /// exist: a truthful declaration then switches the containment
 /// examination off, and an instance embedded in another's material
-/// validates clean — which it did until the deferral was removed. The
-/// vocabulary that
-/// WOULD license a skip here is C6's recorded gate-skips, which are a
-/// statement about placement and do not exist yet; when they do, the
-/// deferral they license is keyed on the gate-skip, not on contact.
+/// validates clean — which it did until the deferral was removed. What
+/// a recorded interference fit is, and what it may skip, is C6's
+/// ratified text (`crates/editor-core/ASSEMBLY.md`); recorded
+/// gate-skips are not implemented.
+#[allow(clippy::too_many_arguments)] // the census's fixed sweep signature plus `tol` for one consumer
 fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
+    tol: Tol,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
     errors: &mut Vec<ValidationError>,
 ) {
-    use crate::entity::{FaceKey as FK, ShellKey, SolidKey};
+    use crate::entity::{FaceKey as FK, SolidKey};
     if body.solids().count() < 2 {
         return; // single-solid bodies have no cross-solid pairs
     }
-    let solid_of = |f: FK| -> Option<SolidKey> {
-        let shell: ShellKey = body.get_face(f)?.shell;
-        Some(body.get_shell(shell)?.solid)
-    };
+    let solid_of = |f: FK| -> Option<SolidKey> { body.solid_of_face(f) };
     // Every boundary vertex of `f` — outer loop and rings — exactly as
     // `snapshot` records them into `vertex_faces`; a loop this cannot
     // walk contributes none, and an empty set is disjoint from every
@@ -3118,11 +3281,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
         let pts = face_points(f);
         // The CONTAINED side's hull, and it may be any subset of the
         // solid's locus (this arm's own comment below). A face that
-        // contributes no vertices shrinks the hull, which makes
-        // containment easier to claim and separation harder — the loud
-        // direction on both branches — so skipping it here is sound
-        // where the same skip in the `reaches` build above is not.
-        // Arm 1 has already refused the face itself.
+        // contributes no vertices shrinks the hull, which makes a
+        // definite separation harder to claim — so the pair is sent to
+        // the material test rather than cleared at the gate, the
+        // conservative direction — and the vertices it would have
+        // contributed are probed by the material test whether or not
+        // the hull saw them. Skipping it here is therefore sound where
+        // the same skip in the `reaches` build above is not. Arm 1 has
+        // already refused the face itself.
         let Some((lo, hi)) = hull(&pts) else { continue };
         solid_boxes
             .entry(solid)
@@ -3159,6 +3325,340 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
         };
     }
     let solids: Vec<_> = solid_boxes.iter().collect();
+    // The findings standing when arm 2 begins: every exact sweep's, the
+    // conformal arm's and arm 1's. The clear's precondition reads this
+    // prefix and nothing arm 2 itself pushes — a placement verdict on
+    // one pair says nothing about another pair's boundaries.
+    let standing = errors.len();
+    let solid_of_entity = |id: EntityId| -> Option<SolidKey> {
+        match id {
+            EntityId::Solid(s) => Some(s),
+            EntityId::Shell(s) => body.get_shell(s).map(|d| d.solid),
+            EntityId::Face(f) => body.solid_of_face(f),
+            EntityId::Loop(l) => body.get_loop(l).and_then(|d| body.solid_of_face(d.face)),
+            EntityId::HalfEdge(h) => body
+                .face_of_half_edge(h)
+                .and_then(|f| body.solid_of_face(f)),
+            EntityId::Edge(e) => body
+                .edges
+                .get(e)
+                .and_then(|d| body.face_of_half_edge(d.he_plus))
+                .and_then(|f| body.solid_of_face(f)),
+            EntityId::Vertex(v) => geo
+                .vertex_faces
+                .get(&v)
+                .and_then(|fs| fs.iter().next().copied())
+                .and_then(|f| body.solid_of_face(f)),
+        }
+    };
+    let vertex_solid = |v: VertexKey| solid_of_entity(EntityId::Vertex(v));
+    // ---- The local side analysis of a touch (the clear's condition 3).
+    // Where a set of points lies relative to a planar face's carrier:
+    // every point in the plane, all off-plane points on one side, on
+    // both sides, or a residual the run band cannot decide. The
+    // residual is the vertex-face sweep's own (`pm_census_vf_residual`,
+    // metres) — no comparand of this arm's.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Side {
+        InPlane,
+        One,
+        Mixed,
+        InBand,
+        /// A curved face or edge takes part: the planar analysis does
+        /// not apply (arm 1's territory).
+        Unreadable,
+    }
+    let sides = |f: &FaceGeo<T>, pts: &[Point3<T>]| -> Side {
+        let mut seen: Option<Sign> = None;
+        for &p in pts {
+            let elev = (p - f.origin).dot(f.normal);
+            match decide("pm_census_vf_residual", Margin::of(elev), band) {
+                Err(_) => return Side::InBand,
+                Ok(Sign::Zero) => {}
+                Ok(s) => match seen {
+                    None => seen = Some(s),
+                    Some(t) if t == s => {}
+                    Some(_) => return Side::Mixed,
+                },
+            }
+        }
+        if seen.is_some() {
+            Side::One
+        } else {
+            Side::InPlane
+        }
+    };
+    // A vertex `v` resting in face `f`: every edge of `v`'s solid at
+    // `v` leaves `f`'s plane on one side (or lies in it). A curved face
+    // at `v`, or a face `f` outside the planar snapshot, is unreadable.
+    let vf_rest = |v: VertexKey, f: FK| -> Side {
+        let Some(plane) = planar_face(geo, f) else {
+            return Side::Unreadable;
+        };
+        if geo
+            .vertex_faces
+            .get(&v)
+            .is_some_and(|fs| fs.iter().any(|g| geo.curved_faces.contains(g)))
+        {
+            return Side::Unreadable;
+        }
+        let far: Vec<Point3<T>> = geo
+            .edges
+            .iter()
+            .filter_map(|e| {
+                let other = if e.v0 == v {
+                    e.v1
+                } else if e.v1 == v {
+                    e.v0
+                } else {
+                    return None;
+                };
+                geo.vmap.get(&other).copied()
+            })
+            .collect();
+        sides(plane, &far)
+    };
+    // An edge `e` lying in face `f`: both faces adjacent to `e` lie on
+    // one side of `f`'s plane (or in it).
+    let ef_rest = |e: EdgeKey, f: FK| -> Side {
+        let Some(plane) = planar_face(geo, f) else {
+            return Side::Unreadable;
+        };
+        let Some(edge) = geo.edges.iter().find(|d| d.key == e) else {
+            return Side::Unreadable;
+        };
+        let mut agreed: Option<Sign> = None;
+        for adj in [edge.f_plus, edge.f_minus] {
+            let Some(face) = planar_face(geo, adj) else {
+                return Side::Unreadable;
+            };
+            let pts: Vec<Point3<T>> = face
+                .boundary
+                .iter()
+                .filter_map(|v| geo.vmap.get(v).copied())
+                .collect();
+            match sides(plane, &pts) {
+                Side::InPlane => {}
+                Side::One => {
+                    // Which side: the first off-plane point decides
+                    // (`sides` certified they all agree).
+                    let s = pts
+                        .iter()
+                        .find_map(|&p| {
+                            match decide(
+                                "pm_census_vf_residual",
+                                Margin::of((p - plane.origin).dot(plane.normal)),
+                                band,
+                            ) {
+                                Ok(Sign::Zero) | Err(_) => None,
+                                Ok(s) => Some(s),
+                            }
+                        })
+                        .unwrap_or(Sign::Zero);
+                    match agreed {
+                        None => agreed = Some(s),
+                        Some(t) if t == s => {}
+                        Some(_) => return Side::Mixed,
+                    }
+                }
+                other => return other,
+            }
+        }
+        if agreed.is_some() {
+            Side::One
+        } else {
+            Side::InPlane
+        }
+    };
+    const CROSSING: &str = "a crossing already stands against one of these instances, so \
+                            their boundaries are not certified crossing-free and no \
+                            witness decides the placement";
+    const UNEXAMINED: &str = "an unexamined or escalated finding already stands against \
+                              one of these instances, so their boundaries are not \
+                              certified crossing-free and no witness decides the \
+                              placement";
+    const MIXED_TOUCH: &str = "a touch between these instances is a crossing at a \
+                               lower-dimensional feature — the touching solid's edges \
+                               or faces leave the touched face's plane on both sides — \
+                               so the placement is not decided by its vertices";
+    const TOUCH_IN_BAND: &str = "a touch between these instances has an edge or face \
+                                 leaving the touched face's plane in band, so which side \
+                                 it rests on is undecided at this ε";
+    const TOUCH_UNREADABLE: &str = "a touch between these instances involves a curved \
+                                    face or edge, whose side the planar analysis does \
+                                    not read — the exclusion ring's case";
+    const TOUCH_UNANALYSED: &str = "a touch between these instances (a coincident vertex \
+                                    pair, a vertex on an edge, a collinear edge overlap \
+                                    or a conformal patch) has no local side analysis \
+                                    yet, so the placement is not decided by its vertices";
+    const DECLARED_FACE_PAIR: &str = "a declared face-pair record between these instances \
+                                      backs vertex events without a side, so the \
+                                      placement is not decided by its vertices";
+    // Does anything standing void the clear for the pair? `None` = the
+    // clear may stand; `Some(what)` = the refusal to push.
+    let touch_verdict = |side: Side| -> Option<&'static str> {
+        match side {
+            Side::InPlane | Side::One => None,
+            Side::Mixed => Some(MIXED_TOUCH),
+            Side::InBand => Some(TOUCH_IN_BAND),
+            Side::Unreadable => Some(TOUCH_UNREADABLE),
+        }
+    };
+    let blocks =
+        |standing_errors: &[ValidationError], sa: SolidKey, sb: SolidKey| -> Option<&'static str> {
+            let owns = |id: EntityId| solid_of_entity(id).is_some_and(|s| s == sa || s == sb);
+            let names = |ids: &[EntityId]| ids.iter().any(|&id| owns(id));
+            // One entity on each side of the pair.
+            let between = |x: EntityId, y: EntityId| {
+                matches!(
+                    (solid_of_entity(x), solid_of_entity(y)),
+                    (Some(p), Some(q)) if (p == sa && q == sb) || (p == sb && q == sa)
+                )
+            };
+            for e in standing_errors {
+                let what = match e {
+                    // Names no entity: it may be about this pair.
+                    ValidationError::CensusEscalated { .. } => Some(UNEXAMINED),
+                    ValidationError::UndeclaredContact { contact, .. } => match *contact {
+                        CensusContact::EdgeFacePierce { edge, face }
+                            if names(&[EntityId::Edge(edge), EntityId::Face(face)]) =>
+                        {
+                            Some(CROSSING)
+                        }
+                        CensusContact::EdgeEdgeCross { a, b }
+                            if names(&[EntityId::Edge(a), EntityId::Edge(b)]) =>
+                        {
+                            Some(CROSSING)
+                        }
+                        CensusContact::VertexOnFace { vertex, face }
+                            if between(EntityId::Vertex(vertex), EntityId::Face(face)) =>
+                        {
+                            touch_verdict(vf_rest(vertex, face))
+                        }
+                        CensusContact::EdgeFaceOverlap { edge, face }
+                            if between(EntityId::Edge(edge), EntityId::Face(face)) =>
+                        {
+                            touch_verdict(ef_rest(edge, face))
+                        }
+                        CensusContact::VertexVertex { a, b }
+                            if between(EntityId::Vertex(a), EntityId::Vertex(b)) =>
+                        {
+                            Some(TOUCH_UNANALYSED)
+                        }
+                        CensusContact::VertexOnEdge { vertex, edge }
+                            if between(EntityId::Vertex(vertex), EntityId::Edge(edge)) =>
+                        {
+                            Some(TOUCH_UNANALYSED)
+                        }
+                        CensusContact::EdgeEdgeOverlap { a, b }
+                            if between(EntityId::Edge(a), EntityId::Edge(b)) =>
+                        {
+                            Some(TOUCH_UNANALYSED)
+                        }
+                        CensusContact::ConformalPatch { ref finding } => {
+                            if between(
+                                EntityId::Face(finding.pair.a),
+                                EntityId::Face(finding.pair.b),
+                            ) {
+                                Some(TOUCH_UNANALYSED)
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    },
+                    ValidationError::CensusUnsupported { subject, .. }
+                    | ValidationError::CensusLaneUnsupported { subject } => match subject {
+                        CensusSubject::Entity(id) if names(&[*id]) => Some(UNEXAMINED),
+                        CensusSubject::FacePair(f, g)
+                            if names(&[EntityId::Face(*f), EntityId::Face(*g)]) =>
+                        {
+                            Some(UNEXAMINED)
+                        }
+                        _ => None,
+                    },
+                    ValidationError::CensusUndecidable { a, b, .. } if names(&[*a, *b]) => {
+                        Some(UNEXAMINED)
+                    }
+                    ValidationError::CensusUndecidable { .. } => None,
+                    // Nothing else is pushed ahead of this arm: the census
+                    // is entered with tiers 1–3 clean and the confirm pass
+                    // runs after it. Whatever does stand here is unknown to
+                    // this arm and blocks.
+                    _ => Some(UNEXAMINED),
+                };
+                if what.is_some() {
+                    return what;
+                }
+            }
+            // Declared touches leave no finding and are confirmed for their
+            // coincidence only, never for their side: the same analysis
+            // runs over the records that name this pair.
+            for &(v, f) in &declared.vf {
+                if between(EntityId::Vertex(v), EntityId::Face(f))
+                    && let Some(what) = touch_verdict(vf_rest(v, f))
+                {
+                    return Some(what);
+                }
+            }
+            if declared
+                .vv
+                .iter()
+                .any(|&(a, b)| between(EntityId::Vertex(a), EntityId::Vertex(b)))
+            {
+                return Some(TOUCH_UNANALYSED);
+            }
+            if declared
+                .faces
+                .iter()
+                .any(|&(a, b)| between(EntityId::Face(a), EntityId::Face(b)))
+            {
+                return Some(DECLARED_FACE_PAIR);
+            }
+            None
+        };
+    // ---- The material test of one ordering: every vertex of `inner`
+    // against `outer`'s material.
+    enum Probe {
+        /// A vertex of `inner` strictly inside `outer`'s material.
+        In(VertexKey),
+        /// The door refused a vertex (and none was `In`).
+        Refused(&'static str),
+        /// Every vertex on `outer`'s boundary.
+        AllOn,
+        /// Every vertex outside or on the boundary, at least one outside.
+        Clear,
+        /// `inner` has no vertex to probe.
+        NoVertex,
+    }
+    let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
+        let sel = match crate::boolean::SolidFaces::of(body, outer) {
+            Ok(sel) => sel,
+            Err(e) => return Probe::Refused(e.summary()),
+        };
+        let (mut refused, mut out_seen, mut any) = (None, false, false);
+        for &(v, p) in geo
+            .verts
+            .iter()
+            .filter(|(v, _)| vertex_solid(*v) == Some(inner))
+        {
+            any = true;
+            match crate::boolean::point_in_solid_faces(body, &sel, p, band, tol) {
+                Ok(SolidContainment::In) => return Probe::In(v),
+                Ok(SolidContainment::Out) => out_seen = true,
+                Ok(SolidContainment::OnBoundary) => {}
+                Err(e) => {
+                    refused.get_or_insert(e.summary());
+                }
+            }
+        }
+        match (any, refused, out_seen) {
+            (false, _, _) => Probe::NoVertex,
+            (_, Some(what), _) => Probe::Refused(what),
+            (_, None, true) => Probe::Clear,
+            (_, None, false) => Probe::AllOn,
+        }
+    };
     // The pre-filter over the instances' extents (`Trees` docs): a
     // solid's extent is its vertex hull joined with its reach box,
     // padded — the box each ordering below reads on one side or the
@@ -3166,7 +3666,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     // box, so the refusal it owes every partner is still pushed. Two
     // extents disjoint on an axis put a definite Negative among that
     // axis's margins in BOTH orderings, which is exactly the clearance
-    // the loop finds first; pruning the pair loses no finding.
+    // the gate finds; pruning the pair loses no finding.
     let extent_boxes: Vec<Aabb> = solids
         .iter()
         .map(
@@ -3187,6 +3687,16 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             // states one coincidence, and this arm's question is where
             // one instance sits relative to another. A pair carrying
             // records is examined exactly like a pair carrying none.
+            //
+            // The GATE, per ordering: `inner`'s vertex hull against
+            // `outer`'s reach box; a definitely-negative margin on any
+            // axis says `inner` is not inside `outer`'s reach. A
+            // container whose extent no sound box claims refuses the
+            // ordering. Only when BOTH orderings separate is the pair
+            // cleared here; otherwise the material test runs — in
+            // both orderings, with no gate on either.
+            let mut unclaimable = false;
+            let mut reaches = false;
             for (outer, inner, ilo, ihi) in [(sa, sb, blo, bhi), (sb, sa, alo, ahi)] {
                 let Some((olo, ohi)) = solid_reach.get(&outer).copied().flatten() else {
                     errors.push(ValidationError::CensusUndecidable {
@@ -3196,13 +3706,9 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                                containing instance's extent unclaimable — the \
                                same interference class",
                     });
+                    unclaimable = true;
                     continue;
                 };
-                // Containment of `inner` in `outer`: all six extent
-                // margins definitely positive ⇒ the interference
-                // class; ANY definitely negative ⇒ clear; anything
-                // weaker (a boundary-flush box) refuses too — only a
-                // definite verdict clears (conservative direction).
                 let margins = [
                     ilo.x - olo.x,
                     ohi.x - ihi.x,
@@ -3211,30 +3717,56 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     ilo.z - olo.z,
                     ohi.z - ihi.z,
                 ];
-                let mut cleared = false;
-                let mut all_positive = true;
-                for m in margins {
-                    match decide("census_backstop_containment", Margin::of(m), band) {
-                        Ok(Sign::Positive) => {}
-                        Ok(Sign::Negative) => {
-                            cleared = true;
-                            all_positive = false;
-                            break;
+                let separated = margins.into_iter().any(|m| {
+                    matches!(
+                        decide("census_backstop_containment", Margin::of(m), band),
+                        Ok(Sign::Negative)
+                    )
+                });
+                reaches |= !separated;
+            }
+            if !unclaimable && reaches {
+                // The material test, both orderings, every vertex. An
+                // `In` is the decided interference whatever else stands;
+                // the CLEAR needs both orderings clear and the
+                // precondition below.
+                let fwd = probe(sa, sb);
+                let rev = probe(sb, sa);
+                let mut clear = true;
+                for (outer, inner, verdict) in [(sa, sb, fwd), (sb, sa, rev)] {
+                    let what = match verdict {
+                        Probe::In(witness) => {
+                            clear = false;
+                            errors.push(ValidationError::InstanceInterference {
+                                outer,
+                                inner,
+                                witness,
+                            });
+                            continue;
                         }
-                        _ => all_positive = false,
-                    }
-                }
-                if !cleared {
+                        Probe::Clear => continue,
+                        Probe::Refused(what) => what,
+                        Probe::AllOn => {
+                            "every vertex of the contained instance lies on the containing \
+                             instance's boundary — a placement its vertices do not decide"
+                        }
+                        Probe::NoVertex => {
+                            "the contained instance has no vertex to probe — a placement \
+                             no witness decides"
+                        }
+                    };
+                    clear = false;
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Solid(outer),
                         b: EntityId::Solid(inner),
-                        what: if all_positive {
-                            "one instance's extent box inside another's — the \
-                             interference class (recorded gate-skips do not exist yet)"
-                        } else {
-                            "instance extent boxes not definitely separable from \
-                             containment — the same interference class, in band"
-                        },
+                        what,
+                    });
+                }
+                if clear && let Some(what) = blocks(&errors[..standing], sa, sb) {
+                    errors.push(ValidationError::CensusUndecidable {
+                        a: EntityId::Solid(sa),
+                        b: EntityId::Solid(sb),
+                        what,
                     });
                 }
             }
@@ -3251,11 +3783,12 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
 /// The confirmation direction of the certification diff: every
 /// declaration must have a geometric witness — dead keys, equal keys,
 /// and coincidence-free records are stale, typed.
-fn confirm_declarations<T: Decide + crate::chart_region::ChartRegionLane>(
+fn confirm_declarations<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
     contacts: &ContactRecords,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     for c in &contacts.vv {
@@ -3275,7 +3808,7 @@ fn confirm_declarations<T: Decide + crate::chart_region::ChartRegionLane>(
             Some(false) => errors.push(stale),
         }
     }
-    confirm_curve_and_patch_records(body, contacts, band, errors);
+    confirm_curve_and_patch_records(body, contacts, band, region, errors);
     for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
         let stale = ValidationError::StaleContactDeclaration {
             declaration: StaleDeclaration::VertexOnFace {
@@ -3335,10 +3868,11 @@ fn confirm_declarations<T: Decide + crate::chart_region::ChartRegionLane>(
 /// mate's declaration lands in the product body's `ContactRecords` —
 /// the boolean 3′ currency, same type, no adapter — and THIS is the
 /// at-rest evidence door those records certify through.
-fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionLane>(
+fn confirm_curve_and_patch_records<T: Decide>(
     body: &Body<T>,
     contacts: &ContactRecords,
     band: Band,
+    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     for c in &contacts.curves {
@@ -3468,16 +4002,19 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             }
         };
         // Door 2 — region overlap in the pair's chart, definitely
-        // positive (the PR-1 predicate through the per-scalar lane),
-        // the chart being either the structural one or the declared
-        // pair's shared world carrier.
-        match T::declared_overlap(body, c.face_a, body, c.face_b, door_one, band) {
-            // The SCALAR has no certified region lane, exactly as at
+        // positive (the PR-1 predicate through the region door the
+        // pass holds), the chart being either the structural one or
+        // the declared pair's shared world carrier.
+        match region
+            .map(|lane| lane.declared_overlap(body, c.face_a, body, c.face_b, door_one, band))
+        {
+            // The pass holds no certified region door, exactly as at
             // the sweep arm and split from the geometry refusals below
             // for the same reason: this absence is a fact about the
-            // RUN, the same record is confirmed at every certifying
-            // scalar, and the recourse is a replay rather than a change
-            // to the geometry.
+            // RUN — the door it came through, at whatever scalar — the
+            // same record is confirmed through the certified door at
+            // any certifying scalar, and the recourse is a replay
+            // through that door rather than a change to the geometry.
             None => {
                 errors.push(ValidationError::CensusLaneUnsupported {
                     subject: CensusSubject::FacePair(c.face_a, c.face_b),
@@ -3678,7 +4215,13 @@ mod tests {
     #[test]
     fn the_conformal_arm_finds_an_undeclared_pair_and_carries_the_finding() {
         let (body, w1, w2) = conformal_pair();
-        let errors = census_and_certify(&body, &ContactRecords::default(), band());
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         let hit = errors
             .iter()
             .find_map(|e| match e {
@@ -3765,17 +4308,23 @@ mod tests {
             let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
             let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-            census_and_certify(&body, &ContactRecords::default(), band())
-                .into_iter()
-                .filter_map(|e| match e {
-                    ValidationError::CensusUndecidable {
-                        a: EntityId::Solid(a),
-                        b: EntityId::Solid(b),
-                        what,
-                    } => Some(format!("{a:?}~{b:?}: {what}")),
-                    _ => None,
-                })
-                .collect()
+            census_and_certify(
+                &body,
+                &ContactRecords::default(),
+                band(),
+                Tol::witness(),
+                Some(RegionLane::certified()),
+            )
+            .into_iter()
+            .filter_map(|e| match e {
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Solid(a),
+                    b: EntityId::Solid(b),
+                    what,
+                } => Some(format!("{a:?}~{b:?}: {what}")),
+                _ => None,
+            })
+            .collect()
         };
         let near = refusals(0.3, 0.7);
         assert!(
@@ -3795,6 +4344,95 @@ mod tests {
         );
     }
 
+    /// **A container carrying a face kind the material test does not
+    /// serve.** A 3 m box whose far wall (`x = 0`) is a described
+    /// NURBS net, with a 0.6 m box floating inside: arm 1 clears every
+    /// pair the spline face is in (its reach box is two metres from
+    /// the part), the extent gate cannot separate the pair, and the
+    /// material test's pre-pass meets the spline face and refuses
+    /// `KindUnsupported` — which arm 2 reports as `CensusUndecidable`
+    /// naming the cause, on BOTH orderings (the part's own material
+    /// test of the box is the reverse ordering, and it clears on its
+    /// gate: the box's hull is not inside the part's reach). Through
+    /// `census_and_certify` directly, because the public door refuses
+    /// the re-described wall at tier 3 first (`DescriptionNotAdjacent`
+    /// on its edges, or the M7-8 edge lane's own certification); this
+    /// is the door below that bar.
+    #[test]
+    fn an_unserved_face_kind_on_the_container_refuses_naming_the_cause() {
+        use crate::euler::FaceSurface;
+        use crate::splitting::reassembly::quad_prism;
+        let tol = Tol::witness();
+        let mut body = quad_prism(&[(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)], 3.0, tol);
+        let far_wall = body
+            .faces()
+            .find(|&(f, _)| {
+                let face = body.get_face(f).unwrap();
+                face_cycles(&body, face)
+                    .filter_map(Result::ok)
+                    .flatten()
+                    .all(|he| {
+                        let v = body.half_edges.get(he).unwrap().start;
+                        body.points[body.vertices[v].point].x.abs() < 1e-12
+                    })
+            })
+            .map(|(f, _)| f)
+            .unwrap();
+        let k =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let ticks = [-1.0, 1.5, 4.0];
+        let (mut control, mut weights) = (Vec::new(), Vec::new());
+        for &y in &ticks {
+            for &z in &ticks {
+                control.push(Point3::new(0.0, y, z));
+                weights.push(1.0);
+            }
+        }
+        let net = geom::NurbsSurface::new(k.clone(), k, control, weights).unwrap();
+        assert!(!net.is_placeholder());
+        body.set_face_surface(
+            far_wall,
+            FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(net))),
+        )
+        .unwrap();
+        let part = quad_prism(&[(1.2, 1.2), (1.8, 1.2), (1.8, 1.8), (1.2, 1.8)], 0.6, tol);
+        // Lift the part off the floor: z ∈ [1.2, 1.8].
+        let mut part = part;
+        for (_, p) in part.points.iter_mut() {
+            p.z += 1.2;
+        }
+        crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            tol,
+            Some(RegionLane::certified()),
+        );
+        let whats: Vec<&str> = errors
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Solid(_),
+                    b: EntityId::Solid(_),
+                    what,
+                } => Some(*what),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(whats.len(), 1, "{errors:?}");
+        assert!(
+            whats[0].contains("a face kind the point-in-solid door does not serve"),
+            "{whats:?}"
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::InstanceInterference { .. })),
+            "{errors:?}"
+        );
+    }
+
     #[test]
     fn a_patch_record_backs_the_pair_and_confirms_through_both_doors() {
         let (body, w1, w2) = conformal_pair();
@@ -3803,7 +4441,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let errors = census_and_certify(&body, &records, band());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         let findings = face_findings(&errors);
         assert!(
             findings.is_empty(),
@@ -3822,13 +4466,219 @@ mod tests {
             face_a: w1,
             face_b: w3,
         });
-        let errors = census_and_certify(&body, &records, band());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             errors
                 .iter()
                 .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
             "overlap Empty ⇒ stale (C3's letter): {errors:?}"
         );
+    }
+
+    // ================= The `None` path, observed =================
+
+    /// The sentence [`ValidationError::CensusLaneUnsupported`] renders
+    /// for `pair`, so the `None` rows below pin the `Display` and not
+    /// only the variant.
+    fn lane_unsupported_sentence(pair: (FaceKey, FaceKey)) -> String {
+        format!(
+            "tier-3′ census: this scalar has no certified chart-overlap lane, so the conformal \
+             face-pair arm could not examine the candidate {} — a fact about the RUN and not \
+             about the geometry, refused rather than skipped. Replay the body at f64, the \
+             telemetry probe or the interval scalar to get the candidate examined",
+            CensusSubject::FacePair(pair.0, pair.1)
+        )
+    }
+
+    /// The one [`ValidationError::CensusLaneUnsupported`] in `errors`,
+    /// with its subject and `Display` pinned to `pair`.
+    fn the_one_lane_refusal(errors: &[ValidationError], pair: (FaceKey, FaceKey)) {
+        let lane: Vec<&ValidationError> = errors
+            .iter()
+            .filter(|e| matches!(e, ValidationError::CensusLaneUnsupported { .. }))
+            .collect();
+        assert_eq!(
+            lane.len(),
+            1,
+            "exactly one lane refusal, for the one pair the arm could not examine: {errors:?}"
+        );
+        assert_eq!(
+            *lane[0],
+            ValidationError::CensusLaneUnsupported {
+                subject: CensusSubject::FacePair(pair.0, pair.1),
+            }
+        );
+        assert_eq!(lane[0].to_string(), lane_unsupported_sentence(pair));
+    }
+
+    /// **The `None` path at the conformal face-pair arm, observed.** The
+    /// same conformal pair the arm finds UNDECLARED with the region door
+    /// in hand is, with the pass holding `None`, exactly one
+    /// [`ValidationError::CensusLaneUnsupported`] naming the pair — the
+    /// typed refusal, never a silent skip, and never the undeclared
+    /// finding (nothing was examined).
+    #[test]
+    fn a_pass_holding_no_region_door_refuses_the_conformal_pair_typed() {
+        let (body, w1, w2) = conformal_pair();
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            None,
+        );
+        let findings = face_findings(&errors);
+        assert_eq!(
+            findings.len(),
+            1,
+            "the arm's whole verdict on the pair is the one refusal: {errors:?}"
+        );
+        the_one_lane_refusal(&errors, (w1, w2));
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            "nothing was examined, so nothing is found undeclared: {errors:?}"
+        );
+    }
+
+    /// **The `None` path at the confirm pass, observed, and the crossing
+    /// rung's `false` with it.** The straddle seat's declared pair (its
+    /// one patch record) certifies through both doors with the region
+    /// door in hand and backs the seat's two edge crossings; with the
+    /// pass holding `None` the record is exactly one
+    /// [`ValidationError::CensusLaneUnsupported`] naming the pair, and
+    /// the two crossings are the hard findings the undeclared seat has
+    /// — the backing consult folded to `false`, so the declaration
+    /// backs nothing, exactly as a scalar with no door would see it.
+    #[test]
+    fn a_pass_holding_no_region_door_refuses_the_declared_pair_typed_and_backs_no_crossing() {
+        let seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
+        let pair = (seat.post_top, seat.shelf_bottom);
+        let mut records = ContactRecords::default();
+        records.patches.push(PatchContact {
+            face_a: pair.0,
+            face_b: pair.1,
+        });
+        let crossings = |errors: &[ValidationError]| -> Vec<String> {
+            errors
+                .iter()
+                .filter_map(|e| match e {
+                    ValidationError::UndeclaredContact {
+                        contact: contact @ CensusContact::EdgeEdgeCross { .. },
+                        witness,
+                    } => Some(format!("{contact:?} at {witness}")),
+                    _ => None,
+                })
+                .collect()
+        };
+
+        let with = census_and_certify(
+            &seat.body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
+        assert!(
+            with.is_empty(),
+            "the declared seat certifies and backs both crossings: {with:?}"
+        );
+
+        let bare = census_and_certify(
+            &seat.body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            None,
+        );
+        assert!(
+            !crossings(&bare).is_empty(),
+            "the undeclared seat's crossings are hard findings: {bare:?}"
+        );
+        assert!(
+            !bare
+                .iter()
+                .any(|e| matches!(e, ValidationError::CensusLaneUnsupported { .. })),
+            "no declaration, no consult, no lane refusal: {bare:?}"
+        );
+
+        let without = census_and_certify(&seat.body, &records, band(), Tol::witness(), None);
+        the_one_lane_refusal(&without, pair);
+        assert_eq!(
+            crossings(&without),
+            crossings(&bare),
+            "the declared pair backs nothing when the consult holds no door: {without:?}"
+        );
+    }
+
+    /// **The backing consult's fold, at the consult itself**: the
+    /// straddle seat's declared pair verifies with the region door in
+    /// hand (Door 1's rest verdict, Door 2's positive area) and answers
+    /// `false` without one — the silent half of the `None` path, whose
+    /// loud twin is the confirm pass's refusal in the row above.
+    #[test]
+    fn the_backing_consult_holding_no_region_door_answers_false() {
+        let seat = crate::test_support_fixtures::straddle_seat(Tol::witness());
+        assert!(
+            pair_region_verified(
+                &seat.body,
+                seat.post_top,
+                seat.shelf_bottom,
+                band(),
+                Some(RegionLane::certified()),
+            ),
+            "the declared seat's pair verifies through both doors"
+        );
+        assert!(
+            !pair_region_verified(&seat.body, seat.post_top, seat.shelf_bottom, band(), None),
+            "no door, no verification"
+        );
+    }
+
+    /// **The consult on the mate9 Door-2 isolator pair** (kitty-corner,
+    /// zero-area overlap) answers `false` with the door in hand too:
+    /// Door 2 never answers `PositiveArea` on it, so that body cannot
+    /// carry the `true`/`false` pin the row above takes on the straddle
+    /// seat's declared pair, and the `None` fold is invisible on it.
+    #[test]
+    fn the_isolator_pair_answers_false_with_the_door_in_hand_too() {
+        let tol = Tol::witness();
+        let post: crate::test_support_fixtures::Prism<f64> = crate::test_support_fixtures::prism_z(
+            &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
+            0.0,
+            0.5,
+            tol,
+        );
+        let shelf: crate::test_support_fixtures::Prism<f64> = crate::test_support_fixtures::prism_z(
+            &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
+            0.5,
+            0.54,
+            tol,
+        );
+        let block: crate::test_support_fixtures::Prism<f64> = crate::test_support_fixtures::prism_z(
+            &[(0.10, 0.30), (0.30, 0.30), (0.30, 0.50), (0.10, 0.50)],
+            0.5,
+            0.54,
+            tol,
+        );
+        let post_top = post.top_face;
+        let mut body = post.body;
+        let _ = crate::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).unwrap();
+        let bkeys = crate::graft_disjoint_all_keyed(&mut body, &block.body, tol).unwrap();
+        let block_bottom = bkeys.face(block.bottom_face).unwrap();
+        for region in [Some(RegionLane::certified()), None] {
+            assert!(
+                !pair_region_verified(&body, post_top, block_bottom, band(), region),
+                "the isolator pair answers false whether or not the door is in hand"
+            );
+        }
     }
 
     // ================= R1 review probes (m9-2b-r1) =================
@@ -3844,7 +4694,13 @@ mod tests {
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let arm = census_and_certify(&body, &ContactRecords::default(), band());
+        let arm = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             arm.iter()
                 .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
@@ -3865,7 +4721,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let cert = census_and_certify(&body, &records, band());
+        let cert = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             cert.iter()
                 .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
@@ -3896,7 +4758,13 @@ mod tests {
         // no strut/vertex coincidences muddy the face-pair question.
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
-        let arm = census_and_certify(&body, &ContactRecords::default(), band());
+        let arm = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             arm.iter().any(|e| matches!(
                 e,
@@ -3912,7 +4780,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let cert = census_and_certify(&body, &records, band());
+        let cert = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         let findings = face_findings(&cert);
         assert!(
             findings.is_empty(),
@@ -3933,7 +4807,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let errors = census_and_certify(&body, &records, band());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             errors
                 .iter()
@@ -3942,7 +4822,13 @@ mod tests {
         );
         // And the ARM stays quiet on the aligned pair: SameOriented
         // is flush, not a conformal candidate.
-        let arm_only = census_and_certify(&body, &ContactRecords::default(), band());
+        let arm_only = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             !arm_only.iter().any(|e| matches!(
                 e,
@@ -4125,7 +5011,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let errors = census_and_certify(&body, &records, band());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         let findings = face_findings(&errors);
         assert!(
             findings.is_empty(),
@@ -4148,7 +5040,13 @@ mod tests {
             face_a: w1,
             face_b: w2,
         });
-        let errors = census_and_certify(&body, &records, band());
+        let errors = census_and_certify(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+        );
         assert!(
             errors
                 .iter()
@@ -4212,10 +5110,16 @@ mod tests {
                 let b = crate::boolean::boxes::face_box(&body, f, 1e-9);
                 reaches.push(format!("face_box: {b:?}"));
             }
-            let errs = census_and_certify(&body, &ContactRecords::default(), band())
-                .into_iter()
-                .map(|e| format!("{e:?}"))
-                .collect();
+            let errs = census_and_certify(
+                &body,
+                &ContactRecords::default(),
+                band(),
+                Tol::witness(),
+                Some(RegionLane::certified()),
+            )
+            .into_iter()
+            .map(|e| format!("{e:?}"))
+            .collect();
             (reaches, errs)
         };
         let (near_reach, near) = run(0.3, 0.7);
@@ -4280,7 +5184,7 @@ mod tests {
     /// marginal angle to an axis-aligned cube's.
     fn cube_at_turned(at: Vec3<f64>, theta: f64, tol: Tol) -> Body<f64> {
         use geom_brep::EdgeCurveSpec;
-        let mut p = crate::fixtures::prism(4, tol);
+        let mut p = crate::fixtures::raw_prism(4, tol);
         let corners = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let (c, sn) = (theta.cos(), theta.sin());
         for (i, (x, y)) in corners.into_iter().enumerate() {
@@ -4444,9 +5348,22 @@ mod tests {
     /// product body.
     fn pin(body: &Body<f64>) -> usize {
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(body, &records, band(), CensusStrategy::Realized);
-        let (ideal_errors, ideal) =
-            census_traces(body, &records, band(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, ideal) = census_traces(
+            body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Idealized,
+        );
         assert_eq!(rendered(&real_errors), rendered(&ideal_errors));
         let mut pruned = 0;
         for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
@@ -4471,7 +5388,14 @@ mod tests {
         // x = 1 face: a vertex-on-face event, undeclared.
         let flush = two_cubes(Vec3::new(1.0, 0.25, 0.25));
         let records = ContactRecords::default();
-        let (_, ideal) = census_traces(&flush, &records, band(), CensusStrategy::Idealized);
+        let (_, ideal) = census_traces(
+            &flush,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Idealized,
+        );
         let &(_, EntityId::Face(face)) = ideal
             .vf
             .accepted
@@ -4481,8 +5405,15 @@ mod tests {
             panic!("a vf pair names a face");
         };
         let plant = crate::boolean::PlantedDegradation { face };
-        let (_, real) =
-            census_traces_planted(&flush, &records, band(), CensusStrategy::Realized, plant);
+        let (_, real) = census_traces_planted(
+            &flush,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Realized,
+            plant,
+        );
         let lost = real.vf.lost_accepted(&ideal.vf);
         assert!(
             lost.iter().any(|&(_, f)| f == EntityId::Face(face)),
@@ -4500,6 +5431,8 @@ mod tests {
             &flush,
             &ContactRecords::default(),
             band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         assert!(!errors.is_empty(), "flush cubes have undeclared contacts");
@@ -4511,6 +5444,8 @@ mod tests {
             &far,
             &ContactRecords::default(),
             band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
             CensusStrategy::Realized,
         );
         assert!(errors.is_empty(), "{errors:?}");
@@ -4571,10 +5506,8 @@ mod tests {
         let (f_plus, f_minus) = {
             let e = body.get_edge(edge).expect("the edge");
             let face_of = |he| {
-                body.loops
-                    .get(body.get_half_edge(he).expect("a half-edge").parent_loop)
-                    .expect("a loop")
-                    .face
+                body.face_of_half_edge(he)
+                    .expect("a half-edge and its loop")
             };
             (face_of(e.he_plus), face_of(e.he_minus))
         };
@@ -4607,8 +5540,22 @@ mod tests {
             })
             .expect("a near face off the nulled edge");
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(&body, &records, band(), CensusStrategy::Realized);
-        let (ideal_errors, _) = census_traces(&body, &records, band(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, _) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Idealized,
+        );
         assert_eq!(rendered(&real_errors), rendered(&ideal_errors));
         for &v in &far_vertices {
             for f in [f_plus, f_minus] {
@@ -4644,9 +5591,22 @@ mod tests {
         // examination is the exact one restricted.
         let body = two_cubes(Vec3::new(10.0, 5e-9, 0.0));
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(&body, &records, band(), CensusStrategy::Realized);
-        let (ideal_errors, ideal) =
-            census_traces(&body, &records, band(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, ideal) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Idealized,
+        );
         assert!(real_errors.is_empty(), "{real_errors:?}");
         assert!(!ideal_errors.is_empty());
         let mut predicates = BTreeSet::new();
@@ -4685,9 +5645,22 @@ mod tests {
         // The class's angle member.
         let body = two_cubes_turned(Vec3::new(10.0, 0.0, 0.0), 5e-9);
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(&body, &records, band(), CensusStrategy::Realized);
-        let (ideal_errors, ideal) =
-            census_traces(&body, &records, band(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, ideal) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Idealized,
+        );
         assert!(real_errors.is_empty(), "{real_errors:?}");
         let mut predicates = BTreeSet::new();
         for e in &ideal_errors {
@@ -4718,9 +5691,22 @@ mod tests {
         // subject.)
         let body = half_disc_cap_and_far_cube();
         let records = ContactRecords::default();
-        let (real_errors, real) = census_traces(&body, &records, band(), CensusStrategy::Realized);
-        let (ideal_errors, ideal) =
-            census_traces(&body, &records, band(), CensusStrategy::Idealized);
+        let (real_errors, real) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Realized,
+        );
+        let (ideal_errors, ideal) = census_traces(
+            &body,
+            &records,
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Idealized,
+        );
         let is_refusal = |e: &ValidationError| {
             matches!(
                 e,

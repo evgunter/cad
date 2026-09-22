@@ -56,7 +56,6 @@ use crate::common::{
     arc_section, bulged_extrusion, quad, quintic_prism, stacked, tilted_cut_upper,
 };
 use geom_core::Tol;
-use profile::{Profile, SketchPlane};
 use sweep::loft_body;
 use topo::Body;
 
@@ -121,15 +120,11 @@ fn arc_taper() -> Body<f64> {
 
 /// The box: every face closed-form, both pads exactly zero.
 fn box_extrusion() -> Body<f64> {
-    let prof = Profile::new(
-        SketchPlane::xy(),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
+    sweep::test_support::prism::<f64>(
+        sweep::test_support::corners(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
+        2.0,
+        Tol::witness(),
     )
-    .validate(Tol::witness())
-    .expect("the profile validates");
-    sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("extrude")
-        .body
 }
 
 /// The roster, in a fixed order (the digest is compared as one block,
@@ -152,11 +147,32 @@ fn roster() -> String {
 
 /// The committed digest for each ε row the matrix gates.
 ///
-/// Cut on the MERGE BASE — never on this branch — at the three ε the
-/// CI matrix runs, and then run here. That order is the whole
+/// Cut on the MERGE BASE, not on the branch under test, at the three ε
+/// the CI matrix runs, and then run here. That order is the whole
 /// instrument: a row cut on the branch would record what the branch
 /// does, which is the thing under test. An ε with no entry here prints
 /// its block and fails, which is how a new row gets cut.
+///
+/// **When a lane may re-cut here instead, and what licenses it.** The
+/// merge-base rule exists to stop a branch recording its own
+/// regression as the baseline — not to make a pinned number a
+/// contract. A branch re-cuts on itself exactly when its own change is
+/// what moved the table AND the new reading is the right answer, with
+/// the cause named at the cut: `work/scalar/H5.md` ruling 2 (a
+/// certified bound that gets tighter re-baselines like any other move)
+/// and `memories/output-stability-as-justification.md`. Anything else
+/// — a move the branch cannot explain, or one in the wrong direction —
+/// is a finding, and the table stays where it is.
+///
+/// **Re-cut at all three ε when the C9 ring became a newtype over
+/// `interval-transcendentals`' `DInterval`.** That is the other repair
+/// the assertion below names: the ring padded one representable step
+/// outward on every operation and the backend pads only where the
+/// operation is inexact, so every `vpad`/`apad` in the table shrank
+/// and none grew, and the five ε-coupled rows' `v`/`a` midpoints moved
+/// with them. Every verdict hash in the block is unchanged — nothing
+/// certified that refused, or refused that certified — and the pads
+/// are the whole of what moved, downward.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("reporting-door-digest/eps-1e-6.txt")),

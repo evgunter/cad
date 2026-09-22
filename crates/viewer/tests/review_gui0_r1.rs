@@ -40,15 +40,6 @@
 //! one harness every randomized sweep in the tree draws from, logged
 //! unconditionally, replayed by `CAD_FUZZ_SEED`, with every count a
 //! multiple of `CAD_FUZZ_EFFORT`.
-//!
-//! # One reporting row
-//!
-//! `framing_at_an_extreme_aspect_should_contain_or_refuse` is
-//! `#[ignore]`d: it encodes the contract `Camera::fitted` documents and
-//! is RED at the frozen head (review finding: at aspect ≲ 0.03 the
-//! zoom-band clamp silently wins and the framed camera does not contain
-//! the scene). Un-ignore it when that is either fixed or the contract
-//! is narrowed in prose.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
@@ -161,11 +152,11 @@ fn assert_camera_contract(camera: &Camera, provenance: impl Fn() -> String) {
         camera.yaw()
     );
     assert!(
-        camera.near() > 0.0 && camera.near() < camera.far(),
-        "[{}] depth range not ordered: near {} far {}",
+        camera.near() > 0.0 && camera.near() < camera.distance(),
+        "[{}] near plane not between eye and target: near {} distance {}",
         provenance(),
         camera.near(),
-        camera.far()
+        camera.distance()
     );
     let (r, u, f) = (camera.right(), camera.up(), camera.forward());
     for (name, v) in [("right", r), ("up", u), ("forward", f)] {

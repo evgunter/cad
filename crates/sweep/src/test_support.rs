@@ -50,14 +50,25 @@
 //! # The extrusion family
 //!
 //! [`extruded`] is the primitive — loops on a plane, pushed along its
-//! normal — and [`prism_on`], [`prism`], [`prism_at`], [`brick`] and
-//! [`cube`] are its named specializations. All of them are generic in
-//! the scalar, because the `Interval` and `Probe` lanes build the same
-//! bodies as the `f64` one and the only alternative is a second copy at
-//! each scalar: a per-scalar copy per suite is what this family was
-//! before it was one. A shape that is not here yet joins by naming the
-//! primitive and its own loops — it needs no new door, no new gate and
-//! no new manifest edge beyond the one its crate already has.
+//! normal — and [`prism_on`], [`prism`] and [`prism_at`] are its named
+//! specializations. All of them are generic in the scalar, because the
+//! `Interval` and `Probe` lanes build the same bodies as the `f64` one
+//! and the only alternative is a second copy at each scalar: a
+//! per-scalar copy per suite is what this family was before it was
+//! one. A shape that is not here yet joins by naming the primitive and
+//! its own loops — it needs no new door, no new gate and no new
+//! manifest edge beyond the one its crate already has.
+//!
+//! **The axis-aligned box is not one of them.** [`brick`] is
+//! `topo::test_support::brick`, and [`block`] and [`cube`] are its two
+//! views — by extent from the origin, and with one extent. The box has
+//! one construction in this tree and it lives in `topo`, below every
+//! crate that wants one: a second construction here would be a second
+//! body that is the same solid, differing only in the order its curve
+//! arena holds twelve keys and in which way round four of its twelve
+//! edges name the surfaces they intersect. Those three doors are
+//! generic in the scalar like the rest of this module and take their
+//! extents as `f64` at every scalar, for the reason [`corners`] gives.
 //!
 //! # The loft family
 //!
@@ -131,7 +142,7 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube<T: Decide>(l: T, tol: Tol) -> Body<T> {
+pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
     block(l, l, l, tol)
 }
 
@@ -141,11 +152,11 @@ pub fn cube<T: Decide>(l: T, tol: Tol) -> Body<T> {
 /// **The second view of [`brick`], not a second body**: the suites are
 /// written in two vocabularies for one box — by bounds (`brick`) and
 /// by extent from the origin (this, and [`cube`] with one extent) —
-/// and both reach the same four-corner loop through the same door. The
+/// and both reach the same construction through the same door. The
 /// alternative was seven private copies of the construction under one
 /// more name, which is what this replaced.
-pub fn block<T: Decide>(w: T, d: T, h: T, tol: Tol) -> Body<T> {
-    brick((T::zero(), w), (T::zero(), d), (T::zero(), h), tol)
+pub fn block<T: Decide>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
+    brick((0.0, w), (0.0, d), (0.0, h), tol)
 }
 
 /// **The pocketed die's two operands**: the unit block at
@@ -190,15 +201,22 @@ pub fn pocket_die(x0: f64, y0: f64, z0: f64, tol: Tol) -> Body<f64> {
 /// An axis-aligned box spanning `x` x `y` x `z`, as the half-open
 /// intervals `(lo, hi)` — the plainest body in the kernel and the one
 /// its acceptance suites reach for first.
-pub fn brick<T: Decide>(x: (T, T), y: (T, T), z: (T, T), tol: Tol) -> Body<T> {
-    prism_at(rect(x, y), z.0, z.1 - z.0, tol)
+///
+/// **`topo`'s construction, named here.** The box is built by the
+/// Euler sequence `topo::test_support::brick` runs, not by this
+/// module's extrusion primitive; this door exists so that a suite
+/// which already depends on `sweep` does not reach past it for the
+/// plainest body there is.
+pub fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -> Body<T> {
+    topo::test_support::brick(x, y, z, tol)
 }
 
-/// The square of side `l` with a corner at the origin, as profile
-/// vertices — the one spelling of the block outline the fixtures here
-/// build on when they need the loop rather than the body.
-fn square<T: Decide>(l: T) -> Vec<ProfileVertex<T>> {
-    rect((T::zero(), l), (T::zero(), l))
+/// The square of side `l` with a corner at the origin, counter-clockwise
+/// from that corner, as profile vertices — the one spelling of the block
+/// outline the fixtures here build on when they need the loop rather
+/// than the body.
+fn square<T: Decide>(l: f64) -> Vec<ProfileVertex<T>> {
+    corners(&[(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)])
 }
 
 /// Profile vertices from xy pairs, every bulge zero — the straight
@@ -211,15 +229,6 @@ fn square<T: Decide>(l: T) -> Vec<ProfileVertex<T>> {
 pub fn corners<T: Decide>(pts: &[(f64, f64)]) -> Vec<ProfileVertex<T>> {
     pts.iter()
         .map(|&(x, y)| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero()))
-        .collect()
-}
-
-/// The axis-aligned rectangle `x` x `y`, counter-clockwise from its
-/// low corner, as profile vertices.
-fn rect<T: Decide>(x: (T, T), y: (T, T)) -> Vec<ProfileVertex<T>> {
-    [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]
-        .into_iter()
-        .map(|(u, v)| ProfileVertex::new(Point2::new(u, v), T::zero()))
         .collect()
 }
 
@@ -491,7 +500,11 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
 
 /// [`ball_poled_z`] at any scalar the revolve and rigid-motion doors
 /// take.
-pub fn ball_poled_z_at<T: Decide + PcurveFittedLane>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
+pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
+    r: T,
+    c: Vec3<T>,
+    tol: Tol,
+) -> Body<T> {
     let ball = revolved_about_y_at(
         vec![
             ProfileVertex::new(Point2::new(T::zero(), -r), T::one()),
@@ -1560,6 +1573,47 @@ pub const ROD_L: f64 = 1.0;
 /// rod's four numbers.
 pub const ROD_FILLET: f64 = 0.1;
 
+/// **The chord a flat cuts on the [`ROD_R`] circle, and the two arcs it
+/// leaves** — see [`rod_chord_at`].
+#[derive(Debug, Clone, Copy)]
+pub struct RodChord {
+    /// Half the chord's length: the flat's half-width, and the offset
+    /// of each of its two ends from the foot of the perpendicular.
+    pub half: f64,
+    /// The bulge of the arc the flat LEAVES STANDING — the D-profile
+    /// rod's cylindrical wall — traversed counter-clockwise about the
+    /// circle's centre, from the chord end at `+half` to the one at
+    /// `−half`.
+    pub wall_bulge: f64,
+    /// The bulge of the arc the flat CUTS AWAY — the section that
+    /// stands on a block's top edge, or sinks into it — traversed
+    /// counter-clockwise, the other way round the same two ends.
+    pub section_bulge: f64,
+}
+
+/// **The chord a plane `flat` from the axis cuts on the [`ROD_R`]
+/// circle.** One home for the D-profile's arithmetic: `half` is
+/// `sqrt(ROD_R² − flat²)`, and each arc's bulge is `tan(sweep / 4)` of
+/// the angle it subtends at the centre, the two sweeps summing to a
+/// turn.
+///
+/// Every ruled fixture in the tree is this chord at some `flat`: the
+/// D-profile rod ([`rod_d_profile_of_length_at`]) extrudes the wall
+/// arc, and a rod's section standing on — or sunk into — a block's top
+/// edge extrudes the section arc. `flat` may be negative (a flat past
+/// the axis), and the two fields keep their meanings there: the wall
+/// arc is then the shorter of the two.
+#[must_use]
+pub fn rod_chord_at(flat: f64) -> RodChord {
+    let half = (ROD_R.powi(2) - flat.powi(2)).sqrt();
+    let wall = 2.0 * (core::f64::consts::PI - half.atan2(flat));
+    RodChord {
+        half,
+        wall_bulge: (wall / 4.0).tan(),
+        section_bulge: ((core::f64::consts::TAU - wall) / 4.0).tan(),
+    }
+}
+
 /// **The rod with a flat milled along it** — the `CylinderPlaneCylinder`
 /// consumer: a cylinder of radius [`ROD_R`] about `z` over
 /// `z ∈ [0, ROD_L]`, minus a box whose face at `x = ROD_FLAT` planes the
@@ -1572,23 +1626,77 @@ pub const ROD_FILLET: f64 = 0.1;
 /// compound this file is not ratified to spell (the bracket-bound
 /// allowlist is per file). The interval twin takes the same body through
 /// the extrude door instead — [`rod_d_profile_at`].
+///
+/// Bit-identical to the pre-delegation body only because `ROD_L = 1.0`
+/// makes the general form's `2·len` coincide with the old `len + 1.0`;
+/// the bit-dump differential is the guard, not the arithmetic.
 pub fn rod_with_flat(tol: Tol) -> Body<f64> {
+    rod_with_flat_at(ROD_R, ROD_FLAT, ROD_L, 1.0, tol).unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// **A rod with a flat at any radius** — [`rod_with_flat`]'s
+/// construction with the rod's radius `big_r`, the flat's distance
+/// `flat`, the length `len` and the cutter box's half-width
+/// `cutter_half` as parameters; the cutter runs from `−len/2` to
+/// `3·len/2` along `z`, so `rod_with_flat` is this at
+/// `(ROD_R, ROD_FLAT, ROD_L, 1.0)`, bit for bit. The boolean door keeps
+/// the cylinder's stored radius exactly `big_r`, which a D-profile
+/// through the extrude door does not (it reconstructs the radius from
+/// a chord that collapses as the flat nears tangency). The mill's own
+/// refusal comes back as text rather than a panic, so a family walk
+/// can report an unbuildable member and go on.
+///
+/// # Errors
+///
+/// The boolean door's refusal, rendered.
+pub fn rod_with_flat_at(
+    big_r: f64,
+    flat: f64,
+    len: f64,
+    cutter_half: f64,
+    tol: Tol,
+) -> Result<Body<f64>, String> {
     let disc =
-        profile::circle(Point2::new(0.0, 0.0), ROD_R, tol).expect("the rod's disc is a valid loop");
-    let rod = extruded(SketchPlane::xy(), vec![disc.into()], ROD_L, tol);
+        profile::circle(Point2::new(0.0, 0.0), big_r, tol).expect("the rod's disc is a valid loop");
+    let rod = extruded(SketchPlane::xy(), vec![disc.into()], len, tol);
     let square = ProfileLoop::new(
-        [(ROD_FLAT, -1.0), (1.0, -1.0), (1.0, 1.0), (ROD_FLAT, 1.0)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-            .collect(),
+        [
+            (flat, -cutter_half),
+            (cutter_half, -cutter_half),
+            (cutter_half, cutter_half),
+            (flat, cutter_half),
+        ]
+        .into_iter()
+        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .collect(),
     );
-    let cutter = extruded(sketch_at(-0.5), vec![square], ROD_L + 1.0, tol);
-    topo::subtract(&rod, &cutter, tol)
-        .expect("the flat mills")
+    let cutter = extruded(sketch_at(-0.5 * len), vec![square], 2.0 * len, tol);
+    Ok(topo::subtract(&rod, &cutter, tol)
+        .map_err(|e| format!("the flat does not mill: {e:?}"))?
         .body()
         .expect("a body remains")
         .body
-        .clone()
+        .clone())
+}
+
+/// **The `+y` crease of a rod with a flat** (or of any body whose
+/// cylinder–plane line edges are a rod's two creases): the one whose
+/// `he_plus` starts above the axis. One crease, so a band asked for it
+/// cannot collide with the other crease's on the flat.
+pub fn rod_upper_crease(body: &Body<f64>) -> EdgeKey {
+    let creases: Vec<EdgeKey> = rod_creases(body)
+        .into_iter()
+        .filter(|&k| {
+            let e = body.get_edge(k).expect("a crease");
+            let v = body.get_half_edge(e.he_plus).expect("its plus half").start;
+            let p = body
+                .get_point(body.get_vertex(v).expect("its start").point)
+                .expect("its point");
+            p.y > 0.0
+        })
+        .collect();
+    assert_eq!(creases.len(), 1, "one crease on the +y side: {creases:?}");
+    creases[0]
 }
 
 /// **The same rod with a flat, spelled as a D-profile extrude**: the
@@ -1607,12 +1715,10 @@ pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
 /// the cap lever are pinned on.
 pub fn rod_d_profile_of_length_at<T: Decide + PcurveFittedLane>(len: f64, tol: Tol) -> Body<T> {
     let f = T::from_f64;
-    let y = (ROD_R * ROD_R - ROD_FLAT * ROD_FLAT).sqrt();
-    let theta = 2.0 * (core::f64::consts::PI - y.atan2(ROD_FLAT));
-    let bulge = (theta / 4.0).tan();
+    let c = rod_chord_at(ROD_FLAT);
     let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(y)), f(bulge)),
-        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(-y)), f(0.0)),
+        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(c.half)), f(c.wall_bulge)),
+        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(-c.half)), f(0.0)),
     ]);
     extruded(SketchPlane::<T>::xy(), vec![lp], f(len), tol)
 }

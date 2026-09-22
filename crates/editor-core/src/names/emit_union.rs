@@ -38,8 +38,10 @@
 //! so a published row is told apart by its whole path and not by its
 //! head — a member's row is a one-segment `FromMember` path, and
 //! anything longer is a row the fold minted. That is the shape
-//! `eval::wire`'s `decl_site` reads, and it is the reason the two
-//! questions are asked in two places rather than shared.
+//! `eval::wire`'s `sited_member` reads to say whether a refusal's row
+//! is a member's entity, a merge of member entities, or a row no
+//! declaration can name, and it is the reason the two questions are
+//! asked in two places rather than shared.
 
 use std::sync::Arc;
 
@@ -68,20 +70,46 @@ pub(crate) fn member_view(
     table.seal_order();
     let mut view = NameTable::new();
     for (name, entry) in table.iter_refs() {
-        let keyed = StableName {
-            kind: name.kind,
-            node: union,
-            path: vec![RoleSeg::FromMember {
-                member,
-                of: name.clone(),
-            }],
-        };
+        let keyed = keyed(union, member, name.clone(), name.kind);
         match entry {
             Entry::Unique(e) => view.insert(keyed, *e),
             Entry::Tied(es) => view.insert_tied(keyed, es.clone()),
         }?;
     }
     Ok(view)
+}
+
+/// **One entity of one member, in the union's own name space** — the
+/// row [`member_view`] puts into that member's operand table, for a
+/// caller that has the name rather than the table.
+///
+/// The declaration channel is that caller: a declared pair names
+/// SITED entities (`SitedRef { at, name }`), and the union rewrites
+/// each into this space before the shared resolver runs. Minting the
+/// row here rather than there is what keeps the member-keying rule to
+/// ONE definition — the view and the door cannot disagree about what
+/// a member's entity is called.
+pub(crate) fn member_name(
+    union: RecipeNodeId,
+    member: RecipeNodeId,
+    name: &StableName,
+) -> StableName {
+    keyed(union, member, NameRef::new(name.clone()), name.kind)
+}
+
+/// The rule itself: one [`RoleSeg::FromMember`] segment, minted under
+/// the union's node, carrying the entity's own kind.
+fn keyed(
+    union: RecipeNodeId,
+    member: RecipeNodeId,
+    of: NameRef,
+    kind: crate::names::role::EntityKind,
+) -> StableName {
+    StableName {
+        kind,
+        node: union,
+        path: vec![RoleSeg::FromMember { member, of }],
+    }
 }
 
 /// Rewrites the fold's final table into member-keyed names.

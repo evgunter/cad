@@ -20,14 +20,16 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
-    CancelToken, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
-    LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, apply, content_pin, evaluate,
+    CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, content_pin, evaluate,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::StableName;
 use pncad::select::{CapEnd, EntityKind, NamePat, Ray, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, SessionOp};
+
+use super::{edit_into, insert_into, len};
 
 /// The post's square section and height, metres.
 pub const POST_SECTION: f64 = 0.02;
@@ -64,36 +66,16 @@ pub struct Bench {
     pub shelf_bottom: StableName,
 }
 
-fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a length literal")
-}
-
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
-    *doc = applied.doc;
-    applied.record.minted.expect("an insert mints an id")
-}
-
-fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
-    let applied = apply(doc, e, tol).expect("the edit applies");
-    *doc = applied.doc;
-}
-
 /// One extruded box, authored through the ordinary doors.
 fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let outline = LoopProgram::polygon([(0.0, 0.0), (width, 0.0), (width, depth), (0.0, depth)])
-        .expect("a literal rectangle");
-    let plane = insert(&mut doc, super::xy_frame(), tol);
-    let profile = insert(
+    let plane = insert_into(&mut doc, super::xy_frame(), tol);
+    let profile = insert_into(
         &mut doc,
-        Node::Profile(ProfileProgram {
-            plane,
-            loops: vec![outline],
-        }),
+        super::rectangle(plane, [0.0, 0.0], width, depth),
         tol,
     );
-    insert(
+    insert_into(
         &mut doc,
         Node::Extrude {
             profile,
@@ -146,20 +128,20 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let shelf_ref = reference(&shelf);
 
     let mut asm = ProfileDoc::empty(DocumentId::derive("gui4-bench"), tol);
-    let post_a = insert(&mut asm, Node::instantiate_part(post_ref), tol);
-    let shelf_i = insert(&mut asm, Node::instantiate_part(shelf_ref), tol);
-    edit(
+    let post_a = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
+    let shelf_i = insert_into(&mut asm, Node::instantiate_part(shelf_ref), tol);
+    edit_into(
         &mut asm,
-        &DocEdit::SetPlacement {
+        DocEdit::SetPlacement {
             node: shelf_i,
             frame: Frame::translation(SHELF_AT),
         },
         tol,
     );
-    let post_b = insert(&mut asm, Node::instantiate_part(post_ref), tol);
-    edit(
+    let post_b = insert_into(&mut asm, Node::instantiate_part(post_ref), tol);
+    edit_into(
         &mut asm,
-        &DocEdit::SetPlacement {
+        DocEdit::SetPlacement {
             node: post_b,
             frame: Frame::translation(POST_B_AT),
         },
@@ -229,6 +211,21 @@ pub fn seat() -> viewer::matetool::MateChoice {
         primitive: pncad::document::MatePrimitive::FrameCoincidence,
         sense: pncad::document::AxisSense::Opposed,
         clocking: None,
+    }
+}
+
+/// **The seat as a planar REST alone**, at `b_x` along the shelf: one
+/// planar rest fixes the seating plane and nothing else, so the pair
+/// may still slide and spin in it and the solve refuses UNDER, naming
+/// the one mate. The refusal the badge rows build a refused cluster
+/// from — a verdict about the PAIR, which the edit door admits and the
+/// solve decides (a mate the table refuses on its own datum is
+/// refused at the insert).
+pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
+    use pncad::document::{Alignment, MatePrimitive};
+    Alignment {
+        primitive: MatePrimitive::PlanarRest { offset: 0.0 },
+        ..seat_alignment(b_x, None)
     }
 }
 

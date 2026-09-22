@@ -5,6 +5,8 @@ title: MispairedIds exempts the zero case, which is the window shape most worth 
 status: open
 opened: 2026-09-04
 refs: [1768, 1098]
+priority: P3
+cost: E
 ---
 
 Found by CHROME's style lane on PR 1768, against that PR's own claim.
@@ -76,3 +78,19 @@ untouched: answering it still needs `NodePick::patch_names` in
 ground.
 
 Ground is ceded to VIEW under the carve-out, so CHROME does not work it.
+
+## The cession that held this row is spent (2026-09-21, orchestrator)
+
+The paragraph above ends *"ground is ceded to VIEW under the carve-out,
+so CHROME does not work it"*. That carve-out is retired
+(`work/chrome/plan.md`, *Territory — the carve-out is spent*): VIEW
+re-scoped on 2026-09-17 and dispatches no new units, and
+`work/README.md`'s 2026-09-20 ruling makes shared ground legitimate
+with awareness — not cession — as what is owed.
+
+So nothing but scheduling holds this row now. **`crates/viewer/src/
+scene.rs` and `gpu.rs` are VGEOM's as well as CHROME's since the
+re-scope**, so the open question is no longer *may CHROME work this*
+but *should this row sit on VGEOM's slate instead* — a `git mv` if so,
+per `work/README.md`. That call is taken by the wave that takes the
+row, not here.

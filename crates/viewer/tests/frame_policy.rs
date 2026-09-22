@@ -18,29 +18,26 @@ use crate::common;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
-use std::thread::JoinHandle;
 
 use common::asm;
 use pncad::document::{
     CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Frame, Node, ParamName, ProductError,
-    ProfileProgram, RecipeNodeId, SitedRef, SlotId,
+    ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::{EntityKind, StableName};
 use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
-use viewer::evalseam::{
-    EvalDone, EvalRequest, EvalService, IndexDone, IndexRequest, IndexService, InlineIndexer,
-    MemoReport,
-};
-use viewer::frame::{self, IdQueryLog, IdStep, IdSubject, StatusUpdate};
+use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
+use viewer::frame::{self, StatusUpdate};
 use viewer::generation::Generation;
+use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, PickCache};
 use viewer::pickindex::{self, IdMap, PickIndex, PictureKey};
-use viewer::prefs::{Absent, PrefsStore};
+use viewer::platform;
+use viewer::prefs::{Absent, Prefs, PrefsStore};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, FittedDelta, PLATE_EXTENT};
 use viewer::session::{
@@ -462,14 +459,100 @@ fn a_withdrawals_cause_list_splits_back_into_its_causes() {
     );
 }
 
+/// **A startup line carrying two notices splits back into those two.**
+///
+/// The live case and not a constructed one: a preferences file naming
+/// a theme the registry does not hold AND an input preset it does not
+/// hold parses cleanly, both names resolve to `None`, and both arms
+/// report — which `prefs`'s module docs call the ordinary recovery.
+/// Three of `prefs::Notice`'s four arms write a `frame::LIST_SEPARATOR`
+/// inside one sentence, so a flat join on that mark made a two-notice
+/// line read as four items.
+///
+/// The boundary is `frame::NOTICE_SEPARATOR` because these are several
+/// notices, not the items of a list ONE notice carries: nothing counts
+/// them and no preamble introduces them.
+#[test]
+fn a_startup_line_splits_back_into_the_preferences_notices_it_was_made_from() {
+    let (prefs, parsed) =
+        Prefs::from_toml("[appearance]\ntheme = \"aurora\"\n\n[keys]\npreset = \"modal\"\n")
+            .expect("a file this well-formed parses");
+    assert!(
+        parsed.is_empty(),
+        "the file is understood; what is unknown is the two NAMES: {parsed:?}"
+    );
+    let (_, theme_notice) = prefs.resolve_theme();
+    let (_, keys_notice) = prefs.resolve_keys();
+    let notices: Vec<String> = [theme_notice, keys_notice]
+        .into_iter()
+        .flatten()
+        .map(|notice| notice.to_string())
+        .collect();
+    assert_eq!(
+        notices.len(),
+        2,
+        "two unknown names are two notices: {notices:?}"
+    );
+    assert!(
+        notices
+            .iter()
+            .all(|notice| notice.contains(frame::LIST_SEPARATOR)),
+        "and each of them writes the list mark inside its own sentence, \
+         which is what a flat join on that mark cannot survive: {notices:?}"
+    );
+
+    let line = frame::startup_notices(&notices).expect("two notices are news");
+    assert_eq!(
+        line.text()
+            .split(frame::NOTICE_SEPARATOR)
+            .collect::<Vec<_>>(),
+        notices.iter().map(String::as_str).collect::<Vec<_>>(),
+        "the join is invertible: each piece is one notice's own rendering, \
+         whole, and there are as many pieces as there were notices"
+    );
+}
+
+/// **The mark cannot be held by any claim about the sentences here,
+/// because two of the four arms echo text out of the user's file.**
+///
+/// A TOML quoted key may hold anything, [`prefs::Notice::UnknownKey`]
+/// prints it back, and so a preferences notice can carry any character
+/// a boundary might be spelled with — the bullet included. What holds
+/// the line is `frame::Message::new`, which rewrites the boundary mark
+/// out of every text that reaches it, and that is why the startup path
+/// builds one message per notice rather than one string.
+#[test]
+fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back() {
+    let key = format!("a{}b", frame::NOTICE_MARK);
+    let (_, parsed) = Prefs::from_toml(&format!("\"{key}\" = 1\n\"{key}2\" = 1\n"))
+        .expect("a quoted key is well-formed TOML");
+    let notices: Vec<String> = parsed.iter().map(ToString::to_string).collect();
+    assert_eq!(notices.len(), 2, "two unknown keys are two notices");
+    assert!(
+        notices
+            .iter()
+            .all(|notice| notice.contains(frame::NOTICE_MARK)),
+        "each echoes the user's key, boundary mark and all: {notices:?}"
+    );
+
+    let line = frame::startup_notices(&notices).expect("two notices are news");
+    assert_eq!(
+        line.text().matches(frame::NOTICE_SEPARATOR).count(),
+        1,
+        "one boundary in a line of two notices, whatever the file said: {}",
+        line.text()
+    );
+}
+
 /// **Every subject this unit assigned, pinned.**
 ///
 /// The reason this row exists: a subject chosen inside an `app`-gated
 /// draw path is unfalsifiable — the reviewer of this unit changed the
 /// projection writer's subject from `Camera` to `Preferences` and the
-/// whole suite stayed green, because no headless row executes a pane's
-/// paint. The doors moved that decision into `frame`; this is what
-/// makes moving it worth anything.
+/// whole suite stayed green, because the paint in question is a
+/// `ViewerBehavior` method and nothing headless can execute one. The
+/// doors moved that decision into `frame`; this is what makes moving
+/// it worth anything.
 ///
 /// One assertion per door, so a flipped subject reds exactly the line
 /// that names it.
@@ -479,9 +562,9 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
-    let disagreement = frame::Disagreement {
+    let disagreement = idpass::Disagreement {
         from_gpu: None,
-        from_ray: None,
+        from_ray: Vec::new(),
     };
     assert_eq!(
         disagreement.notice().subject(),
@@ -876,13 +959,25 @@ fn the_readme_counts_its_two_populations_correctly() {
     let frame = test_utils::source::code_only(
         &std::fs::read_to_string(dir.join("src/frame.rs")).expect("frame.rs"),
     );
+    // `Badge` must END there: `-> BadgeSite` is a door that returns a
+    // POLICY about a badge, and a prefix match counts it as one more
+    // badge. The three bracketed spellings already close themselves.
+    let bare_badge = frame
+        .match_indices("-> Badge")
+        .filter(|(at, needle)| {
+            frame[at + needle.len()..]
+                .chars()
+                .next()
+                .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+        })
+        .count();
     let badge_doors = frame.matches("-> Option<Badge>").count()
-        + frame.matches("-> Badge").count()
+        + bare_badge
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 8, "the badge family");
+    assert_eq!(badge_doors, 10, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — eight"),
+        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -937,6 +1032,82 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         frame::prefs_badge(None),
         None,
         "a store that keeps preferences says nothing about keeping them"
+    );
+    assert_eq!(
+        frame::datums_badge(0),
+        None,
+        "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
+    );
+    assert_eq!(
+        frame::profiles_badge(0),
+        None,
+        "every committed profile drew, or there are none — the same zero"
+    );
+}
+
+/// **The profiles badge counts, in agreeing words, and says it is the
+/// document's.** One and two are the two nouns; the subject is the
+/// document because no camera move brings an undrawable arc back.
+#[test]
+fn the_profiles_badge_counts_what_it_could_not_draw() {
+    for (undrawn, label) in [
+        (
+            1,
+            "profiles: 1 profile with an arc the viewport cannot draw",
+        ),
+        (
+            2,
+            "profiles: 2 profiles with an arc the viewport cannot draw",
+        ),
+    ] {
+        let badge = frame::profiles_badge(undrawn).expect("something went undrawn");
+        assert_eq!(badge.label(), label);
+        assert_eq!(badge.subject(), frame::Subject::Document);
+        assert_eq!(
+            badge.tone(),
+            frame::Tone::Advisory,
+            "no camera move brings the arc back"
+        );
+    }
+}
+
+/// **The datums badge says how many, and says it in agreeing
+/// words.**
+///
+/// The count is the whole content: the picture already shows nothing,
+/// and what a reader cannot get from it is that there was something
+/// to show. The noun agreeing with the number is not a flourish —
+/// "1 datums" reads as a sentence nobody wrote, beside eight badges
+/// that were.
+#[test]
+fn the_datums_badge_counts_what_the_view_drew_nothing_of() {
+    let one = frame::datums_badge(1).expect("one vanished datum badges");
+    assert_eq!(
+        one.label(),
+        "datums: 1 datum this view draws nothing of",
+        "the singular"
+    );
+    assert_eq!(
+        one.tone(),
+        frame::Tone::Actionable,
+        "a reader can move the camera and get them back"
+    );
+    assert_eq!(
+        one.subject(),
+        frame::Subject::Camera,
+        "what makes the count the wrong answer is the camera moving"
+    );
+    assert_eq!(
+        one.affordance(),
+        frame::Affordance::Read,
+        "there is no window of findings behind it"
+    );
+    assert_eq!(
+        frame::datums_badge(4)
+            .expect("four vanished datums badge")
+            .label(),
+        "datums: 4 datums this view draws nothing of",
+        "the plural"
     );
 }
 
@@ -1098,23 +1269,23 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
     // nothing". The probe's decision logic is a pure function of the
     // two readings, so these rows hold whatever is on the CI box's
     // PATH.
-    use frame::{ChooserBackend, SessionBus, Zenity};
+    use platform::{ChooserBackend, SessionBus, Zenity};
     assert_eq!(
-        frame::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
+        platform::chooser_backend_of(Zenity::OnPath, SessionBus::NotAdvertised),
         ChooserBackend::ZenityPresent
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
+        platform::chooser_backend_of(Zenity::OnPath, SessionBus::Advertised),
         ChooserBackend::ZenityPresent,
         "zenity needs no portal"
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
+        platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::Advertised),
         ChooserBackend::PortalPossible,
         "a session bus makes a portal POSSIBLE — a hint, never a verdict"
     );
     assert_eq!(
-        frame::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
+        platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
     assert!(ChooserBackend::ZenityPresent.usable());
@@ -1123,6 +1294,74 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
         !ChooserBackend::Absent.usable(),
         "the one arm the chrome disables the dialogs over"
     );
+}
+
+#[test]
+fn a_file_dialog_opens_at_the_first_place_that_still_exists() {
+    // Ev's finding: Save As… on a never-saved document opened at the
+    // filesystem root, because no directory was set and the backend's
+    // own default was taken. The rule is three places in order — the
+    // document's directory, the last dialog's, the launch directory —
+    // and the first that is still a directory wins.
+    use std::path::Path;
+    let document = Path::new("/models/plate.pncad");
+    let last = Path::new("/recent");
+    let launch = Path::new("/launch");
+    let all_exist = |_: &Path| true;
+    let only = |exists: &'static str| move |dir: &Path| dir == Path::new(exists);
+
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), all_exist),
+        Some(Path::new("/models")),
+        "the document's own directory outranks every memory"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, Some(last), Some(launch), all_exist),
+        Some(last),
+        "with nothing saved, where the last dialog went"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, Some(launch), all_exist),
+        Some(launch),
+        "with nothing remembered, where the viewer was launched from — never the backend's root"
+    );
+    assert_eq!(
+        frame::dialog_dir(None, None, None, all_exist),
+        None,
+        "with nothing at all, nothing is invented"
+    );
+
+    // A vanished candidate falls through to the next, at every rank.
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/recent")),
+        Some(last),
+        "a document whose directory is gone falls through to the last dialog's"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), only("/launch")),
+        Some(launch),
+        "a remembered directory deleted since falls through to the launch directory"
+    );
+    assert_eq!(
+        frame::dialog_dir(Some(document), Some(last), Some(launch), |_| false),
+        None,
+        "every candidate gone is the backend's default, not a refusal"
+    );
+
+    // A bare relative file name has `""` for a parent, and `""` is
+    // not a place to open at whatever the witness says of it — and
+    // it must not stop the search before the remembered directory.
+    assert_eq!(
+        frame::dialog_dir(Some(Path::new("plate.pncad")), Some(last), None, all_exist),
+        Some(last),
+        "an empty parent is no candidate"
+    );
+    assert_eq!(
+        frame::containing_dir(Path::new("plate.pncad")),
+        None,
+        "nor a directory to remember"
+    );
+    assert_eq!(frame::containing_dir(document), Some(Path::new("/models")));
 }
 
 #[test]
@@ -1280,6 +1519,76 @@ fn answer(serial: u32, id: u32) -> u64 {
     u64::from(serial) << 32 | u64::from(id)
 }
 
+/// **The status line tells two tied faces apart.**
+///
+/// A refusal whose whole subject is that two answers cannot be
+/// separated cannot render them as the same words. The kernel's own
+/// message numbers its faces by name alone — `StableName`'s `Display`
+/// omits the role path on purpose, so two faces of ONE node come out
+/// as one phrase twice, and the ordinal is all a reader has. That is
+/// right for the kernel, whose typed payload carries the path; it is
+/// not enough on a status line, where there is no payload to open.
+///
+/// So `frame::pick_refusal` renders each tied face the way
+/// `idpass::Disagreement` does — kind and minting node, then the role
+/// path. The premise is asserted first: these two names really do
+/// render identically through `Display` alone.
+#[test]
+fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
+    let tol = Tol::witness();
+    let (session, _) = plate_session(tol);
+    let index = index_of(&session);
+    let eval = session.evaluation().expect("landed");
+    let names: Vec<StableName> = index
+        .ids()
+        .ids()
+        .filter_map(|id| index.name_of(id).and_then(|name| name.as_ref().ok()))
+        .cloned()
+        .collect();
+    let first = names.first().expect("the plate draws a face").clone();
+    let second = names
+        .iter()
+        .find(|name| name.path != first.path && name.to_string() == first.to_string())
+        .expect("the plate draws two faces of one node, which render as one phrase")
+        .clone();
+    let hit_at = |name: StableName, t: f64| pncad::select::PickHit {
+        name,
+        node: index.parts().first().expect("a part").node(),
+        body: 0,
+        t,
+        t_lo: t,
+        t_hi: t,
+        point: Point3::new(0.0, 0.0, t),
+    };
+    let refusal = pickindex::PickError::HitTest(pncad::select::HitTestError::Ambiguous {
+        hits: vec![hit_at(first.clone(), 1.0), hit_at(second.clone(), 1.0)],
+    });
+    let _ = eval;
+
+    // The premise: by name alone the two faces are one phrase.
+    assert_eq!(
+        first.to_string(),
+        second.to_string(),
+        "the two faces render identically through `Display` alone"
+    );
+
+    let text = frame::pick_refusal(&refusal).text().to_owned();
+    let rendered = |name: &StableName| format!("{name} ({:?})", name.path);
+    assert!(
+        text.contains(&rendered(&first)) && text.contains(&rendered(&second)),
+        "each tied face is rendered with its role path: {text}"
+    );
+    assert_ne!(
+        rendered(&first),
+        rendered(&second),
+        "and the two renderings differ, which is the whole point"
+    );
+    assert!(
+        !text.contains("PickHit"),
+        "a refusal's message is prose, not a struct dump: {text}"
+    );
+}
+
 #[test]
 fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let tol = Tol::witness();
@@ -1296,27 +1605,73 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
 
     // Agreement: same face, no verdict.
     assert_eq!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&hit.name)),
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            std::slice::from_ref(&hit.name)
+        ),
         None
     );
     // A stale answer is not a verdict at all — nor is one with nothing
     // outstanding, which is the leave case.
     assert_eq!(
-        frame::disagreement(&index, answer(6, id), Some(7), None),
+        idpass::disagreement(&index, answer(6, id), Some(7), &[]),
         None
     );
-    assert_eq!(frame::disagreement(&index, answer(7, id), None, None), None);
+    assert_eq!(idpass::disagreement(&index, answer(7, id), None, &[]), None);
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
-        frame::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), None),
+        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), &[]),
         None
     );
     // A real disagreement reports both sides.
-    let report = frame::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Some(&hit.name))
-        .expect("nothing vs a face is a disagreement");
+    let report = idpass::disagreement(
+        &index,
+        answer(7, IdMap::NOTHING),
+        Some(7),
+        std::slice::from_ref(&hit.name),
+    )
+    .expect("nothing vs a face is a disagreement");
     assert_eq!(report.from_gpu, None);
-    assert_eq!(report.from_ray.as_ref(), Some(&hit.name));
+    assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
+
+    // **A certified tie the id pass chose inside is NOT a
+    // disagreement.** The kernel said these two faces cannot be
+    // ordered; the rasterizer picking one of them is depth rounding,
+    // not a contradiction. A name from OUTSIDE the tie still is one,
+    // and the sentence says the ray path was tied.
+    let others: Vec<_> = index
+        .ids()
+        .ids()
+        .filter_map(|any| index.name_of(any).and_then(|n| n.as_ref().ok()))
+        .filter(|name| **name != hit.name)
+        .cloned()
+        .collect();
+    let second = others
+        .first()
+        .expect("the plate draws a second face")
+        .clone();
+    let outside = others
+        .iter()
+        .find(|name| **name != second)
+        .expect("the plate draws a third face")
+        .clone();
+    let tied = [hit.name.clone(), second];
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, id), Some(7), &tied),
+        None,
+        "the id pass named one of the tied faces, which is agreement"
+    );
+    let outside_id = *index.ids_of(&outside).first().expect("that face is drawn");
+    let report = idpass::disagreement(&index, answer(7, outside_id), Some(7), &tied)
+        .expect("a face outside the tie is a disagreement");
+    assert_eq!(report.from_ray, tied.to_vec());
+    assert!(
+        report.to_string().contains("tied between"),
+        "the sentence says the ray path was tied: {report}"
+    );
 }
 
 /// **The diagnostic's subject is the PATCH under the cursor, and the
@@ -1368,23 +1723,36 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
         })
         .expect("some drawn edge of the plate is hoverable from its own midpoint");
 
-    let face = index
-        .face_under_cursor(eval, &camera, pane, cursor, &DisplayView::none())
-        .expect("the cursor un-projects")
+    // One face under an ordinary edge cursor, the two faces the edge
+    // divides where the cursor is on their shared pixels — the ray
+    // path's whole answer either way, which is what the id buffer's
+    // cross-check is compared against.
+    let faces = index
+        .faces_under_cursor(eval, &camera, pane, cursor, &DisplayView::none())
+        .expect("the cursor un-projects");
+    let face = faces
+        .first()
         .expect("an edge is only reachable where its body is, so a face is under it too");
     let id = *index
-        .ids_of_target(&face)
+        .ids_of_target(face)
         .first()
         .expect("the face under the cursor is drawn");
+    let named: Vec<StableName> = faces.iter().map(|face| face.name.clone()).collect();
 
     // The defect, pinned: the hover's name against the patch's.
     assert!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&edge.name)).is_some(),
+        idpass::disagreement(
+            &index,
+            answer(7, id),
+            Some(7),
+            std::slice::from_ref(&edge.name)
+        )
+        .is_some(),
         "an edge name against a patch name is two questions, and the check cannot know it"
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        frame::disagreement(&index, answer(7, id), Some(7), Some(&face.name)),
+        idpass::disagreement(&index, answer(7, id), Some(7), &named),
         None,
         "the face under the cursor is what the id buffer named"
     );
@@ -1417,7 +1785,12 @@ fn one_name_drawn_twice_is_not_a_disagreement() {
         .find(|id| !index.ids_of_target(&face_of(&hit)).contains(id))
         .expect("a second occurrence");
     assert_eq!(
-        frame::disagreement(&index, answer(3, other), Some(3), Some(&hit.name)),
+        idpass::disagreement(
+            &index,
+            answer(3, other),
+            Some(3),
+            std::slice::from_ref(&hit.name)
+        ),
         None,
         "two ids of one name are the same answer"
     );
@@ -2346,7 +2719,7 @@ fn the_preferences_path_follows_the_xdg_rules() {
     use std::path::PathBuf;
 
     let xdg = |c: Option<&str>, h: Option<&str>| {
-        frame::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
+        platform::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
     };
     let tail = PathBuf::from("pncad").join("viewer.toml");
 
@@ -2440,8 +2813,8 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 
     // Then they mate it, and that placement is discarded under them.
     let mate = SessionOp::AddMate {
-        a: SitedRef::at_mint(asm::in_part(bench.post_b, &bench.post_top)),
-        b: SitedRef::at_mint(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
+        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
         class: ContactClass::Rest,
         alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
     };
@@ -2515,242 +2888,5 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert_eq!(
         frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
         StatusUpdate::Clear,
-    );
-}
-
-// --- a worker that dies under a submitted request -------------------
-
-/// A worker that takes one request and panics inside it, over the two
-/// channel ends a seam handle keeps.
-///
-/// **A real panic on a real thread, which is the only way this state is
-/// reachable.** `ThreadIndexer` and `ThreadEvaluator` own their
-/// worker's entry point — the loop is a private function with no door
-/// to inject a failure through — so nothing above the seam can make a
-/// shipped worker die, and the state is reachable only by a panic
-/// inside a build. What a test can stand up instead is the same pair of
-/// channels behind a worker that really panicked: the request sender
-/// whose receiver went down with the thread, and the result receiver
-/// that will only ever report `Disconnected`. Both handles' arms for
-/// that are mirrored below.
-///
-/// The worker prints one `thread '…' panicked` line to stderr when a
-/// row lets it die. That line is what the rows are about, not a
-/// failure.
-fn dying_worker<Req, Done>(name: &str) -> (Sender<Req>, Receiver<Done>, JoinHandle<()>)
-where
-    Req: Send + 'static,
-    Done: Send + 'static,
-{
-    let (to_worker, requests) = mpsc::channel::<Req>();
-    let (results, from_worker) = mpsc::channel::<Done>();
-    let worker = std::thread::Builder::new()
-        .name(name.to_owned())
-        .spawn(move || {
-            // The worker owns both ends, as the shipped ones do: the
-            // unwind is what drops them and disconnects the seam.
-            let results = results;
-            let _request = requests.recv().expect("the work reaches the worker");
-            drop(results);
-            panic!("the worker died under the request it was handed");
-        })
-        .expect("the worker spawns");
-    (to_worker, from_worker, worker)
-}
-
-/// The index seam over [`dying_worker`], with `ThreadIndexer`'s own two
-/// arms for a worker that has gone: a failed `send` and a `Disconnected`
-/// `try_recv` each clear the running flag, so `busy` goes dark.
-struct DyingIndexer {
-    to_worker: Sender<IndexRequest>,
-    from_worker: Receiver<IndexDone>,
-    running: bool,
-}
-
-impl DyingIndexer {
-    fn new() -> (Box<Self>, JoinHandle<()>) {
-        let (to_worker, from_worker, worker) = dying_worker("index-worker-that-dies");
-        (
-            Box::new(Self {
-                to_worker,
-                from_worker,
-                running: false,
-            }),
-            worker,
-        )
-    }
-}
-
-impl IndexService for DyingIndexer {
-    fn submit(&mut self, request: IndexRequest) {
-        self.running = self.to_worker.send(request).is_ok();
-    }
-
-    fn poll(&mut self) -> Option<IndexDone> {
-        match self.from_worker.try_recv() {
-            Ok(done) => Some(done),
-            Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => {
-                self.running = false;
-                None
-            }
-        }
-    }
-
-    fn busy(&self) -> bool {
-        self.running
-    }
-}
-
-/// The evaluation seam over the same worker, with `ThreadEvaluator`'s
-/// arms. `cancel` has nothing to stop.
-struct DyingEvaluator {
-    to_worker: Sender<EvalRequest>,
-    from_worker: Receiver<EvalDone>,
-    running: bool,
-}
-
-impl DyingEvaluator {
-    fn new() -> (Box<Self>, JoinHandle<()>) {
-        let (to_worker, from_worker, worker) = dying_worker("eval-worker-that-dies");
-        (
-            Box::new(Self {
-                to_worker,
-                from_worker,
-                running: false,
-            }),
-            worker,
-        )
-    }
-}
-
-impl EvalService for DyingEvaluator {
-    fn submit(&mut self, request: EvalRequest) {
-        self.running = self.to_worker.send(request).is_ok();
-    }
-
-    fn cancel(&mut self) {}
-
-    fn poll(&mut self) -> Option<EvalDone> {
-        match self.from_worker.try_recv() {
-            Ok(done) => Some(done),
-            Err(TryRecvError::Empty) => None,
-            Err(TryRecvError::Disconnected) => {
-                self.running = false;
-                None
-            }
-        }
-    }
-
-    fn busy(&self) -> bool {
-        self.running
-    }
-}
-
-/// **A promise nobody is left to keep, withdrawn.**
-///
-/// The seam notices a worker that has gone; what this holds is that the
-/// CONSUMER asks. `PickCache::outstanding` is cleared by an answer, so
-/// a build whose worker panicked leaves it set for the life of the
-/// window — and reporting it alone spun `indexing…` forever, repainted
-/// every frame to collect a result nobody would send, and refused every
-/// click with *the picture is still being indexed*, of a picture nobody
-/// is indexing.
-///
-/// The three reads the chrome actually makes are all here: the toolbar's
-/// progress state, the pick refusal's sentence, and the indicator itself.
-#[test]
-fn a_build_whose_worker_panicked_stops_promising_an_answer() {
-    let tol = Tol::witness();
-    let (session, _extrude) = plate_session(tol);
-    let (seam, worker) = DyingIndexer::new();
-    let mut cache = PickCache::new(seam);
-
-    assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
-        CacheStep::Submitted
-    );
-    assert!(
-        cache.indexing(),
-        "the build is with the worker and the answer is genuinely owed"
-    );
-
-    // The build panics. Joining is how the row waits for a death a
-    // frame loop would only ever discover by polling.
-    assert!(
-        worker.join().is_err(),
-        "the row needs the worker to have actually panicked"
-    );
-
-    assert_eq!(
-        cache.pump(),
-        Vec::new(),
-        "there is no answer to take, and there never will be"
-    );
-    assert!(
-        !cache.indexing(),
-        "so the toolbar stops saying one is coming",
-    );
-    assert_eq!(
-        frame::progress(session.outstanding(), cache.indexing()),
-        None,
-        "and the chrome has nothing to spin over",
-    );
-    assert_eq!(
-        pickcache::unindexed(
-            &[input::PickAction::Select([10.0, 10.0])],
-            cache.index(),
-            cache.indexing(),
-        ),
-        Some(pickcache::NotIndexed::Absent),
-        "a click is refused as one nothing will answer, not as one an \
-         arriving index is about to",
-    );
-
-    // And the retry policy still holds: the attempt was made, and a
-    // dead seam is not a reason to make it sixty times a second. The
-    // step is still `Indexing`, because `sync` answers from the
-    // submitted attempt — which is why that is a statement about what
-    // was asked for and `indexing` is what the chrome reads.
-    assert_eq!(
-        cache.sync(session.index_inputs(), Some(delta())),
-        CacheStep::Indexing
-    );
-    assert!(!cache.indexing());
-}
-
-/// The same worker under the EVALUATION seam, which already asks.
-///
-/// `DocSession::busy` is about the picture — is it older than the
-/// document — and stays true, correctly, because it is. What answers
-/// *is anyone doing something about it* is `DocSession::running`, which
-/// is the seam's own `busy`, and the two are folded into `Outstanding`
-/// before any chrome sees them. So a panicked evaluator lands on
-/// `Canceled` and its recourse rather than on a permanent `evaluating…`.
-#[test]
-fn a_panicked_evaluator_reaches_the_chrome_as_canceled_not_as_evaluating() {
-    let tol = Tol::witness();
-    let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
-    let (seam, worker) = DyingEvaluator::new();
-    // `new` submits the first run, so the worker has it already.
-    let mut session = DocSession::new(doc, tol, seam);
-    assert_eq!(session.outstanding(), Outstanding::Evaluating);
-
-    assert!(
-        worker.join().is_err(),
-        "the row needs the worker to have actually panicked"
-    );
-
-    assert_eq!(session.pump(), Vec::new(), "no result is coming");
-    assert!(
-        session.busy(),
-        "the picture IS older than the document, and that is what busy says"
-    );
-    assert!(!session.running(), "but nothing is working on it");
-    assert_eq!(session.outstanding(), Outstanding::Canceled);
-    assert_eq!(
-        frame::progress(session.outstanding(), false),
-        Some(frame::Progress::Canceled { indexing: false }),
-        "the state the chrome draws with a Re-evaluate button beside it",
     );
 }

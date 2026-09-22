@@ -19,7 +19,13 @@ use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
 
 /// Typed hit-test failure (closed; no silent lanes).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// **Not `Copy` and not `Eq`**: [`HitTestError::Ambiguous`] carries the
+/// tied hits, which is a `Vec` of float geometry. Equality is
+/// field-wise, including the parameters and the points
+/// ([`super::pick::PickHit`]), because what two refusals being equal
+/// means here is that they name the same faces at the same places.
+#[derive(Debug, Clone, PartialEq)]
 pub enum HitTestError {
     /// The node has no result in this evaluation (canceled suffix or
     /// a foreign node id).
@@ -39,6 +45,38 @@ pub enum HitTestError {
         /// The nearest failed ancestor.
         through: RecipeNodeId,
     },
+    /// The handed evaluation is of another document (DI3, A2a): the
+    /// door is a statement about a value of `expected`, and an
+    /// evaluation of `found` answers out of another document's name
+    /// tables. Node ids are minted per document, so a twin recipe's
+    /// evaluation answers every lookup — confidently, about other
+    /// geometry — and the refusal comes before any table is read.
+    EvaluationOfAnotherDocument {
+        /// The document the door is a statement about.
+        expected: crate::ident::DocumentId,
+        /// The document the handed evaluation is of.
+        found: crate::ident::DocumentId,
+    },
+    /// **The certified tie between FACES**: the survivors of the
+    /// interval order ([`super::pick::TSpan::precedes`]) name more
+    /// than one face, so the geometry does not say which face the ray
+    /// met and no second key invents one ([`super::pick::pick_face`]).
+    ///
+    /// Every hit here is TRUE — each is its own face's hull interval
+    /// and a point of that face — and the list is complete: the
+    /// traversal's early-out drops only candidates the order already
+    /// dropped, so every face of the tie is present. The list's order
+    /// (the caller's target order, then face-arena order) is an order
+    /// for a LIST and decides nothing.
+    ///
+    /// Survivors naming ONE face are not this: a ray across a
+    /// triangle diagonal or an in-face shared edge answers that face,
+    /// which is what keeps the refusal off the picks whose answer is
+    /// clear.
+    Ambiguous {
+        /// The tied faces' hits, one per face, at least two.
+        hits: Vec<super::pick::PickHit>,
+    },
     /// THE BUG (spec D4): the node evaluated, but the entity has no
     /// name in its table — a naming-emission totality violation,
     /// surfaced loudly.
@@ -48,6 +86,21 @@ pub enum HitTestError {
         /// The unnamed entity.
         entity: EntityRef,
     },
+}
+
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for HitTestError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
 }
 
 // LIB-DOORS F6: the human-readable rendering a consumer prints instead
@@ -82,6 +135,33 @@ impl core::fmt::Display for HitTestError {
                  upstream, at node {}",
                 node.0, through.0, through.0
             ),
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "hit test: the evaluation is of document {found}, not \
+                 of document {expected} — the index and the tables it \
+                 is read against are of two documents"
+            ),
+            Self::Ambiguous { hits } => {
+                write!(
+                    f,
+                    "hit test: the ray is tied between {} faces the arithmetic cannot order — ",
+                    hits.len()
+                )?;
+                // The ordinal is what ties each phrase to its entry
+                // in `hits`, where the role path two faces of one node
+                // differ by IS carried.
+                for (i, hit) in hits.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str(", ")?;
+                    }
+                    write!(f, "({}) {}", i + 1, hit.name)?;
+                }
+                write!(
+                    f,
+                    " — so the pick names none of them; aim away from the shared edge, or \
+                     choose one of the tied faces, which this refusal lists in full"
+                )
+            }
             Self::Unnamed { node, entity } => write!(
                 f,
                 "hit test: node {}'s {} in output body {} evaluated but \

@@ -776,11 +776,17 @@ mod threaded {
     ///   one more job is `waiting`;
     /// - **latest wins**: a submit while the worker is busy REPLACES
     ///   `waiting` rather than queueing behind it;
-    /// - **the worker-gone reset**: a `send` that fails and a
-    ///   `Disconnected` receive both clear `running` AND `waiting`
-    ///   ([`Coalescing::forget_worker`]), because nothing will ever be
-    ///   answered again and an indicator must not stay lit for an
-    ///   answer that is not coming;
+    /// - **a worker ends in exactly one of two ways, and they are not
+    ///   the same event**: [`Coalescing::close`] took its request
+    ///   channel, which is an orderly shutdown and forgets the work
+    ///   quietly, clearing `running` and `waiting` so `busy` stops
+    ///   claiming an answer that is not coming
+    ///   ([`Coalescing::forget_worker`]); or the worker
+    ///   CRASHED under a job, which is a bug in this process and ends
+    ///   it ([`Coalescing::crashed`]). Both are noticed at the same
+    ///   two places — a `send` that fails and a `Disconnected` receive
+    ///   — and telling them apart is a read of `to_worker`, which
+    ///   `close` is the only thing that takes;
     /// - **`busy()` is `running || waiting.is_some()`** — the two
     ///   fields are what the caller's one boolean is computed from, and
     ///   nothing else may compute it.
@@ -792,6 +798,10 @@ mod threaded {
     /// ([`Coalescing::close_and_join`] against [`Coalescing::close`]).
     #[derive(Debug)]
     struct Coalescing<J: Job> {
+        /// Which seam this is. Carried so a crash names the worker it
+        /// was, rather than being labelled by whichever consumer
+        /// happened to be the one that noticed.
+        worker: Worker,
         to_worker: Option<Sender<J>>,
         from_worker: Receiver<J::Done>,
         /// Whether the worker holds a job. A flag rather than a count,
@@ -800,7 +810,7 @@ mod threaded {
         /// The newest job, held back until the worker is free.
         /// Replaced, never appended to: that is latest-wins.
         waiting: Option<J>,
-        worker: Option<JoinHandle<()>>,
+        handle: Option<JoinHandle<()>>,
     }
 
     impl<J: Job> Coalescing<J> {
@@ -847,11 +857,12 @@ mod threaded {
                 })
                 .map_err(|error| SpawnError::Thread { worker, error })?;
             Ok(Self {
+                worker,
                 to_worker: Some(to_worker),
                 from_worker,
                 running: false,
                 waiting: None,
-                worker: Some(handle),
+                handle: Some(handle),
             })
         }
 
@@ -867,17 +878,86 @@ mod threaded {
             }
         }
 
-        /// Hand `job` to the worker, or record that the worker is gone.
+        /// Hand `job` to the worker — or find out that there is none.
+        ///
+        /// **The two ways there is none are different events**, and
+        /// this is one of the two places the difference is read. A
+        /// sender still in hand whose `send` failed means the receiving
+        /// end went down with the thread holding it, which is a crash;
+        /// a sender that is gone means [`Coalescing::close`] took it,
+        /// which is shutdown.
         fn dispatch(&mut self, job: J) {
             match self.to_worker.as_ref() {
                 Some(to_worker) if to_worker.send(job).is_ok() => self.running = true,
-                _ => self.forget_worker(),
+                Some(_) => self.crashed(),
+                None => self.forget_worker(),
             }
         }
 
-        /// The worker ended — only reachable after [`Coalescing::close`]
-        /// has closed the channel, or if it panicked. Nothing more will
-        /// ever be answered, so nothing may go on reporting busy.
+        /// **A worker thread crashed, so this process ends here** (Ev,
+        /// in-chat, 2026-09-17: *"isn't a worker dying an infra thing
+        /// that should show up as a panic?"*, then *"panic on crash is
+        /// good"*).
+        ///
+        /// # Why a panic and not a typed fact
+        ///
+        /// A crash is not a state the application can be IN. Nothing
+        /// respawns a worker, so a seam that loses one accepts every
+        /// later submit and answers none, for the life of the window —
+        /// and every consumer above the seam reads that as an idle
+        /// seam, because the reset that stops the indicator lying
+        /// clears the very fields a consumer would have to read to
+        /// tell the two apart. Describing that state in the chrome
+        /// means carrying a vocabulary for a condition no document and
+        /// no gesture can cause; ending the process says the same
+        /// thing once, at the moment it becomes true, and cannot be
+        /// missed.
+        ///
+        /// **This does not touch D9.** The workspace's no-panic family
+        /// is scoped to INPUT — *"the kernel never panics on any
+        /// INPUT — every input-reachable failure is a typed error"*
+        /// (the root `Cargo.toml`'s `[workspace.lints.clippy]`) — and a
+        /// worker thread dying is reachable from no input at all: no
+        /// document, no gesture and no parameter can stop one. It is
+        /// the same class that clause hands to `unreachable!`, a bug
+        /// the code can observe in a branch, and it takes a `panic!`
+        /// rather than `unreachable!` because it IS reachable and
+        /// saying otherwise would be false.
+        ///
+        /// # The message is the whole of what a user sees
+        ///
+        /// So it names the seam, says whose fault it is, and offers no
+        /// recourse: the process is already going down, and advice a
+        /// reader cannot act on before the window closes would be
+        /// decoration on a crash.
+        #[expect(
+            clippy::panic,
+            reason = "a crashed worker is not input-reachable: D9's family is scoped \
+                      to input, and this is the bug-observed-in-a-branch class"
+        )]
+        fn crashed(&self) -> ! {
+            panic!(
+                "the {} worker thread crashed. This is a bug in the viewer: no \
+                 document and nothing a reader can do stops a worker, and nothing \
+                 starts another one, so the seam is dead and every answer it owes \
+                 is lost. Stopping here rather than going on with a picture that \
+                 silently never changes again.",
+                self.worker
+            );
+        }
+
+        /// The worker ended in the ORDERLY way: [`Coalescing::close`]
+        /// took the request channel and the thread's `recv` returned.
+        /// Nothing more will ever be answered, so nothing may go on
+        /// reporting busy.
+        ///
+        /// **Only shutdown reaches here now.** This used to answer
+        /// both endings in the same three lines, which is what made a
+        /// crashed seam read as a quiet one everywhere above it; the
+        /// crash goes to [`Coalescing::crashed`] instead. `close` is
+        /// called from `Drop` and from nowhere else, so on a running
+        /// application there is no path to this function at all — the
+        /// rows that reach it close the channel by hand.
         fn forget_worker(&mut self) {
             self.running = false;
             self.waiting = None;
@@ -898,9 +978,14 @@ mod threaded {
                         }
                     }
                     Err(TryRecvError::Empty) => return None,
-                    // The worker is gone. Nothing further will ever
-                    // land, so the indicator must not stay lit forever.
+                    // The worker is gone. Which way it went is the
+                    // same read `dispatch` makes, for the same reason:
+                    // a request channel still in hand means the thread
+                    // that held the other end died under a job.
                     Err(TryRecvError::Disconnected) => {
+                        if self.to_worker.is_some() {
+                            self.crashed();
+                        }
                         self.forget_worker();
                         return None;
                     }
@@ -929,8 +1014,8 @@ mod threaded {
         /// nothing else bounds the join.
         fn close_and_join(&mut self) {
             self.close();
-            if let Some(worker) = self.worker.take() {
-                let _ = worker.join();
+            if let Some(handle) = self.handle.take() {
+                let _ = handle.join();
             }
         }
     }
@@ -1238,6 +1323,144 @@ mod threaded {
         /// shutdown determinism with what the seam exists to buy.
         fn drop(&mut self) {
             self.inner.close();
+        }
+    }
+
+    /// **The crash announcement, on the machine that makes it.**
+    ///
+    /// # Why these rows are here and not against a public door
+    ///
+    /// The three shipped handles cannot be crashed from outside, by
+    /// construction: a worker only dies by panicking inside its own
+    /// job, the job is `build_index`, `run_fit` or `run_once`, and the
+    /// closure that calls it is private to this module with no door to
+    /// inject a failure through. So a row driven through
+    /// [`ThreadIndexer`] would have to make the KERNEL panic on an
+    /// input, which is the thing D9 says cannot happen.
+    ///
+    /// What these drive instead is [`Coalescing`] itself — not a
+    /// hand-written mirror of it, but the very type all three handles
+    /// delegate every `submit`, `poll` and `busy` to, carrying both of
+    /// the arms under test. **What that does not prove** is the last
+    /// inch: that a panic inside one of those three private closures is
+    /// the only way to arrive, which is argued from the worker loop's
+    /// three exits rather than executed.
+    ///
+    /// Each row's worker prints one `thread '…' panicked` line to
+    /// stderr before the row's own panic. That line is the subject, not
+    /// a failure.
+    #[cfg(test)]
+    mod tests {
+        // Panicking is a test's failure mechanism (workspace lint
+        // note), and here it is also the subject twice over: the worker
+        // dies by panicking and the machine answers by panicking.
+        #![allow(clippy::expect_used)]
+        #![allow(clippy::panic)]
+
+        use super::{Coalescing, Job, Worker};
+
+        /// A job with nothing in it: these rows are about the machine's
+        /// bookkeeping, and a payload would be scenery.
+        struct Nothing;
+
+        impl Job for Nothing {
+            type Done = ();
+
+            /// Never superseded — the arms under test are the ones
+            /// where no answer comes at all.
+            fn supersedes(&self, (): &()) -> bool {
+                false
+            }
+        }
+
+        /// A seam whose worker dies under the first job it is handed.
+        fn dying(worker: Worker) -> Coalescing<Nothing> {
+            Coalescing::spawn(worker, "viewer-test-crash", (), |(), Nothing| {
+                panic!("the worker dies under the job it was handed")
+            })
+            .expect("the worker starts")
+        }
+
+        /// Wait for the crash to have actually happened.
+        ///
+        /// Taking the handle is a WAIT and not a construction: it does
+        /// not put the seam in the state under test, it only removes
+        /// the race from observing it. The state itself — a dead
+        /// worker, a request channel still in hand, and a `poll` on the
+        /// next frame — is what the application reaches on its own.
+        fn await_crash(seam: &mut Coalescing<Nothing>) {
+            let handle = seam.handle.take().expect("the worker was spawned");
+            assert!(
+                handle.join().is_err(),
+                "the row needs the worker to have actually panicked"
+            );
+        }
+
+        /// **The reachable arm**: the frame after a worker died under
+        /// its job polls for an answer and finds the channel gone.
+        ///
+        /// This is the sequence an application really takes — submit on
+        /// one frame, poll on a later one — and the panic names the
+        /// seam it was.
+        #[test]
+        #[should_panic(expected = "the index worker thread crashed")]
+        fn a_worker_that_crashed_takes_the_process_down_at_the_next_poll() {
+            let mut seam = dying(Worker::Index);
+            seam.submit(Nothing);
+            assert!(seam.busy(), "the job is with the worker");
+            await_crash(&mut seam);
+            let _ = seam.poll();
+        }
+
+        /// **The other arm, which is NOT sequence-reachable**, and the
+        /// row says so rather than implying otherwise.
+        ///
+        /// A `send` that fails with the sender still in hand means the
+        /// receiving end went down with its thread, so it is a crash
+        /// wherever it comes from — but this machine cannot get here.
+        /// `dispatch` runs only when `running` is false, and after a
+        /// crash `running` stays true until a `poll` clears it, which
+        /// is the row above. The alternative entry, `poll`'s
+        /// redispatch of a superseding job, needs a buffered answer AND
+        /// a dead worker at once: the loop sends an answer only when
+        /// `answer` RETURNED, and a worker that returned is a worker
+        /// that went back to `recv` and can only die on a job it was
+        /// then handed — for which no answer is ever sent. So the two
+        /// cannot hold together.
+        ///
+        /// The arm stays because the condition means what it means, and
+        /// answering it with [`Coalescing::forget_worker`] would put
+        /// back the conflation this change removes. This row clears
+        /// `running` by hand to execute it, and therefore asserts the
+        /// ARM's behaviour and nothing at all about reachability.
+        #[test]
+        #[should_panic(expected = "the display fit worker thread crashed")]
+        fn a_send_that_fails_with_the_channel_still_ours_is_a_crash_too() {
+            let mut seam = dying(Worker::Fit);
+            seam.submit(Nothing);
+            await_crash(&mut seam);
+            seam.running = false;
+            seam.submit(Nothing);
+        }
+
+        /// **Shutdown is not a crash**, which is the whole point of
+        /// discriminating: `close` takes the request channel, and a
+        /// machine that has been closed forgets its work quietly.
+        #[test]
+        fn a_closed_channel_is_forgotten_rather_than_announced() {
+            let mut seam = Coalescing::<Nothing>::spawn(
+                Worker::Evaluation,
+                "viewer-test-close",
+                (),
+                |(), Nothing| {},
+            )
+            .expect("the worker starts");
+            seam.close();
+            seam.submit(Nothing);
+            assert!(
+                !seam.busy(),
+                "an orderly shutdown drops the job that will never be sent"
+            );
         }
     }
 }

@@ -15,7 +15,9 @@
 //! 1. **SHAPE** — *is the face's domain an iso-parameter rectangle?*
 //!    Asked BEFORE the walk, on rim structure, through the predicate's
 //!    own door `geom_brep::props::require_iso_rectangle` (the S58
-//!    single home of `props_rim_level`), refusing
+//!    single home of `props_rim_level`, which also requires every rim
+//!    to encode the SAME material side — the sense-free half of the
+//!    flux lane's interior-side premise, `props_rim_side`), refusing
 //!    [`TessellateError::UnsupportedCurvedShape`] — this lane cites
 //!    the predicate itself rather than leaning on the boolean's or
 //!    tier 3's inability to answer ([`require_iso_rectangle_face`]).
@@ -425,7 +427,8 @@ pub(crate) fn tessellate_curved(
 
 /// **The SHAPE door and the BRANCH door**: this face's outer loop,
 /// handed to `geom_brep::props::require_iso_rectangle` — the S58
-/// single home of the iso-rectangle predicate — and then to
+/// single home of the iso-rectangle predicate, with the sense-free
+/// rim-side unanimity beside it — and then to
 /// `geom_brep::props::require_one_chart_branch`, each refusal wrapped
 /// typed as [`TessellateError::UnsupportedCurvedShape`].
 ///
@@ -459,9 +462,10 @@ pub(crate) fn tessellate_curved(
 /// comparand and no margin of `mesh`'s.
 ///
 /// **A rimless sphere band passes**: it is a chart rectangle, and the
-/// door says so at its definition — the `Δu = π` the flux lane also
-/// needs is that lane's premise, not the shape's, which is why a
-/// partial sphere wedge meshes here and refuses `mass_properties`.
+/// door says so at its definition — which lunes the flux lane measures
+/// (`Δu = π` for one great circle, the meridian pair's azimuth for two)
+/// is that lane's premise, not the shape's, so a partial sphere wedge
+/// meshes here on the door's answer alone.
 ///
 /// An empty loop is reported by this lane's own name for that state
 /// ([`TessellateError::EmptyLoop`]) before the flatten runs, which

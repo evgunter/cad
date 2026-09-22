@@ -136,7 +136,11 @@ impl PatchBoundError {
     /// that reports a patch-bound refusal in its own error type.
     pub fn note(self) -> &'static str {
         match self {
-            Self::DegreeZero => "degree-0 NURBS direction (a degenerate face description)",
+            Self::DegreeZero => {
+                "degree-0 NURBS direction (a degenerate face description) — a degree-0 \
+                 locus is a step function rather than a surface direction, and the form \
+                 is a designed absence: describe the direction at degree 1 or above"
+            }
             Self::Degree1Crease => {
                 "degree-1 NURBS direction with interior knots (a C⁰ crease) — \
                  the interpolation Taylor bound needs C¹; split the face at \
@@ -150,19 +154,29 @@ impl PatchBoundError {
             Self::NonPositiveWeight => {
                 "rational NURBS face with a non-positive or non-finite weight — an \
                  illegal rational description: the convex-combination licence every \
-                 hull fact rests on requires strictly positive weights"
+                 hull fact rests on requires strictly positive weights, so supply them \
+                 and the face certifies through the rational arm. The door that mints a \
+                 NURBS surface refuses these already, so a face that reaches this bound \
+                 carrying one is worth reporting too"
             }
             Self::RefinedWeightLostPositivity => {
-                "rational NURBS face whose refined weights lost positivity — \
-                 outside the certified inventory"
+                "rational NURBS face whose refined weights lost positivity — outside the \
+                 certified inventory: positivity survives knot insertion in ℝ, so what \
+                 lost it is the f64 rounding of the fixed refinement on an extreme weight \
+                 ratio; describe the face with a ratio the refinement can hold, or report \
+                 the description, which is what sizes RATIONAL_CERT_SPLITS"
             }
             Self::RefinementFailed => {
-                "rational NURBS face whose refinement fails to materialise — \
-                 outside the certified inventory"
+                "NURBS face whose refinement fails to materialise — outside the certified \
+                 inventory: the fixed schedule inserts knots into a direction that already \
+                 passed the C¹ gate, and insertion into a valid clamped vector is total, \
+                 so report the description that reached this rather than repairing one"
             }
             Self::DerivedKnots => {
                 "NURBS direction whose derivative knot vector fails to materialise — \
-                 outside the certified inventory"
+                 outside the certified inventory: a direction that passed the C¹ gate has \
+                 a valid once-differenced vector, so report the description that reached \
+                 this rather than repairing one"
             }
         }
     }
@@ -783,4 +797,40 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
         }
     }
     Ok(cells)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every patch-bound refusal names what the caller changes in the
+    /// description, not only which structural fact refused. Nothing
+    /// here delegates: the prose is this module's at every arm, which
+    /// is what its consumers print.
+    #[test]
+    fn every_patch_bound_error_arm_names_a_recourse() {
+        // A vocabulary, not a part-of-speech test: an arm that names
+        // the thing a caller supplies satisfies the claim the same way
+        // an imperative does.
+        const RECOURSE_WORDS: &[&str] = &["describe", "supply", "report", "split"];
+        let arms = [
+            PatchBoundError::DegreeZero,
+            PatchBoundError::Degree1Crease,
+            PatchBoundError::Crease,
+            PatchBoundError::NonPositiveWeight,
+            PatchBoundError::RefinedWeightLostPositivity,
+            PatchBoundError::RefinementFailed,
+            PatchBoundError::DerivedKnots,
+        ];
+        assert_eq!(arms.len(), 7, "an arm was added without a row here");
+        for arm in arms {
+            let msg = arm.to_string();
+            assert_eq!(msg, arm.note(), "Display is the shared note");
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                "no recourse in: {msg}"
+            );
+        }
+    }
 }

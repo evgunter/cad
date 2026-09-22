@@ -62,12 +62,15 @@ pub mod frame;
 pub mod g1;
 pub mod generation;
 pub mod history;
+pub mod idpass;
 pub mod input;
 pub mod marks;
 pub mod matetool;
+pub mod narrowing;
 pub mod parts;
 pub mod pickcache;
 pub mod pickindex;
+pub mod platform;
 pub mod prefs;
 pub mod props;
 pub mod readout;
@@ -149,6 +152,7 @@ pub use matetool::{
     MateAdmission, MateChoice, MateProposal, MateTool, MateToolError, MateToolEvent, MateToolState,
     admitted_classes,
 };
+pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};
 pub use pickcache::{NotIndexed, unindexed};
 pub use pickindex::{
@@ -161,10 +165,10 @@ pub use revolvetool::RevolveTool;
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
-    BoundsReading, DatumSpec, DocSession, EdgeSelection, FaceSelection, Hovered, Landing,
-    NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection, SessionOp,
-    Standing,
+    BoundsReading, DatumSpec, DocSession, EdgeSelection, FaceFrameFault, FaceSelection, Hovered,
+    Landing, NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection,
+    SessionOp, Standing,
 };
-pub use theme::{Mark, Polarity, Safety, Theme};
+pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};
 pub use tree::{RowStatus, TreeRow};

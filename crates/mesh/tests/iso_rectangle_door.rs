@@ -30,9 +30,9 @@
 //! door, and the walk it would otherwise have received collapses onto
 //! one rim level and IS its own bounding box — the spatial check admits
 //! it, which is the defeat the qualification recorded and the door now
-//! closes. A rimless lune (the partial sphere wedge) keeps meshing:
-//! the door is the shape predicate, not the flux lane's `Δu = π`
-//! premise.
+//! closes. A rimless lune (the partial sphere wedge) meshes and
+//! measures: the door is the shape predicate, and the flux lane reads
+//! the lune's own width.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -86,15 +86,15 @@ fn the_oblique_lens_refuses_at_the_shape_door() {
     );
 }
 
-/// The divergence between the SHAPE door and the flux lane, pinned in
-/// both directions: the partial sphere wedge is a rimless lune — a
-/// chart rectangle `[0, θ] × [−π/2, π/2]` — so the door admits it and
-/// it meshes exactly as before, while `mass_properties` refuses the
-/// same body for the flux lane's own reason (`Δu = π`,
-/// `props_band_coplanar`), which is a closed-form premise and not a
-/// statement about the shape.
+/// The SHAPE door and the flux lane answer the same rimless lune on
+/// their own premises: the partial sphere wedge is a chart rectangle
+/// `[0, θ] × [−π/2, π/2]`, so the door admits it and it meshes, and
+/// `mass_properties` measures it by the flux lane's own reading of the
+/// two meridian half-planes (`props_wedge_azimuth`) — the wedge of the
+/// unit ball over `θ = 2`, volume `(2/3)·θ`. The door's answer is the
+/// shape's and does not depend on which lunes the flux lane measures.
 #[test]
-fn a_rimless_lune_meshes_through_the_door_that_the_flux_lane_refuses() {
+fn a_rimless_lune_meshes_through_the_door_and_measures() {
     let body = sphere_wedge(2.0);
     let mesh = mesh::tessellate(&body, 0.05, Tol::witness()).expect("the lune meshes");
     mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -113,17 +113,13 @@ fn a_rimless_lune_meshes_through_the_door_that_the_flux_lane_refuses() {
         Ok(()),
         "a rimless lune is a chart rectangle"
     );
+    let volume = topo::mass_properties(&body, Tol::witness())
+        .expect("the flux lane measures the lune by its meridian pair")
+        .volume;
+    let exact = 2.0 / 3.0 * 2.0;
     assert!(
-        matches!(
-            topo::mass_properties(&body, Tol::witness()),
-            Err(topo::MassPropsError::Face {
-                source: PropsError::NotIsoRectangle {
-                    what: "props_band_coplanar"
-                },
-                ..
-            })
-        ),
-        "the flux lane refuses the same face for its own Δu = π premise"
+        (volume - exact).abs() / exact < 1e-12,
+        "the wedge of the unit ball over θ = 2: volume {volume:.15e} != {exact:.15e}"
     );
 }
 

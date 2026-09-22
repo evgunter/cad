@@ -322,7 +322,7 @@ use crate::entity::{
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
-use crate::props::{PropsQuadLane, ShellRole};
+use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
 use crate::validate::{ValidationError, validate_geometric};
 
@@ -941,7 +941,7 @@ pub struct ShellRetired {
 /// rights cannot form the call — there is no arm and no refusal — and
 /// the recourse is not a weaker shell but the ordinary one, built at a
 /// certifying scalar.
-pub fn shell<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     thickness: T,
     tol: Tol,
@@ -964,7 +964,7 @@ pub fn shell<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
 /// The certification bound is [`shell`]'s, for [`shell`]'s reason.
-pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     thickness: T,
     open_faces: &[FaceKey],
@@ -1520,7 +1520,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // structurally: the void-ceiling row asserts the designated
         // void face DIES, and the pairing row reads each thin solid's
         // twin through the record
-        // (`work/topo/check-9-nesting-is-line-bounded-only.md`).
+        // (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),
@@ -2262,8 +2262,7 @@ fn offset_door<T: Decide>(
 /// The face a simultaneous-door refusal is about, where it names one
 /// or names an entity that touches one.
 fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Option<FaceKey> {
-    let face_of_he =
-        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
+    let face_of_he = |he| body.face_of_half_edge(he);
     match error {
         ReplaceFaceError::StaleFace { face }
         | ReplaceFaceError::TogetherNonPlanar { face, .. }

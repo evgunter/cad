@@ -368,10 +368,11 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
 /// refusing pose of this grid refuses at the battery's clearance
 /// screen (`FaceClearanceUncertified` — the sliver's setbacks explode
 /// faster than its wedge closes), and the pose family that slips past
-/// screening refuses MID-assembly at the description-attachment
-/// certification gate (`Op { site: "surgery contact edge", .. }`
-/// carrying a `TangentSecondOrder` escalation — the R1 probes' 0.2°
-/// skew). The independence and dihedral gates are the guards of the
+/// screening refuses TYPED at the blend door, through the must-carry
+/// rule over the corner arcs (`Escalated` at the link, carrying a
+/// `tangent_second_order` escalation — the R1 probes' 0.2° skew), or
+/// one step slimmer builds them as conventional chart images. The
+/// independence and dihedral gates are the guards of the
 /// exact zero, not the working frontier.
 ///
 /// A triangular prism with a closing apex drives the apex dihedral to

@@ -4,6 +4,8 @@ kind: issue
 title: 32 A/B log rows carry fewer or more cells than the 14-column table they sit in, so a positional reader drops them or mis-assigns their columns
 status: open
 opened: 2026-09-11
+priority: P3
+cost: E
 ---
 
 

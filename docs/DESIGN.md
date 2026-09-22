@@ -44,7 +44,7 @@ is the board and `work/README.md` its contract.
 | `docs/AXIS-DECLARATION-DESIGN.md` | Ratified (Ev, 2026-09-12, #2404); unbuilt | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: `ParamSource` carries stored scalar fields only. Axis-shaped declarations invalidated structurally by placement-chain comparison, so no numerical check decides whether a rotation happened; absence of provenance refuses |
 | `crates/verbs/README.md` | Ratified (#1388; S3 corrected #1983, VS-Q4 revised #1870); SEAT closed, walk ratified #1997 | The kernel query seat, one verb vocabulary, lowered parameter identity, VERB-SEAT-DESIGN S1–S4, V1–V4, P1–P3: §1 query doors at `topo`; §2 the per-verb kernel `Verb` declaration; §3 the opaque per-field `ParamSource` channel |
 | `docs/MATE-7-TANGENCY-DESIGN.md` | Ratified | Torus×torus rim tangency; the kissing arm banks on it |
-| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06); DOCM closed 2026-09-13 | What a recipe reference may be, DM1–DM6: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers`, all built (DOCM-1…DOCM-8) |
+| `crates/editor-core/REFERENCES.md` | Ratified (in-chat 2026-09-04; DM4 amended 2026-09-06; DM7–DM8 on the `[ev]` PR of 2026-09-16); DOCM closed 2026-09-13, EDIT its successor | What a recipe reference may be, DM1–DM8: `Datum::FaceFrame`, the carrier-kind read, `Node::Part`, the n-ary `Node::Union` with `DocEdit::SetMembers`, all built (DOCM-1…DOCM-8) |
 | `crates/editor-core/IDENTITY.md` | Ratified (in-chat 2026-09-04); DOCM closed 2026-09-13 | A held value names the world it came from, DI1–DI5: history-branch validity of node ids, the memo as a pure function of the document, `Evaluation` carries its document's identity, forking is its own act |
 | `scripts/gates/README.md` | Ratified (Ev, 2026-09-06) | The CI gate directory: one home per gate, both CI halves, and the greps-vs-lints evaluation `S13` commissioned — `dylint`, `clippy::disallowed_*`, a proc-macro and a `syn` binary against the four grep gates. The four stay greps and the compound-bound-through-alias gap stays registered where it is disclosed. **The first design page outside `crates/<crate>/README.md`**: it sits beside the code it governs, which for these invariants is `scripts/gates/` and not a crate |
 | `tools/README.md` | Ratified (Ev, 2026-09-08) | The instrument crates' shared rule, clauses `CC1`–`CC5`: where a check owed on what a file says belongs, and in which voice it speaks. The subject is the **reading boundary** — Ev's scope ruling at ratification — of which the cross-column admission is the largest instance: `tess-lint` and `k-lint` both police a CSV column by column, and a property spanning two columns has no entry to live in; the class had eight instances in the tree and no statement. `CC1` (the check goes at the reading boundary and only there) and `CC5` (the harness voice, and the owed-test forwarded to `tess_lint::Report` and on to its module docs — the forwarding is what licenses a citation across cargo roots) are stated over readings generally; `CC2`, `CC3` and `CC4` are labelled as the per-column admissions table's own and do not generalise past it, `CC4` being that a producer-side entailment is **not** a disposition — this page once stated its opposite, and the row proving it wrong is now a test. **The second design page outside `crates/<crate>/README.md`**, and the first governing two sibling crates rather than one directory of scripts |
@@ -585,7 +585,8 @@ gives compile-time exhaustiveness, so adding an analytic kind means
 adding a variant and letting the compiler enumerate every dispatch
 site. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
-ellipse / NURBS).
+ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
+section, one oval, in the torus's own minor angle).
 
 ### D4 (agreed): Single strict global tolerance; operations fail loudly
 
@@ -1014,7 +1015,7 @@ Each layer depends only on the layers below it.
 |---|---|
 | `test-utils` | The shared test scaffolding several suites would otherwise each hand-roll: the fuzz/property harness (seed + effort dial), the `Display`-contract predicate, the anti-vacuity floor and its tightness companion, the shared Rust lexer, and the header-roster weld. A dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
 | `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, spline hulls |
-| `interval-transcendentals` | The `interval` feature's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
+| `interval-transcendentals` | The interval scalar's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
 | `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
@@ -1025,7 +1026,7 @@ Each layer depends only on the layers below it.
 | `mesh` / `stl` | Certified tessellation (watertight triangle meshes with source-`Face`/`Edge` back-references); STL export (binary + ASCII) |
 | `step-export` / `step-import` | STEP (AP214) analytic-subset export, and import of that subset as adoption (D7) |
 | `quantity` | Typed quantities at the API boundary (D6): `Length`, `Angle`, the unit table and the written forms |
-| `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + pure `apply`), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation (preview/commit, epochs, cancelation), assemblies, distributions and the subdivision driver, the checks registry. No rendering dependency. See `crates/editor-core/README.md` |
+| `editor-core` | Headless document/editor layer AND the parametric layer: document-as-value (recipe + metadata), typed edit vocabulary (`DocEdit` + `apply`, pure over the document and the mated parts' reach — a function of the parts' pinned content; the log records the cluster maintenance each edit performed, so replay is pure over the log), parameter expressions, feature DAG evaluation, persistent naming, stable-reference/selection model, incremental evaluation (preview/commit, epochs, cancelation), assemblies, distributions and the subdivision driver, the checks registry. No rendering dependency. See `crates/editor-core/README.md` |
 | `pncad` / `pncad-py` | The authoring façade (LIBRARY-DESIGN U1 — one crate to depend on, a prelude, f64-first signatures) and its PyO3 bindings, which speak the document layer |
 | `viewer` | The interaction layer over `editor-core`: `Camera`/`CameraOp` and `DocSession`/`SessionOp` as values with one `apply`/`perform` each, feature tree, property panel, selection, open/save, scene extraction — renderer-free and headless-tested; the eframe/wgpu application lives behind the non-default `app` feature. See `crates/viewer/README.md` |
 
@@ -1121,9 +1122,16 @@ these. All are shipped in `editor-core` except where noted:
 - **Picking back-references**: tessellation output carries per-patch
   source-`Face` and per-polyline source-`Edge` keys, and
   `editor_core::resolve::pick::pick_face` is the `ray → StableName`
-  service (`bvh::Bvh::ray`, exact ray/triangle tests, a total documented
-  tie-break, the `resolve::hit` inversion); `NodePick` pairs a mesh
-  with its node by construction.
+  service (`bvh::Bvh::ray`, exact ray/triangle tests, each admitted
+  candidate answering a certified `t` INTERVAL, the `resolve::hit`
+  inversion). One candidate is in front of another only when the whole
+  of its interval is; candidates the geometry cannot order are a
+  certified tie, answered as ONE face when they name one — the hull of
+  their intervals — and REFUSED with all of them
+  (`HitTestError::Ambiguous`) when they name several. Nothing else
+  decides a pick: not a claim's width, not where the model sits, not
+  the order the targets were offered in. `NodePick` pairs a mesh with
+  its node by construction.
 - **Cancelation** (`CancelToken`, yielding between nodes/levels; a
   canceled run returns the completed prefix as a typed outcome).
   Remaining: progress reporting (nothing exists) and in-op yield points
@@ -1261,7 +1269,10 @@ Cross-milestone commitments; each binds at the layer named.
 - **Persisted floats round-trip bit-exactly.** Shortest-round-trip
   formatting (serde_json with `float_roundtrip`) for finite values;
   NaN/inf refuse typed (`PersistError::NonFinite`); lossy formatters
-  banned; enforced by a save/load/replay-identity test.
+  banned; enforced by a save/load/replay-identity test. Replay never
+  solves: a logged edit carries the cluster-maintenance rows it
+  performed, and load re-applies them, so a saved document reproduces
+  its placement registry bit for bit with no part store in hand.
 - **Flags banked**: mate solving needs witnesses/interval contraction
   on SE(3), not ℝⁿ; recipe-level provenance carries **pattern indices**
   explicitly so references into indexed families never degrade to
@@ -1294,11 +1305,12 @@ Cross-milestone commitments; each binds at the layer named.
 
 - Evaluation code (evaluators, derivatives, transforms, measurements)
   is generic over a `Real` trait we define. Instantiations: `f64`,
-  `Interval` (the in-house `interval-transcendentals` backend, behind
-  the `interval` feature), `Dual<T>` (one in-house generic type;
-  `num-dual` is a dev-only oracle because its std-backed
-  transcendentals cannot satisfy the value-channel bit-identity
-  contract), and `Sym`.
+  `Interval` (the in-house `interval-transcendentals` backend; the
+  `interval` feature gates the kernel's lane-trait impls at it and the
+  interval test files, not the type, which compiles in every build),
+  `Dual<T>` (one in-house generic type; `num-dual` is a dev-only oracle
+  because its std-backed transcendentals cannot satisfy the
+  value-channel bit-identity contract), and `Sym`.
 - Every topology-determining branch goes through a *named predicate
   function* returning a trilean sign plus margin, generic over `T`. No
   raw `<` on control-flow paths.
