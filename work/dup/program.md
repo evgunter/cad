@@ -2,7 +2,7 @@
 id: dup
 kind: program
 title: S-DUP — one thing spelled n times
-status: open
+status: active
 opened: 2026-09-15
 area: infra
 prefix: dup/

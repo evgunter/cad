@@ -349,3 +349,41 @@ pad at the scale it certifies whole at: `symbolic_zero` 858 → 854,
 The four that left `symbolic_zero` are the ring row's class and are
 recorded there. Cost on the leaf instrument: free to the measurement's
 noise, and cheaper on most documents.
+
+### What the two reviews added, and what rule F does NOT reach (2026-09-21)
+
+Both blinded reviews built documents the unit had not, and the fix pass
+ran all of them (neither review's box could link the `editor-core`
+interval binary). The rows are
+`m10_derived_frame_tilted_interval`'s
+`sym8_the_reviews_documents_the_unit_did_not_measure`, which carries the
+table; what it settles:
+
+- **The reach is ONE-SIDED, and that is now measured, not inferred.**
+  A `FaceFrame` on the tilt-`u` cube's START cap carries
+  `n.z = −1/sqrt(P(t))`, and the predicate refuses a negative
+  coefficient outright, so neither arm folds. The same frame with `v`
+  flipped (`FlipZ`) reads, under `Pinned`, exactly the tilt-`u`
+  document's rule-F-OFF numbers to the digit — the same document with
+  the fold declined. **A manifest-NEGATIVE arm — `abs(−X) = X` and
+  `copysign(1, −X) = −1` for a manifestly positive `X`, which are
+  identities of reals exactly as the folded ones are — is the next
+  shape and was NOT taken by SYM-8.** It would want its own
+  measurement: the same predicate reversed doubles the shapes the early
+  walk opens, and this row's own history says opening an atom is not
+  free (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`).
+- **`n.z` a bare parameter over a `sqrt` atom** (`u = (1,0,0)`,
+  `v = (0,t,1)`) is declined too, at a narrow box and at one wide
+  enough to hold `n.z = 0`; at `half = 3e-1` under `Guided` the
+  document refuses on a clause-1 INVALID newell margin at both dials,
+  which is the value channel's and not the tier's.
+- **A tilt about `u` AND `v`** (`n.z = 1/sqrt(1 + 2t²)`) — which both
+  reviews predicted as the shape rule F folds — moves NOT ONE count at
+  either lift. The prediction is not confirmed, and why is unmeasured:
+  the fold either never fires on that document's `n.z` form or fires
+  without reaching a decision. Whoever takes the next unit on this row
+  should render it first.
+
+So the reach measured for rule F is still the tilt-`u` document alone,
+and the class it belongs to is narrower than the shape of the predicate
+suggested.

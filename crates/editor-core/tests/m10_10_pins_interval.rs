@@ -86,12 +86,18 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
         "rule D, rules A/B per node and rule E ship: {s:?}"
     );
     assert!(
+        s.canonical_root && s.decision_read,
+        "rule G and the decision read ship: {s:?}"
+    );
+    assert!(
         s.early && s.const_fold && s.registered,
         "on top of the early walk, A0 and the door: {s:?}"
     );
     assert!(
         !s.signed_root,
-        "rule C stays dial-off: no rule here reads a value"
+        "rule C's own fold at `sqrt`/`abs` stays dial-off: it is inert at the shipped ring \
+         width and costs ~2x. The decision read is the value read that DOES ship, at the \
+         ops rule C never reached, and it has a dial of its own"
     );
     let off = SymRules::without_the_algebra();
     assert!(
@@ -99,13 +105,21 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             && !off.early_ab
             && !off.sqrt_square
             && !off.pythagoras
-            && !off.common_factor,
+            && !off.common_factor
+            && !off.manifest_sign
+            && !off.canonical_root
+            && !off.decision_read,
         "the algebra off: {off:?}"
     );
-    // FIVE dials since SYM-5: rule E (the quotient's common factor) is
-    // form-level algebra in the early walk like the other four, and
-    // `without_the_algebra` is M10-9's tier bit for bit, which had no
-    // rule E. `m10_9_pins_interval` holds M10-9's rows under it.
+    // EIGHT dials since DECIDE-3: rule E (the quotient's common factor,
+    // SYM-5), rule F (the manifest sign, SYM-8), rule G (the canonical
+    // root) and the decision read are form-level algebra in the early
+    // walk like the other four, and `without_the_algebra` is M10-9's
+    // tier bit for bit, which had none of them.
+    // `m10_9_pins_interval` holds M10-9's rows under it. A dial left
+    // out of this list makes the differential one against a tier that
+    // never existed — SYM-8's review found exactly that, with rule F on
+    // BOTH sides of it.
     assert_eq!(
         SymRules {
             trig_of_atan: true,
@@ -113,10 +127,13 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             sqrt_square: true,
             pythagoras: true,
             common_factor: true,
+            manifest_sign: true,
+            canonical_root: true,
+            decision_read: true,
             ..off
         },
         s,
-        "`without_the_algebra` differs from `shipped` in the five algebra dials and nothing else"
+        "`without_the_algebra` differs from `shipped` in the eight algebra dials and nothing else"
     );
 }
 
@@ -178,12 +195,20 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
          on the negative frame to −1; the rim identity the door states closes the rest, \
          so every one of the 36 is REGISTERED"
     );
+    assert_eq!(
+        row(&on, "line_span"),
+        [8, 0, 0, 0],
+        "the plate's eight `line_span` comparisons are between two rational CONSTANTS, \
+         which A0 decides exactly — THEOREMS, no value read \
+         (`work/decide/a0-leaves-max-and-min-of-constants-opaque`'s fix)"
+    );
     for (p, before) in &off {
         let after = row(&on, p);
+        let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
         assert!(
-            after[0] >= before[0] && after[1] == 0 && before[1] == 0,
-            "{p}: the plain form is asked first, so `symbolic_zero` never falls and \
-             nothing is sign-gated: {before:?} -> {after:?}"
+            after[0] >= before[0] && discharged(after) >= discharged(*before),
+            "{p}: the plain form is asked first, so `symbolic_zero` never falls, and no \
+             decision is LOST — what the algebra discharges it keeps: {before:?} -> {after:?}"
         );
     }
 }

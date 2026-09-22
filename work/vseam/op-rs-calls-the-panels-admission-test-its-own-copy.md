@@ -2,10 +2,13 @@
 id: op-rs-calls-the-panels-admission-test-its-own-copy
 kind: issue
 title: session/op.rs calls the Properties pane's admission test its own copy, and it is the shared door
-status: open
+status: closed
 opened: 2026-09-20
 priority: P1
 cost: E
+closed: 2026-09-21
+branch: vseam/gesture-naming
+pr: 2965
 ---
 
 
@@ -47,3 +50,16 @@ over, in another program's territory, and was already false at that
 lane's merge base, which is the line the VNEWS orchestrator ruled:
 prose your own diff falsifies is yours; prose that was already wrong is
 filed across the fence.
+
+## Closed
+
+2026-09-21, on `vseam/gesture-naming`, as the one-word repair the item
+asks for. The bullet now reads *"and so does the Properties pane, which
+runs the SAME admission test the view does (`display::instance_check`,
+which `display::drawn_targets` runs first)"*. Re-derived by subject:
+`instance_check` is `crates/viewer/src/display.rs:375`,
+`drawn_targets` calls it at `:486`, and `PropertiesPane::instance_ui`
+calls it at `crates/viewer/src/pane/properties.rs:392` — `:399` before
+this branch shortened the band above it, which is the one citation this
+diff broke and the one its own census missed. The bullet's
+real claim — which document each of the three asks — is untouched.

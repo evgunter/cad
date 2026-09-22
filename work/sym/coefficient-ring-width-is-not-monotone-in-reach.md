@@ -149,3 +149,15 @@ lost — here the registry re-takes them, so no decision is lost, but the
 claim is weakened from a theorem the tier proved to an axiom a
 constructor stated. A unit that folds an atom owes this reading, not
 only the predicate it is after; SYM-8's is the third.
+
+**And it is not rule E's hazard twice.** Rule E's loss is demonstrated
+at the SCALAR — `sym_rule_e_rows::rule_e_can_cost_a_theorem_to_the_coefficient_ring`,
+a hand-built residual at a 200-bit coefficient — and no measured
+document pays it. Rule F's is realised ON a measured document, at the
+scale that document certifies whole at. Both reviews of SYM-8 read the
+spec's Phase-1.3 stop clause as literally tripped by it; the SYM
+orchestrator ratified the ship-on as a spec deviation on 2026-09-21
+(`work/decide/SYM-8.md`). The guard that was missing is in:
+`m10_9_pins_interval`'s `Study` now pins `symbolic_zero` beside
+`registered` on all five documents, so the next four theorems to leave
+red rather than living in a comment.

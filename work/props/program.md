@@ -2,7 +2,7 @@
 id: props
 kind: program
 title: PROPS — enclosure certificates and interval honesty
-status: open
+status: active
 opened: 2026-09-03
 area: kernel
 prefix: props/

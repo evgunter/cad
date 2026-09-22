@@ -2,7 +2,7 @@
 id: mirror
 kind: program
 title: MIRROR — the checkers and local scripts beside CI: the parity reader, the render lanes, the calibrators and their pins
-status: open
+status: ready
 opened: 2026-09-20
 area: infra
 prefix: mirror/

@@ -1361,7 +1361,8 @@ def _all_tier(root: str) -> dict[str, str]:
 #               outright (their modules are ordinary tests in the archive, and
 #               the jobs re-ran them at two fixed ε, defeating the ε sampling
 #               for exactly those modules), and `rebuild latency` moved to
-#               nightly.yml. What still reads this is ci.yml's `test-interval`
+#               nightly.yml. What still reads this is interval.yml's
+#               `test-interval`
 #               job — its two named interval rows — plus ci-local.sh.
 # pncad-py      NOT HERE, AND NOT A GATE ANYWHERE. `RUN_PNCAD_PY` is
 #               computed in `decorate` off the SEEDS and is REPORTING:

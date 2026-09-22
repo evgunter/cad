@@ -2,7 +2,7 @@
 id: contact
 kind: program
 title: CONTACT — touches, overlaps and declared contacts: the ordinary solids the boolean lane will not combine
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: contact/

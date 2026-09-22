@@ -7,20 +7,31 @@
 //! at every point clause 1 admits, so a zero reached through this rule
 //! is a THEOREM and lands in `symbolic_zero`.
 //!
-//! # What mints the atoms this folds
+//! # The invariant, and then where the atoms come from
 //!
-//! [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis) is the
-//! branchless Pixar construction, whose first two lines are
-//! `s = 1.copysign(n.z)` and `r = 1/(1 + |n.z|)` — a `copysign` and an
-//! `abs` of the SAME quantity, the frame normal's `z`. On a
-//! `FaceFrame` over a body extruded from a frame tilted about `u`,
-//! that `z` is `1/sqrt(P(t))` for a polynomial `P` in the document's
-//! parameter: an `Inv` of a `sqrt` atom, which is positive wherever it
-//! has a value at all, and which the value channel's `copysign` and
-//! `abs` nevertheless carry as two further opaque indeterminates into
-//! every term the certification builds. The tier could not see the
-//! number `1` in `copysign(1, 1/sqrt(P))` because a `copysign` is
-//! opaque; this rule is what lets it.
+//! **An `abs` or `copysign` atom over a form the SYNTAX shows positive
+//! is not an unknown function: it is the number the form already
+//! denotes.** That is the whole rule, and it is a fact about the
+//! functions `|·|` and `copysign` rather than about any construction
+//! that happens to call them. A kernel that spells a sign decision at
+//! all mints such an atom, and every one it mints over a positive form
+//! is an indeterminate the tier carries into every product above it for
+//! no information at all.
+//!
+//! **Where they come from today.** The measured mint site is
+//! [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis), whose
+//! `s = 1.copysign(n.z)` and `r = 1/(1 + |n.z|)` take a `copysign` and
+//! an `abs` of one quantity, the frame normal's `z`: on a `FaceFrame`
+//! over a body extruded from a frame tilted about `u`, that `z` is
+//! `1/sqrt(P(t))` for a polynomial `P` in the document's parameter — an
+//! `Inv` of a `sqrt` atom, positive wherever it has a value at all.
+//! That construction is not permanent: PROPS' sign-hull work replaces
+//! it, and the replacement frame's own `|n.z|` is the next `abs` of the
+//! same shape, so the rule outlives the spelling that motivated it.
+//! The `copysign` arm is not orphaned by that change either — `copysign`
+//! reaches the DAG from `implicit.rs`, `curved.rs`, `sugar.rs`,
+//! `path.rs` and `svd.rs` as well — though the reach this unit MEASURED
+//! is the `abs` arm's alone (`sym.rs`'s rule-F section).
 //!
 //! # The predicate: manifestly POSITIVE
 //!
@@ -60,12 +71,17 @@
 //!
 //! A FORM `N / D` is manifestly positive when `N` is a manifestly
 //! positive polynomial and `D` is a manifestly non-negative one. `D`
-//! needs only non-negativity because a point where `D` vanishes is a
-//! point the value channel divided by zero at, and clause 1 — the
-//! whole-box certification — has already refused there; that is the
-//! same side condition `quotient`'s header argues in full, from the
-//! four sources a denominator has. So `D > 0` and `N > 0` wherever the
-//! form has a value, hence `N/D > 0` there.
+//! needs only non-negativity because `D ≠ 0` at every point of a box
+//! clause 1 admits — and that is `quotient`'s side condition, argued
+//! there in full over the FOUR sources a denominator has. It is NOT
+//! "a point where `D` vanishes is a point the value channel divided by
+//! zero at": that covers only source (i), and `quotient`'s header names
+//! it as the mistake its own paragraph replaces; (ii)–(iv) are non-zero
+//! for RANGE reasons instead. This rule inherits that argument whole
+//! and adds nothing to it, because it mints no new denominator —
+//! `fold_abs` hands back the argument it was given and `magnitude`
+//! returns a constant, its argument, or an indeterminate. So `D > 0`
+//! and `N > 0` wherever the form has a value, hence `N/D > 0` there.
 //!
 //! **What is never folded**: a sum of squares alone (`x² + y²` is zero
 //! at the origin); a bare even power; a form carrying a parameter, an
@@ -133,21 +149,39 @@
 //! tests is the kid's form as those rules already left it — so against
 //! THEM the order is structural and not a choice: an atom this rule
 //! keeps from being minted is not one a later rule could have folded.
-//! What is a choice is the order against A0 and rule C at this node,
-//! and `geom-core`'s `sym_rule_f_rows` pins it: with rule C also on,
-//! the same residual still answers `theorem` and not `sign_gated`.
+//!
+//! What IS a choice is the order against A0 and rule C at this node,
+//! and it is pinned by a residual BOTH F and C take: `abs(1 + t²)` over
+//! a recorded bracket, and `abs(2/t²)` likewise
+//! (`geom-core`'s `sym_rule_f_rows`,
+//! `the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take`
+//! and `a_shape_both_rules_take_is_what_pins_the_order`). Each is a
+//! `theorem` at the shipped order and `sign_gated` with rule F shut,
+//! and planting C before F reds both. A residual rule C cannot reach —
+//! one built with `Sym::param`, which records no bracket, or one whose
+//! argument carries a `sqrt` atom `signed::fold` will not enclose — is
+//! green under either order and pins nothing.
 
 use std::sync::Arc;
 
 use super::form::{Form, Mono, Poly};
+use super::rational::Rat;
 use super::{AtomInfo, Session, SymOp, indet_atom, signed};
 
 /// How many atom arguments deep `positive` looks before it declines.
-/// A `sqrt` of a `sqrt` of a `sqrt` is three; the normalisation chains
-/// this rule is for are two. The cap is what keeps the predicate a
-/// fixed cost per node rather than a walk of the whole atom tree, and
-/// declining past it is the conservative direction.
-const ATOM_DEPTH: usize = 8;
+/// The normalisation chains this rule is for are two deep — a `sqrt`
+/// atom over a polynomial, under an `Inv` — and `sqrt` of `sqrt` of
+/// `sqrt` is three; the cap is set well clear of both at four.
+///
+/// **What it bounds, honestly**: the DEPTH of the atom-argument
+/// recursion, and nothing else. It does not bound BREADTH — a term
+/// with many atom indeterminates is walked in full at each level — and
+/// there is no memo, so an atom appearing twice is tested twice. The
+/// predicate is therefore linear in the sub-tree it reaches, not
+/// constant per node; what the cap buys is a bound on that sub-tree's
+/// depth, so a pathological chain cannot make one node's test walk the
+/// whole session. Declining past it is the conservative direction.
+const ATOM_DEPTH: usize = 4;
 
 /// Every indeterminate of `m` is non-negative wherever it has a value:
 /// an EVEN power of anything, or a `Sqrt`/`Abs` atom to any power.
@@ -168,10 +202,69 @@ fn termwise_nonneg(p: &Poly, sess: &Session) -> bool {
         .all(|(m, c)| !c.is_negative() && nonneg_mono(m, sess))
 }
 
-/// **A manifestly non-negative POLYNOMIAL** — the term-wise test, or a
-/// perfect square.
+/// **A DEFINITE quadratic in one indeterminate**: `a·X² + b·X + c` with
+/// `a > 0` and `b² ≤ 4ac` is non-negative at every real `X`, so it is
+/// non-negative wherever `X` has a value at all, whatever `X` stands
+/// for. `false` for anything that is not a quadratic in exactly one
+/// indeterminate over rational coefficients.
+///
+/// It reads no session state at all: the test is arithmetic on `p`'s
+/// own coefficients, which is what makes it a fact about the FORM.
+///
+/// **This is the source that carries a candidate norm's denominator.**
+/// A frame's normal over a tilted axis has `S = sqrt(t² + t/2 + 17/16)`
+/// and its candidates divide by `1 + 8t/17 + 16t²/17` — sums whose
+/// term-wise test fails on the ODD power of `t` and which are not
+/// perfect squares, but which complete the square with room to spare
+/// (`(t + 1/4)² + 1`). The discriminant is that completion, done in the
+/// coefficient ring rather than in the polynomial.
+fn definite_quadratic(p: &Poly) -> bool {
+    let (mut a, mut b, mut c) = (None, None, Rat::zero());
+    let mut var: Option<u128> = None;
+    for (mono, coeff) in p.terms() {
+        let (id, e) = match mono.as_slice() {
+            [] => {
+                c = coeff.clone();
+                continue;
+            }
+            [(id, e)] => (*id, *e),
+            _ => return false,
+        };
+        if *var.get_or_insert(id) != id || e > 2 {
+            return false;
+        }
+        if e == 2 { &mut a } else { &mut b }.replace(coeff.clone());
+    }
+    let Some(a) = a else { return false };
+    if a.is_negative() || a.is_zero() {
+        return false;
+    }
+    let Some(b) = b else {
+        // No linear term: `a·X² + c` with `a > 0` needs only `c ≥ 0`,
+        // which the term-wise test already reaches. Decline rather
+        // than answer a second time.
+        return false;
+    };
+    // `b² ≤ 4ac`, in the exact ring: no root, so no sign change.
+    let Some(four_ac) = Rat::new(4, 1, 0)
+        .and_then(|f| f.mul(&a))
+        .and_then(|f| f.mul(&c))
+    else {
+        return false;
+    };
+    let Some(disc) = b
+        .mul(&b)
+        .and_then(|bb| four_ac.neg().and_then(|n| bb.add(&n)))
+    else {
+        return false;
+    };
+    disc.is_negative() || disc.is_zero()
+}
+
+/// **A manifestly non-negative POLYNOMIAL** — the term-wise test, a
+/// perfect square, or a definite quadratic in one indeterminate.
 fn nonneg_poly(p: &Poly, sess: &Session) -> bool {
-    termwise_nonneg(p, sess) || signed::poly_sqrt(p, sess.budget).is_some()
+    termwise_nonneg(p, sess) || signed::poly_sqrt(p, sess.budget).is_some() || definite_quadratic(p)
 }
 
 /// **A manifestly non-negative FORM**: both halves manifestly
@@ -211,10 +304,15 @@ fn positive_mono(m: &Mono, sess: &Session, depth: usize) -> bool {
 /// **A manifestly positive POLYNOMIAL**: every term non-negative by
 /// the term-wise test, and at least one term strictly positive.
 fn positive_poly(p: &Poly, sess: &Session, depth: usize) -> bool {
+    // `!c.is_negative()` alone says STRICTLY positive here: `Poly` holds
+    // no zero-coefficient term (`Poly::insert` drops one), so a term
+    // that survives has a non-zero coefficient. The zero test that used
+    // to sit beside this one was dead by that invariant and said so
+    // nowhere.
     termwise_nonneg(p, sess)
         && p.terms()
             .iter()
-            .any(|(m, c)| !c.is_negative() && !c.is_zero() && positive_mono(m, sess, depth))
+            .any(|(m, c)| !c.is_negative() && positive_mono(m, sess, depth))
 }
 
 fn positive_at(f: &Form, sess: &Session, depth: usize) -> bool {
@@ -222,6 +320,14 @@ fn positive_at(f: &Form, sess: &Session, depth: usize) -> bool {
         return false;
     }
     positive_poly(&f.num, sess, depth) && nonneg_poly(&f.den, sess)
+}
+
+/// **One INDETERMINATE that is positive wherever it has a value** —
+/// the predicate the decision read strips a product's content by
+/// ([`super::signed`]), which needs the per-indeterminate test rather
+/// than the per-form one.
+pub(super) fn indet_positive(id: u128, sess: &Session) -> bool {
+    positive_indet(id, sess, 0)
 }
 
 /// **A manifestly POSITIVE form**: `> 0` at every point of the box
@@ -258,7 +364,12 @@ pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
         return Some(y.clone());
     }
     let id = indet_atom(SymOp::Abs.tag(), 0, &[y.digest()]);
-    sess.atoms.entry(id).or_insert_with(|| AtomInfo {
+    // Through `mint_atom`, not `sess.atoms.entry` by hand: the door
+    // keeps the plain walk's `plain_atoms` bookkeeping, and a hand
+    // mint would skip it silently the day a rule of this shape ran
+    // anywhere but the early walk. `early = true` is this rule's own
+    // contract (`SymRules::manifest_sign` needs `early`).
+    super::mint_atom(sess, id, true, || AtomInfo {
         op: SymOp::Abs,
         payload: 0,
         args: [Some(Arc::new(y.clone())), None, None],

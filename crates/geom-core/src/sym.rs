@@ -207,7 +207,7 @@
 //! addition; and, under the same dial (amendment A1), `atan2(Z, N)` of
 //! the zero form over a form non-negative BY SYNTAX (`sqrt`/`abs`
 //! atoms, even powers, positive coefficients, perfect squares, and
-//! their products, quotients and sums — `trig::manifestly_nonneg`) is
+//! their products, quotients and sums — `manifest::nonneg`) is
 //! the zero form, and `sin`/`cos` at an exact half-multiple of π is
 //! its constant. Nothing folds at any other argument shape. The two
 //! spellings of an arc — the pushforward's `sin(s·θ)`, `−2·sin²(s·θ/2)`
@@ -437,21 +437,29 @@
 //! `X` positive. [`manifest`] carries the predicate, the two
 //! identities as equalities of reals under clause 1, and the
 //! SIGNED-ZERO edge that makes the predicate strict rather than
-//! `manifestly_nonneg`'s non-negativity.
+//! `manifest::nonneg`'s non-negativity.
 //!
 //! **Where it sits against A/B/C/D/E.** At the node, in `combine`,
 //! early walk only: A0's exact constant fold first, then this rule,
 //! then rule C — the value-free rule before the one that reads a
 //! value, so a discharge that can be a theorem is never counted
-//! `sign_gated` — pinned by `geom-core`'s `sym_rule_f_rows`, whose
-//! rule-C-on row still answers `theorem`. Against rules A/B and E the
-//! order is STRUCTURAL rather than chosen: they run after `combine`
-//! returns, on the form this rule left, and an atom this rule prevents
-//! from being minted is not one they could have folded later. The walk
-//! ledger (`editor-core/tests/m10_sym_profile_interval`) is unmoved by
-//! the rule on the slab and the plate — every form either walk builds
-//! is digest-identical — which is the same statement as "it fires
-//! nowhere on them", and is what would red if the site moved.
+//! `sign_gated`. **What pins that order is a residual BOTH rules
+//! take** — `geom-core`'s `sym_rule_f_rows`'s
+//! `the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take`
+//! (`abs(1 + t²)` over a bracket) and
+//! `a_shape_both_rules_take_is_what_pins_the_order` (`abs(2/t²)`): each
+//! reads `theorem` at the shipped order and `sign_gated` with rule F
+//! shut, and planting rule C before rule F reds both. A row rule C
+//! cannot reach is green either way and pins nothing, which is what the
+//! first cut of this section claimed and both reviews disproved.
+//! Against rules A/B and E the order is STRUCTURAL rather than chosen:
+//! they run after `combine` returns, on the form this rule left, and an
+//! atom this rule prevents from being minted is not one they could have
+//! folded later. The walk ledger
+//! (`editor-core/tests/m10_sym_profile_interval`) is unmoved by the
+//! rule on the slab and the plate — every form either walk builds is
+//! digest-identical — which is the same statement as "it fires nowhere
+//! on them", and is not a pin on the order.
 //!
 //! **What it reaches, measured** (the tilt-`u` derived frame,
 //! `editor-core/tests/m10_derived_frame_tilted_interval`'s
@@ -469,6 +477,20 @@
 //! (754 → 876) at a sixth of the cost (2.6 → 0.4 s at `1e-3`,
 //! 2.3 → 0.3 s at `5e-2`). The authored twin is untouched.
 //!
+//! **And the reach is ONE-SIDED, measured.** The predicate refuses a
+//! negative coefficient outright, so the START cap of that same cube —
+//! whose normal is the negation, `n.z = −1/sqrt(P(t))` — is NOT
+//! reached: its replay reads the tilt-`u` document's rule-F-OFF numbers
+//! to the digit. A manifest-NEGATIVE arm (`abs(−X) = X`,
+//! `copysign(1, −X) = −1` for a manifestly positive `X`, identities of
+//! reals exactly as the folded ones are) is the next shape and is not
+//! taken here. So are a frame whose `n.z` is a bare parameter over a
+//! `sqrt` atom, and — unexplained, and the reviews predicted otherwise
+//! — a tilt about `u` AND `v`, on which the rule moves no count at
+//! all (`editor-core/tests/m10_derived_frame_tilted_interval`'s
+//! `sym8_the_reviews_documents_the_unit_did_not_measure` carries the
+//! table).
+//!
 //! **What it moves on the measured documents: nothing, with one
 //! exception.** Every per-predicate split at the nominal is
 //! BIT-IDENTICAL with the rule on and off on seven of the eight
@@ -481,24 +503,62 @@
 //! `symbolic_zero` 858 → 854, `registered` 104 → 128, `numeric`
 //! 991 → 971, `frozen` 2750 either way — the same 1953 decisions, 24
 //! of them moving into the door, twenty out of `numeric` and FOUR out
-//! of `symbolic_zero`. Those four are the unit's disclosed finding:
-//! opening an atom the early walk was cancelling OVER can cost that
-//! walk a theorem, which is
-//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class
-//! and the same hazard rule E ships with. No decision is lost, and the
-//! registry re-takes all four.
+//! of `symbolic_zero`. Those four are the unit's finding: opening an
+//! atom the early walk was cancelling OVER can cost that walk a
+//! theorem, which is
+//! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class.
+//! No decision is lost, the registry re-takes all four, and both counts
+//! are pinned side by side (`m10_9_pins_interval`'s `Study` carries
+//! `symbolic_zero` beside `registered` since SYM-8, so a later change
+//! costing four more theorems reds).
 //!
-//! **What it costs** — the affordability line's own instrument, one
-//! whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
-//! release, rule F off → on: plate at `1e2 · ε` 0.493 → 0.501 s, plate
-//! at its REAL study 0.527 → 0.482, annulus 0.439 → 0.401, bracket
-//! 2.490 → 2.368, link 3.285 → 3.321, pad 19.734 → 18.796. On the
+//! **The difference from rule E, stated rather than glossed**: rule E
+//! also loses a theorem to an opened form, and that loss is
+//! demonstrated at the SCALAR
+//! (`sym_rule_e_rows::rule_e_can_cost_a_theorem_to_the_coefficient_ring`)
+//! with no measured document paying it. Rule F's is realised ON a
+//! measured document. The spec's Phase-1.3 stop clause reads on that,
+//! and shipping the rule on anyway is a spec deviation RATIFIED by the
+//! SYM orchestrator on 2026-09-21 — not a disclosure the lane made for
+//! itself (`work/decide/SYM-8.md` carries the ruling and its reason).
+//!
+//! **What it costs — and this is the ONE place the numbers live**
+//! (the rule table above points here rather than repeating them, and
+//! the PR body quoted them from here). The affordability line's own
+//! instrument, one whole-box leaf
+//! (`m10_10_leaf_cost_with_and_without_the_algebra`), release, rule F
+//! off → on: plate at `1e2 · ε` 0.493 → 0.501 s, plate at its REAL
+//! study 0.527 → 0.482, annulus 0.439 → 0.401, bracket 2.490 → 2.368,
+//! link 3.285 → 3.321, pad 19.734 → 18.796. On the
 //! ceiling-bisection instrument the eight documents read 0.43 → 0.42,
 //! 1.14 → 1.14, 0.32 → 0.31, 9.74 → 9.25, 2.06 → 1.99, 0.26 → 0.25,
 //! 0.21 → 0.20 and 0.59 → 0.58 seconds a probe. The rule is free to
 //! within the measurement's noise and slightly cheaper on most
 //! documents — it removes indeterminates and mints none.
 //! [`SymRules::without_rule_f`] is SYM-5's tier bit for bit.
+//!
+//! # Rule G and the decision read (DECIDE-3)
+//!
+//! **Rule G — the canonical square root** ([`SymRules::canonical_root`]):
+//! a `Sqrt` atom's key is a function of its argument's VALUE CLASS, so
+//! the normal's own root `S = sqrt(P)` and a candidate norm's
+//! `sqrt(1/S²)` are ONE indeterminate and cancel, where the first cut
+//! of this tier kept them as two and left the number one standing in
+//! every denominator of a refused residual. [`root`] owns the whole of
+//! it: the quotient split, the side condition it rests on and the
+//! adversary that decided what may not be a source. Its companion
+//! rewrite `|X|² = X²` lives in [`algebra`] beside rule A and behind
+//! rule G's dial, because nothing mints an `Abs` where a root used to
+//! stand until rule G does.
+//!
+//! **The decision read** ([`SymRules::decision_read`]): a `Select`
+//! whose decision is certified one-signed over the leaf's box takes
+//! that arm, and so does a `min`/`max` whose comparison is — `max(A,
+//! B)` IS `select(B − A, A, B)`. It is rule C's shape at the ops rule
+//! C never reached, counted the same way, and it is ordered BEHIND
+//! every value-free fold, because a read that runs before an atom is
+//! minted re-labels as a read anything the atom would have cancelled
+//! against. [`signed`] owns the enclosure and the argument.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -785,6 +845,11 @@ use crate::tolerance::Tol;
 /// The atom algebra: the rule A/B reductions over a residual.
 #[path = "sym/algebra.rs"]
 mod algebra;
+/// The seam pins: the discharge vocabulary's spellings held against
+/// one another, one row per seam.
+#[cfg(test)]
+#[path = "sym/discharge_pins.rs"]
+mod discharge_pins;
 /// The normal form itself: the polynomial, the quotient of two of them,
 /// and the pure operations on a form.
 #[path = "sym/form.rs"]
@@ -813,8 +878,14 @@ mod rational;
 /// stayed numeric, what blocked it.
 #[path = "sym/report.rs"]
 pub mod report;
-/// Rule C: the polynomial square root and the clause-3 fold, with the
-/// one value read the tier makes (a parameter bracket in the ring).
+/// Rule G: the canonical square root — the one door every `Sqrt` atom
+/// is minted through, and the `D ≥ 0` side condition its quotient
+/// split rests on.
+#[path = "sym/root.rs"]
+mod root;
+/// Rule C: the polynomial square root and the clause-3 fold, and the
+/// two certified reads that take its shape at the decision door and at
+/// `min`/`max`.
 #[path = "sym/signed.rs"]
 mod signed;
 /// Rule D: trig of `atan`, exact — the closed forms of `sin`/`cos` at
@@ -1385,6 +1456,48 @@ pub struct SymRules {
     /// predicate excludes that point. [`manifest`]'s header carries
     /// the argument and the shapes it must not fold. Needs `early`.
     pub manifest_sign: bool,
+    /// **G — the CANONICAL SQUARE ROOT** ([`root`]): in the early walk
+    /// every `sqrt` atom is minted through one door that keys it on its
+    /// argument's VALUE CLASS — the quotient split `sqrt(N/D) =
+    /// sqrt(N)/sqrt(D)` under the `D ≥ 0` side condition [`root`]
+    /// argues, each half's rational content taken out (`s` exactly,
+    /// `sqrt(f)` a constant atom) over the primitive integer
+    /// polynomial, and `sqrt(R²) = |R|`.
+    ///
+    /// It reads no value on its own: the content split is arithmetic
+    /// on the coefficients, and the side condition's first three
+    /// sources are facts about the form and about what the session has
+    /// already minted. Its fourth source is a certified read and rides
+    /// rule C's dial, not this one.
+    ///
+    /// **A canonical FORM, not a rewrite that fires somewhere**: what
+    /// it changes is the identity of the indeterminate, so two
+    /// spellings of one real — the walk's `sqrt(1/S²)` and the
+    /// normal's own `S` — are one atom and can cancel. Needs `early`.
+    ///
+    /// **It carries one companion rewrite**, rule A's `abs(X)² = X²`
+    /// ([`algebra`]): nothing mints an `Abs` where a root used to stand
+    /// until this rule does, and a root that reduced through
+    /// `sqrt(R²)² → R²` has to keep reducing once it is spelled `|R|`.
+    /// The companion is behind THIS dial and not rule A's, so
+    /// [`Self::without_canonical_root`] is the tier as it stood.
+    pub canonical_root: bool,
+    /// **The DECISION READ** ([`signed::decision`], [`signed::order`]):
+    /// in the early walk a `Select` whose decision is certified
+    /// one-signed over the leaf's box takes that arm, and a `min`/`max`
+    /// whose comparison is certified takes the arm it picks — `max(A,
+    /// B)` IS `select(B − A, A, B)`, so the two are one read.
+    ///
+    /// Rule C's shape, at the ops rule C does not reach, and counted
+    /// the same way: the fold is equal to the atom at every point of
+    /// the BOX and not identically in the parameters, so a zero through
+    /// it is `sign_gated` and never `symbolic_zero`.
+    ///
+    /// **Ordered behind every value-free fold** — after A0, after rule
+    /// F, and over kids whose roots rule G has already minted — because
+    /// a read that runs before an atom is minted re-labels as a read
+    /// anything the atom would have cancelled against. Needs `early`.
+    pub decision_read: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
     /// registry ([`Sym::register_equal`]), so a node a constructor
@@ -1415,6 +1528,8 @@ impl SymRules {
             signed_root: true,
             common_factor: true,
             manifest_sign: true,
+            canonical_root: true,
+            decision_read: true,
             registered: true,
         }
     }
@@ -1438,7 +1553,9 @@ impl SymRules {
     /// | A/B over the top residual (`sqrt_square`/`pythagoras` at `discharge`'s site, once the walks have declined) | none, alone or with rule D: the plate's nominal split is M10-9's under it alone and rule D's with D (`CAD_M10_10_RULES=top_only`, `d_top_only`); M10-8 measured it inert and it still is | +18% on the plate's `1e2·ε` leaf (0.131 → 0.154 s with rule D), +12% on the link (0.76 → 0.85 s) | ships only because it shares the per-node walk's dials — disclosed as M10-10's D17, not chosen |
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
-    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | one whole-box leaf, release: plate 0.49 → 0.50 s, annulus 0.44 → 0.40, bracket 2.49 → 2.37, link 3.29 → 3.32, pad 19.73 → 18.80 — free to the measurement's noise | **yes**, with the pad's four `symbolic_zero` → `registered` disclosed |
+    /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | free to the measurement's noise and cheaper on most — the six leaf numbers live once, in the module header's rule-F section | **yes**, with the pad's four `symbolic_zero` → `registered` ratified as a spec deviation |
+    /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
+    /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where it fires and never `symbolic_zero` | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -1455,6 +1572,8 @@ impl SymRules {
             signed_root: false,
             common_factor: true,
             manifest_sign: true,
+            canonical_root: true,
+            decision_read: true,
             registered: true,
         }
     }
@@ -1473,16 +1592,27 @@ impl SymRules {
             signed_root: false,
             common_factor: false,
             manifest_sign: false,
+            canonical_root: false,
+            decision_read: false,
             registered: false,
         }
     }
 
     /// **The shipped set with the form-level algebra OFF** — rules A/B
-    /// per node and rule D shut, the constant fold, the early walk and
-    /// the registered-identity door as they were: the tier exactly as
-    /// M10-9 shipped it, bit for bit, and the differential every claim
-    /// about what the algebra costs and what it buys is measured
-    /// against.
+    /// per node, rule D, rule E and rule F shut, the constant fold, the
+    /// early walk and the registered-identity door as they were: the
+    /// tier exactly as M10-9 shipped it, bit for bit, and the
+    /// differential every claim about what the algebra costs and what
+    /// it buys is measured against.
+    ///
+    /// **EIGHT dials, and each was added the day its rule shipped.** A
+    /// rule that rewrites a form in the EARLY walk is form-level
+    /// algebra whatever its argument reads, so rule E (SYM-5), rule F
+    /// (SYM-8), rule G ([`Self::canonical_root`]) and the decision read
+    /// ([`Self::decision_read`]) belong here beside A/B and D; leaving
+    /// one out makes this constructor a differential against a tier
+    /// that never existed, silently, while its own doc still claims
+    /// M10-9's.
     #[must_use]
     pub const fn without_the_algebra() -> Self {
         Self {
@@ -1491,14 +1621,30 @@ impl SymRules {
             early_ab: false,
             trig_of_atan: false,
             common_factor: false,
+            manifest_sign: false,
+            canonical_root: false,
+            decision_read: false,
             ..Self::shipped()
         }
     }
 
-    /// **The shipped set with the registered-identity door SHUT** —
-    /// M10-8's tier exactly, bit for bit, and the differential every
-    /// claim about what M10-9 costs and what it buys is measured
-    /// against ([`Self::registered`]).
+    /// **The shipped set with the registered-identity door SHUT, and
+    /// nothing else** — the differential every claim about what the
+    /// DOOR buys is measured against ([`Self::registered`]), and the
+    /// contract `m10_9_pins_interval`'s census asserts.
+    ///
+    /// **It is NOT M10-8's tier, and said so for three units before
+    /// anyone checked.** M10-8's tier is A0 alone beside the door shut
+    /// — `registered: false, ..without_the_algebra()`, which is what
+    /// `m10_8_pins_interval`'s `a0_alone` builds. This constructor has
+    /// carried rules A/B per node and rule D since M10-10 and rule E
+    /// since SYM-5, so the old "M10-8's tier exactly, bit for bit" was
+    /// already false when rule F arrived; SYM-8's reviews caught the
+    /// sentence and read the whole of it onto rule F. The sentence is
+    /// the defect and is retired here. Rule F stays ON, because a
+    /// door differential that also shut a fold rule would measure two
+    /// things at once — [`Self::without_the_algebra`] and
+    /// [`Self::without_rule_e`], which DO name earlier tiers, shut it.
     #[must_use]
     pub const fn shipped_without_the_door() -> Self {
         Self {
@@ -1507,27 +1653,65 @@ impl SymRules {
         }
     }
     /// **The shipped set with rule E SHUT** — the quotient's common
-    /// factor left uncancelled, every other rule as it is: M10-10's
-    /// tier exactly, bit for bit, and the differential every claim
-    /// about what rule E costs and what it buys is measured against
-    /// ([`Self::common_factor`]).
+    /// factor left uncancelled: M10-10's tier exactly, bit for bit, and
+    /// the differential every claim about what rule E costs and what it
+    /// buys is measured against ([`Self::common_factor`]). Rule F, rule
+    /// G and the decision read are shut with it, because M10-10's tier
+    /// had none of the three; [`Self::without_rule_f`] is the other
+    /// half of the pair and keeps rule E on.
     #[must_use]
     pub const fn without_rule_e() -> Self {
         Self {
             common_factor: false,
+            manifest_sign: false,
+            canonical_root: false,
+            decision_read: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with rule G SHUT** — every `sqrt` atom keyed
+    /// on the argument form the walk arrived with, as it was before the
+    /// canonical root: the differential every claim about what rule G
+    /// costs and what it buys is measured against
+    /// ([`Self::canonical_root`]). The decision read stays ON, because
+    /// a differential that also shut a read would measure two things at
+    /// once; [`Self::without_the_reads`] is the other half of the pair.
+    #[must_use]
+    pub const fn without_canonical_root() -> Self {
+        Self {
+            canonical_root: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with the DECISION READ shut** — the decision
+    /// door and `min`/`max` left opaque wherever no value-free fold
+    /// reaches them: the differential every claim about what the read
+    /// buys, and about which discharges are `sign_gated` rather than
+    /// numeric, is measured against ([`Self::decision_read`]). Rule G
+    /// stays on, for the reason [`Self::without_canonical_root`] gives.
+    #[must_use]
+    pub const fn without_the_reads() -> Self {
+        Self {
+            decision_read: false,
             ..Self::shipped()
         }
     }
 
     /// **The shipped set with rule F SHUT** — the `copysign` and `abs`
-    /// atoms of a manifestly positive argument left opaque, every other
-    /// rule as it is: SYM-5's tier exactly, bit for bit, and the
-    /// differential every claim about what rule F costs and what it
-    /// buys is measured against ([`Self::manifest_sign`]).
+    /// atoms of a manifestly positive argument left opaque: SYM-5's
+    /// tier exactly, bit for bit, and the differential every claim
+    /// about what rule F costs and what it buys is measured against
+    /// ([`Self::manifest_sign`]). Rule G and the decision read are shut
+    /// with it, for the same reason rule E's constructor shuts rule F:
+    /// SYM-5's tier had neither.
     #[must_use]
     pub const fn without_rule_f() -> Self {
         Self {
             manifest_sign: false,
+            canonical_root: false,
+            decision_read: false,
             ..Self::shipped()
         }
     }
@@ -1627,7 +1811,9 @@ struct Session {
     forms_door: IdMap<Arc<Form>>,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
-    /// by [`Sym::param_over`], read only by rule C ([`signed`]).
+    /// by [`Sym::param_over`], read by rule C, by the decision read and
+    /// by rule G's certified side-condition source — the three value
+    /// reads [`signed`] owns, and nothing else.
     params: IndetMap<(f64, f64)>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
@@ -1980,6 +2166,17 @@ fn indet_atom(tag: u64, payload: u64, args: &[u128]) -> u128 {
     h.finish()
 }
 
+/// The exact rational a form stands for, where both halves of the
+/// quotient are constants — the reading A0's folds are made of, in
+/// one place so `sqrt`, `abs`, the decision door and `min`/`max` all
+/// ask it the same way.
+fn constant_value(f: &Form) -> Option<Rat> {
+    if f.poisoned {
+        return None;
+    }
+    f.num.as_constant()?.mul(&f.den.as_constant()?.recip()?)
+}
+
 /// The value an opaque UNARY atom takes at argument zero, where that
 /// value is expressible in the form's own vocabulary — the fold that
 /// lets `‖a − b‖` decide `Zero` when `a − b` does, which is the shape
@@ -2029,6 +2226,10 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
     let c = early && sess.rules.signed_root;
     // Rule F, the manifest sign, likewise (`SymRules::manifest_sign`).
     let f_sign = early && sess.rules.manifest_sign;
+    // Rule G, the canonical root, likewise (`SymRules::canonical_root`).
+    let g_root = early && sess.rules.canonical_root;
+    // The decision read, likewise (`SymRules::decision_read`).
+    let read = early && sess.rules.decision_read;
     // An atom over a gated argument is gated: it stands for the value
     // of a form that is only box-wise equal to the expression.
     let gate = |mut f: Form| {
@@ -2114,7 +2315,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         // folds to the signed root. The value-free rule is asked
         // before the one that reads a value, so a discharge that can
         // be a theorem is never counted `sign_gated`.
-        SymOp::Sqrt | SymOp::Abs if (a0 || c || f_sign) && !a.poisoned => {
+        SymOp::Sqrt | SymOp::Abs if (a0 || c || f_sign || g_root) && !a.poisoned => {
             let folded = (|| {
                 if !a0 {
                     return None;
@@ -2138,6 +2339,31 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             }
             if c && let Some(f) = signed::fold(node.op, a, &sess.params, budget) {
                 return Some(gate(f));
+            }
+            // **Rule G**, last of the `sqrt` folds: the ones above
+            // answer the node outright where they fire, and this one
+            // decides how the atom that is left is KEYED. `trig`'s
+            // hand-built roots and the registrant's forms reach the
+            // same door ([`root::mint`]), which is what makes the
+            // keying uniform rather than per-site.
+            if g_root {
+                if node.op == SymOp::Sqrt
+                    && let Some(f) = root::canonical(a, sess)
+                {
+                    return Some(gate(f));
+                }
+                // An `abs` NODE goes through rule G's atom door too,
+                // and for the same reason: `|Y|` and `|−Y|` are one
+                // real, so the atom is keyed on the sign-normalised
+                // argument and a root of a perfect square meets the
+                // node whichever way round the document spelled it.
+                // The door mints; it folds nothing, so every rule
+                // above keeps its own predicate.
+                if node.op == SymOp::Abs
+                    && let Some(f) = root::magnitude_atom(a, sess)
+                {
+                    return Some(gate(f));
+                }
             }
             atom1(node.op, sess)
         }
@@ -2189,9 +2415,47 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             // fold below is taken ONLY where the sign is a fact of the
             // form: atan2(0, N) with N non-negative BY SYNTAX is 0 —
             // rule D's second fold (amendment A1), early walk only
-            // (`trig::manifestly_nonneg` carries the argument); a plain
+            // (`manifest::nonneg` carries the argument); a plain
             // parameter, a non-zero first argument, or a value-only
             // zero never folds, and every other atan2 stays an atom.
+            // **A0 at `min`/`max`**: two rational CONSTANTS compare
+            // EXACTLY, so the node is one of them. It reads no value —
+            // the comparison is arithmetic on the coefficient ring, the
+            // same fold A0 already makes at `sqrt`, at `abs` and at the
+            // decision door — and what it reaches is a THEOREM.
+            //
+            // Without it a frame's conditioning floor over an
+            // axis-aligned normal stayed an opaque atom chain on
+            // geometry with no parameter in it at all, and the only
+            // thing that could answer it was the certified READ: a
+            // fact of the form reported as one conditional on the
+            // leaf's box. `work/decide/a0-leaves-max-and-min-of-constants-opaque`
+            // is the row that measured that and this is its fix.
+            // **A0 at `min`/`max` of EQUAL forms**: `min(A, A)` and
+            // `max(A, A)` are `A`, whatever `A` is worth. One digest
+            // comparison, no value, and it subsumes the both-zero fold
+            // below on the arm A0 is on.
+            if a0 && matches!(node.op, SymOp::Min | SymOp::Max) && a.digest() == b.digest() {
+                let mut f = a.clone();
+                f.gated = a.gated || b.gated;
+                return Some(f);
+            }
+            if a0
+                && matches!(node.op, SymOp::Min | SymOp::Max)
+                && let Some(x) = constant_value(a)
+                && let Some(y) = constant_value(b)
+                && let Some(d) = y.add(&x.neg()?)
+            {
+                // `x ≤ y` exactly: the difference is non-negative.
+                let x_le_y = !d.is_negative();
+                let pick = match (node.op, x_le_y) {
+                    (SymOp::Min, true) | (SymOp::Max, false) => x,
+                    _ => y,
+                };
+                let mut f = Form::poly(Poly::constant(pick));
+                f.gated = a.gated || b.gated;
+                return Some(f);
+            }
             let folds = match node.op {
                 SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
                 SymOp::Copysign => a.is_zero(),
@@ -2204,6 +2468,19 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 let mut z = Form::zero();
                 z.gated = a.gated || b.gated;
                 return Some(z);
+            }
+            // **The decision read at `min`/`max`**, behind every fold
+            // above that reads no value (`SymRules::decision_read`):
+            // `max(A, B)` IS `select(B − A, A, B)`, so the arm is the
+            // same certified read the decision door takes, and it is
+            // asked last so a comparison a FORM settles is never
+            // counted as one a box did.
+            if read
+                && matches!(node.op, SymOp::Min | SymOp::Max)
+                && let Some(mut f) = signed::order(node.op, a, b, sess, budget)
+            {
+                f.gated |= a.gated || b.gated;
+                return Some(f);
             }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
             mint_atom(sess, id, early, || AtomInfo {
@@ -2232,12 +2509,7 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
             if a.tainted(b) || a.tainted(third) || b.tainted(third) {
                 return Some(Form::poison());
             }
-            if a0
-                && let Some(n) = a.num.as_constant()
-                && let Some(d) = a.den.as_constant()
-                && let Some(inv) = d.recip()
-                && let Some(c) = n.mul(&inv)
-            {
+            if a0 && let Some(c) = constant_value(a) {
                 let arm = if c.is_zero() || c.is_negative() {
                     b
                 } else {
@@ -2245,6 +2517,18 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
                 };
                 let mut f = arm.clone();
                 f.gated = a.gated || arm.gated;
+                return Some(f);
+            }
+            // **The decision read**, behind A0 — the only fold at this
+            // door that reads no value (`SymRules::decision_read`).
+            // Where the decision's sign is certified over the whole
+            // box the arm is determined there, and the form the door
+            // takes is the arm's, GATED: equal to the atom at every
+            // point of the box, not identically in the parameters.
+            if read && let Some(le) = signed::decision(a, sess) {
+                let arm = if le { b } else { third };
+                let mut f = arm.clone();
+                f.gated = true;
                 return Some(f);
             }
             let id = indet_atom(
@@ -2631,6 +2915,16 @@ fn door_form(sess: &mut Session, root: SymId) -> Arc<Form> {
 }
 
 /// How the symbolic tier discharged a decision.
+///
+/// **A sixth kind reds three pins**, and is not to be added without
+/// them: `sym::discharge_pins` holds this enum against
+/// [`SymCounts`]'s receipt columns and against
+/// [`report::ShapeOutcome`]'s report rows, and `k_stats_doors`'s
+/// `every_discharge_kind_retags_its_sample_with_a_token_of_its_own`
+/// holds it against [`crate::k_stats::SampleOutcome`]'s K tokens —
+/// whose own agreement with the lint that reads them is
+/// `k-lint`'s `tests/outcome_vocabulary.rs`, the fourth row a kind
+/// with a new token reaches.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Discharge {
     /// An unconditional theorem: the form is the zero polynomial, no
@@ -2646,6 +2940,68 @@ enum Discharge {
     /// when it was registered, counted apart from both theorem kinds
     /// (`registered`).
     Registered,
+}
+
+#[cfg(any(test, feature = "probe"))]
+impl Discharge {
+    /// **Every discharge kind, once** — the roster the seam pins
+    /// enumerate instead of writing a `match` of their own.
+    ///
+    /// The `match` below answers nothing and exists to be EXHAUSTIVE:
+    /// a kind missing from the list beside it is a compile error here,
+    /// so a pin that iterates this roster iterates the whole
+    /// vocabulary rather than the part someone remembered.
+    fn all() -> [Self; 3] {
+        let all = [Self::Theorem, Self::SignGated, Self::Registered];
+        for kind in all {
+            match kind {
+                Self::Theorem | Self::SignGated | Self::Registered => {}
+            }
+        }
+        all
+    }
+}
+
+#[cfg(feature = "probe")]
+impl Discharge {
+    /// **The K sample token a decision this kind answered is retagged
+    /// with** — the projection [`Sym::sign_within`] applies at its
+    /// [`crate::k_stats::retag_at`], in ONE place, so the pin that
+    /// holds the seam reads the production mapping rather than a copy
+    /// of it.
+    fn sample_outcome(self) -> crate::k_stats::SampleOutcome {
+        match self {
+            Self::Theorem => crate::k_stats::SampleOutcome::SymbolicZero,
+            Self::SignGated => crate::k_stats::SampleOutcome::SignGated,
+            Self::Registered => crate::k_stats::SampleOutcome::Registered,
+        }
+    }
+}
+
+/// **Every discharge kind with the K token it retags its sample
+/// with**, in roster order — the seam
+/// [`Discharge::sample_outcome`] crosses, published so that the pin
+/// holding it can be an INTEGRATION suite.
+///
+/// It has to be one: [`Discharge`] is private to this module, and a
+/// `probe`-gated `#[test]` inside the library is COMPILED by CI and
+/// run by nothing — the sweep that runs the probe suites invokes
+/// `--test all` (`scripts/k_probe_sweep.sh`), so a lib row under this
+/// feature would report the same green whether it passed or never
+/// executed. The pin is
+/// `every_discharge_kind_retags_its_sample_with_a_token_of_its_own`,
+/// in `geom-core`'s `k_stats_doors` suite.
+///
+/// A test-support door and not a widening of the shipped surface:
+/// `probe` is the K-telemetry feature, off in every build that ships
+/// (see its entry in this crate's `Cargo.toml`).
+#[cfg(feature = "probe")]
+#[must_use]
+pub fn discharge_sample_outcomes() -> Vec<(String, crate::k_stats::SampleOutcome)> {
+    Discharge::all()
+        .into_iter()
+        .map(|kind| (format!("{kind:?}"), kind.sample_outcome()))
+        .collect()
 }
 
 /// **The identity test**: is this node's expression identically zero in
@@ -3378,14 +3734,7 @@ impl<T: Decide> Decide for Sym<T> {
         count_decision(symbolic);
         if let Some(how) = symbolic {
             #[cfg(feature = "probe")]
-            crate::k_stats::retag_at(
-                mark,
-                match how {
-                    Discharge::Theorem => crate::k_stats::SampleOutcome::SymbolicZero,
-                    Discharge::SignGated => crate::k_stats::SampleOutcome::SignGated,
-                    Discharge::Registered => crate::k_stats::SampleOutcome::Registered,
-                },
-            );
+            crate::k_stats::retag_at(mark, how.sample_outcome());
             report::record(&numeric, Some(how), None, self.value.enclosure_probe());
             return Ok(Sign::Zero);
         }

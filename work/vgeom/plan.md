@@ -3,52 +3,168 @@
 the viewer's geometry, camera and numeric renders
 
 Re-scoped 2026-09-20 by VGEOM's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
+(`work/README.md`, Track size). **Live state is
+`python3 scripts/work.py status --program vgeom` and the item files,
+never this file.** The wave below says what is in flight and why each
+grouping is one unit; it does not say what is OPEN, and a list here
+that tried to would be stale by the next merge. It was, twice: the cut
+wrote *"Nothing dispatched"* over two lanes in flight, and the slate
+table that stood here until 2026-09-21 listed ten closed rows as live
+and none of the six filed after it was written.
 
 ## The slate
 
-**22 budget points** of dispatchable work against a ceiling of 30.
+Sized against a ceiling of 30 points (`work/README.md`, Track size).
+The weight is the `load` column of `work.py status`, re-derived on
+every run and stored nowhere — which is the repair for the table that
+used to stand here.
 
-| pri | item | cost | title |
-|---|---|---|---|
-| P0 | `a-count-slot-launders-a-typed-nan-into-zero` | E | A typed NaN in a Count slot commits 0, past the finiteness refusal props.rs promises names it |
-| P0 | `a-fields-text-commits-within-the-renders-own-tolerance` | D | a field's text is accepted within the render's relative tolerance and committing it moves the value by that much |
-| P0 | `a-nan-edge-distance-wins-its-boundary-rather-than-losing` | E | A NaN edge-pick distance is installed as best and never displaced, beating every legitimate candidate |
-| P0 | `the-fields-door-has-no-width-bound-at-all` | E | number_text has no width bound at all: a large field value is spelled in hundreds of characters |
-| P1 | `corner-count-substitutes-u32-max-for-a-length-it-could-not-cast` | E | A corner count that does not fit u32 is drawn as u32::MAX rather than refused |
-| P1 | `cursor-projection-is-f32-in-a-module-whose-matrices-are-f64` | D | cursor_projection's home argument names f64 doors for an f32 function, and the f64-to-f32 matrix cast it needs has four spellings and no home |
-| P1 | `finite-bounds-yield-an-infinite-scene-radius` | D | Bounds of a few hundred orders of magnitude pass both guards and return radius = inf as a scene radius |
-| P1 | `flatten-emits-every-vertex-before-it-judges-any-of-them` | E | A non-finite vertex position is emitted unconditionally, above the arc guards that would refuse it |
-| P1 | `pickindex-tie-break-rests-on-a-comment` | E | The pick tie-break's NaN disposition is a comment, not a guard |
-| P1 | `renders-that-multiply-a-finite-guarded-length-spell-the-product-inf` | E | three chrome renders multiply a finite-guarded length and spell the product inf |
-| P1 | `sketch-headings-guard-zero-length-but-not-an-infinite-one` | E | sketch.rs's two 2-D direction sites guard a zero length and not a non-finite one |
-| P1 | `the-point3-to-gpu-corner-cast-is-at-three-sites` | E | three sites cast a Point3 to a GPU corner and the prose reconciling them names two |
-| P1 | `the-shader-encodes-a-mark-strength-nothing-bounds` | D | The paint path a NaN actually reaches is the shader, and the Rust/WGSL parity row compares constants only |
-| P1 | `world-per-px-answers-a-scale-for-a-viewport-it-could-not-measure` | E | world_per_px's height guard does not bound a NaN, so it answers Some(NaN) where None is its refusal |
-| P3 | `viewer-array-lowered-vector-ops-escaped-the-hand-rolled-sweep` | E | the hand-rolled vector-op sweep missed its own dot half, and one datum row asserts something no value can break |
-| P4 | `the-one-free-transform-is-the-only-total-door-in-camera` | E | camera's header promises typed refusal and the transform it just adopted is total, and the placement prose is the same length it replaced |
-| None | `committed-profiles-are-not-drawn-in-the-viewport` | None | A profile vanishes from the viewport once it is committed (Ev-requested, high priority) |
-| None | `datum-grid-lines-are-too-prominent-and-cover-profile-lines` | None | Datum grid lines are far too prominent and draw over profile lines (Ev-requested, high priority) |
+## The 2026-09-21 wave — four lanes, eleven rows
+
+Dispatched together because the four groupings are four different
+questions and their files do not overlap; each lane's brief names the
+other three's files as out of fence.
+
+| unit | rows | the one question |
+|---|---|---|
+| `vgeom/pick-distance` | `a-nan-edge-distance-wins-its-boundary-rather-than-losing` (P0), `pickindex-tie-break-rests-on-a-comment` (P1) | `pickindex.rs`: a numeric comparison used as a domain test on a value with no total order |
+| `vgeom/render-spelling` | `the-fields-door-has-no-width-bound-at-all` (P0), `renders-that-multiply-a-finite-guarded-length-spell-the-product-inf` (P1) | `widgets.rs`, `readout.rs`, `pane/view.rs`, `bounds.rs`, `props.rs`: what a render SPELLS at the top of its type |
+| `vgeom/f32-seam` | `cursor-projection-is-f32-in-a-module-whose-matrices-are-f64` (P1), `the-point3-to-gpu-corner-cast-is-at-three-sites` (P1), `the-viewport-and-position-lanes-narrow-to-f32-with-no-door`, `the-one-free-transform-is-the-only-total-door-in-camera` (P4) | `camera.rs`, `marks.rs`, `scene.rs`, `pane/viewport.rs`, `gpu.rs`, `input.rs`: where the `f64` → `f32` conversion lives, and whether it refuses |
+| `vgeom/deletions` | `viewer-array-lowered-vector-ops-escaped-the-hand-rolled-sweep` (P3), `mixfraction-has-two-constructors-where-one-would-do`, `headings-unit-vector-is-not-unit-at-the-bottom-of-the-range` (P4) | `display.rs`, `sketch.rs`, `theme.rs`, `tests/datum_draw.rs`: three repairs whose deliverable is a deletion or a corrected receipt |
+
+**Why the four f32 rows are one lane and not two.** The cast rows and
+the narrowing row both ask for a home for one conversion. Split across
+two lanes they mint two near-parallel doors — the Q1 defect the unit
+exists to close, re-minted by the fix that closes it, which
+`docs/prompts/reviewer-style-lane.md` records as having held on every
+unit of two whole tracks and as never prevented by naming it in a PR
+body.
+
+**Held out of the wave, and why.**
+
+- `a-fields-text-commits-within-the-renders-own-tolerance` (P0) and
+  `a-typed-field-hands-its-text-over-on-two-frames` are the **COMMIT**
+  question — what a field's text does to the document — where
+  `vgeom/render-spelling` has the **RENDER**. The first row draws that
+  distinction itself, and AUTH-2 already answered its commit half for
+  the two panel fields through `props::echoed`. They take the next
+  wave, on files `render-spelling` is holding this one.
+- `a-count-slots-cast-still-saturates-for-a-finite-value-too-large`
+  (P2) needs a refusal vocabulary that does not exist anywhere: either
+  a `DimensionError` arm in `crates/editor-core` (EDIT's and MSOLVE's)
+  or a first numeric `session::Refusal` of the viewer's own (VNEWS's).
+  A decision before a diff, and not this program's alone.
 
 ## Order
 
-By class, not by file: **every row here is a non-finite value reaching
-a place that assumed it could not.** A typed NaN in a `Count` slot
-commits 0; a NaN edge-pick distance is installed as best and never
-displaced, so it beats every legitimate candidate; `world_per_px`
-answers `Some(NaN)` where `None` is its refusal; bounds of a few
-hundred orders of magnitude return `radius = inf`.
+By class, not by file. The class the 2026-09-17 slate arrived as — **a
+non-finite value reaching a place that assumed it could not** — is
+mostly discharged: #2967 took the two sketch guards and #3000 the four
+refusal-floor doors. `vgeom/refusal-floor` narrowed the statement on
+the way past (`log.md`, 2026-09-21): three of its four rows were not a
+non-finite value getting in at all, but **a guard sited one arithmetic
+upstream of the overflow it is for** — correct about what it looks at,
+which is why each survived a sweep. The test that survives is *does the
+door's own answer get asked the question the door's prose asks of its
+inputs.*
 
-Take the four cheap P0 rows first — they are one unit and they are the
-ones with user-visible consequences — then the guard rows beneath
-them. `the-shader-encodes-a-mark-strength-nothing-bounds` is last and
-is a design question: the paint path a NaN actually reaches is the
-shader, and the Rust/WGSL parity row compares constants only.
+After this wave the slate is two questions rather than one class:
+**what a field's text does to the document**, and **what a count that
+does not fit is called**.
+
+**The shape precedent, restored.** CHROME's
+`chrome/datums-substitution-sweep` (#2644) is the same substitution
+class in `datums.rs`, and this program's own instance of it is
+`vgeom/refusal-floor` (#3000): the door answers an `Option` or a
+`Result`, the callers take the refusal through the nothing-to-do they
+already have, and the doc comment says why a floor or a substitute
+would be the wrong repair. **Read that shape rather than inventing a
+second one.** The 2026-09-20 cut deleted the sentence that said so, and
+a dispatch written the next day quoted this file as saying it
+*"plainly"* when it did not say it at all
+(`program-md-cites-a-plan-section-the-re-scope-deleted`). `datums.rs`
+and `bounds.rs` stay CHROME's under its 2026-09-15 carve-out, so a row
+on either is announced to CHROME before it is taken.
+
+`the-shader-encodes-a-mark-strength-nothing-bounds` is **closed**:
+#2808 put the bound in the TYPE (`MixFraction`) rather than in a second
+WGSL spelling, and filed the lanes it could not reach as
+`the-viewport-and-position-lanes-narrow-to-f32-with-no-door`, which
+this wave takes.
+
+## Charter
+
+**Every row here sits on the path from a document's geometry to the
+picture and to the figures printed beside it, and its defect is a
+VALUE.** A number reaches a person, or the picture, as something it is
+not — a NaN, an infinity, or a magnitude too large for its slot,
+crossing a door whose own prose says it refuses such a thing and being
+floored, capped or cast into a plausible figure instead; or a finite
+number is rendered, fitted or cast at a precision that makes it a
+different value; or a control never reaches the transform it names.
+
+**The test that separates this program from its siblings.** A VGEOM fix
+lands at the door that should have refused or converted, and what it
+changes is what the viewer SHOWS. That is false of VNEWS, whose rows
+are about the word a fact is spelled in and never about the value;
+false of VSEAM, whose rows are about state that outlives the frame that
+made it rather than a value wrong at one call; and false of VDOC, whose
+fixes change no viewer behaviour at all. Applying it the other way: a
+row belongs here only if a wrong number, or no number, reaches the
+screen.
+
+**Restored 2026-09-21.** This section was written at the 2026-09-17
+re-scope and deleted by the 2026-09-20 priority-seam cut, which applied
+the newly-opened-program template to a program that was not new. VGEOM
+was the only one of VIEW's four successors left with no charter test,
+which is what `work/vgeom/vgeom-plan-has-no-register-section-and-no-charter`
+found. The text is this program's own statement of its subject and
+asserts no external authority.
+
+## The discipline a lane is held to
+
+**`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md`**, handed to every lane by path.
+Read both before writing a dispatch; they are the standing obligations
+and they are the only ones.
+
+**The rule register this section used to inherit by reference is
+deleted** (2026-09-21, Ev's ruling; it lived in `work/view/plan.md`).
+Eighty-seven rules in eighteen days, of which the ones that both named
+a real problem and would have been prevented by an advance warning
+turned out to be already written — in the two files above, and in
+`memories/agent-lane-operations.md`. The rest were retrospective
+categorisation: true after the fact, useless before it. It is
+recoverable at `66d7357417` if a row here cites one of its rules.
+
+So a dispatch from this program carries the two prompt docs by path,
+plus whatever this program's own `log.md` tail says about the ground
+the unit lands on — not a register.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. VGEOM inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+**No A/B duals and no row in `docs/MODEL-AB-LOG.md`**, inherited from
+VIEW unchanged: style reviews, with a second correctness reviewer where
+a unit's failure mode is a confident wrong answer rather than a
+refusal. The band 5300-5399 stays claimed for bookkeeping and is
+expected to stay empty.
+
+**This is a recorded answer, not an open question**, and the roster
+says so in as many words. `docs/MODEL-AB-LOG.md`'s 2026-09-17 clause,
+on the four programs of VIEW's re-scope: *"All four inherit VIEW's
+posture verbatim (Ev, in-chat, 2026-09-04, reaffirmed that evening; the
+VIEW parenthesis above is the roster line they inherit): no duals and
+no row recorded … Each program's `plan.md` §Review posture states it."*
+Ev reaffirmed it to this orchestrator in chat at the hand-over that
+opened this session (*"still no AB protocol"*).
+
+**The 2026-09-20 priority-seam cut overwrote this section with the
+template for a NEWLY OPENED program** — *"OPEN, for this program's
+first dispatch … the first orchestrator answers it here rather than
+inheriting an answer"* — and VGEOM is not one. The same roster entry
+that records that cut is explicit about which programs the v7 triage
+question is open for: EMIT, GATHER and **FIT**, the three it opened,
+while *"WIRE and VGEOM are NOT closed and keep their bands 3700-3799
+and 5300-5399"*. So the template reached the parent as well as the
+children. Corrected here on the roster's own words; no new decision is
+being taken and none is owed.

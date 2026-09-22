@@ -1096,3 +1096,158 @@ nine findings:
 Declined: the integration tests' hand-copied barb counts. The
 constants are private, so the copy cannot be avoided.
 `TIP_MARK_PX` was left alone and put to Ev in chat.
+
+## 2026-09-21 — seam announced by AUTHOR, and three rows filed
+
+**Seam.** AUTHOR widened its territory to the files its units actually
+work: `crates/viewer/src/pane/create.rs`, `pane/properties.rs`,
+`drafts.rs`, `session/author.rs`, `session/refuse.rs` — all shared
+with CHROME, legitimately (`work/README.md`, 2026-09-20). AUTHOR's
+opening `paths` named three files and none of them was where AUTH-1 or
+AUTH-2 landed, so `work.py territory` could not have warned either
+lane. AUTHOR's `work/author/program.md` records it; no `keep_out` was
+written on either side, because nothing about the overlap needs
+explaining beyond that.
+
+**Live AUTHOR lanes on this ground as of this note**: `author/face-frame-seat`
+(PR 2955, in review) in `pane/create.rs`, `forms.rs`, `drafts.rs`,
+`session/author.rs`, `session/refuse.rs`; `author/param-notation` in
+`pane/properties.rs`, `props.rs`, `session/op.rs`, `session.rs`.
+
+**Three rows filed on this slate** by AUTH-1's style reviewer, none of
+them AUTHOR's to take:
+
+- `a-fifth-spelling-of-this-seat-is-empty` (P1) — `seat_line`'s own
+  doc says the sentence is composed centrally *"because two copies is
+  how the two drift"*, and there are now five copies. Two rows already
+  here are the same shape with different subjects
+  (`viewer-states-the-empty-document-rule-in-four-places-…`,
+  `four-spellings-of-one-finiteness-predicate-in-datums-rs`); whether
+  the three are one unit is CHROME's call.
+- `four-pick-state-vocabularies-in-one-create-module` (P1) — the Q8
+  end-to-end read of `pane/create.rs` at ~1175 lines.
+- `a-per-kind-sentence-lives-in-the-widget-not-on-the-choice` (P4) —
+  and AUTH-1 minted the newest instance while closing a different one,
+  which is the fresh-instance trap landing where the reviewer brief
+  says it lands.
+
+AUTHOR is fixing its own instances of the last one inside PR 2955; the
+CLASS is CHROME's and is what these rows carry.
+
+## A note from DOOR (2026-09-21) — evidence added to one of your rows
+
+DOOR's `node-placer-field-docs-say-body-where-instances-are-accepted`
+(PR 2985) fixed the kernel-side members of the class your
+`body-seat-reads-through-the-placer-chain` row names, and appended
+evidence there rather than opening a fourth row: **`viewer/src/session/op.rs`
+carries VERBATIM copies of the two field docs just corrected** —
+`/// The body placed.` and `/// The body replicated.` — and they are not
+among the three sentences your row already lists. `session/op.rs` is
+also VSEAM's, which has its own prose rows there, so a `git mv` is
+reasonable if you would rather they sat elsewhere.
+
+**One correction to your row's own framing, offered because the next
+reader will take it literally.** Its opening parenthetical reads
+*"ruling 2137 (the placers are shape-preserving over the value:
+`Transform` and `Pattern` accept `Instances` and yield `Instances`)"*.
+Measured against the code by this unit: `wire_pattern` returns
+`ValuePayload::Instances` **unconditionally**, so a one-body master
+yields N instances — `Pattern` is not shape-preserving, it is
+instances-producing. **Your row's TITLE already says this exactly**
+(*"a Transform's value is a body iff its input's is and a Pattern's
+never is"*); it is only the parenthetical that generalises. The gate
+you are building reads on the title's version.
+
+The orchestrator's dispatch for that unit carried the same imprecise
+sentence, taken from the same summary, and the lane caught it by reading
+`wire.rs` instead — which is why this note exists rather than a quiet
+edit.
+
+Signed (DOOR orchestrator).
+
+## 2026-09-21 — track picked up; the carve-out retired, three units dispatched
+
+Orchestrator session opened on `claude/chrome-orchestrator-setup-24xn6w`
+(harness-pinned; unit branches keep the `chrome/` prefix). Program
+`ready` → `active`. Ev's instruction at the start of the session:
+**no A/B protocol** (the account is out of Fable), and the units
+should not be tricky — so this wave is three E units with no
+undecided design fork in any of them.
+
+**The 2026-09-15 VIEW carve-out is retired, and that is the session's
+largest act.** Every cession clause in it rested on *"VIEW holds an
+open row on the same ground"*. VIEW re-scoped on 2026-09-17 — 86 of
+its 94 live rows went to VNEWS, VGEOM, VSEAM, VDOC and seven other
+programs — and its own `keep_out` now reads *"this program does not
+dispatch new units; its remaining act is the exit walk."* Meanwhile
+`work/README.md` settled the general question on 2026-09-20 (Ev, in
+chat): two open programs may claim one path, and **neither owes the
+other a `keep_out`** — what is owed is awareness while a lane is LIVE,
+which is a per-branch question `work.py territory` answers.
+
+So CHROME cedes nothing. What replaces the file list is a per-wave
+read of who is actually live, carried in each dispatch with a date on
+it. A standing clause could not do that job: it would be false within
+the day, which is precisely how the 2026-09-15 clause and the one
+before it both went false.
+
+**Three rows were held by the cession alone and are now available**:
+`gpu-index-counts-substitute-u32-max` and
+`mispaired-ids-exempts-the-empty-window` (both ended on *"CHROME does
+not work it"*), and `band-refusal-still-badges-every-row`, whose
+blocker was *"a new `RowStatus` variant does not land inside CHROME's
+fence"*. Each carries a note saying so. The COST arguments inside them
+are untouched and were re-affirmed rather than waved through: the
+`RowStatus` row's 19-sites-in-9-files measurement is still the reason
+to prefer a variant over a field, and is re-taken at dispatch rather
+than trusted. For the first two the live question is now *whose slate*
+— `scene.rs` and `gpu.rs` are VGEOM's since the re-scope — and that
+call belongs to the wave that takes them.
+
+**Dispatched** (specs deleted at merge per `docs/DOC-LEDGER.md`):
+
+1. `chrome/datum-honesty` — `datums.rs`, two rows: the finiteness
+   predicate's homes and `MAX_GRID_LINES`' silent truncation.
+2. `chrome/empty-document-gate` — `frame.rs` and `pickindex.rs`: the
+   empty-document rule cited once, and a gate that can red on a new
+   `ProductError` arm. The behavioural half (`session.rs`) is held
+   out; see below.
+3. `chrome/one-number-one-home` — `bounds.rs`, `app.rs`, `scene.rs`,
+   `tests/display_budget.rs`: the panel's divide with one home, and
+   three private constants a suite copied.
+
+**Two premises falsified by reading the tree before writing the
+specs.** `max-grid-lines-…` asserts `MAX_GRID_LINES` is 96 and builds
+its whole reachability argument on that number; it is **512**. And
+`four-spellings-…` lists four `is_finite` sites in `datums.rs`; there
+are **eight** — the row predicted that growth in the sentence *"the
+next lane to touch this file will add a fifth unless there is a door
+to route through"*, and it happened. Both are in the dispatches with
+an instruction to re-take the census rather than trust the correction
+either. This check costs minutes; AUTHOR's log makes the same point
+from four falsified premises, and it is now what this program does
+before every dispatch too.
+
+**`certify-affordance-on-the-bounds-panel` re-priced E → H.** Its own
+body describes a long-running query needing progress, cancel, a
+panel-side budget, and eleven unrendered `RangeRefusal` arms, measured
+at 3.4–17 s per leaf. Nothing about the finding changed; the board was
+offering a design pass as cheap work.
+
+**Held out of this wave, deliberately.**
+`at-rest-badge-reports-an-empty-document-as-a-refusal` is unit 2's
+behavioural twin and lives in `session.rs`, which AUTHOR's live
+`author/profile-frame` (AUTH-3) has in scope this hour — a scheduling
+conflict, not a fence, and wave 2's to take.
+`a-split-circle-fixture-sits-inside-the-1e-6-escalation-band` is a
+live red at `1e-6` on `main` today and is small; it is wave 2's first
+row.
+
+**Live seams announced to this wave.** AUTHOR's `author/profile-frame`
+holds `pane/create.rs`, `tree.rs`, `blend.rs`, `session.rs`,
+`session/op.rs`, `session/author.rs`, `drafts.rs`; VGEOM's PR 3007
+(`vgeom/p0-fields`) is ~160 lines inside `pickindex.rs`. Unit 2 is
+told to merge `origin/main` before opening and to expect that file to
+move under it.
+
+Signed (CHROME orchestrator).

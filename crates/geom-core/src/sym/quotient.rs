@@ -208,7 +208,12 @@ fn shared(a: &Mono, b: &Mono) -> Mono {
 /// min-exponent merge as [`shared`], folded over the terms. The empty
 /// monomial for the zero polynomial and wherever the terms share no
 /// indeterminate.
-fn content(p: &Poly) -> Mono {
+///
+/// Rule E's own use is the quotient's shared factor; the decision read
+/// ([`super::signed`]) divides the same content out of a decision's
+/// halves to read a sign through the positive factors dressing it, and
+/// asks THIS function rather than re-deriving the merge.
+pub(super) fn content(p: &Poly) -> Mono {
     let mut it = p.monos();
     let Some(first) = it.next() else {
         return Mono::new();
@@ -235,7 +240,7 @@ fn content(p: &Poly) -> Mono {
 /// `[(1,1)]`, and the order has flipped — so the terms are collected
 /// and sorted ONCE, which is `n log n` against the `n` binary-searched
 /// inserts (each an `O(n)` memmove) the first spelling cost.
-fn divide(p: &Poly, g: &Mono) -> Option<Poly> {
+pub(super) fn divide(p: &Poly, g: &Mono) -> Option<Poly> {
     if g.is_empty() {
         return Some(p.clone());
     }
@@ -322,7 +327,7 @@ pub(super) fn cancel(f: &Form) -> Form {
     // `(½S + ½)/S` are the same real function and now the same FORM,
     // which is what lets an atom keyed on one meet an atom keyed on
     // the other. The magnitude, not the signed value: flipping the
-    // signs would cost `trig::manifestly_nonneg` the syntactic
+    // signs would cost `manifest::nonneg` the syntactic
     // non-negativity rule D's A1 fold reads.
     let (num, den) = match den_pivot(&den) {
         Some(s) => match s.abs().recip().and_then(|k| {

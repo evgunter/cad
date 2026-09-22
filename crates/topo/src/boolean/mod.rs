@@ -2578,7 +2578,7 @@ mod tests {
     /// `ALL`. The row forces the visit, not the edit. That is the
     /// idiom's hole and not this row's alone — it is inherited from the
     /// two censuses cited above — so it is filed as
-    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// `work/census/all-census-idiom-forces-the-visit-not-the-update`
     /// rather than patched here in one of three places.
     #[test]
     fn all_is_every_operation() {

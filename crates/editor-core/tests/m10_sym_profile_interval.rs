@@ -259,24 +259,18 @@ const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest 4c206fa8091829f2e72e255bfcf8cb34\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 144775155146a913025d282ba655d459\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest ec472ae73ea4c7420d838e1560bb36d0",
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest 68a31dec794118be1e5494c295c01a77\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 25e1a56d72b822e9b22340ed78923147\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest e83eae7723869354725ac1ce959e7302",
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest b2316116afff13c352e218269a06ec67\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 6c3dbae8d12c81cbc6c544897d4d3ae1\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 171de8349a6fabdbdc04441d2abb73b7",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -294,20 +288,38 @@ const SLAB_LEDGER: [&str; 3] = [
 /// `Early/Decision` frozen falls 48 → 8 in the ledger below). The rule
 /// never grows a form; the WALK's largest form grows because fewer
 /// forms are cut short.
+///
+/// **The plate's 288 → 252 is NOT this unit's**, and the row above is
+/// what says so: the plain walk consults no dial of the early walk,
+/// the plate's largest form is 252 under `shipped`, under
+/// `without_canonical_root`, under `without_the_reads` and under both
+/// shut, and the two `Plain/*` digests are identical across all four.
+/// Both numbers were stale against this pin before DECIDE-3's branch
+/// was cut — its own Phase 1 baseline records this row RED on the base
+/// with "every count identical, every digest moved" — so what changed
+/// them is a base change between the pin's last capture and the cut,
+/// and DECIDE-3 re-pins them without claiming them.
+///
+/// **What IS rule G's, by the same differential**: the plate's
+/// `Early/Assertion` and `Door/Decision` freezes fall 104 → 0, and the
+/// `Early/*` and `Door/*` digests move. **What A0's new fold is**: the
+/// slab's `Early/*` digests, and the `*/Report` rows absent on both
+/// documents — the sites the shape report used to be called on are
+/// comparisons of two rational CONSTANTS, and A0 decides those exactly
+/// now (`work/decide/a0-leaves-max-and-min-of-constants-opaque`), so
+/// there is nothing left for the instrument to report.
 const SLAB_MAX_TERMS: usize = 6;
-const PLATE_MAX_TERMS: usize = 288;
+const PLATE_MAX_TERMS: usize = 252;
 
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15030 frozen 672 digest 28009db4cb59a2d8449d77d029a0c6e1\n\
-     Plain/Assertion calls 462 forms 2594 frozen 372 digest 85728cdbe8c1b239b969bff8b2d83dbe\n\
-     Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7979 frozen 8 digest 7b9779738faac62b022ea91d8e03be38\n\
-     Early/Assertion calls 462 forms 3406 frozen 104 digest c0bd974b4501fd372c3882438eb9676f\n\
-     Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 330 forms 11884 frozen 104 digest 4472e9a44e2d62da994e09f453faba6c\n\
+     Plain/Decision calls 951 forms 15030 frozen 672 digest aa581ad9960b7ef704f978c1bb2d7ce3\n\
+     Plain/Assertion calls 462 forms 2594 frozen 372 digest 702ce928fd05aeeb766afa8c0ae157bb\n\
+     Early/Decision calls 320 forms 7979 frozen 8 digest 5274cafc352ceecaf7e8fef294baa3f0\n\
+     Early/Assertion calls 462 forms 3406 frozen 0 digest 4bcf903191f8a0a9db825a2798908440\n\
+     Door/Decision calls 330 forms 11884 frozen 0 digest 90c99c9e033c9e0adf0032dacb84aee1\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
@@ -432,6 +444,63 @@ fn the_walk_ledger_on_the_unmeasured_documents() {
                 prof.widest_refused_bits,
                 prof.walk_ledger()
             );
+        }
+    }
+}
+
+/// **Which dial moves which line of the plate's ledger.** The unit
+/// that shipped rule G re-baselined the plate's `PLATE_MAX_TERMS` and
+/// both of its `Plain/*` digests and said rule G had moved them; it
+/// had not — the plain walk consults neither new dial, and the two
+/// numbers were stale against the pin before this branch was cut. This
+/// row is what keeps the attribution honest: it replays the plate under
+/// each dial set and asserts that the PLAIN lines are identical across
+/// all of them, so a future claim that a rule of the early walk moved
+/// a plain form reds here first.
+#[test]
+fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
+    let tol = Tol::witness();
+    let doc = the_plate(tol);
+    let (_, nominal) = boxes(&doc).into_iter().next().unwrap();
+    let plain_lines = |ledger: &str| {
+        ledger
+            .lines()
+            .filter(|l| l.trim_start().starts_with("Plain/"))
+            .map(|l| l.trim().to_owned())
+            .collect::<Vec<_>>()
+    };
+    let sets: [(&str, SymRules); 4] = [
+        ("shipped", SymRules::shipped()),
+        ("without_canonical_root", SymRules::without_canonical_root()),
+        ("without_the_reads", SymRules::without_the_reads()),
+        (
+            "both new dials off",
+            SymRules {
+                canonical_root: false,
+                decision_read: false,
+                ..SymRules::shipped()
+            },
+        ),
+    ];
+    let mut seen: Option<(&str, Vec<String>)> = None;
+    for (name, rules) in sets {
+        start_profile();
+        let _ = replay(&doc, &nominal, rules, tol);
+        let p = take_profile();
+        let largest = p.ops.values().map(|o| o.max_terms_out).max().unwrap_or(0);
+        let lines = plain_lines(&p.walk_ledger());
+        println!(
+            "  {name}: largest form {largest}\n    {}",
+            lines.join("\n    ")
+        );
+        match &seen {
+            None => seen = Some((name, lines)),
+            Some((first, want)) => assert_eq!(
+                &lines, want,
+                "{name} builds a different PLAIN walk from {first}: the plain form reads no \
+                 dial of the early walk, so a difference here is a defect and not a \
+                 re-baseline"
+            ),
         }
     }
 }

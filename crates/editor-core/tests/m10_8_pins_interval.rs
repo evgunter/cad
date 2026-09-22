@@ -50,8 +50,18 @@ fn m10_8_the_a0_set_is_a0_alone() {
         !s.signed_root,
         "rule C is built and dial-selectable, and does not ship (inert)"
     );
-    assert!(
-        !s.early_ab && !s.trig_of_atan && !s.sqrt_square && !s.pythagoras && !s.registered,
+    // BY CONSTRUCTION, not by a list: a dial this row forgot to name
+    // would be one A0-alone silently carried. `SymRules::none()` is
+    // every dial off, so A0 alone IS `none()` with the two A0 needs
+    // turned on — and a ninth dial reds here the day it is added
+    // rather than the day someone re-reads this assertion.
+    assert_eq!(
+        s,
+        SymRules {
+            const_fold: true,
+            early: true,
+            ..SymRules::none()
+        },
         "nothing else: {s:?}"
     );
     assert_eq!(SymRules::default(), SymRules::shipped(), "one default");
@@ -77,7 +87,11 @@ fn m10_8_the_a0_set_is_a0_alone() {
 }
 
 /// **M10-8's set (A0 alone) is exactly the tier with the algebra off
-/// and the door shut.**
+/// and the door shut.** "The algebra" is the early-walk dials
+/// `without_the_algebra` names — rules A/B per node, rule D, rule E,
+/// rule F, rule G and the decision read — and the census above asserts
+/// the WHOLE dial set by construction, so a ninth rule added to the
+/// early walk without a line here reds.
 fn a0_alone() -> SymRules {
     SymRules {
         registered: false,
@@ -85,9 +99,28 @@ fn a0_alone() -> SymRules {
     }
 }
 
-/// **The shipped set is inert on straight geometry**: the M10-3 slab
-/// has no `sqrt` of a constant and no `sqrt` of a square to fold, so a
-/// shipped drive serializes byte for byte what M10-7's tier did.
+/// **What the shipped set reaches on straight geometry, and it is
+/// eight THEOREMS.** The M10-3 slab has no `sqrt` of a constant and no
+/// `sqrt` of a square to fold, so every rule of the form-level algebra
+/// is inert on it — and that was the whole of this row until A0 learned
+/// to decide a `max`/`min` of two rational CONSTANTS, which is what
+/// the slab's conditioning floors are made of.
+///
+/// So the row's claim is now the one that was always load-bearing, and
+/// it is stronger than byte-identity was: the eight come out of
+/// `numeric` and NOTHING is gated. A comparison of two rationals is a
+/// fact of the form, arithmetic in the coefficient ring; answering it
+/// as a certified READ would report that fact as conditional on the
+/// leaf's box, and the earlier cut of this unit did exactly that
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque` measured
+/// it). Byte-identity with `none()` could not tell the two apart and
+/// said "no gain" where a gain is what happened.
+///
+/// The third arm pins what IS still inert, and byte-identity is still
+/// how: the shipped tier serialises byte for byte what **A0 alone**
+/// does on this document, so rules A/B, D, E, F, G, the decision read
+/// and the registered-identity door reach nothing here and the eight
+/// are A0's own yield.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -108,10 +141,33 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
         .expect("the slab builds")
         .serialize()
     };
+    let (shipped, plain) = (run(SymRules::shipped()), run(SymRules::none()));
+    let line = |s: &str| {
+        s.lines()
+            .find(|l| l.starts_with("decisions "))
+            .unwrap_or_default()
+            .to_owned()
+    };
     assert_eq!(
-        run(SymRules::shipped()),
-        run(SymRules::none()),
-        "straight geometry: the shipped tier is M10-7's, bit for bit"
+        line(&plain),
+        "decisions symbolic_zero=482 numeric=263 frozen=0",
+        "the plain tier on straight geometry"
+    );
+    assert_eq!(
+        line(&shipped),
+        "decisions symbolic_zero=490 numeric=255 frozen=0",
+        "eight of the 263 numeric refusals are comparisons of two rational CONSTANTS, which \
+         A0 decides exactly — THEOREMS, and nothing here is gated"
+    );
+    assert_eq!(
+        shipped,
+        run(SymRules {
+            const_fold: true,
+            ..SymRules::none()
+        }),
+        "and the FORM-LEVEL rules are inert on the slab: the shipped tier serialises byte \
+         for byte what A0 alone does, so the eight are A0's own yield and rules A/B, D, E, \
+         F, G, the decision read and the door reach nothing here"
     );
 }
 

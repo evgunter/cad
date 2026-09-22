@@ -117,6 +117,27 @@ pub fn edited(
     (applied.doc, applied.record.minted)
 }
 
+/// **A document holding one declared parameter and nothing else** —
+/// the fixture both panel suites build their parameter rows on.
+///
+/// `label` is the document's derived name, so two fixtures in one
+/// binary cannot share an identity. No oracle: it is the spelling of
+/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
+/// asserts is about the `value` it handed in.
+pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfileProgram> {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
+    edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: name.clone(),
+            value,
+        },
+        tol,
+    )
+    .0
+}
+
 /// Insert a node, answering the new document and the minted id.
 pub fn inserted(
     doc: &Doc<ProfileProgram>,

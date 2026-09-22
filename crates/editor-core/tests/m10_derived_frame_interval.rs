@@ -40,6 +40,7 @@
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};
+use crate::m10_8_harness::head;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
@@ -304,16 +305,6 @@ fn m10_the_transform_lifted_shape_with_an_extrude_above_it() {
 // ---------------------------------------------------------------
 // Phase 1 — the measurement
 // ---------------------------------------------------------------
-
-/// The first `n` characters of a rendering — a form that reaches the
-/// budget renders to megabytes, and what a reader needs is its head.
-fn head(s: &str, n: usize) -> String {
-    if s.chars().count() <= n {
-        return s.to_owned();
-    }
-    let cut: String = s.chars().take(n).collect();
-    format!("{cut}… [{} chars]", s.chars().count())
-}
 
 /// The FROZEN lines of an explanation with the ancestors that lead to
 /// them — the normalisation chain, without the thousands of lines that
@@ -586,15 +577,27 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
     );
 }
 
-/// **The freeze population is not what refuses.** With the exact
-/// constant fold alone (`const_fold`, rule A0, REPLACING the plain
-/// form's constant atoms — the early walk off) the derived-frame
-/// document freezes NOTHING and still refuses at `5e-2` with the same
-/// clause-1 margin; with every rule off it freezes 12 and refuses at
-/// EVERY width on `carrier_endpoint_start`. So A0 is what carries this
-/// document, the 1,253 degree freezes the shipped set makes in its
-/// early walk cost it no decision, and no rule of the atom algebra
-/// stands between the derived frame and its authored twin.
+/// **The freeze population is not what refuses.** With every rule off
+/// the derived-frame document still freezes, and what refuses at
+/// `5e-2` is NOT one of the freezes: on the sign-hull construction the
+/// gate's residual is a plain THEOREM — the opaque `Select` atoms of an
+/// axis-aligned frame cancel as `X − X` — so the document goes on to
+/// the boss's side plane, where the value channel's
+/// `newell_plane_residual` is `Invalid` and no tier is asked at all
+/// (`Decide for Sym<T>` turns a domain violation into no symbolic
+/// question). Neither the plain tier nor A0 alone freezes ANYTHING
+/// getting there, so what refuses is not a freeze either way, and no
+/// rule of the atom algebra stands between the derived frame and its
+/// authored twin. The ten forms that used to freeze at A0's rung sat
+/// under `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two
+/// CONSTANTS — and A0 decides those exactly now
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
+///
+/// The rung that used to read `carrier_endpoint_start` under `none`
+/// was a golden of the plain form's first refusal on the construction
+/// `props/sign-hull` replaced, and it cannot be met by any dial:
+/// `work/decide/the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`
+/// carries the measurement.
 #[test]
 fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
@@ -607,12 +610,15 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
         "plain form alone refuses: {plain_fails:?}"
     );
     assert!(
-        plain_fails[0].contains("carrier_endpoint_start"),
-        "with no rule the refusal is an identity the tier cannot see: {plain_fails:?}"
+        plain_fails[0].contains("newell_plane_residual")
+            && plain_fails[0].contains("margin is invalid"),
+        "with no rule the gate is still a theorem and what refuses is clause 1's, on the \
+         boss's side plane: {plain_fails:?}"
     );
-    assert!(
-        plain_counts.frozen > 0,
-        "the plain form freezes: {plain_counts:?}"
+    assert_eq!(
+        plain_counts.frozen, 0,
+        "and it freezes NOTHING getting there, so the refusal cannot be a freeze: \
+         {plain_counts:?}"
     );
 
     let a0 = SymRules {
@@ -622,12 +628,15 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (a0_fails, a0_counts) = sym_failures_under(&derived, ProfileLift::Pinned, a0);
     assert_eq!(
         a0_counts.frozen, 0,
-        "A0 alone freezes nothing on this document: {a0_counts:?}"
+        "A0 alone freezes NOTHING: the products that used to freeze sat under \
+         `1/max(1, min(1, max(0, 1))/4)`, a `max`/`min` of two CONSTANTS, and A0 decides \
+         those exactly now: {a0_counts:?}"
     );
     assert_eq!(a0_fails.len(), 1, "and still refuses once: {a0_fails:?}");
     assert!(
         a0_fails[0].contains("newell_plane_residual") && a0_fails[0].contains("margin is invalid"),
-        "with no freeze left the refusal is clause 1's: {a0_fails:?}"
+        "with no freeze left the refusal is clause 1's, the same one the plain tier \
+         reaches: {a0_fails:?}"
     );
 }
 

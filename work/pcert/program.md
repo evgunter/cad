@@ -2,7 +2,7 @@
 id: pcert
 kind: program
 title: PCERT — pcurve certification and what validate_pcurves actually checks
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: pcert/

@@ -83,7 +83,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("extrusion_normal_component", [0, 0, 0, 2]),
     ("interval_span_forward", [0, 0, 0, 36]),
     ("interval_span_winding", [0, 0, 0, 12]),
-    ("line_span", [0, 0, 0, 8]),
+    ("line_span", [4, 0, 0, 4]),
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),
@@ -118,6 +118,22 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// ring again (folding it takes 20 and uncovers 20 freezes). The rim
 /// identity is the door's here (`carrier_endpoint_start` 12/0/12/0),
 /// as is the chart phase, as on the plate.
+///
+/// **DECIDE-3 takes one more of `arc_span`**, 4/0/0/2 -> 5/0/0/1, and
+/// **DECIDE-3 takes the `abs` wall the paragraph above describes.**
+/// The canonical root spells `sqrt(L²)` as `|L|`, which is the atom
+/// the carrier's own `abs` mints, so the radius `abs(signed_radius)`
+/// and the square it used to stand against meet on ONE indeterminate
+/// instead of two: `carrier_on_surface_1` and `carrier_on_surface_2`
+/// go 81/0/0/9 -> 90/0/0/0 each, `witness_on_surface_1` and
+/// `witness_on_surface_2` 9/0/0/1 -> 10/0/0/0, `arc_span` 4/0/0/2 ->
+/// 5/0/0/1 and `contact_at_shared_vertex` 4/0/0/5 -> 6/0/0/3 — every
+/// one of them a THEOREM, none of them a read. `line_span` gains four
+/// THEOREMS, `[0, 0, 0, 8] -> [4, 0, 0, 4]`: four of its eight
+/// comparisons are between two rational CONSTANTS, and A0 now decides
+/// those exactly — the fix
+/// `work/decide/a0-leaves-max-and-min-of-constants-opaque` asked for.
+/// The other four carry a parameter and no form settles them.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -128,7 +144,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
         &[
             ("arc_apex_identity", [0, 0, 0, 1]),
             ("arc_diameter_clearance", [0, 0, 0, 6]),
-            ("arc_span", [4, 0, 0, 2]),
+            ("arc_span", [5, 0, 0, 1]),
             ("assert_bound", [0, 0, 0, 1]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
@@ -136,9 +152,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_endpoint_start", [12, 0, 12, 0]),
             ("carrier_line_circle", [0, 0, 0, 3]),
             ("carrier_matches_mapped_source", [72, 0, 54, 0]),
-            ("carrier_on_surface_1", [81, 0, 0, 9]),
-            ("carrier_on_surface_2", [81, 0, 0, 9]),
-            ("contact_at_shared_vertex", [4, 0, 0, 5]),
+            ("carrier_on_surface_1", [90, 0, 0, 0]),
+            ("carrier_on_surface_2", [90, 0, 0, 0]),
+            ("contact_at_shared_vertex", [6, 0, 0, 3]),
             ("datum_unit_norm", [0, 0, 0, 2]),
             ("dihedral_arm", [0, 0, 0, 80]),
             ("dihedral_wedge", [0, 0, 0, 80]),
@@ -146,7 +162,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("extrusion_normal_component", [0, 0, 0, 2]),
             ("interval_span_forward", [0, 0, 0, 24]),
             ("interval_span_winding", [0, 0, 0, 12]),
-            ("line_span", [0, 0, 0, 2]),
+            ("line_span", [0, 2, 0, 0]),
             ("newell_plane_residual", [18, 0, 0, 0]),
             ("path_circle_radius", [0, 0, 0, 1]),
             ("path_junction_turn", [0, 0, 0, 2]),
@@ -157,8 +173,8 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),
             ("witness_at_mid_parameter", [10, 0, 0, 0]),
-            ("witness_on_surface_1", [9, 0, 0, 1]),
-            ("witness_on_surface_2", [9, 0, 0, 1]),
+            ("witness_on_surface_1", [10, 0, 0, 0]),
+            ("witness_on_surface_2", [10, 0, 0, 0]),
         ],
     );
 }

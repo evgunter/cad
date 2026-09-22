@@ -218,7 +218,12 @@ impl core::fmt::Display for MeterError {
                  non-degenerate — the certified floor on ‖S_u × S_v‖ is {floor} m² per \
                  unit parameter area, which over the patch's faster chart speed \
                  ({speed_lever} m) leaves a chart thinness of {thinness} m; the offset \
-                 locus is undefined where the normal degenerates, so nothing is fitted"
+                 locus is undefined where the normal degenerates, so nothing is fitted. \
+                 A floor of exactly zero is the loud answer of a cell the normal turns \
+                 too far inside: split the face clear of the degeneracy and offset the \
+                 pieces. If the patch is regular and these numbers say so, the ladder \
+                 (OFFSET_METER_LADDER) ran out of rungs on it — report them, which is \
+                 what decides a further rung"
             ),
             Self::CurvatureHeadroom {
                 reach,
@@ -229,7 +234,8 @@ impl core::fmt::Display for MeterError {
                 "offset_curvature_headroom: |d| reaches the patch's certified \
                  curvature radius on the folding side (reach {reach} m, headroom \
                  {headroom} m, principal curvature in [{}, {}] 1/m) — the offset \
-                 folds, so nothing is fitted",
+                 folds, so nothing is fitted: ask for |d| strictly inside the reach, \
+                 or offset to the other side, where this patch does not fold",
                 kappa.0, kappa.1
             ),
             Self::Escalated { source } => write!(f, "offset meter escalated: {source}"),
@@ -733,5 +739,85 @@ pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(),
             headroom: coll.headroom,
             kappa: (coll.kappa_lo, coll.kappa_hi),
         }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use geom_core::MarginDiag;
+    use geom_core::predicate::COINCIDENCE_RECOURSE;
+
+    use super::*;
+
+    /// Every meter refusal names what the caller changes, not only the
+    /// number that refused.
+    ///
+    /// `Escalated` renders the classifier's [`Indeterminate`] whole and
+    /// contributes three words of its own, so it is asserted
+    /// TRANSITIVELY — at every `MarginDiag` arm, because that Display's
+    /// three arms are three different sentences and picking one would
+    /// prove the chain at one payload.
+    #[test]
+    fn every_meter_error_arm_names_a_recourse() {
+        // A vocabulary, not a part-of-speech test: an arm that names
+        // the lever the caller turns satisfies the claim the same way
+        // an imperative does.
+        const RECOURSE_WORDS: &[&str] = &["split", "ask", "report", "offset to"];
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let margins = [
+            MarginDiag::Value(5e-9),
+            MarginDiag::Enclosure {
+                lo: -1e-9,
+                hi: 1e-9,
+            },
+            MarginDiag::Invalid,
+        ];
+        let arms = [
+            MeterError::NormalFloor {
+                floor: 0.0,
+                thinness: 0.0,
+                speed_lever: 1.0,
+            },
+            MeterError::CurvatureHeadroom {
+                reach: 1e-3,
+                headroom: -1e-4,
+                kappa: (-1e3, 0.0),
+            },
+            MeterError::Escalated {
+                source: Indeterminate {
+                    margin: MarginDiag::Value(5e-9),
+                    band,
+                    predicate: Some("offset_meter_recourse_probe"),
+                },
+            },
+        ];
+        assert_eq!(arms.len(), 3, "an arm was added without a row here");
+        for arm in &arms {
+            match arm {
+                MeterError::Escalated { .. } => {
+                    for margin in margins {
+                        let source = Indeterminate {
+                            margin,
+                            band,
+                            predicate: Some("offset_meter_recourse_probe"),
+                        };
+                        let msg = MeterError::Escalated { source }.to_string();
+                        assert!(
+                            msg.contains(&source.to_string()),
+                            "carrier not rendered whole: {msg}"
+                        );
+                        assert!(msg.contains(COINCIDENCE_RECOURSE), "no recourse in: {msg}");
+                    }
+                }
+                _ => {
+                    let msg = arm.to_string().to_lowercase();
+                    assert!(
+                        RECOURSE_WORDS.iter().any(|w| msg.contains(w)),
+                        "no recourse in: {msg}"
+                    );
+                }
+            }
+        }
     }
 }

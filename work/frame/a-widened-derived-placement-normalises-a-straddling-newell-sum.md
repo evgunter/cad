@@ -41,8 +41,10 @@ site with `sign_within`:
 `Vec3::norm_squared` already squares component-wise through `powi(2)`,
 so the lower bound is an exact `0` and not a spurious negative — this
 is NOT
-`work/sym/interval-self-dot-straddles-before-rule-a`'s mechanism, which
-is about `dot(v, v)` as a product of independent copies. The defect is
+`work/decide/interval-self-dot-straddles-before-rule-a`'s mechanism,
+which is about `dot(v, v)` as a product of independent copies (that row
+is closed: DECIDE-1's census, #3001, found no such product at
+`Interval` on any certification path a measured document takes). The defect is
 one step further on: the DIVISION by a length whose enclosure contains
 zero. The true `normal_sum` has a definite direction at every parameter
 point of the box (the boss's side plane is a planar rectangle for every
@@ -233,3 +235,19 @@ document refuses earlier still, at the CUBE's `carrier_endpoint_end`
 `sym5_phase1_the_newell_refusal_at_5e_2` on `sym/10-decision-door`;
 the consequence for the row that pins the `none` rung is
 `work/decide/the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`.
+
+## The wall at 5e-2 moved past this class (DECIDE-3, 2026-09-21)
+
+On the TILTED derived boss at `half = 5e-2` under `Guided` this row's
+clause-1 `newell_plane_residual … margin is invalid` is no longer what
+refuses. With rule G and the decision read shipped the tier settles
+the frame, the cap plane goes through, and the one refusal left is
+`interval_span_forward`, `[0, 1.0254777289518563e1]` against
+`escalate = 1e-8` — the stored interval's own span over a box that
+wide, not a sampled check and not a tier question.
+`m10_derived_frame_tilted_interval::m10_the_tilted_derived_boss_certifies_where_its_authored_twin_does`
+pins that refusal now, with the same "THIS PINS A DEFECT" framing.
+
+The HEIGHT document's `5e-2` rung (`m10_derived_frame_interval`) still
+refuses on this row's margin, so the class is not answered — what
+moved is which document reaches it first. Filed by DECIDE-3's lane.

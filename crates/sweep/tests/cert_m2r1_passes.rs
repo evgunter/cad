@@ -126,7 +126,7 @@ pub(crate) fn corpus<T: PropsQuadLane>() -> Vec<(String, Body<T>)> {
     out
 }
 
-fn dump<T: PropsQuadLane + geom_core::Bounds + core::fmt::Debug>(
+fn dump<T: PropsQuadLane + geom_core::Bounds + core::fmt::Debug + topo::AtRestPolicy>(
     scalar: &str,
     name: &str,
     body: &Body<T>,
@@ -149,7 +149,9 @@ fn dump<T: PropsQuadLane + geom_core::Bounds + core::fmt::Debug>(
     );
 }
 
-fn dump_composed<T: PropsQuadLane + geom_core::CertifiedBounds + core::fmt::Debug>(
+fn dump_composed<
+    T: PropsQuadLane + geom_core::CertifiedBounds + core::fmt::Debug + topo::AtRestPolicy,
+>(
     scalar: &str,
     name: &str,
     body: &Body<T>,
