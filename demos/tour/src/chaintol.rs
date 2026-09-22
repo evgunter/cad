@@ -701,3 +701,96 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod probe_r1 {
+    use super::*;
+
+    /// REVIEW PROBE (sym-14-r1): the cell's own narration, re-taken.
+    #[test]
+    fn probe_r1_table() {
+        narration(Tol::witness());
+    }
+
+    /// REVIEW PROBE (sym-14-r1): every refusal at two links, in order,
+    /// so the poison's own site is visible and not only the branch that
+    /// could not be taken.
+    #[test]
+    fn probe_r1_two_link_failures() {
+        let tol = Tol::witness();
+        for links in [2usize, 3] {
+            let built = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
+            let opts = whole_box(&built.doc);
+            let (budget, rules) = drive_dials();
+            let bad = pncad::geom_core::sym::with_session_rules(budget, rules, || {
+                let ev: Evaluation<Sym<Interval>> =
+                    evaluate(&built.doc, None, &CancelToken::new(), &opts, Tol::witness());
+                failures(&ev)
+            })
+            .0;
+            for (i, f) in bad.iter().enumerate() {
+                println!("PROBE {links}-link failure {i}: {f}");
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod probe_r1b {
+    use super::*;
+
+    /// REVIEW PROBE (sym-14-r1): re-take the fractions, and the swing
+    /// and tip displacement they correspond to, so "one number" can be
+    /// checked against the document's own geometry.
+    #[test]
+    fn probe_r1_fractions() {
+        let tol = Tol::witness();
+        println!(
+            "PROBE geometry L={:e} pin_r={:e} h={:e} eps={:e}",
+            crate::chain::LINK_LENGTH,
+            crate::chain::PIN_RADIUS,
+            crate::chain::LINK_HEIGHT,
+            tol.eps()
+        );
+        for links in 1..=LINKS {
+            let f = certifiable_fraction(links, tol);
+            let lever: f64 = (0..links).map(|j| (links - j) as f64).sum();
+            println!(
+                "PROBE {links} links: f = {f:.4e}  swing = {:.4e} rad  tip displacement = \
+                 {:.4e} m  (pin r = {:.4e} m, ratio {:.3})",
+                3.0 * JOINT_SIGMA * f * lever,
+                crate::chain::LINK_LENGTH * 3.0 * JOINT_SIGMA * f * lever,
+                crate::chain::PIN_RADIUS,
+                crate::chain::LINK_LENGTH * 3.0 * JOINT_SIGMA * f * lever
+                    / crate::chain::PIN_RADIUS
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod probe_r1c {
+    use super::*;
+
+    /// REVIEW PROBE (sym-14-r1): what is the FIRST refusal just above
+    /// the wall — the predicate that actually bounds the certifiable
+    /// box, as opposed to the first refusal over the whole study.
+    #[test]
+    fn probe_r1_wall_predicate() {
+        let tol = Tol::witness();
+        for (links, f) in [(2usize, 3.7021e-1), (3, 1.8510e-1), (4, 1.1096e-1)] {
+            for scale in [1.0, 1.02, 1.10] {
+                let built = chain(links, JOINT_SIGMA * f * scale, POSITION_BOUND, tol);
+                let row = sym_leaf(links, &built.doc);
+                println!(
+                    "PROBE {links} links at {:.4} of the study: certifies={} first={:?}",
+                    f * scale,
+                    row.certifies,
+                    row.first
+                        .as_deref()
+                        .map(|s| s.split(" indeterminate").next().unwrap_or(s).to_string())
+                );
+            }
+        }
+    }
+}

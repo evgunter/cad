@@ -1045,3 +1045,49 @@ fn sheet(
     out.push_str("</svg>\n");
     out
 }
+
+#[cfg(test)]
+mod probe_r1 {
+    use super::*;
+
+    /// REVIEW PROBE (sym-14-r1). How large a perturbation of ONE
+    /// replayed sample the four-reduction bit-equality self-check can
+    /// see, and how much of what the sheet DRAWS it reads at all.
+    ///
+    /// Measured: +1 and +10 ulp on one sample's tip position are
+    /// invisible (the reduction's own rounding absorbs them); +1000 ulp
+    /// (1.08e-16 m) is seen. A 1 mm displacement of every drawn tip pin
+    /// and of a bar corner passes both this check and the growth
+    /// assertion, because neither reads the drawn quantities.
+    #[test]
+    fn probe_r1_selfcheck_granularity() {
+        let tol = Tol::witness();
+        let base = chain(LINKS, JOINT_SIGMA, POSITION_BOUND, tol);
+        let config = McConfig {
+            samples: DEFAULT_SAMPLES,
+            parallel: false,
+            ..McConfig::default()
+        };
+        let samples = replay(&base, config.samples, &config, tol);
+        let clean: Vec<f64> = samples.iter().map(|s| s.position).collect();
+        let base4 = summarize(&clean);
+        for bumps in [1u64, 10, 1_000, 100_000] {
+            let mut v = clean.clone();
+            v[0] = f64::from_bits(v[0].to_bits() + bumps);
+            let got = summarize(&v);
+            let seen = got.0.to_bits() != base4.0.to_bits()
+                || got.1.to_bits() != base4.1.to_bits()
+                || got.2.to_bits() != base4.2.to_bits()
+                || got.3.to_bits() != base4.3.to_bits();
+            println!(
+                "PROBE +{bumps} ulp (delta {:e} m): self-check sees it: {seen}",
+                v[0] - clean[0]
+            );
+        }
+        println!(
+            "PROBE the self-check reads the tip-position measure only; the drawn \
+             quantities (bars, pins) are {} values it never compares",
+            samples.len() * (samples[0].bars.len() * 4 + samples[0].pins.len())
+        );
+    }
+}
