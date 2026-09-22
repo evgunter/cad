@@ -786,9 +786,11 @@ mod probe_r1c {
                     "PROBE {links} links at {:.4} of the study: certifies={} first={:?}",
                     f * scale,
                     row.certifies,
-                    row.first
-                        .as_deref()
-                        .map(|s| s.split(" indeterminate").next().unwrap_or(s).to_string())
+                    row.first.as_deref().map(|s| s
+                        .split(" indeterminate")
+                        .next()
+                        .unwrap_or(s)
+                        .to_string())
                 );
             }
         }
