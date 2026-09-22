@@ -535,7 +535,7 @@ pub use topo::{
 };
 
 // --- 6. Mass properties ---------------------------------------
-pub use topo::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
+pub use topo::{MassProperties, MassPropsError, mass_properties};
 
 // --- 7. Tessellation and export -------------------------------
 pub use mesh::{Mesh, TessellateError, tessellate};

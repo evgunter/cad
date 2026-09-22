@@ -2,7 +2,7 @@
 id: nurbs
 kind: program
 title: NURBS — the spline doors: knot insertion, span metring, the loose net and what restrict composes
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: nurbs/

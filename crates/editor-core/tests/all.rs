@@ -531,6 +531,7 @@ mod lib_tube_r2_probes;
 
 #[path = "m10_7_r2_probes_interval.rs"]
 mod m10_7_r2_probes_interval;
+
 #[path = "m10_8_arc_family_interval.rs"]
 mod m10_8_arc_family_interval;
 #[path = "m10_8_harness.rs"]
@@ -576,6 +577,8 @@ mod m10_derived_frame_tilted_interval;
 mod m10_sym_drive_memo_interval;
 #[path = "m10_sym_profile_interval.rs"]
 mod m10_sym_profile_interval;
+#[path = "sym11_exact_channel_rows.rs"]
+mod sym11_exact_channel_rows;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
@@ -593,3 +596,6 @@ mod wire_product_gather_tie;
 mod wire_rv_bytes;
 #[path = "wire_rv_unknown.rs"]
 mod wire_rv_unknown;
+
+#[path = "decide_1_self_dot_interval.rs"]
+mod decide_1_self_dot_interval;

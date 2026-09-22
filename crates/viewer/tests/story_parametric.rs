@@ -40,7 +40,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
-use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{BoundsTarget, DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 /// The lighthouse's proportions, as the parameters are first declared:
@@ -132,7 +132,7 @@ fn drum(
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Circle {
                 // A positive placeholder; the expression takes over
                 // before anything downstream consumes it.

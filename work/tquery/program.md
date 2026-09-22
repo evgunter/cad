@@ -2,7 +2,7 @@
 id: tquery
 kind: program
 title: TQUERY — the split and query doors that refuse geometry the kernel can build
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: tquery/

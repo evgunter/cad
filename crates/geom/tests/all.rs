@@ -62,6 +62,7 @@
 // There is no `#![allow(clippy::duplicate_mod)]` here because no file is
 // loaded twice any more; if one ever is, the lint is meant to fire.
 mod curves {
+    pub mod meter_fixture;
     pub mod n1r2_fixtures;
 }
 
@@ -94,6 +95,12 @@ mod curves_n1r1_c24_dump;
 // without a `#[path]` line.
 #[path = "cert_n2r2_probes.rs"]
 mod cert_n2r2_probes;
+#[path = "curves/curve3_r1_probes.rs"]
+mod curves_curve3_r1_probes;
+#[path = "curves/ders1_meter.rs"]
+mod curves_ders1_meter;
+#[path = "curves/ders1_r2_probes.rs"]
+mod curves_ders1_r2_probes;
 #[path = "curves/n1r1_c24_meter.rs"]
 mod curves_n1r1_c24_meter;
 #[path = "curves/n1r1_lift_probes.rs"]

@@ -2,9 +2,12 @@
 id: the-viewport-and-position-lanes-narrow-to-f32-with-no-door
 kind: issue
 title: The remaining Rust/GPU float lanes are doored by their producers or not at all, and the f32 narrowing is doored nowhere
-status: open
+status: closed
 opened: 2026-09-17
 refs: [2808]
+branch: vgeom/f32-seam
+pr: 3030
+closed: 2026-09-21
 ---
 
 
@@ -71,6 +74,47 @@ each lane's immediate producer, one step back, and the register's own
 rule is that a value which is a number at every guard and stops being
 one downstream is invisible to a sweep over guards.
 
+## A producer, 2026-09-21: the negative result has a counterexample
+
+Found by `vgeom/sketch-infinity` (the two `sketch.rs` guard rows),
+whose three fixtures are authored profiles of finite literals whose
+coordinates are a few hundred orders of magnitude out. **Every one of
+them narrows to an infinity**, executed: `8e307_f64 as f32`,
+`7e307_f64 as f32` and `1.0e308_f64 as f32` are each `inf`, against a
+threshold of `f32::MAX ≈ 3.40e38`.
+
+The lane is `crate::pane::viewport`'s `push_segment`, which is
+`push_loop`'s only emitter and takes exactly what
+`sketch::flatten` emits:
+
+```
+let world = plane.to_world(Point2::new(x, y));
+lane.push([world.x as f32, world.y as f32, world.z as f32]);
+```
+
+So this row's **negative result is now false as stated**, in a lane it
+did not list. The producer is not a non-finite value reaching a
+narrowing — it is an ordinary finite `f64` that the narrowing itself
+turns into one, which is the arm the row's own closing paragraph
+predicted a guard sweep could not see. It reaches through the
+add-profile form: a path authored with a corner at `7e307` replays,
+flattens and is drawn.
+
+**This is a producer for the narrowing, not for the lanes above it**
+— `ViewportSize`, `pixels_per_point` and the aspect doors are
+untouched by it, and their negative results stand.
+
+**Two consequences for the reader.** The first is this row's: the
+`f64 → f32` bullet now has a witness a person can author rather than a
+witness the lane can merely hold. The second belongs to whoever reads
+`vgeom/sketch-infinity`'s reachability argument: at those magnitudes
+the picture is already nowhere one door along, guard or no guard, so
+*"the production consumer reaches it"* is true of the door and an
+overstatement about the picture. The guards there are still right —
+a flattener that reports success over a point that is not a place is
+wrong whatever the next consumer does with it — but they do not by
+themselves make the drawing correct at `7e307`.
+
 ## What a fix would have to decide
 
 The `MixFraction` answer does not transfer: a viewport dimension has
@@ -86,3 +130,69 @@ and the first is one place where the second is five.
 under the standing double claims with VIEW and CHROME. `src/app.rs`'s
 `to_f32` is VSEAM's: the narrowing there is named above and a fix that
 reaches it is announced, not assumed.
+
+## Closed
+
+Closed by `vgeom/f32-seam`, which took this row with
+`the-point3-to-gpu-corner-cast-is-at-three-sites`,
+`the-viewport-and-position-lanes-narrow-to-f32-with-no-door` and
+`the-one-free-transform-is-the-only-total-door-in-camera` as **one
+question**: where the `f64` → `f32` conversion lives in this crate,
+and whether it refuses.
+
+**The answer: one home, `crate::narrowing::Narrow`, and it refuses.**
+A single trait with a single method, implemented for `f64`, for
+`[T; N]` where `T` narrows (which covers a pair, a triple and a
+column-major 4x4 matrix in one impl) and for `Point3<f64>`. It
+answers `None` when the RESULT is not a finite `f32` — a test on the
+narrowed value rather than on the input, because `f32::MAX` is about
+`3.40e38` and a finite `f64` is what turns into an infinity. The
+module holds the crate's one `as f32`.
+
+No second door was minted. `Camera::view_projection_f32` and
+`SceneMesh::build` do not re-decide the conversion; they call it and
+say what a refusal means where they stand.
+
+**The fork this row set: the boundary took a door of its own.** *"One
+place where the second is five"* — five was the right count of
+producers and one door is what landed.
+
+**Every figure re-derived by executing it**, not quoted, in
+`narrowing::tests::a_finite_coordinate_a_person_can_author_does_not_narrow`
+and `the_boundary_is_where_the_rounding_stops_landing_on_a_number`:
+`7e307`, `8e307`, `1.0e308` and `f64::from(f32::MAX) * 2.0` are each
+finite and each narrow to an infinity; `f64::from(f32::MAX)` and a
+value above it that ROUNDS to `f32::MAX` both cross. The rows assert
+the finiteness of the witness first, so the *number at every guard*
+half cannot rot silently.
+
+**The witness was checked against the producer, not only the cast.**
+The row's `push_segment` lane is real and is the one member of the
+class with an authored producer; the `f64::from(f32::MAX) * 2.0`
+witness for `ViewportSize` remains a value the lane can HOLD and not
+one a window can make, and the arms that narrow it exist so the seam
+has one disposition rather than a door that refuses over there and a
+cast that cannot fail over here. Said at the site in
+`pane/viewport.rs`.
+
+**What the door does NOT refuse, stated because it is the other
+direction of the same seam:** underflow. A coordinate below about
+`1e-45` narrows to `0.0`, and `0.0` IS the nearest `f32` to it. An
+infinity is the nearest `f32` to nothing, and that asymmetry is the
+whole of what the door decides. `narrowing.rs`'s header argues it and
+`a_value_below_the_smallest_f32_narrows_to_zero_and_is_allowed` pins
+it.
+
+**`app::to_f32` was reached, and announced rather than assumed.** Its
+only caller was `pane/viewport.rs`, which now reads
+`Camera::view_projection_f32`; a `pub(crate)` function with no caller
+is a `dead_code` warning under `-D warnings`, so it went in the same
+diff. The row is
+`work/vseam/app-rs-lost-its-matrix-narrowing-when-the-seam-got-a-home`.
+
+**Residue, filed rather than disclosed:**
+`the-display-seams-refusal-is-drawn-and-never-said` (the overlay and
+pane refusals reach no reader; the channel is a badge, which is
+VNEWS's ground) and
+`the-overlay-lanes-drop-the-leg-disposition-has-no-row` (mutating both
+leg-drop sites reds nothing, and the public door needs a window).

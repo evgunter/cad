@@ -234,11 +234,7 @@ fn m7_8_cube() -> Body<f64> {
 /// happens at check 2; counting the edge-certification arm is what
 /// isolates the carrier question from that.
 fn edge_findings(body: &Body<f64>) -> usize {
-    match topo::validate_pseudomanifold_certified(
-        body,
-        &topo::ContactRecords::default(),
-        Tol::witness(),
-    ) {
+    match topo::validate_pseudomanifold(body, &topo::ContactRecords::default(), Tol::witness()) {
         Ok(()) => 0,
         Err(errs) => errs
             .iter()

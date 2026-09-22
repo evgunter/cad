@@ -137,6 +137,11 @@ raw `cargo` invocations yourself.
   EMPTY-commit re-roll classifies docs-only and skips the code tier.
   The reliable re-roll is a real code commit. The rule both times:
   confirm jobs actually RUNNING, not that a run object exists.
+  Third face (VIEW, 2026-09-21): a run can also COMPLETE, every job
+  dead in 2-3 seconds with `${{ matrix.* }}` unexpanded and logs 404
+  — a healthy docs tier except for `gate ok`, so on a `crates/` diff
+  a RED `gate ok` is the tell; `git merge-tree --write-tree
+  origin/main origin/<branch>` settles it and the logs cannot.
 - **A finished agent with orphaned detached timers re-wakes forever** —
   each expiry resumes it for a no-op "stale timer" turn, burning tokens
   and notification spam. Once its report is final, the orchestrator
@@ -196,7 +201,7 @@ runs dying in the same minutes. No push, empty commit, or re-run
 helps until Ev raises the limit: hold, then re-run the dead head's
 failed jobs once (they died pre-step, so the re-run is legitimate).
 A PR that is CONFLICTING against
-main gets NO check runs at all — pushes during that window produce
+main gets no USABLE check runs (bullet above) — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
 CLEAN`, and never start. And a green job NAME can sit over a SKIPPED

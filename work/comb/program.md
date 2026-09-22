@@ -2,7 +2,7 @@
 id: comb
 kind: program
 title: COMB — the roll-ups and the sweeps that go last
-status: open
+status: ready
 opened: 2026-09-11
 area: infra
 prefix: comb/

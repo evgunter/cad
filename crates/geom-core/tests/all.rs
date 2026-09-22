@@ -85,6 +85,8 @@ mod eps_provenance;
 mod flagged_census;
 #[path = "interval_band.rs"]
 mod interval_band;
+#[path = "interval_type_default_build.rs"]
+mod interval_type_default_build;
 #[path = "k_stats_doors.rs"]
 mod k_stats_doors;
 #[path = "knot_queries_differential.rs"]
@@ -121,6 +123,12 @@ mod review_m5_pr7_svd;
 mod review_m5_pr7b_tensor;
 #[path = "review_margin_probe.rs"]
 mod review_margin_probe;
+#[path = "ring0_review_probes.rs"]
+mod ring0_review_probes;
+#[path = "ring2_r2_probes.rs"]
+mod ring2_r2_probes;
+#[path = "ring_endpoint_census.rs"]
+mod ring_endpoint_census;
 #[path = "ring_interval_differential.rs"]
 mod ring_interval_differential;
 #[path = "ring_interval_fuzz.rs"]
@@ -133,10 +141,18 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym11_witness_kind_interval_rows.rs"]
+mod sym11_witness_kind_interval_rows;
+#[path = "sym11_witness_kind_rows.rs"]
+mod sym11_witness_kind_rows;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
+#[path = "sym_rule_f_interval_rows.rs"]
+mod sym_rule_f_interval_rows;
+#[path = "sym_rule_f_rows.rs"]
+mod sym_rule_f_rows;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 

@@ -47,11 +47,22 @@
 //! **It is reached from a commit path and is not one.** An
 //! `egui::DragValue` seeds its keyboard edit with the text it last
 //! showed and writes the parse back when it loses focus, so what a
-//! field renders is what clicking into it and away again commits —
-//! which is why `crate::widgets::number_text` exists and why
-//! [`REL_TOLERANCE`] bounds that commit as well as that render. The
-//! number a value moves to on purpose is one a user types, never one
-//! the chrome echoed at them.
+//! field renders is what clicking into it and away again USED to
+//! commit — which is why `crate::widgets::number_text` exists. That
+//! coupling is cut: `crate::widgets::number_field` compares the
+//! parsed text against the text its own formatter returned
+//! (`crate::props::echoed`) and a field's own render commits
+//! nothing, so [`REL_TOLERANCE`] bounds the render alone and the
+//! question of what accuracy a RENDER owes no longer has a commit
+//! riding on its answer. The number a value moves to on purpose is
+//! one a user types, never one the chrome echoed at them — now
+//! enforced rather than bounded.
+//!
+//! The one field where the old sentence still holds is a bare
+//! `egui::DragValue`, which takes this render from the context and
+//! has no parser to take the veto from
+//! (`crate::widgets::install_number_formatter`, and
+//! `work/vgeom/a-bare-field-still-commits-its-own-render.md`).
 
 /// How far [`number`]'s text may read from the value it renders, as a
 /// fraction of that value.
@@ -108,9 +119,22 @@ pub const MAX_CHARS: usize = 10;
 ///
 /// **A non-finite value has no reading and gets the fallback.** No
 /// spelling of `NaN` reads back as `NaN` — nothing does — so the search
-/// exhausts and the scientific arm prints `NaN` or `inf`. Nothing in
-/// the chrome hands this one; the behaviour is stated because it is
-/// what the rule produces rather than a case it handles.
+/// exhausts and the scientific arm prints `NaN` or `inf`. The
+/// behaviour is stated because it is what the rule produces rather
+/// than a case it handles.
+///
+/// **Whether the chrome can hand one is the callers' question, and it
+/// is answered at each of them rather than here.** The sweep is every
+/// call to this function under `crates/viewer/src`, read for what its
+/// argument's producer guarantees, and there are three:
+/// [`crate::scene::DisplayTolerance::render_mm`], whose door refuses a
+/// δ whose millimetre value is not an `f64`;
+/// [`crate::props::written_text`], which asks
+/// [`crate::props::written`] whether the notation can name the value
+/// and says so when it cannot; and `crate::widgets::number_text`'s
+/// fallback, whose argument is whatever the widget was bound to. The
+/// first two cannot reach here with a non-finite value. The third can,
+/// and `number_text` owns that.
 ///
 /// **The rule holds at the top of the type, and [`MAX_CHARS`] is what
 /// gives way there.** Four significant figures round, and from

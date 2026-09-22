@@ -264,7 +264,7 @@ impl<T: Real> BooleanResult<T> {
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
-pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -284,7 +284,7 @@ pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -304,7 +304,7 @@ pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -325,7 +325,7 @@ pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -339,7 +339,9 @@ pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn intersect_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -360,7 +362,9 @@ pub fn intersect_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn subtract_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -386,7 +390,9 @@ pub fn subtract_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`] — identical to [`union`] and friends.
-pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn boolean_op_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -456,7 +462,9 @@ pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
-fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+fn boolean_op_recut<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -1056,8 +1064,8 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     let mut det = true;
                     for i in 1..(geom_brep::CERT_SAMPLES - 1) {
                         let t = geom_brep::sample_param(t0, t1, i);
-                        let p = c.carrier().eval(t);
-                        let jet = geom_brep::tangent_jet(surf1, surf2, p, c.carrier().deriv(t));
+                        let (p, tau) = c.carrier().ders1(t);
+                        let jet = geom_brep::tangent_jet(surf1, surf2, p, tau);
                         let arm = geom_brep::curvature_lever_arm(surf1, p)
                             .min(geom_brep::curvature_lever_arm(surf2, p))
                             .min(extent);
@@ -1975,7 +1983,7 @@ fn cylinder_extent_gate<T: Decide + Bounds>(
 /// polar axis lands on the escape normal (the same point set — a
 /// sphere is rotation-invariant about its center — with the seam
 /// meridians now transverse to the escape planes), and grafted back.
-fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     recuts: &[SphereRecut<T>],

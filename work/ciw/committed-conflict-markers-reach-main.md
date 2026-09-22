@@ -65,3 +65,110 @@ crate, which is the adjacent gap and a different item.
 reaching main. At that point the one-line grep is a `scripts/gates/`
 row and therefore Track K's, not CIW's — that routing was already true
 when the item was open and is why it sat behind other work.
+
+## A second instance, on `main` today (2026-09-21)
+
+`work/props/log.md` carried a complete conflict block —
+`<<<<<<< HEAD` at `:1868`, `=======` at `:1981`,
+`>>>>>>> origin/main` at `:2014`, about 146 lines between them. Found
+by a CHROME lane running the tree-wide marker grep against `main`
+rather than against its own resolution, and repaired as a drive-by in
+PR 3018 (three marker lines deleted, both narratives kept; the note is
+on `work/props/log.md`).
+
+**This is the evidence this row was missing.** The first instance
+(`docs/KERNEL-VERBS.md`, repaired at `efaf6b97`) could be read as one
+bad merge train. Two instances in different months, in different
+programs' files, is a class — and the second one is in `work/`, which
+is worth stating because a guard scoped to `docs/` or to `crates/`
+would not have caught it. Every program's `log.md` is append-only
+narrative edited by many sessions, which makes `work/**/log.md` the
+highest-probability home for this defect in the tree, not an
+afterthought to cover.
+
+**It also says something about the detection cost.** The grep is one
+command over the whole tree and it is already prescribed — the rule in
+`memories/agent-lane-operations.md` says to run it *after any
+resolution*, which is a rule about a lane's own merge. Nothing runs it
+against `main`. The gap between "every lane checks its own work" and
+"nobody checks the result" is exactly the width of this row.
+
+Signed (CHROME orchestrator).
+
+## Retraction of the note above (2026-09-21, CHROME orchestrator)
+
+**The section I appended argues for a gate this row is CLOSED against,
+and I wrote it without reading past the title.** Two things in it are
+false. It calls the `work/props/log.md` block *"a second instance"* and
+says two instances *"is the evidence this row was missing"* — this row's
+own title says **three instances in two days**, and its closing section
+lists them. And the closure is not an absence of evidence: it is **Ev's
+explicit call, 2026-09-04**, *"the failure is rare and not worth the
+special effort."*
+
+CLAUDE.md: settled decisions are not re-litigated, and a change to one
+is proposed to Ev rather than argued into the file. This one was argued
+into the file by an orchestrator who checked neither the status field
+nor the closing section before appending. Left standing above rather
+than deleted, because the record of what was written is the point.
+
+**Ev's argument survives this instance intact, and is worth restating
+because the instance looks like a counter-example and is not.** A
+committed conflict marker is SELF-LIMITING — loud on sight, repairable
+at any date, with nothing built on it meanwhile. The `props/log.md`
+block was found by an ordinary grep, repaired in three deleted lines
+with both narratives kept, and cost nobody anything in the twenty-odd
+hours it sat there. **That is the closure's prediction coming true, not
+failing.** A gate earns its seat against defects that are silent; this
+one is the loudest class in the tree.
+
+**What is worth keeping from the note**: the instance was in
+`work/**/log.md`, which none of the three originals was, and every
+program's log is append-only narrative edited by many sessions. If the
+ruling is ever revisited — by Ev, not by a lane — that is the shape of
+the population, and it does not change the cost argument at all.
+
+## A fourth instance, 2026-09-21 — recorded, and the ruling STANDS
+
+Added by the VGEOM orchestrator, on CIW's closed row, because this
+row is the class's record and an instance that nobody writes down is
+how a "rare" premise stops being checkable.
+
+`work/props/log.md` carried a live conflict block on `origin/main` —
+`<<<<<<< HEAD` at `:1868`, `=======` at `:1981`, `>>>>>>> origin/main`
+at `:2014`, about 146 lines, both halves real narrative. Found twice
+independently the same day, by two lanes' post-merge marker greps:
+CHROME's LANE-1 (which filed
+`work/props/committed-conflict-block-in-the-props-log`) and VGEOM's
+`vgeom/render-spelling`. **Repaired by CHROME at `97217090`** as a
+drive-by; the markers are gone from `main` and CHROME's instance row
+is closed. Verified here:
+`git show origin/main:work/props/log.md | grep -cE '^(<{7}|={7}|>{7})'`
+returns **0**.
+
+**This is not a request to revisit the ruling and nothing here
+reopens it.** Ev's call of 2026-09-04 is recorded above in as many
+words — *close it — the failure is rare and not worth the special
+effort* — and a gate is exactly the kind of standing mechanism that
+is Ev's to decide, not an orchestrator's to re-take because a fourth
+case turned up. Changing it waits for Ev.
+
+What IS worth having on the record, because it is the premise the
+ruling rests on rather than the ruling itself: the instance count is
+now **four** across about three weeks, the newest cost two lanes a
+detour on the same afternoon, and both found it by accident while
+checking their own merges rather than by looking. The failure also
+lands where it is least visible — `lint` does not read `log.md`, so
+`main` was green over it, and a program's log tail is what a
+successor orchestrator reads to learn the live state.
+
+**A duplicate was filed and removed.** `vgeom/render-spelling` filed
+`work/props/props-log-carries-a-committed-conflict-block-on-main`
+before it could see CHROME's row, and that file was deleted at merge
+rather than left beside it — one file, one item. Its one correct
+addition is the paragraph above; its central argument, that the gate
+*"was filed for track J and never built"* and is therefore still
+owed, was wrong: the gate was **decided against**, and the lane read
+the orphaning sentence at `:30` without reading the closure at `:32`.
+That is this repo's own *check that Ev ever agreed, before you wait
+for Ev*, run in the opposite direction and worth the same care.

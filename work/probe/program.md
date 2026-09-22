@@ -2,7 +2,7 @@
 id: probe
 kind: program
 title: PROBE — topo's own guards, probes and generators that cannot go red
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: probe/

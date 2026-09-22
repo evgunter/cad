@@ -2,7 +2,7 @@
 id: fixture
 kind: program
 title: FIXTURE — one body, box or cube spelled n times across the suites
-status: open
+status: ready
 opened: 2026-09-20
 area: infra
 prefix: fixture/

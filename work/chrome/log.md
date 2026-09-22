@@ -1096,3 +1096,505 @@ nine findings:
 Declined: the integration tests' hand-copied barb counts. The
 constants are private, so the copy cannot be avoided.
 `TIP_MARK_PX` was left alone and put to Ev in chat.
+
+## 2026-09-21 — seam announced by AUTHOR, and three rows filed
+
+**Seam.** AUTHOR widened its territory to the files its units actually
+work: `crates/viewer/src/pane/create.rs`, `pane/properties.rs`,
+`drafts.rs`, `session/author.rs`, `session/refuse.rs` — all shared
+with CHROME, legitimately (`work/README.md`, 2026-09-20). AUTHOR's
+opening `paths` named three files and none of them was where AUTH-1 or
+AUTH-2 landed, so `work.py territory` could not have warned either
+lane. AUTHOR's `work/author/program.md` records it; no `keep_out` was
+written on either side, because nothing about the overlap needs
+explaining beyond that.
+
+**Live AUTHOR lanes on this ground as of this note**: `author/face-frame-seat`
+(PR 2955, in review) in `pane/create.rs`, `forms.rs`, `drafts.rs`,
+`session/author.rs`, `session/refuse.rs`; `author/param-notation` in
+`pane/properties.rs`, `props.rs`, `session/op.rs`, `session.rs`.
+
+**Three rows filed on this slate** by AUTH-1's style reviewer, none of
+them AUTHOR's to take:
+
+- `a-fifth-spelling-of-this-seat-is-empty` (P1) — `seat_line`'s own
+  doc says the sentence is composed centrally *"because two copies is
+  how the two drift"*, and there are now five copies. Two rows already
+  here are the same shape with different subjects
+  (`viewer-states-the-empty-document-rule-in-four-places-…`,
+  `four-spellings-of-one-finiteness-predicate-in-datums-rs`); whether
+  the three are one unit is CHROME's call.
+- `four-pick-state-vocabularies-in-one-create-module` (P1) — the Q8
+  end-to-end read of `pane/create.rs` at ~1175 lines.
+- `a-per-kind-sentence-lives-in-the-widget-not-on-the-choice` (P4) —
+  and AUTH-1 minted the newest instance while closing a different one,
+  which is the fresh-instance trap landing where the reviewer brief
+  says it lands.
+
+AUTHOR is fixing its own instances of the last one inside PR 2955; the
+CLASS is CHROME's and is what these rows carry.
+
+## A note from DOOR (2026-09-21) — evidence added to one of your rows
+
+DOOR's `node-placer-field-docs-say-body-where-instances-are-accepted`
+(PR 2985) fixed the kernel-side members of the class your
+`body-seat-reads-through-the-placer-chain` row names, and appended
+evidence there rather than opening a fourth row: **`viewer/src/session/op.rs`
+carries VERBATIM copies of the two field docs just corrected** —
+`/// The body placed.` and `/// The body replicated.` — and they are not
+among the three sentences your row already lists. `session/op.rs` is
+also VSEAM's, which has its own prose rows there, so a `git mv` is
+reasonable if you would rather they sat elsewhere.
+
+**One correction to your row's own framing, offered because the next
+reader will take it literally.** Its opening parenthetical reads
+*"ruling 2137 (the placers are shape-preserving over the value:
+`Transform` and `Pattern` accept `Instances` and yield `Instances`)"*.
+Measured against the code by this unit: `wire_pattern` returns
+`ValuePayload::Instances` **unconditionally**, so a one-body master
+yields N instances — `Pattern` is not shape-preserving, it is
+instances-producing. **Your row's TITLE already says this exactly**
+(*"a Transform's value is a body iff its input's is and a Pattern's
+never is"*); it is only the parenthetical that generalises. The gate
+you are building reads on the title's version.
+
+The orchestrator's dispatch for that unit carried the same imprecise
+sentence, taken from the same summary, and the lane caught it by reading
+`wire.rs` instead — which is why this note exists rather than a quiet
+edit.
+
+Signed (DOOR orchestrator).
+
+## 2026-09-21 — track picked up; the carve-out retired, three units dispatched
+
+Orchestrator session opened on `claude/chrome-orchestrator-setup-24xn6w`
+(harness-pinned; unit branches keep the `chrome/` prefix). Program
+`ready` → `active`. Ev's instruction at the start of the session:
+**no A/B protocol** (the account is out of Fable), and the units
+should not be tricky — so this wave is three E units with no
+undecided design fork in any of them.
+
+**The 2026-09-15 VIEW carve-out is retired, and that is the session's
+largest act.** Every cession clause in it rested on *"VIEW holds an
+open row on the same ground"*. VIEW re-scoped on 2026-09-17 — 86 of
+its 94 live rows went to VNEWS, VGEOM, VSEAM, VDOC and seven other
+programs — and its own `keep_out` now reads *"this program does not
+dispatch new units; its remaining act is the exit walk."* Meanwhile
+`work/README.md` settled the general question on 2026-09-20 (Ev, in
+chat): two open programs may claim one path, and **neither owes the
+other a `keep_out`** — what is owed is awareness while a lane is LIVE,
+which is a per-branch question `work.py territory` answers.
+
+So CHROME cedes nothing. What replaces the file list is a per-wave
+read of who is actually live, carried in each dispatch with a date on
+it. A standing clause could not do that job: it would be false within
+the day, which is precisely how the 2026-09-15 clause and the one
+before it both went false.
+
+**Three rows were held by the cession alone and are now available**:
+`gpu-index-counts-substitute-u32-max` and
+`mispaired-ids-exempts-the-empty-window` (both ended on *"CHROME does
+not work it"*), and `band-refusal-still-badges-every-row`, whose
+blocker was *"a new `RowStatus` variant does not land inside CHROME's
+fence"*. Each carries a note saying so. The COST arguments inside them
+are untouched and were re-affirmed rather than waved through: the
+`RowStatus` row's 19-sites-in-9-files measurement is still the reason
+to prefer a variant over a field, and is re-taken at dispatch rather
+than trusted. For the first two the live question is now *whose slate*
+— `scene.rs` and `gpu.rs` are VGEOM's since the re-scope — and that
+call belongs to the wave that takes them.
+
+**Dispatched** (specs deleted at merge per `docs/DOC-LEDGER.md`):
+
+1. `chrome/datum-honesty` — `datums.rs`, two rows: the finiteness
+   predicate's homes and `MAX_GRID_LINES`' silent truncation.
+2. `chrome/empty-document-gate` — `frame.rs` and `pickindex.rs`: the
+   empty-document rule cited once, and a gate that can red on a new
+   `ProductError` arm. The behavioural half (`session.rs`) is held
+   out; see below.
+3. `chrome/one-number-one-home` — `bounds.rs`, `app.rs`, `scene.rs`,
+   `tests/display_budget.rs`: the panel's divide with one home, and
+   three private constants a suite copied.
+
+**Two premises falsified by reading the tree before writing the
+specs.** `max-grid-lines-…` asserts `MAX_GRID_LINES` is 96 and builds
+its whole reachability argument on that number; it is **512**. And
+`four-spellings-…` lists four `is_finite` sites in `datums.rs`; there
+are **eight** — the row predicted that growth in the sentence *"the
+next lane to touch this file will add a fifth unless there is a door
+to route through"*, and it happened. Both are in the dispatches with
+an instruction to re-take the census rather than trust the correction
+either. This check costs minutes; AUTHOR's log makes the same point
+from four falsified premises, and it is now what this program does
+before every dispatch too.
+
+**`certify-affordance-on-the-bounds-panel` re-priced E → H.** Its own
+body describes a long-running query needing progress, cancel, a
+panel-side budget, and eleven unrendered `RangeRefusal` arms, measured
+at 3.4–17 s per leaf. Nothing about the finding changed; the board was
+offering a design pass as cheap work.
+
+**Held out of this wave, deliberately.**
+`at-rest-badge-reports-an-empty-document-as-a-refusal` is unit 2's
+behavioural twin and lives in `session.rs`, which AUTHOR's live
+`author/profile-frame` (AUTH-3) has in scope this hour — a scheduling
+conflict, not a fence, and wave 2's to take.
+`a-split-circle-fixture-sits-inside-the-1e-6-escalation-band` is a
+live red at `1e-6` on `main` today and is small; it is wave 2's first
+row.
+
+**Live seams announced to this wave.** AUTHOR's `author/profile-frame`
+holds `pane/create.rs`, `tree.rs`, `blend.rs`, `session.rs`,
+`session/op.rs`, `session/author.rs`, `drafts.rs`; VGEOM's PR 3007
+(`vgeom/p0-fields`) is ~160 lines inside `pickindex.rs`. Unit 2 is
+told to merge `origin/main` before opening and to expect that file to
+move under it.
+
+Signed (CHROME orchestrator).
+
+## A note from VIEW (2026-09-21) — two of Ev's reported defects re-homed here
+
+VIEW is winding down and does not dispatch. Two rows on its slate are
+CHROME's by your own `keep_out` — *CHROME keeps the viewer's reported
+defects and its entrenching architecture* — and both were reported by
+Ev in chat on 2026-09-17, from the same failed union of a dumbbell
+document. Moved by `git mv` with ids, bodies and history unchanged.
+Ev approved the move in chat.
+
+- **`error-and-check-text-overflows-its-region` (P0).** Two halves.
+  The layout half — error and check text runs off the page or wraps
+  back to the window's left edge — is the sibling of VIEW's
+  `the-toolbar-row-does-not-wrap`, which closed 2026-09-14 and whose
+  fix may be the same egui cause (text laid out against the full
+  available width rather than its container's). The concision half
+  reaches past the viewer into kernel `Display` impls in `profile`
+  and `editor-core`; the row says whoever takes it splits off
+  per-crate rows rather than editing kernel prose from a viewer lane.
+  **Left whole rather than split** — the row records that the
+  concision half was never investigated, so drawing the boundary now
+  would be a guess.
+
+- **`a-refusal-offers-no-action-in-the-viewer` (P1).** A kernel refusal
+  is shown as a long paragraph with its recourse buried at the end,
+  and none of the three recourses it names is something the viewer
+  offers as an action. AUTHOR was considered and rejected: its charter
+  is the authoring goal's GUI half (minting a `FaceFrame`, `AddPart`,
+  `AddBoolean`), and a refusal's presentation is chrome architecture.
+  The kernel gap behind the worked example (torus×plane) is CURVED's
+  and already scheduled.
+
+Neither was investigated beyond what its body records. The worked
+example for both is in Ev's 2026-09-17 chat; a torus face against a
+plane face in a union reproduces it.
+
+Signed (VIEW orchestrator).
+
+## 2026-09-21 — CHROME-DATUM-HONESTY landed (PR 3018)
+
+`datums.rs`: one finiteness door became two, and `MAX_GRID_LINES`
+stopped returning a truncated ruling in the shape of a complete one.
+Rows closed: `four-spellings-of-one-finiteness-predicate-in-datums-rs`
+and `max-grid-lines-truncates-a-ruling-and-calls-it-one`.
+
+**The review blocked this unit, and the reason is the thing to
+remember.** The first cut shrank the over-cap patch **centred on the
+region** — and the region is not centred on what the camera is aimed
+at, because at a grazing seat the near edge is a metre away and the
+far edge sits at the `MIN_CELL_PX` cut-off. Measured through
+`datums::draws`: past a pane about 6900 px tall the grid was a
+complete, closing rectangle floating in front of the reader with
+**nothing at the aim point**, monotone in height so it worsened. Worse
+than a defect, it was a REGRESSION — the truncation it replaced kept
+the span from the near end and did cover the aim. And it defeated the
+disposition the row chose: *"a coarse grid might still orient a
+reader"* is worthless if the grid is not where the reader is. The unit
+built to end complete-looking-and-wrong shipped complete-looking-and-
+wrong.
+
+`capped_span` now takes the aim — `grid` already computed the
+looked-at point for the pitch — and clamps the survivor inside the
+region. All three failing windows now rule the span the truncation
+did.
+
+**Three premises of this program's own rows fell to measurement.**
+`MAX_GRID_LINES` is 512, not the 96 its row asserts (caught at
+dispatch). The `is_finite` census was eight sites, not four — the row
+predicted that growth in writing and it happened. And the cap is NOT
+dead at every ordinary view: crossed between 6000 and 6200 px, an
+ordinary orbit seat on an 8K panel. The row's *"about 26 lines"* came
+from the head-on case, where extent scales with eye height rather than
+with the cell cut-off. **The sentence that caused all of it is one
+line of the const's own rustdoc** — *"Not a budget the design expects
+to spend"* — which is why the previous sweep read the site as a
+backstop and left it standing. It is deleted, not appended to.
+
+**The lane then failed one of its own claims, unprompted.** Dropping
+the region clamp reddened nothing, so *"the patch never leaves the
+region"* was a claim at the code with no row behind it — the same
+defect the reviewer had just caught on the aim, inside the fix for it.
+The new assertion derives its tolerance from the drawing (the pitch
+read off the minimum gap between adjacent lines) rather than choosing
+one. Five mutations now, one per claim.
+
+**A finding that reaches every lane, routed to Ev.** The lane counted
+six `test (…)` jobs and went looking for the narrowing
+`docs/prompts/implementer-discipline.md` told it to hunt. There was
+none: the interval lane runs from a called workflow
+(`ci.yml:3581`), so six of the twelve are named `interval / test
+(interval, eps = …, n/2)`. The discipline handed to every lane by path
+is wrong about how to count a full run, and it tells readers that six
+is the signature of a break. `docs/prompts/` is Ev's, so it went out
+as PR 3033 (`[ev]`) with the row on CIW's slate carrying
+`needs_ev: true`; the substantive half of the amendment is that
+counting job NAMES is the wrong instrument at all, since a workflow
+refactor renames every job it moves without touching a step.
+
+**Drive-by, disclosed here because it is not CHROME's ground.**
+`work/props/log.md` carried a complete committed conflict block on
+`main` — three marker lines around ~146 lines, two orchestrators'
+appends, neither side having deleted anything. Repaired by deleting
+the three lines and keeping both narratives; noted on PROPS's log and
+added as the second instance to
+`work/ciw/committed-conflict-markers-reach-main`, whose guard would
+have to cover `work/**/log.md` to catch it. Found by running the
+tree-wide marker grep against `main` rather than against a lane's own
+resolution, which is the gap that row now names.
+
+**Rows filed by this unit**:
+`camera-project-answers-with-a-screen-position-for-a-projection-that-
+overflowed` (P1 — driven to `Ok(Some([6.502, 1.394, 3.44e-304]))` for
+a point 1e300 m away, through a door documented to answer `None`
+there, with `pickindex.rs` as the consumer),
+`features-share-row-asserts-a-conjunct-its-neighbour-subsumes` (P3),
+and `positive-finite-predicate-has-six-homes-outside-datums-rs`
+extended to cover both doors and re-swept — that re-sweep found
+`camera.rs`'s `finite` and `op_finite`, the typed refusal hand-copied
+into two differing only in error type.
+
+Signed (CHROME orchestrator).
+
+## 2026-09-21 — CHROME-EMPTY-DOC landed (PR 3021)
+
+`frame.rs` and `pickindex.rs`: the empty-document rule is cited once,
+and the site that gates on it reds when `ProductError` grows an arm.
+Row closed:
+`viewer-states-the-empty-document-rule-in-four-places-and-the-one-that-gates-cannot-red`.
+
+**Correction to this log.** The entry of 2026-09-15 (and the row, and
+the dispatch) named the classification's home
+`ProductErrorKind::is_empty_document`. **That function does not
+exist** — WIRE renamed it `means_no_body` inside PR 2629's own lane,
+so the name was already dead when the row was written citing it. Zero
+hits in `crates/` today. The unit corrected the row's body; this
+paragraph is the log's correction, since the log is append-only. Five
+live documents carried the dead spelling; the two WIRE hits are the
+closed row that PROPOSED the name, which even says *"or whatever it is
+called"*, so nothing of WIRE's is stranded.
+
+**The design call was a three-valued enum**, not a `bool`:
+`badge_site(ProductErrorKind) -> BadgeSite` with `Frame`,
+`FeatureTree`, `NotAFault`. The two silences are silent for unrelated
+reasons, and under a `bool` the mutation that moves `NoBodyRoots`
+between them is **invisible** — both spellings answer `false` and
+`product_badge` is `None` either way. Verified by the reviewer, not
+argued: it reds only under the enum.
+
+**And the shape mattered more than the enum.** A naive exhaustive
+match would have re-named the no-body classes and made the citation
+decorative. The `match` answers the three tree-owned classes from
+local policy and every remaining class reaches its answer **through a
+call to `means_no_body`**, so the cited rule stays load-bearing. The
+correctness arm confirmed the ordering moves no badge: `product_badge`
+driven over all ten classes on the head and on the merge base gives
+**identical tables**, and it is algebraically forced.
+
+**The trap landed here too — four instances, one found by the lane.**
+`BadgeSite::NotAFault`'s doc restated `means_no_body`'s own sentence
+at a brand-new site with no citation at all, in the diff whose subject
+is a rule restated where its citation did not reach. Two more were
+restate-then-cite. The lane found the fourth itself while filing the
+row about it: a ``[`badge_site`]`` in a `//` comment, the checked
+spelling on an unchecked citation.
+
+**CI caught what neither the lane nor the orchestrator had.**
+`scripts/gates/viewer-vocab-declared-once.sh` reds on an unratified
+`const` array of `Type::Variant` entries under `crates/viewer/src`,
+and the lane's ten-class census was exactly that. The gate was right:
+`crates/viewer/README.md` ratifies two kinds of hand-written list, a
+complete census of another crate's enum is neither, and a third kind
+is an amendment to that page — Ev's, not a lane's. The census moved
+inline and both halves of the guard were re-proved red afterwards.
+
+**Rows filed**: `has-faults-cannot-red-on-a-new-rowstatus` (P2) and
+`a-citation-in-a-line-comment-is-not-checked` (P3). The first is
+cross-referenced **both ways** with `band-refusal-still-badges-every-row`,
+and the pair is the useful part: that row's fix is to ADD a
+`RowStatus` variant, and `tree.rs::has_faults` is a `matches!` over
+`RowStatus` that cannot red when one arrives. Neither row could see
+that from its own side.
+
+**A correction the lane made to itself, worth more than the row it
+came with**: its instrument sweep excluded `has_faults` on the word
+*external*, and *external* was doing no work — a `matches!` over a
+viewer-owned enum is exactly as silent as one over another crate's.
+
+**And a drive-by whose framing I got wrong.** A tree-wide marker grep
+turned up a committed conflict block in `work/props/log.md` on `main`;
+it was repaired in PR 3018 (three lines, both narratives kept). But I
+appended to `work/ciw/committed-conflict-markers-reach-main` an
+argument that the class needs a gate, **having read neither its status
+nor its closing section**: the row is CLOSED on Ev's explicit call of
+2026-09-04, and its title already says three instances, not the "one"
+my note claimed. Retracted in place. LANE-1 had filed the instance
+correctly — citing the closed class without reopening it — and that
+row is now closed as repaired. The repair was right; the argument
+around it was re-litigating a settled decision.
+## 2026-09-21 — CHROME-ONE-NUMBER landed (PR 3022); wave 1 complete
+
+`bounds.rs`, `scene.rs`, `app.rs` and `tests/display_budget.rs`: the
+panel's divide has one home and three constants a suite copied have
+theirs. Rows closed: `bounds-reading-respells-the-panels-one-divide`
+and `display-budget-rows-restate-three-private-constants`.
+
+**The lane overturned half my adjudication, with measurement, and it
+was right.** The review found that `display_budget.rs`'s rung bound
+now read `PROBE_FACTOR` from the code it tests — agree-by-construction
+about the probe placement, the mirror of the argument the same lane
+used correctly to leave `reads_back_as_a_delta` alone. I recommended
+restating `8.0` deliberately. The lane instead put `PROBE_FACTOR`
+**back to private** and exposed the derived contract,
+`scene::placed_rung_cost() = TRIANGLE_BUDGET / PROBE_FACTOR`. That is
+`Camera::pitch_limit`'s precedent exactly — `pitch_limit` exposes
+`FRAC_PI_2 - POLE_MARGIN` and hides `POLE_MARGIN`; this exposes the
+bound and hides the knob — so the review's objection to widening a
+library crate's public API for one in-repo suite disappears rather
+than being traded away. And it is not circular: the row compares the
+door against a rung's MEASURED count from a real body, where
+`reads_back_as_a_delta` would have derived both sides from one
+constant. Proved by mutation: dividing `fit_delta`'s placement by 8
+reds with *"a single rung tessellated 234516 triangles, past the
+125000 a rung is placed at"*.
+
+**It also declined to derive `OVER_BUDGET_DELTA`, and the reason is
+better than the fix I asked for.** I read it as a live instance of the
+unit's own blind spot — a literal that is an arithmetic consequence of
+a constant, three lines from the import that closes it. It is not: it
+is a threshold the ROW chooses. Deriving it as `INITIAL_DELTA / 10.0`
+would break the row the moment the starting δ coarsened, because a
+decade under a coarser start is a δ the same file records as INSIDE
+the budget. The doc now says chosen-not-derived, and the class was
+swept with seven hits disposed one line each.
+
+**A claimed sweep that could not have produced its own hit list.** The
+committed description said every numeric `const` in `src` was matched
+against numerically equal literals in `tests` — which would have
+returned 55 hits in the file it edited, plus six more elsewhere, not
+the one it reported. The real filter (a third stage keying on a
+name-match or a comment within seven lines) was in the lane's report
+to me and not in the row. §5 is exactly this: a sweep whose blind spot
+is unstated is an unverified claim. The row now states all three
+stages and names stage 3 as itself a blind spot — a copy with neither
+a matching name nor a nearby comment is invisible to it.
+
+**The `ANSWERS` table, 56 restatements of the starting δ in the file
+this unit edited, is the argued opposite and is now recorded as one.**
+It is a golden, and it is precisely what reddens under the
+`INITIAL_DELTA` mutation. A census that leaves the largest population
+of its own shape unmentioned reads as a guarantee.
+
+**`MM_PER_METRE`'s doc adjudicated as doc rot, by ruling out the other
+reading rather than assuming.** Reviewer-style-lane Q4 asks which of
+two a stale sentence is. The lane checked: the sentence is accurate
+about the two sites it names, and setting `MM_PER_METRE` to `1.0e6`
+reds four rows — so divergence IS caught and this is not a latent
+defect wearing a documentation costume. What is missing is a HOME for
+the inverse factor, not a guard. The four production sites that spell
+it went as evidence to VGEOM's existing row.
+
+**A duplicate row deleted rather than filed.** The camera-readout
+finding was already a section on
+`work/vgeom/renders-that-multiply-a-finite-guarded-length-spell-the-product-inf`,
+attributed to the same AUTH-2 sweep the bounds row cites. §6 says add
+evidence to the existing row; the lane's evidence went there and its
+own file was removed.
+
+**Rows filed**:
+`work/vdoc/the-starting-delta-has-one-home-and-five-prose-spellings`
+(P2 — five prose spellings of `0.1 mm` that a mutation leaves silently
+wrong while two tests red; it asks for a DECISION, since a doc-comment
+number cannot be derived) and
+`a-flat-rung-row-uses-an-absolute-epsilon-on-a-scaled-value` (P3 — an
+`f64::EPSILON` admitting ~2000 neighbours at magnitude 8e-4).
+
+**Merge note.** This branch conflicted with `main` in `scene.rs` after
+PR 3018 landed: `main` had added `use crate::narrowing::Narrow;` while
+this branch narrowed the `MM_PER_METRE` doc sentence on the adjacent
+line. Resolved as a union — both kept, nothing chosen between — and
+the merged tree re-checked with clippy before pushing rather than the
+diff alone.
+
+**And this entry's own merge was the defect this session repaired in
+another program's log**: two CHROME log entries appended on two
+branches, conflicting in `work/chrome/log.md`, resolved the same way
+and for the same reason — a log is append-only narrative, neither side
+deleted anything, so it is a union. Reordered to chronological, since
+PR 3021 merged before PR 3022. Worth one line because the class showed
+up twice in one afternoon, in two programs, which is the population
+Ev's closed ruling already priced as rare-and-self-limiting: found on
+sight, repaired in the same breath, nothing built on it meanwhile.
+
+Wave 1 is complete: three units, five rows closed, seven rows filed
+across four programs. What the wave evidences about this program's
+review posture is in `work/chrome/plan.md`, stated once.
+
+Signed (CHROME orchestrator).
+
+## 2026-09-21 — withdrawn: the interval job-prefix "finding" was not one
+
+Filed as a CIW row and an `[ev]` PR (3033) earlier today, then
+withdrawn on Ev's questioning. Recorded here rather than as a closed
+row, because `work/README.md` is explicit that the tracker exists so
+work is not forgotten and not so work is recorded — and there is no
+work here.
+
+**The claim.** The interval lane now runs from a called workflow
+(`ci.yml` -> `interval.yml`), so six of the twelve `test (…)` jobs are
+named `interval / test (interval, eps = …, n/2)`.
+`docs/prompts/implementer-discipline.md` tells every lane to expect
+twelve and says that six-where-twelve-was-expected is the signature of
+a break. I argued this sends lanes hunting a non-problem.
+
+**Why it was wrong, in the order the errors were made.**
+
+1. **A lane's PREDICTION was promoted to a finding.** The lane wrote
+   *"this will bite other lanes"* and I adopted it without testing it.
+   What the lane actually reported was *"I nearly reported a narrowing
+   that was not one"* — it caught itself inside the same
+   investigation, before reporting anything. The other lane in the
+   same wave hit the identical rename and disposed of it in one
+   clause. **Two encounters, zero wrong conclusions.**
+2. **The "measurement" measured invented failure modes.** Asked to
+   justify it, I compared counting methods and reported that an
+   anchored match returns six. No agent would write
+   `startswith("test (")` against a doc quoting `test (…)`; the
+   natural spelling is a substring, which returns **twelve** and
+   notices nothing. My own check-runs filter used a substring all day
+   and never saw a problem. I constructed the failure and then cited
+   it as evidence.
+3. **The disqualifying argument was already in hand.** Ev's ruling on
+   `work/ciw/committed-conflict-markers-reach-main` (2026-09-04) says
+   a defect that is loud on sight, repaired in the same breath, with
+   nothing built on it meanwhile, is a poor subject for machinery. I
+   quoted that argument in this same session, against my own note on
+   that row — and did not apply it here, where it holds *more*
+   strongly, because what I was asking for was a change to a file that
+   binds every lane plus a ruling from Ev.
+
+**The general shape, which is the only thing worth carrying.** An
+orchestrator reading lane reports is reading claims, and a lane's
+forecast about OTHER lanes is the least tested thing in its report.
+The cost of adopting one is a file, a PR, a reader and a ruling
+request; the cost of testing it is asking whether it has ever actually
+cost anything. Neither encounter here had.
+
+Signed (CHROME orchestrator).

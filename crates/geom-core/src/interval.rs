@@ -1,7 +1,10 @@
 //! The [`Interval`] scalar over the in-repo `interval-transcendentals`
-//! crate — Q1's certified instantiation of [`Real`] and [`Decide`] (M0
-//! PR 4, behind the `interval` cargo feature; backend swapped from `inari`
-//! in M5 PR 1).
+//! crate — Q1's certified instantiation of [`Real`] and [`Decide`].
+//! This module compiles in every build; what the `interval` cargo
+//! feature gates is the lane-trait impls in the crates above this one
+//! and the interval test files — not the type, and not a kernel body
+//! bounded by [`Real`]/[`Decide`]/[`Bounds`] alone, which instantiates
+//! at this scalar in a default build.
 //!
 //! An `Interval` is a machine-representable enclosure `[lo, hi]` of the
 //! **true real value** of a computation: every operation returns an
@@ -99,21 +102,22 @@
 //! transcendental implementation D9 already mandates for `f64` — plus f64
 //! arithmetic and `next_up`/`next_down` stepping. There is no
 //! platform-conditional path anywhere in it and no inline assembly: the
-//! same build on the same inputs yields bit-identical endpoints, and the
-//! `interval` feature imposes no instruction-set floor. (The historical
-//! repo-wide `-C target-cpu=x86-64-v3` rustflag was dropped after the
-//! swap — 2026-07-29, Ev's #127 review; `f64::mul_add` in the
+//! same build on the same inputs yields bit-identical endpoints, and
+//! this scalar imposes no instruction-set floor on any build. (The
+//! historical repo-wide `-C target-cpu=x86-64-v3` rustflag was dropped
+//! after the swap — 2026-07-29, Ev's #127 review; `f64::mul_add` in the
 //! backend's witness paths is correctly-rounded with or without
 //! hardware FMA, so results are unchanged.) This crate's
 //! `forbid(unsafe_code)` is untouched, and so is
 //! the backend's.
 //!
-//! **Licensing**: the `interval` feature is MIT OR Apache-2.0 and C-free,
-//! like every other build configuration of this kernel. The LGPL-3.0+
-//! `gmp-mpfr-sys`/`rug` obligation that `inari/gmp` used to impose on
-//! consumers of this feature is gone (issue #4's license fork, closed by
-//! M5 PR 1); inari remains only as the backend crate's *dev*-dependency
-//! differential oracle, which never enters a kernel build.
+//! **Licensing**: this scalar and its backend are MIT OR Apache-2.0 and
+//! C-free, like every other part of the kernel — which is what lets them
+//! sit in every build. The LGPL-3.0+ `gmp-mpfr-sys`/`rug` obligation
+//! that `inari/gmp` used to impose on consumers of the scalar is gone
+//! (issue #4's license fork, closed by M5 PR 1); inari remains only as
+//! the backend crate's *dev*-dependency differential oracle, which never
+//! enters a kernel build.
 //!
 //! # Non-real inputs
 //!
@@ -275,6 +279,15 @@ impl Neg for Interval {
 /// deterministic per D9 (bit-identical enclosures across platforms at
 /// pinned dependency versions).
 impl Real for Interval {
+    /// **EXACT**: the value channel is a CERTIFIED enclosure of the
+    /// real, so a comparison here is a proof — two enclosures that do
+    /// not meet prove the reals differ
+    /// ([`crate::sym::SymRegistration::Contradicted`], this impl's
+    /// [`Real::register_equal`]), and one that excludes zero proves
+    /// the margin non-zero. This is the scalar the
+    /// theorem-vs-numeric contradiction is ASSERTED at.
+    const WITNESS: crate::real::Witness = crate::real::Witness::Exact;
+
     /// The point enclosure `[x, x]` with decoration `Com` — an exact
     /// embedding for every *finite* `f64`. NaN and ±∞ are not real
     /// numbers and have no enclosure: they map to NaI, explicitly —
@@ -331,7 +344,9 @@ impl Real for Interval {
     /// ([`crate::real::CertifiedEnclosure`], and clause 1 of the
     /// symbolic tier's own theorem).
     ///
-    /// **This witness is EXACT, so its refusal is
+    /// **This witness is EXACT** — [`Real::WITNESS`] is
+    /// [`crate::Witness::Exact`] at this scalar, and this arm is that
+    /// const spelled as a refusal — **so its refusal is
     /// [`crate::sym::SymRegistration::Contradicted`] and never
     /// [`crate::sym::SymRegistration::Disputed`]**: two certified
     /// enclosures that do not meet PROVE the two reals differ (or that
@@ -347,7 +362,9 @@ impl Real for Interval {
     ///
     /// Nothing is recorded here: an `Interval` carries no expression.
     /// The recording half is [`crate::Sym::register_equal`], which asks
-    /// this first.
+    /// this first. The same const is what makes a theorem this channel
+    /// contradicts an ASSERTION rather than a counted dispute
+    /// (`Sym<T>::sign_within`); a row pins the two together.
     fn register_equal(self, other: Self, _tol: Tol) -> crate::sym::SymRegistration {
         use crate::real::CertifiedEnclosure as _;
         use crate::sym::SymRegistration;
@@ -547,16 +564,25 @@ impl Bounds for Interval {
 /// The certified door, refusing exactly where [`Decide::sign_within`]
 /// does ([`Interval::is_certified`]).
 ///
-/// This is the seam the C9 ring reads an evaluation scalar through, and
-/// it is the *only* channel available there: [`crate::RingInterval`] has two
-/// states and no decorations, so whatever the accessor does not refuse
-/// cannot be refused anywhere downstream. A `Trv` enclosure with finite
-/// endpoints — `sqrt([−1, 4])` clamping to `[0, 2]` — is the case that
-/// needs it: it is a perfectly sound bracket, so [`Bounds`] reports it
-/// unchanged and must, while certification has to see the violation.
+/// This is the seam the C9 ring reads an evaluation scalar through. A
+/// `Trv` enclosure with finite endpoints — `sqrt([−1, 4])` clamping to
+/// `[0, 2]` — is the case that needs it: it is a perfectly sound
+/// bracket, so [`Bounds`] reports it unchanged and must, while
+/// certification has to see the violation.
+///
+/// The ring's own refusal channel is a decoration too, so the crossing
+/// carries both halves rather than collapsing them:
+/// `crossing_bracket` hands over the sound endpoints and the certified
+/// door hands over the verdict, and the ring caps its decoration with
+/// it. Nothing is laundered — the value arrives at `Trv`, which is the
+/// ring's poison.
 impl crate::real::CertifiedEnclosure for Interval {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.is_certified().then(|| (self.0.lo(), self.0.hi()))
+    }
+
+    fn crossing_bracket(self) -> (f64, f64) {
+        (self.0.lo(), self.0.hi())
     }
 }
 
