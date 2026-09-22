@@ -670,3 +670,18 @@ the member-free route compiles and the bounds gate refuses it pending
 ratification — RING-3's slate, with `Enclosure` and the three guard
 residues. Block SCALAR-B5 closes on this merge with one tally
 candidate, RING-0's.
+
+## Block SCALAR-B5 closed (2026-09-22)
+
+Three slots, three duals, one counted tally candidate: RING-0 (OPUS,
+#230, R2's unilateral test-gap MAJOR by execution — `powi(-1)` outside
+the sampled allowlist — on the OPUS reviewing arm), LANE-1 (FABLE,
+#231, the fold's verdict MAJOR bilateral, ruled to stand), RING-2
+(OPUS, #234, both MAJORs bilateral at differing severity — main's
+tess-budget drift, the red-row table short by one head). The block's
+record — pre-draw fields (cut before byte 244), the draw, the three
+rows — lands on main with this PR. Exposures the rows carry: the
+sample-#230 collision with SYM-11's landed-highest numbering (filed);
+the vendor footer the REST route re-appends (stripped everywhere; the
+MCP path is clean); two container restarts (RING-2's implementer three
+lanes on one arm; LANE-2's reviewers resumed from their own material).
