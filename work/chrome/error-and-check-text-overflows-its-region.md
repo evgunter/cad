@@ -2,11 +2,10 @@
 id: error-and-check-text-overflows-its-region
 kind: issue
 title: viewer: error and check text runs off the page or wraps past its region, and the messages are wordy (Ev's request)
-status: dispatched
+status: open
 opened: 2026-09-17
 priority: P0
 cost: E
-branch: chrome/wrap-in-region
 ---
 
 **Ev reported this** (in chat, 2026-09-17). There are two halves.

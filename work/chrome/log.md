@@ -1598,3 +1598,61 @@ request; the cost of testing it is asking whether it has ever actually
 cost anything. Neither encounter here had.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-22 — handoff: the track picked up, a phantom dispatch corrected, and four stale branches cleared
+
+A successor orchestrator took this track today. Three things the
+handoff established, recorded because none of them is visible from the
+board.
+
+**No handoff file.** [[orchestrator-switch-runbook]] makes the outgoing
+orchestrator finalize `cad-work/handoff-prompt-*.md` with the live
+resting state and per-lane resume instructions. There is none on this
+host, and `~/.local/share/cad-work/` does not exist. Everything below
+was re-derived from the tree rather than read off a handoff.
+
+**The slate's only P0 was reported in flight with nothing behind it.**
+`error-and-check-text-overflows-its-region` — Ev's own request, filed
+2026-09-17 — was set `status: dispatched` with
+`branch: chrome/wrap-in-region` by `5d1f724ca`, which is on `main`.
+**That branch has never existed.** It is absent from
+`git ls-remote --heads origin`, and `git log --all --grep=wrap-in-region`
+returns nothing, so no commit and no merge in this history has ever
+named it. The row is returned to `open` here, and dispatched properly
+below.
+
+**The general shape, which is the part worth carrying.** `lint` cannot
+see this and should not be asked to: `branch:` is a string, the remote
+is not in the tree, and a checker that resolved it would red `main` for
+every lane between its dispatch and its first push. What the field
+actually promises is only that somebody wrote it down. So a `dispatched`
+row is a claim by whoever dispatched it, exactly as an `active` program
+is — `work/README.md` says that of the program status in as many words
+(*"it is the program's own word and lint takes it as given"*) and the
+same is true one level down. **A successor re-derives in-flight state
+from the remote, never from the header.** One `git ls-remote` per
+dispatched row settles it.
+
+**The four `chrome/` branches carrying commits off `main` are stale
+tips, not pending work** — checked one at a time rather than inferred,
+because a week-stale branch's diff against `main` is dominated by
+`main`'s own progress and says nothing about whether the branch landed:
+
+- `chrome/band-refusal-badging` — its coverage work is on `main`
+  (`tree_badges.rs` carries
+  `a_band_refusal_reaches_the_whole_document_and_blames_no_row` and its
+  re-exec'd child), as is the `Measured 2026-09-15` section it wrote on
+  the Band row.
+- `chrome/bounds-honesty` — every row it worked is closed on `main`
+  (`bounds-reading-respells-the-panels-one-divide`,
+  `probe-bounds-lacks-driven-slot-guard`,
+  `display-budget-rows-restate-three-private-constants`).
+- `chrome/frame-arrows` — landed as PR 2856; both of Ev's arrow rows are
+  closed on `main` with that number on them.
+- `chrome/close-out` — superseded by the carve-out being spent
+  (`work/chrome/plan.md`, 2026-09-21), and its three findings all
+  reached `main` anyway, one of them re-homed to `work/meta/`.
+
+Nothing is owed to any of them.
+
+Signed (CHROME orchestrator).
