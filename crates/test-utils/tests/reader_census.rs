@@ -412,6 +412,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // pipeline census over its own source, code view
     },
     Entry {
+        path: "crates/viewer/src/widgets.rs",
+        disposition: Shared, // the helper roster and the message roster, code view
+    },
+    Entry {
         path: "crates/viewer/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
