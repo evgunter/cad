@@ -2555,6 +2555,16 @@ mod at_rest_policy_tests {
         certifying_arms_are_the_doors::<f64>();
     }
 
+    /// The symbolic tier over a certifying base, the arm
+    /// `QuadLane`'s and `RegionLane`'s wiring rows already carry and
+    /// this roster did not: `Sym<f64>` certifies, so it runs the
+    /// gates and holds the shell door, and a tier that silently
+    /// stopped handing the door out would otherwise red nothing here.
+    #[test]
+    fn sym_over_f64_gates_run_the_doors() {
+        certifying_arms_are_the_doors::<geom_core::Sym<f64>>();
+    }
+
     #[cfg(feature = "probe")]
     #[test]
     fn probe_gates_run_the_doors() {
