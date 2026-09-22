@@ -1124,3 +1124,110 @@ merged PR body.
 entry**: it was cut over an open lane, because the board cannot show a
 claim that has not merged. The remote check is one command and it is
 now written down.
+
+## 2026-09-22 — hand-over, and the whole rest of the slate dispatched
+
+A new orchestrator took VGEOM at the resting state the 2026-09-21 wave
+left: 9 open rows, load 18 of 30, nothing in flight. Ev's instruction
+at the hand-over was to take **the whole remaining slate**, parallelised
+as far as the machine's disk allows, and *"no AB protocol"* — which is
+this program's standing posture (plan.md §Review posture) reaffirmed a
+second time and not a new decision.
+
+### The resting state audited, and one stale branch
+
+`vgeom/pick-distance` is on the remote and is not an ancestor of main.
+It is **not unmerged work**: its one commit sets `status: dispatched`
+and `branch:` on the two `pickindex.rs` rows, and both rows are
+`closed` on main — that lane was stood down and its work absorbed into
+`vgeom/p0-fields` (#3007, `c316be7e`). The branch is superseded and
+nothing is owed to it. Every other `vgeom/*` branch is an ancestor of
+main; `work.py lint` is green; no open vgeom PR and no open `needs_ev`.
+
+Recorded because a claim-only branch left behind by a stood-down lane
+reads exactly like lost work to the next reader, and cost this sitting
+a check. A lane that stands down should push its claim commit's
+reversal or say in the log that the branch is dead.
+
+### A ratification checked, and it was not there
+
+`a-fields-text-commits-within-the-renders-own-tolerance`'s disposition
+said its remaining half *"changes `readout`'s own **ratified** accuracy
+rule, so it is a design question and not a lane's to answer."* Run
+against the tree per CLAUDE.md's *check that Ev ever agreed*:
+`REL_TOLERANCE` appears in `crates/viewer/src/readout.rs` and nowhere
+else — not in `docs/DESIGN.md`, not in `crates/viewer/GUI-DESIGN.md`
+(the ratified GUI page, whose only tolerance clause is the chordal one),
+not in `crates/viewer/README.md`. It is the module's own doc argument,
+landed inside an ordinary unit PR. **The row's block was weaker than
+the row claimed**, and the word is corrected by the unit that takes it.
+
+### Two questions put to Ev at the hand-over, both answered in chat
+
+**The creation-form parser** (`creation-form-fields-lost-two-spellings-egui-accepted`)
+— ruled option 1, leave it; the ruling and its reading are on the row,
+which is **closed**. #3007's disclosed cost is now a decision rather
+than an outstanding debt.
+
+**The render grid** — Ev asked why the bound is `5e-4` rather than
+something that scales with ε, recalling a rounding *"like eps/10 for
+display"*. The recollection is exact and the rule is in the tree:
+`crates/profile/src/path.rs`'s `num` reads
+`(DEFAULT_EPS * 0.1).min(x.abs() * 1e-9)` — a cap one decade below ε
+met with a relative arm, finer winning — behind 38 refusal-sentence
+call sites, landed by FIX #2399. Its doc argues the point directly: ε
+is a LENGTH, so a purely relative rule crosses it at one metre and is
+coarser above, and the cap is what guarantees that a difference the
+kernel can decide is a difference the sentence spells.
+
+`readout`'s `5e-4` is derived from no such thing. Its own doc derives
+it from a **field width** — `MAX_CHARS = 10`, ten characters buy four
+significant figures, four figures' worst case is half a unit in the
+fourth. ε is `1e-9` m = `1e-6` mm, so the viewer's grid is about 500×
+coarser than the kernel's at millimetre scale, and `number(1000.001)`
+returns `"1000"`. **Nobody chose that against the model; it fell out of
+a box.** The unit takes `num`'s grid, and `readout`'s own sentence is
+the warrant — *"a box narrower than this clips … that is the box's
+number to meet, not this one's to lower"* — applied to the tolerance
+rather than only to the width.
+
+### The wave — four lanes, seven rows, dispatched together
+
+Sized on the machine rather than on taste: a `viewer --features app`
+target dir measures **3.6 G** and the session has ~28 G, so four
+concurrent lanes with their own worktrees and their own
+`CARGO_TARGET_DIR`s is the ceiling, not a preference.
+
+| unit | rows | the one question |
+|---|---|---|
+| `vgeom/render-grid` | `a-fields-text-commits-within-the-renders-own-tolerance` (P0) | `readout.rs`: what accuracy a render owes, answered from ε rather than from a box |
+| `vgeom/field-product` | `a-field-bound-to-a-written-value-shows-a-product-that-overflowed` (P1), `a-bare-field-still-commits-its-own-render` (P2), `a-typed-field-hands-its-text-over-on-two-frames` | `widgets.rs`, `props.rs`, `pane/properties.rs`: three residues of the `number_field` door |
+| `vgeom/camera-band` | `camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite` (P1) | `camera.rs`: a door that guards its input and not the product it derives |
+| `vgeom/seam-refusals` | `the-display-seams-refusal-is-drawn-and-never-said` (P2), `the-overlay-lanes-drop-the-leg-disposition-has-no-row` (P3) | `marks.rs`, `pane/viewport.rs`, `narrowing.rs`: the one f32-seam disposition asserted by nothing and said to nobody |
+
+**The one seam inside the wave is declared rather than fenced.**
+`render-grid` changes what `readout::number` spells and `field-product`
+holds `widgets.rs`, whose `number_text` calls it. Both briefs carry it:
+`readout.rs` is out of `field-product`'s fence, `widgets.rs` is out of
+`render-grid`'s, `field-product` may assert no literal spelling that
+the grid moves, and `render-grid` merges first.
+
+**Why `field-product` carries three rows and not two.** The unbanded
+`a-typed-field-hands-its-text-over-on-two-frames` is the same file and
+the same door — its fix extends `number_field`'s parse closure, which
+is where the echo guard already lives. Split off, it would be a second
+lane editing one function. Banded P2/D by the lane.
+
+### Parked, and why it is not a lane
+
+`a-count-slots-cast-still-saturates-for-a-finite-value-too-large` is
+**parked on `work/wire/need-count-spells-every-failure-as-a-pattern-count`**.
+The 2026-09-21 re-derivation had already settled the fork's answer — a
+door in `editor-core`, not a viewer-side refusal — and what this
+sitting adds is that VGEOM may not write it and has no half that lands
+alone: refusing instead of saturating needs a word, and there is none
+the viewer may raise. Announced on WIRE's log rather than left to be
+found. That is the one row of the nine this program cannot take, and
+it is parked on a trigger that can fire rather than deferred.
+
+**Slate after this sitting: 9 open → 7 dispatched, 1 closed, 1 parked.**
