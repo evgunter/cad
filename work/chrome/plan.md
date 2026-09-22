@@ -192,14 +192,34 @@ a second place for its premises to rot.
   red on `main` at `1e-6` that one CI step's missing `CAD_TOLERANCE_EPS`
   hides.
 
-**The live-ground map each dispatch carried**, which is the per-wave read
-this section promises rather than a clause: `app.rs`, `session.rs`,
-`session/*`, `pane/create.rs`, `pane/properties.rs`, `combine.rs`,
-`drafts.rs`, `forms.rs`, `seats.rs` and `tools.rs` are in open PRs 3052,
-2960 and 2961 today; `crates/viewer/tests/*` is largely in 2929. Clear:
-`widgets.rs`, `frame.rs`, `tree.rs`, `pane/profile.rs`, `pane/view.rs`,
-`pane/viewport.rs`, `pane/features.rs`, `theme.rs`, `pane.rs`. The three
-lanes were also fenced off each other's files.
+**The live-ground map each dispatch carried, and the fact that it was
+partly WRONG.** `plan.md`'s territory section promises a per-wave read
+of who is live rather than a file list, and this was the first wave to
+owe one. I built it from `git diff --name-only origin/main...origin/<branch>`
+per open PR — and a **three-dot diff takes the merge base**, which for a
+week-stale branch is far behind `main`, so `main`'s own changes to a file
+are attributed to the branch. The map therefore named files as live that
+were not, and missed at least one that was.
+
+Measured, after PR 3055's reviewer caught it: **#2929 does not touch
+`crates/viewer/tests/tree_badges.rs` at all** — its diff is 40 files and
+that is not among them; its branch merely carries pre-`main` content
+there. **#2934 (`msolve/9-from-face`) touches both that file AND
+`crates/viewer/src/tree.rs`**, and `tree.rs` is what I told the lane was
+clear ground and is where its whole change lives.
+
+**The authoritative source is the PR's own file list**, which GitHub
+computes against the real merge base; `git merge-base` is not a
+sufficient substitute, because a branch that has merged `main` has
+several merge bases and `git` picks one. `git merge-tree --write-tree A B`
+answers the question that actually matters — will these two conflict —
+and is what this program should use from here.
+
+This is the same root cause as
+`work/meta/territory-base-main-is-stale-in-every-agent-checkout`, filed
+this sitting from the other direction: a stale base ref silently
+answering a question about the wrong tree. Two independent instances in
+one wave, one of which reached a merged artifact.
 
 **Held back, and why.**
 `at-rest-badge-reports-an-empty-document-as-a-refusal` is the next row

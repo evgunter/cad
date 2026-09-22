@@ -1717,3 +1717,43 @@ split is a sitting's work and it is the one I would spend the next
 sitting on.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-22 — the live-ground map I handed Wave 2 was built wrong
+
+PR 3055's style reviewer found that its seam announcement named the
+wrong PR. It did, and the error was mine rather than the lane's: the
+lane announced the seam the dispatch gave it.
+
+**How.** I built the map with
+`git diff --name-only origin/main...origin/<branch>` per open PR. A
+three-dot diff is taken from the MERGE BASE, and for a branch a week
+stale that base is far behind `main` — so every file `main` itself
+changed since then is attributed to the branch. The map named files as
+live that were not, and missed at least one that was.
+
+Measured after the fact: **#2929 does not touch
+`crates/viewer/tests/tree_badges.rs`** — its diff is 40 files and that
+is not among them, and its branch differs there only by carrying
+pre-`main` content. **#2934 touches that file AND
+`crates/viewer/src/tree.rs`**, and `tree.rs` is what I told the lane was
+clear ground and is where its entire change lives.
+
+**What to use instead.** The PR's own file list from the API, which
+GitHub computes against the real merge base. `git merge-base` is not a
+sufficient substitute: a branch that has merged `main` has SEVERAL merge
+bases and `git` picks one, which is why a corrected re-derivation on
+this same map still disagreed with the API about #2929. For the question
+that actually matters — will these two conflict —
+`git merge-tree --write-tree A B` answers it directly and cheaply, and
+is what this program should use from here.
+
+**The same root cause reached this sitting twice, from opposite
+directions**, which is why it is a log entry and not just a fix. The
+other instance is `work.py territory --base main` answering against a
+local ref 981 commits stale, filed as
+`work/meta/territory-base-main-is-stale-in-every-agent-checkout` — found
+independently by two of the three Wave 2 lanes. A stale base ref does
+not fail; it answers confidently about the wrong tree. One instance
+reached a merged artifact before a reader caught it.
+
+Signed (CHROME orchestrator).
