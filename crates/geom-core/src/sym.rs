@@ -2288,6 +2288,30 @@ pub fn with_session_memo<R>(
     )
 }
 
+/// [`with_session_memo`] with a RETRY LADDER installed beside the
+/// drive's plain memo — the door a DRIVE uses, and the only one that
+/// takes both.
+///
+/// **The memo is unaffected by the ladder and the check above does not
+/// widen.** A drive memo holds PLAIN forms and the plain rung is never
+/// retried ([`SymRetry`]), so a form it serves is the form this leaf
+/// would build at any ladder; what a retry builds lives in the
+/// session's own retry tables and is dropped with the leaf.
+pub fn with_session_memo_retry<R>(
+    budget: SymBudget,
+    rules: SymRules,
+    retry: SymRetry,
+    memo: &Arc<DriveMemo>,
+    f: impl FnOnce() -> R,
+) -> (R, SymCounts) {
+    let accepts = memo.accepts(budget, rules);
+    debug_assert!(
+        accepts,
+        "a drive memo is valid for the budget and rules it was made for"
+    );
+    with_session_in(budget, rules, retry, accepts.then(|| Arc::clone(memo)), f)
+}
+
 fn with_session_in<R>(
     budget: SymBudget,
     rules: SymRules,
@@ -4201,6 +4225,142 @@ mod tests {
 
     fn decides_zero(m: Sym<f64>) -> bool {
         crate::k_stats::decide("sym_test", Margin::of(m), band()) == Ok(Sign::Zero)
+    }
+
+    /// **A pair of spellings of one constant whose product the shipped
+    /// ring REFUSES and a 512-bit ring does not.** Each factor is
+    /// `1/3`'s `f64`, a 53-bit odd mantissa; six of them multiply to
+    /// 318 bits, so `COEFF_BITS` refuses the fifth product on the left
+    /// and the one product on the right, and both nodes freeze into
+    /// indeterminates of their own — two different ones, because their
+    /// content hashes differ.
+    fn two_spellings_past_the_ring() -> Sym<f64> {
+        let c = || Sym::<f64>::from_f64(1.0 / 3.0);
+        let six = c() * c() * c() * c() * c() * c();
+        let cubed = c() * c() * c();
+        six - cubed * cubed
+    }
+
+    /// The kept-atom mask that shuts rule A and the whole of rule G —
+    /// the shipped ladder's one attempt (`drive::DEFAULT_SYM_RETRY`).
+    fn kept_atom() -> SymRetry {
+        SymRetry {
+            bits: None,
+            without: Some(SymRules {
+                sqrt_square: false,
+                canonical_root: false,
+                ..SymRules::all()
+            }),
+        }
+    }
+
+    #[test]
+    fn a_wider_ring_retry_closes_what_the_first_attempts_ring_refused() {
+        // The two spellings have the same `f64` value, so the NUMERIC
+        // channel answers `Zero` inside the band either way and the
+        // answer alone says nothing: what the row reads is the RECEIPT,
+        // which is where a theorem and a measurement are told apart.
+        let (_, first) = with_session(budget(), || decides_zero(two_spellings_past_the_ring()));
+        assert_eq!(
+            first.numeric, 1,
+            "at COEFF_BITS both spellings freeze into indeterminates of their own, the \
+             difference is not the zero form, and the decision falls to the numeric channel"
+        );
+        assert_eq!(first.symbolic_zero, 0);
+        assert_eq!(first.retried, 0, "no ladder is installed");
+
+        let retry = SymRetry {
+            bits: Some(512),
+            without: None,
+        };
+        let (_, with_ladder) = with_session_retry(budget(), SymRules::shipped(), retry, || {
+            decides_zero(two_spellings_past_the_ring())
+        });
+        assert_eq!(
+            with_ladder.symbolic_zero, 1,
+            "at 512 bits both products fit, both spellings are one constant and the \
+             difference is the zero polynomial — the same identity of reals either way, so \
+             a retry's theorem is a theorem and lands in the column the first attempt's would"
+        );
+        assert_eq!(
+            with_ladder.retried, 1,
+            "and `retried` says the ladder is what carried it"
+        );
+        assert_eq!(with_ladder.numeric, 0);
+    }
+
+    /// **THE NEGATIVE ROW**: a decision the first attempt refuses AND
+    /// every retry refuses stays numeric, and the receipt shows the
+    /// attempts were made rather than passing over them.
+    #[test]
+    fn a_decision_every_attempt_refuses_stays_numeric() {
+        // 318 bits is past 256 and past 300; the ladder's ring retry is
+        // offered and declines, and the kept-atom retry cannot reach a
+        // constant product at all.
+        let retry = SymRetry {
+            bits: Some(300),
+            without: kept_atom().without,
+        };
+        let (_, counts) = with_session_retry(budget(), SymRules::shipped(), retry, || {
+            decides_zero(two_spellings_past_the_ring())
+        });
+        assert_eq!(
+            counts.numeric, 1,
+            "neither attempt reaches it — 318 bits is past both bounds — so it stays numeric"
+        );
+        assert_eq!(counts.symbolic_zero, 0);
+        assert_eq!(
+            counts.retried, 0,
+            "`retried` counts decisions a retry CLOSED, so a refused ladder leaves it at zero"
+        );
+    }
+
+    /// **A retry never re-labels what the first attempt proved.** The
+    /// same margin, decided with the ladder and without it, is the same
+    /// discharge in the same column — the ladder is asked only into the
+    /// first attempt's silence, so a plain theorem is never re-asked.
+    #[test]
+    fn the_ladder_leaves_the_first_attempts_answers_exactly_as_they_were() {
+        let margin = || {
+            let x = p("w", 0.37);
+            let a = x + Sym::from_f64(2.0) * x;
+            let b = Sym::from_f64(3.0) * x;
+            decides_zero(a - b)
+        };
+        let (plain, without) = with_session(budget(), margin);
+        let (laddered, with_ladder) =
+            with_session_retry(budget(), SymRules::shipped(), kept_atom(), margin);
+        assert!(plain && laddered);
+        assert_eq!(
+            without.symbolic_zero, with_ladder.symbolic_zero,
+            "a plain theorem is the plain rung's on both runs"
+        );
+        assert_eq!(
+            with_ladder.retried, 0,
+            "the ladder was never entered, so it carried nothing"
+        );
+    }
+
+    /// **A mask is a field-by-field AND**, so a retry can only ever run
+    /// FEWER rules than the session — never a rule the session shut.
+    #[test]
+    fn a_retry_mask_can_only_take_rules_away() {
+        let shut = SymRules::none();
+        for mask in [SymRules::all(), SymRules::shipped(), SymRules::none()] {
+            assert_eq!(
+                shut.masked_by(mask),
+                shut,
+                "no mask turns a rule ON that the session has off"
+            );
+        }
+        let all = SymRules::all();
+        assert_eq!(all.masked_by(SymRules::all()), all);
+        assert_eq!(all.masked_by(SymRules::none()), SymRules::none());
+        assert_eq!(
+            SymRules::shipped().masked_by(SymRules::all()),
+            SymRules::shipped(),
+            "an all-true mask is the identity"
+        );
     }
 
     #[test]

@@ -2392,8 +2392,15 @@ pub(crate) mod leaf {
         /// Plain `Interval`, the pre-E12 replay.
         Numeric,
         /// `Sym<Interval>` inside a fresh session at this budget, with
-        /// these atom-algebra rules.
-        Symbolic(geom_core::SymBudget, geom_core::SymRules),
+        /// these atom-algebra rules and this retry ladder
+        /// (`geom_core::SymRetry`) — the three dials
+        /// `drive::SymbolicDials` carries, so a leaf read back here
+        /// runs the tier the drive certified at and not a narrower one.
+        Symbolic(
+            geom_core::SymBudget,
+            geom_core::SymRules,
+            geom_core::SymRetry,
+        ),
     }
 
     /// A shared memo prior over the nominal box, for the numeric lane.
@@ -2498,8 +2505,8 @@ pub(crate) mod leaf {
                     evaluate(doc, prior, &CancelToken::new(), opts, tol);
                 read_leaf(&ev, want, |v| v)
             }
-            LeafLane::Symbolic(budget, rules) => {
-                let (out, _) = geom_core::sym::with_session_rules(budget, rules, || {
+            LeafLane::Symbolic(budget, rules, retry) => {
+                let (out, _) = geom_core::sym::with_session_retry(budget, rules, retry, || {
                     let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
                         evaluate(doc, None, &CancelToken::new(), opts, tol);
                     read_leaf(&ev, want, |v: geom_core::Sym<geom_core::Interval>| v.value)

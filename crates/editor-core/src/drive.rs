@@ -282,6 +282,17 @@ pub struct SymbolicDials {
     /// document is a measurement taken through this dial rather than
     /// an assumption.
     pub rules: geom_core::SymRules,
+    /// **The RETRY LADDER a refused decision may take**
+    /// ([`geom_core::SymRetry`]): the shipped ladder by default
+    /// ([`DEFAULT_SYM_RETRY`], chosen by measurement), and
+    /// [`geom_core::SymRetry::none`] is the tier making one attempt per
+    /// rung — exactly as it stood before SYM-9 — so what the ladder
+    /// buys a document is a differential taken through this dial.
+    ///
+    /// It can only ADD: a retry is asked only where every rung of the
+    /// first attempt declined, so no dial value here moves a decision
+    /// out of `symbolic_zero`, `sign_gated` or `registered`.
+    pub retry: geom_core::SymRetry,
 }
 
 /// The shipped term budget ([`SymbolicDials`]).
@@ -289,6 +300,38 @@ pub const DEFAULT_SYM_MAX_TERMS: usize = 4096;
 
 /// The shipped degree budget ([`SymbolicDials`]).
 pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
+
+/// **The shipped RETRY LADDER** ([`SymbolicDials::retry`]): one
+/// kept-atom attempt, with rule A's `sqrt(X)² = X` and the whole of
+/// rule G shut, and NO wider-ring attempt.
+///
+/// **Chosen by SYM-9's Phase 1 measurement, per shape, on the six
+/// documents** (the unit's PR carries the tables). What it recovers,
+/// at the nominal, against the same replay with the ladder off:
+///
+/// | document | recovered | the replay's cost |
+/// | --- | --- | --- |
+/// | two-hole plate, R1's annulus, R1's segment boss | none — no decision the tier is ASKED refuses at all on the first two | ~1.0x |
+/// | R2's filleted bracket | 6, all of them rule A's | 1.06x |
+/// | R2's link | 12, all of them rule G's — the ten `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` records as lost, and two of `witness_on_surface_2` | 1.11x |
+///
+/// **The wider ring is measured and NOT shipped**, which is the answer
+/// this unit owes `work/sym/coefficient-ring-width-is-not-monotone-in-reach`:
+/// a 512-bit retry recovers a strict subset of the above — six of the
+/// bracket's six and eight of the link's twelve — and costs 4.22x on
+/// the bracket against rule A's 1.06x for the same six decisions. At
+/// 1024 bits it reaches four the kept atom does not, at 11.26x. So the
+/// ring's width buys nothing on a measured document that keeping an
+/// atom closed does not buy more cheaply, and it stays a dial with its
+/// numbers rather than a default.
+pub const DEFAULT_SYM_RETRY: geom_core::SymRetry = geom_core::SymRetry {
+    bits: None,
+    without: Some(geom_core::SymRules {
+        sqrt_square: false,
+        canonical_root: false,
+        ..geom_core::SymRules::all()
+    }),
+};
 
 impl SymbolicDials {
     /// The tier off — the numeric-only replay, bit for bit.
@@ -308,11 +351,16 @@ impl SymbolicDials {
         }
     }
 
+    /// The retry ladder as the scalar's own type.
+    fn retry(self) -> geom_core::SymRetry {
+        self.retry
+    }
+
     /// The replay lane these dials name — the currency every
     /// certified-leaf consumer takes ([`crate::eval::LeafLane`]).
     pub(crate) fn lane(self) -> crate::eval::LeafLane {
         if self.enabled {
-            crate::eval::LeafLane::Symbolic(self.budget(), self.rules)
+            crate::eval::LeafLane::Symbolic(self.budget(), self.rules, self.retry())
         } else {
             crate::eval::LeafLane::Numeric
         }
@@ -327,6 +375,8 @@ impl Default for SymbolicDials {
             max_degree: DEFAULT_SYM_MAX_DEGREE,
             // The shipped atom-algebra set ([`geom_core::SymRules::shipped`]).
             rules: geom_core::SymRules::default(),
+            // The shipped retry ladder ([`DEFAULT_SYM_RETRY`]).
+            retry: DEFAULT_SYM_RETRY,
         }
     }
 }
@@ -1475,12 +1525,17 @@ fn classify(
         ..lane_opts()
     };
     if symbolic.enabled {
-        let (leaf, counts) =
-            sym::with_session_memo(symbolic.budget(), symbolic.rules, memo, || {
+        let (leaf, counts) = sym::with_session_memo_retry(
+            symbolic.budget(),
+            symbolic.rules,
+            symbolic.retry(),
+            memo,
+            || {
                 let leaf: Evaluation<Sym<Interval>> =
                     evaluate(doc, None, &CancelToken::new(), &opts, tol);
                 leaf
-            });
+            },
+        );
         return (
             classify_replay(
                 doc,
@@ -1871,11 +1926,16 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // driver's own population. Running it at bare `Probe` would report a
     // population the driver did not produce.
     if symbolic.enabled {
-        let _ = geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
-            let ev: Evaluation<Sym<geom_core::Probe>> =
-                evaluate(doc, None, &CancelToken::new(), &opts, tol);
-            ev
-        });
+        let _ = geom_core::sym::with_session_retry(
+            symbolic.budget(),
+            symbolic.rules,
+            symbolic.retry(),
+            || {
+                let ev: Evaluation<Sym<geom_core::Probe>> =
+                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                ev
+            },
+        );
         return;
     }
     let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);

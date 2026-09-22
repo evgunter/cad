@@ -88,6 +88,31 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
         ("no_rule_e", without(|m| m.common_factor = false)),
         ("no_rule_f", without(|m| m.manifest_sign = false)),
         ("no_rule_g", without(|m| m.canonical_root = false)),
+        // **The two that recover, together** — rule A off (the
+        // bracket's six) and rule G off (the link's twelve) in ONE
+        // kept-atom attempt, which is what a shipped ladder can spell:
+        // `SymRetry::without` is one mask, so a ladder that wants both
+        // shuts both on the same attempt.
+        (
+            "no_rule_a_g",
+            without(|m| {
+                m.sqrt_square = false;
+                m.canonical_root = false;
+            }),
+        ),
+        // The full ladder: the kept atom first, then the wider ring
+        // into what is left.
+        (
+            "ladder_ag_then_512",
+            SymRetry {
+                bits: Some(512),
+                without: Some(SymRules {
+                    sqrt_square: false,
+                    canonical_root: false,
+                    ..SymRules::all()
+                }),
+            },
+        ),
     ]
 }
 
