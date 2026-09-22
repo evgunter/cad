@@ -310,3 +310,21 @@ from the unit: `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
 DECIDE-B1 slot 1). The SYM-12/DECIDE-3 seam
 (`work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`)
 is the `props/sign-hull` merge's.
+
+## SYM-9 dispatched (2026-09-22): the retry ladder — block DECIDE-B1 slot 1
+
+SYM-9's spec (on `main` since #2602, 2026-09-14) gains its A1
+amendment at dispatch: DECIDE-3 landed on `props/sign-hull` and the
+retry is over the atoms rule G re-keys, so the branch
+`sym/9-retry-ladder` is cut from that branch's head (`cd14d4fd9`) with
+no further `main` merged (the SYM-12/DECIDE-3 seam is the
+`props/sign-hull` merge's own measurement); the PR targets
+`props/sign-hull`; the six documents' base numbers are DECIDE-3's; the
+link row `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` is
+Phase 1's first table and the kept-atom retry's measured instance
+(the provenance remedy rejected with its numbers; the residual render
+still owed); the read-cost row rides as far as Phase 1's cost table.
+Arm OPUS per the block's draw (byte 248 ⇒ fable at slot 2); v7 IN, the
+full v6 dual, the review ordinal claimed on `main` at the dual's
+dispatch (DECIDE's band, 8601 expected). Brief
+`/home/user/sym-briefs/unit-9-brief.md`, sha256 in its sidecar.
