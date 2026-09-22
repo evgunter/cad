@@ -1172,3 +1172,50 @@ review, no draw, no ordinal, no row. Lane `/home/user/lanes/sym-14`,
 branch `sym/14-chain-demo`, cut from the spec commit; the seams
 announced to CIW (`demos/render-mc.sh`) and PROPS (the analysis lane,
 read only) in the PR. Runs beside SYM-13's fix pass.
+
+
+## SYM-14 implemented (2026-09-22): the chain disperses, and the certified lane reaches its tip
+
+**Phase 1.** `demos/tour/src/chain.rs` authors the document once (four
+12 mm bars, a joint pin at each end, a fixed target pin at the nominal
+tip); `mcchain.rs` replays 512 draws and draws the fan;
+`demos/renders-mc/chain-density.svg` is published and `render-mc.sh`
+now takes a list of sheets. The placement door is `Node::Transform`
+nested over the downstream sub-chain — joint `k`'s node BELOW joint
+`k−1`'s, so "joint `j` moves links `j..4`" is a property of the graph
+and not of four hand-written partial sums; the `Datum::Frame`
+alternative was declined because a frame's axes are orthonormalised at
+evaluation and on intervals `cos² + sin²` is not 1, which is a `sqrt`
+and two divides per link on top of the study. Straight nominal, one
+Normal law at σ = 0.01 rad at every joint. Measured lateral σ at the
+four pins: 0.1209, 0.2760, 0.4731, 0.6954 mm — `1 : 2.28 : 3.91 : 5.75`
+against the accumulation law's `1 : 2.24 : 3.74 : 5.48`. The plate's
+sheet is byte-identical.
+
+**Phase 2, and the row it answers.** A widened rotation angle is now
+measured. The plain `Interval` lane does not carry one AT ALL, at any
+link count: `transform_rigid_col0_unit` refuses at the first transform
+because `cos² + sin²` is a bracket around 1. `Sym<Interval>` discharges
+exactly that and CERTIFIES the one-link chain whole over the study
+(0.16 s); at 2–4 links the wall MOVES, to a transversality margin
+during a mapped edge's re-certification (`dihedral_wedge`, poisoned, at
+2; `dihedral_arm` with `[0, 7.34e-3]` straddling the band at 3 and 4).
+Costs are 0.16–0.73 s per leaf, not the derived-frame family's minutes
+— the chain never touches a `FaceFrame`.
+
+**The certified picture exists.** The widest box that certifies the
+four-link chain WHOLE is `0.111` of the study (`CERTIFIABLE_FRACTION`,
+bisected), the drive over it certifies, and the tip assertion HOLDS on
+every certified leaf. So the enclosure per joint is drawn on the sheet
+beside the cloud: `0.0400, 0.1199, 0.2398, 0.3996` mm across the chain,
+growing `1 : 3 : 6 : 10` — the worst-case lever sum — against the
+advisory σ's quadrature `1 : 2.24 : 3.74 : 5.48`. E11's trade in one
+picture, which the plate's sheet could not draw (`7.81e-7` of its
+study). `a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
+CLOSES on that.
+
+**Filed** (all P1, Ev's request carried):
+`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`,
+`a-two-joint-chain-poisons-its-transversality-margin`,
+`a-chain-of-three-joints-straddles-dihedral-arm`,
+`the-drivers-symbolic-dials-have-no-name-on-the-facade`.

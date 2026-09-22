@@ -849,6 +849,16 @@ the draws moved.
   end of it. The wide panel carries the whole chain at 19 px/mm with
   each joint's measured lateral range dimensioned on it; the tip panel
   is 48 px/mm on the target pin and the asserted 1 mm position band.
+* **The certified half is on the sheet, unlike the plate's.** The
+  widest box that certifies this chain whole is 0.111 of the study —
+  not `7.81e-7` — so the enclosure per joint is millimetre-scale and
+  DRAWS. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
+  across the chain (the worst-case lever sum, every joint at its own
+  extreme at once) while the advisory σ grows `1 : 2.24 : 3.74 : 5.48`
+  (the quadrature sum). E11's trade, in one picture. Along the chain
+  the enclosure is microns, so the box draws as a line and is widened
+  to a 5 px floor to be visible at all; the true number is in the
+  legend.
 
 ## Renderers
 

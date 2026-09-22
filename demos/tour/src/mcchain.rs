@@ -97,8 +97,8 @@ use pncad::geom_core::Tol;
 use pncad::topo::{Body, LoopBoundary};
 
 use crate::chain::{
-    CERTIFIABLE_FRACTION, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS, PIN_RADIUS,
-    POSITION_BOUND, chain,
+    CERTIFIABLE_FRACTION, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS,
+    PIN_RADIUS, POSITION_BOUND, chain,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -107,7 +107,7 @@ const MM: f64 = 1e3;
 // ---- the sheet's geometry, in px --------------------------------
 
 const SHEET_W: f64 = 1120.0;
-const SHEET_H: f64 = 900.0;
+const SHEET_H: f64 = 920.0;
 const WIDE_W: f64 = 1088.0;
 const WIDE_H: f64 = 230.0;
 const ZOOM_W_PX: f64 = 380.0;
@@ -116,7 +116,7 @@ const MARGIN_X: f64 = 16.0;
 const WIDE_Y: f64 = 148.0;
 const ZOOM_Y: f64 = WIDE_Y + WIDE_H + 60.0;
 /// Where the per-joint table's columns start, in px from the left.
-const COL_X: [f64; 6] = [0.0, 52.0, 128.0, 246.0, 408.0, 486.0];
+const COL_X: [f64; 7] = [0.0, 40.0, 104.0, 210.0, 352.0, 414.0, 480.0];
 
 /// The tip panel's window WIDTH, in metres: how much of the part the
 /// zoom shows, centred on the NOMINAL tip. Sized to hold the whole
@@ -127,6 +127,10 @@ const ZOOM_WINDOW: f64 = 8.0e-3;
 /// dozen times reads as grey and one it visits once is nearly
 /// invisible — a density, not a silhouette.
 const SAMPLE_ALPHA: f64 = 0.04;
+
+/// The floor width, in px, a certified box is drawn at — see
+/// `Panel::certified_box` for why it has one.
+const CERTIFIED_MIN_PX: f64 = 5.0;
 
 /// One sample, as the sheet needs it: the bars and pins the kernel
 /// built, and the tip position it measured.
@@ -371,6 +375,22 @@ pub fn narration(tol: Tol) -> String {
     }
 
     let spreads = spreads(&samples);
+    // **The claim the sheet is FOR, asserted.** A transform stack
+    // nested the other way round would put every joint's error on its
+    // own link only, and the fan would be the same width at every pin;
+    // this is the runtime value that would make that false.
+    for pair in spreads[1..].windows(2) {
+        assert!(
+            pair[1].sigma_y > pair[0].sigma_y,
+            "the dispersion must GROW down the chain — pin {} spreads {:e} m and pin {} \
+             spreads {:e} m, which is not more. A joint that moved only its own link \
+             would look exactly like this.",
+            pair[0].index + 1,
+            pair[0].sigma_y,
+            pair[1].index + 1,
+            pair[1].sigma_y
+        );
+    }
     println!(
         "   {} samples replayed from the MC lane's own draws (seed {:#x}); the drawn \
          population's tip-position mean, sigma, min and max equal `monte_carlo`'s BIT FOR \
@@ -672,6 +692,33 @@ impl Panel {
         );
     }
 
+    /// **The CERTIFIED enclosure at one joint**, over the widest box
+    /// that certifies whole — the other half of E11's trade, drawn to
+    /// the same scale as the cloud it sits beside.
+    ///
+    /// The along-the-chain half-width is microns (the reach barely
+    /// moves; the deviation is lateral), so at any scale this sheet
+    /// can carry, the box is a line. It is drawn at a floor width of
+    /// [`CERTIFIED_MIN_PX`] so that it is visible AS a box, and the
+    /// true number is in the table — a widened stroke that said
+    /// nothing about it would be the drawing lying about a
+    /// measurement.
+    fn certified_box(&self, out: &mut String, index: usize) {
+        let (dx, dy) = CERTIFIED_PIN_BOX[index];
+        if dy == 0.0 {
+            return;
+        }
+        let s = self.px_per_m();
+        let (x0, y0) = self.map(index as f64 * LINK_LENGTH - dx, dy);
+        let w = (2.0 * dx * s).max(CERTIFIED_MIN_PX);
+        let _ = writeln!(
+            out,
+            r##"<rect x="{:.2}" y="{y0:.2}" width="{w:.2}" height="{:.2}" fill="none" stroke="#0f766e" stroke-width="1.8"/>"##,
+            x0 - (w - 2.0 * dx * s).max(0.0) / 2.0,
+            2.0 * dy * s
+        );
+    }
+
     /// A scale bar, so a panel's zoom ratio is readable off the sheet
     /// rather than only stated in the caption.
     fn scale_bar(&self, out: &mut String, metres: f64, label: &str) {
@@ -787,6 +834,7 @@ fn sheet(
     wide.target(&mut out, POSITION_BOUND);
     for s in spreads.iter().skip(1) {
         wide.spread_dim(&mut out, s);
+        wide.certified_box(&mut out, s.index);
     }
     Panel::close(&mut out);
     wide.scale_bar(&mut out, 1.0e-2, "10 mm");
@@ -817,6 +865,7 @@ fn sheet(
     // The nominal PINS only: a twelve-millimetre bar on an
     // eight-millimetre window would draw as one edge across the panel.
     zoom.nominal(&mut out, false, LINKS);
+    zoom.certified_box(&mut out, LINKS);
     zoom.target(&mut out, POSITION_BOUND);
     Panel::close(&mut out);
     zoom.scale_bar(&mut out, 1.0e-3, "1 mm");
@@ -852,6 +901,7 @@ fn sheet(
         "measured range",
         "\u{00d7} pin 2",
         "law",
+        "CERTIFIED \u{00b1}",
     ];
     for (c, label) in head.iter().enumerate() {
         text(
@@ -875,6 +925,7 @@ fn sheet(
                 "{:.2}\u{00d7}",
                 ratio(predicted_sigma(s.index), predicted_sigma(1))
             ),
+            format!("{:.4} mm", CERTIFIED_PIN_BOX[s.index].1 * MM),
         ];
         for (c, cell) in row.iter().enumerate() {
             text(
@@ -954,10 +1005,11 @@ fn sheet(
         MARGIN_X,
         legend_y + 55.0,
         12.0,
-        "#1a1a1a",
-        "normal",
+        "#0f766e",
+        "bold",
         &format!(
-            "CERTIFIED: exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {CERTIFIABLE_FRACTION:e} of the study \u{2014} see the tour's chaintol cell.",
+            "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3} of the study.",
+            CERTIFIABLE_FRACTION
         ),
     );
     text(
@@ -965,10 +1017,22 @@ fn sheet(
         MARGIN_X,
         legend_y + 72.0,
         12.0,
+        "#0f766e",
+        "normal",
+        &format!(
+            "\u{2014} across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory \u{03c3} beside it grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum. Along the chain it is {:.1e} m at the tip, so the box draws as a line and is widened to {CERTIFIED_MIN_PX} px to be seen at all.",
+            CERTIFIED_PIN_BOX[LINKS].0
+        ),
+    );
+    text(
+        &mut out,
+        MARGIN_X,
+        legend_y + 89.0,
+        12.0,
         "#1a1a1a",
         "normal",
         &format!(
-            "ADVISORY: draws from the whole distribution, tail included. Its numbers summarize these {} chains \u{2014} which is what the panels are.",
+            "ADVISORY: draws from the WHOLE distribution, tail included, which is nine times the certified box. Its numbers summarize these {} chains \u{2014} which is what the panels are.",
             samples.len()
         ),
     );

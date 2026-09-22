@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="900" viewBox="0 0 1120 900">
-<rect width="1120" height="900" fill="#fbfbfb"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="920" viewBox="0 0 1120 920">
+<rect width="1120" height="920" fill="#fbfbfb"/>
 <text x="16.0" y="30.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="19" font-weight="bold" fill="#1a1a1a">the four-link chain: one joint error, four times, and where the tip ends up</text>
 <text x="16.0" y="50.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#444444">512 Monte-Carlo samples, seed 0x4d435f4531315f31  —  ADVISORY (E11.1): every number here is an estimate over draws, and none of it gates</text>
 <text x="16.0" y="70.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#444444">study: 4 links of 12 mm, each joint an independent normal at σ = 0.01 rad (0.57°)  —  tip asserted within 1.00 mm of the target</text>
@@ -7198,18 +7198,22 @@
 <line x1="321.9" y1="254.3" x2="331.9" y2="254.3" stroke="#7c2d92" stroke-width="1.2"/>
 <line x1="321.9" y1="270.7" x2="331.9" y2="270.7" stroke="#7c2d92" stroke-width="1.2"/>
 <text x="296.9" y="168.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="11.5" font-weight="bold" fill="#7c2d92">σ 0.121 mm</text>
+<rect x="324.36" y="262.22" width="5.00" height="1.55" fill="none" stroke="#0f766e" stroke-width="1.8"/>
 <line x1="560.0" y1="244.5" x2="560.0" y2="278.7" stroke="#7c2d92" stroke-width="1.2"/>
 <line x1="555.0" y1="244.5" x2="565.0" y2="244.5" stroke="#7c2d92" stroke-width="1.2"/>
 <line x1="555.0" y1="278.7" x2="565.0" y2="278.7" stroke="#7c2d92" stroke-width="1.2"/>
 <text x="530.0" y="168.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="11.5" font-weight="bold" fill="#7c2d92">σ 0.276 mm</text>
+<rect x="557.50" y="260.67" width="5.00" height="4.66" fill="none" stroke="#0f766e" stroke-width="1.8"/>
 <line x1="793.1" y1="234.7" x2="793.1" y2="292.3" stroke="#7c2d92" stroke-width="1.2"/>
 <line x1="788.1" y1="234.7" x2="798.1" y2="234.7" stroke="#7c2d92" stroke-width="1.2"/>
 <line x1="788.1" y1="292.3" x2="798.1" y2="292.3" stroke="#7c2d92" stroke-width="1.2"/>
 <text x="763.1" y="168.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="11.5" font-weight="bold" fill="#7c2d92">σ 0.473 mm</text>
+<rect x="790.64" y="258.34" width="5.00" height="9.32" fill="none" stroke="#0f766e" stroke-width="1.8"/>
 <line x1="1026.3" y1="221.8" x2="1026.3" y2="311.0" stroke="#7c2d92" stroke-width="1.2"/>
 <line x1="1021.3" y1="221.8" x2="1031.3" y2="221.8" stroke="#7c2d92" stroke-width="1.2"/>
 <line x1="1021.3" y1="311.0" x2="1031.3" y2="311.0" stroke="#7c2d92" stroke-width="1.2"/>
 <text x="996.3" y="168.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="11.5" font-weight="bold" fill="#7c2d92">σ 0.695 mm</text>
+<rect x="1023.79" y="255.24" width="5.00" height="15.53" fill="none" stroke="#0f766e" stroke-width="1.8"/>
 </g>
 <line x1="30.0" y1="362.0" x2="224.3" y2="362.0" stroke="#1a1a1a" stroke-width="2"/>
 <text x="30.0" y="356.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="11" font-weight="normal" fill="#1a1a1a">10 mm</text>
@@ -8251,6 +8255,7 @@
 <circle cx="-934.000" cy="608.000" r="38.000" fill="none" stroke="#c2410c" stroke-width="1.1" stroke-dasharray="4 3"/>
 <circle cx="-364.000" cy="608.000" r="38.000" fill="none" stroke="#c2410c" stroke-width="1.1" stroke-dasharray="4 3"/>
 <circle cx="206.000" cy="608.000" r="38.000" fill="none" stroke="#c2410c" stroke-width="1.1" stroke-dasharray="4 3"/>
+<rect x="203.50" y="589.02" width="5.00" height="37.96" fill="none" stroke="#0f766e" stroke-width="1.8"/>
 <circle cx="206.000" cy="608.000" r="38.000" fill="none" stroke="#15803d" stroke-width="1.6"/>
 <circle cx="206.000" cy="608.000" r="47.500" fill="none" stroke="#15803d" stroke-width="1.2" stroke-dasharray="6 4"/>
 </g>
@@ -8259,40 +8264,46 @@
 <text x="436.0" y="442.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="14" font-weight="bold" fill="#1a1a1a">the dispersion down the chain, measured against the accumulation law</text>
 <text x="436.0" y="464.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#555555">joint j turns links j..4, so pin k carries (k−j) link lengths of lever from joint j — the quadrature sum below</text>
 <text x="436.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">pin</text>
-<text x="488.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">x</text>
-<text x="564.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">lateral σ</text>
-<text x="682.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">measured range</text>
-<text x="844.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">× pin 2</text>
-<text x="922.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">law</text>
+<text x="476.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">x</text>
+<text x="540.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">lateral σ</text>
+<text x="646.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">measured range</text>
+<text x="788.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">× pin 2</text>
+<text x="850.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">law</text>
+<text x="916.0" y="492.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#555555">CERTIFIED ±</text>
 <text x="436.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">2</text>
-<text x="488.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">12 mm</text>
-<text x="564.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.1209 mm</text>
-<text x="682.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">[-0.398, +0.447] mm</text>
-<text x="844.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">1.00×</text>
-<text x="922.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">1.00×</text>
+<text x="476.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">12 mm</text>
+<text x="540.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.1209 mm</text>
+<text x="646.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">[-0.398, +0.447] mm</text>
+<text x="788.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">1.00×</text>
+<text x="850.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">1.00×</text>
+<text x="916.0" y="516.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.0400 mm</text>
 <text x="436.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">3</text>
-<text x="488.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">24 mm</text>
-<text x="564.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.2760 mm</text>
-<text x="682.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">[-0.810, +0.950] mm</text>
-<text x="844.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">2.28×</text>
-<text x="922.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">2.24×</text>
+<text x="476.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">24 mm</text>
+<text x="540.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.2760 mm</text>
+<text x="646.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">[-0.810, +0.950] mm</text>
+<text x="788.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">2.28×</text>
+<text x="850.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">2.24×</text>
+<text x="916.0" y="538.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.1199 mm</text>
 <text x="436.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">4</text>
-<text x="488.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">36 mm</text>
-<text x="564.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.4731 mm</text>
-<text x="682.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">[-1.509, +1.456] mm</text>
-<text x="844.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">3.91×</text>
-<text x="922.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">3.74×</text>
+<text x="476.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">36 mm</text>
+<text x="540.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.4731 mm</text>
+<text x="646.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">[-1.509, +1.456] mm</text>
+<text x="788.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">3.91×</text>
+<text x="850.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">3.74×</text>
+<text x="916.0" y="560.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.2398 mm</text>
 <text x="436.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">5</text>
-<text x="488.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">48 mm</text>
-<text x="564.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.6954 mm</text>
-<text x="682.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">[-2.472, +2.118] mm</text>
-<text x="844.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">5.75×</text>
-<text x="922.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">5.48×</text>
+<text x="476.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">48 mm</text>
+<text x="540.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.6954 mm</text>
+<text x="646.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">[-2.472, +2.118] mm</text>
+<text x="788.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">5.75×</text>
+<text x="850.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">5.48×</text>
+<text x="916.0" y="582.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">0.3996 mm</text>
 <text x="436.0" y="632.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">tip against the target: mean 0.5545 mm, σ 0.4193 mm, worst 2.4727 mm</text>
 <text x="436.0" y="652.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">advisory yield against the 1.00 mm band: 444 of 512 hold, 68 violate</text>
 <text x="16.0" y="804.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#1f4e9c">blue: one outline per sample per link, at 0.04 opacity — each walked off the cap face of the body that sample built</text>
 <text x="16.0" y="821.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#7c2d92">purple: the joint pins, each a Surface::Cylinder read off that body, with its axis point as a dot; the bars are the measured lateral ranges</text>
 <text x="16.0" y="838.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#c2410c">dashed orange: the nominal chain, every joint at zero.   dashed green: the target pin and the asserted position band</text>
-<text x="16.0" y="859.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">CERTIFIED: exact over a box, and silent outside it. The widest box that certifies THIS chain whole is 0e0 of the study — see the tour's chaintol cell.</text>
-<text x="16.0" y="876.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">ADVISORY: draws from the whole distribution, tail included. Its numbers summarize these 512 chains — which is what the panels are.</text>
+<text x="16.0" y="859.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="bold" fill="#0f766e">teal: the CERTIFIED enclosure per joint — exact over a box, and silent outside it. The widest box that certifies THIS chain whole is 0.111 of the study.</text>
+<text x="16.0" y="876.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#0f766e">— across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory σ beside it grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum. Along the chain it is 2.0e-6 m at the tip, so the box draws as a line and is widened to 5 px to be seen at all.</text>
+<text x="16.0" y="893.0" font-family="DejaVu Sans, Helvetica, sans-serif" font-size="12" font-weight="normal" fill="#1a1a1a">ADVISORY: draws from the WHOLE distribution, tail included, which is nine times the certified box. Its numbers summarize these 512 chains — which is what the panels are.</text>
 </svg>

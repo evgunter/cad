@@ -129,7 +129,38 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// carries the measurement and what bounds it. Named here because
 /// [`crate::mcchain`] draws it to scale, and a number a picture is
 /// built around should not be a literal buried in the drawing code.
-pub const CERTIFIABLE_FRACTION: f64 = 0.0;
+pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
+
+/// **The certified enclosure of each joint pin's centre at that box**
+/// — `(half-width along the chain, half-width across it)`, in metres,
+/// pin 1 (the base) first.
+///
+/// MEASURED by [`crate::chaintol`] over the box
+/// [`CERTIFIABLE_FRACTION`] names, and pinned there. This is the
+/// certified half of the picture Ev asked for: an enclosure per link,
+/// growing down the chain, drawn by [`crate::mcchain`] beside the
+/// advisory cloud. It is named here for the same reason
+/// `CERTIFIABLE_FRACTION` is — a number a picture is built around
+/// should not be a literal buried in the drawing code — and it is
+/// ungated for the same reason too: the sheet is drawn in a default
+/// build.
+///
+/// **The across-the-chain half-widths run 1 : 3 : 6 : 10**, which is
+/// `Σ_{j<=k} (k−j)` — the WORST-CASE lever sum, every joint at its own
+/// extreme at once — while the advisory σ at the same pins runs
+/// `1 : 2.24 : 3.74 : 5.48`, the quadrature sum. That gap between a
+/// linear sum and a root-sum-square is E11's subject, and on this
+/// document it is visible on the sheet rather than only in a report.
+/// The enclosures are TIGHT, not padded: `3.996e-5` m is exactly
+/// `L · 3σ_c · 1` at the certified box's own σ, to every digit the
+/// measurement carries.
+pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
+    (0.0, 0.0),
+    (6.653231802815351e-8, 3.995961969247516e-5),
+    (3.3266085237848575e-7, 1.198788590774255e-4),
+    (9.314487635844748e-7, 2.3975816125464358e-4),
+    (1.995959949908921e-6, 3.9959841242371446e-4),
+];
 
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
@@ -285,7 +316,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     input: node,
                     translation: [len(step), len(0.0), len(0.0)],
                     rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: Expr::param(ParamName::new(&joint_name(j)), Dimension::Angle),
+                    rotation_angle: Expr::param(ParamName::new(joint_name(j)), Dimension::Angle),
                 },
                 tol,
             );
