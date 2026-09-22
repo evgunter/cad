@@ -248,3 +248,31 @@ on the pin suites' wall time and is filed as
 `decision-read-triples-the-plate-pin-suites-wall-time`.
 
 This row closes with DECIDE-3's merge.
+
+## The fix pass STOPPED at the link's `carrier_on_surface_2` (2026-09-22)
+
+The dual's union fix pass closed the soundness defect the reviews
+found (the side condition's atom-table source: a root on a dead
+`Select` arm licensed a split over a negative denominator, and rule F
+then read the product of two `Sqrt` atoms as non-negative — a false
+theorem, now a gating row) and every canonicity gap beside it. It did
+NOT close one thing: on R2's link, rule G costs
+`carrier_on_surface_2` sixteen theorems — ten to rule A's companion
+rewrite opening the squares of `abs` NODES the document wrote, six to
+`sqrt(R²) = |R|` with the rim registrant's axiom closing what the walk
+stops proving. The document's totals rise (`[515, 0, 90, 497] →
+[541, 0, 96, 465]`), so the loss is per PREDICATE, which is the clause
+the spec's acceptance 2 states.
+
+The remedy the finding named — the companion rewrite restricted to the
+magnitudes rule G itself mints — was implemented and measured: it
+recovers the six and four of the ten and costs the document forty
+theorems, because after rule G a `sqrt(R²)` and a document's `abs(R)`
+are the same atom and the restriction narrows by traversal order
+rather than by provenance. The full measurement is on
+`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
+
+So the unit stops here rather than re-baseline a lost decision: the
+per-predicate row asserts the clause whole and is RED on that one
+predicate. Everything else the fix pass owed is done and green. The
+spec's shape-3 fallback is Ev's call.

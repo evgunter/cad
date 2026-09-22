@@ -83,7 +83,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("extrusion_normal_component", [0, 0, 0, 2]),
     ("interval_span_forward", [0, 0, 0, 36]),
     ("interval_span_winding", [0, 0, 0, 12]),
-    ("line_span", [0, 4, 0, 4]),
+    ("line_span", [0, 0, 0, 8]),
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),
@@ -128,9 +128,11 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// go 81/0/0/9 -> 90/0/0/0 each, `witness_on_surface_1` and
 /// `witness_on_surface_2` 9/0/0/1 -> 10/0/0/0, `arc_span` 4/0/0/2 ->
 /// 5/0/0/1 and `contact_at_shared_vertex` 4/0/0/5 -> 6/0/0/3 — every
-/// one of them a THEOREM, none of them a read. The two `line_span`
-/// decisions are the read's: a comparison no form settles, certified
-/// over the leaf's box, 0/0/0/2 -> 0/2/0/0.
+/// one of them a THEOREM, none of them a read. `line_span` is
+/// unmoved: its comparisons are between two rational CONSTANTS, which
+/// the decision read declines by construction — an exact comparison
+/// reads no value, and folding it is A0's
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();

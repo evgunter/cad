@@ -48,21 +48,48 @@ companion rewrite is what carries the boss's `carrier_on_surface_1`
 and `_2` from 81/0/0/9 to 90/0/0/0 — but the per-predicate clause is
 the clause, and at this predicate the sum falls 98 → 88.
 
-## What would answer it
+## The remedy that was tried, and what it measured
 
-The likely shape, in order of cheapness:
+**Provenance on the magnitude** — apply `abs(X)² = X²` only to the
+`Abs` atoms rule G minted as the magnitude of a ROOT, never to an
+`abs` node the document wrote — was implemented (a provenance set on
+the session, filled at `sqrt(R²) → |R|` and read by `find_square`) and
+measured on the link:
 
-1. **A size guard on the companion rewrite**: take `abs(X)² → X²` only
-   where the substituted form is no larger than the one it replaces,
-   the way a reduction that can only fail to find a cancellation
-   should. The ten are an expansion that does not cancel.
-2. **Provenance on the magnitude**: rule G's own `sqrt(R²) → |R|` is
-   the step that must keep reducing; an `abs` node's square never
-   reduced before this unit and need not now.
-3. For the six: render the residual the registrant closes under both
+| tier | `carrier_on_surface_2` | document total |
+| --- | --- | --- |
+| G and the read off (the base) | `[98, 0, 0, 10]` | `[515, 0, 90, 497]` |
+| shipped, the rewrite unrestricted | `[82, 0, 6, 20]` | `[541, 0, 96, 465]` |
+| shipped, the rewrite on rule G's magnitudes only | `[86, 0, 0, 22]` | `[501, 0, 90, 511]` |
+| shipped, the rewrite shut | `[36, 0, 0, 72]` | `[445, 0, 90, 567]` |
+
+It recovers the six (the door is not needed again) and four of the
+ten, and it costs the DOCUMENT forty theorems — 541 → 501, below the
+base's 515. **The reason it cannot work as stated**: after rule G a
+`sqrt(R²)` and a document's `abs(R)` are THE SAME ATOM — that is what
+the one door is for — so "rule G's magnitudes" and "the document's
+`abs` nodes" are not disjoint sets, and which of the two minted an id
+first is a fact about the walk's traversal. The restriction therefore
+narrows by traversal order, not by provenance, and what it withholds
+is cancellations rule G's own respelling needs.
+
+The other shapes, untried:
+
+1. **A size guard on the rewrite** — take `abs(X)² → X²` only where
+   the substituted form is no larger. The ten are an expansion that
+   does not cancel. (Narrowness of this kind is what the unit's
+   ratified section rules out as a remedy, so it is recorded and not
+   taken.)
+2. For the six: render the residual the registrant closes under both
    dial sets and read the two atom keys it carries. The content split
-   of the magnitude key (`|c·R| = c·|R|`, added in the same fix pass)
-   was tried and does not move them.
+   of the magnitude key (`|c·R| = c·|R|`) was tried and does not move
+   them.
+
+**DECIDE-3 STOPPED at this item** rather than re-baseline a lost
+decision: the per-predicate row
+(`editor-core/tests/decide_3_split_rows_interval`) asserts the clause
+whole and is RED on this predicate, which is the state the unit hands
+to Ev. The spec's shape-3 fallback is Ev's call, not the lane's.
 
 ## Home
 
