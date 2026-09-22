@@ -7,10 +7,15 @@
 //! Each certifying tier has a **certificate form** beside it —
 //! [`validate_geometric_certificate`], its `_declared` twin, and
 //! [`validate_pseudomanifold_certificate`] — which runs the same pass
-//! and returns the [`crate::MassProperties`] its check 7 derived
-//! instead of dropping it. Same verdicts, one certified quadrature; the
-//! `()`-returning doors above ARE those calls with the value mapped
-//! away.
+//! and returns a whole-body [`crate::MassProperties`] instead of
+//! dropping what check 7 derived. Same verdicts, and one certified
+//! quadrature per SOLID, check 7's subject: on the overwhelmingly
+//! common one-solid body that is one quadrature for the pass and the
+//! returned value IS the object check 7 decided on, while a body
+//! holding several solids pays a further arena-wide reporting read for
+//! the body-level number, because no one solid's read is the body's
+//! (`check7_subjects`). The `()`-returning doors above ARE those calls
+//! with the value mapped away.
 //!
 //! # The two validity tiers (ratified via the M1-PLAN conversation)
 //!
@@ -2743,10 +2748,10 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   `validate-tier3-curved-boundary-containment`.
 ///
 ///   **The COUNT is not the gap**, and that is measured rather than
-///   assumed. A solid holding several `Outer` shells is what `graft
-///   onto`, the boolean coplanar split, `subtract`'s two-shell
-///   complement, the editor's placed union and two shell doors produce
-///   ON PURPOSE, and how many material components a product should
+///   assumed. A solid holding several `Outer` shells is what four
+///   doors produce ON PURPOSE — `graft onto`, the boolean coplanar
+///   split, `subtract`'s two-shell complement and the editor's placed
+///   union — and how many material components a product should
 ///   have is answered one layer up, as `editor_core`'s
 ///   `CheckId::Connectedness` finding against an authored expectation.
 ///   Tier 3 refusing that count would make tier 3 wrong, not the doors:
@@ -3093,6 +3098,18 @@ pub(crate) type Check7Certificate<T> =
 /// state is a bug in the composition above, not a reachable input —
 /// D9's bug-state half, announced rather than papered over with a
 /// fabricated value.
+///
+/// **The `Some(Err(..))` arm needs its own argument, because the object
+/// handed here is not always the object the verdicts were made on.**
+/// Check 7 decides per SOLID, while a body of several solids reports
+/// through a read over the whole face arena, so those are two reads.
+/// They are not independent ones: tier 1 partitions the arena into the
+/// solids (`check7_subjects` carries that argument), every face belongs
+/// to exactly one subject, and a face refuses the same way in whichever
+/// read visits it — so the arena read's failure set is exactly the
+/// UNION of the per-solid reads'. An empty verdict vector says every
+/// per-solid read came back clean, and an empty union cannot contain
+/// the refusal this arm would be handed.
 fn certificate_of_a_clean_verdict<C>(
     certificate: Option<Result<C, crate::props::MassPropsError>>,
 ) -> C {
@@ -3128,9 +3145,25 @@ fn certificate_of_a_clean_verdict<C>(
 /// partition the shells and the shells partition the faces, so
 /// `faces_of_solid`'s back-pointer selection and a `Solid::shells`
 /// walk name the same set, and over one solid that set is the arena.
-/// Check 7 runs only behind that gate — [`validate_geometric`]'s `?`
-/// between its two halves, and the `if errors.is_empty()` in the
-/// battery.
+///
+/// **What is strictly NEEDED for the one-solid case is narrower than
+/// that.** [`ValidationError::DanglingTopology`] on `Shell::solid` and
+/// on `Face::shell` alone already forces every face of the arena to
+/// resolve to the one solid there is, which is the whole of what makes
+/// `faces_of_solid` hand the arena back entire. The other three are
+/// what the caller actually buys, and they are what carries the
+/// statement from a covering to a PARTITION, which is what a body of
+/// several solids needs and what [`crate::SignCertificate::assembled`]
+/// asserts.
+///
+/// **The gate that supplies the premise is tier 2, not the battery's
+/// own `if`.** Every door that reaches check 7 opens with
+/// `validate_closed(body)?`, which runs tier 1 first:
+/// `structural_declared_via` — the half [`validate_geometric`] and its
+/// `_declared` twin compose in front of `validate_geometric_certified`
+/// — `contact_marks_declared`, and `pseudomanifold_certificate_via`.
+/// The battery's `if errors.is_empty()` gates check 7 on the battery's
+/// OWN checks 1–6, which is a different premise and not this one.
 fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
     body.solids
         .iter()
@@ -3226,8 +3259,8 @@ pub fn validate_geometric_certificate_declared<
 ///
 /// One home, because it was two: [`tier3_local_checks`] and
 /// [`contact_marks_declared`] each spelled this closure out, and two
-/// spellings of one derivation are two places for the count of
-/// certified quadratures per gate to drift apart.
+/// spellings of one derivation are two places for what a gate derives,
+/// and over which faces, to drift apart.
 fn reporting_certificate<T: geom_core::Decide>(
     quad_lane: Option<crate::props::QuadLane<T>>,
 ) -> impl Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T> {
@@ -3707,9 +3740,11 @@ fn contact_marks_declared_via<
 /// refusal — a refusal is `Some(Err(..))` and the battery turns it into
 /// the [`ValidationError`] in the vector.
 ///
-/// The hook yields the DERIVATION and not the verdict so that exactly
-/// one certified quadrature exists per gate and the battery can hand it
-/// on: `plus_v_invariant` — the whole decision, in one place — is
+/// The hook yields the DERIVATION and not the verdict so that each of
+/// check 7's subjects is derived exactly once per gate — one per solid,
+/// `check7_subjects` being what the battery iterates — and the battery
+/// can hand a derivation on: `plus_v_invariant` — the whole decision,
+/// in one place — is
 /// applied by the battery to whatever the hook derived, which is what
 /// keeps the lane-dispatched and the certified derivations two ways of
 /// getting the argument rather than two copies of the check.
@@ -4744,7 +4779,7 @@ pub(crate) fn tier3_local_checks_marked<
             // is the number the door promises and not a second copy of
             // the check — the verdicts above are the check, and they
             // were made per solid.
-            let arena: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+            let arena = crate::query::all_faces(body);
             certificate = plus_v(body, &arena, band, tol);
         }
     }
@@ -5475,12 +5510,20 @@ pub fn validate_pseudomanifold_structural<
     validate_pseudomanifold_certificate_structural(body, contacts, tol).map(|_| ())
 }
 
-/// **[`validate_pseudomanifold`], handing back the enclosure its check
-/// 7 derived** — the tier-3′ door's certificate form, and
+/// **[`validate_pseudomanifold`], handing back a whole-body
+/// enclosure** — the tier-3′ door's certificate form, and
 /// [`validate_geometric_certificate`]'s claim verbatim one tier up: the
-/// same pass, the same verdicts, one certified quadrature, and the
-/// returned properties are THE object check 7 decided on rather than a
-/// second computation of it.
+/// same pass, the same verdicts, and one certified quadrature per
+/// SOLID, which is check 7's subject.
+///
+/// **Whether the value IS the object check 7 decided on depends on how
+/// many solids the body holds.** Over one solid it is: that solid's
+/// faces are the face arena in arena order, so the check's own read is
+/// the whole-body read and nothing is recomputed. Over several, no one
+/// subject's read is the body's, so the number comes back from a
+/// further arena-wide REPORTING read taken in the same pass — the value
+/// this door promises, and not a second copy of the check, whose
+/// verdicts were made per solid and are unchanged by it.
 ///
 /// **This door is the one the import path pays.** A single-solid
 /// `step-import` skips the per-solid tier-3 gate as an identity at one

@@ -1,7 +1,7 @@
 ---
 id: one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce
 kind: issue
-title: a solid holding several Outer shells is a state five kernel doors produce deliberately, answered at the document layer — tier 3 may not refuse the count
+title: a solid holding several Outer shells is a state four kernel doors produce deliberately, answered at the document layer — tier 3 may not refuse the count
 status: closed
 priority: P1
 cost: E
@@ -28,7 +28,11 @@ produces on purpose.** No failure mentioned `NegativeVolume` — check
 7's per-solid half was green on the same run, so the measurement
 isolates the claim.
 
-The five doors, named by the rows that pin them:
+**The id says five and the doors are FOUR.** The id is stable and stays
+as it is; the count below is the corrected one, and what follows the
+list says which two rows were struck and why.
+
+The four doors, named by the rows that pin them:
 
 - **`graft onto`** — `topo/tests/graft_disjoint.rs`'s
   `the_onto_door_fuses_into_one_solid_without_changing_the_census`.
@@ -43,10 +47,22 @@ The five doors, named by the rows that pin them:
   `m5_s12_curved_ops::subtract_makes_a_through_hole_and_a_two_shell_complement`.
 - **The editor's placed union** — `lib_placedunion::the_fin_group_is_one_node_and_one_body`
   and `a_circular_group_places_around_a_datum_axis`.
-- **The shell doors** —
-  `shell5_r2_probes::r2_the_new_door_mints_a_solid_with_no_outer_shell`,
-  which deliberately mints a solid with NO outer shell, and
-  `shell8_r1_probes::r1_the_roles_read_is_per_hollow_solid`.
+The strongest of the four is the coplanar split, which asserts three
+shells under one solid in so many words.
+
+**Two rows were listed here and are NOT evidence.** They were struck on
+2026-09-22 rather than silently dropped, so that a later reader does not
+re-derive them from their names:
+
+- `shell5_r2_probes::r2_the_new_door_mints_a_solid_with_no_outer_shell`
+  mints a solid with **zero** `Outer` shells. That is evidence about
+  "exactly one" and never about "several `Outer` is legitimate" — and
+  ATREST-1 makes tier 3 REFUSE that body, so citing it as a door whose
+  product must be admitted argues against the change that cites it.
+- `shell8_r1_probes::r1_the_roles_read_is_per_hollow_solid` counts
+  `chk_shell_volume_sign` verdicts through `topo::shell` and never calls
+  `validate_geometric`, so it demonstrates nothing about what tier 3
+  admits.
 
 ## Why the count is not tier 3's to refuse
 
@@ -72,9 +88,12 @@ because the posture is already ratified where it lives.
 
 `crates/topo/src/tier3_tests.rs`'s
 `a_solid_holding_several_outer_shells_still_certifies` is the
-executable form of this row: it builds the three-shell solid and
-asserts tier 3 admits it, so a count-level refusal put back at this
-tier reds there.
+executable form of this row: it builds the three-shell solid, pins its
+premise through `topo::classify_shells` (two `Outer`, one `Void`) and
+through the shells' own extents (the island nested in the cavity nested
+in the wall), and asserts tier 3 admits it — so a count-level refusal
+put back at this tier reds there, and the row cannot drift into being
+about some other shape.
 
 What IS still unchecked is the NESTING —
 `work/atrest/tier-3-does-not-check-shell-roles-per-solid`, re-stated

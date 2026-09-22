@@ -340,7 +340,7 @@ pub(crate) fn mass_properties_with<T: Decide>(
     tol: Tol,
     quad: Option<QuadLane<T>>,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    let faces = crate::query::all_faces(body);
     mass_properties_of(body, &faces, band, tol, quad)
 }
 
@@ -469,6 +469,15 @@ fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
 /// instead of at the reporting one. Handing the face arena in arena
 /// order is the whole-body walk, term for term and round for round;
 /// the restriction is which faces are visited and nothing else.
+///
+/// **This family is a single door where its three neighbours are
+/// pairs** — [`mass_properties_with`]/[`mass_properties_of`],
+/// [`mass_properties_closed_form`]/[`mass_properties_closed_form_of`],
+/// [`classify_shells`]/[`classify_shells_of`] each keep a whole-body
+/// wrapper beside the restricted spelling, and this one has none. That
+/// is deliberate: the only caller certifies per solid, so a wrapper
+/// handing [`crate::query::all_faces`] would be dead code carrying a
+/// whole-body claim nothing exercises.
 ///
 /// # Errors
 ///
@@ -677,10 +686,17 @@ impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
     ///
     /// # Panics
     ///
-    /// When the parts do not cover the face arena exactly once. Every
-    /// caller partitions the arena by an ownership relation tier 1 has
-    /// already validated, so a gap is a bug in the composition above
-    /// rather than a body state (D9's bug-state half).
+    /// When the parts do not cover the face arena exactly once — and
+    /// all three ways of failing that are separate reads, because two
+    /// of them cancel in any one of the others. A face handed in twice
+    /// raises the count handed in above the count placed; a face no
+    /// solid of `body` owns is left over; and a face NO part named is
+    /// neither, so the count of placed runs is read against the arena's
+    /// own length, which is the only thing a subset walk disagrees
+    /// with. Every caller partitions the arena by an ownership relation
+    /// tier 1 has already validated, so a gap is a bug in the
+    /// composition above rather than a body state (D9's bug-state
+    /// half).
     pub(crate) fn assembled(body: &'b Body<T>, band: Band, tol: Tol, parts: Vec<Self>) -> Self {
         let mut by_face: slotmap::SecondaryMap<FaceKey, FaceRun<T>> = slotmap::SecondaryMap::new();
         let mut handed = 0usize;
@@ -696,10 +712,11 @@ impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
             .filter_map(|(face_key, _)| by_face.remove(face_key))
             .collect();
         assert!(
-            handed == runs.len() && by_face.is_empty(),
+            handed == runs.len() && by_face.is_empty() && runs.len() == body.faces.len(),
             "a sign certificate assembled from parts that do not partition the face arena: \
-             {handed} runs handed in, {} of them in the arena, {} left over",
+             {handed} runs handed in, {} of them in the arena of {}, {} left over",
             runs.len(),
+            body.faces.len(),
             by_face.len(),
         );
         let refused = fold_runs(&runs).1;
@@ -879,7 +896,7 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    let faces = crate::query::all_faces(body);
     mass_properties_closed_form_of(body, &faces, band, tol)
 }
 
@@ -3375,6 +3392,69 @@ mod face_list_door_tests {
                 listed.surface_area.to_bits(),
                 whole.surface_area.to_bits(),
                 "{name}"
+            );
+        }
+    }
+
+    /// **The body certificate assembled from PER-SOLID parts is
+    /// bitwise the whole-body read** — check 7 certifies one solid at a
+    /// time and [`SignCertificate::assembled`] re-orders those parts
+    /// into arena order, so the continuation has to land on
+    /// [`crate::mass_properties`]'s own bits in all four fields. The
+    /// corpus's `pair` and `trio` are the two- and three-solid
+    /// subjects, where the re-ordering does work; the single-solid rows
+    /// are the same claim where the part IS the arena.
+    #[test]
+    fn the_assembled_per_solid_certificate_is_bitwise_the_whole_body_read() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let bodies = corpus();
+        assert_eq!(
+            bodies
+                .iter()
+                .filter(|(_, b)| b.solids().count() > 1)
+                .count(),
+            2,
+            "the claim is about several solids; the corpus must carry some"
+        );
+        for (name, body) in bodies {
+            let parts: Vec<SignCertificate<'_, f64>> = body
+                .solids()
+                .map(|(solid, _)| {
+                    let faces = body
+                        .faces_of_solid(solid)
+                        .expect("a solid the body yielded");
+                    let (positive, part) = sign_certified(
+                        &body,
+                        &faces,
+                        band,
+                        tol,
+                        |e: VolumeEnclosure<f64>| (e.volume_lo > 0.0).then_some(true),
+                        |_| false,
+                    )
+                    .unwrap();
+                    assert!(positive, "{name}: {solid:?} encloses positive volume");
+                    part
+                })
+                .collect();
+            let assembled = SignCertificate::assembled(&body, band, tol, parts)
+                .refine_to_target()
+                .unwrap();
+            let whole = crate::mass_properties(&body, tol).unwrap();
+            assert_eq!(
+                (
+                    assembled.volume.to_bits(),
+                    assembled.surface_area.to_bits(),
+                    assembled.volume_pad.to_bits(),
+                    assembled.area_pad.to_bits()
+                ),
+                (
+                    whole.volume.to_bits(),
+                    whole.surface_area.to_bits(),
+                    whole.volume_pad.to_bits(),
+                    whole.area_pad.to_bits()
+                ),
+                "{name}: the assembled certificate is not the whole-body read"
             );
         }
     }

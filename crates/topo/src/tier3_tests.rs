@@ -1195,6 +1195,41 @@ fn refile_shells(
     body.solid_provenance.remove(donor);
 }
 
+/// The axis-aligned extent of `shell`'s stored vertex positions.
+/// A read of the geometry rather than of the fixture's literals: a
+/// cube placed somewhere else moves this.
+fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64>, Point3<f64>) {
+    let mut lo = pt(f64::INFINITY, f64::INFINITY, f64::INFINITY);
+    let mut hi = pt(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+    for &face in &body.get_shell(shell).expect("a live shell").faces {
+        let f = body.get_face(face).expect("a live face");
+        for &lp in core::iter::once(&f.outer).chain(f.rings.iter()) {
+            let crate::entity::LoopBoundary::Cycle { first } =
+                body.get_loop(lp).expect("a live loop").boundary
+            else {
+                panic!("a cube's loops are cycles")
+            };
+            for he in body.loop_cycle(first).expect("a closed cycle") {
+                let v = body.get_half_edge(he).expect("a live half-edge").start;
+                let p = *body
+                    .get_point(body.get_vertex(v).expect("a live vertex").point)
+                    .expect("a live point");
+                lo = lo.min(p);
+                hi = hi.max(p);
+            }
+        }
+    }
+    (lo, hi)
+}
+
+/// `inner`'s extent lies strictly inside `outer`'s, componentwise.
+fn strictly_within(inner: (Point3<f64>, Point3<f64>), outer: (Point3<f64>, Point3<f64>)) -> bool {
+    let axes = |p: Point3<f64>| [p.x, p.y, p.z];
+    let (ilo, ihi) = (axes(inner.0), axes(inner.1));
+    let (olo, ohi) = (axes(outer.0), axes(outer.1));
+    (0..3).all(|i| ilo[i] > olo[i] && ihi[i] < ohi[i])
+}
+
 /// **An inside-out part beside a larger ordinary one certifies when
 /// only the body TOTAL is pinned.**
 ///
@@ -1222,11 +1257,8 @@ fn an_inside_out_part_beside_an_ordinary_one_refuses_by_name() {
     assert_eq!(
         errs,
         vec![ValidationError::NegativeVolume { solid: reverted }],
-        "check 7 names the inside-out solid and says nothing about the other one"
-    );
-    assert!(
-        !errs.contains(&ValidationError::NegativeVolume { solid: ordinary }),
-        "the ordinary solid is not implicated by its neighbour"
+        "check 7 names the inside-out solid and says nothing about the other \
+         one, which {ordinary:?} is not in"
     );
 }
 
@@ -1244,6 +1276,44 @@ fn two_ordinary_solids_in_one_body_certify() {
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
 
+/// **The number a multi-solid body's certificate door hands back is
+/// the whole-body measurement, bit for bit.**
+///
+/// Check 7's subject is a SOLID, so over several solids no subject's
+/// read is the body's and the tier-3′ door takes a further arena-wide
+/// reporting read for its return value
+/// (`work/atrest/the-multi-solid-reporting-quadrature-is-unscheduled`).
+/// That read carries exactly one promise — that it is the number
+/// [`crate::mass_properties`] would give — and this row is what reds if
+/// the two ever diverge.
+#[test]
+fn a_multi_solid_certificate_is_the_whole_body_measurement() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (5.0, 0.0, 0.0), 0.5, false, tol);
+    assert_eq!(solids_of(&body).len(), 2, "two cubes are two solids");
+    let certified =
+        crate::validate_pseudomanifold_certificate(&body, &crate::ContactRecords::default(), tol)
+            .expect("two ordinary cubes certify");
+    let measured = crate::mass_properties(&body, tol).expect("the cubes measure");
+    assert_eq!(
+        (
+            certified.volume.to_bits(),
+            certified.surface_area.to_bits(),
+            certified.volume_pad.to_bits(),
+            certified.area_pad.to_bits()
+        ),
+        (
+            measured.volume.to_bits(),
+            measured.surface_area.to_bits(),
+            measured.volume_pad.to_bits(),
+            measured.area_pad.to_bits()
+        ),
+        "the door's reporting read is the measurement door's"
+    );
+}
+
 /// **A solid holding SEVERAL outer boundaries certifies, and that is
 /// the ratified posture rather than a gap** — the executable form of
 /// `work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
@@ -1254,9 +1324,10 @@ fn two_ordinary_solids_in_one_body_certify() {
 /// (`work/bool/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
 /// Two of those shells enclose definitely-positive volume.
 ///
-/// `graft onto`, the boolean coplanar split, `subtract`, the editor's
-/// placed union and two shell doors all produce this state on purpose,
-/// and how many material components a product should have is answered
+/// Four doors produce this state on purpose — `graft onto`, the
+/// boolean coplanar split (which asserts three shells under one solid
+/// in so many words), `subtract`, and the editor's placed union — and
+/// how many material components a product should have is answered
 /// one layer up, as `editor_core`'s `CheckId::Connectedness` finding
 /// against an authored expectation. So tier 3 admits it, and this row
 /// reds if a count-level refusal is ever put back at this tier.
@@ -1276,6 +1347,16 @@ fn a_solid_holding_several_outer_shells_still_certifies() {
     let [keeper, cavity, island] = solids_of(&body)[..] else {
         panic!("three cubes are three solids");
     };
+    let shell_of = |body: &Body<f64>, solid| {
+        let shells = &body.get_solid(solid).expect("a live solid").shells;
+        assert_eq!(shells.len(), 1, "a cube arrives as one shell");
+        shells[0]
+    };
+    let (wall, void, isle) = (
+        shell_of(&body, keeper),
+        shell_of(&body, cavity),
+        shell_of(&body, island),
+    );
     refile_shells(&mut body, cavity, keeper);
     refile_shells(&mut body, island, keeper);
     assert_eq!(
@@ -1283,6 +1364,38 @@ fn a_solid_holding_several_outer_shells_still_certifies() {
         3,
         "one solid, three shells"
     );
+
+    // The premise, read off the body rather than off the fixture's
+    // literals: TWO of the three shells classify `Outer`, and the
+    // island is nested in the cavity that is nested in the wall. Move
+    // the island cube beside the others and both reads move with it,
+    // which is what stops this row from passing while no longer being
+    // about several outer boundaries.
+    let roles: std::collections::BTreeMap<_, _> = crate::classify_shells(&body, tol)
+        .expect("the cubes classify")
+        .into_iter()
+        .map(|c| (c.shell, c.role))
+        .collect();
+    assert_eq!(
+        (roles[&wall], roles[&void], roles[&isle]),
+        (
+            crate::ShellRole::Outer,
+            crate::ShellRole::Void,
+            crate::ShellRole::Outer
+        ),
+        "two outer boundaries and one cavity, filed under one solid: {roles:?}"
+    );
+    let (wall_box, void_box, isle_box) = (
+        shell_extent(&body, wall),
+        shell_extent(&body, void),
+        shell_extent(&body, isle),
+    );
+    assert!(
+        strictly_within(isle_box, void_box) && strictly_within(void_box, wall_box),
+        "the island sits inside the cavity inside the wall: \
+         {isle_box:?} in {void_box:?} in {wall_box:?}"
+    );
+
     assert!(
         crate::mass_properties(&body, tol)
             .expect("the cubes measure")
