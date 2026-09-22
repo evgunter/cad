@@ -1272,3 +1272,23 @@ stopped at the count), `real.rs`'s SEAT-9 paragraph filed rather than
 reached, a third copy of the wiring pattern left for LANE-4; 453 dump
 lines byte-identical at `f64`. Its lane died on an API overload while
 polling CI and was resumed to finish. The fence comment is posted.
+
+## LANE-3 in review; block SCALAR-B5 landed (2026-09-22)
+
+Block B5's record landed on main (PR 3050 at `8a5f16c6`) and the
+branch-side region is main's copy, once. LANE-3's PR 3049 froze at
+`1df70b9ec8`: run 35674872222 green (39 jobs; no red head this unit;
+~1 h 42 min dispatch to PR). The implementing lane died twice on API
+overloads while polling CI after its push — everything was pushed and
+the body complete but for its CI section, which the orchestrator
+recorded as a PR comment; the lane's worktree and target were
+reclaimed and its hand-back is the PR body. Ordinal 4116 claimed
+(PR from `scalar/claim-4116`, after LANE-2's 4115); byte 139 parity 1
+⇒ R1 FABLE, R2 OPUS, concurrent, dispatched 01:46Z with the brief
+stored (sha256 `a8b5214828…`). The brief leads with the door's `pub`
+reader at plain `Decide` beside the verb's general block — can a
+non-certifying scalar run the shell with a door it should not hold,
+the capability the base's second `impl` block made impossible — then
+the 14-row red-first, the corpus dumps, the arms' reasons, the e4 rows,
+DL3's list gaining a verb's door, the third copy of the wiring
+pattern and the census's now-false "both doors". Two lanes live.
