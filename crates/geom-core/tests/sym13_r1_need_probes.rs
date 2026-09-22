@@ -95,18 +95,14 @@ fn an_unrecorded_node_in_the_closure_makes_the_column_order_dependent() {
     // Order A: the leaf that does not record the node runs FIRST.
     let outside_a = three();
     let m_a = Arc::new(DriveMemo::new(tight(), rules()));
-    let (_, u_first) = with_session_memo(tight(), rules(), &m_a, || {
-        zero(outside_a.clone() - outside_a.clone())
-    });
+    let (_, u_first) = with_session_memo(tight(), rules(), &m_a, || zero(outside_a - outside_a));
     let (_, r_after) = with_session_memo(tight(), rules(), &m_a, || zero(three() - three()));
 
     // Order B: the RECORDING leaf runs first and publishes the freeze.
     let outside_b = three();
     let m_b = Arc::new(DriveMemo::new(tight(), rules()));
     let (_, r_first) = with_session_memo(tight(), rules(), &m_b, || zero(three() - three()));
-    let (_, u_after) = with_session_memo(tight(), rules(), &m_b, || {
-        zero(outside_b.clone() - outside_b.clone())
-    });
+    let (_, u_after) = with_session_memo(tight(), rules(), &m_b, || zero(outside_b - outside_b));
 
     println!(
         "unrecorded leaf first: U={} R={} (drive set {:?}) | recording leaf first: R={} U={} \
