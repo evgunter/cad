@@ -38,6 +38,7 @@ test_utils::gated_to![
     "crates/editor-core/tests/m10_derived_frame_tilted_interval.rs",
 ];
 
+use std::collections::BTreeSet;
 use std::time::Instant;
 
 use editor_core::ProfileDoc;
@@ -220,10 +221,6 @@ fn the_opaque_sets_a_drive_mints_are_reported_per_leaf() {
 /// predicates — the decision columns, without `frozen`, which is a
 /// measure of the work that leaf happened to do and is exactly what
 /// the memo moves (`SymCounts::frozen`).
-fn decisions_of(c: geom_core::SymCounts) -> geom_core::SymCounts {
-    geom_core::SymCounts { frozen: 0, ..c }
-}
-
 /// The two drives of `doc` the differential compares: the memo on and
 /// the memo off, sequentially, at `max_leaves`.
 fn on_and_off(doc: &ProfileDoc, max_leaves: usize) -> (ParamBoxVerdict, ParamBoxVerdict) {
@@ -256,9 +253,13 @@ fn on_and_off(doc: &ProfileDoc, max_leaves: usize) -> (ParamBoxVerdict, ParamBox
 /// first. That makes the whole serialization — and the content key over
 /// it — a byte comparison rather than a filtered one.
 ///
-/// What the row must NOT compare is a LEAF's own `frozen`: with the
-/// memo on, a leaf inherits forms another leaf froze, so that column
-/// falls, which is the saving the unit is for.
+/// **A LEAF's `frozen` is compared too, unmasked.** The column is that
+/// leaf's NEED of the drive's frozen set and not the work it happened
+/// to do (`geom_core::SymCounts::frozen`), so a leaf that inherits
+/// every form still reports what its own reasoning rested on: the
+/// saving the unit is for is in the WALL TIME and in
+/// `MemoSize::forms`, not in a receipt column. The mask this row used
+/// to compare through is gone with the meaning that needed it.
 #[test]
 fn the_plain_memo_moves_no_decision() {
     for (label, doc) in [("slab", slab()), ("plate", the_plate(Tol::witness()))] {
@@ -292,18 +293,16 @@ fn the_plain_memo_moves_no_decision() {
                 "{label}: certified leaf {i}'s results"
             );
             assert_eq!(
-                decisions_of(a.decisions),
-                decisions_of(b.decisions),
-                "{label}: certified leaf {i}'s decision counts"
+                a.decisions, b.decisions,
+                "{label}: certified leaf {i}'s decision counts, `frozen` included"
             );
         }
         for (i, (a, b)) in on.refused().iter().zip(off.refused()).enumerate() {
             assert_eq!(a.box_, b.box_, "{label}: refused leaf {i}'s box");
             assert_eq!(a.reason, b.reason, "{label}: refused leaf {i}'s reason");
             assert_eq!(
-                decisions_of(a.decisions),
-                decisions_of(b.decisions),
-                "{label}: refused leaf {i}'s decision counts"
+                a.decisions, b.decisions,
+                "{label}: refused leaf {i}'s decision counts, `frozen` included"
             );
         }
         // Non-vacuity, both ways: the memo really held the drive's forms,
@@ -334,27 +333,24 @@ fn the_plain_memo_moves_no_decision() {
             own(&off),
             on.decisions().frozen
         );
-        // `own(on) <= own(off)` would be satisfied by 0 <= anything, so
-        // the row asserts what was MEASURED: on both documents the
-        // level-0 root publishes the whole DAG, so no later leaf freezes
-        // anything at all, while the off lane re-freezes per leaf.
+        // The leaf column is the SAME column in both lanes, which is
+        // the whole of what made it a receipt column: with the memo off
+        // a leaf froze every node its reasoning needed itself, so the
+        // off lane's reading is that leaf's NEED already, and the on
+        // lane — where the root leaf paid for nearly every freeze —
+        // must reproduce it. Before SYM-13 the on lane read 0 here on
+        // both documents against 50,112 off on the plate.
         assert_eq!(
-            own(&on),
-            0,
-            "{label}: with the memo on, every freeze is the root leaf's and the root leaf is \
-             not in `certified()`/`refused()` — a leaf here means a later leaf re-froze"
+            (own(&on) > 0, own(&on)),
+            (memo.frozen > 0, own(&off)),
+            "{label}: the leaves' NEED must be the same with the memo on and off, and \
+             non-zero exactly where the drive froze ({} distinct nodes)",
+            memo.frozen
         );
         assert_eq!(
-            (
-                own(&off) > 0,
-                on.decisions().frozen == off.decisions().frozen
-            ),
-            (memo.frozen > 0, true),
-            "{label}: the off lane freezes per leaf ({} over its leaves) and both lanes report \
-             the same distinct drive column ({} / {})",
-            own(&off),
             on.decisions().frozen,
-            off.decisions().frozen
+            off.decisions().frozen,
+            "{label}: both lanes report the same distinct drive column"
         );
     }
 }
@@ -441,18 +437,16 @@ fn assert_same(label: &str, a: &ParamBoxVerdict, b: &ParamBoxVerdict) {
         );
         assert_eq!(x.results, y.results, "{label}: certified {i} results");
         assert_eq!(
-            decisions_of(x.decisions),
-            decisions_of(y.decisions),
-            "{label}: certified {i} decisions"
+            x.decisions, y.decisions,
+            "{label}: certified {i} decisions, `frozen` included"
         );
     }
     for (i, (x, y)) in a.refused().iter().zip(b.refused()).enumerate() {
         assert_eq!(x.box_, y.box_, "{label}: refused {i} box");
         assert_eq!(x.reason, y.reason, "{label}: refused {i} reason");
         assert_eq!(
-            decisions_of(x.decisions),
-            decisions_of(y.decisions),
-            "{label}: refused {i} decisions"
+            x.decisions, y.decisions,
+            "{label}: refused {i} decisions, `frozen` included"
         );
     }
 }
@@ -509,6 +503,132 @@ fn a_freezing_drive_is_identical_across_schedules_and_the_dial() {
     );
     assert_same("plate seq on vs par on", &run(true, true), &seq_on);
     assert_same("plate seq on vs seq off", &run(false, false), &seq_on);
+}
+
+/// The leaf budget and the symbolic budget of the RACING drive.
+///
+/// A drive's level 0 is always ONE box (`drive`'s frontier starts as
+/// one and each level's boxes split in two), so a later leaf can only
+/// reach a node the earlier levels never published when the leaf DAGs
+/// are not subsets of the root's. Cutting the symbolic budget produces
+/// exactly that on the slab: the root box's predicates go indeterminate
+/// where a narrower box's do not, so the narrower boxes' replays get
+/// further and build what the root's never did — and at this budget
+/// what they build FREEZES.
+const RACE_LEAVES: usize = 8;
+const RACE_TERMS: usize = 8;
+const RACE_DEGREE: u32 = 4;
+
+/// **The adversary: a drive whose leaves RACE for a freezing node** —
+/// the row the item's residue asks for, and the row the leaf column's
+/// old meaning cannot pass.
+///
+/// On every shipped fixture the level-0 root publishes the whole DAG
+/// before anything splits, so no later leaf freezes at all and a leaf's
+/// `frozen` column was pinned across schedules only at zero. Here two
+/// leaves of one level reach one freezing node, and which of them pays
+/// for it is the schedule's business. Measured on this lane before the
+/// column became a NEED: the leaves' own columns read
+/// `0:1613 6:369 7:1061` sequentially and `0:1613 1:369 6:369 7:1061`
+/// on four rayon workers, so
+/// `m10_3_r2_probes_interval::my_own_drive_is_bit_identical_across_repeats_and_schedules`'s
+/// own comparison — `a.refused() == c.refused()`, over a `PartialEq`
+/// that covers `decisions` — was FALSE on this drive while every other
+/// column, the drive's `frozen` and the whole serialization agreed.
+///
+/// Under NEED all five lanes report one column, leaf for leaf: the
+/// distinct nodes of the drive's frozen set inside each leaf's own
+/// reasoning, which is a function of the leaf's box and of the drive
+/// (`geom_core::SymCounts::frozen`). The reading here is
+/// `3048 1804 902 902 902 902 1804 3048` against a drive column of
+/// 4,847 — printed rather than asserted, because it moves with the ε
+/// row the matrix draws; what is asserted is that nothing moves it
+/// WITHIN a matrix point.
+///
+/// **The dial arm is the one that reds deterministically under the old
+/// column**: with the memo off a leaf froze every node it needed
+/// itself, so the off lane read the leaf's NEED already, and the on
+/// lane read what the schedule left it.
+#[test]
+fn the_leaves_of_a_racing_drive_report_one_column_under_every_schedule() {
+    let tol = Tol::witness();
+    let doc = slab();
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let run = |parallel, plain_memo| {
+        drive(
+            &doc,
+            &analyzed,
+            &DriveConfig {
+                max_leaves: RACE_LEAVES,
+                parallel,
+                plain_memo,
+                symbolic: editor_core::drive::SymbolicDials {
+                    max_terms: RACE_TERMS,
+                    max_degree: RACE_DEGREE,
+                    ..editor_core::drive::SymbolicDials::default()
+                },
+                ..DriveConfig::default()
+            },
+            tol,
+        )
+        .unwrap()
+    };
+    let column = |v: &ParamBoxVerdict| -> Vec<u64> {
+        v.certified()
+            .iter()
+            .map(|l| l.decisions.frozen)
+            .chain(v.refused().iter().map(|l| l.decisions.frozen))
+            .collect()
+    };
+    let seq_on = run(false, true);
+    println!(
+        "racing slab at {RACE_LEAVES} leaves, budget {RACE_TERMS}/{RACE_DEGREE}: \
+         receipt {:?} | drive frozen {} | leaves' NEED {:?} | memo {:?}",
+        seq_on.receipt(),
+        seq_on.decisions().frozen,
+        column(&seq_on),
+        seq_on.plain_memo(),
+    );
+    // Non-vacuity, three ways: the document really freezes, the leaves
+    // really need some of it, and they do not all need the same amount
+    // — a row whose leaves all read 0, or all read one number, would
+    // pass every comparison below without being about anything.
+    let base = column(&seq_on);
+    assert!(
+        seq_on.decisions().frozen > 0 && seq_on.plain_memo().forms > 0,
+        "the drive must freeze and the memo must hold forms: {:?} {:?}",
+        seq_on.decisions(),
+        seq_on.plain_memo()
+    );
+    assert!(
+        base.iter().filter(|&&n| n > 0).count() >= 2
+            && base.iter().collect::<BTreeSet<_>>().len() > 1,
+        "the leaves must need different amounts of the drive's frozen set: {base:?}"
+    );
+    for (label, v) in [
+        ("par@2 on", on_pool(2, || run(true, true))),
+        ("par@4 on", on_pool(4, || run(true, true))),
+        ("seq off", run(false, false)),
+        ("par@4 off", on_pool(4, || run(true, false))),
+    ] {
+        // The column first, because it is what this row is about and a
+        // whole-list comparison names the leaf rather than the number.
+        assert_eq!(column(&v), base, "{label}: the leaves' NEED moved");
+        // Then the comparison `my_own_drive_is_bit_identical…` makes,
+        // on the drive that used to break it.
+        assert_eq!(
+            v.certified(),
+            seq_on.certified(),
+            "{label}: certified leaves"
+        );
+        assert_eq!(v.refused(), seq_on.refused(), "{label}: refused leaves");
+        assert_eq!(v.serialize(), seq_on.serialize(), "{label}: serialization");
+        assert_eq!(
+            v.content_key(),
+            seq_on.content_key(),
+            "{label}: content key"
+        );
+    }
 }
 
 /// **R2's own end-to-end row, kept whole** — two freezing documents

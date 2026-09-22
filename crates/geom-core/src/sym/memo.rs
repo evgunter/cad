@@ -58,6 +58,44 @@
 //! counts `FreezeCause::Unrecorded` over both documents and pins it at
 //! zero. Both directions are rows in `geom-core`'s `sym_drive_memo`.
 //!
+//! # Why a LEAF's NEED is schedule-independent — the second argument
+//!
+//! A leaf receipt's `frozen` column is that leaf's NEED: the distinct
+//! nodes of THIS memo's frozen set that lie in the plain closure of
+//! what the leaf asked ([`super::SymCounts::frozen`] says what the
+//! column means; this is why it cannot move). Both factors are fixed
+//! before any worker starts.
+//!
+//! **The frozen set is a property of the drive.** Whether a node
+//! freezes is the budget's verdict on its plain form, and a plain form
+//! is a function of the node's id and the two dials above — the
+//! argument this header opens with. So every leaf that computes a node
+//! freezes it or none does, the set is a set, and which leaf paid for
+//! a freeze is not in it.
+//!
+//! **The leaf's side is a function of its box**: its hash-consing
+//! table is the DAG its own replay built, and the roots are the
+//! decisions it asked a plain form of. Neither is the memo's — a
+//! drive-memo HIT changes how much of that closure the walk WALKS, and
+//! that is exactly why the count is taken over the table and the roots
+//! rather than over `Session::forms`, which a hit truncates.
+//!
+//! **And the set is complete when the leaf reads it.** For a frozen
+//! node in the leaf's closure, either the leaf computed it — and froze
+//! it, and published the freeze, this count being taken after the
+//! leaf's own publish — or it took a form for that node or for an
+//! ancestor of it, in which case the publishing leaf had already
+//! published the freeze: [`DriveMemo::publish`] writes the frozen ids
+//! BEFORE the forms, under one lock, and the same induction carries
+//! through a publisher that was itself served by an earlier one. A
+//! node OUTSIDE the closure has no such guarantee, which is the second
+//! reason the closure and not the whole table is the set.
+//!
+//! The exception is the same one as everywhere here: a leaf that
+//! freezes a node it never RECORDED publishes nothing, so that freeze
+//! is in no drive's set and another leaf's identical freeze could be —
+//! the branch the paragraph above pins at zero.
+//!
 //! # What it holds, and what it does not
 //!
 //! The plain forms, the `AtomInfo`s the plain walk minted for them, and

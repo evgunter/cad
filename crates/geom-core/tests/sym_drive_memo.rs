@@ -44,8 +44,11 @@ fn memo() -> Arc<DriveMemo> {
     Arc::new(DriveMemo::new(budget(), SymRules::shipped()))
 }
 
-/// The decision columns, `frozen` set aside — that one is a per-leaf
-/// WORK measure the memo moves by design (`SymCounts::frozen`).
+/// The decision columns, `frozen` set aside — the rows that compare two
+/// leaves here compare what each DECIDED, and the two leaves of a
+/// comparison do not always reach the same nodes.
+/// [`a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it`] is
+/// the row about `frozen` itself.
 fn decisions(c: SymCounts) -> (u64, u64, u64) {
     (c.symbolic_zero, c.numeric, c.sign_gated)
 }
@@ -96,7 +99,19 @@ fn an_unrecorded_freeze_is_never_published_to_the_drive_memo() {
         (0, 1, 0),
         "leaf A freezes the unrecorded node: {a:?}"
     );
-    assert!(a.frozen >= 1, "{a:?}");
+    // **The freeze is not on the column, and that is the column being
+    // right**: `frozen` on a leaf is its NEED of the DRIVE's frozen set
+    // (`SymCounts::frozen`), and an unrecorded node's freeze is never
+    // published to that set — it is this leaf's own answer about a node
+    // another leaf computes a real form for, which is what the
+    // assertion below is about. The profile's `FreezeCause::Unrecorded`
+    // is where an unrecorded freeze is counted, and
+    // `editor-core`'s `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
+    // pins that branch at zero over both measured documents.
+    assert_eq!(
+        a.frozen, 0,
+        "an unrecorded freeze is in no drive's set: {a:?}"
+    );
 
     // Leaf B: `c` minted inside its session — recorded, foldable.
     let (_, b) = with_session_memo(budget(), rules, &m, || {
@@ -241,4 +256,70 @@ fn a_hit_carries_the_atoms_the_top_residual_reduce_needs() {
     );
     assert_eq!(decisions(ca), decisions(cb), "{ca:?} {cb:?}");
     println!("memo after two leaves that share one sqrt atom: {m:?}");
+}
+
+/// **A leaf's `frozen` column is its NEED, at the tier's own door**:
+/// the distinct nodes of the DRIVE's frozen set the leaf reached — a
+/// node reached twice counted once, a node reached and not frozen
+/// counted zero, and a node this leaf never froze because it inherited
+/// the form counted all the same.
+///
+/// The budget is two terms, so `(a + b) + c` freezes and nothing else
+/// in the row does. Leaf 1 builds it and freezes it; leaf 2 takes the
+/// frozen form from the memo and freezes NOTHING, and still reports 1 —
+/// which is the whole unit: the column says what the leaf's reasoning
+/// needed, not which leaf paid for it. Leaf 3 reaches only nodes that
+/// fit and reports 0 with the drive's set non-empty.
+#[test]
+fn a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it() {
+    let tight = SymBudget {
+        max_terms: 2,
+        max_degree: 128,
+    };
+    // The plain quotient form and the constant fold: no rule can
+    // rewrite the sum into something that fits, so what freezes is the
+    // budget's verdict on the sum itself.
+    let rules = SymRules {
+        const_fold: true,
+        ..SymRules::none()
+    };
+    let m = Arc::new(DriveMemo::new(tight, rules));
+    let p = |n: &str, v: f64| Sym::param(ParamSymbol::of(n), v);
+    let three = || p("a", 0.25) + p("b", 0.5) + p("c", 0.75);
+
+    // Leaf 1: builds the three-term sum, which does not fit, and
+    // reaches it TWICE — once per decision, the second a second walk
+    // over the same id.
+    let (_, one) = with_session_memo(tight, rules, &m, || {
+        let first = zero(three() - three());
+        let second = zero(three() * p("d", 2.0) - three() * p("d", 2.0));
+        (first, second)
+    });
+    assert_eq!(
+        m.size().frozen,
+        1,
+        "exactly one node of the row freezes: {:?}",
+        m.size()
+    );
+    assert_eq!(one.frozen, 1, "reached twice, needed once: {one:?}");
+
+    // Leaf 2: the same reasoning, every form inherited — it freezes
+    // nothing itself and its column is the same 1.
+    let (_, two) = with_session_memo(tight, rules, &m, || zero(three() - three()));
+    assert_eq!(
+        two.frozen, 1,
+        "the leaf that paid nothing needs exactly what leaf 1 needed: {two:?}"
+    );
+
+    // Leaf 3: reaches nothing that froze, with the drive's set
+    // non-empty.
+    let (_, three_) = with_session_memo(tight, rules, &m, || {
+        let x = p("x", 0.125);
+        zero(x - x)
+    });
+    assert_eq!(
+        three_.frozen, 0,
+        "a leaf that reached no frozen node needs none of them: {three_:?}"
+    );
+    assert_eq!(m.size().frozen, 1, "and the drive's set is still one node");
 }

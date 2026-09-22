@@ -669,7 +669,8 @@
 //! plain forms and 3.18 M of 3.35 M early forms, 43 s of 162 s in
 //! the walks. On the plate at its nominal the assertion freezes 488 of
 //! 1,312 (360 of the plain walk's 1,044 `frozen`), the decision path
-//! 824. `SymCounts::frozen` counts the plain walk whoever asked it.
+//! 824. The plain walk's freezes are the drive's frozen SET whoever
+//! asked for them ([`SymCounts::frozen`]).
 //!
 //! **The tier's instructions are TERM STORAGE, then the walk itself;
 //! arithmetic is second on the plate and degree is nowhere on the
@@ -1349,33 +1350,49 @@ pub struct SymCounts {
     pub theorems_disputed: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
-    /// **Nodes this session's plain walk froze** into indeterminates (a
-    /// budget or an overflow) — a count of THIS leaf's work, unlike the
-    /// decision columns beside it, which are claims about this leaf's
-    /// predicates.
+    /// **Nodes frozen** into indeterminates (a budget or an overflow),
+    /// as a SET and not as work — a claim about this receipt's subject,
+    /// like the decision columns beside it.
     ///
-    /// **The column has two meanings and they are different numbers.**
-    /// Here it is the freezes one session computed. On a DRIVE's receipt
-    /// it is the DISTINCT nodes frozen over the whole drive
-    /// ([`DriveMemo::frozen`]) — a set, so it is the same under every
-    /// schedule, which a sum of the leaves' counts is not once a leaf
-    /// can inherit a form another leaf froze from the drive's plain
-    /// memo. [`SymCounts::absorb`] therefore does not sum this column;
-    /// the driver writes the drive's own.
+    /// **On a LEAF it is that leaf's NEED**: the distinct nodes of the
+    /// DRIVE's frozen set ([`DriveMemo::frozen`]) that lie in the plain
+    /// closure of what this leaf asked — how much of THIS leaf's
+    /// reasoning rested on indeterminates, which is what a reader of a
+    /// refused leaf wants to know first. It is NOT the freezes this
+    /// leaf happened to compute: under a drive memo a leaf inherits
+    /// forms another leaf froze, so a count of the work would say which
+    /// leaf got to a node first, and under the parallel schedule that
+    /// is a property of the schedule (`[ev]` #2581 ratified the memo;
+    /// SYM-13 cured this column).
     ///
-    /// Under a drive memo a leaf's count is what that leaf happened to
-    /// compute rather than what its decisions needed, so it is a work
-    /// measure and not a receipt column: which leaf pays for a node
-    /// depends on the schedule. The drive's column is the one that does
-    /// not.
+    /// **On a DRIVE it is the distinct nodes frozen over the whole
+    /// drive**, which is the same set the leaves are counted against.
+    /// The two are different numbers — a leaf needs part of what the
+    /// drive froze — so [`SymCounts::absorb`] does not sum this column;
+    /// the driver writes the drive's own once the drive is done.
     ///
-    /// `CertifiedLeaf`/`RefusedLeaf` derive `PartialEq` over their
-    /// `decisions`, so a row that compares whole leaf lists across
-    /// schedules compares this column too. Those rows are green because
-    /// a drive's level-0 root publishes the whole DAG before anything
-    /// splits, so no later leaf freezes at all —
-    /// `work/sym/leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
-    /// carries that dependence and the options for closing it.
+    /// **Why that is schedule-independent BY CONSTRUCTION** — which is
+    /// what makes it a receipt column at all, and what
+    /// `CertifiedLeaf`/`RefusedLeaf`'s `PartialEq` over `decisions`
+    /// rests on wherever a row compares whole leaf lists across
+    /// schedules — is [`memo`]'s header, said once there
+    /// beside the argument for the memo itself.
+    ///
+    /// **With the drive's memo OFF the column does not move**: the leaf
+    /// then freezes every node of its closure that freezes at all, so
+    /// its NEED is what it computed. That is a measurement and not only
+    /// an argument — `editor-core`'s `the_plain_memo_moves_no_decision`
+    /// compares the leaf receipts across the dial without a mask.
+    ///
+    /// **Outside a drive** — [`with_session`] and
+    /// [`with_session_rules`], where no memo is installed — the leaf is
+    /// the whole drive and the column is its own distinct freezes,
+    /// which is the same quantity. The one difference is a node the
+    /// session never RECORDED: freezing one is this leaf's own answer
+    /// and is never published (`sym::memo`'s unrecorded paragraph), so
+    /// it counts here and is not in any drive's set. `editor-core`'s
+    /// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
+    /// pins that branch at zero on both measured documents.
     pub frozen: u64,
 }
 
@@ -1388,8 +1405,9 @@ impl SymCounts {
 
     /// Adds another session's DECISION counts into this one.
     ///
-    /// **`frozen` is not summed** — [`SymCounts::frozen`] argues the
-    /// column; the driver writes the drive's own once the drive is
+    /// **`frozen` is not summed** — it is a set on both receipts and
+    /// the leaves' sets overlap ([`SymCounts::frozen`] argues the
+    /// column); the driver writes the drive's own once the drive is
     /// done.
     pub fn absorb(&mut self, other: Self) {
         self.symbolic_zero += other.symbolic_zero;
@@ -2021,9 +2039,11 @@ pub fn with_session_rules<R>(
 ///
 /// Everything else about the session is unchanged — the hash-consing
 /// table, the early and door memos, the registry and the parameter
-/// brackets are this leaf's and are dropped with it. The counts the
-/// call answers are this leaf's own, so its [`SymCounts::frozen`] is
-/// what THIS leaf refused; the drive's column is [`DriveMemo::frozen`].
+/// brackets are this leaf's and are dropped with it. The decision
+/// counts the call answers are this leaf's own; its
+/// [`SymCounts::frozen`] is this leaf's NEED, counted at the leaf's end
+/// against the drive's frozen set, and the drive's own column is
+/// [`DriveMemo::frozen`].
 ///
 /// **The memo is valid for one `(budget, rules)` pair** and refuses a
 /// leaf that does not match it: a plain form is a function of the node
@@ -2083,13 +2103,13 @@ fn with_session_in<R>(
     let mut sess = sess;
     if let Some(s) = &mut sess {
         publish_to_memo(s);
+        // **The leaf's `frozen` column is its NEED**, and this is where
+        // it is written — after the leaf has published, so that the
+        // freezes it paid for itself are in the set it is counted
+        // against ([`SymCounts::frozen`] argues the column).
         if let Some(memo) = s.memo.clone() {
-            // THE PLANT (SYM-13 Phase 1.4), behind `CAD_SYM_NEED`: the
-            // leaf's column as its NEED, and the cost of computing it.
-            if need_planted() {
-                let need = leaf_need(s, &memo);
-                s.counts.frozen = need;
-            }
+            let need = leaf_need(s, &memo);
+            s.counts.frozen = need;
         }
     }
     let counts = sess.map_or_else(SymCounts::default, |s| s.counts);
@@ -2131,14 +2151,6 @@ fn publish_to_memo(sess: &Session) {
     );
 }
 
-/// SYM-13 Phase 1.4's local dial, read once: `CAD_SYM_NEED=1` makes a
-/// leaf's `frozen` column its NEED. The plant is what the phase
-/// measures the column's cost with and is deleted with the phase.
-fn need_planted() -> bool {
-    static PLANTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-    *PLANTED.get_or_init(|| std::env::var("CAD_SYM_NEED").as_deref() == Ok("1"))
-}
-
 /// **The leaf's NEED** — the distinct nodes of the drive's frozen set
 /// that lie in the plain closure of the leaf's own walk roots
 /// ([`SymCounts::frozen`] argues the column).
@@ -2171,7 +2183,6 @@ fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
     if memo.frozen_is_empty() {
         return 0;
     }
-    let t0 = std::time::Instant::now();
     let mut reached: IdSet = IdSet::default();
     let mut stack: Vec<SymId> = sess.plain_roots.clone();
     while let Some(id) = stack.pop() {
@@ -2185,17 +2196,7 @@ fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
             stack.extend(node.kids[..arity].iter().copied());
         }
     }
-    let need = memo.need(&reached);
-    if std::env::var("CAD_SYM_NEED_TRACE").as_deref() == Ok("1") {
-        println!(
-            "need: roots {} closure {} table {} need {need} in {:?}",
-            sess.plain_roots.len(),
-            reached.len(),
-            sess.nodes.len(),
-            t0.elapsed()
-        );
-    }
-    need
+    memo.need(&reached)
 }
 
 /// The counts so far in the installed session (`None` outside one) — the
@@ -2554,9 +2555,10 @@ fn form_in(
     early: bool,
     registry: bool,
 ) -> Arc<Form> {
-    // The freeze this WALK made, counted into the leaf's own
-    // [`SymCounts::frozen`] — which is the leaf's work, not the drive's
-    // column (that doc carries both meanings).
+    // The freeze this WALK made. The running count is the leaf's WORK,
+    // and it is what the column says only outside a drive: a leaf of a
+    // drive has its column rewritten as its NEED at the leaf's end
+    // ([`leaf_need`], which [`SymCounts::frozen`] argues).
     let frozen = |sess: &mut Session, id: SymId| -> Arc<Form> {
         if !early {
             sess.counts.frozen += 1;
