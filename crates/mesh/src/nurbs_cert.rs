@@ -2459,24 +2459,31 @@ pub(crate) mod tests {
     ///   a constant weight column is zero in ℝ, and what the refined
     ///   net can say about it is the width the INSERTION contributed:
     ///   the ratios' own outward rounding, scaled by the differencing's
-    ///   `p/Δd` at the 16-fold-refined span width. Measured ~2.8e-13,
-    ///   pinned an order above at 1e-12.
+    ///   `p/Δd` at the 16-fold-refined span width.
     /// - `muv`: the same insertion width, taken through the MIXED
-    ///   differencing, so it is scaled twice. Measured ~9.1e-12, pinned
-    ///   an order above at 1e-10.
+    ///   differencing, so it is scaled twice.
     ///
-    /// **These ceilings are the cost of the enclosure covering the
-    /// described patch, and they replace three that recorded the
-    /// opposite.** While the refinement ran in `f64`, a constant weight
-    /// column refined to bitwise-equal weights and `w_d` differenced to
-    /// an exact zero, so `muu` and `mvv` came out at the deep-subnormal
-    /// scale (~5e-166) and were pinned at 1e-100. That number was the
-    /// `f64` refinement reproducing an exact cancellation, and the
-    /// enclosure it belonged to was an enclosure of the refined-`f64`
-    /// patch. The refinement is part of the enclosure now, so the dust
-    /// it contributes is reported rather than cancelled — and, being an
-    /// enclosure of a zero, it CONTAINS that zero, which the old one did
-    /// not always do (`geom_brep::patch_bound::PatchCell`).
+    /// **Each is BRACKETED, not capped, and the floor is the half that
+    /// makes this row a test.** A ceiling alone admits both worlds: the
+    /// `f64` refinement's answer was the deep-subnormal ~5e-166, which
+    /// passes any ceiling written for 1e-13, so a re-pinned ceiling would
+    /// have gone green on the code this unit replaced. The floor says
+    /// what the ring chain's width on `w ≡ const` actually is, so the
+    /// row reds on an arithmetic that cancels it away — D300's shape,
+    /// and the measurement is this tree's, not copied.
+    ///
+    /// The bands are decades around the measurement, with the distance
+    /// stated rather than called "an order": see the assertion's own
+    /// comment for the measured figures and how far each bound sits from
+    /// them.
+    ///
+    /// What the old 1e-100 recorded was the `f64` refinement reproducing
+    /// an exact cancellation on a constant weight column, in an enclosure
+    /// of the refined-`f64` patch. The refinement is part of the
+    /// enclosure now, so the dust it contributes is reported rather than
+    /// cancelled — and, being an enclosure of a zero, it CONTAINS that
+    /// zero, which the old one did not always do
+    /// (`geom_brep::patch_bound::PatchCell`).
     #[test]
     fn rational_uniform_weight_bilinear_dust() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
@@ -2488,13 +2495,30 @@ pub(crate) mod tests {
         ];
         let s = NurbsSurface::new(kv.clone(), kv, control, vec![0.5; 4]).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
+        // MEASURED on this tree (see the doc above for the derivation):
+        // `muu` and `mvv` at 2.8e-13, `muv` at 9.1e-12. Each is bracketed
+        // by a decade either side of its measurement — the ceiling 3.5x
+        // above and 11x above, the floor 28x below and 91x below — so a
+        // band, not a cap. The FLOOR is what reds on an arithmetic that
+        // cancels the insertion's width away, which is what the `f64`
+        // refinement did (~5e-166, comfortably under any ceiling here).
+        let bands = [
+            ("uu", b.muu, 1e-14, 1e-12),
+            ("uv", b.muv, 1e-13, 1e-10),
+            ("vv", b.mvv, 1e-14, 1e-12),
+        ];
+        let escaped: Vec<String> = bands
+            .iter()
+            .filter(|(_, x, lo, hi)| !(*x > *lo && *x < *hi))
+            .map(|(name, x, lo, hi)| format!("{name} {x:.17e} outside [{lo:e}, {hi:e}]"))
+            .collect();
         assert!(
-            b.muu < 1e-12 && b.muv < 1e-10 && b.mvv < 1e-12,
-            "rational dust escaped its derivation: certified (uu, uv, vv) \
-             ({:.17e}, {:.17e}, {:.17e}) against ceilings (1e-12, 1e-10, 1e-12)",
-            b.muu,
-            b.muv,
-            b.mvv
+            escaped.is_empty(),
+            "the rational dust is not the width the ring chain contributes on a constant \
+             weight column: {}. A figure BELOW the band is the alarming one — it means \
+             the refinement cancelled exactly again, so the enclosure is of some patch \
+             other than the described one",
+            escaped.join("; ")
         );
         let (hu, hv) = b.grid_steps(1e-3);
         assert!(hu > 1e3 && hv > 1e3, "flat stays effectively unconstrained");
@@ -2523,109 +2547,243 @@ pub(crate) mod tests {
         .unwrap()
     }
 
-    /// **The certificate's own claim, refereed exactly.** `muu` is a
-    /// sup bound on the DESCRIBED patch's `‖S_uu‖`, so the claim is
-    /// falsified by one real value above it — and on these two patches
-    /// the real value is known, not sampled.
+    /// **The certificate's own claim, refereed exactly.** `muu`, `muv`
+    /// and `mvv` are sup bounds on the DESCRIBED patch's second
+    /// partials, so the claim is falsified by one real value above one
+    /// of them — and on these patches the real values are known, not
+    /// sampled.
     ///
-    /// Each literal is the true `‖S_uu‖` at the named corner computed
-    /// in exact rational arithmetic (every `f64` of a NURBS
-    /// description is a rational, so the whole quotient-rule jet is
-    /// exact) and then **rounded DOWN to an `f64`** — so it is a real
-    /// number the patch genuinely attains, or below one.
-    /// `crates/mesh/tests/nurbs_exact_referee.py` re-derives both from the bit
-    /// patterns this row builds its surfaces from.
+    /// Each literal is the largest true `‖S_kl‖` over the four domain
+    /// corners, computed in exact rational arithmetic (every `f64` of a
+    /// NURBS description is a rational, so the whole quotient-rule jet
+    /// is exact) and then **rounded DOWN to an `f64`** — so it is a real
+    /// number the patch genuinely attains, or below one. Corners are
+    /// where a bilinear patch's second partials take their extremes and
+    /// where the certificate is tight; the referee chooses among them,
+    /// not this row.
     ///
-    /// Two consequences of the literal being a TRUTH and not a sample.
+    /// Two consequences of the literals being TRUTHS and not samples.
     /// The comparison is [`Domination::new`] — the bare `<=`, allowance
-    /// zero — because [`SAMPLER_ULPS`] pays for a sampler's rounding
-    /// and there is no sampler here. And the escape is not a sampling
-    /// artefact in either direction: a dense `f64` sample of these
-    /// patches misses the truth by ~6e-17 per channel, where the
-    /// escape it hides is ~1.4 ulps of the certified figure.
+    /// zero — because [`SAMPLER_ULPS`] pays for a sampler's rounding and
+    /// there is no sampler here. And **this is the row that goes red on
+    /// the defect**: the escapes it is for are 6–8 ulps, which the
+    /// sampler's allowance absorbs, so a sampled comparison cannot see
+    /// them at all. Against `patch_bound.rs` reverted to the `f64`
+    /// refinement, A and B escape in `uu` by 1.836e-15 and 1.601e-15
+    /// relative, and the four enumeration fixtures do NOT — on A's own
+    /// net, at every weight decade. That is worth stating rather than
+    /// hiding: the escape is a knife-edge in the last bits of a
+    /// particular weight pattern, which is exactly why a seed-varying
+    /// sweep needed thousands of runs to find two. So these two draws are
+    /// kept as fixtures because they cannot be re-derived from a decade,
+    /// and the decades are kept because coverage of the claim is what
+    /// stops the next one needing thousands of runs again.
     ///
-    /// Why bilinear, and why these two. `pu = pv = 1` is where the
-    /// quotient-rule recurrence is tightest — at a domain corner every
-    /// factor's extreme coincides, so the cell hull collapses onto the
-    /// value it is bounding and has no slack left to absorb anything.
-    /// Both patches were drawn by `r1_random_rational_soundness_sweep`
-    /// on hosted runs and their escapes measured in exact arithmetic;
-    /// their weights differ by three decades, so the escape is not an
-    /// artefact of a weight scale.
+    /// **Regenerate the table** — never hand-edit it — with
+    ///
+    /// ```text
+    /// python3 crates/mesh/tests/nurbs_exact_referee.py --rust
+    /// ```
+    ///
+    /// whose fixtures are these, by the same bits. The first two are the
+    /// surfaces two hosted runs drew and the diagnostic measured; the
+    /// rest are one patch per weight decade of the bilinear stratum
+    /// enumeration below, on that row's tightest net, so the
+    /// deterministic coverage there has an exact referent too.
+    ///
+    /// A structurally-zero component's literal is `0.0` (fixtures C and
+    /// D are polynomial in disguise — equal weights cancel in ℝ — so
+    /// their true `S_uu` and `S_vv` vanish). Those two comparisons check
+    /// only that the certified figure is a non-negative real, which is
+    /// worth little; what carries the claim for that pair is that they
+    /// certify IDENTICALLY, asserted below, since a uniform weight scale
+    /// is the same surface. The zero's CONTAINMENT is a different claim
+    /// and lives in `geom-brep`'s
+    /// `cert10r1_the_rational_arm_contains_the_structural_zero_of_s_vv`.
     #[test]
-    fn the_described_bilinear_rationals_true_uu_is_under_the_certified_sup() {
-        // Fixture A, at (u, v) = (0, 0); weights ≈ 0.0103–0.0135.
-        let a = bilinear_rational(
-            [
-                0x3f85_1d67_0625_33ec,
-                0x3f85_e951_aad1_06d4,
-                0x3f8b_ae9f_b921_3c25,
-                0x3f89_570f_cf39_bbfe,
-            ],
-            [
-                0xbfd4_5c5e_a128_e388,
-                0xbfe3_53dc_5381_e28c,
-                0x3fee_e4c7_4f58_da14,
-                0x3ffa_dea5_3eea_524a,
-                0xbffe_1bfe_e0da_6176,
-                0xbfb5_7ac6_093c_8d60,
-                0x3ff2_4217_85e0_9da0,
-                0xbff7_ec6a_dc24_3a5c,
-                0xbffd_007c_723f_c4a6,
-                0xbfd9_ac7d_34a0_77d8,
-                0x3ff2_2092_5d90_b010,
-                0xbfc5_0c20_054b_4c20,
-            ],
-        );
-        // Fixture B, at (u, v) = (0, 1); weights ≈ 3.3–5.2.
-        let b = bilinear_rational(
-            [
-                0x4014_b6e6_9928_91ad,
-                0x400a_864c_9997_93db,
-                0x4010_ca99_b259_0ee1,
-                0x4010_6199_a0a8_9a72,
-            ],
-            [
-                0xbff5_4a0c_eafe_35ba,
-                0x3f95_e6ac_362b_df80,
-                0xbfd0_260d_ed55_9cd0,
-                0x3fea_bff6_7292_74d0,
-                0xbfe5_f005_b8eb_add4,
-                0x3fe4_64f4_1381_1098,
-                0xbff5_221f_c005_d982,
-                0xbff8_6db2_84fd_9286,
-                0xbfe9_576c_7148_3e30,
-                0x3fe4_da54_6f12_0828,
-                0x3ff4_7c37_162b_9746,
-                0xbfcb_0fc4_c9a4_7fd0,
-            ],
-        );
-        // Both fixtures are reported before the row fails: which of the
-        // two escapes, and by how much, is the measurement — a row that
-        // stopped at the first would hide the second's number.
+    fn the_described_bilinear_rationals_true_second_partials_are_under_the_certified_sups() {
+        // Fixture A, weights ≈ 0.0103–0.0135 (hosted run 33904520538).
+        const NET_A: [u64; 12] = [
+            0xbfd4_5c5e_a128_e388,
+            0xbfe3_53dc_5381_e28c,
+            0x3fee_e4c7_4f58_da14,
+            0x3ffa_dea5_3eea_524a,
+            0xbffe_1bfe_e0da_6176,
+            0xbfb5_7ac6_093c_8d60,
+            0x3ff2_4217_85e0_9da0,
+            0xbff7_ec6a_dc24_3a5c,
+            0xbffd_007c_723f_c4a6,
+            0xbfd9_ac7d_34a0_77d8,
+            0x3ff2_2092_5d90_b010,
+            0xbfc5_0c20_054b_4c20,
+        ];
+        // Fixture B, weights ≈ 3.3–5.2 (hosted run 35050942262).
+        const NET_B: [u64; 12] = [
+            0xbff5_4a0c_eafe_35ba,
+            0x3f95_e6ac_362b_df80,
+            0xbfd0_260d_ed55_9cd0,
+            0x3fea_bff6_7292_74d0,
+            0xbfe5_f005_b8eb_add4,
+            0x3fe4_64f4_1381_1098,
+            0xbff5_221f_c005_d982,
+            0xbff8_6db2_84fd_9286,
+            0xbfe9_576c_7148_3e30,
+            0x3fe4_da54_6f12_0828,
+            0x3ff4_7c37_162b_9746,
+            0xbfcb_0fc4_c9a4_7fd0,
+        ];
+        // The enumeration's shared net is A's own: that is the geometry
+        // the certificate was measured to escape on, so varying only the
+        // weight decade over it makes the decades comparable AND lets
+        // them red on the defect rather than only the two hosted draws.
+        const NET_ENUM: [u64; 12] = NET_A;
+        const W_A: [u64; 4] = [
+            0x3f85_1d67_0625_33ec,
+            0x3f85_e951_aad1_06d4,
+            0x3f8b_ae9f_b921_3c25,
+            0x3f89_570f_cf39_bbfe,
+        ];
+        const W_B: [u64; 4] = [
+            0x4014_b6e6_9928_91ad,
+            0x400a_864c_9997_93db,
+            0x4010_ca99_b259_0ee1,
+            0x4010_6199_a0a8_9a72,
+        ];
+        const W_LOW: [u64; 4] = [0x3f84_7ae1_47ae_147b; 4];
+        const W_HIGH: [u64; 4] = [0x4059_0000_0000_0000; 4];
+        const W_SPREAD: [u64; 4] = [
+            0x3f84_7ae1_47ae_147b,
+            0x3ff0_0000_0000_0000,
+            0x4059_0000_0000_0000,
+            0x3ff0_0000_0000_0000,
+        ];
+        const W_NEAR_LOW: [u64; 4] = [
+            0x3f85_182a_9930_be0e,
+            0x3f85_e9e1_b089_a027,
+            0x3f8b_a5e3_53f7_ced9,
+            0x3f89_652b_d3c3_6113,
+        ];
+        const W_NEAR_HIGH: [u64; 4] = [
+            0x4059_c000_0000_0000,
+            0x405a_c000_0000_0000,
+            0x4060_e000_0000_0000,
+            0x405f_0000_0000_0000,
+        ];
+        // Generated by `python3 crates/mesh/tests/nurbs_exact_referee.py
+        // --rust`; the names and the order are that script's.
+        let truths: [(&str, [f64; 3]); 7] = [
+            (
+                "A",
+                [
+                    2.660_331_998_073_639_5,
+                    7.953_091_356_095_674,
+                    0.699_588_379_285_154,
+                ],
+            ),
+            (
+                "B",
+                [
+                    1.248_592_341_233_724_5,
+                    6.659_454_728_150_954,
+                    4.294_173_537_974_706,
+                ],
+            ),
+            ("C (all 1e-2)", [0.0, 5.921_457_034_209_361, 0.0]),
+            ("D (all 1e2)", [0.0, 5.921_457_034_209_361, 0.0]),
+            (
+                "E (1e-2, 1, 1e2, 1)",
+                [
+                    652_355_242.259_523_7,
+                    5_594_901.142_172_855,
+                    68_596.229_218_882_04,
+                ],
+            ),
+            (
+                "G (near-equal 1e2)",
+                [
+                    2.656_665_559_628_96,
+                    7.961_192_352_458_233,
+                    0.669_187_980_152_985_6,
+                ],
+            ),
+            (
+                "F (near-equal 1e-2)",
+                [
+                    2.656_665_559_628_96,
+                    7.961_192_352_458_232,
+                    0.669_187_980_152_985_9,
+                ],
+            ),
+        ];
+        let descriptions: [(&str, [u64; 12], [u64; 4]); 7] = [
+            ("A", NET_A, W_A),
+            ("B", NET_B, W_B),
+            ("C (all 1e-2)", NET_ENUM, W_LOW),
+            ("D (all 1e2)", NET_ENUM, W_HIGH),
+            ("E (1e-2, 1, 1e2, 1)", NET_ENUM, W_SPREAD),
+            ("G (near-equal 1e2)", NET_ENUM, W_NEAR_HIGH),
+            ("F (near-equal 1e-2)", NET_ENUM, W_NEAR_LOW),
+        ];
+        // Every fixture is reported before the row fails: which of them
+        // escape, and by how much, is the measurement — a row that
+        // stopped at the first would hide the rest.
         let mut escaped = Vec::new();
-        for (name, surface, true_uu) in [
-            ("A", &a, 2.660_331_998_073_639_5_f64),
-            ("B", &b, 1.248_592_341_233_724_5_f64),
-        ] {
-            let bound = nurbs_face_bound(surface, FaceKey::default()).expect("covered");
+        let mut certified: Vec<(&str, NurbsFaceBound)> = Vec::new();
+        for ((name, net, weights), (truth_name, truth)) in descriptions.into_iter().zip(truths) {
+            assert_eq!(
+                name, truth_name,
+                "the description table and the referee's table disagree on fixture order"
+            );
+            let surface = bilinear_rational(weights, net);
+            let bound = nurbs_face_bound(&surface, FaceKey::default()).expect("covered");
             let d = Domination::new(
                 "true (exact rational referee)",
                 "certified",
-                &[("uu", true_uu, bound.muu)],
+                &[
+                    ("uu", truth[0], bound.muu),
+                    ("uv", truth[1], bound.muv),
+                    ("vv", truth[2], bound.mvv),
+                ],
             );
             println!(
-                "bilinear {name}: true uu {true_uu:.17e} vs certified {:.17e}",
-                bound.muu
+                "bilinear {name}: true ({:.17e}, {:.17e}, {:.17e}) vs certified \
+                 ({:.17e}, {:.17e}, {:.17e})",
+                truth[0], truth[1], truth[2], bound.muu, bound.muv, bound.mvv
             );
             if !d.holds() {
                 escaped.push(format!("fixture {name}: {d}"));
             }
+            certified.push((name, bound));
         }
         assert!(
             escaped.is_empty(),
             "the certificate does not bound the DESCRIBED patch: {}",
             escaped.join(" | ")
+        );
+        // C and D describe ONE surface at two weight scales four decades
+        // apart, so what they may differ by is the arithmetic's own dust
+        // and nothing else. They do differ: this assembly is not
+        // scale-invariant — the ring's rounding rides the weight
+        // magnitude through the quotient rule — so the claim is a bound
+        // on the disagreement, which is what a scale-dependent blow-up
+        // would break. Measured at ~2.6e-13 relative on the nonzero
+        // component; pinned at 1e-11, and the structurally-zero pair is
+        // covered by the dust row's own band instead.
+        let pick = |want: &str| {
+            certified
+                .iter()
+                .find(|(n, _)| n.starts_with(want))
+                .map(|(_, b)| *b)
+                .expect("fixture present")
+        };
+        let (c, d) = (pick("C "), pick("D "));
+        let gap = (c.muv - d.muv).abs() / c.muv;
+        assert!(
+            gap < 1e-11,
+            "one surface at two weight scales certified `muv` {:.17e} against {:.17e} \
+             — {gap:.3e} apart, past the dust this assembly's scale dependence explains",
+            c.muv,
+            d.muv
         );
     }
 
@@ -2650,6 +2808,16 @@ pub(crate) mod tests {
     /// four corners exactly, which is the whole subject; density in the
     /// interior is what the random sweep buys and this row does not owe
     /// it twice.
+    ///
+    /// **This row cannot go red on the refinement defect, and says so
+    /// rather than implying otherwise.** It compares a SAMPLE, so it
+    /// compares through [`SAMPLER_ULPS`], and the defect's escapes are
+    /// 6–8 ulps. What it is for is COVERAGE of the stratum on every run
+    /// — the random sweep reaches bilinear on one draw in nine — plus
+    /// the worst excess printed in ulps, which is visible in a log even
+    /// when the allowance absorbs it. The row that reds on the defect is
+    /// `the_described_bilinear_rationals_true_second_partials_are_under_the_certified_sups`,
+    /// which compares exact truths bare.
     #[test]
     fn the_bilinear_rational_stratum_is_dominated_at_every_weight_decade() {
         // Four control nets whose corner geometry differs: a unit quad,
@@ -2696,9 +2864,21 @@ pub(crate) mod tests {
         // nothing the six below do not: at ~0.19 s per patch in a debug
         // build the product is a 75-second row, which is not what this
         // claim is worth.
+        //
+        // **Every pattern is RATIONAL, and that is load-bearing.**
+        // `patch_bound::is_rational` is `any weight != 1.0` on the bit
+        // pattern, so an all-`1.0` pattern takes the INTEGRAL arm —
+        // which never refines at `patch_cells` and is not this stratum
+        // at all. One sat here and it was the pattern whose ratio this
+        // row printed as its worst, so the printed number was about the
+        // wrong arm. The integral arm's own domination rows are
+        // `planar_bilinear_bounds_collapse` and
+        // `twisted_bilinear_mixed_term_is_tight`; the near-unit pattern
+        // below is what reaches the rational arm nearest to unit
+        // weights.
         const WEIGHTS: [[f64; 4]; 6] = [
             [1.0e-2, 1.0e-2, 1.0e-2, 1.0e-2],
-            [1.0, 1.0, 1.0, 1.0],
+            [1.0 + f64::EPSILON, 1.0, 1.0, 1.0],
             [1.0e2, 1.0e2, 1.0e2, 1.0e2],
             [1.0e-2, 1.0, 1.0e2, 1.0],
             [1.0e2, 1.0e-2, 1.0e-2, 1.0e2],
@@ -2771,6 +2951,93 @@ pub(crate) mod tests {
              {worst_ratio:.17e} is not above 0.9, so this row no longer challenges \
              the bound it asserts"
         );
+    }
+
+    /// **The measurement apparatus for the sampler's own error**, which
+    /// is a number two work rows cite as the figure a future lane sizes
+    /// [`SAMPLER_ULPS`] from
+    /// (`work/props/the-samplers-own-error-has-three-spellings-and-no-home`,
+    /// `work/chord/soundness-sweep-allowance-is-fifty-times-the-measured-sampler-error`).
+    ///
+    /// It is committed because a cited number whose apparatus was thrown
+    /// away is a number nobody can re-take. One command reproduces the
+    /// whole table:
+    ///
+    /// ```text
+    /// cargo test --release -p mesh --lib sampler_error_dump -- --ignored --nocapture \
+    ///   | python3 crates/mesh/tests/sampler_error.py
+    /// ```
+    ///
+    /// What it dumps, per trial: the described bilinear patch's bits, the
+    /// certified triple, and the 61x61 sampler's per-component ARGMAX —
+    /// which is the part that matters, because the referee has to evaluate
+    /// the exact truth at the same point the sampler found its worst, not
+    /// at a point of its own choosing.
+    ///
+    /// `#[ignore]`d, and that is the honest shape for it: it asserts
+    /// nothing, so gating on it would be a green over a print. What it
+    /// costs to run is minutes; what a gate would buy is nothing.
+    #[test]
+    #[ignore = "measurement apparatus: prints a dump for crates/mesh/tests/sampler_error.py"]
+    fn sampler_error_dump() {
+        let trials: usize = std::env::var("SAMPLER_ERROR_TRIALS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(400);
+        // A varying seed, logged: this is a counterexample-shaped
+        // measurement (the DISTRIBUTION over draws is the answer), so
+        // successive runs are supposed to sample different patches, and
+        // the log line is how a cited figure is traced to its draw.
+        let mut rng = test_utils::fuzz::start("nurbs_cert::sampler_error");
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let hex = |x: f64| format!("{:016x}", x.to_bits());
+        for trial in 0..trials {
+            let mut control = Vec::new();
+            let mut weights = Vec::new();
+            for _ in 0..4 {
+                control.push(Point3::new(
+                    rng.range(-2.0, 2.0),
+                    rng.range(-2.0, 2.0),
+                    rng.range(-2.0, 2.0),
+                ));
+                weights.push(10f64.powf(rng.range(-2.0, 2.0)));
+            }
+            let s = NurbsSurface::new(kv.clone(), kv.clone(), control.clone(), weights.clone())
+                .expect("positive finite weights");
+            let Ok(b) = nurbs_face_bound(&s, FaceKey::default()) else {
+                continue;
+            };
+            // `sample_worst`'s grid and order, with the argmax recorded.
+            let grid = 60u32;
+            let mut best = [(0.0f64, 0.0f64, 0.0f64); 3];
+            for i in 0..=grid {
+                for j in 0..=grid {
+                    let u = f64::from(i) / f64::from(grid);
+                    let v = f64::from(j) / f64::from(grid);
+                    let jet = s.ders(u, v);
+                    for (k, value) in [jet.duu.norm(), jet.duv.norm(), jet.dvv.norm()]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        if value > best[k].0 {
+                            best[k] = (value, u, v);
+                        }
+                    }
+                }
+            }
+            let list = |v: &[f64]| v.iter().map(|x| hex(*x)).collect::<Vec<_>>().join(",");
+            let points: Vec<f64> = control.iter().flat_map(|p| [p.x, p.y, p.z]).collect();
+            println!(
+                "DUMP {trial} W {} C {} B {} ARG {}",
+                list(&weights),
+                list(&points),
+                list(&[b.muu, b.muv, b.mvv]),
+                best.iter()
+                    .map(|(n, u, v)| format!("{}:{}:{}", hex(*n), hex(*u), hex(*v)))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            );
+        }
     }
 
     /// A C⁰ crease (interior multiplicity = degree) refuses typed —

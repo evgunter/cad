@@ -29,17 +29,12 @@
 //! reads a vector magnitude off them with [`sq_norm`], whose
 //! `√hi` is a sup bound on the norm.
 //!
-//! There used to be a second, MAGNITUDE reading alongside: the
-//! rational arm applied the triangle inequality to the quotient rule
-//! (all `+`, divide by the smallest weight) where the signed one
-//! evaluates the quotient rule itself in the ring (the true `−` signs,
-//! divide by the whole weight hull). Both were sound and the signed
-//! one is strictly tighter, so the magnitude one is gone. What it cost
-//! to keep is what it now saves: per rational cell, five ring
-//! recurrences and five extra hull passes on the SHIPPED tessellation
-//! sizing path. What its removal buys the consumer is a tighter grid —
-//! the cancellation the triangle inequality could not see is real, and
-//! on a quarter cylinder `sup‖S_uv‖` falls by an order of magnitude.
+//! **The signed reading is the only one**, and it is a reading of the
+//! quotient rule itself: the true `−` signs, divided by the whole
+//! weight hull. The cancellations that survive that are real — on a
+//! quarter cylinder they are worth an order of magnitude on
+//! `sup‖S_uv‖` — so a consumer wanting a magnitude takes [`sq_norm`]
+//! of a signed enclosure and never a magnitude recurrence.
 //!
 //! # The rational arm
 //!
@@ -88,11 +83,7 @@
 //! The answer is a bound, not an estimate. Ordinary walls measure
 //! within a small factor of the true sup; extreme weight ratios can
 //! leave it orders above, because the product terms lose the sign
-//! correlation a steep ramp lives in — the residue of that loss, not
-//! the whole of it: what the retired magnitude reading additionally
-//! threw away was the quotient rule's OWN signs, and recovering those
-//! is worth an order of magnitude on `sup‖S_uv‖` for an arc-walled
-//! patch. The cost is only how finely a
+//! correlation a steep ramp lives in. The cost is only how finely a
 //! consumer must subdivide; the bound is never wrong.
 //!
 //! # Poison (fail-loud, D4 ¶2)
@@ -180,11 +171,13 @@ impl PatchBoundError {
             }
             Self::RefinedWeightLostPositivity => {
                 "rational NURBS face whose refined weight ENCLOSURE reaches zero — outside \
-                 the certified inventory: positivity survives knot insertion in ℝ, so what \
-                 lost it is the width the refinement's outward rounding adds on an extreme \
-                 weight ratio, which leaves the convex-combination licence unproven rather \
-                 than false; describe the face with a ratio the refinement can hold, or \
-                 report the description, which is what sizes RATIONAL_CERT_SPLITS"
+                 the certified inventory: positivity survives knot insertion in ℝ, and the \
+                 refinement's two barycentric ratios are both non-negative, so no weight \
+                 RATIO can reach this; what does is a weight so small that its product with \
+                 a ratio UNDERFLOWS to zero, which needs a subnormal near the bottom of the \
+                 f64 range. Describe the face at a weight scale f64 can hold — scaling \
+                 every weight by one constant describes the same surface — or report the \
+                 description"
             }
             Self::RefinementFailed => {
                 "NURBS face whose refinement fails to materialise — outside the certified \
@@ -224,11 +217,16 @@ impl core::error::Error for PatchBoundError {}
 /// to a nearby one.
 ///
 /// That makes a STRUCTURAL predicate sound to read off these cells. A
-/// component whose true value is identically zero — `S_vv` on a ruled
-/// (degree-1 in `v`) rational face, where the described surface is
-/// affine in `v` — comes back as an enclosure CONTAINING zero on every
-/// cell, which is what a `contains(0)` or an exact-sign test needs and
-/// what a bound on a nearby patch could never give.
+/// component whose true value is identically zero comes back as an
+/// enclosure CONTAINING zero on every cell, which is what a
+/// `contains(0)` or an exact-sign test needs and what a bound on a
+/// nearby patch could never give. The witnessed case is a quarter
+/// cylinder's `S_vv`: degree 1 in `v` with the weights CONSTANT along
+/// `v` and the control points affine in it, which together make the
+/// described surface affine in `v`. Degree 1 alone does not — a
+/// degree-1 direction whose weights vary is a Möbius
+/// reparameterization and genuinely curves in parameter, as the module
+/// header says of the cross terms.
 ///
 /// What it costs is width, and the width is the honest one. On that
 /// same ruled face the zero `S_vv` is reported as dust at the scale the
@@ -772,6 +770,17 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
         .iter()
         .map(|g| DNets::build(g, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
         .collect();
+    // The refined control points, `P = A / w` per channel, ONCE for the
+    // whole net. Each is read by every cell whose window covers it —
+    // `(pu + 1)(pv + 1)` cells at the interior, twice over (the centroid
+    // and the value hull) — so computing it per cell paid the same ring
+    // division up to `2(pu + 1)(pv + 1)` times for one coefficient.
+    // Entrywise, so each point is enclosed at its own weight rather than
+    // at the cell's weight hull.
+    let p_nets: Vec<Net> = a_base
+        .iter()
+        .map(|a| Net::from_fn(nu, nv, |i, j| a.get(i, j) / w_grid.get(i, j)))
+        .collect();
     let zero = RingInterval::zero();
     let two = RingInterval::point(2.0);
     let mut cells: Vec<PatchCell> = Vec::new();
@@ -792,14 +801,10 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 u_d2: span_u.derived_window(2),
                 v_d2: span_v.derived_window(2),
             };
-            // The refined control points of the cell's active window, as
-            // enclosures: `P = A / w` per channel, the de-homogenizing
-            // division taken entrywise so each point is enclosed at its
-            // own weight rather than at the cell's weight hull.
             let point_at = |comp: usize, i: usize, j: usize| {
-                a_base
+                p_nets
                     .get(comp)
-                    .map_or_else(RingInterval::poison, |a| a.get(i, j) / w_grid.get(i, j))
+                    .map_or_else(RingInterval::poison, |p| p.get(i, j))
             };
             // The cell centroid — a translation CHOICE, so ANY finite
             // value is sound and none of it has to be enclosed. Taken
@@ -897,8 +902,55 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// **`RefinedWeightLostPositivity` is reachable, and only by
+    /// underflow.** The arm's prose claims a weight RATIO cannot reach
+    /// it, which is a claim about the refinement's arithmetic: both
+    /// barycentric ratios are non-negative, so a convex combination of
+    /// positive weights is positive unless one of the PRODUCTS rounds to
+    /// zero. That needs a weight within a few ulps of the smallest
+    /// subnormal, whatever the other weights are.
+    ///
+    /// So this row walks the weight scale beside a fixed `1e2` — a ratio
+    /// of 1e304 at the bottom end — and demands the refusal at the
+    /// minimum subnormal and coverage everywhere a real description
+    /// could sit. It is the row that would catch the arm becoming
+    /// unreachable (a refusal nothing can produce is not a refusal) or
+    /// becoming reachable from an ordinary extreme-weight face, which is
+    /// what its prose tells a caller it is not.
+    #[test]
+    fn refined_weight_lost_positivity_is_reached_only_by_underflow() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("kv");
+        let control: Vec<geom_core::Point3<f64>> = (0..9)
+            .map(|i| geom_core::Point3::new(f64::from(i), 0.0, 0.0))
+            .collect();
+        let refuse = |w: f64| {
+            let mut weights = vec![w; 9];
+            weights[4] = 1.0e2;
+            let s = NurbsSurface::new(kv.clone(), kv.clone(), control.clone(), weights)
+                .expect("the door admits any positive finite weight");
+            matches!(
+                patch_cells(&s),
+                Err(PatchBoundError::RefinedWeightLostPositivity)
+            )
+        };
+        assert!(
+            refuse(f64::from_bits(1)),
+            "the minimum subnormal weight beside 1e2 must refuse: a product of it with a \
+             ratio below 1 underflows, and the weight hull's `lo` reaches zero"
+        );
+        for w in [1.0e-320, 1.0e-300, 1.0e-200, 1.0e-30, 1.0e-2, 1.0, 1.0e2] {
+            assert!(
+                !refuse(w),
+                "weight {w:e} beside 1e2 is a ratio of {:e} and must still certify: \
+                 a ratio cannot reach this refusal, only an underflow can",
+                1.0e2 / w
+            );
+        }
+    }
 
     /// Every patch-bound refusal names what the caller changes in the
     /// description, not only which structural fact refused. Nothing

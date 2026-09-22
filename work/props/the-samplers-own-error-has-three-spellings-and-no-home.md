@@ -83,13 +83,27 @@ TESS-2 refereed `crates/mesh/src/nurbs_cert.rs`'s sampler exactly, so
 the `SAMPLER_ULPS = 64` row now has a measurement beside the
 rehearsal's. Over 400 random bilinear rational patches, `sample_worst`
 against the exact rational truth at the sampler's own argmax,
-`|sampled − truth|` in ulps of the certified figure: median 0.13–0.27,
-p99 1.07–1.39, max 1.63 (worst component `vv`). The house 64 is ~39x
-that — the same factor the rehearsal site measured by a different
-route, which is the sharper form of this row's point: two independent
-measurements of the same obligation both land near 1 ulp and both sit
-under a house figure of 64.
+`|sampled − truth|` in ulps of the certified figure: median 0.13–0.30,
+p99 1.07–1.47, max 1.39–2.75 across three independent draws (the full
+table and the draws are on
+`work/chord/soundness-sweep-allowance-is-fifty-times-the-measured-sampler-error`).
+The house 64 is 23x to 43x that — the same order as the factor the
+rehearsal site measured by a different route, which is the sharper form
+of this row's point: two independent measurements of the same obligation
+both land near a quarter of an ulp at the median and both sit far under a
+house figure of 64.
 
-The referee is committed as `crates/mesh/tests/nurbs_exact_referee.py` (exact
-rational arithmetic, shares no code with the kernel), so the "how to
-size it" bullet has a re-runnable method and not only a number.
+Two things the measurement adds to the "how to size it" bullet. The
+median is not the number to size from — the MAXIMUM over draws is, and it
+moves between draws (1.39 to 2.75), so a re-sizing wants a tail over
+several runs rather than one run's worst. And the apparatus is committed,
+so this is a re-runnable method and not only a number:
+
+```
+cargo test --release -p mesh --lib sampler_error_dump -- --ignored --nocapture \
+  | python3 crates/mesh/tests/sampler_error.py
+```
+
+with `crates/mesh/tests/nurbs_exact_referee.py` as the exact engine
+(rational arithmetic, no `Decimal` in the rounding, shares no code with
+the kernel).
