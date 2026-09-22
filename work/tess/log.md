@@ -412,3 +412,13 @@ line), but a fudge on the falsifier, which is the same blindness.
 - TESS-1's green head `02c589569` is 540 commits behind main; the lane
   is merging main and re-running CI (merge-tree: clean). Merge on
   green; then TESS-2 dispatches (disk allows it now).
+
+## TESS-2 dispatched (2026-09-22)
+
+PR 3057 merged (the amended spec on main). TESS-2's implementer
+dispatched — block TESS-B1 slot 1, branch `tess/2-refinement-in-the-
+ring`, 24 G free. Told to read RING-2's reworked `ring_interval.rs` on
+main before designing the ring insertion and to use its primitives
+rather than re-derive one. TESS-1's lane is on its post-merge CI round
+concurrently; it builds nothing locally beyond a check, so two lanes
+fit the disk.
