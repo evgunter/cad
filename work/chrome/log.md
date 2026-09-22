@@ -2097,3 +2097,73 @@ detection should carry it; AUTHOR's log says what to do if it does
 not.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-22 — Wave 3 landed: three units, eight rows closed, one P0 reopened honestly
+
+Dispatched after the cut, against the item files, with the live-ground
+map taken from each open PR's own GitHub file list (the rule the Wave 2
+entry above wrote down). No A/B duals, no row in `docs/MODEL-AB-LOG.md`.
+Each unit got a style review; the badge unit also got the correctness
+arm, because its failure mode is the tree pointing at the wrong row.
+**All three reviews returned MERGE-AFTER-FIXES, all three fix passes
+landed green, and every review found something real.**
+
+- **`chrome/message-floor`, PR 3089.** Ev's floor-then-scroll ruling.
+  A message lays out at `max(available_width, message_floor)`, where
+  the floor is `widgets::widest_number` plus one space advance, and the
+  number alphabet now has one home (`readout::GLYPHS`,
+  `readout::widest_render`), which `pane/view.rs`'s δ field reads too.
+  Also landed: the toolbar's P0 canceled line, and `message_indent`,
+  which is the ruling's GUI half. Closed five rows.
+  **The review's MAJOR was a false headline claim.** "No break ever
+  falls inside a word" was false for any word containing `.` or `-`.
+  epaint tests for overflow before it records a break candidate, so
+  the overflow fires on the trailing space and falls back to
+  dash/punctuation inside the word. The test's all-digit fixture only
+  ever reached the `any` fallback. The fix dropped the lane's
+  widest-word term, which had gone past the ruling and would have
+  widened every line to one long path. The claim narrowed to what the
+  ruling protects: numbers.
+- **`chrome/badge-attribution`, PR 3090.** `downstream_wording`
+  composes `node_number`. `bounds::Verdict` names `tree::has_faults`.
+  `feature_row`'s link decision is exhaustive. `tree.rs`'s header leads
+  with the fact that settles blame: mate-only faults reach one row.
+  Two rows closed. Two rows stay open with questions for Ev:
+  `band-refusal-still-badges-every-row` (Q1) and
+  `blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix` (Q2).
+  The reviewer corrected Q1's framing: a loud document-level at-rest
+  badge already exists, and it lacks only the band's words.
+  Filed `work/msolve/placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`.
+- **`chrome/concision`, PR 3088.** Ev's ruling: rewrite the kernel
+  prose at the source. The worked example went from 277 words to 65.
+  The whole `BooleanError` Display and `PointInSolidError` are in one
+  voice, with no stage prefixes and no key dumps outside kernel-bug
+  arms. A rendered-text budget test covers 30 arms at 75 words
+  (`editor-core/tests/refusal_concision.rs`); 21 of the 30 go red on
+  `main`'s old text. Sixteen per-program rows were filed, each pointing
+  at the one standard on this program's row.
+  **The review's MAJOR was a new false statement.**
+  `GermFrameCylinderPinch` asserted a pinch at a site that never
+  compares radii. The old text had been right. A rewrite for concision
+  is a rewrite of claims, and it needs the correctness arm.
+
+**The P0 row is reopened, and that is the honest state.** The lane
+first closed it on a threshold of 50 literal words. The review showed
+the census could not see rendered text: nested payloads and forwarded
+refusals. The fix pass measured rendered text for the chains it
+touched and reopened the row for the ones it could not:
+`NodeErrorKind`'s other kernel arms, `EditError`, and the checks
+window.
+
+**Three of Ev's questions are open in chat**, and each is written on
+its row: the long pose in a tree row (a/b/c, on
+`feature-tree-row-labels-draw-an-unbounded-pose-in-an-extend-row`),
+Band badging (Q1), and placer blame (Q2).
+
+**A process note: the disk.** Three builders and three reviewers with
+private targets exhausted the 28 GB allowance. One reviewer ran no
+tests at all because of it. The orchestrator now reclaims a target
+the moment its lane's report is final, per `agent-lane-operations`.
+That should have been done from the first report.
+
+Signed (CHROME orchestrator).
