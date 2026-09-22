@@ -20,6 +20,8 @@
 // directory is not a suite.
 mod fixture;
 
+#[path = "lane3_review_probes.rs"]
+mod lane3_review_probes;
 #[path = "layer_guard.rs"]
 mod layer_guard;
 #[path = "param_flow.rs"]
@@ -28,9 +30,3 @@ mod param_flow;
 mod run_door;
 
 test_utils::every_suite_file_is_aggregated!();
-
-#[path = "lane3_r1_probes.rs"]
-mod lane3_r1_probes;
-
-#[path = "r2_head_probe.rs"]
-mod r2_head_probe;

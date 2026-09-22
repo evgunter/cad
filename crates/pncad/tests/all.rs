@@ -6072,5 +6072,163 @@ mod unit_vector_witness_through_the_facade {
     }
 }
 
-#[path = "r2_e2e_shell.rs"]
-mod r2_e2e_shell;
+/// **A hollowed box, authored and evaluated the way a user would**,
+/// entirely through the façade: plane → square profile → extrude →
+/// [`Node::shell`] with the top cap designated open. The shell door
+/// is a value the at-rest policy answers, so the same program runs
+/// at a certifying scalar and refuses TYPED at a dual — at the shell
+/// node alone, with every other node green.
+mod the_hollowed_box_through_the_facade {
+    use pncad::document::{
+        CancelToken, Datum, Dimension, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram, Node,
+        NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, apply,
+        evaluate,
+    };
+    use pncad::geom_core::Tol;
+    use pncad::prelude::StableName;
+    use pncad::select::{CapEnd, EntityKind, RoleSeg};
+
+    fn len(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Length).unwrap()
+    }
+    fn scl(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Scalar).unwrap()
+    }
+
+    fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+        let applied = apply(
+            &doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("the insert applies");
+        let id = applied.record.minted.expect("a minted id");
+        (applied.doc, id)
+    }
+
+    /// The unit box with its top cap designated: the blank and the
+    /// hollowed node, in one document.
+    fn open_box() -> (ProfileDoc, RecipeNodeId) {
+        let doc = ProfileDoc::empty_derived("shell-e2e", Tol::witness());
+        let (doc, plane) = insert(
+            doc,
+            Node::Datum(Datum::Frame {
+                origin: [0.0; 3].map(len),
+                u: [1.0, 0.0, 0.0].map(scl),
+                v: [0.0, 1.0, 0.0].map(scl),
+            }),
+        );
+        let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
+        let (doc, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![square],
+            }),
+        );
+        let (doc, blank) = insert(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
+        let top = StableName {
+            kind: EntityKind::Face,
+            node: blank,
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        };
+        let (doc, cup) = insert(doc, Node::shell(blank, len(0.125), vec![top]));
+        (doc, cup)
+    }
+
+    // `EvalScalar` is not on the façade (it is in this file's
+    // `NOT_CARRIED` roster), so a façade consumer cannot write this
+    // helper generically at all — each scalar gets its own call, and
+    // a macro is what spares the repetition.
+    macro_rules! run {
+        ($t:ty, $doc:expr) => {
+            evaluate::<$t>(
+                $doc,
+                None,
+                &CancelToken::new(),
+                &EvalOptions::default(),
+                Tol::witness(),
+            )
+        };
+    }
+
+    /// At `f64` the whole program evaluates and the hollow measures
+    /// its closed form, `l·l·h − (l−2t)²·(h−t)`.
+    #[test]
+    fn the_box_hollows_at_f64() {
+        let (doc, cup) = open_box();
+        let ev: Evaluation<f64> = run!(f64, &doc);
+        for (id, r) in &ev.nodes {
+            assert!(
+                matches!(r, NodeResult::Ok(_)),
+                "node {id:?} did not evaluate: {r:?}"
+            );
+        }
+        let pncad::document::ValuePayload::Body(body) =
+            &ev.value(cup).expect("the shell has a value").payload
+        else {
+            panic!("the shell's payload is not a body");
+        };
+        let props = pncad::topo::mass_properties(body, Tol::witness()).expect("the cup measures");
+        let inner: f64 = 1.0 - 0.25;
+        let want = 1.0 - inner * inner * (1.0 - 0.125);
+        assert_eq!(props.volume, want, "the cup's volume is its closed form");
+    }
+
+    /// At a dual the same document refuses at the shell node and
+    /// nowhere else: the policy seam answers `None`, so the door is
+    /// never formed and the refusal is typed.
+    #[test]
+    fn the_box_refuses_typed_at_a_dual_and_there_alone() {
+        let (doc, cup) = open_box();
+        let ev: Evaluation<pncad::geom_core::Dual64> = run!(pncad::geom_core::Dual64, &doc);
+        let head = ev.nodes.get(&cup).expect("the shell node ran");
+        let NodeResult::Failed(e) = head else {
+            panic!("the shell did not refuse at a dual: {head:?}");
+        };
+        assert!(
+            matches!(e.kind, NodeErrorKind::ShellLaneUnsupported { lane: "Dual" }),
+            "the refusal is not the typed shell-door absence: {:?}",
+            e.kind
+        );
+        for (id, r) in &ev.nodes {
+            if *id == cup {
+                continue;
+            }
+            assert!(
+                matches!(r, NodeResult::Ok(_)),
+                "the refusal is not the shell's alone: {id:?} -> {r:?}"
+            );
+        }
+    }
+
+    /// The bracketing scalar certifies too, so the same program
+    /// hollows there.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn the_box_hollows_at_interval() {
+        use pncad::geom_core::interval::Interval;
+        let (doc, cup) = open_box();
+        let ev: Evaluation<Interval> = run!(Interval, &doc);
+        for (id, r) in &ev.nodes {
+            assert!(
+                matches!(r, NodeResult::Ok(_)),
+                "node {id:?} did not evaluate at Interval: {r:?}"
+            );
+        }
+        assert!(
+            matches!(
+                &ev.value(cup).expect("the shell has a value").payload,
+                pncad::document::ValuePayload::Body(_)
+            ),
+            "the interval hollow is a body"
+        );
+    }
+}
