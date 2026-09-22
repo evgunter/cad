@@ -123,10 +123,30 @@ fn failures<T: pncad::geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
+/// Which scalar lane a row ran on. An enum rather than the label
+/// itself, because the drive below asks "was this the symbolic one?"
+/// and a string comparison would be a spelling deciding a lane.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Lane {
+    /// The plain enclosure.
+    Interval,
+    /// The enclosure carrying parameter expressions (E12).
+    Symbolic,
+}
+
+impl Lane {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Interval => "Interval",
+            Self::Symbolic => "Sym<Interval>",
+        }
+    }
+}
+
 /// One row of the table: a link count on a scalar lane.
 struct Row {
     links: usize,
-    lane: &'static str,
+    lane: Lane,
     /// Nothing failed and nothing was poisoned over the whole box.
     certifies: bool,
     /// How many nodes failed or were poisoned.
@@ -149,7 +169,7 @@ fn interval_leaf(links: usize, doc: &ProfileDoc) -> Row {
     let bad = failures(&ev);
     Row {
         links,
-        lane: "Interval",
+        lane: Lane::Interval,
         certifies: bad.is_empty(),
         refused: bad.len(),
         first: bad.first().cloned(),
@@ -172,7 +192,7 @@ fn sym_leaf(links: usize, doc: &ProfileDoc) -> Row {
     let cost = t0.elapsed();
     Row {
         links,
-        lane: "Sym<Interval>",
+        lane: Lane::Symbolic,
         certifies: bad.is_empty(),
         refused: bad.len(),
         first: bad.first().cloned(),
@@ -186,7 +206,7 @@ fn print_row(r: &Row) {
         "   {:>5} link{}  {:<14}  {:<9}  {:>8.2} s  {:>4} refused  {}",
         r.links,
         if r.links == 1 { " " } else { "s" },
-        r.lane,
+        r.lane.label(),
         if r.certifies { "CERTIFIES" } else { "refuses" },
         r.cost.as_secs_f64(),
         r.refused,
@@ -227,53 +247,11 @@ pub fn narration(tol: Tol) {
 
     // Where a leaf certifies, the drive is affordable and its verdict
     // is the thing a CI row would gate on.
-    for (links, row) in rows
+    for (links, _) in rows
         .iter()
-        .filter(|(_, r)| r.certifies && r.lane != "Interval")
+        .filter(|(_, r)| r.certifies && r.lane == Lane::Symbolic)
     {
-        let built = chain(*links, JOINT_SIGMA, POSITION_BOUND, tol);
-        let analyzed = analyzed_box(&built.doc, &AnalysisPolicy::default());
-        let config = DriveConfig {
-            max_leaves: 64,
-            ..DriveConfig::default()
-        };
-        let t0 = Instant::now();
-        match drive(&built.doc, &analyzed, &config, tol) {
-            Ok(verdict) => {
-                let mut holds = 0usize;
-                let mut violated = 0usize;
-                let mut undecided = 0usize;
-                for leaf in verdict.certified() {
-                    // On the lane the drive certified the leaf on — the
-                    // verdict carries it, so a consumer never has to
-                    // know which.
-                    match assertion_at(
-                        &built.doc,
-                        built.assertion,
-                        &leaf.box_,
-                        verdict.symbolic(),
-                        tol,
-                    )
-                    .and_then(|v| v.holds())
-                    {
-                        Some(true) => holds += 1,
-                        Some(false) => violated += 1,
-                        None => undecided += 1,
-                    }
-                }
-                println!(
-                    "   the drive at {links} link{}, leaf budget {} ({:.1} s): {} certified \
-                     leaves — the tip assertion HOLDS on {holds}, is VIOLATED on {violated}, \
-                     and is undecided on {undecided}",
-                    if *links == 1 { "" } else { "s" },
-                    config.max_leaves,
-                    t0.elapsed().as_secs_f64(),
-                    verdict.certified().len(),
-                );
-            }
-            Err(refusal) => println!("   the drive at {links} links refused: {refusal}"),
-        }
-        let _ = row;
+        drive_and_report(*links, 1.0, tol);
     }
 
     println!(
@@ -322,25 +300,30 @@ pub fn narration(tol: Tol) {
     // The row this unit answers asks one question: does the certified
     // lane reach the FOUR-link tip's assertion at any box. It does, at
     // that one — so the drive is run there and the verdict printed.
-    let narrow = chain(
-        LINKS,
-        JOINT_SIGMA * crate::chain::CERTIFIABLE_FRACTION,
-        POSITION_BOUND,
-        tol,
-    );
-    let analyzed = analyzed_box(&narrow.doc, &AnalysisPolicy::default());
+    drive_and_report(LINKS, crate::chain::CERTIFIABLE_FRACTION, tol);
+}
+
+/// The drive over a chain's analyzed box at a stated fraction of the
+/// study, with the tip assertion read off each certified leaf — the
+/// verdict a CI row would gate on, printed.
+fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
+    let built = chain(links, JOINT_SIGMA * fraction, POSITION_BOUND, tol);
+    let analyzed = analyzed_box(&built.doc, &AnalysisPolicy::default());
     let config = DriveConfig {
         max_leaves: 64,
         ..DriveConfig::default()
     };
     let t0 = Instant::now();
-    match drive(&narrow.doc, &analyzed, &config, tol) {
+    match drive(&built.doc, &analyzed, &config, tol) {
         Ok(verdict) => {
             let (mut holds, mut violated, mut undecided) = (0usize, 0usize, 0usize);
             for leaf in verdict.certified() {
+                // On the lane the drive certified the leaf on — the
+                // verdict carries it, so a consumer never has to know
+                // which.
                 match assertion_at(
-                    &narrow.doc,
-                    narrow.assertion,
+                    &built.doc,
+                    built.assertion,
                     &leaf.box_,
                     verdict.symbolic(),
                     tol,
@@ -353,15 +336,21 @@ pub fn narration(tol: Tol) {
                 }
             }
             println!(
-                "   the drive over that box at {LINKS} links, leaf budget {} ({:.1} s): {} \
-                 certified leaves — the tip assertion HOLDS on {holds}, is VIOLATED on \
-                 {violated}, and is undecided on {undecided}",
+                "   the drive at {links} link{} over {} of the study, leaf budget {} \
+                 ({:.1} s): {} certified leaves — the tip assertion HOLDS on {holds}, is \
+                 VIOLATED on {violated}, and is undecided on {undecided}",
+                if links == 1 { "" } else { "s" },
+                fraction,
                 config.max_leaves,
                 t0.elapsed().as_secs_f64(),
                 verdict.certified().len(),
             );
         }
-        Err(refusal) => println!("   the drive over that box refused: {refusal}"),
+        Err(refusal) => {
+            println!(
+                "   the drive at {links} links over {fraction} of the study refused: {refusal}"
+            )
+        }
     }
 }
 
