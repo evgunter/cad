@@ -655,17 +655,16 @@ pub(crate) fn value_field_ops(
         number,
         text: fixed,
     } = showing;
-    let mut number = match (number, fixed.is_some()) {
-        (Ok(number), _) => number,
-        // The field shows its fixed text rather than its number, so
-        // the number is not on screen and the row keeps the text door
-        // a driven slot is edited through. `NaN` is what the widget
-        // holds meanwhile: every door it can reach refuses it by name
-        // (`props::SlotValue::of`), where the quotient this site used
-        // to form was an `inf` the formatter would spell the moment
-        // the fixed text went away.
-        (Err(_), true) => f64::NAN,
-        (Err(unit), false) => {
+    let mut number = match number {
+        Ok(number) => number,
+        // No number for the field to hold, so no field is built. It
+        // makes no difference whether the field would have SHOWN that
+        // number or a fixed text over it: an `egui::DragValue` is
+        // handed an `f64` whichever it renders, a drag carries that
+        // `f64` through the gesture's doors, and the plausible
+        // stand-in — `0.0` — is a small literal landing over an
+        // expression nobody typed.
+        Err(unit) => {
             ui.weak(props::no_reading(unit));
             return;
         }
@@ -3179,6 +3178,91 @@ mod value_field_tests {
             !said.contains(&marker),
             "a value the notation names is drawn as a field: {said:?}"
         );
+    }
+
+    /// **A DRIVEN slot cannot reach that refusal at all, and that is
+    /// what makes the rule above have no sub-case.**
+    ///
+    /// The refusal is a fact about a PAIR — a value and a notation —
+    /// so a field showing fixed text rather than its number looks
+    /// like it might need an exception: it has a text door to keep
+    /// open, and no number on the screen to be wrong. It does not,
+    /// because the only rows that show fixed text are a DRIVEN slot
+    /// and a slot that did not evaluate, and neither can fail the
+    /// conversion:
+    ///
+    /// - a driven slot's expression remembers no notation
+    ///   (`Expr::display_unit` answers `None` for every kind that is
+    ///   not a literal), so [`crate::props::rendering_unit`] writes
+    ///   it in the CANONICAL one, whose factor is exactly one;
+    /// - a slot that did not evaluate has no number, and the zero
+    ///   drawn under its source is a zero in every notation
+    ///   ([`crate::props::written`]).
+    ///
+    /// Both halves are asserted, the first through the session's own
+    /// text door rather than by hand-assembling a `SlotRow` — a
+    /// combination no caller constructs proves nothing, which is what
+    /// `work/vgeom/field-texts-literal-arm-is-unreachable-from-both-call-sites.md`
+    /// is filed about. If either half ever stops holding — a driven
+    /// slot that remembers a unit, a canonical factor that is not one
+    /// — this row reds and the exception has to be designed rather
+    /// than discovered.
+    #[test]
+    fn a_driven_slot_is_written_canonically_so_its_conversion_cannot_fail() {
+        let mut row = Row::extrude_distance("vgeom-driven-canonical", 0.008);
+        let Subject::Slot { node, slot } = row.subject.clone() else {
+            panic!("the fixture is a slot row");
+        };
+        // A product far past `f64::MAX * MILLI`: were this row written
+        // in millimetres, its conversion would leave the type.
+        let source = "base_r * 1e308".to_owned();
+        let outcome = row.session.perform(SessionOp::SetSlotExpression {
+            node,
+            slot,
+            text: source.clone(),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let (writing, _, number, fixed) = row.field();
+        assert_eq!(
+            fixed.as_deref(),
+            Some(source.as_str()),
+            "a driven slot shows its SOURCE, which is the case this row is about"
+        );
+        assert_eq!(
+            writing.unit,
+            Some(pncad::quantity::M.def()),
+            "and it is written in the canonical notation, because its \
+             expression remembers none"
+        );
+        assert!(
+            number.is_ok(),
+            "so its conversion answers a number even this far up: {number:?}"
+        );
+
+        // The canonical notation of every dimension, which is what the
+        // arm above rests on rather than on the one this fixture has.
+        for dimension in Dimension::ALL {
+            let Some(unit) = props::rendering_unit(dimension, None) else {
+                // `Count` names no notation at all, so there is no
+                // conversion to fail (`props::shown_value`'s own
+                // `None` arm).
+                continue;
+            };
+            assert_eq!(
+                unit.factor(),
+                1.0,
+                "{dimension}'s canonical notation scales, so a value written \
+                 in it can leave the type and a driven row of that dimension \
+                 CAN reach the refusal"
+            );
+            for canonical in [0.0, 1.0e306, -1.0e306, f64::MAX] {
+                assert_eq!(
+                    props::shown_value(Some(unit), canonical),
+                    Ok(canonical),
+                    "{canonical} is nameable in {dimension}'s canonical notation"
+                );
+            }
+        }
     }
 
     /// **A number the render cannot distinguish from what the field
