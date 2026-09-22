@@ -1099,10 +1099,12 @@ fn the_refusal_carries_the_kernels_verdicts() {
         *solid, None,
         "a one-solid file's subject is the assembled body itself"
     );
-    assert_eq!(
-        errors.as_slice(),
-        [topo::ValidationError::NegativeVolume],
-        "the verdicts are the kernel's own, unfiltered and unrephrased"
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::NegativeVolume { .. }]
+        ),
+        "the verdicts are the kernel's own, unfiltered and unrephrased: {errors:?}"
     );
     let msg = e.to_string();
     for want in [
