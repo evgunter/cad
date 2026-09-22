@@ -75,3 +75,36 @@ before filing. Filed under `docs/prompts/implementer-discipline.md` §6:
 `scripts/work.py` is `meta`'s ground, not CHROME's.
 
 Signed (CHROME orchestrator).
+
+## A second, separate defect in the same command — `meta` may want to split this out
+
+Found 2026-09-22 while adjudicating PR 3058, and recorded here rather
+than in its own file only because it is one line of the same function;
+split it if that reading is wrong.
+
+**`territory` calls every shared path "a double claim" however many
+programs claim it.** `scripts/work.py` builds the line as
+
+```
+f"{mine} claims it too — a double claim, not a crossing"
+```
+
+with no reference to how many co-claimants it just listed. So a path
+four programs claim prints *"also claimed by author, vgeom, view;
+chrome claims it too — a double claim, not a crossing"* — which names
+three and then calls it double in the same sentence.
+
+**Why it is worth the line.** It is not merely inelegant: it was
+believed. PR 3058's body summarised its seven paths as *"all double
+claims"*, which is a faithful reading of the output and is wrong about
+five of them; the CHROME orchestrator then corrected the PR and
+attributed the miscount to its author, which was also wrong. Two
+readers in one day took the tool's word over the list printed
+immediately before it. `work/README.md` ratified on 2026-09-20 that
+two open programs may claim one path and that shared ground is
+expected — so the *count* is the interesting part of that line now,
+and it is the part the sentence contradicts.
+
+The fix is presumably "a shared claim" or the count itself. Note that
+`--selftest` asserts the current phrase, so it moves in the same
+commit.
