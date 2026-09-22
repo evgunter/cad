@@ -298,3 +298,60 @@ pub(crate) fn render_over_band(set: &[OverBand]) -> String {
         .collect::<Vec<_>>()
         .join("\n")
 }
+
+/// How many `copysign(`/`abs(`/`sqrt(` atoms a rendered form spells,
+/// and how many of its TOP-LEVEL terms carry one — arithmetic on the
+/// render, which is what the census of a frozen kid's terms is.
+pub(crate) fn atom_census(rendered: &str) -> String {
+    let terms: Vec<&str> = rendered.split(" + ").collect();
+    let carrying = |needle: &str| terms.iter().filter(|t| t.contains(needle)).count();
+    format!(
+        "copysign {} in {} terms | abs {} in {} terms | sqrt {} | terms(top) {}",
+        rendered.matches("copysign(").count(),
+        carrying("copysign("),
+        rendered.matches("abs(").count(),
+        carrying("abs("),
+        rendered.matches("sqrt(").count(),
+        terms.len()
+    )
+}
+
+/// The DISTINCT `<name>(…)` atoms a render spells, each with its
+/// argument to the render's own nesting depth — balanced on the
+/// parentheses, so `copysign(1, (1) / (sqrt(…)))` comes back whole;
+/// one cut open by the render's width is kept as it stands and marked.
+/// What "the fold never fires" is READ from: an atom still standing in
+/// a rule-F-ON render is one the predicate declined, and its argument
+/// is the form it declined.
+pub(crate) fn distinct_atoms(rendered: &str, name: &str) -> Vec<String> {
+    let needle = format!("{name}(");
+    let mut out: Vec<String> = Vec::new();
+    let mut from = 0;
+    while let Some(i) = rendered[from..].find(&needle) {
+        let start = from + i;
+        let mut depth = 0usize;
+        let mut end = None;
+        for (j, ch) in rendered[start..].char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(start + j + ch.len_utf8());
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let (atom, end) = match end {
+            Some(end) => (rendered[start..end].to_owned(), end),
+            None => (format!("{}…[cut]", &rendered[start..]), rendered.len()),
+        };
+        if !out.contains(&atom) {
+            out.push(atom);
+        }
+        from = end;
+    }
+    out
+}

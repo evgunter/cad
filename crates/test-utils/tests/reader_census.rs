@@ -200,6 +200,11 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // ring endpoint-read census, code view + balanced_end
     },
     Entry {
+        path: "crates/geom-core/tests/sym_rule_f_rows.rs",
+        disposition: Shared, // `copysign` mint-site register over crates/*/src,
+                             // code view, each file cut at its test module
+    },
+    Entry {
         path: "crates/geom/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },

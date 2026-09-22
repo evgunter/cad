@@ -4,6 +4,19 @@ Newest entries at the bottom; the tail is the program's live status.
 Plan: `work/sym/plan.md`. A/B band 4700–4799
 (`docs/MODEL-AB-LOG.md` owns every live experiment number).
 
+## SYM-13 dispatched (2026-09-22): the leaf receipt's `frozen` column as the leaf's NEED — block SYM-B3 slot 2
+
+Spec `docs/SYM-13-SPEC.md` on `main` (the orchestrator's tracker PR);
+item `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+(P0, SYM-7's residue). Pre-draw D / STRUCTURAL on `sym/b3-block`; arm
+OPUS by the block's draw (byte 178). Protocol v7 IN — a receipt-contract
+decision — the full v6 dual, ordinal claimed on `main` at the dual's
+dispatch. Phase 1 measures the race (an adversary document where two
+leaves race for a node, the cross-schedule row red today), the column
+under three schedules, the consumers and NEED's cost; Phase 2 makes the
+column NEED with the adversary as a gating row; "drop" only by Ev's
+call if NEED's cost is above the line. Branch `sym/13-leaf-need`.
+
 ## Opening state (2026-09-13)
 
 Opened at M10's exit sweep, on Ev's call in chat that day: M10's walk
@@ -1064,3 +1077,74 @@ and is read-only here. Spec `docs/SYM-12-SPEC.md`; unit
 `work/sym/SYM-12.md`; branch `sym/12-negative-arm`. Triaged IN under v7
 by the program's default for a unit that changes what the tier decides
 on a document (the block record says so; re-asked here: IN).
+
+## SYM-12 at its PR (2026-09-21): the negative arm earned and taken
+
+Phase 1 first, all three tables committed before Phase 2. `tiltUV`
+rendered: the fold never fires — that document's `n.z` is not
+`1/sqrt(P)` in the DAG but a degree-20/22 quotient in the parameter's
+offset carrying odd powers beside three `sqrt` atoms (one over a frozen
+node), and a size-frozen `Sub` refuses it at both dials; not the
+budget. The `copysign` census: no mint site other than the orthonormal
+basis reaches a decision on any takeable measured document, rule F on
+or shut. The negative arm, hand-planted: the tilt-`u` START cap and
+`FlipZ` read the END cap's rule-F-on numbers to the digit at both
+lifts, nothing else moves, the eight documents' splits and ceilings and
+the walk ledger are bit-identical — the ring item's acceptance met
+without a second payment of its class. Phase 2 taken:
+`manifest::negative` as `positive` of the negated numerator, both arms
+under `manifest_sign`, the rows and the ordering pin, the gating
+document row. Sample and ordinal at the dual's dispatch.
+
+## SYM-12 fix pass (2026-09-22): the union of both reviews
+
+Both reviews MERGEABLE-AFTER-FIXES (R1 one MAJOR: the mint-site census
+incomplete and presented as exhaustive; R2 one demonstrated MINOR: the
+two spellings of a negative magnitude parted). Taken, A–W: `magnitude`
+reads `fold_abs` first, R2's row the pin; the tree's ten `copysign`
+sites registered by a source-census row with the empirical claim
+gated on the five cheap documents and measured on the revolved cap
+(no atom reaches a decision); `negative` tests before it allocates;
+each document's own numbers (the start cap 108 out of `numeric`,
+`FlipZ` 122); the census table's totals printed by the row (three
+hand sums were off by one to four); the release leaf instrument run
+(the arm inside the run-to-run spread on all six leaves; the bracket,
+link and pad over the line since rule E); the two forced rows
+reflected; the render width restored by `take_shape_report`; the pad's
+pins stated exactly (bracket pinned, nominal split by no row, over-band
+set evidence-only); the reach narrowed to the tilt-`u` family (R1's
+`FlipV` folds and moves nothing; R2's `FlipX` reads the end cap); the
+one-dial reason's false half dropped; the negatives row's poison and
+`copysign` cases; the fold row's F-shut arm said in full; the helpers
+one home; the DECIDE-3 seam filed
+(`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Frozen again for the delta.
+
+## SYM-12 merged (2026-09-22): the derived-frame freeze's next shape — block SYM-B3 slot 1
+
+PR #3046 (fix-pass head `47e5a0a64` green on the full matrix, run
+35672457048; the state-sync commit on top). Rule F's NEGATIVE arm:
+`manifest::negative` as `positive` of the negated numerator, both folds
+under `manifest_sign`; the reach the tilt-`u` family, either cap, either
+sign (the start cap 108 out of `numeric`, `FlipZ` 122, both to the end
+cap's state by name and by count; `FlipV` folds and moves nothing);
+`tiltUV` rendered — the fold never fires on a 21-over-23-term quotient
+with odd powers of `t`, not the budget; the `copysign` census — no atom
+reaches a decision on the seven takeable documents or the revolved cap,
+ten mint sites registered by a source-census row; `magnitude`'s two
+spellings meet; the leaf cost measured (cheaper on five of six leaves,
+the link +4.8 %); the eight
+documents' splits, ceilings and the walk ledger bit-identical.
+
+Review: the dual on `c6cf72319` (R1 OPUS MERGEABLE-AFTER-FIXES 1/5/5 —
+the mint-site census incomplete and presented as exhaustive; R2 FABLE
+MERGEABLE-AFTER-FIXES 0/4/5 — the two spellings of a negative
+magnitude parted, demonstrated). Fix pass A–W (the register row and
+its reader-ledger line, the census gate, the leaf instrument run, the
+reflected rows, the reach narrowed, the seam filed as
+`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Delta by R1: MERGEABLE with F1 (must-fix: the render width per pass),
+F2, F3 — taken in the state-sync commit. Spec deleted with its ledger
+entry; the unit closed. Next: SYM-13 (block SYM-B3 slot 2, Opus); the
+seam row is the `props/sign-hull` merge's.
+
