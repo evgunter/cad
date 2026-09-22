@@ -107,3 +107,12 @@ carries it as an announced crossing into
 `crates/geom-brep/src/patch_bound.rs` (ENCL's path; shared ground is
 expected under ENCL's own `keep_out`). The file moves with its id, per
 `work/README.md`'s claiming rule.
+
+## The sweep no longer reds on this (2026-09-21)
+
+RING-2 (SCALAR, PR 3032) gave the sweep a 64-ulp sampler allowance,
+so `r1_random_rational_soundness_sweep` is green on main while the
+certificate is still short by the amount measured above. Filed as
+`work/chord/soundness-sweep-allowance-is-fifty-times-the-measured-
+sampler-error.md`; TESS-2's Phase 1 rows compare the exact truth BARE
+so the defect stays red until fixed.

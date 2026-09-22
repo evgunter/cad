@@ -389,3 +389,26 @@ neither reads the block branch.
   lane worked around it with `ServerAliveInterval` and a detached push.
   Whoever owns `local-scripts/hooks` wants a row; filed when the box
   can run `work.py`.
+
+## Main moved 540 commits; the sweep was silenced (2026-09-21)
+
+Box recovered (27 G free). Session restarted; the staged log entry
+survived and is pushed. Pulled main: RING-2 (SCALAR, PR 3032) made the
+ring a newtype over a backend that pads only inexact operations —
+bounds moved tighter — and, when the soundness sweep and the hull rows
+went red on the ULP-scale escape, attributed it to the sampler and
+added a 64-ulp relative allowance to `Domination::sampled_under_
+certified`. That is ~50× the sampler error the diagnostic measured and
+hides the proven certificate escape; the sweep is green on main and the
+certificate is still unsound. Not a fudge on the certificate (my spec's
+line), but a fudge on the falsifier, which is the same blindness.
+
+- Filed on CHORD (`soundness-sweep-allowance-is-fifty-times-…`), the
+  measurement appended to PROPS' three-spellings row and to the
+  rational-cells row; TESS-2's spec amended: Phase 1 compares exact
+  truth BARE (`Domination::new`), Phase 2 measures the sampler's error
+  against the exact referee so the allowance gets a number. Not
+  re-sized by TESS — the home is PROPS' row.
+- TESS-1's green head `02c589569` is 540 commits behind main; the lane
+  is merging main and re-running CI (merge-tree: clean). Merge on
+  green; then TESS-2 dispatches (disk allows it now).
