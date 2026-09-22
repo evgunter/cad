@@ -652,14 +652,14 @@ mod tests {
 
     use std::collections::BTreeMap;
 
-    use pncad::document::{Frame, RecipeNodeId};
+    use pncad::document::{CancelToken, EvalOptions, Frame, RecipeNodeId, evaluate};
     use pncad::geom_core::{Point3, Tol};
 
     use super::{LegLane, edge_id_lane, edge_id_segments};
     use crate::display::DisplayView;
+    use crate::generation::Generation;
     use crate::pickindex::{EdgeId, PickIndex, PictureKey};
     use crate::scene;
-    use crate::session::DocSession;
 
     /// Coarse enough to keep the row cheap, fine enough that the
     /// plate's hole is a ring of facets — `tests/edge_pick.rs`'s
@@ -670,18 +670,22 @@ mod tests {
 
     /// The spike plate, evaluated, indexed — the picture a frame marks
     /// in.
+    ///
+    /// Evaluated through the kernel door rather than through a
+    /// session: this module is a vocabulary and a session is a driver
+    /// (`crates/viewer/README.md`, Module boundaries), and the index
+    /// only ever wanted the evaluation.
     fn plate() -> (PickIndex, RecipeNodeId) {
         let tol = Tol::witness();
         let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
-        let mut session = DocSession::inline(doc, tol);
-        session.pump();
-        let (doc, eval) = session
-            .landed_pair()
-            .expect("the inline seam lands its first evaluation");
-        let generation = session
-            .landed_generation()
-            .expect("a landed evaluation has a generation");
-        let index = PickIndex::build(doc, eval, PictureKey::of(generation, delta()), tol)
+        let eval = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let index = PickIndex::build(&doc, &eval, PictureKey::of(Generation::FIRST, delta()), tol)
             .expect("the plate indexes");
         (index, extrude)
     }
