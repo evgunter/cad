@@ -145,6 +145,58 @@ none of the three is it.
 lane plus one correctness claim — that the measurements say what the
 report says they say, and that each pinned row can go red.
 
+## 2026-09-20 — ATREST-1 implemented (branch `atrest/1-per-solid`)
+
+Check 7's subject is the SOLID, and check 10 is new. Both reads are at
+SIGN level: `props::sign_certified` took the faces it reads as an
+argument, and its two callers hand it one solid's faces (check 7) and
+one shell's faces (check 10). `classify_shells_of` is not called from
+`validate.rs` — D-D held.
+
+Three things the spec did not settle, decided in the lane and
+disclosed:
+
+- **The whole-body wrapper went rather than staying dead.** D-D asked
+  for a pair (`sign_certified` over every face, `sign_certified_of`
+  over some), but with check 7's subject moved to the solid nothing
+  calls the whole-body door, and a `pub(crate)` fn with no caller is
+  dead code the gate refuses. There is one door, taking its faces;
+  handing it the face arena in arena order is the whole-body walk,
+  which is what `Body::faces_of_solid` gives a one-solid body.
+- **Check 10 makes the DEFINITE half of D-C's claim only.** The full
+  claim reds the coplanar pillow and five other zero-volume fixtures,
+  because check 7's ratified `Zero`-exempt posture says an orientation
+  probe is not a thinness gate. Filed as
+  `check-10-refuses-two-outer-shells-and-is-exempt-on-the-rest-of-the-role-claim`.
+- **Check 10 is gated on that solid's own check 7**, so an inverted
+  solid still reports `NegativeVolume` alone and not a second name for
+  the same defect.
+
+Residues filed:
+`check-10-states-one-outer-and-the-rest-void-but-not-that-a-void-lies-inside-it`
+(the `and inside it` half the spec required be filed),
+`check-10-refuses-two-outer-shells-and-is-exempt-on-the-rest-of-the-role-claim`,
+and `check-10-is-not-made-by-the-mixed-tier-3-passes`, which rides with
+`tier3-prime-still-couples-plus-v-to-the-reporting-target`.
+
+## 2026-09-20 — check 10 as specced does not hold on this tree
+
+CI run 35565008331 on `464244c93`: check 7's per-solid subject is
+green everywhere, and check 10 as D-C states it reds **36 distinct
+pinned rows**, every one of them a body a kernel verb produces on
+purpose — `graft onto` ("fuses into one solid"), the boolean coplanar
+split, `subtract`'s two-shell complement, the editor's placed union,
+and two shell doors, one of which deliberately mints a solid with no
+outer shell at all. The tree already answers "how many material
+components" one layer up, as `editor-core`'s `CheckId::Connectedness`
+finding against a per-document expectation, and pins a deliberate
+disjoint union as VALID.
+
+Reported to the orchestrator rather than worked around: D-C and the
+ratified behaviour of five doors cannot both stand, and which one moves
+is not a lane's call. Measured, filed and reproducible on PR #2977:
+`one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
+
 ## 2026-09-21 — ATREST-1's measurement refuted my own spec; check 10 dropped
 
 The lane stopped on check 10 rather than working around it, which is

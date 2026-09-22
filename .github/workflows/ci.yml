@@ -1369,6 +1369,18 @@ jobs:
         run: |
           scripts/gates/loop-boundary-discards.sh --selftest
           scripts/gates/loop-boundary-discards.sh
+      # `crate::widgets::number_field` carries the chrome's precision
+      # rule AND its echo veto; only the first travels as a context
+      # default, because `egui::Style` has a `number_formatter` and no
+      # counterpart for parsing. So a bare `egui::DragValue` shows the
+      # right text and still commits that text back, which moves the
+      # value. The gate is what makes "every numeric field in the crate
+      # goes through the door" a standing fact rather than a
+      # measurement somebody took once.
+      - name: the viewer's numeric fields go through one door
+        run: |
+          scripts/gates/viewer-numeric-field-door.sh --selftest
+          scripts/gates/viewer-numeric-field-door.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
       # this workflow's build job, measured (bazel-verdict report).
