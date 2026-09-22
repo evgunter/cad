@@ -556,3 +556,152 @@ fn a_tainted_freeze_is_the_leafs_own_need_in_either_order() {
         "and so does the recording leaf: {recorder_after:?} {recorder_first:?}"
     );
 }
+
+/// **The inherit branch moves a DECISION while the column stands
+/// still.** The first reviewer's delta probe, adopted.
+///
+/// `outside` is `2.0`, minted outside the session, and the decision is
+/// `outside · outside − 4`. A leaf that does not record it freezes it
+/// and answers numerically; the same leaf, run after one that DID
+/// record it, takes the published form for the product and proves the
+/// identity — the stronger answer `sym::memo`'s header describes. Its
+/// NEED is 1 in both orders: what its reasoning could not resolve is
+/// the id its table does not hold, which is the same id whichever
+/// order ran.
+#[test]
+fn the_inherit_branch_moves_the_decision_while_the_column_stands_still() {
+    let outside = lit(2.0);
+    let m_a = tight_memo();
+    let u_first = leaf(&m_a, || zero(outside * outside - lit(4.0)));
+
+    let m_b = tight_memo();
+    let _recorder = leaf(&m_b, || {
+        let c = lit(2.0);
+        zero(c * c - lit(4.0))
+    });
+    let u_after = leaf(&m_b, || zero(outside * outside - lit(4.0)));
+
+    assert_ne!(
+        decisions(u_first),
+        decisions(u_after),
+        "the decision column moves on this branch: {u_first:?} {u_after:?}"
+    );
+    assert_eq!(
+        (u_first.frozen, u_after.frozen),
+        (1, 1),
+        "and the leaf's NEED does not: {u_first:?} {u_after:?}"
+    );
+}
+
+/// **An inherited form does not move the leaf's NEED**, with every
+/// decision column standing still — the first reviewer's delta probe
+/// that found the fix-pass gap, adopted as the claim that closes it.
+///
+/// `P = outside · outside` with `outside` minted outside the session,
+/// and the decision is `P − P`, an identity whatever `P`'s form is, so
+/// no decision column can move. Before the leaf's own side was counted
+/// from its TABLE, this read 1 when the leaf ran first (it froze the
+/// unrecorded node itself) and 0 when it ran after a leaf that
+/// recorded the node (it took the published form for `P` and never
+/// walked below it). It reads 1 in both orders now, and in both orders
+/// with the drive's frozen set non-empty — the reviewer's third probe,
+/// which differs only in seeding the set, is the second arm here.
+#[test]
+fn an_inherited_form_does_not_move_the_leafs_need() {
+    let outside = lit(2.0);
+    let identity = move || zero(outside * outside - outside * outside);
+
+    // Arm 1: nothing else froze over either drive.
+    let m_a = tight_memo();
+    let u_first = leaf(&m_a, identity);
+    let m_b = tight_memo();
+    let recorder = leaf(&m_b, || {
+        let c = lit(2.0);
+        zero(c * c - lit(4.0))
+    });
+    let u_after = leaf(&m_b, identity);
+    assert_eq!(
+        decisions(u_first),
+        decisions(u_after),
+        "every decision column is the same in both orders: {u_first:?} {u_after:?}"
+    );
+    assert_eq!(
+        (u_first.frozen, u_after.frozen, recorder.frozen),
+        (1, 1, 0),
+        "and so is the column: {u_first:?} {u_after:?} {recorder:?}"
+    );
+
+    // Arm 2: the same, with the drive's set non-empty in both orders,
+    // so neither reading is the nothing-froze short circuit.
+    let m_c = tight_memo();
+    let seed_c = leaf(&m_c, || zero(three() - three()));
+    let u_first_seeded = leaf(&m_c, identity);
+    let m_d = tight_memo();
+    let _seed_d = leaf(&m_d, || zero(three() - three()));
+    let _recorder_d = leaf(&m_d, || {
+        let c = lit(2.0);
+        zero(c * c - lit(4.0))
+    });
+    let u_after_seeded = leaf(&m_d, identity);
+    assert_eq!(
+        (m_c.size().frozen, m_d.size().frozen),
+        (1, 1),
+        "the set is non-empty in both orders"
+    );
+    assert_eq!(
+        (seed_c.frozen, u_first_seeded.frozen, u_after_seeded.frozen),
+        (1, 1, 1),
+        "the seeded node is the seeding leaf's need and neither of the others': \
+         {seed_c:?} {u_first_seeded:?} {u_after_seeded:?}"
+    );
+}
+
+/// **The one reading the order still moves**: a freeze the TAINT
+/// caused, under a hit — `work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`.
+///
+/// `outside` is `0.0` and minted outside the session. A leaf that
+/// RECORDS it folds it away, so `0 + a + b` is two terms and fits, and
+/// **no leaf ever publishes a freeze of that sum**. A leaf that does
+/// not record it carries an indeterminate in the zero's place, which
+/// makes the sum three terms and freezes it — a freeze the taint
+/// caused, which no drive holds and which the leaf's table cannot
+/// predict. Run first, that leaf makes the freeze and counts it; run
+/// after the recording leaf, it takes the published form at the
+/// decision root and never walks there.
+///
+/// The row pins the reading rather than a repair: closing it would
+/// mean computing the form the memo just handed the leaf, which is the
+/// memo. Both readings are true of what the leaf did — its reasoning
+/// really is the stronger one in the second order — and the branch is
+/// pinned at zero on every drive measured (`editor-core`'s
+/// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`).
+#[test]
+fn a_taint_induced_freeze_under_a_hit_is_read_by_order() {
+    let sum = |base: Sym<f64>| base + p("a", 0.25) + p("b", 0.5);
+
+    let m_a = tight_memo();
+    let outside_a = lit(0.0);
+    let tainted_first = leaf(&m_a, || zero(sum(outside_a) - sum(outside_a)));
+
+    let m_b = tight_memo();
+    let _recorder = leaf(&m_b, || {
+        let c = lit(0.0);
+        zero(sum(c) - sum(c))
+    });
+    let outside_b = lit(0.0);
+    let tainted_after = leaf(&m_b, || zero(sum(outside_b) - sum(outside_b)));
+
+    assert_eq!(
+        (m_a.size().frozen, m_b.size().frozen),
+        (0, 0),
+        "no leaf publishes a freeze of the folded sum: {:?} {:?}",
+        m_a.size(),
+        m_b.size()
+    );
+    assert_eq!(
+        (tainted_first.frozen, tainted_after.frozen),
+        (2, 1),
+        "the taint-induced freeze is counted only where the walk reached it: \
+         {tainted_first:?} {tainted_after:?}"
+    );
+}

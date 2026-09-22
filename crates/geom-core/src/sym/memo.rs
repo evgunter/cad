@@ -58,15 +58,15 @@
 //! counts `FreezeCause::Unrecorded` over both documents and pins it at
 //! zero. Both directions are rows in `geom-core`'s `sym_drive_memo`.
 //!
-//! # Why a LEAF's NEED is the same under every schedule
+//! # A LEAF's NEED, and the one reading that is still the schedule's
 //!
 //! A leaf receipt's `frozen` column is that leaf's NEED: the frozen
 //! nodes its own reasoning rested on ([`super::SymCounts::frozen`] says
 //! what the column means on each receipt). `super::leaf_need` reads it
-//! as a union of two sets — this memo's frozen ids inside the closure
-//! of the leaf's plain-walk roots, and the freezes the leaf made and
-//! could not publish — and every part of that is fixed before any
-//! worker starts.
+//! as a union of three sets, all inside the closure of the leaf's
+//! plain-walk roots — this memo's frozen ids, the ids the leaf's own
+//! table does not hold, and the freezes the leaf made and could not
+//! publish.
 //!
 //! **The leaf's side is its box.** Its hash-consing table is the DAG
 //! its replay built and its roots are the decisions it asked a plain
@@ -92,27 +92,35 @@
 //! separate promise, for poison recovery; [`DriveMemo::read`] is where
 //! it is argued.)
 //!
-//! **A freeze the leaf could not publish is still the leaf's.** An
-//! unrecorded node, or one whose form was built out of one, freezes in
-//! this leaf and never reaches the memo — so the intersection alone
-//! would read it as 0 when this leaf ran first and 1 once a leaf that
-//! RECORDED the node had published the same freeze, which is a reading
-//! of the schedule and not of the leaf. Counting it on the leaf's own
-//! side closes that: it is counted once whoever ran first, because the
-//! two sides are UNIONED and not summed, and the leaf's own side is a
-//! function of its table.
+//! **What the leaf cannot resolve is counted from its TABLE, not from
+//! its walk.** A node absent from the table freezes when the walk
+//! reaches it and that freeze never leaves the leaf — but whether the
+//! walk reaches it is this memo's business, because a hit at a
+//! recorded ancestor skips the subtree under it. Counting the freezes
+//! made would therefore read 1 when the leaf ran first and 0 when it
+//! ran after a leaf that recorded the node, with every decision
+//! standing still; counting the ids the table does not hold
+//! (`Session::foreign`) reads the same in both orders, because the
+//! table is the leaf's own. The freezes it could not publish are
+//! unioned in beside them, so a node another leaf froze and published
+//! is counted once however the two ran.
 //!
-//! **What is left is the branch above, and only it**: a leaf that does
-//! not record a node can INHERIT a recorded ancestor's form instead of
-//! freezing, and then it neither froze nor needs it. That is the
-//! direction the paragraph above calls sound but not order-independent
-//! — it is the decisions that move there first, so a NEED that moved
-//! with them would be reporting a receipt that had itself moved. The
-//! rows pin that branch at zero on every drive measured
+//! **What is left is one reading, and it is the schedule's.** A freeze
+//! the TAINT caused — a recorded node whose form the leaf built out of
+//! an unrecorded one, which fits the budget for a leaf that records
+//! that node and does not for this one — is in no drive's set and is
+//! not in the leaf's table either, so it is counted exactly where the
+//! walk made it, which a hit above it can take away. Both readings are
+//! true of what the leaf did: in the second order its reasoning really
+//! is the stronger one this header calls sound but not
+//! order-independent. The row that pins the reading is `geom-core`'s
+//! `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`
+//! and the residue is
+//! `work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`;
+//! the branch itself is pinned at zero over every drive measured
 //! (`editor-core`'s
-//! `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`, on
-//! three drives including the racing one) and `geom-core`'s
-//! `sym_drive_memo` walks both orders of it by hand.
+//! `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`, five
+//! drives), because a drive mints every node inside its own session.
 //!
 //! # What it holds, and what it does not
 //!

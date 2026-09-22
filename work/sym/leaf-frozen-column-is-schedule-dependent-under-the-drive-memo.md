@@ -104,21 +104,39 @@ the whole serialization identical — so
 own comparison was false on it.
 
 **The option taken was the second one: the leaf's NEED.** A leaf's
-`frozen` is now the frozen nodes its own reasoning rested on — the
-drive's frozen set inside the closure of the leaf's plain-walk roots,
-unioned with the freezes the leaf made and could not publish. Both
+`frozen` is now the frozen nodes its own reasoning rested on — inside
+the closure of the leaf's plain-walk roots: the drive's frozen set,
+the ids the leaf's own table does not hold, and the freezes it made
+and could not publish. Both
 sides are functions of the leaf's box and of the drive, so the column
-is the same under every schedule and with the memo dial either way;
+is the same under every schedule and with the memo dial either way,
+but for the one reading named below;
 `geom_core::sym::memo`'s header carries the argument, and the gating
 row is
 `m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials`
 over three adversary drives, one of which certifies leaves.
 
-**What it left open.** One direction of the memo's unrecorded
-asymmetry is still order-dependent, and it is the pre-existing one the
-memo's header already names: a leaf that did not RECORD a node can
-inherit a recorded ancestor's form instead of freezing, in which case
-its decisions — not only this column — depend on which leaf ran first.
+**What it left open.** The unrecorded branch, which is the memo's own
+pre-existing disclosure: a leaf that did not RECORD a node can inherit
+a recorded ancestor's form instead of freezing. SYM-13's first
+reviewer showed by execution that the column could move there **with
+every decision column standing still** — so the first draft's sentence
+"it is the decisions that move there first" was false — and the unit
+answered by counting the leaf's own side from its TABLE
+(`Session::foreign`: the ids its DAG names and its table does not
+hold) rather than from the freezes its walk happened to make, which a
+memo hit can take away.
+
+What remains after that is one reading, filed as
+`work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`
+(P2): a freeze the TAINT caused — over the budget only because an
+unrecorded node stood in for a real form — is in no drive's set and
+not in the leaf's table either, so it is counted where the walk made
+it. `geom-core`'s
+`sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`
+pins that reading, and
 `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded` counts
 `FreezeCause::Unrecorded` over five drives (both measured documents and
-the three adversaries) and pins it at zero.
+the three adversaries) and pins the branch at zero on all of them: a
+drive mints every node inside its own session, so no leaf of one holds
+a foreign id at all.
