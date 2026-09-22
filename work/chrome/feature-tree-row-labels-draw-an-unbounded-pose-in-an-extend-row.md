@@ -4,6 +4,8 @@ kind: issue
 title: viewer: row_label draws '{kind} - {pose}' with pose unbounded, in a non-wrapping row
 status: open
 opened: 2026-09-22
+priority: P1
+cost: D
 ---
 
 

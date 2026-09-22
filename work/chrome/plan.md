@@ -1,6 +1,6 @@
 # CHROME — viewer chrome and coverage (plan)
 
-**STATUS: OPEN; slate re-cut 2026-09-15.** The opening slate of nine
+**STATUS: OPEN; slate re-cut 2026-09-15, and cut again 2026-09-22** (see *The slate after the 2026-09-22 cut*). The opening slate of nine
 units all landed on 2026-09-04 and the program then went dormant for
 eleven days. What it holds now is the residue those units filed, five
 hand-offs from DOCM, and rows other programs filed onto this slate
@@ -65,19 +65,11 @@ as out-of-scope for this wave — a scheduling fact with a date on it,
 not a fence. Every dispatch carries it; no clause here can, because it
 would be false within the day.
 
-**Three rows were held only by the spent cession and are now
-available**: `gpu-index-counts-substitute-u32-max` and
-`mispaired-ids-exempts-the-empty-window` (both closed their paragraph
-with *"ground is ceded to VIEW under the carve-out, so CHROME does not
-work it"*), and `band-refusal-still-badges-every-row`, whose blocker
-was *"a new `RowStatus` variant does not land inside CHROME's fence"*
-— a fence that no longer exists. The COST arguments in those rows
-stand and are unaffected: the `RowStatus` row still measures 19 sites
-in 9 files for the field variant, which is a reason to shape the fix
-carefully, not a reason it cannot be dispatched. VGEOM now owns
-`scene.rs` and `gpu.rs` beside CHROME, so the first two are a re-home
-candidate as much as a dispatch candidate; that call waits on the
-wave that takes them.
+**The three rows the spent cession alone was holding are all
+disposed of**: `band-refusal-still-badges-every-row` stays here (Wave 2
+priced its variant and left the row open), `gpu-index-counts-substitute-u32-max`
+is closed, and `mispaired-ids-exempts-the-empty-window` went to FIT in
+the 2026-09-22 cut, after VGEOM declined it on its charter test.
 
 ## What the 2026-09-15 audit found
 
@@ -171,7 +163,7 @@ answers rather than details:
   orchestrator's; both of these were the lane's, and the lane had the
   measurement.
 
-**Wave 2 DISPATCHED 2026-09-22** — three units, four rows, no A/B duals
+**Wave 2 LANDED 2026-09-22** — three units, four rows (PRs 3055, 3058, 3059), no A/B duals
 and no row in `docs/MODEL-AB-LOG.md` (Ev, in chat: *"no AB protocol"*);
 the band 1600-1699 stays claimed and empty. Dispatched against the item
 files directly rather than against `docs/<ID>-SPEC.md`: these rows carry
@@ -220,6 +212,38 @@ This is the same root cause as
 this sitting from the other direction: a stale base ref silently
 answering a question about the wrong tree. Two independent instances in
 one wave, one of which reached a merged artifact.
+
+## The slate after the 2026-09-22 cut
+
+The cut (`work/chrome/log.md`, same date) left **28 points** against
+the 30-point ceiling, in two families and the class behind the second.
+
+- **The text the viewer lays out** — Ev's P0 overflow report and its
+  residue. The concision half (`error-and-check-text-overflows-its-region`),
+  the fifty unconverted sentences
+  (`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`)
+  and the toolbar's own canceled line are P0. Before them sits a fork
+  nobody has answered: `messages-wrapped-at-a-region-and-numbers-bounded-by-characters-are-two-answers`
+  and `wrapping-at-a-region-with-no-floor-produces-a-four-character-ribbon`
+  ask what a too-narrow region owes a sentence, and the fifty-site
+  conversion waits on that answer so it is done once.
+  `an-auto-sized-window-makes-available-width-last-frames-content`,
+  `feature-tree-row-labels-draw-an-unbounded-pose-in-an-extend-row` and
+  `message-resolves-its-text-style-differently-from-ui-label` ride with
+  whichever unit next edits `widgets::message` or its callers.
+- **The badges it draws** — `at-rest-badge-reports-an-empty-document-as-a-refusal`,
+  `band-refusal-still-badges-every-row`,
+  `blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix`,
+  `viewer-panels-disagree-on-a-poisoned-node`,
+  `two-is-this-broken-readings-argue-opposite-on-poisoned`,
+  `six-viewer-sites-restate-the-empty-document-rule-and-its-badge-policy`,
+  `downstream-wording-spells-node-where-node-number-forbids-it` and
+  `chrome-weight-is-outside-the-palette`.
+- **The subset-policy class** Wave 2's exhaustive guard exposed:
+  `a-wildcard-match-decides-viewer-policy-in-five-places`,
+  `matches-subset-policy-survives-in-four-viewer-modules` and
+  `the-exhaustive-on-purpose-argument-is-restated-twenty-times` — one
+  class, one unit.
 
 **Held back, and why.**
 `at-rest-badge-reports-an-empty-document-as-a-refusal` is the next row

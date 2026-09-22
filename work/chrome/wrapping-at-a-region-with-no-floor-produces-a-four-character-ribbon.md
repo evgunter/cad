@@ -4,6 +4,9 @@ kind: issue
 title: viewer: a message wrapped at a deeply indented narrow pane lays out four characters to a line, and MAX_CHARS's ratified rule says a box owes a number to meet
 status: open
 opened: 2026-09-22
+priority: P1
+cost: D
+refs: [messages-wrapped-at-a-region-and-numbers-bounded-by-characters-are-two-answers]
 ---
 
 

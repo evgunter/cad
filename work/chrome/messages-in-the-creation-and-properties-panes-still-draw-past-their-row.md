@@ -1,9 +1,12 @@
 ---
 id: messages-in-the-creation-and-properties-panes-still-draw-past-their-row
 kind: issue
-title: "viewer: fifty refusal, fault and prompt sentences in the creation and properties panes are still drawn by the layout's rule, not the message's"
+title: viewer: fifty refusal, fault and prompt sentences in the creation and properties panes are still drawn by the layout's rule, not the message's
 status: open
 opened: 2026-09-22
+priority: P0
+cost: D
+refs: [error-and-check-text-overflows-its-region]
 ---
 
 

@@ -1537,3 +1537,23 @@ conflict itself, being the one reader who had seen all four entries.
 Five open rows, all P2/P3, none blocked on a decision. One parked on
 WIRE's `need_count` siting. The program is in a state a successor can
 pick up cold.
+
+## A note from CHROME (2026-09-22) — 4 rows re-homed here
+
+CHROME measured 88 budget points against its 30-point ceiling and was
+cut along its priority seam (`work/chrome/log.md`, same date), opening
+FORMS and OFFER. Per `work/README.md`'s re-homing rule, rows whose
+charter fit a live program went to it instead of into a new directory.
+Moved here by `git mv`, ids, bodies and history unchanged:
+
+- `viewer-substituted-value-class-is-crate-wide`
+- `camera-project-answers-with-a-screen-position-for-a-projection-that-overflowed`
+- `positive-finite-predicate-has-six-homes-outside-datums-rs`
+- `metres-per-pixel-at-hand-rolls-a-norm-the-file-already-calls`
+
+Each passes this program's charter test — a wrong number, or no number, reaches the screen. The substituted-value row names this program's non-finite class crate-wide; `Camera::project` answers a screen position for a projection that overflowed. `mispaired-ids-exempts-the-empty-window` was NOT sent here: this log declined it on 2026-09-21 on the same test, and it went to FIT beside its id-readback row. Nor were `culling-is-load-bearing-with-no-pixel-test` (BLIND) or `viewer-expresses-no-gpu-adapter-preference` (OFFER), for the same reason.
+
+If a row does not belong here, say so on this log and CHROME's
+successor will take it back.
+
+Signed (CHROME orchestrator).

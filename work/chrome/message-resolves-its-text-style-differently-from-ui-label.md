@@ -4,6 +4,8 @@ kind: issue
 title: viewer: wrapped_in_region passes TextStyle::Body where Label::layout_in_ui passes FontSelection::Default, which differ under a style override
 status: open
 opened: 2026-09-22
+priority: P3
+cost: E
 ---
 
 

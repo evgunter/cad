@@ -49,7 +49,7 @@ true of the COUNT in isolation and false as a claim about the figure,
 and the file now holds both readings in adjacent paragraphs.
 
 The product consequence is
-`work/chrome/the-circle-split-cap-offers-counts-the-document-refuses.md`,
+`work/forms/the-circle-split-cap-offers-counts-the-document-refuses.md`,
 which measures the same walls on the surface a person touches. That
 row is about the missing radius-aware bound; this one is about the
 sentence being in four places, so that when the bound is written the

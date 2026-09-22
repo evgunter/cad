@@ -73,7 +73,7 @@ both outside this row:
 
 - `session/probe.rs`'s `probe_seed` writes `props::authored_in` by
   hand, in the inverse direction
-  (`work/chrome/probe-seed-respells-props-authored-in.md`).
+  (`work/forms/probe-seed-respells-props-authored-in.md`).
 - `pane/view.rs`'s camera readout spells the metre-to-millimetre
   factor as `1000.0` beside `scene::MM_PER_METRE`. **Already filed**,
   by AUTH-2's sweep on the same day, as a section of
