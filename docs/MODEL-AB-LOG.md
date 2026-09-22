@@ -323,6 +323,31 @@ amended:
      by a recorded byte, the stopping rule and the adjudication
      instrument are unchanged.
 
+- **Instrument note (Ev, in-chat, 2026-09-22): OPUS 5.5 RELEASE
+  BOUNDARY.** Opus 5.5 released 2026-09-22. The fable 5.1 note below,
+  applied to the opus axis: the exact identity (5 vs 5.5) of
+  opus-armed sessions dispatched near the mark is NOT KNOWN; opus rows
+  clearly after the mark must be ANALYZED SEPARATELY from those
+  before, and any readout spanning 2026-09-22 must say so and report
+  the eras separately. The boundary reaches every place an OPUS label
+  appears, not only the implementer arm: **the opus reviewing arm of a
+  v6 dual, the orchestrator field** (the 2026-09-19 amendment — an
+  `orch OPUS` after the mark is a different model from one before it,
+  and a unit whose orchestrator sat across the mark SPANS it), and the
+  opus-only units v7 runs outside the protocol (which log no row here,
+  so only their programs' logs carry the caveat). Affected rows near
+  the boundary, as on main when this note was written: every row with
+  an OPUS implementer, reviewer or orchestrator phase dated 2026-09-22
+  — SYM-13 (OPUS implementer dispatched ~03:30Z; ordinal 4707),
+  SYM-12 (R1 OPUS) and DECIDE-3 (OPUS implementer, R1 OPUS), whose
+  opus phases ran across 2026-09-21→22,
+  TESS-1 (R1 OPUS; ordinal 5100), LANE-3 (R2 OPUS; ordinal 4116) —
+  are NEAR/SPANNING; rows whose opus phases all closed by 2026-09-21
+  are before; later opus rows are after. Other programs' opus rows in
+  the window, and any block record still branch-side, carry the same
+  caveat. Fable rows are unaffected by this mark (the fable 5.1 era
+  continues).
+
 - **Protocol v7 (Ev, in-chat, 2026-09-19): UNIT TRIAGE — the protocol
   runs on the HARD units only, and every other unit runs
   opus-implemented and opus-reviewed OUTSIDE it. THIS IS A POPULATION
