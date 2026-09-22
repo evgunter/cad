@@ -145,6 +145,8 @@ mod spline_hull;
 mod sym11_witness_kind_interval_rows;
 #[path = "sym11_witness_kind_rows.rs"]
 mod sym11_witness_kind_rows;
+#[path = "sym13_r1_need_probes.rs"]
+mod sym13_r1_need_probes;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
 #[path = "sym_rule_e_rows.rs"]
