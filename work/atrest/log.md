@@ -349,3 +349,49 @@ dominant argument is the code's own layering.
 
 A note goes on TANG's board: #1076 is load-bearing for two ATREST rows,
 which its own slate has no way to know.
+
+## 2026-09-22 — a correction to my own check-10 ruling's evidence
+
+ATREST-1 came back green, and its report surfaced something that
+corrects the ruling I wrote on 2026-09-21 and published in merged PR
+#3005.
+
+**One of my five evidence lines was misread.** I wrote that *"a door
+that deliberately mints a solid with no outer shell settles it twice
+over"*, citing
+`crates/sweep/tests/shell5_r2_probes.rs::r2_the_new_door_mints_a_solid_with_no_outer_shell`.
+Read properly, that row moves a hollowed box's VOID shell into a new
+solid, and its assertion carried the prefix `MEASURED:` — which in
+this codebase marks a RECORDED DEFECT, not a blessed design. The body
+is genuinely invalid: the minted solid's only shell encloses negative
+volume. Check 7 per solid now refuses it,
+`NegativeVolume { solid: minted }`, and that refusal is **correct** —
+it is the unit finding a second instance of the very admit-hole it
+was built to close, on a row that had already written the hole down
+as measured-and-wrong.
+
+So that row is evidence FOR this unit, not against check 10. The lane
+read it the way I did, and I repeated it without checking; a
+`MEASURED:` prefix is the tell and neither of us looked at it.
+
+**The ruling's conclusion is unchanged.** Check 10's count-level claim
+was still wrong, on the four remaining and independent lines:
+`graft_disjoint`'s onto door fusing into one solid without changing
+the census, the boolean coplanar split's three outer shells under one
+solid, the two-shell complement of a through hole, and `editor-core`'s
+placed union under `CheckId::Connectedness` — the last of which is the
+ratified posture that actually settles it. A body with several `Outer`
+shells is legitimate; a body whose only shell is a cavity is not, and
+conflating the two is what my sentence did.
+
+The reviewer has been asked to audit the other four lines the same
+way, because a reader who misreads one may have misread more. If any
+of them also turns out to be a pinned defect rather than a blessing,
+the ruling gets re-examined rather than patched.
+
+**The lesson, which is the same one twice.** D-C was settled from a
+row's summary sentence without checking who mints the shape it called
+invalid. The retraction was then argued from a test's NAME without
+checking what its assertion said. Both times the error was reading a
+row's headline instead of its evidence, and both times the fix came
+from someone reading the actual assertion.
