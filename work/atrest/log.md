@@ -144,3 +144,107 @@ none of the three is it.
 **Triage (protocol v7): OUT.** Opus implementer, opus reviewer; style
 lane plus one correctness claim — that the measurements say what the
 report says they say, and that each pinned row can go red.
+
+## 2026-09-21 — ATREST-1's measurement refuted my own spec; check 10 dropped
+
+The lane stopped on check 10 rather than working around it, which is
+what the dispatch asked for, and it was right to.
+
+**D-C was wrong, and it was mine.** The spec settled *"each solid has
+exactly one shell that classifies `Outer`, and every other shell of
+that solid classifies `Void`"* as a decision. That is a STRONGER claim
+than `tier-3-does-not-check-shell-roles-per-solid` ever made, and the
+strengthening is the whole defect: the lane measured **36 pinned rows**
+that go red under it, every one a body a kernel verb produces on
+purpose — `graft_disjoint`'s onto door fusing into one solid, the
+boolean coplanar split carrying three outer shells under one solid,
+the two-shell complement of a through hole, editor-core's placed
+union, and a door that deliberately mints a solid with **no** outer
+shell at all.
+
+Verified before ruling, from the tree rather than the report:
+`editor-core/src/checks.rs` counts `Outer` shells as **components** and
+reports them against an authored `expected_components` expectation,
+under an explicitly Ev-ratified rule governing when a check may offer
+`error`. So several disjoint outer boundaries under one solid is a
+state this kernel produces deliberately and reports at the document
+layer against an authored number. Tier 3 refusing it would be tier 3
+being wrong, not the five doors.
+
+**Ruled, no question for Ev needed** — the posture is already ratified
+one layer up:
+
+- **check 10 and `MultipleOuterShells` come out entirely**;
+- **check 7's per-solid half lands alone**, and is the unit: the
+  per-solid subject, `faces_of_solid`, `sign_certified` taking its
+  faces, `NegativeVolume { solid }`, `VolumeUncomputable { solid }`,
+  the `PlusVCheck` restriction. It closes
+  `an-inside-out-part-...-total-volume-is-pinned` on its own;
+- **the measurement becomes a row**, keeping the id
+  `one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`
+  and rewritten from three-options-open to settled-and-here-is-why. It
+  is the most valuable thing the unit produced and must not die with
+  the branch;
+- **`tier-3-does-not-check-shell-roles-per-solid` is re-stated, not
+  closed.** Re-read, its subject was never the outer COUNT: *"an
+  `Outer` shell, a `Void` and a second `Outer` **inside that void**"*.
+  That is a CONTAINMENT claim, which tier 3 has no at-rest walk for,
+  putting it in the same family as check 9's nesting gap and
+  `validate-tier3-curved-boundary-containment`. Back to `open`, with
+  refs to both.
+
+**The lane's deviation 1 is accepted as an improvement, not a
+deviation**: D-D asked for a restricted SIBLING of `sign_certified`
+and the lane built one door taking its faces, because with check 7 per
+solid a whole-body wrapper has no caller and dead `pub(crate)` code
+fails the gate. Better than the spec's letter; per protocol v5 nothing
+further is owed. Deviations 2 and 3 were artefacts of check 10 and go
+with it.
+
+**The lesson worth carrying.** I settled D-C from a filed row's summary
+sentence without checking whether the kernel's own doors produce the
+shape it called invalid. A spec that settles a design call owes the
+same measurement it demands of the lane — the row said "two material
+components filed under one solid" and I read that as a defect instead
+of asking who mints it. The system worked because the lane was told to
+stop rather than work around a decision, and did.
+
+## 2026-09-21 — both lanes lost to the box, both recovered; two corrections
+
+The machine went bad for a stretch: **4.7G free of 251G**, memory
+tight enough that a `du` was killed for it, `gh` timing out at 90s
+while raw git over SSH still worked, and repeated
+`EAI_AGAIN` / `ConnectionRefused` model-API failures that killed both
+lanes twice. Ev freed it (27G free, `gh` responding). Nothing was
+lost, for one reason worth keeping: **the dispatch told both lanes to
+commit and push before anything else on resume, and ATREST-1 did** —
+its whole application of the check-10 ruling was pushed at `b6e41b2d3`
+before the second kill, so the recovery was a message rather than a
+reconstruction. The reviewer lane had read nothing both times and was
+restarted fresh rather than resumed; ATREST-1 was resumed, because
+what survived on its disk was the ruling being carried out and its
+authority was in a merged PR rather than in a lost inbox.
+
+**Correction to ATREST-1: the shell-roles row goes back to P0.** The
+lane re-banded `tier-3-does-not-check-shell-roles-per-solid` P0 → P1
+when it re-stated the row as a containment claim. That collapses the
+two things `work/README.md` insists stay apart: *"a band is not a
+forecast of effort — `cost` carries that, separately, because the two
+are independent and collapsing them hides both."* A solid holding a
+second `Outer` nested in its own void is produced by the hollow-operand
+subtraction and blessed by tier 3 — a live wrong answer from a normal
+verb, which is the P0 definition. What the measurement changed is the
+row's SHAPE and COST, and `cost: H` already carries that.
+
+**The observation worth more than the unit.** The lane's re-statement
+ends on a question nobody on this slate had asked: tier 3 has no
+at-rest containment walk at all, and **three** of ATREST's rows are
+the same missing walk wearing different clothes —
+`check-9-nesting-is-line-bounded-only` (a ring inside its face's outer
+loop), `tier-3-does-not-check-shell-roles-per-solid` (an island inside
+its solid's void) and `validate-tier3-curved-boundary-containment` (a
+loop bounding a region of its surface). Whether they want ONE walk
+between them is a design question that should be answered before any
+of the three is specced, not after two of them have grown separate
+walks. It is recorded in the row that raised it; the order in
+`plan.md` will answer it when those rows come up.

@@ -2,7 +2,7 @@
 id: export
 kind: program
 title: EXPORT — the writing direction, and the refusal plumbing both exchange crates share
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: export/

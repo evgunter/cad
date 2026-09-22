@@ -75,10 +75,25 @@
 //! and the `r2_d_tab_*` documents; the pins in `m10_bulge_interval`).
 //!
 //! **The second fold: `atan2(0, N) = 0` for an `N` non-negative by its
-//! syntax** (`manifestly_nonneg`) — the cylinder chart's phase,
+//! syntax** (`manifest::nonneg`, which is where that predicate lives
+//! and where rule F sharpens it to strict positivity) — the cylinder
+//! chart's phase,
 //! `atan2(a_r · v_ref, a_r · u_ref)` with `u_ref` the start's own
 //! radial, is `atan2(0, r²/sqrt(r²))`, and the arc exists only where
-//! that radial length is positive. Every other `atan2` stays an atom.
+//! that radial length is positive. `atan2(z, n)` is the angle of the
+//! point `(n, z)`; with `z` the zero form it is `0` for `n > 0` and `π`
+//! for `n < 0`, and such an `N` is `> 0` at every parameter point where
+//! it is defined and not zero, so the fold is a theorem there; where
+//! `N = 0` the geometry it comes from is degenerate (a radial of length
+//! zero), clause 1 — the numeric channel's own domain answer — decides
+//! first, and IEEE's `atan2(0, 0) = 0` agrees with the fold wherever a
+//! value exists. NON-negativity is enough here, where rule F needs
+//! strict positivity, because `atan2`'s value at the zero is the
+//! folded one under either spelling of that zero; a `copysign`'s is
+//! not. Every other `atan2` stays an atom: `atan2(0, X)` for a plain
+//! parameter `X` (an odd power, no sign known), `atan2(Y, N)` with `Y`
+//! not the zero form (a numeric zero is a coincidence, not a form),
+//! and any `N` that is non-negative only in value.
 //!
 //! **The third fold: `sin`/`cos` at an exact half-multiple of π**
 //! (`fold_at_half_pi`) — what the branch-stabilized azimuth leaves
@@ -98,58 +113,9 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use super::form::{Form, Mono, Poly, within};
+use super::form::{Form, Poly, within};
 use super::rational::{Int, Rat};
-use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom, signed};
-
-/// **`atan2(0, N) = 0` for an `N` that is non-negative BY ITS SYNTAX**
-/// — the second fold of rule D, on the same posture as the half-angle
-/// branch: a fact about a function's range read off the form, never a
-/// value.
-///
-/// `atan2(z, n)` is the angle of the point `(n, z)`; with `z = 0` it is
-/// `0` for `n > 0` and `π` for `n < 0`. A form is manifestly
-/// non-negative when its numerator and denominator are each either
-/// (a) a polynomial every term of which has a positive coefficient and
-/// a monomial whose indeterminates are `sqrt` or `abs` atoms (to any
-/// power) or anything else to an EVEN power — every such term is a
-/// product of non-negative reals wherever it has a value — or (b) a
-/// PERFECT SQUARE of a polynomial (`signed::poly_sqrt`, an exact
-/// arithmetic test that reads no value): `(k + δ)²` is one, and the
-/// chart phase's `r²/sqrt(r²)` is `(b)` over `(a)`. Such an `N` is
-/// `> 0` at every parameter point where it is defined and not zero,
-/// so the fold is a theorem there; where `N = 0` the geometry it comes
-/// from is degenerate (a radial of length zero), clause 1 — the
-/// numeric channel's own domain answer — decides first, and IEEE's
-/// `atan2(0, 0) = 0` agrees with the fold wherever a value exists. The
-/// zero polynomial itself is refused (nothing is claimed about
-/// `atan2(0, 0)` as a form), and so is a poisoned operand.
-///
-/// What never folds: `atan2(0, X)` for a plain parameter `X` (an odd
-/// power, no sign known), `atan2(Y, N)` with `Y` not the zero form
-/// (a numeric zero is a coincidence, not a form), and any `N` that is
-/// non-negative only in value.
-pub(super) fn manifestly_nonneg(n: &Form, sess: &Session) -> bool {
-    if n.poisoned || n.num.is_zero() {
-        return false;
-    }
-    let nonneg_mono = |m: &Mono| {
-        m.iter().all(|&(id, e)| {
-            e % 2 == 0
-                || sess
-                    .atoms
-                    .get(&id)
-                    .is_some_and(|a| matches!(a.op, SymOp::Sqrt | SymOp::Abs))
-        })
-    };
-    let nonneg_poly = |p: &Poly| {
-        p.terms()
-            .iter()
-            .all(|(m, c)| !c.is_negative() && nonneg_mono(m))
-            || signed::poly_sqrt(p, sess.budget).is_some()
-    };
-    nonneg_poly(&n.num) && nonneg_poly(&n.den)
-}
+use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom};
 
 /// The largest `|k|` in `q = k / 2ᵐ` this rule folds.
 pub(super) const MAX_MULTIPLE: i128 = 32;

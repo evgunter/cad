@@ -1558,7 +1558,7 @@ mod attribution {
     }
 
     /// A census refusal about a candidate face pair, declined by the
-    /// chart-region lane on a boundary it could not decide — the
+    /// chart-region predicate on a boundary it could not decide — the
     /// commonest cause, and an arbitrary one for a row about the
     /// relation.
     fn unsupported_pair(a: FaceKey, b: FaceKey) -> ValidationError {

@@ -46,6 +46,7 @@ use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
+use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
@@ -205,8 +206,7 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         )
         .expect("a finite camera");
         let aspect = rng.range(0.4, 3.0);
-        let matrix = camera.view_projection(aspect).expect("defined");
-        let vp32 = matrix.map(|c| c.map(|v| v as f32));
+        let vp32 = camera.view_projection_f32(aspect).expect("defined");
         let point = Point3::new(
             rng.range(-0.8, 0.8),
             rng.range(-0.8, 0.8),
@@ -215,13 +215,15 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         if camera.project(point, aspect).expect("defined").is_none() {
             continue; // behind the eye: not this row's subject
         }
-        let cursor = [rng.range(-1.0, 1.0) as f32, rng.range(-1.0, 1.0) as f32];
-        let size = [
-            rng.range(64.0, 4000.0) as f32,
-            rng.range(64.0, 4000.0) as f32,
-        ];
+        let cursor = [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0)]
+            .narrow()
+            .expect("a cursor inside the device cube");
+        let size = [rng.range(64.0, 4000.0), rng.range(64.0, 4000.0)]
+            .narrow()
+            .expect("a viewport of ordinary size");
         let shifted = cursor_projection(&vp32, cursor, size);
-        let v = [point.x as f32, point.y as f32, point.z as f32, 1.0f32];
+        let [px, py, pz] = point.narrow().expect("a point the seam draws");
+        let v = [px, py, pz, 1.0f32];
         let apply = |m: &[[f32; 4]; 4]| {
             let mut out = [0.0f32; 4];
             for (row, slot) in out.iter_mut().enumerate() {

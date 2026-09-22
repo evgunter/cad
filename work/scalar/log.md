@@ -576,3 +576,112 @@ lanes' figures on the PR thread (compile cost measured on the shared
 4-vCPU box; the no-lane count: 3 kernel traits, 15 impls, 959 lines, 14
 call sites, 104 bounded signatures).
 
+## CURVE3-JET merged (2026-09-21)
+
+PR 2708, block SCALAR-B4 slot 0, ordinal 4109. What landed: the item's
+§Closed. The spec is deleted per the ledger. The implementer lane died
+on a usage limit after its final push and the box sat idle five days;
+main's new `Spiric` curve variant then broke the exhaustive match at
+the merge and took one arm on the implementer's arm. The fix pass
+folded the one pair the spec had excused and wrote the located-span
+walk once. Two protocol exposures recorded on the row.
+## RING-1 merged (2026-09-21)
+
+PR 2971, block SCALAR-B4 slot 2, ordinal 4110. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual concluded with no
+tally candidate (the one MAJOR bilateral and pre-fixed); the fix pass
+took thirteen items and declined one. Both reviews' end-to-end programs
+established that the lane-trait impls, not the feature, are what keeps a
+default-build caller out of the kernel doors at `Interval` — RING-3 and
+LANE-1..4 specs carry it. One exposure: the PR body's auto-appended
+footer names a vendor and re-appends on every body update; the row
+records it.
+
+## LANE-0 merged (2026-09-21)
+
+PR 2981, block SCALAR-B4 slot 1, ordinal 4111. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's bilateral
+MAJOR — a fourth per-scalar trait where the spec said stop — was
+settled by the orchestrator's ruling (the seam is the one method on
+`AtRestPolicy`), at a cost the fix pass measured at 47 bound edits
+and zero call-site edits. Two exposures recorded on the row: the item
+file named the arm until the freeze; the frozen head's run was red on
+the tracker lint after main closed FIX. Block SCALAR-B4's three rows
+are complete; slot 2's reviews concluded earlier, so the block closes
+with this merge.
+
+## Block SCALAR-B4 closed (2026-09-21)
+
+Three slots, three duals, zero counted tally candidates: CURVE3-JET
+(FABLE, #227, no MAJOR on either arm), LANE-0 (OPUS, #229, both MAJORs
+bilateral — the design settled by the orchestrator's ruling), RING-1
+(OPUS, #228, the one MAJOR bilateral and pre-fixed). The block's
+record — pre-draw fields (slots 1–2's class recorded as the plan's H
+before the byte, the cut coming out E), the draw (byte 75), the three
+rows — lands on main with this PR. Exposures the rows carry: the spec
+commits' trailers naming a model (CURVE3-JET's R1 saw one; unit-branch
+orchestrator commits carry none since), the item files naming the arm
+until LANE-0's freeze, the PR bodies' auto-appended vendor footer, two
+sample-number collisions with other programs' branch-side records
+(the META row).
+## RING-0 merged (2026-09-21)
+
+PR 2993, block SCALAR-B5 slot 0, ordinal 4112. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's one unilateral
+MAJOR (the allowlist sampled six exponents; `powi(-1)` disagrees the
+other way) is recorded as the block's first tally candidate, on the
+OPUS reviewing arm. Three facts carried into RING-2's spec: what
+`from_certified` returns under cut (ii) decides whether two register
+sites are hazards; the dry run's red set is conditional on the `hull`
+and `clamped_to` guards; the register wants to be executable.
+
+## LANE-1 merged (2026-09-21)
+
+PR 3010, block SCALAR-B5 slot 1, ordinal 4113. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's bilateral
+MAJOR — the fold's verdict change on M7-8 bodies — was ruled to stand
+and is pinned in-crate; the Python pin the brief asked for was declined
+with evidence (no public door reaches the class) and the gap filed on
+EXCH. Two of the spec's premises were wrong (`run_checks` at `Dual`;
+`Bounds` on `AtRestPolicy`), and the tour needed `CertifiedBounds` on
+its `Scalar` trait; the ledger names them. LANE-2 dispatches on this
+shape.
+
+## LANE-2 merged (2026-09-21)
+
+PR 3038, block SCALAR-B6 slot 0, ordinal 4115. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's bilateral
+MAJOR — the `_structural` doors' verdict move at `f64` — was ruled to
+stand under ruling 3 and is disclosed at the door, in the PR body and
+on the ATREST row. Four of the spec's premises were wrong (the
+"every verdict at every scalar" sentence against its own §1, the
+red-first list, the isolator pin, the merge base); the ledger names
+them. LANE-3 dispatches on this shape; LANE-4 folds the wiring
+module's copies.
+
+## RING-2 merged (2026-09-22)
+
+PR 3032, block SCALAR-B5 slot 2, ordinal 4114. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's two bilateral
+MAJORs were disclosure: the committed tess-budget baseline's looser
+cells are main's own drift between cuts (filed on INSTR) and the
+red-row table now carries every red head. `crossing_bracket` stays:
+the member-free route compiles and the bounds gate refuses it pending
+ratification — RING-3's slate, with `Enclosure` and the three guard
+residues. Block SCALAR-B5 closes on this merge with one tally
+candidate, RING-0's.
+
+## Block SCALAR-B5 closed (2026-09-22)
+
+Three slots, three duals, one counted tally candidate: RING-0 (OPUS,
+#230, R2's unilateral test-gap MAJOR by execution — `powi(-1)` outside
+the sampled allowlist — on the OPUS reviewing arm), LANE-1 (FABLE,
+#231, the fold's verdict MAJOR bilateral, ruled to stand), RING-2
+(OPUS, #234, both MAJORs bilateral at differing severity — main's
+tess-budget drift, the red-row table short by one head). The block's
+record — pre-draw fields (cut before byte 244), the draw, the three
+rows — lands on main with this PR. Exposures the rows carry: the
+sample-#230 collision with SYM-11's landed-highest numbering (filed);
+the vendor footer the REST route re-appends (stripped everywhere; the
+MCP path is clean); two container restarts (RING-2's implementer three
+lanes on one arm; LANE-2's reviewers resumed from their own material).

@@ -57,11 +57,11 @@
 //!   underflow, the reads are in range by construction, and there is no
 //!   pairing to check and no refusal to answer. The two mints are
 //!   [`NurbsCurve3::span`] and [`NurbsCurve3::span_at`], both `&self`.
-//! - **Full evaluators** (`eval`/`deriv`/`deriv2`): span selection via
-//!   the sealed [`SpanLocate`] seam (per-instantiation semantics
-//!   documented in `geom_core::spline::locate`), then the core per
-//!   overlapped span, hulled channel-independently for interval-natured
-//!   scalars.
+//! - **Full evaluators** (`eval`/`deriv`/`deriv2`, and the jets `ders1`
+//!   and `ders`): span selection via the sealed [`SpanLocate`] seam
+//!   (per-instantiation semantics documented in
+//!   `geom_core::spline::locate`), then the core per overlapped span,
+//!   hulled channel-independently for interval-natured scalars.
 //!
 //! # What does not typecheck
 //!
@@ -445,12 +445,17 @@ macro_rules! nurbs_curve {
                         Some(m) => m.min(v),
                     });
                     // `w′`'s SIGNED hull, from the ring-rounded
-                    // coefficients (`!(a >= b)` so a poisoned
-                    // coefficient poisons the hull rather than being
-                    // skipped by a false comparison).
+                    // coefficients. The refusal is asked by name: the
+                    // ring keeps it in the decoration, so a
+                    // coefficient that may not certify carries
+                    // ordinary endpoints and would widen the hull by a
+                    // number instead of collapsing the whole bound.
                     let Some(q) = dw.get(i) else {
                         return poison;
                     };
+                    if q.is_poison() {
+                        return poison;
+                    }
                     #[allow(clippy::neg_cmp_op_on_partial_ord)]
                     if !(q.lo() >= wp_lo) {
                         wp_lo = q.lo();
@@ -708,8 +713,8 @@ macro_rules! nurbs_curve {
             }
 
             /// The one primitive constructor, behind [`Self::span`] and
-            /// [`Self::span_at`] and the located-span walk in
-            /// [`Self::eval`]. It is private because it is the single
+            /// [`Self::span_at`] and the located-span walk behind the
+            /// full evaluators. It is private because it is the single
             /// place where a span and a curve are put together, and
             /// every caller draws the span from `self.knots`.
             fn window_of<'a>(&'a self, span: Span<'a>) -> $Window<'a, T> {
@@ -1437,77 +1442,126 @@ macro_rules! nurbs_curve {
         }
 
         impl<T: SpanLocate> $Curve<T> {
-            /// The point at `t` — span selection through the sealed
-            /// [`SpanLocate`] seam (per-instantiation semantics in
-            /// `geom_core::spline::locate`), the generic core per
-            /// overlapped span, channel-independent hulls across spans
-            /// for interval-natured scalars.
-            pub fn eval(&self, t: T) -> $Point<T> {
+            /// The located-span walk every full evaluator IS: span
+            /// selection through the sealed [`SpanLocate`] seam
+            /// (per-instantiation semantics in
+            /// `geom_core::spline::locate`), `door` on the first
+            /// overlapped span, then for every further overlapped span
+            /// `hull` of the running answer with `door` on that span —
+            /// channel-independent hulls across spans for
+            /// interval-natured scalars, a single call for the point
+            /// scalars, whose locator names one span. One body, so the
+            /// four doors below differ only in the per-span door they
+            /// hand in and the per-channel hull of its answer.
+            ///
+            /// Empty spans (interior multiplicity) are skipped:
+            /// `find_span` assigns every parameter — a repeated knot
+            /// value included — to the nonempty span starting at it,
+            /// which this loop's range always covers, so nothing is
+            /// discarded (containment preserved); an empty span itself
+            /// would only contribute poison (zero basis denominators).
+            /// The emptiness check and the span's validation are the
+            /// same operation.
+            fn located_walk<R>(
+                &self,
+                t: T,
+                door: impl Fn($Window<'_, T>, T) -> R,
+                hull: impl Fn(R, R) -> R,
+            ) -> R {
                 let spans = t.locate_spans(&self.knots);
                 // `spans.first` arrives already validated — the locator
                 // is where span validity originates, so there is
                 // nothing to re-check and no `expect` here.
-                let mut acc = self.window_of(spans.first).eval_in_span(t);
+                let mut acc = door(self.window_of(spans.first), t);
                 for s in (spans.first.index() + 1)..=spans.last.index() {
-                    // Skip empty spans (interior multiplicity):
-                    // find_span assigns every parameter — a repeated
-                    // knot value included — to the nonempty span
-                    // starting at it, which this loop's range always
-                    // covers, so nothing is discarded (containment
-                    // preserved); an empty span itself would only
-                    // contribute poison (zero basis denominators).
-                    // The emptiness check and the span's validation are
-                    // now the same operation.
                     let Some(span) = self.knots.span(s) else { continue };
-                    let q = self.window_of(span).eval_in_span(t);
-                    acc = $Point::new($(acc.$c.enclosure_hull(q.$c)),+);
+                    acc = hull(acc, door(self.window_of(span), t));
                 }
                 acc
             }
 
-            /// The first derivative at `t` (span selection as
-            /// [`Self::eval`]; the `Dual` kink convention at knots is
-            /// the seam's — the derivative of the program as evaluated).
+            /// The per-channel enclosure hull of two point answers.
+            fn hull_point(acc: $Point<T>, q: $Point<T>) -> $Point<T> {
+                $Point::new($(acc.$c.enclosure_hull(q.$c)),+)
+            }
+
+            /// The per-channel enclosure hull of two vector answers.
+            fn hull_vector(acc: $Vector<T>, q: $Vector<T>) -> $Vector<T> {
+                $Vector::new($(acc.$c.enclosure_hull(q.$c)),+)
+            }
+
+            /// The point at `t` — the located-span walk over the
+            /// window's `eval_in_span`.
+            pub fn eval(&self, t: T) -> $Point<T> {
+                self.located_walk(t, |w, t| w.eval_in_span(t), Self::hull_point)
+            }
+
+            /// The first derivative at `t` — the located-span walk over
+            /// the window's `deriv_in_span`; the `Dual` kink convention
+            /// at knots is the seam's — the derivative of the program
+            /// as evaluated.
             pub fn deriv(&self, t: T) -> $Vector<T> {
-                let spans = t.locate_spans(&self.knots);
-                // `spans.first` arrives already validated — the locator
-                // is where span validity originates, so there is
-                // nothing to re-check and no `expect` here.
-                let mut acc = self.window_of(spans.first).deriv_in_span(t);
-                for s in (spans.first.index() + 1)..=spans.last.index() {
-                    // Empty-span skip: see `eval`'s note.
-                    // The emptiness check and the span's validation are
-                    // now the same operation.
-                    let Some(span) = self.knots.span(s) else { continue };
-                    let q = self.window_of(span).deriv_in_span(t);
-                    acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
-                }
-                acc
+                self.located_walk(t, |w, t| w.deriv_in_span(t), Self::hull_vector)
+            }
+
+            /// Point and first derivative at `t` from ONE span
+            /// selection and one order-1 basis pass per overlapped span
+            /// — the order-1 sibling of [`Self::ders`], for a consumer
+            /// that wants a point and a tangent and would otherwise run
+            /// [`Self::eval`] and [`Self::deriv`] as two located walks.
+            /// The macro mints this door on `NurbsCurve2` too.
+            ///
+            /// Both halves are what their own evaluators answer, bit
+            /// for bit, and the two halves rest on different grounds.
+            /// The derivative IS `deriv_in_span`'s per span by
+            /// construction (`deriv_in_span` is this door's derivative
+            /// half, projected). The point is `eval_in_span`'s because
+            /// `ders_basis_funs`'s order-0 row is `basis_funs`'s
+            /// recursion (`geom_core::spline::basis`) — a second
+            /// spelling of one recursion, pinned by rows rather than by
+            /// construction — and `rational_corrections` at order 0 is
+            /// `eval_in_span`'s division. Across overlapped spans the
+            /// walk is the one every door runs, so each half's hull
+            /// folds the same range in the same order as `eval` and
+            /// `deriv` fold theirs.
+            ///
+            /// At `Dual` each half carries its own derivative channel,
+            /// the derivative of the program as evaluated (the seam's
+            /// kink convention at knots, as [`Self::deriv`]). At
+            /// `Interval` the point box and the tangent box are hulled
+            /// independently across the overlapped spans: each is its
+            /// own evaluator's enclosure, and the pair is not a coupled
+            /// jet (no box is a function of the other).
+            ///
+            /// The return is the tuple `ders1_in_span` and `ders` return
+            /// — every consumer destructures it on the spot, and a named
+            /// jet type would be a third spelling beside two tuples.
+            pub fn ders1(&self, t: T) -> ($Point<T>, $Vector<T>) {
+                self.located_walk(
+                    t,
+                    |w, t| w.ders1_in_span(t),
+                    |(p, d1), (q, q1)| (Self::hull_point(p, q), Self::hull_vector(d1, q1)),
+                )
             }
 
             /// Point, first and second derivative at `t` — the jet a
             /// consumer that wants more than one of them computes ONCE
-            /// (span selection as [`Self::eval`]; each component hulled
-            /// channel-independently across the overlapped spans, so
-            /// every component is exactly what its own evaluator
-            /// answers).
+            /// (the located-span walk over the window's `ders_in_span`;
+            /// each component hulled channel-independently across the
+            /// overlapped spans, so every component is exactly what
+            /// its own evaluator answers).
             pub fn ders(&self, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                let spans = t.locate_spans(&self.knots);
-                // `spans.first` arrives already validated — the locator
-                // is where span validity originates, so there is
-                // nothing to re-check and no `expect` here.
-                let (mut p, mut d1, mut d2) = self.window_of(spans.first).ders_in_span(t);
-                for s in (spans.first.index() + 1)..=spans.last.index() {
-                    // Empty-span skip: see `eval`'s note.
-                    // The emptiness check and the span's validation are
-                    // now the same operation.
-                    let Some(span) = self.knots.span(s) else { continue };
-                    let (q, q1, q2) = self.window_of(span).ders_in_span(t);
-                    p = $Point::new($(p.$c.enclosure_hull(q.$c)),+);
-                    d1 = $Vector::new($(d1.$c.enclosure_hull(q1.$c)),+);
-                    d2 = $Vector::new($(d2.$c.enclosure_hull(q2.$c)),+);
-                }
-                (p, d1, d2)
+                self.located_walk(
+                    t,
+                    |w, t| w.ders_in_span(t),
+                    |(p, d1, d2), (q, q1, q2)| {
+                        (
+                            Self::hull_point(p, q),
+                            Self::hull_vector(d1, q1),
+                            Self::hull_vector(d2, q2),
+                        )
+                    },
+                )
             }
 
             /// The second derivative at `t` (contract as

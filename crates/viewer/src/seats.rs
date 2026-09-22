@@ -366,7 +366,7 @@ pub fn seat_line(seats: &[(Seat, Option<RecipeNodeId>)]) -> String {
     seats
         .iter()
         .map(|(seat, held)| match held {
-            Some(node) => format!("{}: feature {}", seat.name(), node.0),
+            Some(node) => format!("{}: {}", seat.name(), crate::tree::node_number(*node)),
             None => format!("{}: —", seat.name()),
         })
         .collect::<Vec<_>>()

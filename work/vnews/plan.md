@@ -456,6 +456,34 @@ its callers on both sides of the fence, and what its visibility
 forecloses. **Fixing a sentence and adding a function are different
 acts and a fence ruling about one says nothing about the other.**
 
+**A test that asserts a COUPLING does not pin a MAPPING**, and this
+program has now shipped two units that confused them. The shape: a row
+asserts *the control's words equal the door's words* by comparing two
+renderings of **one value**, and adds an `assert_ne!` that two variants
+differ. Both are invariant under a permutation of the mapping, so every
+arm can be wrong together and the suite stays green.
+
+Measured, not reasoned — three mutations on the undo/redo unit
+(2026-09-21): inverting the session dispatch **reds**; swapping
+**both** arms of the direction→word map is **GREEN**; inverting the
+direction column of the toolbar's own `[(label, direction, op)]` table
+is **GREEN**. The second and third each ship a confidently wrong
+sentence to a reader. The unit's own mutation flipped one arm, which
+reds only because it collapses the `assert_ne!` — which is why it
+looked pinned.
+
+So: **a coupling test needs an absolute companion** — one assertion
+that some variant renders a named literal — and a hand-built table
+whose columns must agree needs a row that reads it. The tone unit is
+the same lesson from the other side: its colour rule was asserted
+nowhere at all until its fix pass planted a variant and watched four
+build sites fail. **Plant the value, do not flip the sign.**
+
+And the excuse for not pinning chrome is usually false: `app.rs`'s
+`toolbar_row` and `pane/view.rs` are headless egui harnesses already in
+this crate, one of which lays out the toolbar, so *"not testable
+without a window"* is a claim to check rather than accept.
+
 **Apply the charter's reader test at SPEC time, not at review.** The
 Charter's *"a row belongs here only if a reader would see the
 difference; a rename nobody reads is not news"* is a scoping test —
@@ -486,13 +514,36 @@ document — so the sentence would have been a second spelling of news
 already on screen, minting the node-side twin of
 `three-spellings-say-a-parameter-is-not-declared`, which is open on
 this slate against the parameter half of the same function. Two further
-grounds I had not weighed: `session::Standing`'s doc makes the section
-not drawing the SECOND CLAUSE of its own rule (*"the affordances that
-need a live entity switch off"*), and that clause is **GQ7's recorded
-constraint** — ratified design in `crates/viewer/GUI-DESIGN.md`, so the
-shape I recommended would have needed an `[ev]` PR to implement. An
-orchestrator's fix shape is a claim like any other and gets checked
-against the tree before it is issued.
+further ground I had not weighed: `session::Standing`'s doc makes the
+section not drawing the SECOND CLAUSE of its own rule (*"the
+affordances that need a live entity switch off"*). An orchestrator's
+fix shape is a claim like any other and gets checked against the tree
+before it is issued.
+
+**CORRECTED 2026-09-20, and the correction is worse than the error.**
+This paragraph said that clause is *"GQ7's recorded constraint —
+ratified design in `crates/viewer/GUI-DESIGN.md`, so the shape I
+recommended would have needed an `[ev]` PR"*. **It is not.** The
+sentence occurs in exactly one place in the tree —
+`crates/viewer/src/session/select.rs`'s `Standing` doc, which CALLS it
+GQ7's recorded constraint. `GUI-DESIGN.md` contains it zero times and
+its GQ7 is selection mechanics, deferring vanishing-entity semantics
+elsewhere; `docs/SELECT-DESIGN.md` contains it zero times too. Found by
+the properties-pane lane, verified here by grep over all three files.
+
+**So I asserted an Ev gate that does not exist, from a source comment
+that asserts one, two hours after ruling that the status line's
+*"ratified"* ranking was an agent's word nobody had checked — and while
+that very census was being filed.** The ruling it supported survives on
+its other grounds, which is the only reason this is a correction rather
+than a retraction; the lane had given four and the decisive one was the
+duplicate-news argument above. But the claim was load-bearing in how I
+issued it, it reached a merged PR body (#2942) and two lanes, and it is
+a tracker-side member of
+`ratified-is-asserted-across-viewer-src-and-some-was-never-ratified`'s
+class. **A gate is checked at the document that would carry it, not at
+the comment that cites it** — which is the rule three sections down,
+applied to prose instead of to a row.
 
 **Read a row's STATUS before you build on its premise — a citation
 check is not a premise check.** Three rows on this slate had premises
@@ -527,30 +578,39 @@ with no diff, and the argument for why is the thing that stops the next
 sweep re-minting them. Write it into the row rather than the PR body,
 which stops being read at merge.
 
-**Concurrency.** Four lanes is the right number for READING work and
+**Concurrency, and its limit.** This program's lane count is not the
+box's: on 2026-09-21 five target dirs were live across three programs
+(`atrest-1`, `atrest-2`, `sym-8-r1` and two of this program's), load ran
+40–60, and one viewer test-binary compile took **1h26m**. A rule here
+can only serialize VNEWS's own lanes. What it can do is make each lane
+cheap — no workspace run, no full `doc-gate`, attribute processes via
+`/proc/<pid>/environ` and never broad-`pkill` — and leave a warm target
+dir and its scripts in the scratchpad, which turned a re-run of three
+mutations from hours into minutes.
+Four lanes is the right number for READING work and
 too many for four simultaneous viewer builds. Prefer a wave that mixes
 one or two code lanes with census and adjudication work, which is what
 wave 1 accidentally got right with its fourth lane.
 
-## The register
+## The discipline a lane is held to
 
-**`work/view/plan.md`'s rule register binds every lane dispatched from
-this program, inherited BY REFERENCE and not copied.** Read it in full
-before writing a dispatch.
+**`docs/prompts/implementer-discipline.md` and
+`docs/prompts/reviewer-style-lane.md`**, handed to every lane by path.
+Read both before writing a dispatch; they are the standing obligations
+and they are the only ones.
 
-The reason it is not copied is the register's own: a claim fixed in one
-place and stale in another contradicts itself, and four copies of a
-register that is re-derived every wave guarantee four divergent copies
-within a week. The register is also evidence — every rule in it is a
-named failure at a named PR — and a copy detached from the program that
-paid for it reads as a rule without its receipt.
+**The rule register this section used to inherit by reference is
+deleted** (2026-09-21, Ev's ruling; it lived in `work/view/plan.md`).
+Eighty-seven rules in eighteen days, of which the ones that both named
+a real problem and would have been prevented by an advance warning
+turned out to be already written — in the two files above, and in
+`memories/agent-lane-operations.md`. The rest were retrospective
+categorisation: true after the fact, useless before it. It is
+recoverable at `66d7357417` if a row here cites one of its rules.
 
-**What that costs, said plainly:** `work/view/plan.md` goes when VIEW's
-directory goes at its exit walk, and this reference dangles that day.
-The register's permanent home is
-`work/view/the-lane-register-has-no-home-after-views-directory-goes`,
-open on VIEW's slate, and it is a precondition of VIEW's exit walk
-rather than a follow-up to it. This section re-points when it lands.
+So a dispatch from this program carries the two prompt docs by path,
+plus whatever this program's own `log.md` tail says about the ground
+the unit lands on — not a register.
 
 ## Review posture
 

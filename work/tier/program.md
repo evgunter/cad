@@ -2,7 +2,7 @@
 id: tier
 kind: program
 title: TIER — the symbolic tier's frontier, its cost and its prose: what it bounds, what it costs, and what its header claims
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: tier/

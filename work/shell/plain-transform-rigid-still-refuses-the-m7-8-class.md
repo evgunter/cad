@@ -4,7 +4,7 @@ kind: issue
 title: transform_rigid_via gives the capability but the plain door still refuses an M7-8 body, and closing that gap needs a compound-bound ratification
 status: open
 opened: 2026-09-12
-refs: [2418, transform-recertifies-through-the-narrow-lane, graft-recertifies-through-the-narrow-lane]
+refs: [2418, graft-recertifies-through-the-narrow-lane]
 priority: P0
 cost: D
 ---
@@ -119,3 +119,7 @@ its caller chain runs through `verbs::Verb` at `Dual64`. Check first whether PR
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Reference note (FIX's sweep, 2026-09-21)
+
+`transform-recertifies-through-the-narrow-lane` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/transform-recertifies-through-the-narrow-lane.md`.
