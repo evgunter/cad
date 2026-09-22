@@ -5703,7 +5703,13 @@ mod r2_probe_rows {
     }
 
     fn cols(c: &SymCounts) -> [u64; 5] {
-        [c.symbolic_zero, c.sign_gated, c.registered, c.numeric, c.retried]
+        [
+            c.symbolic_zero,
+            c.sign_gated,
+            c.registered,
+            c.numeric,
+            c.retried,
+        ]
     }
 
     /// `c^n` spelled two ways, `c = fl(1/3)` (53-bit odd mantissa): the
@@ -5732,10 +5738,19 @@ mod r2_probe_rows {
         let (_, none) = run(SymRetry::none(), || power_two_ways(5));
         let (_, r512) = run(ring(512), || power_two_ways(5));
         let (_, kept) = run(SymRetry::kept_atom(), || power_two_ways(5));
-        println!("none {:?}  ring512 {:?}  kept_atom {:?}", cols(&none), cols(&r512), cols(&kept));
+        println!(
+            "none {:?}  ring512 {:?}  kept_atom {:?}",
+            cols(&none),
+            cols(&r512),
+            cols(&kept)
+        );
         assert_eq!(cols(&none), [0, 0, 0, 1, 0]);
         assert_eq!(cols(&r512), [1, 0, 0, 0, 1]);
-        assert_eq!(cols(&kept), [0, 0, 0, 1, 0], "no kept-atom retry reaches a constant product");
+        assert_eq!(
+            cols(&kept),
+            [0, 0, 0, 1, 0],
+            "no kept-atom retry reaches a constant product"
+        );
     }
 
     #[test]
@@ -5843,8 +5858,16 @@ mod r2_probe_rows {
         );
         assert_eq!(cols(&none), [0, 0, 0, 1, 0], "the first attempt refuses");
         assert_eq!(cols(&g), [1, 0, 0, 0, 1], "rule G off recovers it");
-        assert_eq!(cols(&r512), [0, 0, 0, 1, 0], "the ring cannot: the freeze is on terms");
-        assert_eq!(cols(&kept), [1, 0, 0, 0, 1], "the shipped ladder recovers it");
+        assert_eq!(
+            cols(&r512),
+            [0, 0, 0, 1, 0],
+            "the ring cannot: the freeze is on terms"
+        );
+        assert_eq!(
+            cols(&kept),
+            [1, 0, 0, 0, 1],
+            "the shipped ladder recovers it"
+        );
     }
 
     /// Rule A's own harm: `sqrt(X)² = X` with `X` of 256 terms opens
@@ -5896,7 +5919,11 @@ mod r2_probe_rows {
         assert_eq!(cols(&none), [0, 0, 0, 1, 0], "the first attempt refuses");
         assert_eq!(cols(&a), [1, 0, 0, 0, 1], "rule A off recovers it");
         assert_eq!(cols(&g), [0, 0, 0, 1, 0], "rule G off alone does not");
-        assert_eq!(cols(&kept), [1, 0, 0, 0, 1], "the shipped ladder's second attempt recovers it");
+        assert_eq!(
+            cols(&kept),
+            [1, 0, 0, 0, 1],
+            "the shipped ladder's second attempt recovers it"
+        );
     }
 
     /// The bound is restored after a panic inside a retry attempt.
@@ -5929,7 +5956,10 @@ mod r2_probe_rows {
         let (o2, ladder) = with_session_retry(budget(), SymRules::shipped(), ring(300), bag);
         assert_eq!(o1, o2);
         assert_eq!(cols(&none)[..4], cols(&ladder)[..4]);
-        assert_eq!(none.frozen, ladder.frozen, "retry freezes are not counted into `frozen`");
+        assert_eq!(
+            none.frozen, ladder.frozen,
+            "retry freezes are not counted into `frozen`"
+        );
         assert_eq!(ladder.retried, 0);
     }
 
@@ -5951,13 +5981,18 @@ mod r2_probe_rows {
             // 2': plain.
             let d2p = decides_zero((c5() * c5()) * two() - c5() * (c5() * two()));
             // 2: early.
-            let d2 = decides_zero(z().abs() * ((c5() * c5()) * two()) - z() * (c5() * (c5() * two())));
+            let d2 =
+                decides_zero(z().abs() * ((c5() * c5()) * two()) - z() * (c5() * (c5() * two())));
             (d1, d2p, d2)
         };
         let (_, none) = with_session(budget(), bag);
         let (_, ladder) = with_session_retry(budget(), SymRules::shipped(), ring(512), bag);
         println!("none {:?}  ring512 {:?}", cols(&none), cols(&ladder));
-        assert_eq!(cols(&none), [2, 0, 0, 1, 0], "2 and 2' close on the frozen node; 1 refuses");
+        assert_eq!(
+            cols(&none),
+            [2, 0, 0, 1, 0],
+            "2 and 2' close on the frozen node; 1 refuses"
+        );
         assert_eq!(
             cols(&ladder),
             [3, 0, 0, 0, 1],
