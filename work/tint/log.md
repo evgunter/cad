@@ -1339,3 +1339,53 @@ narrowed-or-not **from the `change filter` log, not by counting job
 names**. The stale text was this program's dispatches, not the repo's
 discipline. The lane reported §2 as describing the old naming; it does
 not, and that was checked rather than relayed.
+
+## Handoff: the program goes back to `ready` (2026-09-22)
+
+Six units landed, all verified on `main` by
+`git merge-base --is-ancestor` rather than by a merge API's word:
+TINT-1 (`assert_f6` ban lists), TINT-2 (the stand-down channel), TINT-3
+(fifteen aggregation guards onto one macro), TINT-4 (a header roster
+welded to its rows), TINT-5 (the F6 weld's home, three adopters), TINT-6
+(the interrogate ladder driven through its doors). No unit is in flight.
+
+**What works, and a successor should keep doing it.** Probe BEFORE the
+spec, not after: three groupings this seat proposed were corrected by a
+probe that ran first — the roster class was not a class, TINT-5's weld
+had no home before it could have adopters, and TINT-6's obvious
+mechanism did not exist (a cross-row roster, which nextest's
+process-per-test rules out; TINT-2 measured that wall and the spec cited
+the measurement rather than re-deriving it). Each probe cost under an
+hour and each saved a lane from a spec that could not work.
+
+**What keeps going wrong, and is why this program changes hands.** The
+orchestrator's characteristic failure here is putting a claim into a
+spec or dispatch that it has not run down. It happened five times in one
+sitting — a fabricated-looking D5 citation that turned out to exist, two
+gate counts, a roster-row count, a list of five public doors of which
+three do not surface the error at all, and a set of sweep notes whose
+self-descriptions were read as evidence. A correction was adopted after
+the first and widened after the second, and then violated twice more.
+Three of this program's six specs have misled their lane. **The rule
+that survives: anything an orchestrator states as established, it has
+derived itself, and the text says with what command.** A downstream seat
+caught every one of these, which is the system working — but it is
+cheaper to be right.
+
+**Queued, not blocked.** `docs/TINT-6-SPEC.md` is still in the tree. Its
+deletion waits on `ledger/pointer-notes` (#3063), which deletes
+`docs/DOC-LEDGER.md` and moves entries to `docs/doc-ledger/` as short
+pointer notes; once that lands the deletion is a four-line note and one
+commit. Nothing else is outstanding.
+
+**The slate** is ~55 open rows. The nearest neighbours of what just
+landed: `sibling-display-contract`'s residue,
+`test-utils-is-production-source-to-every-narrowing-gate` and
+`topo-display-contract-rosters-could-be-derived-beside-the-enum` (both
+filed by TINT-5), and
+`dump-ban-lists-spelled-guts-are-a-fourth-copy-and-two-are-dead`, whose
+numbers were corrected by TINT-6's fix pass and are now right.
+
+`process-observations.md` is the file to read before cutting anything:
+seven instances across five of six units of a unit minting its own
+subject, and what has actually caught them.
