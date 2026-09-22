@@ -53,7 +53,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{
-    arc_section, bulged_extrusion, quad, quintic_prism, stacked, tilted_cut_upper,
+    arc_prism, arc_section, bulged_extrusion, quintic_prism, square_prism, stacked,
+    tilted_cut_upper,
 };
 use geom_core::Tol;
 use sweep::loft_body;
@@ -73,35 +74,6 @@ fn digest_line(name: &str, body: &Body<f64>) -> String {
         ),
         Err(e) => format!("{name} REFUSED {e:?}"),
     }
-}
-
-/// The square prism: planar caps and four degree-1 walls, which the
-/// patch engine answers on its exact per-span arm.
-fn square_prism() -> Body<f64> {
-    loft_body::<f64>(
-        &[
-            quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-            quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        ],
-        &stacked(&[0.0, 2.0], 1.0),
-        1,
-        Tol::witness(),
-    )
-    .expect("the square prism lofts")
-    .body
-}
-
-/// The arc prism: three identical bulged sections, so every wall is a
-/// RATIONAL patch and the quotient composite answers.
-fn arc_prism() -> Body<f64> {
-    loft_body::<f64>(
-        &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
-        &stacked(&[0.0, 1.0, 2.0], 1.0),
-        2,
-        Tol::witness(),
-    )
-    .expect("the arc prism lofts")
-    .body
 }
 
 /// The tapered arc loft: sections of DIFFERING scale, so the rational
