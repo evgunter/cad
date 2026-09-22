@@ -65,9 +65,9 @@ pub(crate) mod headless {
         let ctx = egui::Context::default();
         let run = |input: egui::RawInput, draw: &mut dyn FnMut(&mut egui::Ui)| {
             let mut output = ctx.run_ui(input, |ui| draw(ui));
-            let mut text = Vec::new();
-            collect(&output.shapes, &mut text);
-            let at = hit(&output.shapes, target);
+            let landed = landed_in(&output.shapes);
+            let at = hit(&landed, target);
+            let text: Vec<String> = landed.into_iter().map(|landed| landed.text).collect();
             output.textures_delta.clear();
             (text, at)
         };
@@ -96,83 +96,45 @@ pub(crate) mod headless {
         [clicked.join("\n"), after.join("\n")].join("\n")
     }
 
-    /// The centre of the text `target`, where it was painted.
-    fn hit(shapes: &[egui::epaint::ClippedShape], target: &str) -> Option<egui::Pos2> {
-        fn walk(shape: &egui::Shape, target: &str, out: &mut Option<egui::Pos2>) {
-            match shape {
-                egui::Shape::Text(text) if out.is_none() && text.galley.text() == target => {
-                    *out = Some(egui::Rect::from_min_size(text.pos, text.galley.size()).center());
-                }
-                egui::Shape::Vec(inner) => {
-                    for shape in inner {
-                        walk(shape, target, out);
-                    }
-                }
-                _ => {}
-            }
-        }
-        let mut out = None;
-        for clipped in shapes {
-            walk(&clipped.shape, target, &mut out);
-        }
-        out
-    }
-
-    /// Every string one pass of `draw` PAINTED, in paint order.
-    pub(crate) fn painted(draw: impl FnOnce(&mut egui::Ui)) -> Vec<String> {
-        let ctx = egui::Context::default();
-        let mut draw = Some(draw);
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            if let Some(draw) = draw.take() {
-                draw(ui);
-            }
-        });
-        let mut text = Vec::new();
-        collect(&output.shapes, &mut text);
-        // No painter took the frame's font atlas, and `TexturesDelta`
-        // panics on drop until one does.
-        output.textures_delta.clear();
-        text
-    }
-
-    /// **Where a painted text LANDED**, one entry per row of its
-    /// galley.
+    /// **What one frame PAINTED and WHERE** — one entry per
+    /// `Shape::Text` the frame emitted, in paint order.
     ///
-    /// [`painted`] answers what a frame said; this answers where it
-    /// put it, which is the only thing a layout defect shows up in. A
+    /// The one read this harness has. What a frame said and where it
+    /// put it come off the same walk because they come off the same
+    /// shape, and a layout defect shows up only in the second: a
     /// sentence drawn past the right edge of its pane and a sentence
     /// wrapped inside it paint the same string.
     pub(crate) struct Landed {
-        /// The whole galley's text, as [`painted`] reports it.
+        /// The galley's whole text.
         pub(crate) text: String,
-        /// One rect per row of the galley, in the same coordinates the
-        /// caller's region is in, and each **excluding the leading
-        /// space** egui indents a first row by — so `left()` is where
-        /// the reader's eye finds the row's first glyph.
+        /// **Where the LAYOUT put the galley**: `pos` plus
+        /// `egui::Galley::size`, so the leading space egui indents a
+        /// first row by is INSIDE it. That is the box a pointer has
+        /// to be in for the widget to be hit, which is why [`hit`]
+        /// centres on this one and not on a row.
+        pub(crate) allocated: egui::Rect,
+        /// **Where the READER's eye finds the glyphs**: one rect per
+        /// row of the galley, each EXCLUDING that leading space, so
+        /// `left()` is the row's first glyph rather than the indent
+        /// in front of it.
+        ///
+        /// The two conventions differ by exactly that indent, and
+        /// they differ on purpose — a row measuring where a sentence
+        /// is READ must not count an indent as text, and a click must.
         pub(crate) rows: Vec<egui::Rect>,
     }
 
-    /// Every text one pass of `draw` painted, with [`Landed`] for each.
-    pub(crate) fn landed(draw: impl FnOnce(&mut egui::Ui)) -> Vec<Landed> {
-        let ctx = egui::Context::default();
-        let mut draw = Some(draw);
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-            if let Some(draw) = draw.take() {
-                draw(ui);
-            }
-        });
-        let mut out = Vec::new();
-        collect_landed(&output.shapes, &mut out);
-        output.textures_delta.clear();
-        out
-    }
-
-    /// The [`Landed`] of every `Shape::Text` in a tree of shapes.
-    fn collect_landed(shapes: &[egui::epaint::ClippedShape], out: &mut Vec<Landed>) {
+    /// [`Landed`] for every `Shape::Text` in a tree of shapes.
+    ///
+    /// **The module's one walker.** Everything else here is a read of
+    /// what it answers, so a shape kind that starts nesting text is
+    /// taught to one `match` rather than to three.
+    pub(crate) fn landed_in(shapes: &[egui::epaint::ClippedShape]) -> Vec<Landed> {
         fn walk(shape: &egui::Shape, out: &mut Vec<Landed>) {
             match shape {
                 egui::Shape::Text(text) => out.push(Landed {
                     text: text.galley.text().to_owned(),
+                    allocated: egui::Rect::from_min_size(text.pos, text.galley.size()),
                     rows: text
                         .galley
                         .rows
@@ -191,26 +153,45 @@ pub(crate) mod headless {
                 _ => {}
             }
         }
+        let mut out = Vec::new();
         for clipped in shapes {
-            walk(&clipped.shape, out);
+            walk(&clipped.shape, &mut out);
         }
+        out
     }
 
-    /// The text of every `Shape::Text` in a tree of shapes.
-    fn collect(shapes: &[egui::epaint::ClippedShape], out: &mut Vec<String>) {
-        fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
-            match shape {
-                egui::Shape::Text(text) => out.push(text.galley.text().to_owned()),
-                egui::Shape::Vec(inner) => {
-                    for shape in inner {
-                        walk(shape, out);
-                    }
-                }
-                _ => {}
+    /// One headless frame of `draw`, and [`landed_in`] over what it
+    /// painted.
+    ///
+    /// **The module's one drive.** The `textures_delta.clear()` is
+    /// the reason it is one: no painter took the frame's font atlas,
+    /// and `TexturesDelta` panics on drop until one does — a detail
+    /// of epaint that no caller should have to remember.
+    pub(crate) fn landed(draw: impl FnOnce(&mut egui::Ui)) -> Vec<Landed> {
+        let ctx = egui::Context::default();
+        let mut draw = Some(draw);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            if let Some(draw) = draw.take() {
+                draw(ui);
             }
-        }
-        for clipped in shapes {
-            walk(&clipped.shape, out);
-        }
+        });
+        let out = landed_in(&output.shapes);
+        output.textures_delta.clear();
+        out
+    }
+
+    /// Every string one pass of `draw` PAINTED, in paint order.
+    pub(crate) fn painted(draw: impl FnOnce(&mut egui::Ui)) -> Vec<String> {
+        landed(draw).into_iter().map(|landed| landed.text).collect()
+    }
+
+    /// The centre of the text `target`, where it was painted — the
+    /// [`Landed::allocated`] box, because this is the position a
+    /// synthesized click is aimed at.
+    fn hit(landed: &[Landed], target: &str) -> Option<egui::Pos2> {
+        landed
+            .iter()
+            .find(|landed| landed.text == target)
+            .map(|landed| landed.allocated.center())
     }
 }

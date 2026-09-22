@@ -339,7 +339,7 @@ above as well, and neither is a header edit alone.
 | `pane::properties` | the property pane |
 | `pane::view` | the view pane |
 | `pane::viewport` | the viewport pane |
-| `widgets` | the free helpers over `egui::Ui` the chrome shares — mostly the panes; `widgets::message` is also the toolbar's and the checks window's |
+| `widgets` | the free helpers over `egui::Ui` the chrome shares — mostly the panes; `widgets::message` is also `app.rs`'s (Where a MESSAGE wraps, below, and the row that holds that roster) |
 | `gpu` | the wgpu viewport renderer |
 
 `session` is a driver **and** the parent of six vocabularies, so
@@ -1089,24 +1089,40 @@ not merely whether it is a vocabulary.
 true of the file rather than a claim it has outgrown.
 
 **Where a MESSAGE wraps is a question about the region, so it has one
-home**: `widgets::message` (and `widgets::message_link`). egui reads a
-label's wrap mode off the LAYOUT it is in, and a sentence somebody else
-wrote — a refusal, a fault, a check finding, the status line — is not
-what either of egui's two answers is for: in an ordinary horizontal row
-it is laid out at infinite width and drawn past the region's right-hand
-edge, and in the toolbar's wrapping row every line after the first is
-placed at the panel's left edge, which for a top panel is the window's.
+home**: `widgets::message`, with `widgets::message_link` and
+`widgets::message_toned` beside it. `egui::Ui::wrap_mode` answers from
+the `Ui`'s own `egui::Style::wrap_mode` if something set one, else
+`Extend` inside a grid, else the layout's — and nothing in this chrome
+sets a style wrap mode, so a label's wrap is decided by the layout it
+happens to be in. A whole sentence — a refusal, a fault, a check
+finding, the status line — is not what either of the layout's two
+answers is for: in an ordinary horizontal row it is laid out at
+infinite width and drawn past the region's right-hand edge, and in the
+toolbar's wrapping row every line after the first is placed at the
+panel's left edge, which for a top panel is the window's.
 `widgets::message` lays the sentence out at the region's own width and
 hands it over already laid out, which is the one path egui neither
-extends nor re-places. It is the toolbar's status line, the checks
-window's findings, the feature tree's failure line and standing note,
-the profile editor's preview verdicts and the view pane's status line.
-It is **not yet** the creation and properties panes'
+extends nor re-places; it asks for the wrap explicitly, so a future
+context-wide `Style::wrap_mode` would move every other label in the
+chrome and leave a message where it is. `widgets::message_toned` adds
+the voice, through `app::toned`, so what `Advisory` looks like stays
+decided in one place.
+
+Its call sites are `app.rs`, `pane/features.rs`, `pane/profile.rs` and
+`pane/view.rs` — a roster this page states twice (here and in the
+module table above) and therefore does not keep by hand:
+`widgets::roster_tests::the_message_roster_is_what_the_crate_actually_calls`
+re-derives it from the crate's own source. It is **not yet** the
+creation and properties panes'
 (`work/chrome/messages-in-the-creation-and-properties-panes-still-draw-past-their-row.md`).
-`widgets::message_tests` holds the measurements, including the one that
-says egui's own scroll container hands its content the visible width
-rather than an infinite one — so a pane that scrolls both ways still
-wraps its sentences instead of answering with a scrollbar.
+`widgets::message_tests` holds the measurements — that the sentence
+fills the region it is in rather than a width of its own, across three
+region widths; that egui's own scroll container hands its content the
+visible width rather than an infinite one, so a pane that scrolls both
+ways still wraps its sentences instead of answering with a scrollbar —
+and `app`'s `the_toolbars_status_line_wraps_under_itself_rather_than_at_the_windows_edge`
+measures the status line in the real toolbar, which is where the
+second symptom was reported.
 
 **Startup is split by what it needs, and the two context-wide styles
 are on the deviceless side.** `ViewerApp::new` takes an

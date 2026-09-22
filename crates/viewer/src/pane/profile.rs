@@ -22,7 +22,7 @@ use crate::frame;
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::Theme;
-use crate::widgets::{angle_picker, length_picker, message, new_row_step, path_step_fields};
+use crate::widgets::{angle_picker, length_picker, new_row_step, path_step_fields};
 
 impl ViewerBehavior<'_> {
     /// **The add-profile form's editor, opened on a committed
@@ -135,11 +135,8 @@ impl ViewerBehavior<'_> {
 /// form is on screen, or a form at rest), and holds nothing.
 ///
 /// Every verdict that is a SENTENCE goes through
-/// [`crate::widgets::message`], which is what keeps a refusal inside
-/// the region it is drawn in whatever layout the door opened — this
-/// function is a free one over a `Ui` and its two callers are two
-/// different forms, so nothing here can know. The loop count is a
-/// number and stays a plain label.
+/// [`crate::widgets::message_toned`]; the loop count is a number and
+/// stays a plain label.
 pub(crate) fn preview_verdict(
     ui: &mut egui::Ui,
     theme: Theme,
@@ -159,21 +156,21 @@ pub(crate) fn preview_verdict(
             // and the commit door refuses a program that does not
             // close. Saying which of the two this is beats a
             // disabled button with a lattice refusal beside it.
-            message(
+            crate::widgets::message_toned(
                 ui,
-                egui::RichText::new(
-                    "the chain does not close yet — its last step has to target the start",
-                )
-                .weak(),
+                "the chain does not close yet — its last step has to target the start",
+                &theme,
+                frame::Tone::Advisory,
             );
             true
         }
         Some(Ok(drawn)) => {
             if let Some(invalid) = &drawn.invalid {
-                message(
+                crate::widgets::message_toned(
                     ui,
-                    egui::RichText::new(format!("does not validate: {invalid}"))
-                        .color(chrome(theme.unresolved)),
+                    format!("does not validate: {invalid}"),
+                    &theme,
+                    frame::Tone::Actionable,
                 );
                 true
             } else {
@@ -194,11 +191,13 @@ pub(crate) fn preview_verdict(
             // refusal blames a step somebody actually wrote, and
             // keeps the colour that says so.
             if matches!(error, PreviewError::Transition { verb: None, .. }) {
-                message(ui, egui::RichText::new(error.to_string()).weak());
+                crate::widgets::message_toned(ui, error.to_string(), &theme, frame::Tone::Advisory);
             } else {
-                message(
+                crate::widgets::message_toned(
                     ui,
-                    egui::RichText::new(error.to_string()).color(chrome(theme.unresolved)),
+                    error.to_string(),
+                    &theme,
+                    frame::Tone::Actionable,
                 );
             }
             true

@@ -5,6 +5,7 @@
 use eframe::egui;
 
 use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
+use crate::frame;
 use crate::session::{Selection, SessionOp};
 use crate::tree::{RowStatus, TreeRow};
 
@@ -121,10 +122,8 @@ impl ViewerBehavior<'_> {
             };
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
-                // Through `widgets::message`, not `ui.link`/`ui.weak`:
-                // this is a payload's own words, so it is a sentence and
-                // not a name, and the row it is indented under is the
-                // region it has to stay inside (`widgets::message`).
+                // A payload's own words are a sentence, so
+                // `widgets::message`, not `ui.link`/`ui.weak`.
                 match through {
                     Some(through) => {
                         if crate::widgets::message_link(ui, message).clicked() {
@@ -132,7 +131,12 @@ impl ViewerBehavior<'_> {
                         }
                     }
                     None => {
-                        crate::widgets::message(ui, egui::RichText::new(message).weak());
+                        crate::widgets::message_toned(
+                            ui,
+                            message,
+                            &self.theme,
+                            frame::Tone::Advisory,
+                        );
                     }
                 }
             });
@@ -142,7 +146,12 @@ impl ViewerBehavior<'_> {
         if let Some(note) = &row.note {
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
-                crate::widgets::message(ui, egui::RichText::new(note.as_str()).weak());
+                crate::widgets::message_toned(
+                    ui,
+                    note.as_str(),
+                    &self.theme,
+                    frame::Tone::Advisory,
+                );
             });
         }
     }
