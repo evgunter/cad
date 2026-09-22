@@ -64,7 +64,7 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
         f(&mut m);
         SymRetry {
             bits: None,
-            without: Some(m),
+            without: [Some(m), None],
         }
     };
     vec![
@@ -72,14 +72,14 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
             "ring_512",
             SymRetry {
                 bits: Some(512),
-                without: None,
+                ..SymRetry::none()
             },
         ),
         (
             "ring_1024",
             SymRetry {
                 bits: Some(1024),
-                without: None,
+                ..SymRetry::none()
             },
         ),
         ("no_abs_square", without(|m| m.abs_square = false)),
@@ -100,17 +100,15 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
                 m.canonical_root = false;
             }),
         ),
-        // The full ladder: the kept atom first, then the wider ring
-        // into what is left.
+        // **The shipped ladder**: rule G shut, then rule A shut, two
+        // attempts (`geom_core::SymRetry::kept_atom`).
+        ("kept_atom_ladder", SymRetry::kept_atom()),
+        // The shipped ladder with a 512-bit ring attempt behind it.
         (
-            "ladder_ag_then_512",
+            "kept_atom_then_512",
             SymRetry {
                 bits: Some(512),
-                without: Some(SymRules {
-                    sqrt_square: false,
-                    canonical_root: false,
-                    ..SymRules::all()
-                }),
+                ..SymRetry::kept_atom()
             },
         ),
     ]

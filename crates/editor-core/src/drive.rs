@@ -301,37 +301,41 @@ pub const DEFAULT_SYM_MAX_TERMS: usize = 4096;
 /// The shipped degree budget ([`SymbolicDials`]).
 pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 
-/// **The shipped RETRY LADDER** ([`SymbolicDials::retry`]): one
-/// kept-atom attempt, with rule A's `sqrt(X)² = X` and the whole of
-/// rule G shut, and NO wider-ring attempt.
+/// **The shipped RETRY LADDER** ([`SymbolicDials::retry`]): two
+/// kept-atom attempts — rule G shut, then rule A's `sqrt(X)² = X` shut
+/// — and NO wider-ring attempt
+/// ([`geom_core::SymRetry::kept_atom`]).
 ///
-/// **Chosen by SYM-9's Phase 1 measurement, per shape, on the six
-/// documents** (the unit's PR carries the tables). What it recovers,
-/// at the nominal, against the same replay with the ladder off:
+/// **Chosen by SYM-9's Phase 1 measurement, per shape, on the measured
+/// documents** (the unit's PR carries the tables). What each attempt
+/// recovers at the nominal, against the same replay with the ladder
+/// off, and what the whole replay then costs:
 ///
-/// | document | recovered | the replay's cost |
-/// | --- | --- | --- |
-/// | two-hole plate, R1's annulus, R1's segment boss | none — no decision the tier is ASKED refuses at all on the first two | ~1.0x |
-/// | R2's filleted bracket | 6, all of them rule A's | 1.06x |
-/// | R2's link | 12, all of them rule G's — the ten `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` records as lost, and two of `witness_on_surface_2` | 1.11x |
+/// | document | rule G shut | rule A shut | both in ONE mask |
+/// | --- | --- | --- | --- |
+/// | two-hole plate | 0 (~1.0x) | 0 (~1.0x) | 0 |
+/// | R1's annulus | 0 (0.98x) | 0 (0.98x) | 0 |
+/// | R1's segment boss | 0 (1.00x) | 0 (1.07x) | 0 |
+/// | R2's filleted bracket | 0 (1.25x) | **6** (1.11x) | 6 (1.05x) |
+/// | R2's link | **12** (1.14x) | 0 (1.04x) | **0** (1.07x) |
+///
+/// **The last column is why the ladder carries two masks and not one.**
+/// Shutting both rules in one attempt keeps the bracket's six and loses
+/// every one of the link's twelve: those twelve are cancellations rule
+/// A performs once rule G has stopped re-keying the atom, so a mask
+/// that shuts both takes away the rule doing the work. The two shapes
+/// are not composable and the measurement is what says so.
 ///
 /// **The wider ring is measured and NOT shipped**, which is the answer
 /// this unit owes `work/sym/coefficient-ring-width-is-not-monotone-in-reach`:
-/// a 512-bit retry recovers a strict subset of the above — six of the
-/// bracket's six and eight of the link's twelve — and costs 4.22x on
-/// the bracket against rule A's 1.06x for the same six decisions. At
-/// 1024 bits it reaches four the kept atom does not, at 11.26x. So the
-/// ring's width buys nothing on a measured document that keeping an
-/// atom closed does not buy more cheaply, and it stays a dial with its
-/// numbers rather than a default.
-pub const DEFAULT_SYM_RETRY: geom_core::SymRetry = geom_core::SymRetry {
-    bits: None,
-    without: Some(geom_core::SymRules {
-        sqrt_square: false,
-        canonical_root: false,
-        ..geom_core::SymRules::all()
-    }),
-};
+/// a 512-bit retry recovers a strict subset — the bracket's same six,
+/// and eight of the link's twelve — at 4.41x on the bracket against
+/// rule A's 1.11x for the same six decisions. At 1024 bits it reaches
+/// four more on the bracket, at 11.57x. So the ring's width buys
+/// nothing on a measured document that keeping an atom closed does not
+/// buy more cheaply, and it stays a dial with its numbers beside it
+/// rather than a default.
+pub const DEFAULT_SYM_RETRY: geom_core::SymRetry = geom_core::SymRetry::kept_atom();
 
 impl SymbolicDials {
     /// The tier off — the numeric-only replay, bit for bit.

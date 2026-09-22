@@ -1855,13 +1855,31 @@ pub struct SymRetry {
     /// that set that constant stand, and this ladder adds attempts
     /// rather than widening the one everything else is measured at.
     pub bits: Option<u64>,
-    /// **The KEPT-ATOM retry's rules, as a MASK over the session's**:
-    /// the retry runs [`SymRules::masked_by`], every rule that is on in
-    /// both, so a field `false` here names a rule that retry goes
-    /// WITHOUT and a field `true` leaves it as the session has it.
-    /// `None` for no kept-atom retry.
-    pub without: Option<SymRules>,
+    /// **The KEPT-ATOM attempts, in the order they are taken**, each a
+    /// MASK over the session's rules: an attempt runs
+    /// [`SymRules::masked_by`], every rule that is on in both, so a
+    /// field `false` in a mask names a rule that attempt goes WITHOUT
+    /// and a field `true` leaves it as the session has it. `None` in a
+    /// slot is no attempt there.
+    ///
+    /// **Several masks and not one, and the reason is measured.**
+    /// SYM-9's Phase 1 took each shape alone and then together: rule A
+    /// shut recovers six on R2's bracket, rule G shut recovers twelve
+    /// on R2's link, and the two shut in ONE mask recovers the
+    /// bracket's six and NONE of the link's twelve — because the
+    /// link's twelve are cancellations rule A's `sqrt(X)² = X` performs
+    /// once rule G has stopped re-keying the atom, so a mask that shuts
+    /// both takes away the rule that does the work. One mask per shape
+    /// is therefore not a convenience; a single one cannot express what
+    /// the measurement chose.
+    pub without: [Option<SymRules>; MASKS],
 }
+
+/// How many kept-atom masks a [`SymRetry`] may carry. Two, because two
+/// is what SYM-9's measurement chose and an array is what keeps
+/// [`SymRetry`] `Copy`; a third shape wants a measurement of its own
+/// before it wants a slot.
+pub const MASKS: usize = 2;
 
 impl SymRetry {
     /// No retry at all: the ladder is the first attempt and stops — the
@@ -1870,7 +1888,35 @@ impl SymRetry {
     pub const fn none() -> Self {
         Self {
             bits: None,
-            without: None,
+            without: [None; MASKS],
+        }
+    }
+
+    /// **The kept-atom ladder SYM-9 measured and ships**: rule G shut
+    /// for one attempt, then rule A shut for the next, and no
+    /// wider-ring attempt.
+    ///
+    /// The order is Phase 1's ranking — rule G shut recovers twelve on
+    /// R2's link at 1.14x the replay, rule A shut six on R2's bracket
+    /// at 1.11x, and neither recovers anything on the plate, the
+    /// annulus or the segment boss, whose ladder costs ~1.0x because
+    /// no decision the tier is asked refuses on them at all. The
+    /// wider ring is measured and not taken: `editor_core`'s
+    /// `DEFAULT_SYM_RETRY` carries that table.
+    #[must_use]
+    pub const fn kept_atom() -> Self {
+        Self {
+            bits: None,
+            without: [
+                Some(SymRules {
+                    canonical_root: false,
+                    ..SymRules::all()
+                }),
+                Some(SymRules {
+                    sqrt_square: false,
+                    ..SymRules::all()
+                }),
+            ],
         }
     }
 
@@ -1878,18 +1924,16 @@ impl SymRetry {
     /// as the rules it runs and the ring bound it runs at.
     ///
     /// **The order is Phase 1's ranking and the reason is its table**
-    /// (this unit's PR): the kept-atom retry recovers more, and more
+    /// (this unit's PR): the kept-atom attempts recover more, and more
     /// cheaply, than the wider ring on every document that recovers
-    /// anything, so it is asked first and the ring only into what is
+    /// anything, so they are asked first and the ring only into what is
     /// left.
     fn attempts(self, first: SymRules) -> impl Iterator<Item = (SymRules, u64)> {
-        [
-            self.without
-                .map(|mask| (first.masked_by(mask), rational::COEFF_BITS)),
-            self.bits.map(|bits| (first, bits)),
-        ]
-        .into_iter()
-        .flatten()
+        self.without
+            .into_iter()
+            .map(move |m| m.map(|mask| (first.masked_by(mask), rational::COEFF_BITS)))
+            .chain(core::iter::once(self.bits.map(|bits| (first, bits))))
+            .flatten()
     }
 }
 
@@ -4244,14 +4288,7 @@ mod tests {
     /// The kept-atom mask that shuts rule A and the whole of rule G —
     /// the shipped ladder's one attempt (`drive::DEFAULT_SYM_RETRY`).
     fn kept_atom() -> SymRetry {
-        SymRetry {
-            bits: None,
-            without: Some(SymRules {
-                sqrt_square: false,
-                canonical_root: false,
-                ..SymRules::all()
-            }),
-        }
+        SymRetry::kept_atom()
     }
 
     #[test]
@@ -4271,7 +4308,7 @@ mod tests {
 
         let retry = SymRetry {
             bits: Some(512),
-            without: None,
+            ..SymRetry::none()
         };
         let (_, with_ladder) = with_session_retry(budget(), SymRules::shipped(), retry, || {
             decides_zero(two_spellings_past_the_ring())
