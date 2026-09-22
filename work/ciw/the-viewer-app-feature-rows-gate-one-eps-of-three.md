@@ -1,7 +1,7 @@
 ---
 id: the-viewer-app-feature-rows-gate-one-eps-of-three
 kind: issue
-title: The viewer's app-feature rows run at one eps row of the three the matrix gates, and a live red sits in the gap
+title: The viewer's app-feature rows run at one eps row of the three the matrix gates, and the red that sat in the gap was found by hand, not by CI
 status: open
 opened: 2026-09-21
 priority: P2
@@ -34,7 +34,7 @@ eps rows the run otherwise gates everywhere. That is the residue of
 `work/chrome/viewer-chrome-not-in-nextest-archive.md` (closed, #1755):
 that row bought the rows a seat, and the seat is single-eps.
 
-## The live red in the gap, executed
+## The red that sat in the gap — closed 2026-09-22, and the row is stronger for it
 
 `viewer pane::profile::tests::drawing_a_locked_split_circle_above_the_cap_leaves_it_alone`
 fails on `origin/main` under `CAD_TOLERANCE_EPS=1e-6`, and passes at
@@ -52,8 +52,26 @@ the document admits a split circle above the form's cap:
 ```
 
 Filed against its own owner as
-`work/chrome/a-split-circle-fixture-sits-inside-the-1e-6-escalation-band.md`;
-this row is the reason nobody knew.
+`work/chrome/a-split-circle-fixture-sits-inside-the-1e-6-escalation-band.md`
+and **closed on 2026-09-22** by CHROME's `chrome/split-circle-eps`,
+which tied the fixture's radius to the run's ε. So the red above is no
+longer live on `main`.
+
+**That closes the instance and not this row, and it is worth being
+exact about why.** This row's claim was never *"a red is live"* — it is
+that the viewer's app-feature rows gate at one ε of three, so a red in
+the other two is invisible. The closed instance is now the evidence for
+that claim rather than a competitor to it: the defect sat on `main`
+undetected over a green gate, and what found it was a lane running the
+viewer suite by hand at all three ε after CI reded one of its own rows.
+Nothing in CI found it, and nothing in CI would have.
+
+The CHROME lane that closed it also swept the whole viewer app-feature
+population at nine ε values (1e-5 through 1e-13) and found **no other
+fixture within a decade of a gated band** — so the gap is empty today.
+That is a measurement with a date on it, not a guarantee: it was taken
+by hand, for the same reason the red was, and the next fixture to drift
+into a band will be just as invisible.
 
 ## What a fix would have to decide
 
