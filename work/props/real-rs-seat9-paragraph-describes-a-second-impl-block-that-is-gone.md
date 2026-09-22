@@ -2,8 +2,11 @@
 id: real-rs-seat9-paragraph-describes-a-second-impl-block-that-is-gone
 kind: issue
 title: real.rs's SEAT-9 paragraph describes a second verbs/run.rs impl block that no longer exists
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-09-22
+pr: 3049
+branch: scalar/lane-3
 priority: P4
 cost: E
 ---
@@ -41,3 +44,23 @@ covers nothing is the judgement the row wants made — the allowance was
 written by an implementer lane's own commit (`c4bd40a29f`, S9-1) and
 `git log -S` finds no Ev ratification behind it, so it is not text that
 has to wait, only text somebody has to decide about.
+
+## Closed
+
+Done at LANE-3's fix pass (PR 3049), on both reviewers' finding. The
+paragraph now reads to the tree: the file carries ONE compound header,
+the second seam the SEAT-9 allowance was written for has nothing in
+it, and the paragraph says what would put a header back there — a door
+whose certification right cannot be carried in a value. The allowance
+stands and covers nothing; retiring it was not needed to make the
+prose true. `scripts/gates/bounds-allowlist.sh`'s `run.rs` entry,
+which already recorded the 2 → 1 move, says the same thing.
+
+The ground for landing it there rather than waiting is CLAUDE.md's
+re-wording carve-out: an approved change moved the mechanism the
+sentence described, so the re-wording is not a second decision. The
+text is an implementer lane's own allowlist doc comment (`c4bd40a29f`,
+S9-1) and not ratified text; the history search that bottoms at the
+graft is the weaker argument and is not what this rests on. The
+SCALAR orchestrator extended LANE-3's fence for this paragraph on
+PR 3049.
