@@ -279,3 +279,5 @@ mod lane2_r2_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
+#[path = "lane3_r1_probes.rs"]
+mod lane3_r1_probes;

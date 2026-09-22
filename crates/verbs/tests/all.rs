@@ -28,3 +28,5 @@ mod param_flow;
 mod run_door;
 
 test_utils::every_suite_file_is_aggregated!();
+#[path = "lane3_r1_probes.rs"]
+mod lane3_r1_probes;
