@@ -12,6 +12,8 @@
 //! the ring into `Interval` and re-takes exactly this comparison; the
 //! numbers here move with ε and are therefore not pinned.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::Tol;
 use sweep::test_support::loft_prism;
 
