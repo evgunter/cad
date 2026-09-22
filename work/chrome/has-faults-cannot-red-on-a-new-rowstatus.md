@@ -2,8 +2,10 @@
 id: has-faults-cannot-red-on-a-new-rowstatus
 kind: issue
 title: tree::has_faults encodes chrome policy as a two-arm matches! over RowStatus, so a fifth row state is silently not-a-fault — and band-refusal's fix is to add one
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-09-22
+branch: chrome/rowstatus-exhaustive
 priority: P2
 cost: E
 ---
@@ -73,3 +75,27 @@ for `chrome/empty-document-gate` (scope: `frame.rs`, `pickindex.rs`,
 VIEW and VNEWS; filed on CHROME because `has_faults`'s subject is
 what the chrome shows.
 
+
+## Closed 2026-09-22 (`chrome/rowstatus-exhaustive`)
+
+`has_faults` is an exhaustive `match`, with `Unevaluated` and `Ok`
+each an arm carrying its reason rather than the complement of a
+pattern, and the doc says which axis it is and how it differs from
+`RowStatus::tone` (the collapse a later reader would reach for).
+
+**Proved red, both ways, rather than asserted.** A scratch fifth
+variant made `has_faults` one of five `E0004`s in the crate —
+`tree.rs`'s `badge`, `tone`, `message` and `has_faults`, plus
+`pane/features.rs`'s draw decision and `frame.rs`'s guard. And the
+policy itself now has a test that a bug breaks:
+`a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on`
+(`crates/viewer/tests/tree_badges.rs`) is the only place in the tree
+where a `Poisoned` row stands alone, so dropping `Poisoned` from the
+policy — or rewriting it as *any actionable row* — reds only there.
+Confirmed by making that mutation and watching it fail.
+
+The sweep this row asks for is
+`matches-subset-policy-survives-in-four-viewer-modules`: four more
+live in `crates/viewer/src`, and the closest sibling is `bounds.rs`'s
+`Verdict::of`, which is this defect one enum up with its policy
+already argued in prose above it.
