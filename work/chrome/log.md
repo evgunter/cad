@@ -1656,3 +1656,64 @@ because a week-stale branch's diff against `main` is dominated by
 Nothing is owed to any of them.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-22 — Wave 2 dispatched: three units, four rows
+
+Dispatched against the item files directly, with no `docs/<ID>-SPEC.md`.
+These four rows carry their own `## What a taker owes`, and this
+program's standing failure is rotted premises — a spec restating a
+complete row just gives its premises a second place to rot, and the
+lane then has two documents disagreeing about the tree. Where a
+dispatch added anything, it added the live-ground map and the
+verify-don't-trust instruction, both of which are true only today and
+belong in the dispatch rather than in a file.
+
+- **`chrome/wrap-in-region`** — `error-and-check-text-overflows-its-region`
+  (P0, Ev's own request, and the row this sitting found phantom-
+  dispatched). The LAYOUT half only. The concision half reaches typed
+  refusals' `Display` impls in `profile`, `editor-core` and others, so
+  the lane files per-crate rows rather than editing kernel prose from a
+  viewer lane, which is what the row itself asks for.
+- **`chrome/rowstatus-exhaustive`** —
+  `has-faults-cannot-red-on-a-new-rowstatus` with
+  `band-refusal-still-badges-every-row`, one unit, **in that order**.
+  The guard goes exhaustive first so the Band row's new `RowStatus`
+  variant cannot land silently; both rows say to take them together and
+  neither can see that from its own side.
+- **`chrome/split-circle-eps`** —
+  `a-split-circle-fixture-sits-inside-the-1e-6-escalation-band`. Live
+  red on `main` at `1e-6` today, with a green gate over it.
+
+**Three premises checked against `main` before dispatch, because Wave 1
+handed a wrong one to all three of its units.** `tree::has_faults` is
+still the two-arm `matches!`; `RowStatus` still has exactly four
+variants; and `tree_badges.rs` does carry the Band coverage its row
+claims, which the Band row asserts from a branch that never merged — the
+content reached `main` by another route, so the claim is true and its
+citation is not. Each lane was told the check was mine and to re-take it
+rather than trust it.
+
+**What the dispatches carried instead of a fence.** `plan.md`'s
+territory section promises a per-wave read of who is live rather than a
+file list, and this is the first wave to owe one. Live in open PRs 3052,
+2960 and 2961 today: `app.rs`, `session.rs`, `session/*`,
+`pane/create.rs`, `pane/properties.rs`, `combine.rs`, `drafts.rs`,
+`forms.rs`, `seats.rs`, `tools.rs`; most of `crates/viewer/tests/*` is in
+2929. The three lanes were fenced off each other's files too, which the
+territory tool cannot say because both sides are CHROME.
+
+**`at-rest-badge-reports-an-empty-document-as-a-refusal` was held back
+for the second wave running, for the same reason**: its whole subject is
+`session.rs` and two open PRs are in it. Recorded rather than left
+implicit, because "held for a live lane" and "forgotten" look identical
+on the board a week later. It goes the moment 3052 and 2960 land.
+
+**Not dispatched, and it is the next decision.** This slate measures
+61.5 points against a 30-point ceiling with 35 open rows — over budget
+by more than double, where `work/README.md` says a program that grows
+past its budget splits, along its priority seam. Wave 2 does not touch
+that: dispatching four rows moves the load by about eight points. The
+split is a sitting's work and it is the one I would spend the next
+sitting on.
+
+Signed (CHROME orchestrator).

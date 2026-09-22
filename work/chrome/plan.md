@@ -171,19 +171,47 @@ answers rather than details:
   orchestrator's; both of these were the lane's, and the lane had the
   measurement.
 
-**Next, and the reason it is next.** Three rows are now available that
-were held by the spent cession (above), and one of them —
-`band-refusal-still-badges-every-row` — acquired a partner in this
-wave: `has-faults-cannot-red-on-a-new-rowstatus` says `tree.rs`'s
-`has_faults` is a `matches!` over `RowStatus` that cannot red when the
-enum grows, and the Band row's fix is precisely to ADD a `RowStatus`
-variant. They are cross-referenced both ways and should go as one
-unit. Behind them:
-`at-rest-badge-reports-an-empty-document-as-a-refusal` (the
-behavioural half of PR 3021's cluster, held out only because AUTHOR's
-`author/profile-frame` had `session.rs` in scope) and
-`a-split-circle-fixture-sits-inside-the-1e-6-escalation-band` (a live
-red at `1e-6` on `main`).
+**Wave 2 DISPATCHED 2026-09-22** — three units, four rows, no A/B duals
+and no row in `docs/MODEL-AB-LOG.md` (Ev, in chat: *"no AB protocol"*);
+the band 1600-1699 stays claimed and empty. Dispatched against the item
+files directly rather than against `docs/<ID>-SPEC.md`: these rows carry
+their own `## What a taker owes`, and a spec restating a complete row is
+a second place for its premises to rot.
+
+- **`chrome/wrap-in-region`** — `error-and-check-text-overflows-its-region`,
+  the slate's only P0 and Ev's own request. The LAYOUT half only; the
+  concision half reaches kernel `Display` impls and files per-crate rows
+  instead. Un-investigated when filed, so investigation is the bulk.
+- **`chrome/rowstatus-exhaustive`** —
+  `has-faults-cannot-red-on-a-new-rowstatus` with
+  `band-refusal-still-badges-every-row`, as one unit and in that order:
+  the guard goes exhaustive FIRST so the Band row's variant cannot land
+  silently. Both rows say to take them together.
+- **`chrome/split-circle-eps`** —
+  `a-split-circle-fixture-sits-inside-the-1e-6-escalation-band`, a live
+  red on `main` at `1e-6` that one CI step's missing `CAD_TOLERANCE_EPS`
+  hides.
+
+**The live-ground map each dispatch carried**, which is the per-wave read
+this section promises rather than a clause: `app.rs`, `session.rs`,
+`session/*`, `pane/create.rs`, `pane/properties.rs`, `combine.rs`,
+`drafts.rs`, `forms.rs`, `seats.rs` and `tools.rs` are in open PRs 3052,
+2960 and 2961 today; `crates/viewer/tests/*` is largely in 2929. Clear:
+`widgets.rs`, `frame.rs`, `tree.rs`, `pane/profile.rs`, `pane/view.rs`,
+`pane/viewport.rs`, `pane/features.rs`, `theme.rs`, `pane.rs`. The three
+lanes were also fenced off each other's files.
+
+**Held back, and why.**
+`at-rest-badge-reports-an-empty-document-as-a-refusal` is the next row
+and did not go this wave: its whole subject is `session.rs`, which is
+live in two open PRs. That is the same reason it was held last wave, and
+it is a scheduling fact, not a fence — it goes the moment 3052 and 2960
+land.
+
+**The board's in-flight column is a claim, not a fact** — see
+`work/chrome/log.md`, 2026-09-22. A row is marked `dispatched` here only
+after its branch exists on the remote, which is the cheapest thing that
+would have caught the phantom this sitting repaired.
 
 ## Exit shape
 

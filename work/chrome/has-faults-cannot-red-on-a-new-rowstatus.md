@@ -2,10 +2,11 @@
 id: has-faults-cannot-red-on-a-new-rowstatus
 kind: issue
 title: tree::has_faults encodes chrome policy as a two-arm matches! over RowStatus, so a fifth row state is silently not-a-fault — and band-refusal's fix is to add one
-status: open
+status: dispatched
 opened: 2026-09-21
 priority: P2
 cost: E
+branch: chrome/rowstatus-exhaustive
 ---
 
 ## Finding

@@ -2,11 +2,12 @@
 id: band-refusal-still-badges-every-row
 kind: issue
 title: MateFault::Band still badges every row in the cluster — the filed defect, surviving in one arm
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [1769, 1463]
 priority: P1
 cost: E
+branch: chrome/rowstatus-exhaustive
 ---
 
 Found by CHROME's style lane on PR 1769, judging that PR's own

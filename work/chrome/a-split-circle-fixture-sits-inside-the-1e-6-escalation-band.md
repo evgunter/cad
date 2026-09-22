@@ -2,10 +2,11 @@
 id: a-split-circle-fixture-sits-inside-the-1e-6-escalation-band
 kind: issue
 title: A pane::profile fixture's chord-side margin lands in the 1e-6 escalation band and the row fails at that eps
-status: open
+status: dispatched
 opened: 2026-09-21
 priority: P2
 cost: E
+branch: chrome/split-circle-eps
 ---
 
 
