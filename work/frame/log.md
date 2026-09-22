@@ -42,6 +42,20 @@ document's `5e-2` rung still refuses on this row's margin, so the
 class is NOT answered; what moved is which document reaches it first.
 The row carries the measurement.
 
-DECIDE-3 stopped short of merge on one measured loss (R2's link,
-`carrier_on_surface_2`, `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`);
-the folds above are what its branch holds either way.
+**DECIDE-3 lands.** One measured trade goes with it: on R2's link,
+rule G costs `carrier_on_surface_2` sixteen theorems while the
+document's totals rise, and that predicate is re-baselined and PINNED
+on both sides (`[98, 0, 0, 10]` with rule G shut against
+`[82, 0, 6, 20]` shipped) in
+`editor-core/tests/decide_3_split_rows_interval`, so a drift reds and
+says which. The measurement and the remedy that was tried and rejected
+are on `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`,
+which stays OPEN at P1 for SYM-9.
+
+The unit briefly stopped on that trade against a "no decision LOST"
+acceptance clause; Ev corrected the attribution on #3039 (02:03Z) —
+that sentence was the orchestrator's spec text, not the ruling, and
+the ruling is shape 1 plus "never skip out on a change that would make
+the code better because it would require rebaselining". So the folds
+above are what this program gets, and they are merged rather than
+parked.

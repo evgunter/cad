@@ -169,6 +169,7 @@ fn leading_is_negative(p: &Poly) -> Option<bool> {
 /// `2x − 1` then key the same indeterminate, and a root of a perfect
 /// square meets the `abs` NODE the document spelled whichever way
 /// round `poly_sqrt` happened to return its root.
+///
 /// **The normalisation is a KEY convention and touches no rule's
 /// predicate.** Every fold at an `abs` node — A0's, rule F's manifest
 /// sign, rule C's certified read — has already been asked by `combine`
@@ -187,16 +188,6 @@ fn sign_normalised(f: &Form) -> Option<Form> {
     Some(f.clone())
 }
 
-/// **The `Abs` atom's door**: the indeterminate an `abs` NODE mints
-/// once every fold before it has declined, keyed on the sign-normalised
-/// argument so `|Y|` and `|−Y|` are ONE atom.
-///
-/// It folds NOTHING. Every fold at an `abs` node — A0's constant, rule
-/// F's manifest sign, rule C's certified one — has already been asked
-/// by `combine` and declined; what is left for this door is the key,
-/// and the key alone. That is the seam with rule F: this module
-/// decides how a magnitude is NAMED, and rule F decides when one may
-/// be folded away.
 /// **`|c · R|` and `c · |R|` are one magnitude, so they are one atom.**
 /// The rational content comes out of both halves and the primitives
 /// are sign-normalised, leaving the key a function of the value class
@@ -222,6 +213,16 @@ fn magnitude_key(f: &Form) -> Option<(Rat, Form)> {
     Some((k, out))
 }
 
+/// **The `Abs` atom's door**: the indeterminate an `abs` NODE mints
+/// once every fold before it has declined, keyed by [`magnitude_key`]
+/// so `|Y|`, `|−Y|`, `|c·Y|` and `c·|Y|` are ONE atom.
+///
+/// It folds NOTHING. Every fold at an `abs` node — A0's constant, rule
+/// F's manifest sign, rule C's certified one — has already been asked
+/// by `combine` and declined; what is left for this door is the key,
+/// and the key alone. That is the seam with rule F: this module
+/// decides how a magnitude is NAMED, and rule F decides when one may
+/// be folded away.
 pub(super) fn magnitude_atom(arg: &Form, sess: &mut Session) -> Option<Form> {
     let (k, primitive) = magnitude_key(arg)?;
     let a = atom(SymOp::Abs, primitive, sess);

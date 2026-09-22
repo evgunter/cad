@@ -48,7 +48,7 @@ use core::f64::consts::PI;
 
 use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
-use super::{AtomInfo, INDET_PI, IndetMap, Session, SymBudget, SymOp, manifest};
+use super::{AtomInfo, INDET_PI, IndetMap, Session, SymBudget, SymOp, manifest, quotient};
 use crate::ring_interval::RingInterval;
 
 /// The most terms a candidate root may grow to before `poly_sqrt` gives
@@ -455,36 +455,16 @@ pub(super) fn enclose_poly(p: &Poly, sess: &Session) -> Option<RingInterval> {
 /// out is what lets a decision whose halves are dressed in norms be
 /// read from the polynomial underneath.
 fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
-    let Some(first) = p.monos().next() else {
-        return p.clone();
-    };
-    let mut common: Mono = first.clone();
-    for m in p.monos() {
-        common.retain(|&(id, _)| m.iter().any(|&(j, _)| j == id));
-        for (id, e) in &mut common {
-            *e = (*e).min(exp_of(m, *id));
-        }
-        if common.is_empty() {
-            return p.clone();
-        }
-    }
+    // Rule E's own content split, asked rather than re-derived: the
+    // monomial every term is divisible by, then the division. What is
+    // this rule's own is the middle line — keeping only the factors
+    // whose sign the form settles.
+    let mut common = quotient::content(p);
     common.retain(|&(id, _)| manifest::indet_positive(id, sess));
     if common.is_empty() {
         return p.clone();
     }
-    let mut terms: Vec<(Mono, Rat)> = Vec::with_capacity(p.terms().len());
-    for (m, c) in p.terms() {
-        let mut rest = Mono::with_capacity(m.len());
-        for &(id, e) in m {
-            let d = exp_of(&common, id);
-            if e > d {
-                rest.push((id, e - d));
-            }
-        }
-        terms.push((rest, c.clone()));
-    }
-    terms.sort_by(|(a, _), (b, _)| a.cmp(b));
-    Poly::from_sorted_terms(terms).unwrap_or_else(|| p.clone())
+    quotient::divide(p, &common).unwrap_or_else(|| p.clone())
 }
 
 /// **The decision read** for `Select(d, when_le, when_gt)`:

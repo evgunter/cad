@@ -208,6 +208,9 @@ fn termwise_nonneg(p: &Poly, sess: &Session) -> bool {
 /// for. `false` for anything that is not a quadratic in exactly one
 /// indeterminate over rational coefficients.
 ///
+/// It reads no session state at all: the test is arithmetic on `p`'s
+/// own coefficients, which is what makes it a fact about the FORM.
+///
 /// **This is the source that carries a candidate norm's denominator.**
 /// A frame's normal over a tilted axis has `S = sqrt(t² + t/2 + 17/16)`
 /// and its candidates divide by `1 + 8t/17 + 16t²/17` — sums whose
@@ -215,8 +218,7 @@ fn termwise_nonneg(p: &Poly, sess: &Session) -> bool {
 /// perfect squares, but which complete the square with room to spare
 /// (`(t + 1/4)² + 1`). The discriminant is that completion, done in the
 /// coefficient ring rather than in the polynomial.
-fn definite_quadratic(p: &Poly, sess: &Session) -> bool {
-    let _ = sess;
+fn definite_quadratic(p: &Poly) -> bool {
     let (mut a, mut b, mut c) = (None, None, Rat::zero());
     let mut var: Option<u128> = None;
     for (mono, coeff) in p.terms() {
@@ -262,9 +264,7 @@ fn definite_quadratic(p: &Poly, sess: &Session) -> bool {
 /// **A manifestly non-negative POLYNOMIAL** — the term-wise test, a
 /// perfect square, or a definite quadratic in one indeterminate.
 fn nonneg_poly(p: &Poly, sess: &Session) -> bool {
-    termwise_nonneg(p, sess)
-        || signed::poly_sqrt(p, sess.budget).is_some()
-        || definite_quadratic(p, sess)
+    termwise_nonneg(p, sess) || signed::poly_sqrt(p, sess.budget).is_some() || definite_quadratic(p)
 }
 
 /// **A manifestly non-negative FORM**: both halves manifestly
