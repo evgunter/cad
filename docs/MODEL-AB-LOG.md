@@ -7229,6 +7229,30 @@ slot 2 = SYM-13 implementer dispatch (2026-09-22, ~03:30Z): arm OPUS per the dra
 
 slot 2 = SYM-13 concluded, the block CONCLUDES (2026-09-22): arm OPUS per the draw (byte 178 ⇒ fable at slot 1); implementer dispatched ~03:30Z (brief `/home/user/sym-briefs/unit-13-brief.md`, sha256 in its sidecar); PR #3054 frozen at `47ae64a4e`, run 35688938411 GREEN; the dual at ordinal 4707 (byte 248 parity 0 ⇒ R1 OPUS + R2 FABLE; briefs `sym-13-review-brief-r{1,2}.md`, sha256 `cbbc9ff170cf…` / `b42762950fa1…`); R1 MERGEABLE-AFTER-FIXES 0/4/5, R2 MERGEABLE-AFTER-FIXES 0/3/5 — both found the orphaned mask doc and the unrecorded branch's order-dependence first, each by its own row; the union fix pass A–S (`fix-13-brief.md`, sha256 `268e71c1d4ef…`) at `b7282138c`, run 35698332728 GREEN; the delta by R1 (`delta-13-brief.md`, sha256 `62357723e72f…`) NOT MERGEABLE — the fix pass had argued the inherit branch away in prose and R1 falsified it by execution; fix pass 2 (`fix-13-2-brief.md`, sha256 `927511a5e084…`) at `e1f69c600`, run 35709556247 GREEN, read the leaf's own side from its table (`Session::foreign`) and filed the one reading left (a taint-induced freeze under a hit, P2); delta 2 by R1 MERGEABLE with two demonstrated MINORs, polished at `dc88037b3`, run 35715970767 GREEN; state-sync at `96d56a93f`, run 35718788142 GREEN; MERGED at `ac853b591`, sample #238 on `main`. Block SYM-B3's three slots: SYM-11 (ordinal 4705, sample #230), SYM-12 (ordinal 4706, sample #235), SYM-13 (ordinal 4707, sample #238). This record reaches `main` folded beside SYM-B2's at this merge.
 
+## SYM-9 review ordinal fixed at dispatch (2026-09-22)
+
+SYM-9 (what a refused decision may retry — the wider ring and the kept
+atom; block DECIDE-B1 slot 1; PR #3083 open against `props/sign-hull`,
+where DECIDE-3's rule G lives and which this branch carries with no
+`main` past it, per the spec's A1 — frozen head
+`7b3924cf1ddc6557c4d1c8d65bf9920868c421e7`, run 35767292223 GREEN on
+the full matrix, twelve `test (…)` and five `k-lint (gate, …)`; three
+earlier runs on the PR were cancelled by concurrency or red on
+DECIDE-3's ninth-dial pin, which the head re-baselines by naming the
+two new dials): **ordinal 8601** (DECIDE's band — 8600–8699, the
+second). Protocol v7 IN (it changes what the door answers on a refusal;
+H / NUMERIC, pre-draw on `decide/b1-block`). The v6 dual: draw =
+`/dev/urandom` byte **168**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**,
+concurrent on the frozen head, read-side isolation (v6 item 5), briefs
+identical but for the lane name and stored with sha256 before either
+ran (`9096484e72d5…` / `975905708a1c…`). The reviewers diff against the
+PR's base `props/sign-hull` (GitHub's diff is the unit's own, 23 files).
+Implementer arm OPUS per block DECIDE-B1's draw (byte 248 ⇒ fable at
+slot 2). Impl phase: tokens and wall recorded at merge from the harness
+(dispatch ~16:05Z, PR ~17:45Z, frozen ~18:50Z); the lane's one
+intermediate red was the ninth-dial pin (re-baselined by name). Sample
+number at merge. Row at merge.
+
 ## SYM-13 review ordinal fixed at dispatch (2026-09-22)
 
 SYM-13 (the leaf receipt's `frozen` column is the leaf's NEED —
