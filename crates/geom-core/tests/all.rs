@@ -141,6 +141,9 @@ mod spline_hull;
 mod sym_drive_memo;
 #[path = "sym_root_rows.rs"]
 mod sym_root_rows;
+#[path = "sym_9_r1_probes.rs"]
+mod sym_9_r1_probes;
+
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
 #[path = "sym_rule_f_interval_rows.rs"]
