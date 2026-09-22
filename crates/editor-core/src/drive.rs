@@ -925,6 +925,20 @@ impl ParamBoxVerdict {
                     self.decisions.registrations_contradicted
                 );
             }
+            // **How many of the discharges above a RETRY carried**
+            // (`geom_core::SymCounts::retried`, SYM-9), by the same
+            // present-only-when-nonzero rule: the ladder is entered
+            // only on a refusal and closes something on two of the
+            // measured documents, so every drive that never enters it
+            // — which is most of the corpus — serializes the line it
+            // serialized before the ladder existed.
+            //
+            // It is not a fourth discharge column: those three are
+            // where a retry's answer lands, and this says how many of
+            // them the second attempt is holding up.
+            if self.decisions.retried != 0 {
+                let _ = write!(s, " retried={}", self.decisions.retried);
+            }
             let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
@@ -992,6 +1006,9 @@ impl ParamBoxVerdict {
             }
             // A refusal is louder than a count: it says a constructor
             // stated something this box contradicts.
+            if d.retried != 0 {
+                let _ = write!(s, " ({} of them reached by a second attempt)", d.retried);
+            }
             if d.registrations_refused != 0 {
                 let _ = write!(
                     s,
