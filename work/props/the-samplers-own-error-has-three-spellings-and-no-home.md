@@ -62,3 +62,17 @@ has to be there for `mesh/src` to reach it. The consumers are TESS
 (`nurbs_cert.rs`) and TCOST/TINT (the two test files); they are named
 here rather than filed separately because one home is one change.
 Filed by RING-2 (SCALAR), which minted all three spellings.
+
+## A measurement for the `nurbs_cert.rs` site (TESS orchestrator, 2026-09-21)
+
+The sampler's error at that site HAS been measured, in exact rational
+arithmetic (`work/tess/rational-cells-hull-the-f64-refined-net-so-the-
+described-patch-escapes.md`): ≤ 6e-17 absolute per channel on a
+second-partial norm of 2.66 — about 0.1 ulp relative — on the sweep's
+own failing surface. The 64-ulp house figure is ~50× that, and what it
+absorbs there is a proven certificate escape (+3.07e-16 relative), not
+sampler rounding. TESS-2 (`docs/TESS-2-SPEC.md`) fixes the certificate
+and measures the sampler error over a bilinear census so this row can
+size the allowance from data; the falsifier-side consequence is
+`work/chord/soundness-sweep-allowance-is-fifty-times-the-measured-
+sampler-error.md`.
