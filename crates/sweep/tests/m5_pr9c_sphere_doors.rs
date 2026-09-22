@@ -295,7 +295,10 @@ fn the_die_pips_shape_now_stops_typed_at_its_own_tangency() {
     let msg = err.to_string();
     assert!(!msg.contains("no representation"), "{msg}");
     assert!(!msg.contains("no seam lane"), "{msg}");
-    assert!(msg.contains("refused typed"), "{msg}");
+    assert!(
+        msg.contains("cannot be sure whether one lies inside the other"),
+        "{msg}"
+    );
 }
 
 /// NOTE row (PR 9c review, F4): the TANGENT ray. A schedule direction

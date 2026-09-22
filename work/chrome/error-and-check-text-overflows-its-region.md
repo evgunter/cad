@@ -4,6 +4,7 @@ kind: issue
 title: viewer: the CONCISION half — error messages should be shorter, and most of the text is the kernel's typed refusals (Ev's request; the layout half landed in 3058)
 status: open
 opened: 2026-09-17
+pr: 3088
 priority: P0
 cost: E
 refs: [3058]
@@ -120,3 +121,98 @@ the person holding the mouse needs and dropping what is written for
 kernel developers. A viewer-side summary is the fallback for a refusal
 whose important content genuinely cannot fit, and needs that case
 shown, not asserted.
+
+## The standard a refusal is rewritten to
+
+This is the one statement of it; every
+`*-refusal-prose-outgrows-the-viewer` row points here.
+
+A refusal the viewer shows says, in the user's terms: what could not be
+done, the short reason, and what they can do about it. **The recourse
+is the part never to drop**, and where there is no way through, the
+sentence says so plainly rather than labelling a dead end "Recourse".
+Operands are "first"/"second"; arena keys, predicate routing, dispatch
+tables, doc paths, issue numbers and stage prefixes (`boolean_reduce:`)
+are developer detail and live in the variant's rustdoc or in the
+payload `Debug` carries. Types, variants and payloads do not change;
+prose only. A test that asserted the old text is re-baselined, never
+weakened into something that cannot go red.
+
+**The budget is 75 words, measured on the RENDERED text**: the
+sentence exactly as the feature tree's fault line and the status line
+draw it (`NodeError`'s `Display`, the "node N failed: the Boolean op
+refused:" wrapper included), on a representative payload.
+`editor-core/tests/refusal_concision.rs`
+`every_rewritten_boolean_refusal_renders_within_the_budget` enforces it
+for every `topo::BooleanError` arm the concision pass wrote and every
+`topo::PointInSolidError` arm as it arrives through
+`BooleanError::Containment`.
+
+## The concision half, done (2026-09-22)
+
+**The worked example, measured first.** A ring torus (R = 2, r = 0.5)
+unioned with a block straddling its tube reproduces Ev's refusal:
+`editor-core/tests/refusal_concision.rs` builds it through the public
+document doors. The raising site is `topo::boolean::reduce`
+`gate_operand_pairs` (the operand gate, `op: None`), the payload
+`CurvedPairUnsupported { operand: A, kind: Torus, other_kind: Plane }`,
+and the text the viewer drew was **277 words**, opening with
+`editor-core`'s wrapper guessing at undeclared coincidence. It is now
+**65 words**:
+
+> node 5 failed: the Boolean op refused: the first operand's torus face
+> may meet the second operand's plane face, and the Boolean cannot yet
+> work out where such a face meets another solid. Recourse: reshape the
+> parts so they meet only where a plane face meets a plane, cylinder or
+> sphere face, or move them so the torus face stays clear of the other
+> solid
+
+**Rewritten at the source (prose only).**
+
+- `editor_core::NodeErrorKind::Boolean`: the wrapper is "the Boolean op
+  refused: {e}" and guesses no cause.
+- `topo::BooleanError`, the whole `Display`: every arm lost its stage
+  prefix, and every arm a person can act on was rewritten to the
+  standard. That covers the worked example's family, the two "no way
+  through yet" rim arms, the coincidence and escalation arms, the
+  containment wrapper and the operand-gate arms. The kernel-bug arms
+  (invariants, desyncs) keep their keys for the bug report.
+- `topo::PointInSolidError`, every arm.
+
+**Measured on rendered text.** Under the old prose, 21 of the 30 arms
+the budget test renders were over 75 words (the worked example at 279,
+`Containment(PartialTorusFace)` at 228). Under the new prose the
+longest is `Containment(PartialConeFace)` at 74, and the worked
+example's arm renders 68 on the test's NURBS payload.
+
+**A measurement that changed a sentence.** `CurvedBooleanUnsupported`,
+`ArcLoopContainmentUnsupported` and `FallbackExtentUnsupported` name no
+operand: their `operand` field is the face's operand at some raise
+sites and the edge's or the scanned body's at others (measured: a NURBS
+wall on B reports `operand: A`). Filed as
+`work/reach/boolean-refusal-operand-field-means-two-things.md`.
+
+**Census and rows.** A static census over every `impl Display for`
+counted literal words per arm (before: 50 arms at 60+; the PR body has
+the table). Every arm outside `BooleanError`/`PointInSolidError` at 50+
+literal words is filed on its owner's slate as
+`<program>-refusal-prose-outgrows-the-viewer` (`paths`, `encl`,
+`atrest`, `tess`, `chart`, `carve`, `exch`, `props`, `contact`, `ssi`,
+`pcert`, `wire`, `tquery`, `offset`, `reach`), plus
+`work/issues/unowned-refusal-prose-outgrows-the-viewer.md`.
+
+No refusal needed a viewer-side summary.
+
+## What remains open
+
+The row stays open on one gap. The filed rows use a **literal**
+threshold of 50 words, and the budget is 75 **rendered**. An arm under
+50 literal words that forwards a nested refusal (`{e}`, `{source}`) can
+render past 75 once the nested sentence is inside it, and the census
+cannot see that: it counts literals only. Closing the row wants what
+the budget test does for `BooleanError`, done for the other forwarding
+chains the viewer shows: `NodeErrorKind`'s other kernel arms (`Extrude`,
+`Revolve`, `Blend`, `Profile*`, `Split`, `Skin`, `Loft`, `Tube`,
+`Transform`), `EditError`, and the checks window's findings. Each chain
+is rendered on a representative payload and held to the budget, and
+what is over is filed on its owner.

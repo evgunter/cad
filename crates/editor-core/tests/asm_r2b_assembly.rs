@@ -1888,7 +1888,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             "'s exact-B-rep signed volume is definitely negative",
         ],
         &["root 2's face name (minted by node 1) collides"],
-        &["grafting root 5 refused: boolean_reduce: invalid band:"],
+        &["grafting root 5 refused: invalid band:"],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
         // Through the assembly surface, exactly as a caller sees it.

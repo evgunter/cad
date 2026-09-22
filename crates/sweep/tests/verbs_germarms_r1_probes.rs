@@ -256,9 +256,22 @@ fn r1_the_grazing_red_refuses_on_a_line_carrier() {
     let bar = brick((-3.0, 3.0), (-1.0, 1.0), (-0.3, 0.3), tol);
     let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
     let err = topo::union(&pipe, &bar, tol).expect_err("a tangency keeps the pierce door");
+    let text = err.to_string();
     let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
         panic!("not the pierce door: {err:?}");
     };
+    // The sentence the viewer shows for a TANGENCY: it must not claim a
+    // crossing, it names the edge's operand, and it ends on the recourse.
+    let which = match operand {
+        topo::Operand::A => "first",
+        topo::Operand::B => "second",
+    };
+    assert!(
+        text.starts_with(&format!(
+            "an edge of the {which} operand touches or crosses a curved face"
+        )) && text.ends_with(geom_core::COINCIDENCE_RECOURSE),
+        "{text}"
+    );
     let owner = match operand {
         topo::Operand::A => &pipe,
         topo::Operand::B => &bar,
