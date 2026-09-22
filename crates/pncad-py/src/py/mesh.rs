@@ -123,6 +123,16 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             );
             Ok(())
         }
+        // The face is a key and does not cross; the KIND of surface it
+        // lies on is a word, and it is the part of the refusal a caller
+        // can sort by.
+        T::MeridianFreeCurvedFace { surface, .. } => {
+            fields[4] = (
+                "note",
+                PyString::new(py, surface.name()).unbind().into_any(),
+            );
+            Ok(())
+        }
         T::Band { error } => {
             fields[4] = (
                 "note",
