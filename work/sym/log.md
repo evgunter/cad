@@ -4,6 +4,19 @@ Newest entries at the bottom; the tail is the program's live status.
 Plan: `work/sym/plan.md`. A/B band 4700–4799
 (`docs/MODEL-AB-LOG.md` owns every live experiment number).
 
+## SYM-13 dispatched (2026-09-22): the leaf receipt's `frozen` column as the leaf's NEED — block SYM-B3 slot 2
+
+Spec `docs/SYM-13-SPEC.md` on `main` (the orchestrator's tracker PR);
+item `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+(P0, SYM-7's residue). Pre-draw D / STRUCTURAL on `sym/b3-block`; arm
+OPUS by the block's draw (byte 178). Protocol v7 IN — a receipt-contract
+decision — the full v6 dual, ordinal claimed on `main` at the dual's
+dispatch. Phase 1 measures the race (an adversary document where two
+leaves race for a node, the cross-schedule row red today), the column
+under three schedules, the consumers and NEED's cost; Phase 2 makes the
+column NEED with the adversary as a gating row; "drop" only by Ev's
+call if NEED's cost is above the line. Branch `sym/13-leaf-need`.
+
 ## Opening state (2026-09-13)
 
 Opened at M10's exit sweep, on Ev's call in chat that day: M10's walk
