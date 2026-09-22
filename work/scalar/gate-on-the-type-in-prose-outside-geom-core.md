@@ -19,13 +19,12 @@ above `geom-core` and the interval test files. Prose sites outside that
 unit's fence still say the gate is on the TYPE, or name the backend as
 the FEATURE's, and each is false as written:
 
-- `crates/geom-brep/README.md`, clause **C9** ("the evaluation scalar
-  `geom_core::Interval` (behind the `interval` feature, backend the
-  in-repo `interval-transcendentals` crate) is a `Real` instantiation
-  for replay", `:258`). A ratified design page; `work/scalar/H5.md`
-  ruling 1 (iii) already schedules C9's re-wording for the cut that
-  drops the feature, so this row is the record that the clause is
-  stale from RING-1's merge and not from RING-3's.
+- ~~`crates/geom-brep/README.md`, clause **C9**~~ — **FOLDED by
+  RING-2**, which re-worded the clause anyway (the ring's arithmetic
+  is the backend's now), and said in the same sentence what the
+  `interval` feature gates: the lane impls above `geom-core` and the
+  interval test files, not the type. Retiring the clause is still
+  RING-3's; this bullet was only its staleness.
 - `interval-transcendentals/README.md` ("`geom-core`'s `interval`
   feature depends on this crate", `:11`) — `geom-core` depends on it
   unconditionally now; no feature activates the edge.

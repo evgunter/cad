@@ -1449,8 +1449,8 @@ impl<T: Bounds> Enclosure for T {
 /// So this trait is not "a better [`Enclosure`]" and does not replace it.
 /// It is the access-control half, split out, so that the two questions
 /// have separate doors and a caller has to say which one it is asking.
-/// It deliberately carries **one method and no supertrait**: a body that
-/// needs the raw bracket too holds both doors, and says so with the
+/// It carries **no supertrait**: a body that needs a bracket accessor
+/// too holds both doors, and says so with the
 /// **sole** bound [`CertifiedBounds`] — still an honest inventory of the
 /// doors it uses, which is the point of the alias: the inventory is
 /// spelled as one name rather than as a compound bound the
@@ -1460,7 +1460,11 @@ impl<T: Bounds> Enclosure for T {
 /// [`Enclosure`] would re-bundle exactly what is being split, and would
 /// put a third `lo`/`hi` in scope wherever a compound bound is written —
 /// the ambiguity this module's style note already warns about for the
-/// [`Bounds`]/[`Enclosure`] pair.
+/// [`Bounds`]/[`Enclosure`] pair. The second method below is not a
+/// door of that kind and is not reached for instead of one:
+/// [`Self::crossing_bracket`] answers a *refused* value's own endpoints
+/// for the single consumer that carries the refusal in a channel of its
+/// own, and promises nothing about the computation behind them.
 /// Certification entry points bound by `CertifiedEnclosure` cannot be
 /// handed a value that merely *has* a bracket; containment checks bounded
 /// by [`Bounds`] keep working on values certification would refuse, which
@@ -1477,9 +1481,11 @@ impl<T: Bounds> Enclosure for T {
 ///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
 ///   for the same reason. Empty and NaI sit below it, so the NaN
 ///   brackets they store never leave the door.
-/// - [`crate::RingInterval`] — refuses on poison. The ring has two
-///   states and no decorations, so `is_poison` is its whole
-///   domain-violation channel.
+/// - [`crate::RingInterval`] — refuses on poison, which it reads off
+///   the decoration it carries (`dec < Def`, with NaI and empty below
+///   that): `is_poison` is its whole domain-violation channel, and a
+///   refused ring still has endpoints, which is what
+///   [`Self::crossing_bracket`] reports at it.
 /// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
 ///   as `f64` does; D9 forbids the recording lane diverging.
 ///
@@ -1507,6 +1513,33 @@ pub trait CertifiedEnclosure: Copy {
     /// through `f64` combinators (`f64::max` returns the non-NaN operand),
     /// whereas a `None` the caller must destructure cannot be ignored.
     fn certified_bracket(self) -> Option<(f64, f64)>;
+
+    /// The endpoints this value carries, refused or not — **for a
+    /// consumer whose own refusal channel is a decoration** rather than
+    /// an absence, so the refusal travels in that channel instead of
+    /// erasing the bracket that came with it.
+    ///
+    /// This is **not** a second certified door and promises nothing:
+    /// the pair brackets the reals the value stands for and says
+    /// nothing about the computation behind it, exactly as
+    /// [`Bounds`] does. A caller that may ACT on the bracket asks
+    /// [`Self::certified_bracket`], whose `None` it cannot ignore; a
+    /// caller that reads this one is obliged to carry the refusal
+    /// itself, and the C9 ring's crossing
+    /// (`RingInterval::from_certified`) is the one in the tree — it
+    /// pairs this with the certified door's verdict and caps the
+    /// decoration at `Trv` when the verdict is a refusal, which keeps
+    /// the refusal readable at a type where NaN endpoints would not be.
+    ///
+    /// The default is the honest answer for a scalar whose refusal has
+    /// no bracket to report: `f64`'s refusal IS its NaN, so the pair is
+    /// `(NaN, NaN)` and nothing is lost. A scalar that records a domain
+    /// violation *beside* a sound bracket — the interval scalar's `Trv`
+    /// after a clamp, the ring's zero-touching quotient — overrides
+    /// this and reports those endpoints.
+    fn crossing_bracket(self) -> (f64, f64) {
+        self.certified_bracket().unwrap_or((f64::NAN, f64::NAN))
+    }
 }
 
 /// `f64` refuses on NaN and only on NaN: the bracket is the value, so

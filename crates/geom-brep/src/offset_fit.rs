@@ -2128,7 +2128,14 @@ impl Composite {
         let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        // The re-mint through `point` was poison-preserving only
+        // while a refused square had NaN endpoints. It does not: the
+        // refusal is asked by name and carried across by hand.
+        let e_mig_iv = if e_mig_sq.is_poison() {
+            RingInterval::poison()
+        } else {
+            RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt
+        };
         let m_sup = self.m_tilde_sup(su, sv);
         let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
             RingInterval::point(mig(self.dd.cell_hull(su, sv))) / (RingInterval::point(m_sup) * wt)
@@ -2150,9 +2157,15 @@ impl Composite {
     /// bound by ulps, which "certified" does not permit.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn cell_bound(&self, su: usize, sv: usize, floor: f64, d: f64) -> f64 {
+        // **Every refusal below is asked by name before its
+        // endpoint is read.** The ring's poison is its decoration, so
+        // a refused hull carries ordinary endpoints: `w_lo > 0.0` and
+        // `w_lo.is_finite()` are both TRUE of one, and so is the
+        // `hi.is_finite()` at the end. `f64::INFINITY` is the whole
+        // function's answer for anything not proved.
         let w = self.w.cell_hull(su, sv);
         let w_lo = w.lo();
-        if !(w_lo > 0.0) || !w_lo.is_finite() {
+        if w.is_poison() || !(w_lo > 0.0) || !w_lo.is_finite() {
             return f64::INFINITY;
         }
         // `w̃ = w·w_fit`, the weight `Ẽ`, `X` and the sign witness are
@@ -2160,18 +2173,20 @@ impl Composite {
         // both factors, and it is proved here rather than assumed.
         let wt = self.wt.cell_hull(su, sv);
         let wt_lo = wt.lo();
-        if !(wt_lo > 0.0) || !wt_lo.is_finite() {
+        if wt.is_poison() || !(wt_lo > 0.0) || !wt_lo.is_finite() {
             return f64::INFINITY;
         }
         // The sign witness: `sign(E·n) = sign(D)` (the denominator
         // `w·‖M̃‖` is positive), and the normal-component bound below
         // needs `E·n` to carry `d`'s sign.
         let dh = self.dd.cell_hull(su, sv);
-        if !(if d > 0.0 {
-            dh.lo() > 0.0
-        } else {
-            dh.hi() < 0.0
-        }) {
+        if dh.is_poison()
+            || !(if d > 0.0 {
+                dh.lo() > 0.0
+            } else {
+                dh.hi() < 0.0
+            })
+        {
             return f64::INFINITY;
         }
         let abs_d = RingInterval::point(d.abs());
@@ -2180,6 +2195,9 @@ impl Composite {
         // sound lower bound, and the only thing either is read for is
         // its low end — so the selection hands back that number
         // rather than the interval it came out of.
+        if e_mig_iv.is_poison() || e_proj_iv.is_poison() {
+            return f64::INFINITY;
+        }
         let e_hull_lo = e_mig_iv.lo().max(e_proj_iv.lo());
         // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
         let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
@@ -2201,11 +2219,17 @@ impl Composite {
         // that is larger. The three are lower bounds on the same
         // norm, so their max is one too — the same `max`, spelled the
         // same way.
+        if dist_iv.is_poison() {
+            return f64::INFINITY;
+        }
         let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return f64::INFINITY;
         }
         let bound = dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor);
+        if bound.is_poison() {
+            return f64::INFINITY;
+        }
         let hi = bound.hi();
         if hi.is_finite() { hi } else { f64::INFINITY }
     }

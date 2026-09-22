@@ -283,7 +283,15 @@ fn nurbs_chord_count(
                 .map_or_else(RingInterval::poison, SplineCoeffs::derivative_domain_hull);
             sum_sq = sum_sq + hull.sqr();
         }
-        sum_sq.hi().sqrt().next_up()
+        // A refused hull has no bound to report: `NaN` is what the
+        // `is_finite` test below reads as "unbounded/poisoned", and
+        // the refusal is asked by name because the ring carries it in
+        // the decoration rather than in the endpoints.
+        if sum_sq.is_poison() {
+            f64::NAN
+        } else {
+            sum_sq.hi().sqrt().next_up()
+        }
     };
     if !m_bound.is_finite() {
         return Err(TessellateError::UnsupportedCurve {
@@ -495,7 +503,14 @@ fn rational_carrier_m_bound(
             Some(h) => RingInterval::hull(h, sq),
         });
     }
-    Ok(sq_acc.map_or(f64::NAN, |s| s.hi().sqrt().next_up()))
+    // Same contract, same reason: a refused hull answers `NaN`.
+    Ok(sq_acc.map_or(f64::NAN, |s| {
+        if s.is_poison() {
+            f64::NAN
+        } else {
+            s.hi().sqrt().next_up()
+        }
+    }))
 }
 
 /// The adjacent-NURBS chord tightening (module docs): for each
