@@ -204,7 +204,10 @@ fn rule_e_residual() -> Sym<f64> {
 fn r1_a_fewer_rules_retry_closes_the_rule_e_loss() {
     let (base, c0) = through(SymRetry::none(), rule_e_residual);
     println!("no ladder          : {base} {c0:?}");
-    assert_ne!(base, "theorem", "rule E costs this theorem (SYM-5 R2's row)");
+    assert_ne!(
+        base, "theorem",
+        "rule E costs this theorem (SYM-5 R2's row)"
+    );
 
     let mask = SymRules {
         common_factor: false,

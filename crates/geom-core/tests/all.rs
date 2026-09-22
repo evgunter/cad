@@ -137,12 +137,12 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym_9_r1_probes.rs"]
+mod sym_9_r1_probes;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
 #[path = "sym_root_rows.rs"]
 mod sym_root_rows;
-#[path = "sym_9_r1_probes.rs"]
-mod sym_9_r1_probes;
 
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
