@@ -70,6 +70,13 @@ rigid map's own column-unit check is what notices — and the symbolic
 tier discharges exactly that, which is the whole difference between
 the two lanes on this document.
 
+The widest box that certifies whole, per link count, is `1.000`,
+`0.370`, `0.185` and `0.111` of the study — one number in four
+spellings: `3σ · f · Σ(k−j)`, the accumulated angular swing at the tip,
+is `0.0333` rad at every one of them (the one-link row is capped by the
+study itself at `0.030`). **The certified lane carries about 1.9° of
+accumulated swing, however many joints it is spread over.**
+
 **The four-link tip's assertion IS certified, at 0.111 of the study**
 (`chain::CERTIFIABLE_FRACTION`, bisected): the drive over that box
 certifies and the tip assertion HOLDS on every certified leaf. The

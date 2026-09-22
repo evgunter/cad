@@ -1203,10 +1203,13 @@ during a mapped edge's re-certification (`dihedral_wedge`, poisoned, at
 Costs are 0.16–0.73 s per leaf, not the derived-frame family's minutes
 — the chain never touches a `FaceFrame`.
 
-**The certified picture exists.** The widest box that certifies the
-four-link chain WHOLE is `0.111` of the study (`CERTIFIABLE_FRACTION`,
-bisected), the drive over it certifies, and the tip assertion HOLDS on
-every certified leaf. So the enclosure per joint is drawn on the sheet
+**The certified picture exists.** The widest box that certifies whole
+is `1.000`, `0.370`, `0.185`, `0.111` of the study at 1–4 links — one
+number in four spellings, since `3σ · f · Σ(k−j)`, the accumulated
+swing at the tip, is `0.0333` rad at every one of them: the certified
+lane carries about 1.9° of swing however many joints it is spread over.
+At the four-link box (`CERTIFIABLE_FRACTION`) the drive certifies and
+the tip assertion HOLDS on every certified leaf. So the enclosure per joint is drawn on the sheet
 beside the cloud: `0.0400, 0.1199, 0.2398, 0.3996` mm across the chain,
 growing `1 : 3 : 6 : 10` — the worst-case lever sum — against the
 advisory σ's quadrature `1 : 2.24 : 3.74 : 5.48`. E11's trade in one

@@ -29,6 +29,15 @@ sample 1 escalated: predicate 'dihedral_arm' indeterminate: enclosure
 (zero = 1e-9, escalate = 1e-8)
 ```
 
+**It is ONE threshold, not a per-chain accident.** The widest box that
+certifies whole, bisected per link count, is `1.000`, `0.370`, `0.185`,
+`0.111` of the study at 1, 2, 3 and 4 links — and `3σ · f · Σ(k−j)`,
+the total accumulated angular swing at the tip, is `0.0333` rad at
+every one of them (the one-link row is capped by the study itself at
+`0.030`). So the certified lane carries about **1.9° of accumulated
+swing**, however many joints it is spread over, and this enclosure is
+what stops it.
+
 This is what bounds `chain::CERTIFIABLE_FRACTION` to `0.111`: narrow
 the study and the same leaf certifies whole, and the four-link tip's
 assertion is then certified with the enclosure per joint drawn on the

@@ -20,6 +20,43 @@
 //! `sin`/`cos` of a parameter has never reached a rigid map. This cell
 //! is the first document that does it, and the table below is the
 //! answer either way: the walls it finds are filed, not fixed here.
+//!
+//! # The table, measured (σ = 0.01 rad at every joint, release)
+//!
+//! One leaf over the whole declared box, no splitting, in the driver's
+//! own lane:
+//!
+//! | links | lane | | first refusal | cost |
+//! |---|---|---|---|---|
+//! | 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
+//! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
+//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`, margin poisoned | 0.31 s |
+//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.47 s |
+//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.73 s |
+//!
+//! **The plain interval lane does not carry a widened rotation angle
+//! at all.** `Mat3::rotation_about` builds its columns out of
+//! `cos(angle)` and `sin(angle)`; on an interval angle those are two
+//! independent brackets, `cos² + sin²` is a bracket AROUND 1, and the
+//! rigid map's own column-unit check is what notices. The symbolic
+//! tier discharges exactly that identity, which is the whole
+//! difference between the two lanes here.
+//!
+//! **The widest box that certifies whole**, bisected: `1.000` of the
+//! study at one link, then `0.370`, `0.185`, `0.111`
+//! ([`crate::chain::CERTIFIABLE_FRACTION`]). Those are not four
+//! numbers — they are ONE. `3σ · f · Σ_{j<=k}(k−j)`, the total
+//! accumulated angular swing at the tip, is `0.0333` rad at every one
+//! of them (the one-link row is capped by the study itself, at
+//! `0.030`). **The certified lane carries about 1.9° of accumulated
+//! swing, however many joints it is spread over**, and that single
+//! threshold is what the straddling `dihedral_arm` enclosure is.
+//!
+//! At that box the drive certifies and **the four-link tip's
+//! assertion HOLDS on every certified leaf**, so the enclosure per
+//! joint is real geometry rather than a caption:
+//! [`crate::chain::CERTIFIED_PIN_BOX`] carries it and
+//! [`crate::mcchain`] draws it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -245,14 +282,22 @@ pub fn narration(tol: Tol) {
     );
     for links in 1..=LINKS {
         let f = certifiable_fraction(links, tol);
+        if f == 0.0 {
+            println!("     {links} links: NOTHING certifies down to 2^-40 of the study");
+            continue;
+        }
+        // …and the same number as a SWING: `3σ` is the analyzed box's
+        // half-width per joint and `Σ (k−j)` is the tip's lever, so
+        // this is how far the tip may turn over the certified box. It
+        // is the same at every link count, which is what says the wall
+        // is one threshold rather than four.
+        let lever: f64 = (0..links).map(|j| (links - j) as f64).sum();
+        let swing = 3.0 * JOINT_SIGMA * f * lever;
         println!(
-            "     {links} link{}: {}",
+            "     {links} link{}: {f:.3e} of the study — {swing:.4} rad ({:.2}°) of \
+             accumulated swing at the tip",
             if links == 1 { " " } else { "s" },
-            if f == 0.0 {
-                "NOTHING certifies down to 2^-40 of the study".to_string()
-            } else {
-                format!("{f:.3e} of the study")
-            }
+            swing.to_degrees()
         );
     }
     println!(
