@@ -5999,4 +5999,34 @@ mod r2_probe_rows {
             "the retry closes 1 and 2/2' are still closed by the first attempt on the frozen node"
         );
     }
+
+    /// **An attempt identical to the first is still paid.** A session
+    /// whose rules are already narrower than every mask (M10-9's
+    /// `without_the_algebra`, which every `dials(rules)` differential
+    /// row drives at, ladder and all) runs the kept-atom ladder's two
+    /// attempts as walks that cannot differ from the first — the
+    /// profile shows the retry walks, the receipt shows nothing carried.
+    #[test]
+    fn r2_an_attempt_identical_to_the_first_is_still_walked() {
+        profile::start_profile();
+        let (_, counts) = with_session_retry(
+            budget(),
+            SymRules::without_the_algebra(),
+            SymRetry::kept_atom(),
+            || decides_zero(closes_only_with_rule_g_off()),
+        );
+        let prof = profile::take_profile();
+        let retry_walks: Vec<_> = prof
+            .walks
+            .iter()
+            .filter(|((w, _), _)| matches!(w, profile::Walk::RetryEarly | profile::Walk::RetryDoor))
+            .map(|((w, o), p)| (*w, *o, p.calls))
+            .collect();
+        println!("receipt {:?}  retry walks {retry_walks:?}", cols(&counts));
+        assert_eq!(counts.retried, 0);
+        assert!(
+            !retry_walks.is_empty(),
+            "the retry walks ran although the masked rules equal the session's"
+        );
+    }
 }
