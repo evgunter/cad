@@ -454,7 +454,7 @@ mod tests {
     /// A bare session with the atoms `atan(x)` and `atan2(x, x)` in
     /// it, for the reader to look up.
     fn session_with(x: &Form, atan: u128, atan2: u128) -> Session {
-        let mut sess = Session::new(budget(), SymRules::all(), None);
+        let mut sess = Session::new(budget(), SymRules::all(), crate::sym::SymRetry::none(), None);
         for (id, op) in [(atan, SymOp::Atan), (atan2, SymOp::Atan2)] {
             sess.atoms.insert(
                 id,

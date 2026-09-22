@@ -129,7 +129,17 @@ fn replay(
         profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
-    start_shape_report();
+    // **`CAD_SYM_9_NO_REPORT` runs the replay with the shape report
+    // OFF**, and the receipt is then the whole of what the row prints.
+    // The report renders the PLAIN and EARLY forms of every blocked
+    // residual, and on R2's rounded pad — 991 of them, at the sizes
+    // this tier's forms reach — that rendering exhausts the measuring
+    // box's memory. The counts are the same either way: the report is
+    // a recorder, the receipt is the session's own.
+    let reported = std::env::var("CAD_SYM_9_NO_REPORT").is_err();
+    if reported {
+        start_shape_report();
+    }
     let (_, counts) = with_session_retry(budget(), SymRules::shipped(), retry, || {
         let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
             evaluate(doc, None, &CancelToken::new(), &opts, tol);
@@ -139,7 +149,15 @@ fn replay(
             }
         });
     });
-    (take_shape_report(), counts)
+    (if reported { take_shape_report() } else { Vec::new() }, counts)
+}
+
+/// The receipt's four decision columns, in the split's order — the
+/// same totals [`totals`] sums out of the shape report, from the
+/// session's own counts, so a replay with the report off still prints
+/// them.
+fn receipt(c: &SymCounts) -> [u64; 4] {
+    [c.symbolic_zero, c.sign_gated, c.registered, c.numeric]
 }
 
 /// The document's whole per-predicate split, as one printable line per
@@ -196,7 +214,11 @@ fn sym_9_where_the_refusals_are() {
     geom_core::sym::profile::start_profile();
     let (shapes, counts) = replay(&doc, &box_, SymRetry::none(), tol);
     println!("== {name} at the nominal, the shipped tier, no ladder");
-    println!("   totals (theorem/gated/registered/numeric) {:?}", totals(&shapes));
+    println!(
+        "   totals (theorem/gated/registered/numeric) {:?} (report {:?})",
+        receipt(&counts),
+        totals(&shapes)
+    );
     println!("   receipt {counts:?}");
     println!(
         "   the numeric column (definite/numeric-zero/indeterminate/invalid) {:?}",
@@ -232,7 +254,7 @@ fn sym_9_what_each_retry_recovers() {
     println!("== {name} at the nominal");
     println!(
         "   no ladder: totals {:?}  retried {}  {:?}",
-        totals(&base_shapes),
+        receipt(&base_counts),
         base_counts.retried,
         base_time
     );
@@ -252,7 +274,7 @@ fn sym_9_what_each_retry_recovers() {
             .collect();
         println!(
             "   {label:<18} totals {:?}  retried {}  {:?} ({:.2}x)",
-            totals(&shapes),
+            receipt(&counts),
             counts.retried,
             dt,
             dt.as_secs_f64() / base_time.as_secs_f64().max(f64::MIN_POSITIVE)
