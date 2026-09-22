@@ -20,14 +20,19 @@ use geom_core::{Dual64, Tol};
 use topo::{Body, ShellDoor};
 use verbs::{Verb, VerbError, VerbOut};
 
+/// The seat's shell door at a dual, as a function item: naming the
+/// type is the assertion, and the fourth argument is the one nobody
+/// can supply.
+type RunShellAtDual = fn(
+    &Verb<Dual64>,
+    &Body<Dual64>,
+    Tol,
+    ShellDoor<Dual64>,
+) -> Result<VerbOut<Dual64>, VerbError<Dual64>>;
+
 #[test]
 fn run_shell_resolves_at_a_dual_and_wants_a_door_no_dual_can_hold() {
-    let _f: fn(
-        &Verb<Dual64>,
-        &Body<Dual64>,
-        Tol,
-        ShellDoor<Dual64>,
-    ) -> Result<VerbOut<Dual64>, VerbError<Dual64>> = Verb::<Dual64>::run_shell;
+    let _f: RunShellAtDual = Verb::<Dual64>::run_shell;
     assert!(
         <Dual64 as topo::AtRestPolicy>::shell_door().is_none(),
         "the one seam that answers the door answers None at a dual, so the item above has \
