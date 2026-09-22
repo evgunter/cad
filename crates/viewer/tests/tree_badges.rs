@@ -748,3 +748,55 @@ fn a_band_refusal_reaches_the_whole_document_and_blames_no_row() {
          matches nothing greens. Child output:\n{text}"
     );
 }
+
+/// **A document whose only non-`Ok` row is POISONED is not
+/// building** — the axis `tree::has_faults` reads, and the one that
+/// is easy to collapse into [`RowStatus::tone`]'s.
+///
+/// Every other `has_faults` assertion in this tree stands on a
+/// document that also carries a `Failed` row, so dropping `Poisoned`
+/// from the fault policy — or rewriting that policy as "any
+/// actionable row", which is the natural-looking collapse — reddens
+/// nowhere but here.
+///
+/// **Which fixes the shape of the fixture.** A `Poisoned` row's
+/// `through` names a row THIS TREE badges `Failed`
+/// ([`RowStatus::Poisoned`]'s own doc), so no tree can hold a poisoned
+/// row, a healthy cause and nothing else — and a tree that did hold a
+/// `Failed` row would satisfy the policy through that row instead,
+/// which is the case already covered. The one shape that carries this
+/// claim is therefore the one the tree draws when the chain does NOT
+/// end at a failure: `Poisoned { message: None }`, which
+/// `tree::poisoned_through` mints for exactly that, reporting the
+/// broken invariant as absence rather than inventing a cause. `None`
+/// is the honest message here for the same reason: the wording
+/// `tree::downstream_wording` writes points at a row that carries the
+/// cause, and no row here does.
+#[test]
+fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
+    use pncad::document::RecipeNodeId;
+
+    let row = |id: u64, status: RowStatus| tree::TreeRow {
+        id: RecipeNodeId(id),
+        kind: "Transform",
+        pose: None,
+        depth: 0,
+        root: false,
+        status,
+        note: None,
+    };
+    let rows = [
+        row(1, RowStatus::Ok),
+        row(
+            2,
+            RowStatus::Poisoned {
+                through: RecipeNodeId(1),
+                message: None,
+            },
+        ),
+    ];
+    assert!(
+        tree::has_faults(&rows),
+        "a row showing someone else's failure still says the document is not building: {rows:?}"
+    );
+}

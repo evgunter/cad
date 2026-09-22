@@ -1598,3 +1598,444 @@ request; the cost of testing it is asking whether it has ever actually
 cost anything. Neither encounter here had.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-22 — handoff: the track picked up, a phantom dispatch corrected, and four stale branches cleared
+
+A successor orchestrator took this track today. Three things the
+handoff established, recorded because none of them is visible from the
+board.
+
+**No handoff file.** [[orchestrator-switch-runbook]] makes the outgoing
+orchestrator finalize `cad-work/handoff-prompt-*.md` with the live
+resting state and per-lane resume instructions. There is none on this
+host, and `~/.local/share/cad-work/` does not exist. Everything below
+was re-derived from the tree rather than read off a handoff.
+
+**The slate's only P0 was reported in flight with nothing behind it.**
+`error-and-check-text-overflows-its-region` — Ev's own request, filed
+2026-09-17 — was set `status: dispatched` with
+`branch: chrome/wrap-in-region` by `5d1f724ca`, which is on `main`.
+**That branch has never existed.** It is absent from
+`git ls-remote --heads origin`, and `git log --all --grep=wrap-in-region`
+returns nothing, so no commit and no merge in this history has ever
+named it. The row is returned to `open` here, and dispatched properly
+below.
+
+**The general shape, which is the part worth carrying.** `lint` cannot
+see this and should not be asked to: `branch:` is a string, the remote
+is not in the tree, and a checker that resolved it would red `main` for
+every lane between its dispatch and its first push. What the field
+actually promises is only that somebody wrote it down. So a `dispatched`
+row is a claim by whoever dispatched it, exactly as an `active` program
+is — `work/README.md` says that of the program status in as many words
+(*"it is the program's own word and lint takes it as given"*) and the
+same is true one level down. **A successor re-derives in-flight state
+from the remote, never from the header.** One `git ls-remote` per
+dispatched row settles it.
+
+**The four `chrome/` branches carrying commits off `main` are stale
+tips, not pending work** — checked one at a time rather than inferred,
+because a week-stale branch's diff against `main` is dominated by
+`main`'s own progress and says nothing about whether the branch landed:
+
+- `chrome/band-refusal-badging` — its coverage work is on `main`
+  (`tree_badges.rs` carries
+  `a_band_refusal_reaches_the_whole_document_and_blames_no_row` and its
+  re-exec'd child), as is the `Measured 2026-09-15` section it wrote on
+  the Band row.
+- `chrome/bounds-honesty` — every row it worked is closed on `main`
+  (`bounds-reading-respells-the-panels-one-divide`,
+  `probe-bounds-lacks-driven-slot-guard`,
+  `display-budget-rows-restate-three-private-constants`).
+- `chrome/frame-arrows` — landed as PR 2856; both of Ev's arrow rows are
+  closed on `main` with that number on them.
+- `chrome/close-out` — superseded by the carve-out being spent
+  (`work/chrome/plan.md`, 2026-09-21), and its three findings all
+  reached `main` anyway, one of them re-homed to `work/meta/`.
+
+Nothing is owed to any of them.
+
+Signed (CHROME orchestrator).
+
+## 2026-09-22 — Wave 2 dispatched: three units, four rows
+
+Dispatched against the item files directly, with no `docs/<ID>-SPEC.md`.
+These four rows carry their own `## What a taker owes`, and this
+program's standing failure is rotted premises — a spec restating a
+complete row just gives its premises a second place to rot, and the
+lane then has two documents disagreeing about the tree. Where a
+dispatch added anything, it added the live-ground map and the
+verify-don't-trust instruction, both of which are true only today and
+belong in the dispatch rather than in a file.
+
+- **`chrome/wrap-in-region`** — `error-and-check-text-overflows-its-region`
+  (P0, Ev's own request, and the row this sitting found phantom-
+  dispatched). The LAYOUT half only. The concision half reaches typed
+  refusals' `Display` impls in `profile`, `editor-core` and others, so
+  the lane files per-crate rows rather than editing kernel prose from a
+  viewer lane, which is what the row itself asks for.
+- **`chrome/rowstatus-exhaustive`** —
+  `has-faults-cannot-red-on-a-new-rowstatus` with
+  `band-refusal-still-badges-every-row`, one unit, **in that order**.
+  The guard goes exhaustive first so the Band row's new `RowStatus`
+  variant cannot land silently; both rows say to take them together and
+  neither can see that from its own side.
+- **`chrome/split-circle-eps`** —
+  `a-split-circle-fixture-sits-inside-the-1e-6-escalation-band`. Live
+  red on `main` at `1e-6` today, with a green gate over it.
+
+**Three premises checked against `main` before dispatch, because Wave 1
+handed a wrong one to all three of its units.** `tree::has_faults` is
+still the two-arm `matches!`; `RowStatus` still has exactly four
+variants; and `tree_badges.rs` does carry the Band coverage its row
+claims, which the Band row asserts from a branch that never merged — the
+content reached `main` by another route, so the claim is true and its
+citation is not. Each lane was told the check was mine and to re-take it
+rather than trust it.
+
+**What the dispatches carried instead of a fence.** `plan.md`'s
+territory section promises a per-wave read of who is live rather than a
+file list, and this is the first wave to owe one. Live in open PRs 3052,
+2960 and 2961 today: `app.rs`, `session.rs`, `session/*`,
+`pane/create.rs`, `pane/properties.rs`, `combine.rs`, `drafts.rs`,
+`forms.rs`, `seats.rs`, `tools.rs`; most of `crates/viewer/tests/*` is in
+2929. The three lanes were fenced off each other's files too, which the
+territory tool cannot say because both sides are CHROME.
+
+**`at-rest-badge-reports-an-empty-document-as-a-refusal` was held back
+for the second wave running, for the same reason**: its whole subject is
+`session.rs` and two open PRs are in it. Recorded rather than left
+implicit, because "held for a live lane" and "forgotten" look identical
+on the board a week later. It goes the moment 3052 and 2960 land.
+
+**Not dispatched, and it is the next decision.** This slate measures
+61.5 points against a 30-point ceiling with 35 open rows — over budget
+by more than double, where `work/README.md` says a program that grows
+past its budget splits, along its priority seam. Wave 2 does not touch
+that: dispatching four rows moves the load by about eight points. The
+split is a sitting's work and it is the one I would spend the next
+sitting on.
+
+Signed (CHROME orchestrator).
+
+## 2026-09-22 — the live-ground map I handed Wave 2 was built wrong
+
+PR 3055's style reviewer found that its seam announcement named the
+wrong PR. It did, and the error was mine rather than the lane's: the
+lane announced the seam the dispatch gave it.
+
+**How.** I built the map with
+`git diff --name-only origin/main...origin/<branch>` per open PR. A
+three-dot diff is taken from the MERGE BASE, and for a branch a week
+stale that base is far behind `main` — so every file `main` itself
+changed since then is attributed to the branch. The map named files as
+live that were not, and missed at least one that was.
+
+Measured after the fact: **#2929 does not touch
+`crates/viewer/tests/tree_badges.rs`** — its diff is 40 files and that
+is not among them, and its branch differs there only by carrying
+pre-`main` content. **#2934 touches that file AND
+`crates/viewer/src/tree.rs`**, and `tree.rs` is what I told the lane was
+clear ground and is where its entire change lives.
+
+**What to use instead.** The PR's own file list from the API, which
+GitHub computes against the real merge base. `git merge-base` is not a
+sufficient substitute: a branch that has merged `main` has SEVERAL merge
+bases and `git` picks one, which is why a corrected re-derivation on
+this same map still disagreed with the API about #2929. For the question
+that actually matters — will these two conflict —
+`git merge-tree --write-tree A B` answers it directly and cheaply, and
+is what this program should use from here.
+
+**The same root cause reached this sitting twice, from opposite
+directions**, which is why it is a log entry and not just a fix. The
+other instance is `work.py territory --base main` answering against a
+local ref 981 commits stale, filed as
+`work/meta/territory-base-main-is-stale-in-every-agent-checkout` — found
+independently by two of the three Wave 2 lanes. A stale base ref does
+not fail; it answers confidently about the wrong tree. One instance
+reached a merged artifact before a reader caught it.
+
+## 2026-09-22 — Wave 2 unit 1 landed: the exhaustive guard, and the Band variant priced
+
+PR 3055. Closes `has-faults-cannot-red-on-a-new-rowstatus`; leaves
+`band-refusal-still-badges-every-row` **open** with its cost measured
+rather than estimated. Four rows filed.
+
+**What shipped.** `tree::has_faults` is an exhaustive `match`, with
+`Unevaluated` and `Ok` each stated as the policy they are rather than
+left to the complement of a pattern. One test added — the only place in
+the tree where a `Poisoned` row stands alone, so that arm had never been
+exercised.
+
+**The unit's real deliverable turned out to be the measurement, not the
+guard.** Closing the Band symptom needs a fifth `RowStatus`; the lane
+added a scratch one and found it reds in exactly three files, two
+mechanical and one not. `frame.rs`'s
+`the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
+asserts `left_to_the_tree == states`, and a fifth state breaks
+`badge_site`'s **one-for-one pairing** claim by arithmetic rather than
+by a missing arm. Whether a run-refusal state pairs with a
+`ProductErrorKind` or is deliberately unpaired is a design decision, so
+the lane declined it rather than making it in passing. The Band row now
+carries that, and the `has_faults` prerequisite is off its bill.
+
+**Three corrections worth keeping, in ascending order of how much they
+cost to learn.**
+
+1. **The row and the doc both claimed a role nothing plays.**
+   `has_faults` has **no `src/` caller** — 22 call sites, all in
+   `tests/` and `examples/r1_e2e.rs`, 15 of them the `!has_faults(…)`
+   clean gate. The chrome's actual "is this building" answer is
+   `pane::features`'s badge draw and `frame::product_badge`. So the
+   defect was never "the GUI would lie to a user"; it was a silently
+   wrong **test oracle**, which would have let fifteen gates keep
+   passing on documents broken in the new way. Smaller claim, true one.
+2. **The measurement the unit shipped was itself incomplete, and the
+   gap it disclosed is where the miss was.** `pane/features.rs` has
+   TWO `RowStatus` matches: the exhaustive badge draw, and thirteen
+   lines below it a `_ => None` wildcard that does not red. The unit
+   declared gaps (c) and (d) unsearched on the ground that the
+   instrument was a clippy lint and therefore a unit of its own —
+   but `grep -rn '^\s*_ =>' crates/viewer/src` is 41 hits and one
+   second, and it is what found the wildcard **inside the set the
+   unit had just measured**. `work/meta/a-stated-sweep-blind-spot-is-
+   never-swept` records two prior lanes where the stated gap was
+   exactly where the finding was. This is the third.
+3. **The criterion was the defect, twice, and the second time was
+   ours.** The originating row says an earlier sweep's criterion said
+   *external* enum and the word was doing no work. This unit's own
+   criterion said *multi-arm*, and that word was doing no work either:
+   `tools.rs`'s `ToolKind::commits` is six arms and `refuse::admits`
+   is five, both excluded by a filter that was looking at the wrong
+   property. Re-taken, the population is **21 sites in eight modules**,
+   not six in four.
+
+**A lane overturned an adjudication of mine with measurement, and was
+right — the fourth time in two waves.** The review found the new
+fixture violates `Poisoned::through`'s documented invariant by pointing
+at an `Ok` row, and I told the fix pass to point it at a `Failed` one.
+That is self-defeating: a `Failed` row in the tree makes `has_faults`
+answer true through *that* row, so the `Poisoned => false` mutation
+stops reddening and the test stops pinning what it exists to pin. The
+lane measured it (the mutated policy passes) and used
+`Poisoned { message: None }` instead — the one shape the module has for
+*"poisoned with no failed cause in this tree"*, which `poisoned_through`'s
+absence arm mints and `Poisoned::message`'s doc names in as many words.
+Better than my instruction and better than the original: the fixture is
+now a state the module renders rather than one it declares broken, and
+the hand-written third spelling of `downstream_wording`'s sentence
+disappears entirely rather than being replaced by a call.
+
+**Rows filed**:
+`a-wildcard-match-decides-viewer-policy-in-five-places` (the 41-hit
+sweep, its exclusion criterion, and gap (d) — given its own file rather
+than a section, because closing the sweep row would otherwise close it
+with the gap unswept),
+`two-is-this-broken-readings-argue-opposite-on-poisoned` (sharpened by
+the lane from the review's framing: the two docs are reconcilable and
+diverge on exactly one state — `Poisoned { message: None }`, which is
+the state this unit's fixture now builds),
+`downstream-wording-spells-node-where-node-number-forbids-it`, and
+`the-exhaustive-on-purpose-argument-is-restated-twenty-times`.
+
+## 2026-09-22 — Wave 2 unit 2 landed: a message wraps inside its region (Ev's P0)
+
+PR 3058, the layout half of
+`error-and-check-text-overflows-its-region`. The row stays **open**,
+retitled to the concision half it still carries — a title naming both
+halves would read on the board as if neither were done, and the board
+shows titles.
+
+**One cause, two faces, and it is `egui::Ui::wrap_mode` rather than any
+per-label flag.** In a non-wrapping row the mode is `Extend`, which
+lays a galley out at infinite width: measured at 318 points past a
+220-point region's right edge. In a wrapping row `Label::layout_in_ui`
+places the whole galley at `ui.max_rect().left()` and indents only row
+zero: measured in the REAL toolbar at 271 points of drift, first line
+at x = 279 and second at x = 8, the window's own left edge. That second
+number is Ev's sentence read back as a measurement.
+
+**The sibling row that closed in September CAUSED the second symptom.**
+`work/view/the-toolbar-row-does-not-wrap` made the toolbar wrap, which
+is what put the status line into a wrapping layout. The same class,
+fixed one layer too shallow, and the fix created the second face of the
+defect it was next to. Worth carrying: a layout fix moves every text in
+that layout, and nothing in the process asks what else was in it.
+
+**What the review caught, and it is the most useful thing this unit
+produced.** The three tests shipped in the first cut were all one-sided
+— `past <= SLACK`, `rows.len() > 1`, `stray <= SLACK` — and every one
+gets EASIER as the galley is laid out narrower. The reviewer hardcoded
+the wrap width to `150.0` and all three passed. So the unit's central
+sentence, *"which region `available_width` names is egui's answer, not
+a choice made here"*, was exactly what the suite could not distinguish
+from a constant. `docs/prompts/reviewer-style-lane.md` Q3 names this
+shape — an assertion monotone in the wrong direction — and it landed on
+the one claim the unit existed to make.
+
+The fix pass answered it properly: a row that measures the widest line
+at three region widths and requires it to GROW, with a negative control
+on a plain label that requires it not to; plus the toolbar measured in
+`app.rs`'s real `toolbar_with` harness, which already existed and which
+the first cut should have used, since that status line is one of the
+two places Ev actually named.
+
+**The fresh-instance trap landed again — in the file the check did not
+cover.** `pane::headless` already held two verbatim copies of a shape
+walker; the fix added a third and a second driver that strictly
+subsumed the existing one. The unit's own check looked only at the
+helpers it had deleted in `pane/profile.rs`. Folded to one walker in
+the fix pass. **This program has now recorded the trap on every
+structural-fix unit it has run, and not once has the lane that wrote
+the fix caught its own** — only a reader who did not write it ever has.
+
+**The census was wrong by a factor of four and a half.** Eleven in the
+original row, thirteen enumerated, ten more from the reviewer; re-taken
+with a WRITTEN test for name-vs-sentence it is **fifty**. And the three
+`ui.link` sites the first census dismissed by hand as short names are
+all three sentences under that test — they interpolate a user-authored
+parameter name, which nothing bounds. Writing the criterion down is
+what found them; classifying by hand is what hid them.
+
+**CI reded once, and the guard that caught it was the one this unit
+asked for.** The fix pass built the roster guards by reading the
+crate's own source, and `test-utils`'s `reader_census` keeps a ledger
+of every source-reading site and asserts set EQUALITY with the tree.
+Two new readers arrived unlisted and it went red — a census that mints
+a census, caught by a census. One ledger line; reproduced red locally
+before fixing and green after.
+
+**Rows filed** (six): the four-character-ribbon regime at narrow widths
+(a message carrying `0.30000000000000004` breaks inside the number),
+the width-versus-characters fork that `number_text` and `message` now
+answer differently forty lines apart — with the concision half named as
+the same fork's other arm — the auto-sized-window case where
+`available_width` is last frame's content, `row_label`'s unbounded
+pose, the toolbar's own unconverted sentence, and the text-style
+resolution difference.
+
+Signed (CHROME orchestrator).
+
+## 2026-09-22 — Wave 2 unit 3 landed: the split-circle fixture, and a brief that asked for something impossible
+
+PR 3059. Closes `a-split-circle-fixture-sits-inside-the-1e-6-escalation-band`
+— a red live on `main` at `1e-6`, under a green gate, because the
+viewer's `app`-feature rows run at one eps row of three.
+
+**The dispatch asked for a constant radius and there is none.** I
+briefed the lane to find one clearing all three bands. The figure is
+conditioned purely relatively — the sagitta and the carrier-identity
+residue are both ∝ r and both read against `(ε, K·ε)` — so the
+admissible radii are an interval IN ε and both walls are walls in
+`r/ε`. ε = 1e-6 wants `r > 2.129 m`; ε = 1e-12 wants `r < 1.467 m`.
+The lane established that rather than working around it.
+
+**It is disjoint by 1.45×, and the reviewer made that the finding.**
+The window is 5.84 decades at its narrowest against the 6.00 a constant
+needs, and the miss hangs entirely on the SOFTER wall — the empirical
+f64 residue, not the closed form. Had that residue come out at
+3.2e12·ε, a constant would have worked and the brief would have been
+right. A comment reading *"the interval is six decades wide and NO
+CONSTANT sits in it"* was the narrowest possible miss dressed as a
+comfortable result.
+
+**The multiplier moved on a ratified clause, and that is the useful
+part.** The first cut took `1.5e9·ε`, the geometric centre of the
+window — a numeric criterion with a physical consequence nobody had
+priced: a **15 km** circle at the 1e-5 row. `docs/DESIGN.md` D4
+(`:609`) ratifies **micron-to-kilometre** coverage. Solving the
+envelope over the nine swept eps instead gives `m ∈ [1e7, 1e8]`, and
+`1e8` is the round choice: 47× clear of the exact lower wall, ~1.47e4×
+of the empirical upper one, 1 km at ε = 1e-5 and 10 µm at 1e-13. The
+trade is the right way round — margin spent on the wall that is exact
+and ε-independent, to buy it on the wall the whole conclusion rests on.
+
+**Two of my own adjudications overturned with measurement, both
+correctly.** (Fifth and sixth in two waves.)
+
+1. I wrote that `r_min ∝ n²` means *"any circle meets it at a count
+   four times smaller for each halving of the radius"*. That inverts
+   it: `n_max ∝ √r`, so QUARTERING the radius halves the offending
+   count, and halving the count buys 4× in radius.
+2. I passed on the review's claim that every ε-scaled literal in the
+   tree is a small multiple where the multiplier IS the margin, so this
+   reading was new. True of the citations, false of the workspace —
+   `crates/sweep/tests` spells `1.0e9 * eps` at 12 sites and
+   `1.0e12 * eps` at 5. What is actually local is only that here the
+   multiplier is a WINDOW PLACEMENT rather than a size or a margin, so
+   it reads off nothing; which is why the derivation beside it is long.
+
+**A coverage claim of mine was closed by execution rather than
+disclosed.** I had written into CIW's row that the lane *"swept the
+whole viewer app-feature population at nine ε values"*. It had not:
+`--lib` ran at six extra eps and `--test all` at four, and the two
+missing were **1e-8 and 1e-10** — the neighbours of the DEFAULT gated
+row — for 82% of the population. An overstatement of coverage on a row
+whose subject is invisible coverage gaps. `--test all` is ~95 s, so the
+fix pass ran both populations at all nine: 27 runs, all green.
+
+**The standing trap landed on the disclosure this time.** The unit's
+pass-2 instrument is "run the population at neighbouring eps, so an
+absolutely-scaled fixture near a wall reds there" — valid for the other
+833 rows. But an **ε-relative fixture passes at every ε by
+construction** and is invisible to that instrument forever, and this
+fix introduces the crate's only one. The PR listed three blind spots
+and not that one. It is now written into the CIW row — the durable
+home, since CHROME's rows die at close — with what does guard it: the
+fixture's own `expect`, which reds under controls on both walls.
+
+**Rows filed**:
+`the-circle-split-cap-offers-counts-the-document-refuses` (at the
+AUTHORABLE cap and the DEFAULT eps, a circle under 2.12 mm split 1024
+ways is refused in the shipping app; the boundary is a curve in (r, n)
+and the cap, not the geometry, is what keeps the exposure small) and
+`the-kernel-takes-any-count-has-four-homes-in-the-viewer`, whose fourth
+home is the doc comment eight lines above its own refutation in the
+file this unit edited.
+
+Wave 2 is complete: three units, four rows closed, PRs 3055, 3058, 3059.
+
+## 2026-09-22 — the phantom dispatch class, a second time, and I caused this one
+
+This session opened by correcting a `dispatched` row whose branch had
+never existed. It nearly closed by reinstating one, from the other
+direction, and the mechanism is worth the lines because nothing catches
+either.
+
+**What happened.** At dispatch I set
+`band-refusal-still-badges-every-row` to `dispatched` on this
+orchestrator branch. The unit then declined that half with a
+measurement, and its lane correctly set the row back to `open` on the
+UNIT branch, which is what merged to `main` in PR 3055. So `main` was
+right. But the orchestrator branch still carried my `dispatched` plus
+its `branch:` line, and when I merged `main` back in, **git resolved
+that file without a conflict and kept my side.** Had I merged this
+branch to `main` unread, the board would once again have reported a
+live P1 row as in flight with nothing behind it — the exact defect the
+first entry above describes, re-created by the orchestrator that
+corrected it.
+
+**Why no conflict.** The two sides never edited the same line in the
+same direction: `open` → `dispatched` here, and on the unit branch the
+lane's edit was relative to a base that already read `dispatched`, so
+from git's view only one side changed the line. A clean merge is not
+agreement; it is the absence of a textual collision, and a stale state
+marker is exactly the shape that slips through one.
+
+**The rule this adds to the first entry's.** That one said a successor
+re-derives in-flight state from the remote rather than from the header.
+This adds: **an orchestrator branch that outlives a wave accumulates
+state the units have already superseded**, and merging `main` into it
+does not clear that — it preserves it. Before any orchestrator branch
+merges, diff its `work/<program>/` headers against `main`'s and take
+`main`'s on every row a unit has touched. The units are the authority
+on their own rows; the orchestrator branch is only the authority on the
+ones no unit took.
+
+Caught here by running `work.py status` after the merge and reading the
+`dispatched` column — two rows, where only one unit was still in
+flight. That count is the cheapest check there is, and it is the one
+that found it.
+
+Signed (CHROME orchestrator).

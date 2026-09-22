@@ -98,7 +98,9 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     let reverted = cavity.revert().expect("revert");
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
-        Err(vec![topo::ValidationError::NegativeVolume]),
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "revert() alone leaves every stored loop continuous"
     );
     assert!(

@@ -265,7 +265,7 @@ fn explain(sess: &mut Session, root: SymId, levels: usize) -> String {
             );
         }
         if depth < levels {
-            for k in node.kids[..node.op.arity()].iter().rev() {
+            for k in node.kids().iter().rev() {
                 stack.push((*k, depth + 1));
             }
         }

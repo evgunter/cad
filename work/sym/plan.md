@@ -27,6 +27,17 @@ Re-scoped 2026-09-20 by SYM's priority-seam cut
 | None | `the-span-identity-is-not-a-theorem-of-the-floats` | None | the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness |
 | None | `the-witness-slack-is-eps-independent` | None | the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose |
 
+## SYM-14 — requested by Ev (2026-09-22, P1)
+
+`SYM-14` (`docs/SYM-14-SPEC.md`, branch `sym/14-chain-demo`): the chain
+demo — four links joined with an angular error at each joint, its
+dispersion drawn like the plate's, and the certified lane measured on
+it. Taken on at Ev's request the day it was asked; outside the blocks
+(v7 OUT: a demo and a measurement, no kernel change). Its certified
+half is `a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
+(P1, requested), answered by the unit's Phase 2 table or left with the
+walls named.
+
 ## Order
 
 `sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` first: a
@@ -61,7 +72,7 @@ is scheduled at the `props/sign-hull` merge, whoever merges it owing
 the ladder and the eight with both units in);
 `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
 (SYM-13, D / STRUCTURAL, slot 2, Opus by the block's draw) is IN as a
-receipt-contract decision — DISPATCHED 2026-09-22, spec `docs/SYM-13-SPEC.md`,
+receipt-contract decision — MERGED 2026-09-22 (#3054; the spec deleted with its ledger entry; block SYM-B3 concluded),
 branch `sym/13-leaf-need`;
 the ring item and the pcurve row are triaged when spec'd (the latter
 is not certainly SYM's). The block's pre-draw fields and draw are on

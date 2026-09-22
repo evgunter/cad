@@ -2,8 +2,7 @@
 
 **Status: measurement complete; the SPAN half is FIXED (TESS-SPAN,
 merged as #594; its binding spec was deleted with the other
-closed-unit artifacts and is recoverable through
-`docs/DOC-LEDGER.md`), and the SPLIT half is FIXED (TESS-SPLIT):
+closed-unit artifacts), and the SPLIT half is FIXED (TESS-SPLIT):
 the shipped point selection is now the cell minimizer on the same
 certified ellipse under the ratified A = 16 first-fundamental-form
 aspect cap (`mesh::nurbs_cert::ASPECT_CAP` and

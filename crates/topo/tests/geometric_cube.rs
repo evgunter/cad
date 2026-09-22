@@ -420,7 +420,9 @@ fn the_structural_half_does_not_judge_orientation_at_any_scalar() {
     let f_inverted = f.body.revert().expect("the cube reverts");
     assert_eq!(
         validate_geometric(&f_inverted, tol),
-        Err(vec![topo::ValidationError::NegativeVolume]),
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: f_inverted.solids().next().expect("one solid").0
+        }]),
         "the composed door judges orientation at a certifying scalar"
     );
 
@@ -441,7 +443,9 @@ fn the_structural_half_does_not_judge_orientation_at_any_scalar() {
     // excludes.
     assert_eq!(
         topo::validate_pseudomanifold_structural(&d_inverted, &ContactRecords::default(), tol),
-        Err(vec![topo::ValidationError::NegativeVolume]),
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: d_inverted.solids().next().expect("one solid").0
+        }]),
         "the census pass still judges orientation at a dual"
     );
     assert!(
