@@ -97,8 +97,8 @@ use pncad::geom_core::Tol;
 use pncad::topo::{Body, LoopBoundary};
 
 use crate::chain::{
-    CERTIFIABLE_FRACTION, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS, POSITION_BOUND,
-    PIN_RADIUS, chain,
+    CERTIFIABLE_FRACTION, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS, PIN_RADIUS,
+    POSITION_BOUND, chain,
 };
 
 /// Metres to millimetres, for every printed number.

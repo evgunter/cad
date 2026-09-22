@@ -26,18 +26,14 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use pncad::analysis::{
-    AnalysisPolicy, DriveConfig, ParamBox, analyzed_box, assertion_at, drive,
-};
+use pncad::analysis::{AnalysisPolicy, DriveConfig, ParamBox, analyzed_box, assertion_at, drive};
 use pncad::document::{
     CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId,
     evaluate,
 };
 use pncad::geom_core::{Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
-use crate::chain::{
-    Chain, JOINT_SIGMA, LINKS, POSITION_BOUND, chain,
-};
+use crate::chain::{Chain, JOINT_SIGMA, LINKS, POSITION_BOUND, chain};
 
 /// Metres to millimetres, for every printed number.
 const MM: f64 = 1e3;
@@ -193,7 +189,10 @@ pub fn narration(tol: Tol) {
 
     // Where a leaf certifies, the drive is affordable and its verdict
     // is the thing a CI row would gate on.
-    for (links, row) in rows.iter().filter(|(_, r)| r.certifies && r.lane != "Interval") {
+    for (links, row) in rows
+        .iter()
+        .filter(|(_, r)| r.certifies && r.lane != "Interval")
+    {
         let built = chain(*links, JOINT_SIGMA, POSITION_BOUND, tol);
         let analyzed = analyzed_box(&built.doc, &AnalysisPolicy::default());
         let config = DriveConfig {

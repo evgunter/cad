@@ -233,13 +233,8 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![
-                LoopProgram::polygon([
-                    (0.0, -h),
-                    (LINK_LENGTH, -h),
-                    (LINK_LENGTH, h),
-                    (0.0, h),
-                ])
-                .expect("finite bar corners"),
+                LoopProgram::polygon([(0.0, -h), (LINK_LENGTH, -h), (LINK_LENGTH, h), (0.0, h)])
+                    .expect("finite bar corners"),
             ],
         }),
         tol,
@@ -290,10 +285,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     input: node,
                     translation: [len(step), len(0.0), len(0.0)],
                     rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: Expr::param(
-                        ParamName::new(&joint_name(j)),
-                        Dimension::Angle,
-                    ),
+                    rotation_angle: Expr::param(ParamName::new(&joint_name(j)), Dimension::Angle),
                 },
                 tol,
             );

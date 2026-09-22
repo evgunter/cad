@@ -1114,9 +1114,7 @@ fn main() {
 
     // The chain's density cell (`mcchain`), beside the plate's and for
     // the same reason: a second 2-D picture the tour draws itself.
-    println!(
-        "\n-- the MC density chain (E11.1: four links, an angular error at every joint) --"
-    );
+    println!("\n-- the MC density chain (E11.1: four links, an angular error at every joint) --");
     let chain_svg = mcchain::narration(tol);
     let chain_path = mc_dir.join("chain-density.svg");
     std::fs::write(&chain_path, &chain_svg).expect("write the chain density sheet");
