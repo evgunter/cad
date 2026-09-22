@@ -213,6 +213,9 @@ this sitting from the other direction: a stale base ref silently
 answering a question about the wrong tree. Two independent instances in
 one wave, one of which reached a merged artifact.
 
+**Wave 3 LANDED 2026-09-22** — PRs 3088, 3089 and 3090, eight rows
+closed; `work/chrome/log.md` has the record.
+
 ## The slate after the 2026-09-22 cut
 
 The cut (`work/chrome/log.md`, same date) left **28 points** against
@@ -244,6 +247,17 @@ the 30-point ceiling, in two families and the class behind the second.
   `matches-subset-policy-survives-in-four-viewer-modules` and
   `the-exhaustive-on-purpose-argument-is-restated-twenty-times` — one
   class, one unit.
+
+**After Wave 3 (20 points).** Next, in order:
+- `messages-in-the-creation-and-properties-panes-still-draw-past-their-row`
+  (P0). The floor rule it was waiting on has landed; it waits now only
+  on `pane/create.rs` and `pane/properties.rs` leaving the live PRs.
+- The concision row's remaining chains (P0): `NodeErrorKind`'s other
+  kernel arms, `EditError`, and the checks window, measured on rendered
+  text the way `refusal_concision.rs` does.
+- The two badge rows, once Ev answers Q1 and Q2 (written on each).
+- The subset-policy class, once `session/refuse.rs` leaves the live
+  PRs.
 
 **Held back, and why.**
 `at-rest-badge-reports-an-empty-document-as-a-refusal` is the next row
