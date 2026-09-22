@@ -2,7 +2,7 @@
 id: SYM-9
 kind: unit
 title: what a refused decision may retry: the wider ring and the kept atom, measured first on the six documents
-status: spec
+status: dispatched
 opened: 2026-09-14
 branch: sym/9-retry-ladder
 refs: [coefficient-ring-width-is-not-monotone-in-reach]
@@ -30,3 +30,12 @@ call in the credit outage, no branch, no commit. Ev's ruling on #2728
 makes the decision-door fold the program's priority, so SYM-10 takes
 block SYM-B2's slot 2 (the same pre-draw fields, H / NUMERIC); SYM-9
 opens the next block. Back to `status: spec`.
+
+## Dispatched (2026-09-22, block DECIDE-B1 slot 1)
+
+Arm OPUS per the block's draw (byte 248 ⇒ fable at slot 2); v7 IN, the
+full v6 dual; spec `docs/SYM-9-SPEC.md` with its A1 amendment (the
+branch cut from `props/sign-hull`'s head `cd14d4fd9` where DECIDE-3
+lives; the PR targets `props/sign-hull`; the link row's sixteen as
+Phase 1's first table and the kept-atom retry's measured instance).
+Lane `/home/user/lanes/sym-9`, branch `sym/9-retry-ladder`.
