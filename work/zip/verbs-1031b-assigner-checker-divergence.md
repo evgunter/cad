@@ -102,3 +102,39 @@ condition for the arc-bounded planar class.
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## `all_lines` itself is a third spelling, and two of the three are unnamed (ATREST-2, 2026-09-21)
+
+The row above is about the WINDING arm diverging across three sites.
+The `all_lines` GATE that decides which loops each site runs on has the
+same shape and is worth naming separately, because a lane widening one
+site has to find the others by reading:
+
+- `crates/topo/src/validate.rs`, check 6's planar arm — a `let
+  all_lines = cycle.iter().all(…)` binding, the only NAMED spelling;
+- `crates/topo/src/merge_faces.rs`, inside `loop_winding` — **unnamed**,
+  the same carrier test written as part of a larger expression;
+- `crates/sweep/tests/m5_s10_face_sense.rs` — a third, added by
+  ATREST-2 and self-declared *"re-derived here from the same stored
+  data the arm reads"*.
+
+The third is deliberate and stays: it is a TEST re-derivation, and a
+row that pinned the arm's behaviour by calling the arm's own helper
+would pin nothing. What it does show is the cost of the divergence
+from the outside — the re-derivation had to restate all four of the
+arm's entry conditions (planar surface, outer-plus-rings, `Cycle`
+boundary, `all_lines`), and its first version got two of them wrong
+(it omitted the planarity filter, which is a FALSE RED the day
+`loft_body` mints `Line` carriers for straight rails, and it answered
+"yes" for the non-`Cycle` boundary the arm skips, an inverted
+semantic). Both were caught in review, not by a test. A fourth
+re-derivation by a fourth lane is the predictable next instance.
+
+ATREST-2's measurement of what the gate costs at rest, with its 2x2
+isolation of the `Circle` carrier as the whole discriminant, is in
+`work/atrest/sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts.md`
+and pinned in `crates/sweep/tests/m5_s10_face_sense.rs`. It is
+evidence for the widening this row schedules: on an arc-capped loft
+the gate hides a WHOLE-BODY sense inversion, reached through the
+public `topo::Body::set_face_sense` door, with `validate_geometric`
+`Ok(())` and the enclosure unmoved and positive.

@@ -148,20 +148,22 @@ impl DisplayTolerance {
     ///
     /// **No δ renders as `0.000`.** The rule refuses it without knowing
     /// anything about δ: a text reading zero is a hundred percent away
-    /// from a strictly positive value, and the render's accuracy bound
-    /// ([`crate::readout::REL_TOLERANCE`]) is five parts in ten
-    /// thousand. So the thing that used to be a second predicate here —
-    /// that the text read back as a δ [`DisplayTolerance::new`] accepts
-    /// — is implied by the first for every δ this type can hold, and
+    /// from a strictly positive value, and every arm of the render's
+    /// grid ([`crate::readout::reads_back`]) is proportional to the
+    /// value or finer. So the thing that used to be a second predicate
+    /// here — that the text read back as a δ
+    /// [`DisplayTolerance::new`] accepts — is implied by the first for
+    /// every δ this type can hold, and
     /// `no_delta_renders_as_a_number_a_delta_cannot_be` is where that
     /// implication is checked rather than restated.
     ///
-    /// **What it is not is exact.** Four significant figures is what a
-    /// ten-character bound buys, and a δ the triangle budget chose is
-    /// `constant / TRIANGLE_BUDGET` — seventeen. The other thirteen
-    /// figures are shown nowhere, which is why this render is a render
-    /// and never a commit path: the number a δ moves to is the one a
-    /// user types, never one the chrome echoed at them.
+    /// **What it is not is exact, and what it no longer is is coarse.**
+    /// The grid is capped one decade below ε, so a δ the triangle
+    /// budget chose — `constant / TRIANGLE_BUDGET`, seventeen figures —
+    /// is now shown to the figures that tell it from the next δ rather
+    /// than to four. It is still a render and never a commit path: the
+    /// number a δ moves to is the one a user types, never one the
+    /// chrome echoed at them.
     pub fn render_mm(self) -> String {
         crate::readout::number(self.0 * MM_PER_METRE)
     }
