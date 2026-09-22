@@ -431,3 +431,25 @@ spec deleted (ledger); A/B row recorded, sample #236, no tally
 candidate. Lane clone and target reclaimed. What the unit leaves: a
 meridian-free curved face refuses typed in every profile; the rest of
 ruling (N) is EXCH's and ATREST's. Next TESS unit is TESS-2, in flight.
+
+## TESS-2 frozen and in dual review (2026-09-22)
+
+PR 3080 at `445257159`, hosted full matrix green (run 35745584307).
+One schedule, two arithmetics: `CurvePlan::apply_ring` replays
+`apply_points`' Step list with outward-rounded ring ratios; the convex
+form `β·x + α·y` chosen over lerp on a measurement (126× narrower
+structural-zero channel). Phase 1 rows red on main, green on the head
+(exact truth, bare comparison). Ordinal **5101** claimed on main
+(PR 3081); the R1/R2 draw and the stored briefs' hashes on
+`tess/b1-block`. Both reviewers dispatched concurrently from neutral
+paths.
+
+Two of the lane's findings change what the row said: the pre-fix
+red rate under RING-2's ring is 2 in 6,000 bilinear and 1 in 1,500
+general — the defect was never confined to the bilinear stratum;
+and the sampler's own error measures ≤ 1.63 ulps (p99 ~1.4), so
+`SAMPLER_ULPS = 64` is ~39× it (the number is on CHORD's and PROPS'
+rows; the constant is theirs to re-size). Widening's top 1 % exceeds
+the spec's ~1e-12 (max 5.4e-12) and is reported, cause named (a fold
+of 16 single insertions), filed as a follow-on rather than shipped
+silently. Five more f64-inside-an-enclosure sites filed on PROPS.
