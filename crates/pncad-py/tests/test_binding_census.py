@@ -2625,6 +2625,21 @@ NOT_BOUND = {
     # second door.
     "table_gap": INTERIOR,
     "validated": INTERIOR,
+    # **The MC lane's reduction, which `monte_carlo` has already
+    # applied by the time anything crosses.** `summarize` is public so
+    # that a Rust consumer holding its OWN replay of the lane's draws
+    # can reduce it with the function the report was reduced with — the
+    # tour's two density cells check their replay against a `McReport`
+    # bit for bit, and a transcription of the reduction would make that
+    # a comparison of two spellings. Python cannot pose that question:
+    # producing a replay needs `sample_offsets`, which is itself
+    # `gap: B-MC-DRAWS` below, and the four numbers a Python caller
+    # wants are already fields of the `McMeasure` rows `monte_carlo`
+    # hands back. So there is nothing here a Python caller cannot say —
+    # not a debt, a door they arrive behind. If B-MC-DRAWS is ever
+    # answered this moves with it, because a caller replaying draws in
+    # Python would then need exactly this reduction to compare.
+    "summarize": INTERIOR,
     # **The gathered-product doors, one family, and they are what the
     # binding CALLS.** `Product` is the document's product with
     # everything the gather knows about it, `product_recorded` is the

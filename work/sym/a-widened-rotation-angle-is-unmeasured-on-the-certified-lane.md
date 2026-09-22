@@ -2,8 +2,9 @@
 id: a-widened-rotation-angle-is-unmeasured-on-the-certified-lane
 kind: issue
 title: the chain's certified picture: a widened rotation angle through Node::Transform has never been measured on Interval or Sym<Interval>, and the derived-frame walls stand between the chain and an enclosure per link
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-09-22
 priority: P1
 cost: D
 ---
@@ -47,6 +48,78 @@ box that certifies whole. This row CLOSES if the certified lane reaches
 the four-link tip's assertion at any box (the enclosure drawn on the
 sheet); otherwise it carries the walls' names, each filed as its own
 row at P1 with this request, and stays open.
+
+## Result — CLOSED, it reaches the tip (SYM-14, 2026-09-22)
+
+Measured in `demos/tour/src/chaintol.rs`, one leaf over the whole
+declared box, in the driver's own lane, on the chain of
+`demos/tour/src/chain.rs` (σ = 0.01 rad at every joint, the tip
+asserted within 1 mm of a target pin):
+
+| links | lane | | first refusal OVER THE WHOLE STUDY | cost |
+|---|---|---|---|---|
+| 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
+| 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
+| 2 | `Sym<Interval>` | refuses | `dihedral_wedge`, margin poisoned | 0.31 s |
+| 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.47 s |
+| 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.73 s |
+
+A widened rotation angle is now measured. The plain interval lane does
+not carry one AT ALL — `cos² + sin²` is a bracket around 1, and the
+rigid map's own column-unit check is what notices — and the symbolic
+tier discharges exactly that, which is the whole difference between
+the two lanes on this document.
+
+That column is the first refusal at the WHOLE study. What bounds the
+certifiable BOX is a different question and a different predicate:
+measured at `1.02×` and `1.10×` of each link count's fraction, at the
+default ε and at `1e-6`, the first refusal is `dihedral_wedge` with a
+POISONED margin — `EdgeKey(1v1)`, sample 4 — at two, three and four
+links alike. The arm's straddle is first only over the whole study, by
+evaluation order.
+
+The widest box that certifies whole, per link count, is `1.000`,
+`0.370`, `0.185` and `0.111` of the study — one number in four
+spellings: the tip's certified lateral half-width is `3.998e-4` m at
+two, three and four links alike. **What that number is, is half the
+PIN RADIUS** (`0.500 / 0.500 / 0.499` of `chain::PIN_RADIUS`), and
+MEASURED with the radius doubled the fractions become `1.0000 /
+0.73841 / 0.36921 / 0.22192` and the half-width `7.975e-4` m — still
+`0.498` of it. So the invariance across link counts is a property of
+THIS document's geometry and not of the tier. (An earlier reading here
+called the constant thing an angle, "about 1.9° of accumulated swing";
+the swing doubles with the pin radius, to `3.81°`.) The one-link row is
+capped by the study itself rather than by the wall.
+
+**The four-link tip's assertion IS certified, at 0.111 of the study**
+(`chain::CERTIFIABLE_FRACTION`, bisected): the drive over that box
+certifies and the tip assertion HOLDS on every certified leaf. The
+enclosure per joint is on the sheet beside the cloud, in teal —
+`0.0400, 0.1199, 0.2398, 0.3996` mm across the chain, growing
+`1 : 3 : 6 : 10`, the worst-case lever sum, against the advisory σ's
+quadrature `1 : 2.24 : 3.74 : 5.48`. That is the certified picture
+this row asked for, so it closes.
+
+The cost objection did not materialise: four links in one leaf is
+0.73 s, not the 219 s per replay the derived-frame family costs, and
+the derived-frame walls never came into it — the chain is placed by
+`Node::Transform`, not by a `FaceFrame` stack.
+
+What bounds the box to 0.111 rather than 1 is filed, each at P1 with
+Ev's request:
+
+- `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`
+  — the wall itself, executed just above it
+- `work/sym/a-chain-of-three-joints-straddles-dihedral-arm` — the first
+  refusal over the whole study, which is a different thing
+- `work/sym/a-widened-rotation-angle-refuses-on-the-plain-interval-lane`
+- `work/lib/the-drivers-symbolic-dials-have-no-name-on-the-facade` — on
+  LIB's slate, where `crates/pncad` is
+
+**This row stays CLOSED.** Its condition was that the certified lane
+reach the four-link tip's assertion with the enclosure drawn on the
+sheet, and that is true and reproduced. What SYM-14's review corrected
+is two causal stories told ABOUT that result, not the result.
 
 ## Home
 

@@ -103,9 +103,15 @@ pub use editor_core::{AssertionVerdict, Certified, UnevaluatedReason, WINDOW_TIG
 /// build; R2's MINOR-9 caught it. A caller with no certified scalar
 /// still gets the labeled estimate, which is the whole point of an
 /// advisory lane.
+/// [`summarize`] rides here for the reason it is public at all: a
+/// consumer that holds its own replay beside a [`McReport`] and
+/// requires the two to agree BIT FOR BIT must reduce with the same
+/// function the report was reduced with. A transcription of it is a
+/// second spelling, and a bitwise comparison of two spellings tests
+/// the spellings.
 pub use editor_core::mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
-    monte_carlo, sample_offsets,
+    monte_carlo, sample_offsets, summarize,
 };
 
 /// The E10/E11.6 reporting layer.
