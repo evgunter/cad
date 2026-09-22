@@ -1,3 +1,21 @@
+## Per-merge deletion — TESS-1's spec (2026-09-22)
+
+Recoverable at `git show c25a1ed80:docs/TESS-1-SPEC.md` (the merged
+head). What it decided: a curved face whose loop classifies with no
+meridian traversal refuses typed at the walk, on that structural fact
+alone (`TessellateError::MeridianFreeCurvedFace`), where it walked to
+a zero-height polygon and meshed as a hole; the refusal is per kind
+(sphere, cone, cylinder), the torus member stays behind PROPS' shape
+door; the census message says what it counted. Its sentences that did
+not survive: "D2 addendum row 2 — valid input, unbuilt lane" (ruling
+(N) landed mid-unit: row 1, invalid input; both reviewers caught the
+spec's error and the fix pass re-filed the prose, keeping the name and
+python tag); "refuses at every Δv" (PROPS' `props_rim_side` unanimity
+now escalates a band-apart pair one door earlier). Recorded in the PR
+body and the unit's `## Closed` section.
+
+- `TESS-1-SPEC.md` — TESS-1, a meridian-free curved face refuses typed (#2852)
+
 ## Per-merge deletion — RING-2's spec (2026-09-22)
 
 Recoverable at `git show 4cb762495d:docs/RING-2-SPEC.md` (the fix-pass
@@ -4784,3 +4802,41 @@ recoverable at the merge SHA. Recorded in the PR body and the unit's
 `## Closed` section.
 
 - `SYM-12-SPEC.md` — SYM-12, the derived-frame freeze's next shape (#3046)
+
+## Per-merge deletion — DECIDE-3's spec (2026-09-22)
+
+Recoverable at `git show 5d3bc7e8b:docs/DECIDE-3-SPEC.md` (the landing
+head of #3039, merged into `props/sign-hull`). Its sentences that did
+not survive: acceptance 2, **"no decision LOST on the six measured
+documents"** — that sentence was the ORCHESTRATOR's spec text and was
+carried into the ruled row's `## Ruled` section as if it were Ev's;
+Ev corrected the attribution on #3039 (02:03Z): the ruling was shape
+1 plus *"never skip out on a change that would make the code better
+because it would require rebaselining"*, so the one predicate rule G
+costs (R2's link, `carrier_on_surface_2`, sixteen theorems while the
+document's totals rise) is re-baselined and PINNED on both sides
+rather than held against the unit, and the row that measures it
+(`rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`) stays
+open at P1 for SYM-9; the clause holds per predicate everywhere else
+and the per-predicate row reds on a planted drift. Its "STOPS ... shape
+3 of #2970 is the fallback" — the unit did stop on that clause, and
+the stop was lifted by the correction above, not by shape 3. The side
+condition's third source, "the session's atom table" — UNSOUND (R2's
+dead-arm adversary: a `sqrt(x)` on a dead `Select` arm licensed a
+split at `x < 0` and rule F then proved a false theorem), removed and
+replaced by two sources the form itself proves (`manifest::nonneg`
+with a definite quadratic in one indeterminate, and a manifestly
+non-positive denominator over the negated pair), gated by
+`sym_root_rows::a_dead_arm_root_licenses_no_split`. "The decision read
+declines nothing it can decide" was kept the hard way: the first fix
+pass made the read decline a comparison of two rational constants so
+a byte-identity pin could stand, and Ev's second word (02:05Z, "no
+concession towards skipping a rebaseline") reversed it into A0
+deciding `min`/`max` of two rational constants and of one form as
+theorems, with the slab, the plate's `line_span`, the D-tabs, the
+boss, the ledgers and the derived-frame row's A0 rung re-baselined and
+said. The tilted row green with its assertion untouched; the tilt-`u`
+wall answered. Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `DECIDE-3-SPEC.md` — DECIDE-3, the canonical root at the mint site (#3039)
