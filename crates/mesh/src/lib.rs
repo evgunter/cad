@@ -319,9 +319,9 @@ mod nurbs_cert;
 // test gate can skip them without skipping that file's deterministic pins.
 #[cfg(test)]
 mod nurbs_cert_fuzz;
+mod planar;
 #[cfg(test)]
 mod tess2_r2_probe;
-mod planar;
 // The sizing vocabulary is this crate's own: nothing in the module is
 // `pub`, and its shared names are `pub(crate)`. The module itself is
 // `mod` rather than `pub mod` so that `dead_code` reports one the crate
