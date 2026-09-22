@@ -2,12 +2,13 @@
 id: rim-only-sphere-cap-panics-at-census
 kind: issue
 title: mesh: tessellate panics at the issue-897 census on a rim-only sphere cap the shape door admits (even at f = 0)
-status: open
+status: closed
 opened: 2026-09-03
 github: 1615
 refs: [897, 1571]
 priority: P0
 cost: H
+closed: 2026-09-22
 ---
 
 ## From GitHub issue 1615
@@ -165,3 +166,10 @@ work is filed where it lands — import's normalization on EXCH, the
 validity rule (and the props arm's retirement) on TOPO — and `mesh`'s
 part is TESS-1, whose refusal stands for good. This row closes with
 TESS-1.
+
+## Closed (2026-09-22)
+
+With TESS-1 (PR 2852): the face refuses typed in every profile. The
+rest of ruling (N) is EXCH's normalization and ATREST's validity rule,
+each its own row; (E) stays tabled on
+`consider-emitting-the-rim-only-cap-instead-of-normalizing-it`.
