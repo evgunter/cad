@@ -345,8 +345,10 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
             let msg = format!("{e}");
             eprintln!("PIERCE FRONTIER: {msg}");
             assert!(
-                msg.contains("zero") && msg.contains("escalate"),
-                "the frontier arm must quote both tolerances: {msg}"
+                msg.contains("straight edge through a cylinder wall")
+                    && msg.ends_with(geom_core::COINCIDENCE_RECOURSE),
+                "the frontier arm must say what it can compute and end on the \
+                 recourse: {msg}"
             );
         }
         Err(other) => eprintln!("PIERCE: refused via a different typed arm: {other}"),

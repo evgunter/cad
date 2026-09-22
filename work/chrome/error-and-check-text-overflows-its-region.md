@@ -120,3 +120,70 @@ the person holding the mouse needs and dropping what is written for
 kernel developers. A viewer-side summary is the fallback for a refusal
 whose important content genuinely cannot fit, and needs that case
 shown, not asserted.
+
+## The concision half, done (2026-09-22)
+
+**The worked example, measured first.** A ring torus (R = 2, r = 0.5)
+unioned with a block straddling its tube reproduces Ev's refusal:
+`editor-core/tests/refusal_concision.rs` builds it through the public
+document doors. The raising site is `topo::boolean::reduce`
+`gate_operand_pairs` (the operand gate, `op: None`), the payload
+`CurvedPairUnsupported { operand: A, kind: Torus, other_kind: Plane }`,
+and the text the viewer drew was **277 words**, opening with
+`editor-core`'s wrapper guessing at undeclared coincidence. It is now
+**65 words**:
+
+> node 5 failed: the Boolean op refused: the first operand's torus face
+> may meet the second operand's plane face, and the Boolean cannot yet
+> work out where such a face meets another solid. Recourse: reshape the
+> parts so they meet only where a plane face meets a plane, cylinder or
+> sphere face, or move them so the torus face stays clear of the other
+> solid
+
+The "may" keeps the box test's MAY-not-DOES in one word, and "stays
+clear" is the recourse it makes real. The dispatch-table and routing
+detail was already the variant's rustdoc; what was only in the
+sentence moved there.
+
+**Rewritten at the source (prose only; no type, variant or payload
+changed):**
+
+- `editor_core::NodeErrorKind::Boolean`: the wrapper is "the Boolean op
+  refused: {e}" and guesses no cause; a coincidence refusal carries its
+  own recourse.
+- `topo::BooleanError`: `CurvedPairUnsupported` (253 literal words to
+  28, plus a 31-word recourse it shares with `CurvedBooleanUnsupported`), `CurvedBooleanUnsupported` (199), `GermFrameCylinderPinch`
+  (166), `NurbsExtentUnsupported` (105), `RimSeamNotDeclarable` (87),
+  `CurvedPierceUnsupported` (84), `GermFrameUnsupported` (82),
+  `CurvedSectorSideUnsupported` (79), `ArcLoopContainmentUnsupported`
+  (74). Operands are "first"/"second", never `A`/`B`; arena keys are
+  gone from these sentences.
+- `topo::PointInSolidError`: `PartialTorusFace` (198),
+  `PartialSphereFace` (165), `PartialConeFace` (165), `KindUnsupported`
+  (96), `VolumeUncertified` (87), `SurfaceSharedOutsideSolid` (63).
+
+**A measurement that changed a sentence.** `CurvedBooleanUnsupported`
+and `ArcLoopContainmentUnsupported` no longer name an operand: their
+`operand` field is the face's operand at some raise sites and the
+edge's at others (measured: a NURBS wall on B reports `operand: A`),
+so the old "face F of operand X" was false there. Filed as
+`work/reach/boolean-refusal-operand-field-means-two-things.md`.
+
+**Census.** Static, over every `impl Display for` in `crates/*/src`,
+counting each match arm's literal words (a placeholder is one word; a
+named recourse constant is not expanded; a nested payload's own
+`Display` adds on screen). Before: 50 arms at 60+ words, 144 at 40+,
+the longest the worked example's at 253. After: 35 at 60+. It does not
+prove per-arm reachability from the viewer, and a sentence built
+outside an `impl Display` is not seen. The census table is in the PR
+body.
+
+**Filed, one row per owning program, for every remaining arm at 50+
+literal words:** `paths`, `encl`, `atrest`, `tess`, `chart`, `carve`,
+`exch`, `props`, `contact`, `ssi`, `pcert`, `wire`, `tquery`, `offset`,
+`reach` (each `<program>-refusal-prose-outgrows-the-viewer`), and
+`work/issues/unowned-refusal-prose-outgrows-the-viewer.md` for ground
+no program owns. Each row carries its census lines and the standard.
+
+No refusal needed a viewer-side summary: every one rewritten here keeps
+its recourse in well under 70 words.

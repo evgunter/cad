@@ -2511,7 +2511,7 @@ class TestTeapot(unittest.TestCase):
     `EvaluationError` with `kind == "boolean"` carrying the kernel's
     own DISPLAY prose — `pncad-py` never Debug-dumps a payload, so the
     variant name `CurvedPairUnsupported` is not in the text and what
-    the row pins instead is the germ pair the gate named, which is the
+    the row pins instead is the face pair the gate named, which is the
     same fact the Rust wall matches on.
     """
 
@@ -3247,13 +3247,12 @@ class TestTeapot(unittest.TestCase):
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
         text = str(refusal)
-        # The GERM-PAIR sentence, whole. `assertIn("(sphere)")` would
-        # match any parenthesised word in ~800 characters of recourse
-        # prose; this is the clause that names the pair with no seam
-        # lane, and it names it in order.
-        self.assertIn("no seam lane for the (torus, sphere) germ pair", text)
+        # The PAIR sentence, whole: it names the torus face and the
+        # sphere face it may meet, in that order, each by its operand.
         self.assertRegex(
-            text, r"is a torus and its box MAY INTERSECT face \S+ \(sphere\)"
+            text,
+            r"the (first|second) operand's torus face may meet "
+            r"the (first|second) operand's sphere face",
         )
 
         # spout union vessel: PAST the pair rung, because a loft's
@@ -3275,7 +3274,7 @@ class TestTeapot(unittest.TestCase):
         )
         # NOT the pair rung any more, and this is the half that would
         # go quietly wrong if it were only asserted positively.
-        self.assertNotIn("germ pair", text)
+        self.assertNotIn("may meet", text)
 
 
 class TestTorusvessel(unittest.TestCase):

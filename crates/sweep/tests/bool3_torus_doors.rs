@@ -748,7 +748,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
         kind: geom_brep::SurfaceKind::Nurbs,
     }
     .to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(!msg.contains("corrupt"), "{msg}");
     assert!(
         !msg.contains("torus"),
@@ -764,11 +764,11 @@ fn the_kind_refusal_no_longer_names_the_torus() {
         face: body.faces().next().unwrap().0,
     }
     .to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
     assert!(
-        msg.contains("no chart singularity"),
-        "the refusal must say why a wrapped window is believed here: {msg}"
+        msg.contains("(parallels and meridians)"),
+        "the recourse names the boundary the torus arm can read: {msg}"
     );
 }
 

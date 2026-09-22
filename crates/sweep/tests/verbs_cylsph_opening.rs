@@ -260,17 +260,12 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
     }
 }
 
-/// **The deferred fitted-chord join window's door, named with its
-/// payload** (the `verbs_shell` precedent). The window is deliberately
-/// NOT built by this unit, and the sentence that says so is still TRUE:
-/// the pair refusal names the missing azimuth-window analog, and
-/// nothing in this unit gives it one. What would retire it is a
-/// `run_azimuth_window` / `chart_pcurve` analog for a cylinder×sphere
-/// fitted chord — a consumer the coaxial arms do not need and do not
-/// provide.
-///
-/// The row reads the Display text off a constructed error rather than
-/// off the source, so a rewrite that dropped the sentence reds here.
+/// **A torus operand stops at the pair gate, and the refusal ends on
+/// what the person can do.** The deferred fitted-chord join window
+/// (a `run_azimuth_window` / `chart_pcurve` analog for a
+/// cylinder×sphere fitted chord) is still unbuilt; that fact lives in
+/// `BooleanError::CurvedPairUnsupported`'s rustdoc, not in the
+/// sentence a user reads, so nothing about it is asserted here.
 ///
 /// **This row pins `CurvedPairUnsupported`, NOT
 /// `CurvedBooleanUnsupported`** — a torus operand is stopped at the
@@ -279,7 +274,7 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
 /// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below,
 /// which had to construct a different error to get at it.
 #[test]
-fn the_deferred_join_windows_door_still_names_itself() {
+fn a_torus_operand_is_refused_at_the_pair_gate_with_its_recourse() {
     let torus = {
         // A torus operand reaches the pair/kind refusal, which is the
         // door that carries the fitted-chord sentence.
@@ -300,10 +295,20 @@ fn the_deferred_join_windows_door_still_names_itself() {
     };
     let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
         .expect_err("a torus operand has no wired arm");
+    assert!(
+        matches!(
+            err,
+            BooleanError::CurvedPairUnsupported {
+                kind: geom_brep::SurfaceKind::Torus,
+                ..
+            }
+        ),
+        "expected the pair gate's refusal, got {err:?}"
+    );
     let msg = format!("{err}");
     assert!(
-        msg.contains("cyl×sphere") && msg.contains("window"),
-        "the deferred window's door stopped naming itself: {msg}"
+        msg.contains("move them so the torus face stays clear of the other solid"),
+        "the pair refusal must end on its recourse: {msg}"
     );
 }
 
@@ -321,8 +326,9 @@ fn the_deferred_join_windows_door_still_names_itself() {
 /// catch-all exactly like a cone or torus one. What IS wider is
 /// `join::pair_section_frame`, a different dispatch answering a
 /// different question: it names a section frame (a centre and an axis
-/// for the rotational facing test), never a seam lane. Both Displays
-/// now say that, and neither contradicts the other.
+/// for the rotational facing test), never a seam lane. Both variants'
+/// rustdoc says that; both Displays name only the wired pairs, in one
+/// shared recourse sentence.
 ///
 /// **The operand here is a NURBS wall, deliberately.** The variant is
 /// per-KIND and its Display carries no per-site branch, so any body
@@ -355,33 +361,16 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         "expected the crossing-layer refusal, got {err:?}"
     );
     let msg = format!("{err}");
-    // The corrected clause: what the JOIN dispatch wires, and that the
-    // catch-all is not cone/torus-only.
+    // What the JOIN dispatch wires, stated as the recourse: a plane
+    // face against a plane, cylinder or sphere face — so the sentence
+    // does not read as cone/torus-only, and does not claim the wider
+    // SECTION-FRAME dispatch's pairs as join arms.
+    let wired = "they meet only where a plane face meets a plane, cylinder or sphere face";
     assert!(
-        msg.contains("germ-pair JOIN dispatch's catch-all"),
-        "the refusal no longer names the dispatch it is raised from: {msg}"
-    );
-    assert!(
-        msg.contains("(Plane, Plane), (Plane, Cylinder) and (Plane, Sphere) only"),
+        msg.contains(wired),
         "the refusal does not state what that dispatch wires: {msg}"
     );
-    assert!(
-        msg.contains("(Sphere, Sphere) or (Cylinder, Sphere) germ reaches the catch-all"),
-        "the refusal still reads as cone/torus-only: {msg}"
-    );
-    // And the distinction from the WIDER dispatch beside it, which is
-    // what the false clause conflated it with.
-    assert!(
-        msg.contains("SECTION-FRAME dispatch"),
-        "the refusal drops the dispatch the false clause confused it with: {msg}"
-    );
-    assert!(
-        msg.contains("a frame is not a join arm"),
-        "the refusal drops why a wider frame dispatch moves nothing: {msg}"
-    );
-    // The two Displays must AGREE, which is the half that was broken:
-    // `CurvedPairUnsupported` said "(Plane, Cylinder) and (Plane,
-    // Sphere) only" while this one implied four wired pairs.
+    // The two Displays must AGREE on what is wired.
     let pair_msg = format!(
         "{}",
         BooleanError::CurvedPairUnsupported {
@@ -394,14 +383,7 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
         }
     );
     assert!(
-        pair_msg.contains(
-            "germ-pair JOIN dispatch wires (Plane, Plane), (Plane, Cylinder) \
-             and (Plane, Sphere) only, mirrors included"
-        ),
+        pair_msg.contains(wired),
         "the sibling refusal contradicts this one: {pair_msg}"
-    );
-    assert!(
-        pair_msg.contains("names a frame, never a join arm"),
-        "the sibling refusal drops the frame/join distinction: {pair_msg}"
     );
 }

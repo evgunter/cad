@@ -495,8 +495,9 @@ fn the_g1_tube_chain_rim_routes_to_the_smooth_seam() {
     );
     let text = format!("{err}");
     assert!(
-        text.contains("MATE-7-TANGENCY-DESIGN"),
-        "the refusal must cite the ruling of record: {text}"
+        text.contains("one wall and take no contact declaration")
+            && text.contains("Recourse: remove the Tangent declaration"),
+        "the refusal must say the seam is structural and what to do about it: {text}"
     );
     assert!(
         !text.contains("UNBUILT"),

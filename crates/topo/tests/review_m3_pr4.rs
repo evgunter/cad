@@ -596,12 +596,13 @@ fn curved_face_gate_witness() {
     assert_eq!(f, face);
     let msg = format!("{err}");
     assert!(
-        msg.contains("MAY INTERSECT"),
-        "the refusal states the box conservatism: {msg}"
+        msg.contains("the second operand's torus face may meet the first operand's plane face"),
+        "the refusal names the pair, each face by its operand, and says the \
+         overlap is a may rather than a computed meeting: {msg}"
     );
     assert!(
-        msg.contains("MAY, not a DOES"),
-        "the refusal says the overlap is not a computed meeting: {msg}"
+        msg.contains("move them so the torus face stays clear of the other solid"),
+        "the refusal ends on the recourse the box conservatism makes real: {msg}"
     );
 }
 
@@ -630,8 +631,7 @@ fn a_torus_face_whose_box_clears_the_other_operand_does_not_gate() {
 /// (M5 PR 9 fix pass, F6/dev 4 aftermath): a NURBS-walled operand
 /// passes the per-arm gate (the SECTION arm is certified since
 /// PR 7b), and the pipeline surfaces its CURRENT typed refusal at
-/// the crossing layer — the sweep's edge×NURBS-face arm — naming the
-/// missing boolean piece and the banked unit (PR 9c). The spec's
+/// the crossing layer — the sweep's edge×NURBS-face arm. The spec's
 /// original "one 7b-flag-flip from live" claim was wrong (the
 /// crossing layer is not behind 7b's flag); this row pins what IS
 /// true.
@@ -660,16 +660,12 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     };
     let msg = format!("{err}");
     assert!(
-        msg.contains("fitted-chord join lane"),
-        "the refusal names the unwritten lane that blocks it: {msg}"
+        msg.contains("where a nurbs face of one solid meets the other solid"),
+        "the refusal names the face kind with no crossing layer: {msg}"
     );
     assert!(
-        msg.contains("crossing layer"),
-        "the refusal names the missing boolean piece: {msg}"
-    );
-    assert!(
-        msg.contains("already implemented at the INTERSECTION layer"),
-        "the refusal is honest that the SECTION arm is already certified: {msg}"
+        msg.contains("Recourse: "),
+        "the refusal ends on what the person can do: {msg}"
     );
 }
 
