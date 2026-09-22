@@ -658,3 +658,15 @@ on the ATREST row. Four of the spec's premises were wrong (the
 red-first list, the isolator pin, the merge base); the ledger names
 them. LANE-3 dispatches on this shape; LANE-4 folds the wiring
 module's copies.
+
+## RING-2 merged (2026-09-22)
+
+PR 3032, block SCALAR-B5 slot 2, ordinal 4114. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's two bilateral
+MAJORs were disclosure: the committed tess-budget baseline's looser
+cells are main's own drift between cuts (filed on INSTR) and the
+red-row table now carries every red head. `crossing_bracket` stays:
+the member-free route compiles and the bounds gate refuses it pending
+ratification — RING-3's slate, with `Enclosure` and the three guard
+residues. Block SCALAR-B5 closes on this merge with one tally
+candidate, RING-0's.
