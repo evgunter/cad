@@ -1265,3 +1265,77 @@ orchestrator agrees with it, on the line this wave already drew —
 narrowing one is not a side effect a unit gets to have.**
 
 Signed (DOOR orchestrator).
+
+## TINT-6 landed, and the lane caught its own minting (2026-09-22)
+
+PR #2707, merged at `ccf32a73d` and **verified on main by
+`git merge-base --is-ancestor`**. CI green on the fix-pass head: 39
+jobs, twelve `test (…)` points, five `k-lint (gate, …)`, 0 failures.
+
+The header claimed ten rungs and the suite reached five. It now drives
+eight through a door and excludes two by name **with a guard that
+re-takes the measurement every run** rather than a sentence recording
+it. The row's own `## Closed` section carries the per-rung answers and
+the structural reason the two negatives hold.
+
+**The unit's own account is the headline: the lane minted six instances
+of this program's subject and caught all six itself**, on two cold reads
+of its own diff, before pushing. Six units in, that is the first time
+the catcher was not an outside reader. `process-observations.md`
+observation 1 now reads seven instances across five of six units, and
+records what actually worked: not the spec's warning — TINT-6's spec
+warned too — but reading the diff twice at different framings, the
+second pass off `git diff --cached`, which found as many as the first.
+
+**The five-day gap changed one number and the lane reported it rather
+than absorbing it.** `origin/main` moved 5145 commits under this branch.
+Re-derived on the merged tree: `InterrogateError` still ten variants,
+`BlendError` still 23, the corpus sweep still 13324 / 352 / zero / zero.
+Moved: `BodyNotIntact`'s sibling-suite count 2 → 3, and the
+square-literal sweep 30/24 → 47/39. Both are in the PR body with the
+commands that derive them. A lane that had trusted its six-day-old
+numbers would have shipped two wrong ones and never known.
+
+## The orchestrator relayed a review's claim into a dispatch, again (2026-09-22)
+
+TINT-4's D5 entry adopted a correction — a finding relayed as fact gets
+its primary source read first — and TINT-5's entry widened it to counts,
+because counts were where it failed next. **It failed a third time, on
+the same mechanism, in TINT-6's fix-pass dispatch.**
+
+The style review reported that `select`, `select_where`,
+`find_flush_candidates`, `declare` and `declare_all` are all public and
+*"all surface an `InterrogateError` whole"*. This seat put that list
+into the dispatch as established. **Three of the five do not surface one
+at all**: `select` returns `Vec<StableName>` and cannot refuse;
+`declare` and `declare_all` return `DeclareError`, whose arms are
+exactly `NoFindings`, `Edit(EditError)` and `NoMintedId`. Only
+`select_where` and `find_flush_candidates` qualify, plus the measure
+wire's `MeasureRefUnreadable`. The lane derived that by grepping every
+`InterrogateError` under `crates/*/src/` and corrected the dispatch; the
+orchestrator then verified both facts at the source.
+
+The review's CONCLUSION survived — the narrow reading is the right one
+and the third sentence was false under the broad one — which is exactly
+why the list went unchecked: a claim whose conclusion is right reads as
+a claim that is right. **The rule does not get narrower each time it
+fails. It is: anything this seat puts into a dispatch as established, it
+has run down itself, and the dispatch says where.**
+
+## A counting habit of this seat's, corrected at the source (2026-09-22)
+
+Every dispatch this program has written says to expect **twelve
+`test (…)` jobs** and to say so if fewer appear. On today's `main` the
+interval lane runs through a called workflow, so its six points are
+named `interval / test (interval, eps = …)` and **do not start with
+`test (`**. Both the fix-pass lane and this seat counted six on a
+complete matrix and went looking before reporting a narrowing.
+
+`docs/prompts/implementer-discipline.md` §2 already covers this — *"a
+lane that moves into a called workflow has its jobs prefixed with the
+caller's key, so a reader matching the start of a name sees a fraction
+of a full matrix and reads it as a narrowing"* — and says to establish
+narrowed-or-not **from the `change filter` log, not by counting job
+names**. The stale text was this program's dispatches, not the repo's
+discipline. The lane reported §2 as describing the old naming; it does
+not, and that was checked rather than relayed.
