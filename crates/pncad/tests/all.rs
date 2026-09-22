@@ -6119,7 +6119,8 @@ mod the_hollowed_box_through_the_facade {
                 v: [0.0, 1.0, 0.0].map(scl),
             }),
         );
-        let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
+        let square =
+            LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
