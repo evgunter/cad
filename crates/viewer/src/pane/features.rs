@@ -135,7 +135,11 @@ impl ViewerBehavior<'_> {
         if let Some(message) = row.status.message() {
             let through = match &row.status {
                 RowStatus::Poisoned { through, .. } => Some(*through),
-                _ => None,
+                // The words are this row's own cause; there is nowhere
+                // further to go.
+                RowStatus::Failed { .. } => None,
+                // No line to link ([`RowStatus::message`]).
+                RowStatus::Ok | RowStatus::Unevaluated => None,
             };
             ui.horizontal(|ui| {
                 ui.add_space(message_indent(ui, row.depth));
