@@ -97,3 +97,10 @@ means the gap is real and needs a pattern of its own (every
 `fn … -> bool` in the crate, read), not that it is empty. That is a
 sitting, and it is this row's remaining half; it is written here
 rather than in a PR body so it survives this row.
+
+## Evidence 2026-09-22 (`chrome/badge-attribution`, PR 3090)
+
+The first hit, `pane/features.rs`'s `feature_row` link decision, is
+fixed: an exhaustive `match` with an arm per status. Four hits remain;
+the class was not swept on that branch (its ground is live this
+wave).

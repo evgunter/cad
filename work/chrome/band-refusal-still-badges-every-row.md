@@ -216,3 +216,48 @@ already expected — it is the same sentence the row has carried since
 2026-09-15. `features.rs` stays on it not for the badge arm, which is
 mechanical, but for the link decision twelve lines below it. The
 `has_faults` half is done and no longer part of the cost.
+
+## Taken 2026-09-22 (`chrome/badge-attribution`, PR 3090) — the mechanical half landed; the design call is a question
+
+**Landed.** `pane/features.rs`'s link decision in `feature_row` is an
+exhaustive `match` over `RowStatus` (`Failed` → its own cause, nowhere
+further; `Ok`/`Unevaluated` → no line). A fifth status now fails to
+compile at the link decision as well as at the badge match, so the
+silent "links nowhere" answer this row named cannot be minted by
+adding the variant.
+
+**Not built, because it has several defensible answers with a
+user-visible consequence: what does a row reached by
+`MateFault::Band` badge?** The fact that decides between them,
+measured on this tree: `ProductError::RootFailed { node }` carries no
+error, and `frame::badge_site` sends `RootFailed` to the feature tree,
+so **the tree is the only channel a band refusal has today** — the
+frame cannot tell a band refusal from any other root failure without
+reading the evaluation.
+
+- **(a) Status quo.** Every reached row `FAILED`, `Actionable`, the
+  payload's own words. Honest wording, wrong scope: N loud rows, the
+  eye sent nowhere. `child_band_refusal_rows` pins it.
+- **(b) A run-refusal `RowStatus` (e.g. `RunRefused { message }`),
+  toned `Advisory` on every reached row, plus a document-level frame
+  badge carrying the band error once.** Mirrors how `Poisoned` already
+  works (quiet rows, one loud mark where the cause lives) — and the
+  cause's home is the document's tolerance, which is document-level.
+  Costs a new frame channel that reads the evaluation, not the gather's
+  class; without it, a document that is not building has NO actionable
+  mark anywhere. `badge_site`'s one-for-one pairing then says the new
+  state pairs with no gather class, and its guard test is restated.
+- **(c) The same variant, toned `Actionable` on every row.** Honest
+  scope wording ("the run refused, not this node"), no new channel,
+  still N loud rows.
+
+Under (b) or (c): `tree::has_faults` must answer `true` (its match is
+exhaustive, so it will ask); the link decision above answers `None`
+(no row to go to) unless (b)'s frame badge is made the target; and
+`crates/viewer/GUI-DESIGN.md`'s GQ2 sentence ("those rows draw as
+downstream of the mate the fault names") gains its Band half.
+
+The lane's recommendation is (b), because it is the only one that
+leaves exactly one loud mark for one cause — but it spans a frame
+channel the tree cannot supply, which is why it is asked rather than
+built.

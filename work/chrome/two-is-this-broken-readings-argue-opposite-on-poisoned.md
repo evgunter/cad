@@ -2,8 +2,11 @@
 id: two-is-this-broken-readings-argue-opposite-on-poisoned
 kind: issue
 title: bounds::Verdict and tree::has_faults argue opposite rules for Poisoned, one enum apart, neither citing the other
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-09-22
+pr: 3090
+branch: chrome/badge-attribution
 priority: P3
 cost: E
 ---
@@ -60,3 +63,13 @@ Found by the style review of PR 3055 (`chrome/rowstatus-exhaustive`),
 whose fence was `tree.rs` and `crates/viewer/tests/`. `bounds.rs` is
 claimed by CHROME jointly with AUTHOR, VGEOM and VIEW; filed on CHROME
 because the subject is what the chrome calls broken.
+
+## Closed
+
+Fixed in PR 3090 (`chrome/badge-attribution`). `bounds::Verdict`'s doc
+names `crate::tree::has_faults`, the question that one answers (is the
+document building — a boolean nothing inflates) against its own (a SET
+whose size decides whether a value got worse), and the one state on
+which they disagree. `has_faults`'s doc no longer cites this row: it
+says each site states the other. Documentation only; no test row, as
+the row asked for none.
