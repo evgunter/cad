@@ -2,8 +2,10 @@
 id: error-and-check-text-overflows-its-region
 kind: issue
 title: viewer: the CONCISION half — error messages should be shorter, and most of the text is the kernel's typed refusals (Ev's request; the layout half landed in 3058)
-status: open
+status: closed
 opened: 2026-09-17
+closed: 2026-09-22
+pr: 3088
 priority: P0
 cost: E
 refs: [3058]
@@ -187,3 +189,7 @@ no program owns. Each row carries its census lines and the standard.
 
 No refusal needed a viewer-side summary: every one rewritten here keeps
 its recourse in well under 70 words.
+
+**Closed** with both halves done: every refusal arm at 50+ literal
+words is rewritten here or filed with its owner. Arms under 50 words
+are judged to fit the wrapped status line and are not filed.
