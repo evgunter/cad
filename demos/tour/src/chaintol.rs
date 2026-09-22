@@ -326,12 +326,16 @@ pub fn narration(tol: Tol) {
         );
     }
 
-    // **Whether that box still certifies HERE.** The wall is an
-    // enclosure straddling the run's own band, so the fraction moves
-    // with ε — `1.083e-1` at ε = 1e-6 against `1.110e-1` at the
-    // default. The cell declares the frontier rather than assuming
-    // its own published number (`demos/tour/tests/eps_regression.rs`
-    // on a declared frontier), and one leaf is what it costs to know.
+    // **Whether that box still certifies HERE.** The fraction moves
+    // with ε — MEASURED, `1.083e-1` at ε = 1e-6 against `1.110e-1` at
+    // the default — and WHY it moves is not established: the refusal
+    // at the wall is the wedge's poisoned margin, which is not a
+    // quantity the band classifies
+    // (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`).
+    // So the cell asks rather than reasoning: it declares the
+    // frontier instead of assuming its own published number
+    // (`demos/tour/tests/eps_regression.rs` on a declared frontier),
+    // and one leaf is what it costs to know.
     let narrow = chain(
         LINKS,
         JOINT_SIGMA * crate::chain::CERTIFIABLE_FRACTION,
@@ -341,9 +345,8 @@ pub fn narration(tol: Tol) {
     if !sym_leaf(LINKS, &narrow.doc).certifies {
         println!(
             "   the published box does NOT certify at this run's ε — it is the default ε's \
-             number, and the straddling enclosure that bounds it moves with the band. No \
-             enclosure is reported here; the cell's CI row measures the fraction at the \
-             default ε."
+             number, and the box moves with ε (1.083e-1 at 1e-6, measured). No enclosure is \
+             reported here; the cell's CI row measures the fraction at the default ε."
         );
         return;
     }
@@ -484,10 +487,32 @@ fn certifiable_fraction(links: usize, tol: Tol) -> f64 {
     };
     // Eight bisections of the EXPONENT — the answer to about a third of
     // a percent, which is more than the two digits it is reported to.
-    // Monotone in the width is assumed, exactly as the plate's own
-    // measurement assumes it: a narrower box is a sub-box, and the
-    // refusals here are enclosures straddling a band rather than a
-    // structure that could come back.
+    //
+    // **What the answer establishes, and what it assumes.** Both ends
+    // of it are executed: the width returned CERTIFIES (the search's
+    // last accepted probe, re-measured by
+    // `the_published_certifiable_fractions_are_the_measured_ones`),
+    // and 1.02× that width REFUSES
+    // (`the_wall_is_the_wedge_not_the_arm`). What is ASSUMED is
+    // monotonicity BELOW the answer — that no narrower box refuses.
+    //
+    // That assumption used to be argued here from the shape of the
+    // refusal: a narrower box is a sub-box, so an enclosure that
+    // straddles a band stops straddling and cannot come back. **The
+    // argument does not survive the measurement.** The refusal at the
+    // wall is the wedge's POISONED margin — a NaN, which is not
+    // classified against a band at all — so nothing in the straddle
+    // argument transfers to it, and nothing here establishes that a
+    // poison cannot reappear at a narrower width. Why the boundary
+    // moves with ε at all is unestablished for the same reason
+    // (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`).
+    //
+    // So the assumption is carried as an assumption, with the check
+    // that would catch it RUN rather than described: the fractions
+    // row re-certifies each answer at 1/2 and 1/4 of its width, so a
+    // poison returning anywhere in that range reds. Outside it the
+    // claim the constants actually carry is the executed one —
+    // certifies at this width, refuses 2% above.
     let mut lo = lo;
     for _ in 0..8 {
         let mid = f64::midpoint(lo, hi);
@@ -517,6 +542,22 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
     let (boxes, _) = pncad::geom_core::sym::with_session_rules(budget, rules, || {
         let ev: Evaluation<Sym<Interval>> =
             evaluate(&built.doc, None, &CancelToken::new(), &opts, Tol::witness());
+        // **The premise, checked here and not assumed by the caller.**
+        // An enclosure read off a leaf that refused is not an
+        // enclosure; the pins below would panic on a node that never
+        // evaluated, and the reason would be lost. Checked in this
+        // function so every caller gets it — the narration, which
+        // probes the ε frontier before it arrives, and the two rows,
+        // which would otherwise be leaning on the fractions row
+        // having run first.
+        let bad = failures(&ev);
+        assert!(
+            bad.is_empty(),
+            "certified_pin_boxes asks for the enclosure over {links} link(s) at {fraction} \
+             of the study, and that leaf does NOT certify — there is no certified box to \
+             read. First refusal: {}",
+            bad.first().map_or("none", String::as_str)
+        );
         built
             .pins
             .iter()
@@ -594,9 +635,6 @@ mod tests {
             row.counts
         );
 
-        // …and the wall MOVES rather than going away: from two links on
-        // it is a transversality margin during the mapped edge's
-        // re-certification, not the isometry.
         // …and the wall MOVES rather than going away: from two links on
         // it is a transversality margin during the mapped edge's
         // re-certification, not the isometry. The table names WHICH
@@ -821,12 +859,38 @@ mod tests {
     /// any of them is a change in that claim.
     ///
     /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
-    /// the default — because the wall is an enclosure straddling the
-    /// run's band and the fractions move with it.
+    /// the default — because the fractions move with ε: `1.110e-1` at
+    /// the default against `1.083e-1` at `1e-6`, measured. What makes
+    /// them move is not established; the wall's refusal is a poisoned
+    /// margin, which is not a quantity a band classifies.
+    ///
+    /// It also runs the check the bisection's monotonicity assumption
+    /// owes (see `certifiable_fraction`): each answer is re-certified
+    /// at 1/2 and 1/4 of its width, so a refusal returning at a
+    /// NARROWER box — which the poisoned wall gives no argument
+    /// against — reds here.
     #[test]
     fn the_published_certifiable_fractions_are_the_measured_ones() {
         let tol = Tol::witness();
         let measured: Vec<f64> = (1..=LINKS).map(|n| certifiable_fraction(n, tol)).collect();
+        // The check the bisection's monotonicity assumption owes: a
+        // narrower box must still certify. The wall is a POISONED
+        // margin, so nothing argues it cannot come back — this is
+        // where it would be seen if it did.
+        for (i, f) in measured.iter().enumerate() {
+            let links = i + 1;
+            for half in [0.5, 0.25] {
+                let built = chain(links, JOINT_SIGMA * f * half, POSITION_BOUND, tol);
+                let row = sym_leaf(links, &built.doc);
+                assert!(
+                    row.certifies,
+                    "the fraction is reported as the WIDEST box that certifies, which \
+                     assumes narrower ones do; at {links} link(s), {half}× of {f:e} of the \
+                     study REFUSES: {:?}",
+                    row.first
+                );
+            }
+        }
         let drifted = measured
             .iter()
             .zip(CERTIFIABLE_FRACTION_BY_LINKS)

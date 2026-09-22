@@ -157,9 +157,11 @@ const CERTIFIED_MIN_PX: f64 = 5.0;
 /// **Does the published certified box apply to THIS run?**
 ///
 /// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`] are measured at
-/// the compiled default ε, and the wall that sets them is an enclosure
-/// compared against the run's own band — so at another ε the box is a
-/// different box, and `chaintol` says so on the same walk. The sheet
+/// the compiled default ε, and the box MOVES with ε (`1.083e-1` at
+/// `1e-6` against `1.110e-1` at the default, measured) — so at another
+/// ε it is a different box, and `chaintol` says so on the same walk.
+/// Why it moves is not established: the wall's refusal is a poisoned
+/// margin, which is not a quantity a band classifies. The sheet
 /// has to agree with it: it is one run and one statement, and a legend
 /// claiming `0.111` certifies while the cell three lines down reports
 /// a declared frontier is the picture contradicting the report.
@@ -1061,7 +1063,7 @@ fn sheet(
                 CERTIFIABLE_FRACTION,
                 Tol::witness().eps()
             ),
-            "\u{2014} the wall that sets it is an enclosure compared against the run's own band, so at another \u{03b5} it is a different box. The tour's chaintol cell declares that frontier on this same walk; the sheet says what the cell says."
+            "\u{2014} the box MOVES with \u{03b5} (1.083e-1 at 1e-6 against 1.110e-1 at the default, measured), so at another \u{03b5} it is a different box. The tour's chaintol cell declares that frontier on this same walk; the sheet says what the cell says."
                 .to_string(),
         )
     };

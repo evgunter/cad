@@ -73,23 +73,28 @@ for path in "${WROTE[@]}"; do
     fi
 done
 
+# REFUSE rather than leave the committed sheet standing. A stale sheet
+# that nothing regenerated is exactly the failure mode the render
+# lanes' provenance work exists to prevent, one lane over: the file
+# would still be there, still look current, and describe a tour that no
+# longer ran. Refusing on the FIRST missing sheet is deliberate — a run
+# that wrote one sheet and not the other did not half-succeed, it
+# failed partway through the tour.
+#
+# CHECKED BEFORE THE FIRST COPY, not as the loop reaches each one. When
+# the check rode the copy loop, a missing SECOND sheet exited 2 with
+# the first already overwritten — a partial publish, which is the state
+# this refusal exists to avoid, reached by the refusal itself.
 for sheet in "${SHEETS[@]}"; do
-    SRC=out/mc/$sheet
-    DST=renders-mc/$sheet
-
-    # REFUSE rather than leave the committed sheet standing. A stale
-    # sheet that nothing regenerated is exactly the failure mode the
-    # render lanes' provenance work exists to prevent, one lane over:
-    # the file would still be there, still look current, and describe a
-    # tour that no longer ran. Refusing on the FIRST missing sheet is
-    # deliberate — a run that wrote one sheet and not the other did not
-    # half-succeed, it failed partway through the tour.
-    if [ ! -f "$SRC" ]; then
-        echo "render-mc.sh: $SRC is missing — run the tour first:" >&2
+    if [ ! -f "out/mc/$sheet" ]; then
+        echo "render-mc.sh: out/mc/$sheet is missing — run the tour first:" >&2
         echo "  cd demos/tour && cargo run --release -- ../out" >&2
+        echo "  (nothing was published: the sheets are checked before any is copied)" >&2
         exit 2
     fi
+done
 
-    cp "$SRC" "$DST"
-    echo "render-mc.sh: $DST ($(wc -c < "$DST") bytes)"
+for sheet in "${SHEETS[@]}"; do
+    cp "out/mc/$sheet" "renders-mc/$sheet"
+    echo "render-mc.sh: renders-mc/$sheet ($(wc -c < "renders-mc/$sheet") bytes)"
 done

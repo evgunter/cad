@@ -39,10 +39,14 @@ two links (node 14), three (node 21) and four (node 30) alike —
 `EdgeKey(1v1)`, sample 4, every time. Pinned by
 `chaintol.rs`'s `the_wall_is_the_wedge_not_the_arm`.
 
-That it is a BAND comparison on a poisoned enclosure is also why the
-certifiable box moves with ε (`1.110e-1` at the default, `1.083e-1` at
-`1e-6`) while the arm's straddling bracket does not move at all. The
-two facts reconcile here and nowhere else.
+**The certifiable box moves with ε** (`1.110e-1` at the default,
+`1.083e-1` at `1e-6`, both measured) while the arm's straddling bracket
+does not move at all. WHY it moves is an open question and belongs to
+this row, because this is the refusal at the boundary — and it is not
+answered by "the margin is compared against the band", which is what
+this row said for one cycle: a NaN is not classified against a band at
+any ε. Something upstream of the poison is ε-dependent; naming it is
+part of what answers this row.
 
 **It is not exclusive to two joints.** The three-link leaf carries the
 SAME poison, on the same edge and the same sample (`EdgeKey(1v1)`,

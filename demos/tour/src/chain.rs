@@ -169,11 +169,12 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// [`crate::mcchain`] draws it to scale, and a number a picture is
 /// built around should not be a literal buried in the drawing code.
 ///
-/// **At the DEFAULT ε**, like every other measured number here. The
-/// wall is an enclosure straddling the run's own band, so the fraction
-/// moves with ε: `1.083e-1` at ε = 1e-6, measured. The cell says at
-/// every ε whether this published box still certifies there rather
-/// than assuming it.
+/// **At the DEFAULT ε**, like every other measured number here: the
+/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured. WHY it
+/// moves is not established, and the cell says so: the refusal at the
+/// wall is the wedge's poisoned margin, which a band does not
+/// classify. So the cell asks at every ε whether this published box
+/// still certifies there rather than reasoning about it.
 pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 
 /// **The same measurement at 1, 2, 3 and 4 links** — one number in
