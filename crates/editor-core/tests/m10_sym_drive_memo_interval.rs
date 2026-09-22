@@ -867,3 +867,109 @@ fn sym_memo_callgrind_drive() {
         v.plain_memo()
     );
 }
+
+/// **The probe that looks for a RACE**: a drive where two leaves of one
+/// level reach a freezing node no earlier level published, so that the
+/// leaves' own `frozen` column records which of them got there first.
+///
+/// Env-driven so that a candidate is a run and not a build:
+/// `CAD_NEED_DOC` (`slab` | `plate` | `tilted`), `CAD_NEED_LEAVES`,
+/// `CAD_NEED_TERMS` and `CAD_NEED_DEGREE` (the symbolic budget, the
+/// dials a tight setting freezes the whole document through),
+/// `CAD_NEED_THREADS` (a comma list of rayon widths). Prints each
+/// leaf's own column where it is non-zero, the drive's column beside
+/// it, and whether the leaf LISTS — what
+/// `m10_3_r2_probes_interval::my_own_drive_is_bit_identical_across_repeats_and_schedules`
+/// compares — agree across the schedules.
+#[test]
+#[ignore = "evidence-only: hunts a drive whose leaves race for a freezing node"]
+fn the_leaf_column_across_schedules_probe() {
+    let tol = Tol::witness();
+    let doc = match std::env::var("CAD_NEED_DOC").as_deref() {
+        Ok("plate") => the_plate(tol),
+        Ok("tilted") => boss_on_tilted(1.0e-3, true),
+        _ => slab(),
+    };
+    let env = |k: &str, d: usize| -> usize {
+        std::env::var(k)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(d)
+    };
+    let max_leaves = env("CAD_NEED_LEAVES", 8);
+    let dials = editor_core::drive::SymbolicDials {
+        max_terms: env("CAD_NEED_TERMS", 4096),
+        max_degree: env("CAD_NEED_DEGREE", 128) as u32,
+        ..editor_core::drive::SymbolicDials::default()
+    };
+    let threads: Vec<usize> = std::env::var("CAD_NEED_THREADS")
+        .unwrap_or_else(|_| "2,4".to_owned())
+        .split(',')
+        .filter_map(|t| t.parse().ok())
+        .collect();
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let run = |parallel, plain_memo| {
+        drive(
+            &doc,
+            &analyzed,
+            &DriveConfig {
+                max_leaves,
+                parallel,
+                plain_memo,
+                symbolic: dials,
+                ..DriveConfig::default()
+            },
+            tol,
+        )
+        .unwrap()
+    };
+    let own = |v: &ParamBoxVerdict| -> Vec<u64> {
+        v.certified()
+            .iter()
+            .map(|l| l.decisions.frozen)
+            .chain(v.refused().iter().map(|l| l.decisions.frozen))
+            .collect()
+    };
+    let report = |label: &str, v: &ParamBoxVerdict, base: Option<&ParamBoxVerdict>| {
+        let o = own(v);
+        let nz: Vec<(usize, u64)> = o
+            .iter()
+            .enumerate()
+            .filter(|&(_, &f)| f != 0)
+            .map(|(i, &f)| (i, f))
+            .collect();
+        println!(
+            "{label}: receipt {:?} | drive frozen {} | leaves' own sum {} over {} leaves, \
+             {} non-zero {:?} | memo {:?}",
+            v.receipt(),
+            v.decisions().frozen,
+            o.iter().sum::<u64>(),
+            o.len(),
+            nz.len(),
+            &nz[..nz.len().min(12)],
+            v.plain_memo(),
+        );
+        if let Some(b) = base {
+            println!(
+                "  vs base: certified lists equal {} | refused lists equal {} | \
+                 serialize equal {} | drive decisions equal {}",
+                v.certified() == b.certified(),
+                v.refused() == b.refused(),
+                v.serialize() == b.serialize(),
+                v.decisions() == b.decisions(),
+            );
+        }
+    };
+    println!(
+        "doc={:?} leaves={max_leaves} dials={dials:?}",
+        std::env::var("CAD_NEED_DOC")
+    );
+    let seq = run(false, true);
+    report("seq on", &seq, None);
+    for t in &threads {
+        let par = on_pool(*t, || run(true, true));
+        report(&format!("par@{t} on"), &par, Some(&seq));
+    }
+    let off = run(false, false);
+    report("seq off", &off, Some(&seq));
+}
