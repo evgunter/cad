@@ -17,26 +17,12 @@ and that run past 50 words (literal words, before payload):
 |---|---|---|
 | 56 | `topo/src/transform.rs` `TransformError::NurbsPlaceholder` | (also SHELL's ground) |
 
-## The standard (from `work/chrome/error-and-check-text-overflows-its-region`)
+## The standard
 
-Ev reported (2026-09-17) that the viewer's error messages are far too
-long, and ruled on 2026-09-22 that the fix is **at the source**: the
-`Display` of each refusal the viewer shows is rewritten in the crate
-that raises it, not summarised by the viewer. A good refusal says, in
-the user's terms: what could not be done, the short reason, and what
-they can do about it. **The recourse is the part never to drop.**
-Developer detail (routing, dispatch tables, predicate names, bands,
-doc paths, issue numbers, which lane is unbuilt) moves to the variant's
-rustdoc, or stays in the payload `Debug` already carries, rather than
-into nothing. Types, variants and payloads do not change; prose only.
-Tests asserting the old text are re-baselined, never weakened into
-something that cannot go red — asserting the recourse phrase is fine.
-
-The worked example and its family (`topo::BooleanError`,
-`topo::PointInSolidError`, and `editor_core::NodeErrorKind::Boolean`'s
-wrapper) were rewritten by the concision PR that filed this row; the
-torus × plane union refusal went from 277 words to 65, and
-`editor-core/tests/refusal_concision.rs` pins it.
+The standard these arms are held to is stated once, in
+`work/chrome/error-and-check-text-overflows-its-region.md` (section
+"The standard a refusal is rewritten to"), with its word budget and the
+test that enforces it.
 
 ## How the census was taken, and what it could not see
 

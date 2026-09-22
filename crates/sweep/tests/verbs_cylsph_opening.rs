@@ -326,9 +326,10 @@ fn a_torus_operand_is_refused_at_the_pair_gate_with_its_recourse() {
 /// catch-all exactly like a cone or torus one. What IS wider is
 /// `join::pair_section_frame`, a different dispatch answering a
 /// different question: it names a section frame (a centre and an axis
-/// for the rotational facing test), never a seam lane. Both variants'
-/// rustdoc says that; both Displays name only the wired pairs, in one
-/// shared recourse sentence.
+/// for the rotational facing test), never a seam lane. The wired pairs
+/// are stated once, in `topo`'s `meeting_recourse`, and every refusal
+/// that names them renders that one sentence, so there is no second
+/// Display left to disagree with.
 ///
 /// **The operand here is a NURBS wall, deliberately.** The variant is
 /// per-KIND and its Display carries no per-site branch, so any body
@@ -369,21 +370,5 @@ fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     assert!(
         msg.contains(wired),
         "the refusal does not state what that dispatch wires: {msg}"
-    );
-    // The two Displays must AGREE on what is wired.
-    let pair_msg = format!(
-        "{}",
-        BooleanError::CurvedPairUnsupported {
-            op: None,
-            operand: topo::Operand::A,
-            face,
-            kind: geom_brep::SurfaceKind::Torus,
-            other_face: face,
-            other_kind: geom_brep::SurfaceKind::Plane,
-        }
-    );
-    assert!(
-        pair_msg.contains(wired),
-        "the sibling refusal contradicts this one: {pair_msg}"
     );
 }

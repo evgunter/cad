@@ -660,7 +660,7 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
     };
     let msg = format!("{err}");
     assert!(
-        msg.contains("where a nurbs face of one solid meets the other solid"),
+        msg.contains("one solid's spline (NURBS) face meets the face of the other solid"),
         "the refusal names the face kind with no crossing layer: {msg}"
     );
     assert!(

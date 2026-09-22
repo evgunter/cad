@@ -495,9 +495,11 @@ fn the_g1_tube_chain_rim_routes_to_the_smooth_seam() {
     );
     let text = format!("{err}");
     assert!(
-        text.contains("one wall and take no contact declaration")
-            && text.contains("Recourse: remove the Tangent declaration"),
-        "the refusal must say the seam is structural and what to do about it: {text}"
+        text.contains("they are one wall and the Tangent declaration on them is wrong")
+            && text.contains("no way through this in the kernel yet")
+            && !text.contains("Recourse"),
+        "the refusal must say the seam is structural, and that removing the \
+         declaration is not a way through (the union then refuses the torus pair): {text}"
     );
     assert!(
         !text.contains("UNBUILT"),
@@ -529,8 +531,9 @@ fn a_kissing_torus_rim_routes_to_the_unbuilt_cusp_family() {
     }
     let text = format!("{err}");
     assert!(
-        text.contains("MATE-7-TANGENCY-DESIGN") && text.contains("UNBUILT"),
-        "the refusal must cite the ruling and name the arm as unbuilt: {text}"
+        text.contains("opens to a thin slit")
+            && text.contains("cannot yet verify a Tangent declaration there"),
+        "the refusal must name the slit and say the declaration cannot be checked yet: {text}"
     );
 }
 

@@ -199,7 +199,7 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
     let text = err.to_string();
     println!("cut-loft refusal: {text}");
     assert!(
-        text.contains("nurbs face") && text.contains("Recourse: reshape the parts"),
+        text.contains("spline (NURBS) face") && text.contains("Recourse: reshape the parts"),
         "the refusal names the face kind with no crossing layer and ends on its \
          recourse: {text}"
     );

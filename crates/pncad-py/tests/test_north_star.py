@@ -3269,8 +3269,8 @@ class TestTeapot(unittest.TestCase):
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
         text = str(refusal)
-        self.assertRegex(
-            text, r"edge \S+ of operand B has a rung-3 \(Nurbs\) carrier"
+        self.assertIn(
+            "an edge of the second operand is a spline (NURBS) curve", text
         )
         # NOT the pair rung any more, and this is the half that would
         # go quietly wrong if it were only asserted positively.

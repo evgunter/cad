@@ -10,7 +10,7 @@ refs: [error-and-check-text-overflows-its-region]
 
 ## What
 
-Refusal `Display` arms on this program's ground that the viewer shows
+Refusal `Display` arms on ground no program owns that the viewer shows
 and that run past 50 words (literal words, before payload):
 
 | words | site | arm |
@@ -21,34 +21,17 @@ and that run past 50 words (literal words, before payload):
 | 56 | `PcurveMintError::LoopNotClosed` | |
 | 50 | `PcurveMintError::LoopWraps` | |
 | 54 | `geom-brep/src/certify.rs` `CertifyError::NotSecondOrderSeparated` | plus `COINCIDENCE_RECOURSE` |
-| 52 | `topo/src/boolean/mod.rs` `BooleanError::UndeclaredCoincidence` | plus `COINCIDENCE_RECOURSE` and the payload |
-| 50 | `BooleanError::UnderflowedSectorChord` | |
-| 50 | `BooleanError::RimCuspArmUnbuilt` | pinned by `sweep/tests/mate7a_torus_rest.rs` (cites the ruling, says UNBUILT) |
 
-`work.py territory` names no owner for `topo/src/pcurves.rs`,
-`geom-brep/src/certify.rs` or `topo/src/boolean/mod.rs`. The filing PR
-rewrote `BooleanError`'s long arms; the three listed are what it left.
+`work.py territory` names no owner for `topo/src/pcurves.rs` or
+`geom-brep/src/certify.rs`. `topo::BooleanError` (also unowned) was
+rewritten whole by the filing PR and is held to the budget by its test.
 
-## The standard (from `work/chrome/error-and-check-text-overflows-its-region`)
+## The standard
 
-Ev reported (2026-09-17) that the viewer's error messages are far too
-long, and ruled on 2026-09-22 that the fix is **at the source**: the
-`Display` of each refusal the viewer shows is rewritten in the crate
-that raises it, not summarised by the viewer. A good refusal says, in
-the user's terms: what could not be done, the short reason, and what
-they can do about it. **The recourse is the part never to drop.**
-Developer detail (routing, dispatch tables, predicate names, bands,
-doc paths, issue numbers, which lane is unbuilt) moves to the variant's
-rustdoc, or stays in the payload `Debug` already carries, rather than
-into nothing. Types, variants and payloads do not change; prose only.
-Tests asserting the old text are re-baselined, never weakened into
-something that cannot go red — asserting the recourse phrase is fine.
-
-The worked example and its family (`topo::BooleanError`,
-`topo::PointInSolidError`, and `editor_core::NodeErrorKind::Boolean`'s
-wrapper) were rewritten by the concision PR that filed this row; the
-torus × plane union refusal went from 277 words to 65, and
-`editor-core/tests/refusal_concision.rs` pins it.
+The standard these arms are held to is stated once, in
+`work/chrome/error-and-check-text-overflows-its-region.md` (section
+"The standard a refusal is rewritten to"), with its word budget and the
+test that enforces it.
 
 ## How the census was taken, and what it could not see
 

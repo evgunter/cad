@@ -109,7 +109,7 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
@@ -341,35 +341,35 @@ impl From<PointInLoopError> for PointInSolidError {
 impl core::fmt::Display for PointInSolidError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Escalated { face, diag } => {
-                write!(f, "point_in_solid: escalated at face {face:?}: {diag}")
-            }
+            Self::Escalated { diag, .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces is too close \
+                 to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
             Self::RayExhausted => write!(
                 f,
-                "point_in_solid: every schedule ray grazed — ill-conditioned query at this \
-                 tolerance"
+                "cannot tell what is inside the solid: every test ray grazed its \
+                 boundary, so the question is ill-conditioned at this tolerance. \
+                 Recourse: {COINCIDENCE_RECOURSE}"
             ),
-            Self::Loop(e) => write!(f, "point_in_solid: {e}"),
+            Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
             Self::ZeroVolumeBody => write!(
                 f,
-                "point_in_solid: the body's signed volume is (near-)zero — no material side \
-                 at infinity to classify against"
+                "cannot tell what is inside the solid: it encloses no measurable volume"
             ),
-            Self::CorruptFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: face {face:?} is not walkable, or an entity it \
-                     names is lost — this is an arena claim about a BROKEN body, not \
-                     about a surface kind"
-                )
-            }
+            Self::CorruptFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces is broken (it \
+                 cannot be walked, or names something that is gone)"
+            ),
             Self::KindUnsupported { kind, .. } => write!(
                 f,
                 "cannot tell what is inside the solid: one of its faces is a {} \
                  surface, which the inside/outside test has no way yet to cross. The \
-                 solid itself is fine. Recourse: build the solid so no spline face \
-                 bounds it",
-                kind.name()
+                 solid itself is fine. Recourse: build the solid so no spline (NURBS) \
+                 face bounds it",
+                super::kind_word(*kind)
             ),
             Self::VolumeUncertified => write!(
                 f,
@@ -389,8 +389,8 @@ impl core::fmt::Display for PointInSolidError {
             Self::PartialConeFace { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: one of its cone faces has an \
-                 outline the inside/outside test cannot read (two of its edges meet at \
-                 the apex, say). The solid itself is fine. Recourse: bound the cone face \
+                 outline the inside/outside test cannot read (two edges meet at its \
+                 apex, say). The solid itself is fine. Recourse: bound the cone face \
                  short of a full turn around the axis, or let its faces cover the turn"
             ),
             Self::PartialTorusFace { .. } => write!(
@@ -401,10 +401,9 @@ impl core::fmt::Display for PointInSolidError {
                  (parallels and meridians), or let its faces together cover the whole \
                  torus"
             ),
-            Self::NoSuchSolid { solid } => write!(
+            Self::NoSuchSolid { .. } => write!(
                 f,
-                "point_in_solid: solid {solid:?} does not resolve in the body — an arena \
-                 claim about the query, not about a surface kind"
+                "cannot tell what is inside the solid: the body holds no such solid"
             ),
             Self::SurfaceSharedOutsideSolid { .. } => write!(
                 f,
@@ -3628,8 +3627,8 @@ fn at_infinity_side<T: Decide>(
     // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
     //
     // The props refusal is READ, not flattened. `VolumeUncertified`'s
-    // own message asserts "the body is HEALTHY and this door's arms
-    // answered; what is missing is a volume", and two of the props
+    // own message asserts that the solid itself is fine and only its
+    // volume could not be measured, and two of the props
     // lane's refusals make that sentence false: an escalation is an
     // ill-conditioned operand at this ε (with a predicate name and a
     // band the caller can act on), and the corruption-shaped arms are

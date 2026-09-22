@@ -179,12 +179,14 @@ fn seams_off_the_pinch_reach_the_join_and_name_it() {
         matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
         "expected the germ frame's pinch door, got {err:?}"
     );
-    // The message must carry the pinch, not merely the kind pair, and
-    // end on what the person can do. The pinch points' formula (the
-    // UNIT cross product) is the variant's rustdoc, not the sentence.
+    // The message must name the crossing axes and stay true for both
+    // radius cases (the raise site never compares radii), and end on
+    // what the person can do. The pinch points' formula (the UNIT
+    // cross product) is the variant's rustdoc, not the sentence.
     let text = format!("{err}");
     for want in [
-        "pinches where the walls touch",
+        "two cylinder walls whose axes cross",
+        "whether their radii are equal",
         "Recourse: reshape the parts",
     ] {
         assert!(text.contains(want), "the door must say {want:?}: {text}");
