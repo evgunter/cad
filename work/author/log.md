@@ -1043,3 +1043,46 @@ and evidence onto CIW's prose-counts row — the CI job-name prefix that
 makes a prefix match read six `test (…)` jobs on a fully green run,
 which is `[ev]` PR 3036 and the first time one of those eight prose
 counts has actually misled anyone.
+
+## AUTH-4 — the viewer authors a Part, and duplicates a body (2026-09-22)
+
+Both halves landed on one branch, `author/part-and-duplicate`: the
+`AddPart` door the tree has wanted since MSOLVE-2 filed it, and the
+duplicate gesture Ev asked for.
+
+**The premise the spec asked to falsify held, and it was measured
+rather than read.** `roots::on_insert` does consume a `Part`'s input,
+the product gathers roots, and the viewport draws what the product
+gathers — so a `Part` of a pattern takes the PATTERN out of `roots`
+and the copy it did not select stops being drawn. The probe that
+settled it printed `doc.roots()` and the product's volume after each
+insert: pattern → one root, two boxes drawn; one `Part` → one root,
+ONE box drawn; a second `Part` → two roots, two boxes drawn again.
+Ev's reading was right in all three parts, and the duplicate gesture
+therefore commits `Pattern` + TWO `Part`s as one action — which is the
+row's own sentence ("if it does, the gesture is `Pattern` plus two
+`Part`s") rather than a lane's invention. It is asserted at
+`combine_ops::a_part_of_a_pattern_takes_the_pattern_out_of_the_drawn_set`,
+which reds under a mutation that lets a `Part` keep its input in
+`roots`.
+
+**Two design calls, both in the PR with their reasoning.** The op
+takes an `i64` index behind a new authoring spec
+(`session::PartSelectSpec`), for `AddPattern`'s reason exactly:
+`SlotId::Instance` is a Count-typed structural slot and an op door
+carrying `PartSelect` whole would be the one place an arbitrary
+expression could reach one at authoring time. The seat is per SELECTOR
+— `NodeKindWanted::Split` for a half, `NodeKindWanted::Instances` for
+an index — so the pairing is gated where every other fact about the
+committed document is, and the seat vocabulary's routing rule puts a
+user's one click in the seat only it can fill.
+
+**A third seat now reads by kind where the door reads a value**, which
+is `work/chrome/body-seat-reads-through-the-placer-chain` at a new
+site rather than a new row; the evidence and what it means for that
+row's re-pin are appended there. Also filed:
+`no-row-holds-that-the-create-pane-offers-the-tools-it-has`, which is
+the AUTH-3 trap generalised — the tool panels are reachable only
+through a `ViewerBehavior` no test can build, so deleting a
+`self.<tool>_tool_ui(ui)` line from `create_ui` reddens nothing, for
+the seven that shipped before this unit as well as for its two.
