@@ -1916,3 +1916,47 @@ pose, the toolbar's own unconverted sentence, and the text-style
 resolution difference.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-22 — the phantom dispatch class, a second time, and I caused this one
+
+This session opened by correcting a `dispatched` row whose branch had
+never existed. It nearly closed by reinstating one, from the other
+direction, and the mechanism is worth the lines because nothing catches
+either.
+
+**What happened.** At dispatch I set
+`band-refusal-still-badges-every-row` to `dispatched` on this
+orchestrator branch. The unit then declined that half with a
+measurement, and its lane correctly set the row back to `open` on the
+UNIT branch, which is what merged to `main` in PR 3055. So `main` was
+right. But the orchestrator branch still carried my `dispatched` plus
+its `branch:` line, and when I merged `main` back in, **git resolved
+that file without a conflict and kept my side.** Had I merged this
+branch to `main` unread, the board would once again have reported a
+live P1 row as in flight with nothing behind it — the exact defect the
+first entry above describes, re-created by the orchestrator that
+corrected it.
+
+**Why no conflict.** The two sides never edited the same line in the
+same direction: `open` → `dispatched` here, and on the unit branch the
+lane's edit was relative to a base that already read `dispatched`, so
+from git's view only one side changed the line. A clean merge is not
+agreement; it is the absence of a textual collision, and a stale state
+marker is exactly the shape that slips through one.
+
+**The rule this adds to the first entry's.** That one said a successor
+re-derives in-flight state from the remote rather than from the header.
+This adds: **an orchestrator branch that outlives a wave accumulates
+state the units have already superseded**, and merging `main` into it
+does not clear that — it preserves it. Before any orchestrator branch
+merges, diff its `work/<program>/` headers against `main`'s and take
+`main`'s on every row a unit has touched. The units are the authority
+on their own rows; the orchestrator branch is only the authority on the
+ones no unit took.
+
+Caught here by running `work.py status` after the merge and reading the
+`dispatched` column — two rows, where only one unit was still in
+flight. That count is the cheapest check there is, and it is the one
+that found it.
+
+Signed (CHROME orchestrator).
