@@ -564,13 +564,13 @@ impl Panel {
 
     /// Every sample's link outlines, at the density opacity — the fan
     /// itself.
-    fn fan(&self, out: &mut String, samples: &[Sample], links: std::ops::Range<usize>) {
+    fn fan(&self, out: &mut String, samples: &[Sample]) {
         let _ = writeln!(
             out,
             r##"<g fill="none" stroke="#1f4e9c" stroke-width="0.8" stroke-opacity="{SAMPLE_ALPHA}">"##
         );
         for sample in samples {
-            for corners in &sample.bars[links.clone()] {
+            for corners in &sample.bars {
                 let pts: Vec<String> = corners
                     .iter()
                     .map(|&(mx, my)| {
@@ -621,18 +621,25 @@ impl Panel {
 
     /// The nominal chain — every joint at zero — crisp, so the fan has
     /// something to be a fan AROUND.
+    ///
+    /// `bars` is off on a panel whose window is narrower than one bar,
+    /// where a twelve-millimetre rectangle draws as a single edge
+    /// across the whole panel; the pins are always drawn, because they
+    /// are the thing every other mark on the sheet is measured from.
     fn nominal(&self, out: &mut String, bars: bool, links: usize) {
         let h = LINK_HEIGHT / 2.0;
         let s = self.px_per_m();
-        for k in (0..links).filter(|_| bars) {
-            let (x0, y0) = self.map(k as f64 * LINK_LENGTH, h);
-            let (x1, y1) = self.map((k + 1) as f64 * LINK_LENGTH, -h);
-            let _ = writeln!(
-                out,
-                r##"<rect x="{x0:.2}" y="{y0:.2}" width="{:.2}" height="{:.2}" fill="none" stroke="#c2410c" stroke-width="1.1" stroke-dasharray="4 3"/>"##,
-                x1 - x0,
-                y1 - y0
-            );
+        if bars {
+            for k in 0..links {
+                let (x0, y0) = self.map(k as f64 * LINK_LENGTH, h);
+                let (x1, y1) = self.map((k + 1) as f64 * LINK_LENGTH, -h);
+                let _ = writeln!(
+                    out,
+                    r##"<rect x="{x0:.2}" y="{y0:.2}" width="{:.2}" height="{:.2}" fill="none" stroke="#c2410c" stroke-width="1.1" stroke-dasharray="4 3"/>"##,
+                    x1 - x0,
+                    y1 - y0
+                );
+            }
         }
         for k in 0..=links {
             let (px, py) = self.map(k as f64 * LINK_LENGTH, 0.0);
@@ -828,7 +835,7 @@ fn sheet(
         ),
     );
     wide.open(&mut out);
-    wide.fan(&mut out, samples, 0..LINKS);
+    wide.fan(&mut out, samples);
     wide.pin_cloud(&mut out, samples, 0..LINKS + 1);
     wide.nominal(&mut out, true, LINKS);
     wide.target(&mut out, POSITION_BOUND);
@@ -862,8 +869,6 @@ fn sheet(
     // long on a seven-millimetre window, so drawing it here would fill
     // the panel with the one thing the panel is not about.
     zoom.pin_cloud(&mut out, samples, LINKS..LINKS + 1);
-    // The nominal PINS only: a twelve-millimetre bar on an
-    // eight-millimetre window would draw as one edge across the panel.
     zoom.nominal(&mut out, false, LINKS);
     zoom.certified_box(&mut out, LINKS);
     zoom.target(&mut out, POSITION_BOUND);
