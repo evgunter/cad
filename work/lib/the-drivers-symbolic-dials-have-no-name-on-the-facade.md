@@ -52,5 +52,10 @@ be able to read the driver's dials and not to name them.
 
 ## Home
 
-SYM — found by SYM-14 measuring the tier from outside `editor_core`;
-the surface it lands on is the façade's (`crates/pncad`).
+LIB. The surface is `crates/pncad/src/analysis.rs`, which is LIB's
+ground by its `paths` (`crates/pncad/*`) and outside SYM's by its
+`keep_out`. Found by SYM-14 measuring the tier from outside
+`editor_core`, and filed here rather than on the finder's slate
+because `work/README.md` puts a finding on the slate of the program
+whose ground it lands on. It sat in `work/sym/` for one review cycle,
+which is what its own `## Home` sentence had already said was wrong.

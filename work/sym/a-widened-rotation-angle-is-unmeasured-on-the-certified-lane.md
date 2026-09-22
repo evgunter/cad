@@ -56,7 +56,7 @@ declared box, in the driver's own lane, on the chain of
 `demos/tour/src/chain.rs` (σ = 0.01 rad at every joint, the tip
 asserted within 1 mm of a target pin):
 
-| links | lane | | first refusal | cost |
+| links | lane | | first refusal OVER THE WHOLE STUDY | cost |
 |---|---|---|---|---|
 | 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
 | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
@@ -70,12 +70,26 @@ rigid map's own column-unit check is what notices — and the symbolic
 tier discharges exactly that, which is the whole difference between
 the two lanes on this document.
 
+That column is the first refusal at the WHOLE study. What bounds the
+certifiable BOX is a different question and a different predicate:
+measured at `1.02×` and `1.10×` of each link count's fraction, at the
+default ε and at `1e-6`, the first refusal is `dihedral_wedge` with a
+POISONED margin — `EdgeKey(1v1)`, sample 4 — at two, three and four
+links alike. The arm's straddle is first only over the whole study, by
+evaluation order.
+
 The widest box that certifies whole, per link count, is `1.000`,
 `0.370`, `0.185` and `0.111` of the study — one number in four
-spellings: `3σ · f · Σ(k−j)`, the accumulated angular swing at the tip,
-is `0.0333` rad at every one of them (the one-link row is capped by the
-study itself at `0.030`). **The certified lane carries about 1.9° of
-accumulated swing, however many joints it is spread over.**
+spellings: the tip's certified lateral half-width is `3.998e-4` m at
+two, three and four links alike. **What that number is, is half the
+PIN RADIUS** (`0.500 / 0.500 / 0.499` of `chain::PIN_RADIUS`), and
+MEASURED with the radius doubled the fractions become `1.0000 /
+0.73841 / 0.36921 / 0.22192` and the half-width `7.975e-4` m — still
+`0.498` of it. So the invariance across link counts is a property of
+THIS document's geometry and not of the tier. (An earlier reading here
+called the constant thing an angle, "about 1.9° of accumulated swing";
+the swing doubles with the pin radius, to `3.81°`.) The one-link row is
+capped by the study itself rather than by the wall.
 
 **The four-link tip's assertion IS certified, at 0.111 of the study**
 (`chain::CERTIFIABLE_FRACTION`, bisected): the drive over that box
@@ -94,9 +108,18 @@ the derived-frame walls never came into it — the chain is placed by
 What bounds the box to 0.111 rather than 1 is filed, each at P1 with
 Ev's request:
 
+- `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`
+  — the wall itself, executed just above it
+- `work/sym/a-chain-of-three-joints-straddles-dihedral-arm` — the first
+  refusal over the whole study, which is a different thing
 - `work/sym/a-widened-rotation-angle-refuses-on-the-plain-interval-lane`
-- `work/sym/a-two-joint-chain-poisons-its-transversality-margin`
-- `work/sym/a-chain-of-three-joints-straddles-dihedral-arm`
+- `work/lib/the-drivers-symbolic-dials-have-no-name-on-the-facade` — on
+  LIB's slate, where `crates/pncad` is
+
+**This row stays CLOSED.** Its condition was that the certified lane
+reach the four-link tip's assertion with the enclosure drawn on the
+sheet, and that is true and reproduced. What SYM-14's review corrected
+is two causal stories told ABOUT that result, not the result.
 
 ## Home
 

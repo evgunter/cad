@@ -1198,16 +1198,18 @@ link count: `transform_rigid_col0_unit` refuses at the first transform
 because `cos² + sin²` is a bracket around 1. `Sym<Interval>` discharges
 exactly that and CERTIFIES the one-link chain whole over the study
 (0.16 s); at 2–4 links the wall MOVES, to a transversality margin
-during a mapped edge's re-certification (`dihedral_wedge`, poisoned, at
-2; `dihedral_arm` with `[0, 7.34e-3]` straddling the band at 3 and 4).
+during a mapped edge's re-certification (over the WHOLE study the first
+refusal is `dihedral_wedge`, poisoned, at 2 and `dihedral_arm` with
+`[0, 7.34e-3]` at 3 and 4 — but see the fix-pass entry below: what
+bounds the BOX is the wedge at every link count).
 Costs are 0.16–0.73 s per leaf, not the derived-frame family's minutes
 — the chain never touches a `FaceFrame`.
 
 **The certified picture exists.** The widest box that certifies whole
 is `1.000`, `0.370`, `0.185`, `0.111` of the study at 1–4 links — one
-number in four spellings, since `3σ · f · Σ(k−j)`, the accumulated
-swing at the tip, is `0.0333` rad at every one of them: the certified
-lane carries about 1.9° of swing however many joints it is spread over.
+number in four spellings, since the tip's certified lateral half-width
+is `3.998e-4` m at every one of them — which is half the PIN RADIUS,
+not a property of the tier (see the fix-pass entry below).
 At the four-link box (`CERTIFIABLE_FRACTION`) the drive certifies and
 the tip assertion HOLDS on every certified leaf. So the enclosure per joint is drawn on the sheet
 beside the cloud: `0.0400, 0.1199, 0.2398, 0.3996` mm across the chain,
@@ -1219,6 +1221,52 @@ CLOSES on that.
 
 **Filed** (all P1, Ev's request carried):
 `a-widened-rotation-angle-refuses-on-the-plain-interval-lane`,
-`a-two-joint-chain-poisons-its-transversality-margin`,
+`a-two-joint-chain-poisons-its-transversality-margin` (re-filed at the
+review as `a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
+below — the poison is not the two-link chain's alone),
 `a-chain-of-three-joints-straddles-dihedral-arm`,
 `the-drivers-symbolic-dials-have-no-name-on-the-facade`.
+
+
+## SYM-14 review + fix pass (2026-09-22): the code held, three causal stories did not
+
+One OPUS style review with a correctness arm, on `1380c803b`:
+MERGEABLE-AFTER-FIXES, 3 MAJOR / 4 MINOR / 5 NOTE / 8 style; correctness
+of the shipped code 5, design 4, **evidence discipline 2**. It
+reproduced every number, both sheets byte-identical, the certified
+table and the enclosures, and it found that three HEADLINE CAUSAL
+CLAIMS had been enshrined in P1 rows and module headers without being
+executed. Each is now measured, and each measurement is a CI row:
+
+- **What bounds the certifiable box is `dihedral_wedge`, not
+  `dihedral_arm`.** The arm's straddle is the first refusal over the
+  WHOLE study at 3 and 4 links — evaluation order. Just above the wall
+  (`1.02×`, `1.10×`, default ε and `1e-6`) the first refusal is the
+  wedge's poisoned margin, `EdgeKey(1v1)` sample 4, at 2, 3 and 4 links.
+  The bounding claim moved to the (re-titled) wedge row; the arm row
+  keeps its own finding, which is that its bracket is ε-INDEPENDENT.
+- **The "one number" is the PIN RADIUS, not the tier.** The certified
+  tip half-width is `0.500 × PIN_RADIUS` at every link count the wall
+  sets; doubling the radius moves the fractions to
+  `1.0000/0.73841/0.36921/0.22192` and the swing to `3.81°`. "1.9° of
+  accumulated swing, however many joints" was the shipped radius in
+  disguise. `chain::CERTIFIED_TIP_OVER_PIN_RADIUS` pins it.
+- **The three-link chain carries the same poison**, same edge and
+  sample, just not reported first. "The shorter chain is the poisoned
+  one" was evaluation order read as a fact about the chain.
+
+Also fixed: the self-check absorbed ±10 ulp and read none of the
+10,752 DRAWN coordinates — the sheet is now parsed back and every
+polygon and pin dot un-mapped and compared to the replay
+(`check_drawn`, run against the review's own planted 1 mm
+displacements, both red); `summarize` was a third transcription of
+`editor_core`'s private reduction with its guards dropped, and is now a
+door on the façade used by both cells with both sheets byte-identical;
+the façade row moved to **`work/lib/`**, where `crates/pncad` is; the
+sheet no longer claims a certified box at an ε where the cell on the
+same walk declares a frontier; `render-mc.sh`'s `SHEETS` census is
+guarded in the direction that was silent.
+
+The class, not the instance: a causal sentence in a row, a header or a
+PR body is a claim, and the fix pass' rule is that each one names the
+execution that shows it or is re-worded as the question it actually is.

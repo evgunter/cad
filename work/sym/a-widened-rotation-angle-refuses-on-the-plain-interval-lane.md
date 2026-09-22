@@ -27,12 +27,20 @@ refused, definitely or in-band
 ```
 
 and the same at two, three and four links, always at the FIRST
-transform. The cause is not the chain: `eval::wire`'s `transform_map`
+transform. MEASURED, and pinned per link count by `chaintol.rs`'s
+`the_certified_table_says_what_the_header_says`.
+
+**The mechanism below is a reading of that refusal, not a second
+measurement**, and is written as such: `eval::wire`'s `transform_map`
 builds `Mat3::rotation_about(axis, angle)`, whose columns are built out
 of `cos(angle)` and `sin(angle)`; on an interval angle those are two
-independent brackets, so `cos² + sin²` is a bracket AROUND 1 rather
-than 1, and the rigid map's own column-unit check refuses. No geometry
-is wrong — the identity is true and the enclosure cannot see it.
+independent brackets, so `cos² + sin²` would be a bracket AROUND 1
+rather than 1, and that is what a column-unit check would refuse on.
+It fits the predicate's name and the map's construction, and nobody has
+yet read the column norm's own enclosure at the refusal to confirm it.
+What IS established without it: the refusal is at the first transform,
+at every link count, and it is not a geometry error — the same document
+certifies whole on the symbolic lane at one link.
 
 **The symbolic tier discharges exactly that**, and that is the whole
 difference between the two lanes on this document: the same one-link
@@ -48,7 +56,10 @@ construction it is load-bearing for the answer existing.
 
 ## What answers it
 
-Either an interval-lane rotation that keeps the Pythagorean identity
+First, cheaply: the column norm's enclosure at the refusal, read out —
+which turns the reading above into a measurement or replaces it.
+
+Then, either an interval-lane rotation that keeps the Pythagorean identity
 (the rotation built so the column norms are exactly 1 by construction,
 rather than recomputed from two independent brackets), or the
 statement, where `transform_map` is written, that a widened

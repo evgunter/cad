@@ -1,7 +1,7 @@
 ---
 id: a-chain-of-three-joints-straddles-dihedral-arm
 kind: issue
-title: the chain's certifiable box is bounded at 0.111 of its study by a dihedral_arm enclosure [0, 7.34e-3] straddling the band during a mapped edge's re-certification
+title: a chain of three or more joints straddles dihedral_arm on a mapped edge's re-certification with an eps-independent [0, 7.34e-3] — the first refusal over the whole study, and not what bounds the certifiable box
 status: open
 opened: 2026-09-22
 priority: P1
@@ -29,30 +29,26 @@ sample 1 escalated: predicate 'dihedral_arm' indeterminate: enclosure
 (zero = 1e-9, escalate = 1e-8)
 ```
 
-**It is ONE threshold, not a per-chain accident.** The widest box that
-certifies whole, bisected per link count, is `1.000`, `0.370`, `0.185`,
-`0.111` of the study at 1, 2, 3 and 4 links — and `3σ · f · Σ(k−j)`,
-the total accumulated angular swing at the tip, is `0.0333` rad at
-every one of them (the one-link row is capped by the study itself at
-`0.030`). So the certified lane carries about **1.9° of accumulated
-swing**, however many joints it is spread over, and this enclosure is
-what stops it.
-
-This is what bounds `chain::CERTIFIABLE_FRACTION` to `0.111`: narrow
-the study and the same leaf certifies whole, and the four-link tip's
-assertion is then certified with the enclosure per joint drawn on the
-sheet. So the answer EXISTS and this is the width it stops at — the
-plate's ceiling in the same shape, at six orders of magnitude more
-width (the plate's is `7.81e-7`).
+**What this is, and what it is NOT.** It is the FIRST refusal over the
+WHOLE study at three and four links — which is a fact about evaluation
+order, not about which predicate the certifiable box runs into.
+MEASURED just above the wall (`1.02×` and `1.10×` of each link count's
+certifiable fraction, default ε and `1e-6`), the first refusal is a
+different predicate: `dihedral_wedge` with a POISONED margin, at two,
+three and four links alike. **That** is what bounds
+`chain::CERTIFIABLE_FRACTION`, and it is filed at
+`a-chain-of-two-or-more-joints-poisons-its-transversality-margin`.
+This row said the opposite for one review cycle; it was a causal story
+nobody had executed.
 
 **The enclosure does not move with ε; only the band does.** At
 ε = 1e-6 the same leaf reports the same bracket to every digit —
 `[0e0, 7.338367397126071e-3]` — against `zero = 1e-6, escalate = 1e-5`
-instead of `1e-9 / 1e-8`, and the widest whole-certifying box moves
-only from `0.1110` to `0.1083` of the study for a thousandfold ε. So
+instead of `1e-9 / 1e-8`. That is this row's own finding and it stands:
 the bracket's WIDTH at a given box is a property of the arithmetic and
-not of the run's tolerance, and it collapses very steeply as the box
-narrows.
+not of the run's tolerance. (The certifiable box DOES move with ε,
+from `0.1110` to `0.1083` — which is the wedge's doing, not this
+bracket's, and is why the two rows are two rows.)
 
 The enclosure's LOWER end is exactly `0e0`, which is the shape of a
 dependency-widened margin around a structurally-zero quantity rather
@@ -71,9 +67,15 @@ is where the argument survives.)
 The true range of `dihedral_arm` at that rim over the whole study,
 measured — if it is positive everywhere, this is dependency widening
 and the fix is the tier's (a tighter form for the arm, or a registered
-identity for the right-angle rim the extrude's own builder guarantees),
-and `CERTIFIABLE_FRACTION` moves with it. If it genuinely reaches zero,
-the ceiling is real and the row closes saying so.
+identity for the right-angle rim the extrude's own builder guarantees).
+If it genuinely reaches zero, the straddle is honest and the row closes
+saying so.
+
+Note what answering it would and would not buy: retiring this straddle
+would remove the first refusal the whole study reports at three and
+four links, and `chain::CERTIFIABLE_FRACTION` would not move, because
+the wedge is already refusing below it. The two rows have to be
+answered in that order to see any width.
 
 ## Home
 

@@ -40,8 +40,8 @@
 //! author's algebra rather than in the document's shape, so "joint 2
 //! moves links 2, 3 and 4" becomes a property of four hand-written
 //! expressions instead of a property of the graph; and on the
-//! certified lane it is strictly the longer argument, because a
-//! frame's `u` and `v` are ORTHONORMALISED at evaluation. On
+//! certified lane it looks like the longer argument, because a frame's
+//! `u` and `v` are ORTHONORMALISED at evaluation (`eval::wire`) and on
 //! intervals `cos(θ)² + sin(θ)²` is not 1, so that normalisation is a
 //! `sqrt` of a bracket around 1 and two divides by it, per link, on
 //! top of the `sin`/`cos` the study actually contains. The transform
@@ -50,6 +50,15 @@
 //! angle — which is the quantity
 //! `work/sym/a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
 //! names, measured here rather than padded first.
+//!
+//! **The comparison is an argument from the two doors, not a
+//! measurement**: the frame document was never built, so how much
+//! narrower the transform door's box actually is has no number. What
+//! the certified table DOES measure is that on the transform door the
+//! plain interval lane refuses on exactly the column-unit check a
+//! widened normalisation would run into
+//! ([`crate::chaintol`]) — which is the shape of the argument showing
+//! up, one door over, and not the argument being checked.
 //!
 //! # What the chain is made of
 //!
@@ -103,8 +112,10 @@ use pncad::document::{
     EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
     ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
 };
+use pncad::geom::Surface;
 use pncad::geom_core::Tol;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
+use pncad::topo::{Body, SurfaceKey};
 
 /// The nominal link length, in metres (12 mm) — one joint pin to the
 /// next.
@@ -168,12 +179,25 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 /// **The same measurement at 1, 2, 3 and 4 links** — one number in
 /// four spellings.
 ///
-/// `3σ · f · Σ_{j<=k}(k−j)`, the accumulated angular swing at the tip,
-/// is `0.0333` rad at every row but the first, which is capped by the
-/// study itself at `0.030`: the certified lane carries about 1.9° of
-/// swing however many joints it is spread over, and that single
-/// threshold is the wall. MEASURED by [`crate::chaintol`] and pinned
-/// there; [`CERTIFIABLE_FRACTION`] is the last row.
+/// The tip's certified lateral half-width, `L · 3σ · f · n(n+1)/2` at
+/// `n` links, is `3.998e-4` m at two, three and four links alike. What
+/// that number IS, is half of [`PIN_RADIUS`] — a property of THIS
+/// document's geometry, not of the tier: the ratio is
+/// `0.500 / 0.500 / 0.499`, and MEASURED with the radius doubled to
+/// `1.6e-3` m the fractions become `1.0000 / 0.73841 / 0.36921 /
+/// 0.22192` and the half-width `7.975e-4` m — still `0.498` of the
+/// radius. [`CERTIFIED_TIP_OVER_PIN_RADIUS`] pins it. The one-link row
+/// is capped by the study itself rather than by the wall, and sits at
+/// `0.450` of the radius.
+///
+/// (An earlier reading of this table said the constant thing was an
+/// ANGLE — "about 1.9° of accumulated swing, however many joints it is
+/// spread over". It is not: the swing doubles with the pin radius, to
+/// `3.81°`. The invariance across link counts is real; the angle was
+/// the shipped radius in disguise.)
+///
+/// MEASURED by [`crate::chaintol`] and pinned there;
+/// [`CERTIFIABLE_FRACTION`] is the last row.
 ///
 /// Read only by that cell, which is behind the `interval` feature, so
 /// a default build legitimately has no consumer for it — the
@@ -181,6 +205,21 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 /// sheet's own [`CERTIFIABLE_FRACTION`] is the last row of it.
 #[cfg_attr(not(feature = "interval"), allow(dead_code))]
 pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
+
+/// **The tip's certified lateral half-width, over the pin radius** —
+/// the same at every link count whose box the WALL sets, and the
+/// number [`CERTIFIABLE_FRACTION_BY_LINKS`] is four spellings of.
+///
+/// MEASURED by [`crate::chaintol`] at 2, 3 and 4 links and pinned
+/// there with a paste-ready re-baseline; it is not derived from the
+/// two constants beside it, because what it asserts is that those two
+/// stand in this ratio AT EVERY LINK COUNT, which neither of them
+/// says. The one-link chain is excluded on purpose: its box is the
+/// study, not the wall.
+///
+/// Read only by that cell, which is behind the `interval` feature.
+#[cfg_attr(not(feature = "interval"), allow(dead_code))]
+pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 4.995e-1;
 
 /// **The certified enclosure of each joint pin's centre at that box**
 /// — `(half-width along the chain, half-width across it)`, in metres,
@@ -197,8 +236,9 @@ pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1
 /// build.
 ///
 /// **The across-the-chain half-widths run 1 : 3 : 6 : 10**, which is
-/// `Σ_{j<=k} (k−j)` — the WORST-CASE lever sum, every joint at its own
-/// extreme at once — while the advisory σ at the same pins runs
+/// the lever sum at pin `k`, `Σ_{j=1..k−1} (k−j)` = `k(k−1)/2` — the
+/// WORST-CASE one, every joint at its own extreme at once — while the
+/// advisory σ at the same pins runs
 /// `1 : 2.24 : 3.74 : 5.48`, the quadrature sum. That gap between a
 /// linear sum and a root-sum-square is E11's subject, and on this
 /// document it is visible on the sheet rather than only in a report.
@@ -212,6 +252,42 @@ pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
     (9.314487635844748e-7, 2.3975816125464358e-4),
     (1.995959949908921e-6, 3.9959841242371446e-4),
 ];
+
+/// **The pin's axis, read off the body the kernel built** — ONE rule,
+/// used by every cell that reads a pin back.
+///
+/// The rule is not "the first cylindrical face" or "the last" or "and
+/// they had better agree numerically": a pin extrude has exactly one
+/// cylindrical SURFACE, and the seam may split it across more than one
+/// face. So the faces are gathered by their surface KEY, the keys are
+/// required to be one, and that surface's stored origin is the answer.
+/// That is exact at every scalar — it compares arena keys, never
+/// coordinates — which is what lets the density sheet (`f64`) and the
+/// certified cell (`Sym<Interval>`) share it. Three spellings of this
+/// used to sit in three modules, two of them with rules that would
+/// have disagreed on a seam-split cylinder.
+///
+/// The face NAME the measure's reference is sited at is a different
+/// question, answered by the selection door in [`chain`]: any face on
+/// that cylinder names the same carrier, which is exactly what this
+/// function's one-surface assertion establishes.
+pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
+    let mut found: Option<(SurfaceKey, (T, T))> = None;
+    for (_, face) in body.faces() {
+        let Some(Surface::Cylinder { origin, .. }) = body.get_surface(face.surface) else {
+            continue;
+        };
+        match found {
+            Some((key, _)) => assert_eq!(
+                key, face.surface,
+                "a pin extrude's cylindrical faces lie on ONE surface; two surface keys here \
+                 means this body is not a pin"
+            ),
+            None => found = Some((face.surface, (origin.x, origin.y))),
+        }
+    }
+    found.expect("a pin extrude has a cylindrical wall").1
+}
 
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
@@ -412,6 +488,10 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         .expect("the surface-kind atom is exact");
         faces.sort();
         assert!(!faces.is_empty(), "a pin extrude has a cylindrical wall");
+        // WHICH face does not matter: they lie on one cylinder, which
+        // is [`pin_axis`]'s asserted rule, and a measure's carrier is
+        // the surface and not the face. Sorted first so the choice is
+        // the same on every run.
         SitedRef::new(node, faces.remove(0))
     };
 

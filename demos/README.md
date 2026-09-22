@@ -859,6 +859,21 @@ the draws moved.
   the enclosure is microns, so the box draws as a line and is widened
   to a 5 px floor to be visible at all; the true number is in the
   legend.
+* **The teal is drawn only at the ε it was measured at.** `0.111` is a
+  default-ε measurement and the wall that sets it is an enclosure
+  compared against the run's own band, so at another ε it is a
+  different box — and `chaintol` declares that frontier on the same
+  walk. The sheet asks the run's ε and, away from the default, prints
+  the frontier where the legend would have gone and draws no band. A
+  run at another ε where the box happens to certify anyway is
+  under-claimed, which is the direction to be wrong in.
+* **The sheet is checked by being read back.** The bit-equality
+  self-check covers the MEASURE and not the 10,752 coordinates the
+  picture is made of, so after the SVG is written every `<polygon>`
+  and every pin dot is parsed out of it, run through the inverse of
+  the panel map it was drawn with, and required to be the replay's own
+  coordinate. A one-millimetre displacement of every drawn pin — or of
+  one corner of every bar — reds it.
 
 ## Renderers
 

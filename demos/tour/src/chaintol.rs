@@ -26,16 +26,34 @@
 //! One leaf over the whole declared box, no splitting, in the driver's
 //! own lane. The costs are one box's wall clock and move with the
 //! load; what they are here for is the SHAPE — sub-second at four
-//! links, against the 219 s per replay the derived-frame family costs
-//! at two — and the cell prints its own on every run.
+//! links, against the 219 s per replay the derived-frame family cost
+//! at two stacked frames (measured elsewhere, and quoted from
+//! `a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`'s
+//! survey rather than re-taken here) — and the cell prints its own on
+//! every run.
 //!
-//! | links | lane | | first refusal | cost |
+//! | links | lane | | first refusal OVER THE WHOLE STUDY | cost |
 //! |---|---|---|---|---|
 //! | 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
 //! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
 //! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`, margin poisoned | 0.31 s |
 //! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.47 s |
 //! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.73 s |
+//!
+//! **That column is the first refusal at the WHOLE study, which is a
+//! different question from what bounds the certifiable box.** The two
+//! were conflated here until SYM-14's review measured them apart.
+//! Evaluation order decides which refusal is reported first, and at
+//! the whole study the `dihedral_arm` straddle happens to come first
+//! at three and four links. Just above the WALL — at `1.02×` and
+//! `1.10×` of each link count's certifiable fraction, default ε and
+//! `1e-6` alike — the first refusal is `dihedral_wedge` with a
+//! POISONED margin, on `EdgeKey(1v1)` at sample 4, at two, three and
+//! four links (nodes 14, 21, 30). **The wedge is what bounds the box**
+//! (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`);
+//! the arm's straddle is a second, ε-independent refusal that is first
+//! only over the whole study
+//! (`work/sym/a-chain-of-three-joints-straddles-dihedral-arm`).
 //!
 //! **The plain interval lane does not carry a widened rotation angle
 //! at all.** `Mat3::rotation_about` builds its columns out of
@@ -45,19 +63,43 @@
 //! tier discharges exactly that identity, which is the whole
 //! difference between the two lanes here.
 //!
-//! **The widest box that certifies whole**, bisected: `1.000` of the
-//! study at one link, then `0.370`, `0.185`, `0.111`
-//! ([`crate::chain::CERTIFIABLE_FRACTION`]). Those are not four
-//! numbers — they are ONE. `3σ · f · Σ_{j<=k}(k−j)`, the total
-//! accumulated angular swing at the tip, is `0.0333` rad at every one
-//! of them (the one-link row is capped by the study itself, at
-//! `0.030`). **The certified lane carries about 1.9° of accumulated
-//! swing, however many joints it is spread over**, and that single
-//! threshold is what the straddling `dihedral_arm` enclosure is.
+//! # The widest box that certifies whole, and what sets it
 //!
-//! At that box the drive certifies and **the four-link tip's
-//! assertion HOLDS on every certified leaf**, so the enclosure per
-//! joint is real geometry rather than a caption:
+//! Bisected: `1.000` of the study at one link, then `0.370`, `0.185`,
+//! `0.111` ([`crate::chain::CERTIFIABLE_FRACTION_BY_LINKS`]). Those
+//! are not four numbers — they are ONE. The tip's certified lateral
+//! half-width, `L · 3σ · f · n(n+1)/2` at `n` links, is `3.998e-4` m
+//! at two, three and four links alike.
+//!
+//! **What that one number is, is half the PIN RADIUS**, and it is a
+//! property of this document's geometry rather than of the tier. The
+//! ratio to [`crate::chain::PIN_RADIUS`] is `0.500 / 0.500 / 0.499` at
+//! two, three and four links; MEASURED with the radius doubled to
+//! `1.6e-3` m, the fractions move to `1.0000 / 0.73841 / 0.36921 /
+//! 0.22192` and the half-width to `7.975e-4` m — still `0.498` of the
+//! radius. So the earlier reading of this table, "the certified lane
+//! carries about 1.9° of accumulated swing however many joints it is
+//! spread over", was an artefact of the shipped radius: the swing
+//! doubles with it, to `3.81°`. The invariant across LINK COUNTS is
+//! real; the angle was not the invariant.
+//!
+//! **The mechanism is a hypothesis, not a measurement.** What is
+//! measured is the coincidence: the wall sits where the tip's
+//! certified box reaches half the pin radius, at every link count and
+//! at both radii tried. The reading that would explain it — the
+//! wedge's margin poisoning once the positional box reaches the pin's
+//! own cylinder gradient — comes from the review and has NOT been
+//! checked against the margin's own inputs here; it is written down as
+//! the first thing to look at, on
+//! `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
+//! and not as the reason. The one-link row is outside the pattern and
+//! says why: it is capped by the study itself (`f = 1` at `0.450` of
+//! the radius), the wall lying beyond it.
+//!
+//! At that box the drive certifies the whole box in ONE leaf — it
+//! splits nothing, because nothing refuses — and **the four-link tip's
+//! assertion HOLDS on that leaf**, so the enclosure per joint is real
+//! geometry rather than a caption:
 //! [`crate::chain::CERTIFIED_PIN_BOX`] carries it and
 //! [`crate::mcchain`] draws it.
 
@@ -71,11 +113,10 @@ use pncad::document::{
     CancelToken, EvalOptions, Evaluation, NodeResult, ProfileDoc, ProfileLift, ValuePayload,
     evaluate,
 };
-use pncad::geom::Surface;
 use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
 use crate::chain::{
-    CERTIFIABLE_FRACTION_BY_LINKS, Chain, JOINT_SIGMA, LINKS, POSITION_BOUND, chain,
+    CERTIFIABLE_FRACTION_BY_LINKS, Chain, JOINT_SIGMA, LINK_LENGTH, LINKS, POSITION_BOUND, chain,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -90,7 +131,7 @@ const MM: f64 = 1e3;
 /// the three fields off `DriveConfig::default()` is the whole of what
 /// is reachable from out here, and it is what this cell does rather
 /// than restating `4096` and `128` as literals.
-/// (`work/sym/the-drivers-symbolic-dials-have-no-name-on-the-facade`.)
+/// (`work/lib/the-drivers-symbolic-dials-have-no-name-on-the-facade`.)
 fn drive_dials() -> (SymBudget, SymRules) {
     let dials = DriveConfig::default().symbolic;
     (
@@ -262,20 +303,25 @@ pub fn narration(tol: Tol) {
     println!(
         "   the widest box that CERTIFIES WHOLE, as a fraction of the study — MEASURED at \
          the default ε (`chain::CERTIFIABLE_FRACTION_BY_LINKS`, bisected and pinned by this \
-         cell's own CI row), with the same number as a SWING at the tip:"
+         cell's own CI row), beside the TIP DISPLACEMENT each one allows:"
     );
     for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate() {
         let links = i + 1;
-        // `3σ` is the analyzed box's half-width per joint and `Σ (k−j)`
-        // is the tip's lever, so this is how far the tip may turn over
-        // the certified box. It is the same at every link count, which
-        // is what says the wall is one threshold rather than four.
-        let lever: f64 = (0..links).map(|j| (links - j) as f64).sum();
+        // `3σ` is the analyzed box's half-width per joint and
+        // `n(n+1)/2` is the tip's lever sum over the joints above it,
+        // so `L · 3σ · f · n(n+1)/2` is how far the tip may move over
+        // the certified box. THAT is the quantity that is the same at
+        // every link count — half the pin radius — and the ANGLE below
+        // is it divided by the fixed link length, which is why the
+        // angle looked like the invariant and is not one.
+        let lever: f64 = (links * (links + 1) / 2) as f64;
         let swing = 3.0 * JOINT_SIGMA * f * lever;
         println!(
-            "     {links} link{}: {f:.3e} of the study — {swing:.4} rad ({:.2}°) of \
-             accumulated swing at the tip",
+            "     {links} link{}: {f:.3e} of the study — tip within {:.4e} m ({:.4} of the \
+             pin radius), a swing of {swing:.4} rad ({:.2}°)",
             if links == 1 { " " } else { "s" },
+            LINK_LENGTH * swing,
+            LINK_LENGTH * swing / crate::chain::PIN_RADIUS,
             swing.to_degrees()
         );
     }
@@ -309,12 +355,24 @@ pub fn narration(tol: Tol) {
         "   the certified enclosure of each joint pin's centre over that box, about the \
          nominal (half-width along the chain × across it):"
     );
-    for (k, (dx, dy)) in certified_pin_boxes(LINKS, crate::chain::CERTIFIABLE_FRACTION, tol)
-        .iter()
-        .enumerate()
-    {
+    let boxes = certified_pin_boxes(LINKS, crate::chain::CERTIFIABLE_FRACTION, tol);
+    for (k, (dx, dy)) in boxes.iter().enumerate() {
         println!("     pin {}: {:.5} mm × {:.5} mm", k + 1, dx * MM, dy * MM);
     }
+    // …and WHAT that tip half-width is: half the pin radius, which is
+    // the invariant the four fractions are four spellings of. Printed
+    // beside the ratio's published value so the sentence and the
+    // number are read together rather than the sentence alone.
+    let tip = boxes.last().expect("a chain has a tip pin").1;
+    println!(
+        "   the tip's is {:.4} of the pin radius ({:.2} mm) — the invariant across link \
+         counts, and a property of THIS document's geometry rather than of the tier: \
+         `chain::CERTIFIED_TIP_OVER_PIN_RADIUS` = {:.4}, and doubling the radius doubles \
+         the certified swing",
+        tip / crate::chain::PIN_RADIUS,
+        crate::chain::PIN_RADIUS * MM,
+        crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS
+    );
 
     // The row this unit answers asks one question: does the certified
     // lane reach the FOUR-link tip's assertion at any box. It does, at
@@ -354,15 +412,25 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
                     None => undecided += 1,
                 }
             }
+            let leaves = verdict.certified().len();
             println!(
                 "   the drive at {links} link{} over {} of the study, leaf budget {} \
-                 ({:.1} s): {} certified leaves — the tip assertion HOLDS on {holds}, is \
-                 VIOLATED on {violated}, and is undecided on {undecided}",
+                 ({:.1} s): {leaves} certified leaf/leaves{} — the tip assertion HOLDS on \
+                 {holds}, is VIOLATED on {violated}, and is undecided on {undecided}",
                 if links == 1 { "" } else { "s" },
                 fraction,
                 config.max_leaves,
                 t0.elapsed().as_secs_f64(),
-                verdict.certified().len(),
+                // The budget is not what is being exercised when the
+                // count is one: nothing refused, so the driver never
+                // split and the leaf IS the whole box. Worth saying,
+                // because "the drive at leaf budget 64 certifies"
+                // reads as if splitting had done some work.
+                if leaves == 1 {
+                    " (the WHOLE box, unsplit: nothing refused, so the driver never bisected)"
+                } else {
+                    ""
+                },
             );
         }
         Err(refusal) => {
@@ -458,13 +526,7 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
                 let ValuePayload::Body(body) = payload else {
                     panic!("a placed pin evaluates to a body, got {payload:?}");
                 };
-                let mut found = None;
-                for (_, face) in body.faces() {
-                    if let Some(Surface::Cylinder { origin, .. }) = body.get_surface(face.surface) {
-                        found = Some((origin.x, origin.y));
-                    }
-                }
-                let (x, y) = found.expect("a pin extrude has a cylindrical wall");
+                let (x, y) = crate::chain::pin_axis(&**body);
                 // The nominal is the enclosure's own centre only to
                 // within the widening, so the half-width is reported
                 // about the NOMINAL: that is what a reader compares the
@@ -535,7 +597,18 @@ mod tests {
         // …and the wall MOVES rather than going away: from two links on
         // it is a transversality margin during the mapped edge's
         // re-certification, not the isometry.
-        for links in 2..=LINKS {
+        // …and the wall MOVES rather than going away: from two links on
+        // it is a transversality margin during the mapped edge's
+        // re-certification, not the isometry. The table names WHICH
+        // predicate per link count, so this asserts that and not
+        // merely that some dihedral refused — the two are different
+        // predicates with different answers, and the header used to
+        // say the wrong one.
+        for (links, predicate) in [
+            (2usize, "dihedral_wedge"),
+            (3, "dihedral_arm"),
+            (4, "dihedral_arm"),
+        ] {
             let built = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
             let row = sym_leaf(links, &built.doc);
             assert!(
@@ -550,9 +623,9 @@ mod tests {
                  {links} link(s) it was still the first refusal: {first}"
             );
             assert!(
-                first.contains("dihedral_"),
-                "the header names a transversality margin as the symbolic lane's wall; \
-                 at {links} link(s) the first refusal was: {first}"
+                first.contains(predicate),
+                "the table says the first refusal at {links} link(s) over the whole study \
+                 is `{predicate}`; it was: {first}"
             );
         }
 
@@ -585,6 +658,42 @@ mod tests {
             "the header says the tip assertion HOLDS on every certified leaf of the \
              one-link chain"
         );
+    }
+
+    /// **What BOUNDS the certifiable box is `dihedral_wedge`.**
+    ///
+    /// Not `dihedral_arm`, which is what the first refusal over the
+    /// WHOLE study is at three and four links and what this cell's
+    /// header claimed for a while. The question the box answers is
+    /// asked just above the wall, and this is that question executed:
+    /// at `1.02×` and `1.10×` of each link count's certifiable
+    /// fraction, the first refusal is the wedge's POISONED margin, at
+    /// two, three and four links alike.
+    #[test]
+    fn the_wall_is_the_wedge_not_the_arm() {
+        let tol = Tol::witness();
+        for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate().skip(1) {
+            let links = i + 1;
+            for over in [1.02, 1.10] {
+                let built = chain(links, JOINT_SIGMA * f * over, POSITION_BOUND, tol);
+                let row = sym_leaf(links, &built.doc);
+                assert!(
+                    !row.certifies,
+                    "{over}× the {links}-link wall must be past it; it certified"
+                );
+                let first = row.first.expect("a refusing row names its first refusal");
+                assert!(
+                    first.contains("dihedral_wedge"),
+                    "the header says the WALL is `dihedral_wedge`; at {links} links, \
+                     {over}× the fraction, the first refusal was: {first}"
+                );
+                assert!(
+                    first.contains("margin is invalid"),
+                    "the header says the wall's margin is POISONED, not straddling; at \
+                     {links} links, {over}× the fraction: {first}"
+                );
+            }
+        }
     }
 
     /// **The certified lane reaches the FOUR-link tip's assertion.**
@@ -664,6 +773,41 @@ mod tests {
             !drifted,
             "chain::CERTIFIED_PIN_BOX is {CERTIFIED_PIN_BOX:?}; the certified leaf \
              encloses\n[\n{literal}];\nre-baseline the constant and say in the PR what moved."
+        );
+    }
+
+    /// **The tip's certified box is half the PIN RADIUS**, at every
+    /// link count whose box the wall sets.
+    ///
+    /// This is the statement the four fractions are four spellings of,
+    /// and it is the one that was got wrong: the header read the
+    /// invariance as a property of the tier (an angle) when it is a
+    /// property of this document's geometry. Pinned because a reader
+    /// who changes `PIN_RADIUS` should be told by a test, not by a
+    /// caption that quietly stops being true.
+    ///
+    /// The one-link chain is out of scope by construction: its widest
+    /// box is the STUDY, not the wall, and it sits at `0.450`.
+    #[test]
+    fn the_certified_tip_box_is_half_the_pin_radius() {
+        let tol = Tol::witness();
+        let mut ratios = Vec::new();
+        for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate().skip(1) {
+            let links = i + 1;
+            let boxes = certified_pin_boxes(links, *f, tol);
+            let tip = boxes.last().expect("a chain has a tip pin").1;
+            ratios.push(tip / crate::chain::PIN_RADIUS);
+        }
+        let published = crate::chain::CERTIFIED_TIP_OVER_PIN_RADIUS;
+        let drifted = ratios
+            .iter()
+            .any(|r| (r - published).abs() > 0.02 * published);
+        assert!(
+            !drifted,
+            "chain::CERTIFIED_TIP_OVER_PIN_RADIUS is {published:e}; the certified tip \
+             half-width over the pin radius measures {ratios:?} at 2..{LINKS} links (ε = \
+             {}). Re-baseline the constant and say in the PR what moved.",
+            tol.eps()
         );
     }
 

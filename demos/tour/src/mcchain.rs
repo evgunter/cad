@@ -51,10 +51,31 @@
 //!
 //! Not "samples from the same laws" — **this run's samples**. Each one
 //! comes from `mc::sample_offsets(analyzed, config, i)`, and the cell
-//! then holds itself to it: it summarizes its own replay's tip-position
-//! readings and requires the mean, the spread and both extremes to
-//! equal `monte_carlo`'s BIT FOR BIT. If they ever differ the tour
-//! fails here rather than shipping a picture of a different population.
+//! then holds itself to it. Two checks, and what each one can see is
+//! worth stating exactly, because the review measured it:
+//!
+//! 1. **The MEASURE.** The cell reduces its own replay's tip-position
+//!    readings through the lane's own `analysis::summarize` — the
+//!    function that produced the report, not a transcription of it —
+//!    and requires the mean, the spread and both extremes to equal
+//!    `monte_carlo`'s bit for bit. Measured granularity: a `+1` or
+//!    `+10` ulp change to one sample's position is absorbed by the
+//!    reduction's own rounding; `+1000` ulp (`1.08e-16` m) reds. So
+//!    this says the cell replayed the lane's draws and read the same
+//!    measure, not that every drawn value is right.
+//! 2. **The DRAWN COORDINATES.** The four reductions above never touch
+//!    them: the bars' corners and the pins' centres are 10,752 values
+//!    per run, and a one-millimetre displacement of every one of them
+//!    passed check 1 and the growth assertion alike. So the sheet is
+//!    parsed BACK: every `<polygon>` and every pin dot is read out of
+//!    the finished SVG, run through the inverse of the panel map it
+//!    was drawn with, and required to be the replay's own coordinate
+//!    to within the precision the file was written at
+//!    ([`check_drawn`]). That is the projector, tested through its
+//!    output.
+//!
+//! If either differs the tour fails here rather than shipping a
+//! picture of a different population.
 //!
 //! # What was awkward to write, stated rather than smoothed over
 //!
@@ -86,7 +107,7 @@
 use std::fmt::Write as _;
 
 use pncad::analysis::{
-    AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets,
+    AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
     CancelToken, DocEdit, DocParamValue, EvalOptions, Evaluation, ParamName, ProfileDoc,
@@ -94,11 +115,12 @@ use pncad::document::{
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
+use pncad::tolerance::DEFAULT_EPS;
 use pncad::topo::{Body, LoopBoundary};
 
 use crate::chain::{
     CERTIFIABLE_FRACTION, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_HEIGHT, LINK_LENGTH, LINKS,
-    PIN_RADIUS, POSITION_BOUND, chain,
+    PIN_RADIUS, POSITION_BOUND, chain, pin_axis,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -132,6 +154,32 @@ const SAMPLE_ALPHA: f64 = 0.04;
 /// `Panel::certified_box` for why it has one.
 const CERTIFIED_MIN_PX: f64 = 5.0;
 
+/// **Does the published certified box apply to THIS run?**
+///
+/// [`CERTIFIED_PIN_BOX`] and [`CERTIFIABLE_FRACTION`] are measured at
+/// the compiled default ε, and the wall that sets them is an enclosure
+/// compared against the run's own band — so at another ε the box is a
+/// different box, and `chaintol` says so on the same walk. The sheet
+/// has to agree with it: it is one run and one statement, and a legend
+/// claiming `0.111` certifies while the cell three lines down reports
+/// a declared frontier is the picture contradicting the report.
+///
+/// Answered by the ε and not by the certified lane, because this cell
+/// is ungated on purpose — it is the ADVISORY half and must draw in a
+/// build that has no certified scalar at all. A run at a non-default ε
+/// where the box happens to certify anyway is therefore under-claimed
+/// rather than over-claimed, which is the direction to be wrong in.
+fn certified_box_applies(tol: Tol) -> bool {
+    tol.eps() == DEFAULT_EPS
+}
+
+/// The radius, in px, of the dot that marks one pin's axis point.
+/// Named because [`check_drawn`] finds those circles by it — it is the
+/// one radius on the sheet that is a literal rather than a scaled
+/// length, so `r="1.3"` identifies a drawn pin centre and nothing
+/// else.
+const PIN_DOT_PX: f64 = 1.3;
+
 /// One sample, as the sheet needs it: the bars and pins the kernel
 /// built, and the tip position it measured.
 struct Sample {
@@ -145,45 +193,12 @@ struct Sample {
     position: f64,
 }
 
-/// `summarize`'s arithmetic, in the order the MC lane runs it — so the
-/// comparison below is over the same reduction and a difference means
-/// a difference in the DRAWS.
-fn summarize(values: &[f64]) -> (f64, f64, f64, f64) {
-    let n = values.len() as f64;
-    let mean = values.iter().sum::<f64>() / n;
-    let sigma = (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
-    let min = values.iter().copied().fold(f64::INFINITY, f64::min);
-    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    (mean, sigma, min, max)
-}
-
 /// The body a node evaluated to.
 fn body_at(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
     match &ev.value(id).expect("the node evaluated").payload {
         ValuePayload::Body(b) => (**b).clone(),
         other => panic!("a placed link evaluates to a body, got {other:?}"),
     }
-}
-
-/// **The pin, read off the body rather than off the placement.** Its
-/// one cylindrical face's stored `Surface::Cylinder` carries the axis
-/// point; it is exact, and it is what the kernel built rather than
-/// what the transform stack was asked for.
-fn pin_centre(body: &Body<f64>) -> (f64, f64) {
-    let mut found = None;
-    for (_, face) in body.faces() {
-        if let Some(Surface::Cylinder { origin, .. }) = body.get_surface(face.surface) {
-            let seen = (origin.x, origin.y);
-            if let Some(prev) = found {
-                assert_eq!(
-                    prev, seen,
-                    "a pin's cylindrical faces are one cylinder (a seam split, not two walls)"
-                );
-            }
-            found = Some(seen);
-        }
-    }
-    found.expect("a pin extrude has a cylindrical wall")
 }
 
 /// **The bar's outline, walked off the body it was built into.** The
@@ -272,7 +287,7 @@ fn replay(base: &Chain, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
             let pins = base
                 .pins
                 .iter()
-                .map(|id| pin_centre(&body_at(&ev, *id)))
+                .map(|id| pin_axis(&body_at(&ev, *id)))
                 .collect();
             let position = match &ev
                 .value(base.measure)
@@ -392,10 +407,11 @@ pub fn narration(tol: Tol) -> String {
         );
     }
     println!(
-        "   {} samples replayed from the MC lane's own draws (seed {:#x}); the drawn \
-         population's tip-position mean, sigma, min and max equal `monte_carlo`'s BIT FOR \
-         BIT, so the fan on the sheet is this run's population and not a second one from \
-         the same laws",
+        "   {} samples replayed from the MC lane's own draws (seed {:#x}); the replay's \
+         tip-position mean, sigma, min and max equal `monte_carlo`'s BIT FOR BIT through \
+         the lane's own reduction, so this cell replayed THIS run's draws — and every \
+         drawn coordinate on the sheet was read back out of the finished SVG and matched \
+         to the replay, so the fan is a picture of them and not of something else",
         config.samples, config.seed
     );
     println!(
@@ -454,6 +470,7 @@ pub fn narration(tol: Tol) -> String {
         &report,
         assertion.holds,
         assertion.violated,
+        certified_box_applies(tol),
         &config,
     )
 }
@@ -505,6 +522,19 @@ impl Panel {
     /// have.
     fn px_per_m(&self) -> f64 {
         self.w / (2.0 * self.half_w)
+    }
+
+    /// The inverse of [`Panel::map`] — px back to metres, used by
+    /// [`check_drawn`] to read the sheet's own marks as part
+    /// coordinates. Written as the inverse rather than derived from a
+    /// stored forward result on purpose: a projector that maps wrongly
+    /// has to disagree with it.
+    fn unmap(&self, px: f64, py: f64) -> (f64, f64) {
+        let s = self.px_per_m();
+        (
+            (px - self.x - self.w / 2.0) / s + self.centre.0,
+            (self.y + self.h / 2.0 - py) / s + self.centre.1,
+        )
     }
 
     fn map(&self, mx: f64, my: f64) -> (f64, f64) {
@@ -613,7 +643,10 @@ impl Panel {
         for sample in samples {
             for &(cx, cy) in &sample.pins[pins.clone()] {
                 let (px, py) = self.map(cx, cy);
-                let _ = writeln!(out, r##"<circle cx="{px:.3}" cy="{py:.3}" r="1.3"/>"##);
+                let _ = writeln!(
+                    out,
+                    r##"<circle cx="{px:.3}" cy="{py:.3}" r="{PIN_DOT_PX}"/>"##
+                );
             }
         }
         out.push_str("</g>\n");
@@ -710,9 +743,9 @@ impl Panel {
     /// true number is in the table — a widened stroke that said
     /// nothing about it would be the drawing lying about a
     /// measurement.
-    fn certified_box(&self, out: &mut String, index: usize) {
+    fn certified_box(&self, out: &mut String, index: usize, applies: bool) {
         let (dx, dy) = CERTIFIED_PIN_BOX[index];
-        if dy == 0.0 {
+        if dy == 0.0 || !applies {
             return;
         }
         let s = self.px_per_m();
@@ -752,6 +785,7 @@ fn sheet(
     report: &pncad::analysis::McReport,
     holds: usize,
     violated: usize,
+    certified: bool,
     config: &McConfig,
 ) -> String {
     let mut out = String::new();
@@ -841,7 +875,7 @@ fn sheet(
     wide.target(&mut out, POSITION_BOUND);
     for s in spreads.iter().skip(1) {
         wide.spread_dim(&mut out, s);
-        wide.certified_box(&mut out, s.index);
+        wide.certified_box(&mut out, s.index, certified);
     }
     Panel::close(&mut out);
     wide.scale_bar(&mut out, 1.0e-2, "10 mm");
@@ -870,7 +904,7 @@ fn sheet(
     // the panel with the one thing the panel is not about.
     zoom.pin_cloud(&mut out, samples, LINKS..LINKS + 1);
     zoom.nominal(&mut out, false, LINKS);
-    zoom.certified_box(&mut out, LINKS);
+    zoom.certified_box(&mut out, LINKS, certified);
     zoom.target(&mut out, POSITION_BOUND);
     Panel::close(&mut out);
     zoom.scale_bar(&mut out, 1.0e-3, "1 mm");
@@ -930,7 +964,11 @@ fn sheet(
                 "{:.2}\u{00d7}",
                 ratio(predicted_sigma(s.index), predicted_sigma(1))
             ),
-            format!("{:.4} mm", CERTIFIED_PIN_BOX[s.index].1 * MM),
+            if certified {
+                format!("{:.4} mm", CERTIFIED_PIN_BOX[s.index].1 * MM)
+            } else {
+                "\u{2014}".to_string()
+            },
         ];
         for (c, cell) in row.iter().enumerate() {
             text(
@@ -1005,6 +1043,28 @@ fn sheet(
         "bold",
         "dashed orange: the nominal chain, every joint at zero.   dashed green: the target pin and the asserted position band",
     );
+    let (teal_bold, teal_note) = if certified {
+        (
+            format!(
+                "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3} of the study.",
+                CERTIFIABLE_FRACTION
+            ),
+            format!(
+                "\u{2014} across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory \u{03c3} beside it grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum. Along the chain it is {:.1e} m at the tip, so the box draws as a line and is widened to {CERTIFIED_MIN_PX} px to be seen at all.",
+                CERTIFIED_PIN_BOX[LINKS].0
+            ),
+        )
+    } else {
+        (
+            format!(
+                "CERTIFIED: no enclosure is drawn on this sheet. The published box ({:.3} of the study) is a measurement at the compiled default \u{03b5}, and this run is at \u{03b5} = {:e}.",
+                CERTIFIABLE_FRACTION,
+                Tol::witness().eps()
+            ),
+            "\u{2014} the wall that sets it is an enclosure compared against the run's own band, so at another \u{03b5} it is a different box. The tour's chaintol cell declares that frontier on this same walk; the sheet says what the cell says."
+                .to_string(),
+        )
+    };
     text(
         &mut out,
         MARGIN_X,
@@ -1012,10 +1072,7 @@ fn sheet(
         12.0,
         "#0f766e",
         "bold",
-        &format!(
-            "teal: the CERTIFIED enclosure per joint \u{2014} exact over a box, and silent outside it. The widest box that certifies THIS chain whole is {:.3} of the study.",
-            CERTIFIABLE_FRACTION
-        ),
+        &teal_bold,
     );
     text(
         &mut out,
@@ -1024,10 +1081,7 @@ fn sheet(
         12.0,
         "#0f766e",
         "normal",
-        &format!(
-            "\u{2014} across the chain it grows 1 : 3 : 6 : 10, the WORST-CASE lever sum; the advisory \u{03c3} beside it grows 1 : 2.24 : 3.74 : 5.48, the quadrature sum. Along the chain it is {:.1e} m at the tip, so the box draws as a line and is widened to {CERTIFIED_MIN_PX} px to be seen at all.",
-            CERTIFIED_PIN_BOX[LINKS].0
-        ),
+        &teal_note,
     );
     text(
         &mut out,
@@ -1037,11 +1091,158 @@ fn sheet(
         "#1a1a1a",
         "normal",
         &format!(
-            "ADVISORY: draws from the WHOLE distribution, tail included, which is nine times the certified box. Its numbers summarize these {} chains \u{2014} which is what the panels are.",
+            "ADVISORY: draws from the WHOLE distribution, tail included{}. Its numbers summarize these {} chains \u{2014} which is what the panels are.",
+            if certified {
+                ", which is nine times the certified box"
+            } else {
+                ""
+            },
             samples.len()
         ),
     );
 
     out.push_str("</svg>\n");
+    check_drawn(&out, samples, &wide, &zoom);
     out
+}
+
+// ---- the projector, checked through its own output ---------------
+
+/// Every `f64` attribute of one element, by name, out of the emitted
+/// text. Deliberately a scan of the STRING the tour is about to write
+/// rather than of a structure it kept: the thing being checked is what
+/// lands in the file.
+fn attr(el: &str, key: &str) -> f64 {
+    let at = el
+        .find(key)
+        .unwrap_or_else(|| panic!("the element carries `{key}`: {el}"))
+        + key.len();
+    let rest = &el[at..];
+    let end = rest.find('"').expect("the attribute closes");
+    rest[..end]
+        .parse()
+        .unwrap_or_else(|e| panic!("`{key}` is a number in `{el}`: {e}"))
+}
+
+/// Each occurrence of `open` in `svg`, as the text up to the next `"/>`.
+fn elements<'a>(svg: &'a str, open: &str) -> Vec<&'a str> {
+    let mut out = Vec::new();
+    let mut rest = svg;
+    while let Some(at) = rest.find(open) {
+        let from = &rest[at..];
+        let end = from.find("/>").expect("the element closes");
+        out.push(&from[..end]);
+        rest = &from[end..];
+    }
+    out
+}
+
+/// **What the sheet actually drew, read back out of it and compared to
+/// the replay.**
+///
+/// The four-reduction bit-equality above says the cell replayed the
+/// lane's draws and read the same MEASURE. It says nothing about the
+/// 10,752 coordinates the sheet is made of: the review planted a
+/// one-millimetre displacement of every drawn tip pin and of a bar
+/// corner, and it passed that check and the growth assertion alike.
+/// This is the check that reds on it.
+///
+/// Every `<polygon>` on the sheet is a bar outline on the wide panel,
+/// in sample-major and link-minor order; every `r="{PIN_DOT_PX}"`
+/// circle is a pin's axis point, the wide panel's `links + 1` per
+/// sample first and then the tip panel's one. Each is run back through
+/// [`Panel::unmap`] and required to be the replay's own coordinate to
+/// within the precision it was written at — the polygons at two
+/// decimals of px, the dots at three — which at these scales is
+/// `2.6e-7` m and `2.1e-8` m. A millimetre is four orders of magnitude
+/// outside that.
+///
+/// **It covers the whole sheet's geometry and nothing else**: the
+/// 8,192 bar corners and the 2,560 pin centres, the panel maps, the
+/// ordering and the count. It does not read the legend, the axes, the
+/// nominal, the target or the certified boxes — those are literals,
+/// not draws from the population.
+///
+/// **Both arms were run against the defect that motivated them.** A
+/// one-millimetre displacement of every drawn pin reds here with
+/// `sample 0's pin 1 was DRAWN at (-1.5e-8, 1.0000e-3) m and the
+/// replay built it at (0e0, 0e0) m`; a one-millimetre displacement of
+/// one corner of every bar reds with `sample 0's link 0 was DRAWN at
+/// (-3.6250e-5, -4.9978e-4) m and the replay built it at
+/// (-3.6300e-5, -1.4996e-3) m`. The residual `1.5e-8` m in the first
+/// is the write-back precision, four orders inside the slack.
+fn check_drawn(svg: &str, samples: &[Sample], wide: &Panel, zoom: &Panel) {
+    // Half an emitted unit, in metres, with one unit of slack for the
+    // formatter's rounding and the inverse map's.
+    let slack = |panel: &Panel, decimals: i32| 1.5 * 0.1f64.powi(decimals) / panel.px_per_m();
+
+    let polys = elements(svg, "<polygon points=\"");
+    assert_eq!(
+        polys.len(),
+        samples.len() * LINKS,
+        "the sheet draws one outline per sample per link and nothing else does"
+    );
+    let bar_slack = slack(wide, 2);
+    for (i, sample) in samples.iter().enumerate() {
+        for (k, corners) in sample.bars.iter().enumerate() {
+            let el = polys[i * LINKS + k];
+            let at = el.find('"').expect("the points attribute opens") + 1;
+            let end = el[at..].find('"').expect("the points attribute closes") + at;
+            let drawn: Vec<(f64, f64)> = el[at..end]
+                .split_whitespace()
+                .map(|p| {
+                    let (x, y) = p.split_once(',').expect("a point is `x,y`");
+                    (
+                        x.parse().expect("a finite x"),
+                        y.parse().expect("a finite y"),
+                    )
+                })
+                .collect();
+            assert_eq!(drawn.len(), corners.len(), "sample {i}, link {k}");
+            for (d, c) in drawn.iter().zip(corners) {
+                let (mx, my) = wide.unmap(d.0, d.1);
+                assert!(
+                    (mx - c.0).abs() <= bar_slack && (my - c.1).abs() <= bar_slack,
+                    "sample {i}'s link {k} was DRAWN at ({mx:e}, {my:e}) m and the replay \
+                     built it at ({:e}, {:e}) m — the sheet is a picture of something other \
+                     than this run",
+                    c.0,
+                    c.1
+                );
+            }
+        }
+    }
+
+    let dots: Vec<&str> = elements(svg, r##"<circle cx=""##)
+        .into_iter()
+        .filter(|el| el.contains(&format!(r##"r="{PIN_DOT_PX}""##)))
+        .collect();
+    let pins = samples[0].pins.len();
+    assert_eq!(
+        dots.len(),
+        samples.len() * (pins + 1),
+        "the wide panel dots every pin and the tip panel dots the tip"
+    );
+    for (i, sample) in samples.iter().enumerate() {
+        for (k, centre) in sample.pins.iter().enumerate() {
+            let checks = [
+                (wide, dots[i * pins + k], slack(wide, 3)),
+                // …and the tip again, on the zoom panel, at its own
+                // scale: the two panels' maps are separate arithmetic
+                // and a defect in either has to show.
+                (zoom, dots[samples.len() * pins + i], slack(zoom, 3)),
+            ];
+            for (panel, el, tol) in checks.into_iter().take(if k + 1 == pins { 2 } else { 1 }) {
+                let (mx, my) = panel.unmap(attr(el, r##"cx=""##), attr(el, r##"cy=""##));
+                assert!(
+                    (mx - centre.0).abs() <= tol && (my - centre.1).abs() <= tol,
+                    "sample {i}'s pin {} was DRAWN at ({mx:e}, {my:e}) m and the replay built \
+                     it at ({:e}, {:e}) m",
+                    k + 1,
+                    centre.0,
+                    centre.1
+                );
+            }
+        }
+    }
 }
