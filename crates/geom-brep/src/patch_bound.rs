@@ -94,8 +94,8 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::ring_interval::RingInterval;
-use geom_core::spline::KnotVector;
 use geom_core::spline::net::TensorNet;
+use geom_core::spline::{CurvePlan, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
@@ -307,12 +307,38 @@ pub fn patch_cells_refined(
     if is_rational(n) {
         rational_cells(n, splits)
     } else {
-        let refined = n
-            .refine_knots_u(&split_points(n.knots_u(), splits))
-            .and_then(|r| r.refine_knots_v(&split_points(r.knots_v(), splits)))
-            .map_err(|_| PatchBoundError::RefinementFailed)?;
-        integral_cells(&refined)
+        integral_cells_refined(n, splits)
     }
+}
+
+/// The refinement schedule of one direction and the knot vector it
+/// lands on: the plan chain that cuts every nonempty span into `splits`
+/// equal pieces, built from STRUCTURE alone
+/// ([`geom_core::spline::algebra::refine_plan_homogeneous`] — the
+/// homogeneous nets this module refines are polynomial, so their weights
+/// are unit).
+///
+/// One schedule, two arithmetics: this is the same plan the `f64`
+/// surface refinement applies through
+/// [`geom_core::spline::CurvePlan::apply_points`], and the ring applier
+/// re-derives each insertion ratio from the knots it is made of instead
+/// of widening the plan's `f64` `λ`.
+///
+/// # Errors
+///
+/// [`PatchBoundError::RefinementFailed`] — insertion into a direction
+/// that already passed the C¹ gate is total, so a refusal here is a
+/// description worth reporting rather than one to repair.
+fn refine_chain(
+    kv: &KnotVector,
+    splits: usize,
+) -> Result<(KnotVector, Vec<CurvePlan>), PatchBoundError> {
+    let plans = geom_core::spline::algebra::refine_plan_homogeneous(kv, &split_points(kv, splits))
+        .map_err(|_| PatchBoundError::RefinementFailed)?;
+    let refined = plans
+        .last()
+        .map_or_else(|| kv.clone(), |p| p.knots().clone());
+    Ok((refined, plans))
 }
 
 /// The C¹ gate per direction: degree 0 refuses; degree 1 must be
@@ -582,14 +608,51 @@ fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[RingInterval; 3]; 5]) -> Pa
 /// assembly on the spatial nets — no quotient rule intervenes, so the
 /// enclosure IS the coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
-    let (kv_u, kv_v) = (n.knots_u(), n.knots_v());
+    integral_cells_on(&comp_nets(n, false), n.knots_u(), n.knots_v())
+}
+
+/// [`integral_cells`] after refining every nonempty span into `splits`
+/// equal pieces, IN THE RING: an integral net's weights are unit, so the
+/// net is already homogeneous and [`refine_chain`]'s schedule applies to
+/// it directly. The cells therefore enclose the described patch, where an
+/// `f64` refinement would have them enclose the refined-`f64` one.
+///
+/// # Errors
+///
+/// As [`integral_cells`], plus [`PatchBoundError::RefinementFailed`].
+fn integral_cells_refined(
+    n: &NurbsSurface<f64>,
+    splits: usize,
+) -> Result<Vec<PatchCell>, PatchBoundError> {
+    let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
+    let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
+    let nets: Vec<Net> = comp_nets(n, false)
+        .iter()
+        .map(|net| net.refine_u(&plans_u).refine_v(&plans_v))
+        .collect();
+    integral_cells_on(&nets, &kv_u, &kv_v)
+}
+
+/// The integral arm's per-cell assembly over ALREADY-BUILT spatial nets
+/// and their directions — the one body [`integral_cells`] and
+/// [`integral_cells_refined`] share, so refinement changes what is
+/// assembled and nothing about how.
+///
+/// # Errors
+///
+/// [`PatchBoundError::DerivedKnots`].
+fn integral_cells_on(
+    base_nets: &[Net],
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+) -> Result<Vec<PatchCell>, PatchBoundError> {
     let kv_u1 = (kv_u.degree() >= 2)
         .then(|| derived_knots(kv_u))
         .transpose()?;
     let kv_v1 = (kv_v.degree() >= 2)
         .then(|| derived_knots(kv_v))
         .transpose()?;
-    let nets: Vec<DNets> = comp_nets(n, false)
+    let nets: Vec<DNets> = base_nets
         .iter()
         .map(|base| DNets::build(base, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
         .collect();
@@ -658,21 +721,38 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     if n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
         return Err(PatchBoundError::NonPositiveWeight);
     }
-    let refined = n
-        .refine_knots_u(&split_points(n.knots_u(), splits))
-        .and_then(|r| r.refine_knots_v(&split_points(r.knots_v(), splits)))
-        .map_err(|_| PatchBoundError::RefinementFailed)?;
-    let r = &refined;
-    // Positivity survives insertion in ℝ (convex combinations); this
-    // code may not assume floating point did (the speed meter's rule).
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if r.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
-        return Err(PatchBoundError::RefinedWeightLostPositivity);
-    }
-    let (kv_u, kv_v) = (r.knots_u(), r.knots_v());
+    // THE REFINEMENT IS PART OF THE ENCLOSURE. The homogeneous nets `w`
+    // and `w·P` are refined IN THE RING from point intervals of the
+    // DESCRIBED net, so insertion widens outward like every later step
+    // and the cells enclose the described patch. An `f64` refinement
+    // here would make them enclose the refined-`f64` patch instead, and
+    // the described one escapes that by insertion rounding amplified by
+    // the knot differencing.
+    let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
+    let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
+    let (kv_u, kv_v) = (&kv_u, &kv_v);
     let (pu, pv) = (kv_u.degree(), kv_v.degree());
-    let (nu, nv) = r.control_counts();
-    let w_grid = Net::from_fn(nu, nv, |i, j| RingInterval::point(r.weights()[i * nv + j]));
+    let (nu0, nv0) = n.control_counts();
+    let refine = |net: &Net| net.refine_u(&plans_u).refine_v(&plans_v);
+    let w_grid = refine(&Net::from_fn(nu0, nv0, |i, j| {
+        RingInterval::point(n.weights()[i * nv0 + j])
+    }));
+    let (nu, nv) = (w_grid.nu(), w_grid.nv());
+    // Positivity survives insertion in ℝ (convex combinations); this
+    // code may not assume the ARITHMETIC proved it, so the refined
+    // licence is read off the enclosure's own `lo` — a weight hull that
+    // touches or straddles zero voids the convex-combination licence
+    // just as a described non-positive weight does, and poison is not a
+    // proof of positivity either.
+    for i in 0..nu {
+        for j in 0..nv {
+            let w = w_grid.get(i, j);
+            #[allow(clippy::neg_cmp_op_on_partial_ord)]
+            if w.is_poison() || !(w.lo() > 0.0) || !w.lo().is_finite() {
+                return Err(PatchBoundError::RefinedWeightLostPositivity);
+            }
+        }
+    }
     // Second derivatives along a degree-1 direction are EXACTLY zero
     // in ℝ for the polynomial nets A and w (the direction is a single
     // linear span pre-refinement — the C¹ gate — and refinement's
@@ -681,7 +761,8 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     let kv_u1 = (pu >= 2).then(|| derived_knots(kv_u)).transpose()?;
     let kv_v1 = (pv >= 2).then(|| derived_knots(kv_v)).transpose()?;
     let w_nets = DNets::build(&w_grid, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref());
-    let a_nets: Vec<DNets> = comp_nets(r, true)
+    let a_base: Vec<Net> = comp_nets(n, true).iter().map(refine).collect();
+    let a_nets: Vec<DNets> = a_base
         .iter()
         .map(|g| DNets::build(g, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
         .collect();
@@ -690,12 +771,13 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     let mut cells: Vec<PatchCell> = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         for sv in kv_v.first_span()..=kv_v.last_span() {
-            // Emptiness skip, span validation and window construction
-            // in one operation, both directions.
-            let Some(win) = r.window(su, sv) else {
+            // Emptiness skip and span validation, both directions. The
+            // spans come from the REFINED knot vectors rather than from
+            // a refined surface: there is no refined `f64` surface on
+            // this arm any more, only refined ring nets.
+            let (Some(span_u), Some(span_v)) = (kv_u.span(su), kv_v.span(sv)) else {
                 continue;
             };
-            let (span_u, span_v) = (win.span_u(), win.span_v());
             let w = CellWindows {
                 u_val: span_u.window(),
                 v_val: span_v.window(),
@@ -704,21 +786,36 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 u_d2: span_u.derived_window(2),
                 v_d2: span_v.derived_window(2),
             };
-            // The cell centroid — a translation CHOICE (any finite c
-            // is sound), computed on f64 structure, fixed order.
-            let mut csum = [0.0f64; 3];
-            let mut count = 0.0f64;
-            for i in 0..=span_u.degree() {
-                let row = win.row(i);
-                for j in 0..=span_v.degree() {
-                    let p = r.control()[row + j];
-                    csum[0] += p.x;
-                    csum[1] += p.y;
-                    csum[2] += p.z;
-                    count += 1.0;
+            // The refined control points of the cell's active window, as
+            // enclosures: `P = A / w` per channel, the de-homogenizing
+            // division taken entrywise so each point is enclosed at its
+            // own weight rather than at the cell's weight hull.
+            let point_at = |comp: usize, i: usize, j: usize| {
+                a_base
+                    .get(comp)
+                    .map_or_else(RingInterval::poison, |a| a.get(i, j) / w_grid.get(i, j))
+            };
+            // The cell centroid — a translation CHOICE, so ANY finite
+            // value is sound and none of it has to be enclosed. Taken
+            // from the midpoint of each enclosed control point, in a
+            // fixed order; a non-finite midpoint (an overflowed or
+            // poisoned enclosure) contributes `0`, which is still a
+            // finite centre and leaves the widened hulls to report the
+            // trouble.
+            let mut c = [0.0f64; 3];
+            for (comp, slot) in c.iter_mut().enumerate() {
+                let mut sum = 0.0f64;
+                let mut count = 0.0f64;
+                for i in *w.u_val.start()..=*w.u_val.end() {
+                    for j in *w.v_val.start()..=*w.v_val.end() {
+                        let p = point_at(comp, i, j);
+                        let mid = (p.lo() + p.hi()) / 2.0;
+                        sum += if mid.is_finite() { mid } else { 0.0 };
+                        count += 1.0;
+                    }
                 }
+                *slot = sum / count;
             }
-            let c = [csum[0] / count, csum[1] / count, csum[2] / count];
             // The cell's weight hull — the divisor (module docs).
             let w_cell = window_hull(&w_grid, &w.u_val, &w.v_val);
             // Weight-net hulls on the cell.
@@ -747,15 +844,9 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 // partition of unity over the ACTIVE control points,
                 // so `S − c` lies in the hull of `P − c`.
                 let mut v0h: Option<RingInterval> = None;
-                for i in 0..=span_u.degree() {
-                    let row = win.row(i);
-                    for j in 0..=span_v.degree() {
-                        let p = r.control()[row + j];
-                        let e = RingInterval::point(match comp {
-                            0 => p.x,
-                            1 => p.y,
-                            _ => p.z,
-                        }) - cc;
+                for i in *w.u_val.start()..=*w.u_val.end() {
+                    for j in *w.v_val.start()..=*w.v_val.end() {
+                        let e = point_at(comp, i, j) - cc;
                         v0h = Some(match v0h {
                             None => e,
                             Some(h) => RingInterval::hull(h, e),

@@ -69,6 +69,7 @@
 
 use core::ops::RangeInclusive;
 
+use super::algebra::CurvePlan;
 use super::knots::KnotVector;
 use crate::ring_interval::RingInterval;
 
@@ -316,6 +317,80 @@ impl TensorNet {
     #[must_use]
     pub fn diff_v_knots(&self, kv: &KnotVector) -> Self {
         self.diff_v(|c| kv.difference_coeffs(c))
+    }
+
+    /// **Refines the net along `u` IN THE RING**: the insertion chain is
+    /// applied to each `u`-line by [`CurvePlan::apply_ring`], so the
+    /// answer ENCLOSES the refined net of the described coefficients
+    /// instead of being a rounded copy of it. That is the difference
+    /// between a bound on the patch a caller described and a bound on
+    /// the one `f64` refinement happened to produce.
+    ///
+    /// The net must be HOMOGENEOUS for this to mean what it says — the
+    /// weight net `w`, or one channel of `w·P` — because that is the
+    /// form in which insertion is the plain affine combination the ring
+    /// applier takes.
+    ///
+    /// One schedule for every line: a Boehm step's targets, sources and
+    /// ratio come from the knot structure alone, which the `u` direction
+    /// shares across all `nv` lines. An empty chain is the identity, and
+    /// a line the chain does not answer at the new extent poisons
+    /// ([`TensorNet::diff_u`]'s rule).
+    #[must_use]
+    pub fn refine_u(&self, plans: &[CurvePlan]) -> Self {
+        let Some(last) = plans.last() else {
+            return self.clone();
+        };
+        let nu_new = last.knots().control_count();
+        let mut c = vec![RingInterval::poison(); nu_new * self.nv];
+        for j in 0..self.nv {
+            let mut line = self.column(j);
+            for plan in plans {
+                line = plan.apply_ring(&line);
+            }
+            if line.len() != nu_new {
+                continue;
+            }
+            for (i, q) in line.iter().enumerate() {
+                if let Some(slot) = c.get_mut(i * self.nv + j) {
+                    *slot = *q;
+                }
+            }
+        }
+        Self {
+            nu: nu_new,
+            nv: self.nv,
+            c,
+        }
+    }
+
+    /// [`TensorNet::refine_u`] along `v`, per `v`-line.
+    #[must_use]
+    pub fn refine_v(&self, plans: &[CurvePlan]) -> Self {
+        let Some(last) = plans.last() else {
+            return self.clone();
+        };
+        let nv_new = last.knots().control_count();
+        let mut c = vec![RingInterval::poison(); self.nu * nv_new];
+        for i in 0..self.nu {
+            let mut line = self.row(i).to_vec();
+            for plan in plans {
+                line = plan.apply_ring(&line);
+            }
+            if line.len() != nv_new {
+                continue;
+            }
+            for (j, q) in line.iter().enumerate() {
+                if let Some(slot) = c.get_mut(i * nv_new + j) {
+                    *slot = *q;
+                }
+            }
+        }
+        Self {
+            nu: self.nu,
+            nv: nv_new,
+            c,
+        }
     }
 }
 
