@@ -1,39 +1,18 @@
 # Sweep 1 — 2026-08-20
 
+The first sweep: closed milestones' plans and logs, merged units' binding
+specs, and `docs/archive/` retired in full. **109 files.**
 
-**Recovery SHA: `87e565b11f3d50b3761b6d6361191be872e42bde`** — the commit
-immediately before the deletion, and `main`'s tip at the time, so it is
-permanently reachable and needs no tag to survive. 109 files.
+Sweep SHA `87e565b11f3d50b3761b6d6361191be872e42bde` — `main`'s tip
+immediately before the deletion.
 
-## The rule this sweep applied
+    git show 87e565b11f3d50b3761b6d6361191be872e42bde:docs/<NAME>
+    git show 87e565b11f3d50b3761b6d6361191be872e42bde:docs/archive/<NAME>
 
-**Deleted** — an artifact whose subject is finished and whose content
-is carried somewhere that still lives:
-
-- **Per-unit binding specs for merged units.** A spec binds an
-  implementer for the length of one unit. Once the unit merges, the
-  merged code is the artifact and the PR description is its
-  documentation; the unit's merge record lives in its program log and
-  in `docs/MODEL-AB-LOG.md`. The spec binds nothing further.
-- **Plans and logs of closed milestones**, where the milestone's
-  exit walk survives as the done-state of record.
-
-**Kept** — anything a live pointer still needs:
-
-- The **exit walks** for M5–M8. `docs/DESIGN.md` names these as each
-  milestone's done-state of record. (M4's went — see the M4 note below.)
-- The **live programs' plans and logs** — M9 (`M9-PLAN.md` / `M9-LOG.md`),
-  LIB (`LIB-LOG.md`), ASM (`ASM-PLAN.md` / `ASM-LOG.md`) — and
-  `M8-PLAN.md` / `M8-LOG.md`, which `DESIGN.md` still cites as the M8
-  roadmap bullet's plan and narrative. *(Superseded by sweep 3: M8, M9
-  and ASM have all closed since, and their plans and logs went with it.)*
-- **Specs of units not yet merged**: `M9-3-SPEC.md` (DRAFT, mid-unit)
-  and `TESS-SPLIT-SPEC.md` (spec written, dispatch queued). *(Both
-  merged and were swept in sweep 3.)*
-- All ratified design docs, the measurement and reference records
-  (`K-REPORT.md`, `PERF-*`, `TESS-BUDGET.md`, `GUIDE.md`,
-  `MODEL-AB-LOG.md`, the smell-scan logs, …).
-
+The M4 record went with it: `DESIGN.md`'s `### M4 fork outcomes (F1–F8)`
+section was removed in the same sweep on Ev's ruling of 2026-08-20, and the
+F1–F8 outcome text survives only as `M4-LOG.md`'s tail appendix at the SHA
+above.
 
 ### Closed-milestone plans and logs (4 files)
 
@@ -200,37 +179,3 @@ by this ledger, and **`docs/archive/` no longer exists.**
 - `M6-BOUNDARY.md` — The M5→M6 boundary: banked units + three roadmap questions (design conversation)
 - `M4-LOG.md` — M4 Implementation Log
 - `M4-EXIT-WALK.md` — M4 exit walk (8c) — criteria vs evidence
-
-#### The M4 record — why it went, and what DESIGN.md lost
-
-These two were held back from the first pass because `DESIGN.md`'s M4
-bullet named them as the home of the M4 shipped-unit list and the
-**F1–F8 fork-outcome record**. That record had been cut out of
-`DESIGN.md` on 2026-08-05 and pasted into `M4-LOG.md`'s tail as an
-appendix — a maintained, ratified record living inside an append-only
-ephemeral log, which is the wrong genre for it. It had even kept
-accruing M5-era updates there (the schema v2 clean break at M5 PR 10,
-`Loft`/`Sweep` joining F4's vocabulary, F6's OCC blind spot re-measured
-at M5 PR 13), and its F5 entry still cross-referenced "the M4 roadmap
-entry above" — a pointer back into `DESIGN.md` that dangled the moment
-it was relocated.
-
-Ruled by Ev, 2026-08-20: **delete the passage rather than re-home the
-record.** Two edits to `docs/DESIGN.md` accompany this sweep:
-
-- the `### M4 fork outcomes (F1–F8)` section (10 lines) was removed. It
-  held no outcomes — only a note that the record had been relocated,
-  plus its own certification that *"still-live outcomes are stated
-  where they bind: the dimension lattice and node vocabulary in the M4
-  roadmap entry and D8, persistence schema rules in D6.3/F3's
-  clean-break record, the STEP posture in D7 and the crate table."*
-  That is the warrant: nothing binding was carried by the section or by
-  the appendix it pointed at.
-- the M4 roadmap bullet's parenthetical was trimmed to
-  *(Complete 2026-07-27.)*, dropping only the sentence naming the two
-  archived files. **The standing bit-identity-retirement paragraph that
-  follows it is untouched** — it is marked "stated here because it
-  still binds" and remains in force.
-
-The F1–F8 outcome text itself is recoverable at the sweep SHA:
-`git show 87e565b:docs/archive/M4-LOG.md` (appendix at the tail).

@@ -1,57 +1,40 @@
 # DOC-LEDGER sweep 6
 
-Three sweeps carried this number. They are distinct sweeps of
-distinct subjects, kept together so that a citation reading
-"DOC-LEDGER sweep 6" resolves to one file.
+Three sweeps carried this number. They are distinct sweeps of distinct
+subjects, kept in one file so that a citation reading "DOC-LEDGER sweep 6"
+resolves to one place.
 
 ## Sweep 6 — 2026-09-04: S-MATE leaves the tracker
 
-Sweep SHA: `386e170f` (`main`'s tip immediately before the deletion),
-so every path below is recoverable at
-`git show 386e170f:work/mate/<FILE>` and
-`git show 386e170f:docs/S-MATE-EXIT-WALK.md`.
+S-MATE — the mate program — closed on the ratification of
+`docs/S-MATE-EXIT-WALK.md` (`[ev]` PR #1528, merged by Ev 2026-09-01;
+confirmed in chat 2026-09-04). Sweep 5's rule. Four files: `work/mate/`'s
+`program.md`, `plan.md`, `log.md` and `MATE-EXIT.md`. Nine units, ordinals
+1300–1308 in `docs/MODEL-AB-LOG.md`. Residue was re-homed before the sweep
+and each moved row carries its own note.
 
-Sweep 5's rule. The walk rode PR #1528 as PROPOSED and Ev merged it
-on 2026-09-01; the ratification it asked for was confirmed in-chat on
-2026-09-04 ("if S-MATE's exit walk is merged then it means I approved
-it"), and nothing had run the sweep in between. Four files, one
-program:
+Sweep SHA `386e170f`.
 
-- `work/mate/program.md`, `plan.md`, `log.md` — S-MATE's charter,
-  plan and narrative: nine units (ordinals 1300–1308), two in-program
-  ratifications (PRs #1440, #1469).
-- `work/mate/MATE-EXIT.md` — the ratification ruling, closed by this
-  sweep.
+    git show 386e170f:work/mate/<FILE>
+    git show 386e170f:docs/S-MATE-EXIT-WALK.md
 
-Residue was re-homed before the sweep (the log's 2026-09-03 "Seam"
-entry): five issues to `work/fix/`, two to `work/docm/`, six to
-`work/curved/`; the walk's handoffs ledger names every other
-pointer's home. What opens with this sweep: `crates/editor-core/src/mate.rs`,
-`mate/*` and `assembly.rs` pass to DOCM's territory per its program
-header; `crates/topo/src/census.rs`, `boolean/rest.rs` and
-`boolean/carrier_eq.rs` are unowned until a program claims them.
+Done-state of record: this note, the walk at the SHA above, the design at
+`crates/editor-core/ASSEMBLY.md`, and the A/B rows.
 
 ## Sweep 6 — 2026-09-03: finished work leaves `docs/`; its design moves beside the code
 
-Sweep SHA: `3ec71b16575c5887bae358331e517d2ad9348404` — `main`'s tip
-immediately before the deletion, so every path below is recoverable at
-`git show 3ec71b16575c5887bae358331e517d2ad9348404:docs/<NAME>`.
-Seventy-three files.
+**The rule this sweep adds.** A document written for the implementer of
+finished work — an exit walk, a merged unit's spec, a design conversation
+whose subject shipped — leaves `docs/`. What a later reader still needs
+from a design conversation is rewritten, present tense, as a README beside
+the code it governs, keeping the clause ids; `docs/DESIGN.md`'s companion
+table points at those pages. An exit walk is replaced by its note here:
+**this ledger is the closed program's done-state of record** (CLAUDE.md,
+`work/README.md`, `memories/MEMORY.md`). **Seventy-three files.**
 
-**The rule this sweep adds.** A document written for the implementer
-of finished work — an exit walk, a merged unit's spec, a design
-conversation whose subject shipped — leaves `docs/`. What a later
-reader still needs from a design conversation is rewritten, present
-tense and a fraction of the length, as a README beside the code it
-governs, keeping the clause ids so `CURVED-DESIGN C3` or
-`ASSEMBLY-DESIGN A6` still names one decision; `docs/DESIGN.md`'s
-companion table now points at those pages. An exit walk is replaced by
-nothing but its row here: **this ledger is the closed program's
-done-state of record** (CLAUDE.md, `work/README.md` and
-`memories/MEMORY.md` say so since this sweep). Live pointers — DESIGN.md,
-source comments, CI workflows, tracker items — were re-pointed at the
-new pages or dropped; append-only logs keep their citations, which
-resolve here as before.
+Sweep SHA `3ec71b16575c5887bae358331e517d2ad9348404`.
+
+    git show 3ec71b16575c5887bae358331e517d2ad9348404:docs/<NAME>
 
 ### Exit walks of closed programs (12 files)
 
@@ -225,53 +208,21 @@ conversation and the code had since diverged.
 - `PROFILES-V2-DESIGN.md` — PROFILES-V2-DESIGN: profiles as programs — the representation switch
 - `GUI-DESIGN.md` — GUI / Editor Architecture — Design Document
 
-### Kept, and why
-
-Companion docs of programs still open or with unbuilt scope stay in
-`docs/`: `ERROR-DESIGN`, `DUAL-DESIGN` (M10), `LIBRARY-DESIGN`,
-`RECIPE-DOORS-DESIGN` (LIB; D5 shell waits), `VERB-SEAT-DESIGN` (SEAT),
-`KERNEL-VERBS`, `MIRROR-DESIGN`, `DRAFT-DESIGN` (VERBS; mirror and
-draft unbuilt), `DISCIPLINES-DESIGN` (WIP), `PCURVE-UNIFY-DESIGN` (P-2
-residue), `PATHS-DESIGN` and `SELECT-DESIGN` (edited by live units this
-week), `MATE-7-TANGENCY-DESIGN` (ratified this week; the kissing arm
-banks on it). Reference and measurement records stay as sweep 3 left
-them.
-
 ## Sweep 6 — 2026-09-04: VERBS leaves the tracker
 
-Sweep SHA: `c1e7ea19501d9e625dbd0de260d01a53a0384b42` — the closure
-dispositions commit, immediately before the deletion, so every path
-below is recoverable at
-`git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:<PATH>`.
+VERBS — the modeling-verb breadth program — closed 2026-09-04 on
+`docs/VERBS-EXIT-WALK.md`, ratified by Ev at PR #1793 (merged
+`fd45920d5`). Sweep 5's rule. Twenty files: `work/verbs/` whole. A/B band
+100–199 stays claimed in `docs/MODEL-AB-LOG.md`. Fourteen live rows were
+re-homed to `work/issues/` in the dispositions commit first, each carrying
+its own note.
 
-Same rule as sweep 5: `work/` tracks work still to be done, so the
-closed program's directory leaves whole. One program, twenty files,
-`status: closed` with no live items:
+Sweep SHA `c1e7ea19501d9e625dbd0de260d01a53a0384b42`.
 
-| program | title | closed | done-state of record |
-| --- | --- | --- | --- |
-| `verbs` | VERBS — the modeling-verb breadth program | 2026-09-04 | `docs/VERBS-EXIT-WALK.md` (ratified by Ev at PR #1793, merged `fd45920d5`; per-register-row disposition tables, the A/B instrument state at close, and the ten-item open list resolved at this sweep) |
+    git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:work/verbs/<FILE>
+    git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:docs/VERBS-EXIT-WALK.md
 
-What the walk records: 28 delivered unit/PR rows (every implementation
-row of `docs/KERNEL-VERBS.md`), 2 measured-and-refused boundaries
-standing as done-states (the Steinmetz pinch family's typed refusal;
-the circle-profile rim's torus half), ~10 transfers, and the A/B
-program instrument at close (14 dual ordinals, 7 tally candidates
-pending the blinded coding, the 5.1 era boundary, the sample-number
-cascade note).
-
-### Residue — re-homed, not lost
-
-Before deletion, the dispositions commit closed
-`coplanar-cap-pair-f7-repair-half-b` (delivered by VERBS-1031B,
-PR #1671) and re-homed FOURTEEN live items to `work/issues/`:
-twelve open issues (among them `verbs-1031b-assigner-checker-
-divergence`, the parked `pinch-carrying-machinery-valence-4`, and
-the #1076/#347 register residue) plus `VERBS-C5ARMS` (PR-2
-cone×cylinder remains, spec `docs/VERBS-C5ARMS-SPEC.md`) and
-`VERBS-CONE` (operand lanes, never cut) converted to issues as
-successor-program seeds. Inbound refs re-pointed
-(`work/seat/SEAT-6.md`, `work/issues/sphere-flux-arm-refuses-
-partial-bands.md`, `work/props/m6-sense-gate-recorded-residuals.md`);
-`scripts/work.py lint` green. The A/B band (100–199) stays claimed
-in `docs/MODEL-AB-LOG.md`'s ordinal-bands section as always.
+Done-state of record: this note and the walk at the SHA above — 28
+delivered unit/PR rows (every implementation row of `docs/KERNEL-VERBS.md`),
+two measured-and-refused boundaries, ~10 transfers, and the A/B instrument
+at close.

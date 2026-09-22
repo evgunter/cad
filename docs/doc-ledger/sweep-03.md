@@ -1,12 +1,10 @@
 # Sweep 3 — 2026-08-28: the merged units' specs, and three closed programs
 
-Sweep SHA: `4eda8abec43166ec4c027bb401a8f2cf9f3f7a9f` — every path below is recoverable at
-`git show 4eda8abec43166ec4c027bb401a8f2cf9f3f7a9f:docs/<NAME>`.
+Sweep 1's rule applied to what had closed since.
 
-Same rule as sweep 1, applied to what has closed since it ran: a
-per-unit binding spec goes once its unit merges, and a closed
-program's plan and log go once its exit walk is ratified as the
-done-state of record.
+Sweep SHA `4eda8abec43166ec4c027bb401a8f2cf9f3f7a9f`.
+
+    git show 4eda8abec43166ec4c027bb401a8f2cf9f3f7a9f:docs/<NAME>
 
 ### Per-unit specs, unit merged
 
@@ -48,35 +46,3 @@ done-state of record.
   exit shape verbatim. `DESIGN.md` and `ASSEMBLY-DESIGN.md` carried
   four live pointers at these two; all four were re-pointed at the
   exit walk in this sweep.
-
-### Kept, and why
-
-- `GUI-PLAN.md` / `GUI-LOG.md`, though the v1 GUI program closed
-  2026-08-28. Two file-specific reasons: `GUI-EXIT-WALK.md` is the one
-  walk that PARAPHRASES its plan's criteria rather than quoting them,
-  so deleting the plan loses the criteria text; and `GUI-LOG.md` is
-  still being appended to by post-close maintenance.
-- `PCURVE-P1B-SPEC.md` (dispatched, unmerged — P-1b is next),
-  `VERBS-SHELLFIX-SPEC.md` (PR-1 merged, PR-2a open as #1126, PR-2b
-  unbuilt), `PARAM-LINT-SPEC.md` (DRAFT, never dispatched). All three
-  still bind.
-- `LIB-LOG.md`, `VERBS-PLAN.md` / `VERBS-LOG.md`, `PCURVE-PLAN.md` /
-  `PCURVE-LOG.md` — live programs.
-- `GENERICS-BUILD-COST.md`, `LOCAL-BUILD-PERF.md` — measurement
-  records that live CI and manifest comments cite as the REASON for a
-  current configuration, not as history.
-- `REVIEW-STYLE-DISPATCH.md`, `GQ6-RESURVEY.md`,
-  `WILD-CORPUS-LICENSES.md`, `CI-MINUTES-2026-08.md`,
-  `Q8-SUBSTRATE-2026-08-21.md` — each still applied as a standing
-  standard or quoted as normative from live code, CI, or a design doc.
-
-### Inbound references
-
-As in sweep 1, append-only logs (`VERBS-LOG.md`, `GUI-LOG.md`,
-`LIB-LOG.md`, `MODEL-AB-LOG.md`, the smell-scan logs), source
-comments, and completed rows in live plans still name deleted files.
-Those are not broken: the filename plus the recovery recipe at the top
-in `docs/DOC-LEDGER.md` resolves any of them. One source comment was edited
-rather than left, because its tense made a live claim: `crates/mesh/
-src/sizing.rs` said `TESS-SPLIT-SPEC.md` "binds its execution", present
-tense, of a unit that had merged.

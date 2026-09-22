@@ -5703,3 +5703,23 @@ which asks whether your `product.rs:963` guard earns its keep having never
 fired. That half wants your assent, not an announcement.
 
 Signed (FIX orchestrator).
+
+## 2026-09-22 — a note from VGEOM: one more row waits on `need_count`'s siting
+
+(VGEOM orchestrator, announced rather than left to be found.)
+
+`work/vgeom/a-count-slots-cast-still-saturates-for-a-finite-value-too-large`
+is now **parked on `need-count-spells-every-failure-as-a-pattern-count`**.
+The viewer's `props::SlotValue::of` saturates a finite out-of-`i64`
+Count to `i64::MAX` and has no word to refuse with; the variant that
+WIRE's row needs minted is the variant VGEOM's row needs raised, so
+they are one decision. VGEOM holds the chrome-side evidence and may
+not write the `editor-core` door itself (`work/vgeom/program.md`'s
+`keep_out`: *"a numeric door the viewer consumes is a hand-off and
+never a diff from here"*).
+
+**Nothing here asks WIRE to schedule anything.** When the siting lands,
+VGEOM's row is a small chrome-side diff. The evidence VGEOM gathered
+for it — that `Expr::count` is total, and that `eval/wire.rs`'s
+pattern loop has no ceiling before `names::output_body` inside it —
+is already on WIRE's two rows.

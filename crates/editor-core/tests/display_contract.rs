@@ -256,7 +256,13 @@ fn declare_error_display_names_its_content_not_its_struct() {
 
 test_utils::f6_variants! {
     /// `InterrogateError`'s census — see [`NODE_PICK_ERROR`].
-    const INTERROGATE_ERROR: InterrogateError = [
+    ///
+    /// `pub(crate)` because `lib_u5_interrogate` welds the ladder rungs
+    /// it drives against this same roster. A census of its own there
+    /// would be a second list of the same enum's identifiers: rustc
+    /// keeps both in step, so they could not drift, but the enum has
+    /// one roster in this binary and this is it.
+    pub(crate) const INTERROGATE_ERROR: InterrogateError = [
         NodeNotEvaluated,
         NodeFailed,
         NodePoisoned,
