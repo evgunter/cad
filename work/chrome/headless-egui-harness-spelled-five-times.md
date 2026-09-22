@@ -57,3 +57,47 @@ so the cost of the duplication is only that the struct's invariants
 re-decided per fixture — which is what went wrong in the third one and
 was caught in review. A builder taking a status and defaulting the
 rest would have made that a decision at one site.
+
+## A second READ, and the wrong home showing (2026-09-22)
+
+The layout half of `error-and-check-text-overflows-its-region` needed
+to read WHERE a frame painted its text, not only what it said, so
+`pane::headless` grew `landed` beside `painted` — the galley's rows,
+each rect translated into the caller's own coordinates.
+
+**The first version of that change minted a fresh instance of this
+row's own defect, inside the PR that closes a duplication.** It added
+`collect_landed` — a THIRD verbatim copy of the `Shape::Text` /
+`Shape::Vec` recursive walker already spelled twice in this module, as
+`hit` and as `collect` — and a second driver `landed`, byte-identical
+to `painted` apart from which collector it called, `textures_delta`
+discharge and all. `landed` also strictly subsumed `painted`:
+`painted(d) == landed(d).into_iter().map(|l| l.text).collect()`, with
+`hit` being `landed`'s galley rect centred. The PR's own fresh-instance
+check looked only at `pane/profile.rs`'s deleted helpers, and its
+amendment to this row argued in advance that *"`landed` is a second
+READ, not a seventh drive"* — which is a textual justification standing
+where a grep would have done.
+
+**Folded in the fix pass.** The module now has ONE walker
+(`landed_in`), ONE drive (`landed`), and `painted` and `hit` derived
+from them; `painted_after_clicking` walks once per frame instead of
+twice. The two coordinate conventions that were incidental before are
+now fields with names and a reason: `Landed::allocated` is `pos` plus
+`Galley::size` — leading space INCLUDED, which is the box a click has
+to land in, and why `hit` centres on it — and `Landed::rows` is one
+rect per row with the leading space EXCLUDED, which is where a
+reader's eye finds the first glyph and what a layout row measures.
+
+So the count above is unchanged, and `landed_in` is now also callable
+on shapes a caller drove itself: `app::tests::toolbar_with` uses it to
+read the status line out of the REAL toolbar, which needs two frames
+and a `screen_rect` and so cannot go through `landed`.
+
+What this does not fix is the home. `widgets::message_tests` — in
+`widgets.rs`, which this row already names as a module the harness's
+home is wrong for — says `crate::pane::headless::landed` to measure a
+widget that has nothing to do with any pane, and `app::tests` now says
+`crate::pane::headless::landed_in`. A `painted`/`drive` pair is still
+the shape; `landed_in`, `landed`, `painted` and `hit` are what
+whichever home takes them inherits.

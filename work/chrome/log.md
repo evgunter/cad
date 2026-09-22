@@ -1682,4 +1682,80 @@ the state this unit's fixture now builds),
 `downstream-wording-spells-node-where-node-number-forbids-it`, and
 `the-exhaustive-on-purpose-argument-is-restated-twenty-times`.
 
+## 2026-09-22 — Wave 2 unit 2 landed: a message wraps inside its region (Ev's P0)
+
+PR 3058, the layout half of
+`error-and-check-text-overflows-its-region`. The row stays **open**,
+retitled to the concision half it still carries — a title naming both
+halves would read on the board as if neither were done, and the board
+shows titles.
+
+**One cause, two faces, and it is `egui::Ui::wrap_mode` rather than any
+per-label flag.** In a non-wrapping row the mode is `Extend`, which
+lays a galley out at infinite width: measured at 318 points past a
+220-point region's right edge. In a wrapping row `Label::layout_in_ui`
+places the whole galley at `ui.max_rect().left()` and indents only row
+zero: measured in the REAL toolbar at 271 points of drift, first line
+at x = 279 and second at x = 8, the window's own left edge. That second
+number is Ev's sentence read back as a measurement.
+
+**The sibling row that closed in September CAUSED the second symptom.**
+`work/view/the-toolbar-row-does-not-wrap` made the toolbar wrap, which
+is what put the status line into a wrapping layout. The same class,
+fixed one layer too shallow, and the fix created the second face of the
+defect it was next to. Worth carrying: a layout fix moves every text in
+that layout, and nothing in the process asks what else was in it.
+
+**What the review caught, and it is the most useful thing this unit
+produced.** The three tests shipped in the first cut were all one-sided
+— `past <= SLACK`, `rows.len() > 1`, `stray <= SLACK` — and every one
+gets EASIER as the galley is laid out narrower. The reviewer hardcoded
+the wrap width to `150.0` and all three passed. So the unit's central
+sentence, *"which region `available_width` names is egui's answer, not
+a choice made here"*, was exactly what the suite could not distinguish
+from a constant. `docs/prompts/reviewer-style-lane.md` Q3 names this
+shape — an assertion monotone in the wrong direction — and it landed on
+the one claim the unit existed to make.
+
+The fix pass answered it properly: a row that measures the widest line
+at three region widths and requires it to GROW, with a negative control
+on a plain label that requires it not to; plus the toolbar measured in
+`app.rs`'s real `toolbar_with` harness, which already existed and which
+the first cut should have used, since that status line is one of the
+two places Ev actually named.
+
+**The fresh-instance trap landed again — in the file the check did not
+cover.** `pane::headless` already held two verbatim copies of a shape
+walker; the fix added a third and a second driver that strictly
+subsumed the existing one. The unit's own check looked only at the
+helpers it had deleted in `pane/profile.rs`. Folded to one walker in
+the fix pass. **This program has now recorded the trap on every
+structural-fix unit it has run, and not once has the lane that wrote
+the fix caught its own** — only a reader who did not write it ever has.
+
+**The census was wrong by a factor of four and a half.** Eleven in the
+original row, thirteen enumerated, ten more from the reviewer; re-taken
+with a WRITTEN test for name-vs-sentence it is **fifty**. And the three
+`ui.link` sites the first census dismissed by hand as short names are
+all three sentences under that test — they interpolate a user-authored
+parameter name, which nothing bounds. Writing the criterion down is
+what found them; classifying by hand is what hid them.
+
+**CI reded once, and the guard that caught it was the one this unit
+asked for.** The fix pass built the roster guards by reading the
+crate's own source, and `test-utils`'s `reader_census` keeps a ledger
+of every source-reading site and asserts set EQUALITY with the tree.
+Two new readers arrived unlisted and it went red — a census that mints
+a census, caught by a census. One ledger line; reproduced red locally
+before fixing and green after.
+
+**Rows filed** (six): the four-character-ribbon regime at narrow widths
+(a message carrying `0.30000000000000004` breaks inside the number),
+the width-versus-characters fork that `number_text` and `message` now
+answer differently forty lines apart — with the concision half named as
+the same fork's other arm — the auto-sized-window case where
+`available_width` is last frame's content, `row_label`'s unbounded
+pose, the toolbar's own unconverted sentence, and the text-style
+resolution difference.
+
 Signed (CHROME orchestrator).
