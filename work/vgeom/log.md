@@ -1453,3 +1453,87 @@ only one the probe itself authored.
 `props::field_text`'s literal arm is reachable from neither caller,
 and its prose is the only statement in the crate of what a literal
 field shows.
+
+## Wave closed — 2026-09-22
+
+Four lanes dispatched together, **four merged**: #3062 `camera-band`,
+#3068 `render-grid`, #3065 `seam-refusals`, #3067 `field-product`,
+plus two orchestrator state-syncs (#3060 and this one). Every lane's
+CI was read off the `change filter` log rather than off job names, and
+every one was un-narrowed: `LANE=both EPS=all KLINT_ROW=all`.
+
+**Seven rows closed, one closed by ruling, one parked.** The slate
+went 9 open / 22 closed at load 18 to **5 open / 30 closed at load 8**,
+and the band profile went from one P0 and two P1 to **none of either**.
+
+**Four of the five open rows are NEW** — filed by these lanes out of
+their own sweeps, not inherited: the `datum_view` aspect row, the
+`BoundsProbe` ladder row, the camera-HUD angle row, and the render
+grid's own ε-is-a-length residue. Plus `field_text`'s unreachable
+literal arm. That is the wave finding work rather than finishing it,
+which is the healthy direction for a slate this size.
+
+Rows filed outside this program: two on VNEWS (the overlay-leg badge
+half, the swallowed ray refusal), one on AUTHOR (blend swallowing the
+edge-name fault), one on S-TINT (the hand-written `CameraError`
+roster), one on META (below), and evidence appended to PROPS'
+`patherror-display-renders-float-noise` — which was the point of the
+render-grid unit's filing obligation and is now holding the second
+consumer it had been waiting for.
+
+### The wave's own lesson: the dispatch is a hypothesis, and it was wrong four times
+
+`docs/prompts/reviewer-style-lane.md` §1 says a reviewer should treat
+the dispatch as the dispatcher's belief rather than a finding. **This
+wave says the same of an implementer brief, and the evidence is that
+every lane that went and looked found its brief's premise wrong in
+some respect.**
+
+- **`field-product`** was told to choose between a disabled field and
+  canonical-notation-beside-the-marker. It rejected both: a disabled
+  `DragValue` still has to be handed an `f64`, and the only one in
+  scope is the `inf` the door exists to suppress. Drawing the marker
+  alone is what the orchestrator's real constraint implied and the
+  instruction's letter did not.
+- **`render-grid`** was told to adopt `num`'s grid and argue a
+  relative arm. It argued the arm is **the wrong knob**: above the
+  crossing the ε-cap governs, below it the value is beneath ε in every
+  notation the chrome writes a length in, so the arm never decides
+  whether the render separates what the kernel separates. It kept
+  `5e-4` and added the cap. `REL_TOLERANCE` was never wrong; it was
+  incomplete.
+- **`seam-refusals`** falsified the argument recorded in its **own
+  row** — *at these magnitudes the picture is already nowhere* — by
+  observing the seam refuses per LEG, not per lane. A four-corner
+  profile with one corner at `7e307` draws two legs and leaves a gap,
+  at a camera framed on the ordinary corners. Executed, not argued.
+- **`field-product` again**, on the orchestrator's review finding: told
+  to write a row holding the `f64::NAN` sentinel, it found the arm
+  unreachable through the public door and **deleted the arm** instead,
+  holding the reachability claim with a row over `Dimension::ALL`.
+  Removing the code beat testing it.
+
+The orchestrator half of that: in three of the four, the brief's error
+was a **false dichotomy** — two options named where the right answer
+was a third or none. A brief that names options should say they are
+the ones the dispatcher could see, which this program's next one will.
+
+### Two costs of parallelism, both measured
+
+**Disk** — recorded in full above. Sized on a build, should have been
+sized on a test run; 2.5× apart.
+
+**The log** — every lane's every base merge conflicted on
+`work/vgeom/log.md`, eight resolutions across the wave, all unions and
+none a real disagreement. Filed as
+`work/meta/parallel-lanes-pay-a-quadratic-conflict-tax-on-one-log`
+with the per-branch numbers. It reopens no ruling; it puts a number
+under one that was made against an impression. The mitigation used
+here needs no ruling: the orchestrator resolved every lane's log
+conflict itself, being the one reader who had seen all four entries.
+
+### What is left
+
+Five open rows, all P2/P3, none blocked on a decision. One parked on
+WIRE's `need_count` siting. The program is in a state a successor can
+pick up cold.
