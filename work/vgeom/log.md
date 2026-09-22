@@ -1402,3 +1402,54 @@ neither picking path claimed) and
 `work/author/blend-swallows-the-edge-name-fault-the-index-calls-loud`
 (two sites collapsing three faults the index's header says are not the
 same news).
+
+## `vgeom/field-product` — the numeric field door's three residues (2026-09-22, #3067)
+
+Three residues of `crate::widgets::number_field`, closed together
+because they are one door:
+`a-field-bound-to-a-written-value-shows-a-product-that-overflowed`
+(P1/D), `a-bare-field-still-commits-its-own-render` (P2/D) and
+`a-typed-field-hands-its-text-over-on-two-frames`, which arrived
+unbanded and is banded P2/D here.
+
+**What a field SHOWS.** The refusal moved above the widget, because an
+`egui::DragValue` cannot spell it: the formatter is handed the `f64`
+the widget holds, with no unit in scope. `props::shown_value` is the
+new conversion door — `shown_in`'s total twin, `Ok(number)` or
+`Err(unit)` — and `widgets::named_field` and `widgets::value_field_ops`
+now draw `props::no_reading` where the field would be rather than a
+field reading `inf`. **The marker stands alone**: a disabled field
+still has to be handed the `inf`, and a canonical number beside a
+picker naming a different notation is a number to misattribute. No
+third refusal vocabulary.
+
+**A gate under the door.** `scripts/gates/viewer-numeric-field-door.sh`
+refuses a bare `egui::DragValue` under `crates/viewer/src` outside
+`widgets.rs`, which holds both the constructor and the rows that prove
+what it adds. The bare-field row's census — *every numeric field in
+the crate goes through the door* — was a measurement taken once and is
+a standing fact now.
+
+**One keyboard edit, one operation.** `value_field_ops` remembers,
+under the widget's own id, the text it last turned into an operation,
+and clears it on `gained_focus`. The id comes off the `Response`
+rather than being re-derived, which is what the row's argument against
+`had_focus_last_frame` asked for. `DocSession::writes_nothing` was not
+touched: the two rules are two, and
+`a_re_typed_text_after_focusing_again_is_a_second_act` is the case
+where the document's rule is the only answer there is.
+
+**The sweep and its blind spot.** Thirteen `number_field(` call sites,
+eleven in production, two of them conversions — the row's count, held
+at this merge base. The rule reads the CALL SITE, so it is blind to a
+product formed one frame up, and the second pass found one:
+`pane::properties`' free-move probe converts to millimetres before
+handing the triple to `vec3_row_ops`. Not fixed, and the reason is
+written at the site: the translation there is never a document value,
+only one the probe itself authored.
+
+**Filed**:
+`field-texts-literal-arm-is-unreachable-from-both-call-sites` —
+`props::field_text`'s literal arm is reachable from neither caller,
+and its prose is the only statement in the crate of what a literal
+field shows.
