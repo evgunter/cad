@@ -57,6 +57,13 @@ you:
   run already gates. The one case left to think about is a run YOU narrowed to
   `lane=default` over a diff of interval-named files.
 
+**A missing run is not a slow queue — it is what a merge conflict looks like.**
+Read the PR's `mergeable_state` before you conclude anything from a run that has
+not shown up: `dirty` means no run was ever going to be created, and the remedy
+is to merge the base out and push. **A foreground poll that loops until a run
+concludes will loop forever here** — the rule below, that a hosted CI wait is
+polled in the foreground rather than slept on, assumes a run exists to poll.
+
 **When the hosted gate is not enough**, run `local-scripts/ci-local.sh`. What it
 adds over hosted is its opt-in `--nightly` row. Reach for it before a merge that
 would be expensive to get wrong, not routinely.

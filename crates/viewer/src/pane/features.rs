@@ -5,6 +5,7 @@
 use eframe::egui;
 
 use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
+use crate::frame;
 use crate::session::{Selection, SessionOp};
 use crate::tree::{RowStatus, TreeRow};
 
@@ -121,14 +122,21 @@ impl ViewerBehavior<'_> {
             };
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
+                // A payload's own words are a sentence, so
+                // `widgets::message`, not `ui.link`/`ui.weak`.
                 match through {
                     Some(through) => {
-                        if ui.link(message).clicked() {
+                        if crate::widgets::message_link(ui, message).clicked() {
                             self.ops.push(SessionOp::Select(Selection::Node(through)));
                         }
                     }
                     None => {
-                        ui.weak(message);
+                        crate::widgets::message_toned(
+                            ui,
+                            message,
+                            &self.theme,
+                            frame::Tone::Advisory,
+                        );
                     }
                 }
             });
@@ -138,7 +146,12 @@ impl ViewerBehavior<'_> {
         if let Some(note) = &row.note {
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
-                ui.weak(note);
+                crate::widgets::message_toned(
+                    ui,
+                    note.as_str(),
+                    &self.theme,
+                    frame::Tone::Advisory,
+                );
             });
         }
     }
