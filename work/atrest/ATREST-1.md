@@ -2,11 +2,13 @@
 id: ATREST-1
 kind: unit
 title: tier 3 learns to ask which solid: a per-solid volume sign and a per-solid shell-role check
-status: review
+status: closed
 opened: 2026-09-20
 priority: P0
 cost: D
 branch: atrest/1-per-solid
+closed: 2026-09-22
+pr: 2977
 ---
 
 
