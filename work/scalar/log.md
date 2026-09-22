@@ -1292,3 +1292,33 @@ the capability the base's second `impl` block made impossible — then
 the 14-row red-first, the corpus dumps, the arms' reasons, the e4 rows,
 DL3's list gaining a verb's door, the third copy of the wiring
 pattern and the census's now-false "both doors". Two lanes live.
+
+## LANE-3 dual concluded; no tally candidate (2026-09-22)
+
+R1 (FABLE) APPROVE WITH FIXES 0/4/6; R2 (OPUS, re-dispatched after
+the first R2 died on an API overload before its first tool call)
+APPROVE WITH FIXES 0/4/7. No MAJOR on either arm. Bilateral by
+execution: the red-first set is 25 rows, not 14, and the tour authors
+shell nodes (its own cargo root is the true reason it is outside the
+count); the `Sym` arm of the new policy method is pinned by nothing —
+R2 added the three-line `Sym<f64>` roster row inside the fence and it
+passes (a gap this unit widened by one arm; the census's `ROSTERS` edit
+stays LANE-4's); the three fold signatures widened at `Sym<Dual<_>>`
+harmlessly; deviation 2's "no seam widened" is true by inspection and
+unguarded (the gate counts headers); "lane" still spells the door in
+two live places; the census header's "both doors" false with four door
+values (the fourth `wiring_rows` is LANE-0's in `offset_fit_lane.rs`);
+DL3's addition naming-only on both arms. Unique R1: a doc claim copied
+from `QuadLane` names a wiring pin the shell door does not have; the
+`f64` arm's reason is new prose. Unique R2: `real.rs`'s SEAT-9
+paragraph should have been re-worded under the carve-out, not filed;
+`verbs/README.md` is a Ratified page and the carve-out, not the
+graft-bottomed `git log -S`, is the ground; `QuadLane`'s reader is
+private, not `pub(crate)`. Both arms: every route to a
+`ShellDoor<Dual64>` refused; the `f64` pointer pin reds exactly one row
+under a forwarder; the corpus dumps and an authored cup byte-identical
+base vs head. Ruled: the fence extended for SEAT-9 and the census
+header (naming-only; announced on the PR); the `Sym` pin taken; the
+rest is body corrections and doc voice. Rubric 4/3/3 and 4/4/3. Pair
+COUNTS (neither arm interrupted; nothing glimpsed). Fix pass dispatched
+on the OPUS arm (nine items, `lane3-fix-pass.md`). One lane live.
