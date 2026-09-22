@@ -2,7 +2,7 @@
 id: tint
 kind: program
 title: S-TINT — test-suite integrity
-status: active
+status: ready
 opened: 2026-09-11
 area: infra
 prefix: tint/
