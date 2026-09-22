@@ -74,7 +74,9 @@ use pncad::document::{
 use pncad::geom::Surface;
 use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
-use crate::chain::{Chain, JOINT_SIGMA, LINKS, POSITION_BOUND, chain};
+use crate::chain::{
+    CERTIFIABLE_FRACTION_BY_LINKS, Chain, JOINT_SIGMA, LINKS, POSITION_BOUND, chain,
+};
 
 /// Metres to millimetres, for every printed number.
 const MM: f64 = 1e3;
@@ -258,20 +260,16 @@ pub fn narration(tol: Tol) {
     }
 
     println!(
-        "   the widest box that CERTIFIES WHOLE, as a fraction of the study (one \
-         Sym<Interval> leaf, halved from the whole study and then bisected in the exponent):"
+        "   the widest box that CERTIFIES WHOLE, as a fraction of the study — MEASURED at \
+         the default ε (`chain::CERTIFIABLE_FRACTION_BY_LINKS`, bisected and pinned by this \
+         cell's own CI row), with the same number as a SWING at the tip:"
     );
-    for links in 1..=LINKS {
-        let f = certifiable_fraction(links, tol);
-        if f == 0.0 {
-            println!("     {links} links: NOTHING certifies down to 2^-40 of the study");
-            continue;
-        }
-        // …and the same number as a SWING: `3σ` is the analyzed box's
-        // half-width per joint and `Σ (k−j)` is the tip's lever, so
-        // this is how far the tip may turn over the certified box. It
-        // is the same at every link count, which is what says the wall
-        // is one threshold rather than four.
+    for (i, f) in CERTIFIABLE_FRACTION_BY_LINKS.iter().enumerate() {
+        let links = i + 1;
+        // `3σ` is the analyzed box's half-width per joint and `Σ (k−j)`
+        // is the tip's lever, so this is how far the tip may turn over
+        // the certified box. It is the same at every link count, which
+        // is what says the wall is one threshold rather than four.
         let lever: f64 = (0..links).map(|j| (links - j) as f64).sum();
         let swing = 3.0 * JOINT_SIGMA * f * lever;
         println!(
@@ -281,10 +279,28 @@ pub fn narration(tol: Tol) {
             swing.to_degrees()
         );
     }
-    println!(
-        "   `chain::CERTIFIABLE_FRACTION` is the {LINKS}-link row: {:e}",
-        crate::chain::CERTIFIABLE_FRACTION
+
+    // **Whether that box still certifies HERE.** The wall is an
+    // enclosure straddling the run's own band, so the fraction moves
+    // with ε — `1.083e-1` at ε = 1e-6 against `1.110e-1` at the
+    // default. The cell declares the frontier rather than assuming
+    // its own published number (`demos/tour/tests/eps_regression.rs`
+    // on a declared frontier), and one leaf is what it costs to know.
+    let narrow = chain(
+        LINKS,
+        JOINT_SIGMA * crate::chain::CERTIFIABLE_FRACTION,
+        POSITION_BOUND,
+        tol,
     );
+    if !sym_leaf(LINKS, &narrow.doc).certifies {
+        println!(
+            "   the published box does NOT certify at this run's ε — it is the default ε's \
+             number, and the straddling enclosure that bounds it moves with the band. No \
+             enclosure is reported here; the cell's CI row measures the fraction at the \
+             default ε."
+        );
+        return;
+    }
 
     // …and at that box the certified lane reaches the TIP, so the
     // picture has a certified half: an enclosure per joint, drawn
@@ -367,6 +383,14 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
 /// exponent. A ratio is the right variable here for the reason it is
 /// on the plate — what the number says is how much of the study the
 /// certified answer covers, and "how much" is scale-free.
+///
+/// `#[cfg(test)]` because it is the MEASUREMENT, not the narration:
+/// the numbers it produces are published as
+/// [`CERTIFIABLE_FRACTION_BY_LINKS`] and the cell prints those, so a
+/// tour walk pays one leaf to say whether the published box still
+/// certifies at its ε rather than paying a whole bisection per link
+/// count on every run of `eps_regression`.
+#[cfg(test)]
 fn certifiable_fraction(links: usize, tol: Tol) -> f64 {
     let certifies = |f: f64| {
         let built = chain(links, JOINT_SIGMA * f, POSITION_BOUND, tol);
@@ -643,20 +667,37 @@ mod tests {
         );
     }
 
-    /// **The published fraction is the measured one.**
+    /// **The published fractions are the measured ones**, at every
+    /// link count.
     ///
-    /// `chain::CERTIFIABLE_FRACTION` is drawn to scale by the density
-    /// sheet, so a number that drifted from what the tier actually
-    /// reaches would be a caption about a box that does not exist.
+    /// The last of them is drawn to scale by the density sheet, so a
+    /// number that drifted from what the tier actually reaches would
+    /// be a caption about a box that does not exist; and the four
+    /// together are what say the wall is ONE threshold, so a drift in
+    /// any of them is a change in that claim.
+    ///
+    /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
+    /// the default — because the wall is an enclosure straddling the
+    /// run's band and the fractions move with it.
     #[test]
-    fn the_published_certifiable_fraction_is_the_measured_one() {
-        let measured = certifiable_fraction(LINKS, Tol::witness());
-        let published = crate::chain::CERTIFIABLE_FRACTION;
+    fn the_published_certifiable_fractions_are_the_measured_ones() {
+        let tol = Tol::witness();
+        let measured: Vec<f64> = (1..=LINKS).map(|n| certifiable_fraction(n, tol)).collect();
+        let drifted = measured
+            .iter()
+            .zip(CERTIFIABLE_FRACTION_BY_LINKS)
+            .any(|(m, p)| (m - p).abs() > 0.02 * p);
         assert!(
-            (measured - published).abs() <= 0.02 * published.max(f64::MIN_POSITIVE),
-            "chain::CERTIFIABLE_FRACTION is {published:e}; the {LINKS}-link chain's \
-             widest whole-certifying box measures {measured:e}. Re-baseline the constant \
-             and say in the PR what moved."
+            !drifted,
+            "chain::CERTIFIABLE_FRACTION_BY_LINKS is {CERTIFIABLE_FRACTION_BY_LINKS:?}; the \
+             widest whole-certifying boxes measure {measured:?} at ε = {}. Re-baseline the \
+             constant and say in the PR what moved.",
+            tol.eps()
+        );
+        assert_eq!(
+            crate::chain::CERTIFIABLE_FRACTION,
+            CERTIFIABLE_FRACTION_BY_LINKS[LINKS - 1],
+            "the sheet's fraction is the table's last row"
         );
     }
 }

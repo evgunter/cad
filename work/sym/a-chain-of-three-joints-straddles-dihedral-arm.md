@@ -45,6 +45,15 @@ sheet. So the answer EXISTS and this is the width it stops at — the
 plate's ceiling in the same shape, at six orders of magnitude more
 width (the plate's is `7.81e-7`).
 
+**The enclosure does not move with ε; only the band does.** At
+ε = 1e-6 the same leaf reports the same bracket to every digit —
+`[0e0, 7.338367397126071e-3]` — against `zero = 1e-6, escalate = 1e-5`
+instead of `1e-9 / 1e-8`, and the widest whole-certifying box moves
+only from `0.1110` to `0.1083` of the study for a thousandfold ε. So
+the bracket's WIDTH at a given box is a property of the arithmetic and
+not of the run's tolerance, and it collapses very steeply as the box
+narrows.
+
 The enclosure's LOWER end is exactly `0e0`, which is the shape of a
 dependency-widened margin around a structurally-zero quantity rather
 than of a real sign flip: a bar's cap-to-side dihedral is a right

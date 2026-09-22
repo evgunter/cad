@@ -157,7 +157,24 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// carries the measurement and what bounds it. Named here because
 /// [`crate::mcchain`] draws it to scale, and a number a picture is
 /// built around should not be a literal buried in the drawing code.
+///
+/// **At the DEFAULT ε**, like every other measured number here. The
+/// wall is an enclosure straddling the run's own band, so the fraction
+/// moves with ε: `1.083e-1` at ε = 1e-6, measured. The cell says at
+/// every ε whether this published box still certifies there rather
+/// than assuming it.
 pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
+
+/// **The same measurement at 1, 2, 3 and 4 links** — one number in
+/// four spellings.
+///
+/// `3σ · f · Σ_{j<=k}(k−j)`, the accumulated angular swing at the tip,
+/// is `0.0333` rad at every row but the first, which is capped by the
+/// study itself at `0.030`: the certified lane carries about 1.9° of
+/// swing however many joints it is spread over, and that single
+/// threshold is the wall. MEASURED by [`crate::chaintol`] and pinned
+/// there; [`CERTIFIABLE_FRACTION`] is the last row.
+pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
 
 /// **The certified enclosure of each joint pin's centre at that box**
 /// — `(half-width along the chain, half-width across it)`, in metres,
