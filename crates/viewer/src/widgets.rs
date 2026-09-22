@@ -3077,17 +3077,25 @@ mod value_field_tests {
     #[test]
     fn the_second_hand_over_of_one_typed_text_changes_nothing() {
         let mut row = Row::millimetres("auth2-twice", 1.0);
-        let (_, before_text) = row.showing();
-        assert!(
-            !props::echoed("1002", &before_text),
-            "the render must not be the text the user types, or the echo \
-             guard is what this row is reading: {before_text:?}"
-        );
         let before = row.session.history().len();
         row.click_in();
         row.frame(vec![egui::Event::Text("1002".to_owned())]);
         row.click_away();
         let emitted = row.taken();
+        // **The second parse is compared against the render of the
+        // value the FIRST one landed**, so that render is what decides
+        // whether the echo guard could have answered here. It cannot:
+        // `number_text` spells at least one decimal. Read off the
+        // field after the gesture rather than pinned as a spelling —
+        // the grid `crate::readout` renders on is not this row's to
+        // fix, and a row that named the text would red when it moves.
+        let (_, rendered) = row.showing();
+        assert!(
+            !props::echoed("1002", &rendered),
+            "the field renders the typed value back as the typed TEXT, so \
+             the echo guard would answer this repeat and this row is no \
+             longer reading the hand-over memory: {rendered:?}"
+        );
         assert_eq!(
             emitted.len(),
             1,
