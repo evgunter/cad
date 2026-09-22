@@ -30,7 +30,7 @@ use std::time::{Duration, Instant};
 
 use super::form::Form;
 use super::report::{FormSize, size_of};
-use super::{Hash128, SymBudget, SymOp};
+use super::{Hash128, Rung, SymBudget, SymOp};
 
 /// Why a node froze — the refusal the ring or the budget made, noted
 /// where it was made.
@@ -64,8 +64,16 @@ pub enum FreezeCause {
     Unnoted,
 }
 
-/// The three normal-form walks (`plain_form`, `early_form`,
-/// `door_form`).
+/// The normal-form walks (`plain_form`, `early_form`, `door_form`), and
+/// the two a RETRY attempt runs in its own memos (`sym::SymRetry`).
+///
+/// The retry buckets are SEPARATE and not summed into the first
+/// attempt's: `Early` and `Door` are the tier's first attempt on every
+/// profile, with a ladder installed or without one, so a row that pins
+/// them is measuring the same thing it measured before the ladder
+/// existed. They carry no attempt number — an attempt's own forms are
+/// in `DecisionRecord`'s attribution, and a bucket per attempt would
+/// make the ledger's shape depend on how long the ladder is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Walk {
     /// Every atom opaque, rule A0 only.
@@ -74,6 +82,10 @@ pub enum Walk {
     Early,
     /// The early walk with the registered-identity door applied.
     Door,
+    /// A RETRY attempt's early walk, in that attempt's own memo.
+    RetryEarly,
+    /// A RETRY attempt's door walk, in that attempt's own memo.
+    RetryDoor,
 }
 
 impl Walk {
@@ -82,6 +94,19 @@ impl Walk {
             (false, _) => Self::Plain,
             (true, false) => Self::Early,
             (true, true) => Self::Door,
+        }
+    }
+
+    /// The bucket this walk is CHARGED to — itself on the first
+    /// attempt, its retry twin inside one ([`set_attempt`]).
+    fn charged(self) -> Self {
+        if ATTEMPT.get() == 0 {
+            return self;
+        }
+        match self {
+            Self::Early => Self::RetryEarly,
+            Self::Door => Self::RetryDoor,
+            other => other,
         }
     }
 }
@@ -200,6 +225,32 @@ pub struct Timed {
     pub time: Duration,
 }
 
+/// **How ONE decision was answered, and what froze on its way** — the
+/// per-decision attribution the ladder's measurement needs.
+///
+/// **What `causes` is, exactly, and what it is not.** It is the freezes
+/// THIS decision's walks COMPUTED — the sites recorded between
+/// `sym::discharge_in`'s two hooks. A decision whose forms were already
+/// in a memo (another decision built them, or a drive memo served them)
+/// records none, so the column attributes a freeze to the FIRST
+/// decision that paid for it and not to every decision that stood on
+/// it. That is the honest reading of a memoized walk and it is the
+/// reason the table beside it counts REFUSALS rather than dividing
+/// freezes among them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecisionRecord {
+    /// Why the walk was asked — the decision's own discharge, the
+    /// contradiction assertion, or the shape report.
+    pub origin: Origin,
+    /// The rung that answered and the ATTEMPT it answered on (0 the
+    /// first, `k` the `k`th rung of the retry ladder); `None` where
+    /// every rung of every attempt declined and the decision is
+    /// numeric.
+    pub answered: Option<(Rung, u8)>,
+    /// The freezes this decision's own walks made, by cause.
+    pub causes: BTreeMap<FreezeCause, u64>,
+}
+
 /// Everything recorded since [`start_profile`].
 #[derive(Clone, Debug, Default)]
 pub struct SymProfile {
@@ -244,6 +295,10 @@ pub struct SymProfile {
     /// keyed by the id could have answered from another leaf. The
     /// ratio is the ceiling of a drive-scoped plain memo's win.
     pub plain_ids: BTreeSet<u128>,
+    /// **Every decision, in the order it was answered** — the rung and
+    /// attempt that answered it and the freezes it computed
+    /// ([`DecisionRecord`]).
+    pub decisions: Vec<DecisionRecord>,
     /// **Each session's set of `Opaque` indeterminate ids**, in the
     /// order the sessions ended.
     ///
@@ -275,6 +330,12 @@ thread_local! {
     /// The `Opaque` ids the session now installed has minted, flushed
     /// into [`SymProfile::opaque_ids`] when it ends.
     static OPAQUE_LEAF: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
+
+    /// **Which RETRY attempt is running** (`sym::SymRetry`) — 0 for the
+    /// first, `k` inside the `k`th rung of the ladder. Read by
+    /// [`Walk::charged`], so a retry's forms land in their own buckets
+    /// and the first attempt's rows are what they were.
+    static ATTEMPT: Cell<u8> = const { Cell::new(0) };
 }
 
 /// Installs the profile on this thread, dropping anything recorded.
@@ -307,6 +368,46 @@ fn with(f: impl FnOnce(&mut SymProfile)) {
 #[inline]
 pub(super) fn set_origin(origin: Origin) -> Origin {
     ORIGIN.replace(origin)
+}
+
+/// Sets the retry attempt the next walks are charged to, answering the
+/// one it replaces so the caller restores it.
+#[inline]
+pub(super) fn set_attempt(attempt: u8) -> u8 {
+    ATTEMPT.replace(attempt)
+}
+
+/// **Opens a DECISION's record**, answering the mark the freezes it
+/// makes start at — `sym::discharge_in` calls this before the ladder
+/// and hands the mark back to [`decision_end`].
+///
+/// The mark is an index into [`SymProfile::freezes`] and not a counter
+/// of its own, so the causes a decision is charged with are exactly the
+/// freeze sites recorded between the two calls: nothing is attributed
+/// twice and nothing needs a second hook at the refusal sites.
+#[must_use]
+pub(super) fn decision_begin() -> usize {
+    let mut mark = 0;
+    with(|p| mark = p.freezes.len());
+    mark
+}
+
+/// **Closes a decision's record**: the rung and attempt that answered
+/// (`None` for a refusal), and the freezes this decision's own walks
+/// made, by cause.
+pub(super) fn decision_end(mark: usize, answered: Option<(Rung, u8)>) {
+    let origin = ORIGIN.get();
+    with(|p| {
+        let mut causes: BTreeMap<FreezeCause, u64> = BTreeMap::new();
+        for f in &p.freezes[mark.min(p.freezes.len())..] {
+            *causes.entry(f.cause).or_default() += 1;
+        }
+        p.decisions.push(DecisionRecord {
+            origin,
+            answered,
+            causes,
+        });
+    });
 }
 
 /// A clock reading when the profile is installed, `None` otherwise —
@@ -371,6 +472,7 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 3], made: Option<
     if !active() {
         return;
     }
+    let walk = walk.charged();
     let arity = op.arity();
     let sizes = [
         (arity >= 1).then(|| size_of(kids[0])),
@@ -418,6 +520,7 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 3], made: Option<
 
 /// Records a freeze of a node the session never recorded.
 pub(super) fn record_unrecorded(walk: Walk) {
+    let walk = walk.charged();
     let origin = ORIGIN.get();
     with(|p| {
         let w = p.walks.entry((walk, origin)).or_default();
@@ -435,6 +538,7 @@ pub(super) fn record_unrecorded(walk: Walk) {
 
 /// Records one call to a walk and how long it took.
 pub(super) fn walk_done(walk: Walk, t0: Option<Instant>) {
+    let walk = walk.charged();
     let dt = elapsed(t0);
     let origin = ORIGIN.get();
     with(|p| {
@@ -610,6 +714,50 @@ impl SymProfile {
             }
         }
         out
+    }
+
+    /// **WHERE THE REFUSALS ARE** — one line per `(origin, rung,
+    /// attempt)` with the decisions it answered, then one line for the
+    /// decisions EVERY rung of every attempt refused, with the freeze
+    /// causes those decisions' own walks made
+    /// ([`DecisionRecord::causes`] carries what that attribution does
+    /// and does not say).
+    ///
+    /// No clock on it, so it is the same text on every box and a row
+    /// can pin it.
+    #[must_use]
+    pub fn rung_table(&self) -> String {
+        use core::fmt::Write as _;
+        let mut answered: BTreeMap<(String, String, u8), u64> = BTreeMap::new();
+        let mut refused: BTreeMap<String, u64> = BTreeMap::new();
+        let mut causes: BTreeMap<(String, FreezeCause), u64> = BTreeMap::new();
+        for d in &self.decisions {
+            let origin = format!("{:?}", d.origin);
+            match d.answered {
+                Some((rung, attempt)) => {
+                    *answered
+                        .entry((origin, format!("{rung:?}"), attempt))
+                        .or_default() += 1;
+                }
+                None => {
+                    *refused.entry(origin.clone()).or_default() += 1;
+                    for (cause, n) in &d.causes {
+                        *causes.entry((origin.clone(), *cause)).or_default() += n;
+                    }
+                }
+            }
+        }
+        let mut f = String::new();
+        for ((origin, rung, attempt), n) in &answered {
+            let _ = writeln!(f, "{origin}/{rung}/attempt {attempt} answered {n}");
+        }
+        for (origin, n) in &refused {
+            let _ = writeln!(f, "{origin}/refused {n}");
+        }
+        for ((origin, cause), n) in &causes {
+            let _ = writeln!(f, "{origin}/refused froze {cause:?} {n}");
+        }
+        f
     }
 
     /// **The walk ledger**: one line per walk and origin — calls, forms,

@@ -271,7 +271,17 @@ fn sqrt_poly(p: &Poly, sess: &mut Session) -> Option<Form> {
     }
     let (content, primitive) = content_split(p)?;
     let (s, f) = content.split_square()?;
-    let base = match signed::poly_sqrt(&primitive, sess.budget) {
+    // `sqrt(R²) = |R|` — step 3, behind its own dial
+    // (`SymRules::root_magnitude`) so a retry can keep the root's atom
+    // closed where opening it into a magnitude costs the walk a
+    // cancellation. With the step off the primitive part stays under a
+    // `Sqrt` atom and the content split above it is unchanged.
+    let base = match sess
+        .rules
+        .root_magnitude
+        .then(|| signed::poly_sqrt(&primitive, sess.budget))
+        .flatten()
+    {
         Some(r) => magnitude_of_root(r, sess)?,
         None => atom(SymOp::Sqrt, Form::poly(primitive), sess),
     };
