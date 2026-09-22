@@ -190,14 +190,12 @@ mod tests {
     use crate::app::GLYPH_ROOT;
     use crate::pane::headless::{landed, painted_text};
     use crate::tree::{RowStatus, TreeRow};
+    use crate::widgets::message_tests::SLACK;
     use crate::widgets::{message, message_floor};
 
     /// A failure line of the length and shape a refusal has, quoting a
     /// number.
     const FAILURE: &str = "the offset is 0.30000000000000004 mm, which the solver refused";
-
-    /// Rows are placed at whole pixels.
-    const SLACK: f32 = 1.0;
 
     /// One headless frame of a line under a row at `depth`, drawn the
     /// way `feature_row` draws one, in a region `spare` points wider

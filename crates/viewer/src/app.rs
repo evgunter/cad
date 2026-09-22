@@ -2590,7 +2590,6 @@ mod tests {
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
         prepare(&mut app);
-        let status = sentence;
         let mut row = Row {
             occupied: f32::NAN,
             available: f32::NAN,
@@ -2623,7 +2622,7 @@ mod tests {
                     row.occupied = laid_out.response.rect.width();
                 });
             });
-            row.status = status
+            row.status = sentence
                 .and_then(|text| {
                     crate::pane::headless::landed_in(&output.shapes)
                         .into_iter()

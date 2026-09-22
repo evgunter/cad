@@ -78,10 +78,12 @@ broken or clipped reads as another number: `readout::MAX_CHARS`,
 text gets is what a line break does to it. The two meet at the floor
 Ev ruled for: a region owes a sentence at least the width of the
 widest value it could quote, and `widgets::message_floor` is
-`MAX_CHARS` in points. Each side points at the other: the
-`MAX_CHARS` doc has a paragraph pointing at `message`'s rule and at
-`message_floor`, and `number_text`'s doc names itself as the first arm
-and `message` as the second.
+the widest `readout` number, and a space, in points. The rule is
+stated once, at `message`; `readout::MAX_CHARS`'s doc, `number_text`'s
+doc and `crates/viewer/README.md` each carry a one-line pointer to it.
+The width the floor uses is `readout::widest_render`, which `readout`
+owns because it owns the characters it writes. The δ field in
+`pane/view.rs` reads the same width.
 
 For the fifty-site census this settles that the sites take the width
 answer. The concision half of `error-and-check-text-overflows-its-region`
