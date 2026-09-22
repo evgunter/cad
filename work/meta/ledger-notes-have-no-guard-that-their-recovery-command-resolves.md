@@ -22,7 +22,7 @@ one moment it exists for — when a reader needs the file back.
 
 ## The instances, and they were found by hand
 
-Of the 139 entries migrated out of `docs/DOC-LEDGER.md` into
+Of the 144 notes migrated out of `docs/DOC-LEDGER.md` into
 `docs/doc-ledger/` on PR 3063, **three name a commit at which the file
 was already deleted**:
 
