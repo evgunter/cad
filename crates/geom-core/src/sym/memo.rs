@@ -264,7 +264,12 @@ impl DriveMemo {
     /// walked from the FROZEN end, which is the smaller of the two on
     /// every document measured (1,044 ids against a 17,624-node closure
     /// on the plate), and the leaf's own side counts only what the
-    /// drive's does not already hold.
+    /// drive's does not already hold. That choice is a rounding error
+    /// in the column's cost and is made because it is also the simpler
+    /// code: measured over a 48-leaf plate drive, the whole column
+    /// costs 222 ms and this counting is 1.2 ms of it — what a leaf's
+    /// NEED actually pays for is `Session::closure`, which materialises
+    /// the walk it counts over.
     ///
     /// Both counts under ONE read lock, so the two halves are read
     /// against one state of the memo rather than two.
