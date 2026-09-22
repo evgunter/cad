@@ -748,3 +748,49 @@ fn a_band_refusal_reaches_the_whole_document_and_blames_no_row() {
          matches nothing greens. Child output:\n{text}"
     );
 }
+
+/// **A document whose only non-`Ok` row is POISONED is not
+/// building**, and it has nothing to act on — `tree::has_faults` and
+/// [`RowStatus::tone`] read two different axes, and the one that is
+/// easy to collapse is this one.
+///
+/// Every other `has_faults` assertion in this tree stands on a
+/// document that also carries a `Failed` row, so dropping `Poisoned`
+/// from the fault policy — or rewriting that policy as "any
+/// actionable row", which is the natural-looking collapse — reddens
+/// nowhere but here. The rows are built rather than evaluated because
+/// that is the state no real document reaches: a poisoning always has
+/// its cause in the same tree, which is exactly why the arm is
+/// otherwise never tested alone.
+#[test]
+fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
+    use pncad::document::RecipeNodeId;
+
+    let row = |id: u64, status: RowStatus| viewer::tree::TreeRow {
+        id: RecipeNodeId(id),
+        kind: "Transform",
+        pose: None,
+        depth: 0,
+        root: false,
+        status,
+        note: None,
+    };
+    let rows = [
+        row(1, RowStatus::Ok),
+        row(
+            2,
+            RowStatus::Poisoned {
+                through: RecipeNodeId(1),
+                message: Some("upstream failure at feature 1".to_owned()),
+            },
+        ),
+    ];
+    assert!(
+        tree::has_faults(&rows),
+        "a row showing someone else's failure still says the document is not building"
+    );
+    assert!(
+        rows.iter().all(|row| row.status.tone() == Tone::Advisory),
+        "and nothing in it is a row the reader can act on: {rows:?}"
+    );
+}

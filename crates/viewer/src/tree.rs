@@ -582,11 +582,42 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
 
 /// Whether any row reports a failure or a poisoning — what a chrome
 /// shows as "this document is not building".
+///
+/// **An exhaustive `match` rather than a `matches!`, and that is the
+/// point.** A subset pattern answers `false` for everything it does
+/// not name, so a fifth [`RowStatus`] would be silently not-a-fault
+/// and a document that is not building would report as building, with
+/// nothing anywhere saying so. Written this way, the state that is
+/// added reds HERE — at the policy it has to answer — rather than a
+/// schedule away from it.
+///
+/// **Every arm is this chrome's own policy, and none of it is read off
+/// the kernel.** A [`RowStatus`] is already a viewer reading of an
+/// evaluation, so there is no upstream rule to cite here the way
+/// `frame::badge_site` cites `ProductErrorKind::means_no_body`: what a
+/// chrome shows as "not building" is decided here, one state at a
+/// time.
+///
+/// - [`RowStatus::Failed`] and [`RowStatus::Poisoned`] are faults. A
+///   poisoned row's failure is someone else's, but the document it
+///   belongs to is no more building for that.
+/// - [`RowStatus::Unevaluated`] is **not** a fault, and it is stated
+///   rather than left to the complement of a pattern: an absent
+///   measurement is not a bad one, and a tree drawn before the first
+///   result would otherwise report every document as broken.
+/// - [`RowStatus::Ok`] is not a fault.
+///
+/// **A different axis from [`RowStatus::tone`]**, which is why it is a
+/// second reading and not a call to that one: `tone` asks what a
+/// reader can ACT on and leaves a poisoned row [`Tone::Advisory`],
+/// pointing at the row that owns the failure. This asks whether the
+/// document is building, and a poisoned row says it is not. Collapsing
+/// the two would make a document whose only fault is downstream report
+/// clean.
 pub fn has_faults(rows: &[TreeRow]) -> bool {
-    rows.iter().any(|row| {
-        matches!(
-            row.status,
-            RowStatus::Failed { .. } | RowStatus::Poisoned { .. }
-        )
+    rows.iter().any(|row| match row.status {
+        RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => true,
+        RowStatus::Unevaluated => false,
+        RowStatus::Ok => false,
     })
 }
