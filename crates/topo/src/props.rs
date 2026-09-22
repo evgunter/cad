@@ -2424,7 +2424,8 @@ where
         None
     }
 
-    /// The tier changes how an identically-zero margin decides and
+    /// For the reason [`QuadLane`] gives at the symbolic tier: the
+    /// tier changes how an identically-zero margin decides and
     /// nothing else, so wrapping a certifying base must not demote a
     /// certifying door to an absent one — the driver's leaf replay
     /// would otherwise stop hollowing the bodies it certifies.
