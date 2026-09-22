@@ -229,6 +229,34 @@ fn m2r1_passes_dual64() {
     }
 }
 
+/// The declared straddle seat at `f64` through BOTH door families —
+/// the one dump row whose `_structural` line carries a
+/// `CensusLaneUnsupported`. The certified door examines the declared
+/// pair and certifies the seat (`Ok`); the `_structural` door holds no
+/// region door at any scalar, refuses the pair typed and leaves the two
+/// crossings the declaration backs as `UndeclaredContact`.
+#[test]
+fn m2r1_declared_seat_f64() {
+    let tol = Tol::witness();
+    let seat = topo::test_support::straddle_seat(tol);
+    let records = ContactRecords {
+        patches: vec![topo::PatchContact {
+            face_a: seat.post_top,
+            face_b: seat.shelf_bottom,
+        }],
+        ..ContactRecords::default()
+    };
+    for (family, doors) in [
+        ("certified", certified::<f64>()),
+        ("structural", structural::<f64>()),
+    ] {
+        println!(
+            "M2R1|f64|straddle_seat~declared|pseudomanifold~{family}|{:?}",
+            (doors.pseudomanifold)(&seat.body, &records, tol)
+        );
+    }
+}
+
 /// **The `_structural` door at `Dual64` answers the certified door's
 /// `f64` measurement on every closed-form body, and refuses exactly
 /// where the lane would have enclosed** — the content of the `None`

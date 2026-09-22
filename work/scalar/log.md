@@ -646,3 +646,15 @@ EXCH. Two of the spec's premises were wrong (`run_checks` at `Dual`;
 `Bounds` on `AtRestPolicy`), and the tour needed `CertifiedBounds` on
 its `Scalar` trait; the ledger names them. LANE-2 dispatches on this
 shape.
+
+## LANE-2 merged (2026-09-21)
+
+PR 3038, block SCALAR-B6 slot 0, ordinal 4115. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's bilateral
+MAJOR — the `_structural` doors' verdict move at `f64` — was ruled to
+stand under ruling 3 and is disclosed at the door, in the PR body and
+on the ATREST row. Four of the spec's premises were wrong (the
+"every verdict at every scalar" sentence against its own §1, the
+red-first list, the isolator pin, the merge base); the ledger names
+them. LANE-3 dispatches on this shape; LANE-4 folds the wiring
+module's copies.
