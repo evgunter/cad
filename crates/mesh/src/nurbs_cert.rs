@@ -2486,6 +2486,132 @@ pub(crate) mod tests {
         assert!(hu > 1e3 && hv > 1e3, "flat stays effectively unconstrained");
     }
 
+    /// A described bilinear rational patch, from the exact bits of its
+    /// description. Hex bit patterns rather than decimal literals: the
+    /// referee that measured these patches reads the same bits, and a
+    /// decimal spelling would make the two descriptions agree only as
+    /// far as two parsers do.
+    fn bilinear_rational(weights: [u64; 4], control: [u64; 12]) -> NurbsSurface<f64> {
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        let p = |i: usize| {
+            Point3::new(
+                f64::from_bits(control[3 * i]),
+                f64::from_bits(control[3 * i + 1]),
+                f64::from_bits(control[3 * i + 2]),
+            )
+        };
+        NurbsSurface::new(
+            kv.clone(),
+            kv,
+            (0..4).map(p).collect(),
+            weights.map(f64::from_bits).to_vec(),
+        )
+        .unwrap()
+    }
+
+    /// **The certificate's own claim, refereed exactly.** `muu` is a
+    /// sup bound on the DESCRIBED patch's `‖S_uu‖`, so the claim is
+    /// falsified by one real value above it — and on these two patches
+    /// the real value is known, not sampled.
+    ///
+    /// Each literal is the true `‖S_uu‖` at the named corner computed
+    /// in exact rational arithmetic (every `f64` of a NURBS
+    /// description is a rational, so the whole quotient-rule jet is
+    /// exact) and then **rounded DOWN to an `f64`** — so it is a real
+    /// number the patch genuinely attains, or below one.
+    /// `scripts/nurbs-exact-referee.py` re-derives both from the bit
+    /// patterns this row builds its surfaces from.
+    ///
+    /// Two consequences of the literal being a TRUTH and not a sample.
+    /// The comparison is [`Domination::new`] — the bare `<=`, allowance
+    /// zero — because [`SAMPLER_ULPS`] pays for a sampler's rounding
+    /// and there is no sampler here. And the escape is not a sampling
+    /// artefact in either direction: a dense `f64` sample of these
+    /// patches misses the truth by ~6e-17 per channel, where the
+    /// escape it hides is ~1.4 ulps of the certified figure.
+    ///
+    /// Why bilinear, and why these two. `pu = pv = 1` is where the
+    /// quotient-rule recurrence is tightest — at a domain corner every
+    /// factor's extreme coincides, so the cell hull collapses onto the
+    /// value it is bounding and has no slack left to absorb anything.
+    /// Both patches were drawn by `r1_random_rational_soundness_sweep`
+    /// on hosted runs and their escapes measured in exact arithmetic;
+    /// their weights differ by three decades, so the escape is not an
+    /// artefact of a weight scale.
+    #[test]
+    fn the_described_bilinear_rationals_true_uu_is_under_the_certified_sup() {
+        // Fixture A, at (u, v) = (0, 0); weights ≈ 0.0103–0.0135.
+        let a = bilinear_rational(
+            [
+                0x3f85_1d67_0625_33ec,
+                0x3f85_e951_aad1_06d4,
+                0x3f8b_ae9f_b921_3c25,
+                0x3f89_570f_cf39_bbfe,
+            ],
+            [
+                0xbfd4_5c5e_a128_e388,
+                0xbfe3_53dc_5381_e28c,
+                0x3fee_e4c7_4f58_da14,
+                0x3ffa_dea5_3eea_524a,
+                0xbffe_1bfe_e0da_6176,
+                0xbfb5_7ac6_093c_8d60,
+                0x3ff2_4217_85e0_9da0,
+                0xbff7_ec6a_dc24_3a5c,
+                0xbffd_007c_723f_c4a6,
+                0xbfd9_ac7d_34a0_77d8,
+                0x3ff2_2092_5d90_b010,
+                0xbfc5_0c20_054b_4c20,
+            ],
+        );
+        // Fixture B, at (u, v) = (0, 1); weights ≈ 3.3–5.2.
+        let b = bilinear_rational(
+            [
+                0x4014_b6e6_9928_91ad,
+                0x400a_864c_9997_93db,
+                0x4010_ca99_b259_0ee1,
+                0x4010_6199_a0a8_9a72,
+            ],
+            [
+                0xbff5_4a0c_eafe_35ba,
+                0x3f95_e6ac_362b_df80,
+                0xbfd0_260d_ed55_9cd0,
+                0x3fea_bff6_7292_74d0,
+                0xbfe5_f005_b8eb_add4,
+                0x3fe4_64f4_1381_1098,
+                0xbff5_221f_c005_d982,
+                0xbff8_6db2_84fd_9286,
+                0xbfe9_576c_7148_3e30,
+                0x3fe4_da54_6f12_0828,
+                0x3ff4_7c37_162b_9746,
+                0xbfcb_0fc4_c9a4_7fd0,
+            ],
+        );
+        // Both fixtures are reported before the row fails: which of the
+        // two escapes, and by how much, is the measurement — a row that
+        // stopped at the first would hide the second's number.
+        let mut escaped = Vec::new();
+        for (name, surface, true_uu) in [
+            ("A", &a, 2.660_331_998_073_639_5_f64),
+            ("B", &b, 1.248_592_341_233_724_5_f64),
+        ] {
+            let bound = nurbs_face_bound(surface, FaceKey::default()).expect("covered");
+            let d = Domination::new(
+                "true (exact rational referee)",
+                "certified",
+                &[("uu", true_uu, bound.muu)],
+            );
+            println!("bilinear {name}: true uu {true_uu:.17e} vs certified {:.17e}", bound.muu);
+            if !d.holds() {
+                escaped.push(format!("fixture {name}: {d}"));
+            }
+        }
+        assert!(
+            escaped.is_empty(),
+            "the certificate does not bound the DESCRIBED patch: {}",
+            escaped.join(" | ")
+        );
+    }
+
     /// A C⁰ crease (interior multiplicity = degree) refuses typed —
     /// the Taylor remainder needs C¹.
     #[test]
