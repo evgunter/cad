@@ -5661,3 +5661,307 @@ mod tests {
         assert_eq!(rows, ["numeric"; 2]);
     }
 }
+
+/// r2 probe rows for SYM-9's dual review — end-to-end exercise of the
+/// retry ladder at the scalar door. Not for the permanent suite as they
+/// stand.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probe_rows {
+    use super::*;
+    use crate::predicate::Margin;
+    use crate::tolerance::Tol;
+
+    fn budget() -> SymBudget {
+        SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        }
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the witness tolerance has a linear band")
+    }
+
+    fn p(name: &str, v: f64) -> Sym<f64> {
+        Sym::param(ParamSymbol::of(name), v)
+    }
+
+    fn decides_zero(m: Sym<f64>) -> bool {
+        crate::k_stats::decide("r2_probe", Margin::of(m), band()) == Ok(Sign::Zero)
+    }
+
+    fn run(retry: SymRetry, m: impl Fn() -> Sym<f64>) -> (bool, SymCounts) {
+        with_session_retry(budget(), SymRules::shipped(), retry, || decides_zero(m()))
+    }
+
+    fn ring(bits: u64) -> SymRetry {
+        SymRetry {
+            bits: Some(bits),
+            ..SymRetry::none()
+        }
+    }
+
+    fn cols(c: &SymCounts) -> [u64; 5] {
+        [c.symbolic_zero, c.sign_gated, c.registered, c.numeric, c.retried]
+    }
+
+    /// `c^n` spelled two ways, `c = fl(1/3)` (53-bit odd mantissa): the
+    /// product needs `53n` bits.
+    fn power_two_ways(n: usize) -> Sym<f64> {
+        let c = || Sym::<f64>::from_f64(1.0 / 3.0);
+        let mut left = c();
+        for _ in 1..n {
+            left = left * c();
+        }
+        let half = n / 2;
+        let mut a = c();
+        for _ in 1..half {
+            a = a * c();
+        }
+        let mut b = c();
+        for _ in 1..(n - half) {
+            b = b * c();
+        }
+        left - a * b
+    }
+
+    #[test]
+    fn r2_ring_retry_five_factors_fits_at_512_not_256() {
+        // 265 bits: past 256, inside 512.
+        let (_, none) = run(SymRetry::none(), || power_two_ways(5));
+        let (_, r512) = run(ring(512), || power_two_ways(5));
+        let (_, kept) = run(SymRetry::kept_atom(), || power_two_ways(5));
+        println!("none {:?}  ring512 {:?}  kept_atom {:?}", cols(&none), cols(&r512), cols(&kept));
+        assert_eq!(cols(&none), [0, 0, 0, 1, 0]);
+        assert_eq!(cols(&r512), [1, 0, 0, 0, 1]);
+        assert_eq!(cols(&kept), [0, 0, 0, 1, 0], "no kept-atom retry reaches a constant product");
+    }
+
+    #[test]
+    fn r2_ring_retry_ten_factors_fits_at_neither_256_nor_512_but_at_1024() {
+        // 530 bits: past 512, inside 1024.
+        let (_, none) = run(SymRetry::none(), || power_two_ways(10));
+        let (_, r512) = run(ring(512), || power_two_ways(10));
+        let (_, r1024) = run(ring(1024), || power_two_ways(10));
+        let (_, both) = run(
+            SymRetry {
+                bits: Some(512),
+                ..SymRetry::kept_atom()
+            },
+            || power_two_ways(10),
+        );
+        println!(
+            "none {:?}  ring512 {:?}  ring1024 {:?}  kept+512 {:?}",
+            cols(&none),
+            cols(&r512),
+            cols(&r1024),
+            cols(&both)
+        );
+        assert_eq!(cols(&none), [0, 0, 0, 1, 0]);
+        assert_eq!(cols(&r512), [0, 0, 0, 1, 0]);
+        assert_eq!(cols(&both), [0, 0, 0, 1, 0]);
+        assert_eq!(cols(&r1024), [1, 0, 0, 0, 1]);
+    }
+
+    /// `X = Π(1 − w_i)` over `n` parameters: `2^n` terms, mixed signs so
+    /// rule F never folds `|X|`.
+    fn mixed(n: usize) -> Sym<f64> {
+        let mut x = Sym::<f64>::from_f64(1.0);
+        for i in 0..n {
+            x = x * (Sym::from_f64(1.0) - p(&format!("w{i}"), 0.1));
+        }
+        x
+    }
+
+    /// Manifestly positive, so rule F folds `|Z| = Z` in the EARLY walk
+    /// only: the plain rung keeps the `abs` atom and the top residual
+    /// (rules A/B) cannot open it, so only a walk decides this.
+    fn z() -> Sym<f64> {
+        let w = p("z", 0.3);
+        w * w + Sym::from_f64(1.0)
+    }
+
+    /// The link's shape at the scalar: a document `abs` node whose
+    /// square rule G's companion rewrite opens into `X²` (64 → 729
+    /// terms), so the next product `X²·X²` (15625 terms) FREEZES on the
+    /// term budget, where `|X|⁴` as a kept atom is one monomial.
+    fn closes_only_with_rule_g_off() -> Sym<f64> {
+        let x = mixed(6);
+        let a = || x.abs();
+        let q = (a() * a()) * (a() * a());
+        let q2 = ((a() * a()) * a()) * a();
+        z().abs() * q - z() * q2
+    }
+
+    #[test]
+    fn r2_a_decision_that_closes_only_with_rule_g_off() {
+        let g_off = SymRetry {
+            bits: None,
+            without: [
+                Some(SymRules {
+                    canonical_root: false,
+                    ..SymRules::all()
+                }),
+                None,
+            ],
+        };
+        let rewrite_off = SymRetry {
+            bits: None,
+            without: [
+                Some(SymRules {
+                    abs_square: false,
+                    ..SymRules::all()
+                }),
+                None,
+            ],
+        };
+        let a_off = SymRetry {
+            bits: None,
+            without: [
+                Some(SymRules {
+                    sqrt_square: false,
+                    ..SymRules::all()
+                }),
+                None,
+            ],
+        };
+        let (_, none) = run(SymRetry::none(), closes_only_with_rule_g_off);
+        let (_, g) = run(g_off, closes_only_with_rule_g_off);
+        let (_, rw) = run(rewrite_off, closes_only_with_rule_g_off);
+        let (_, a) = run(a_off, closes_only_with_rule_g_off);
+        let (_, r512) = run(ring(512), closes_only_with_rule_g_off);
+        let (_, kept) = run(SymRetry::kept_atom(), closes_only_with_rule_g_off);
+        println!(
+            "none {:?}  G off {:?}  rewrite off {:?}  A off {:?}  ring512 {:?}  kept_atom {:?}",
+            cols(&none),
+            cols(&g),
+            cols(&rw),
+            cols(&a),
+            cols(&r512),
+            cols(&kept)
+        );
+        assert_eq!(cols(&none), [0, 0, 0, 1, 0], "the first attempt refuses");
+        assert_eq!(cols(&g), [1, 0, 0, 0, 1], "rule G off recovers it");
+        assert_eq!(cols(&r512), [0, 0, 0, 1, 0], "the ring cannot: the freeze is on terms");
+        assert_eq!(cols(&kept), [1, 0, 0, 0, 1], "the shipped ladder recovers it");
+    }
+
+    /// Rule A's own harm: `sqrt(X)² = X` with `X` of 256 terms opens
+    /// into `X·X` (6561 terms), past the term budget; `s⁴` kept as an
+    /// atom power is one monomial.
+    fn closes_only_with_rule_a_off() -> Sym<f64> {
+        let x = mixed(8);
+        let s = || x.sqrt();
+        let q = (s() * s()) * (s() * s());
+        let q2 = ((s() * s()) * s()) * s();
+        z().abs() * q - z() * q2
+    }
+
+    #[test]
+    fn r2_a_decision_that_closes_only_with_rule_a_off() {
+        let a_off = SymRetry {
+            bits: None,
+            without: [
+                Some(SymRules {
+                    sqrt_square: false,
+                    ..SymRules::all()
+                }),
+                None,
+            ],
+        };
+        let g_off = SymRetry {
+            bits: None,
+            without: [
+                Some(SymRules {
+                    canonical_root: false,
+                    ..SymRules::all()
+                }),
+                None,
+            ],
+        };
+        let (_, none) = run(SymRetry::none(), closes_only_with_rule_a_off);
+        let (_, a) = run(a_off, closes_only_with_rule_a_off);
+        let (_, g) = run(g_off, closes_only_with_rule_a_off);
+        let (_, r512) = run(ring(512), closes_only_with_rule_a_off);
+        let (_, kept) = run(SymRetry::kept_atom(), closes_only_with_rule_a_off);
+        println!(
+            "none {:?}  A off {:?}  G off {:?}  ring512 {:?}  kept_atom {:?}",
+            cols(&none),
+            cols(&a),
+            cols(&g),
+            cols(&r512),
+            cols(&kept)
+        );
+        assert_eq!(cols(&none), [0, 0, 0, 1, 0], "the first attempt refuses");
+        assert_eq!(cols(&a), [1, 0, 0, 0, 1], "rule A off recovers it");
+        assert_eq!(cols(&g), [0, 0, 0, 1, 0], "rule G off alone does not");
+        assert_eq!(cols(&kept), [1, 0, 0, 0, 1], "the shipped ladder's second attempt recovers it");
+    }
+
+    /// The bound is restored after a panic inside a retry attempt.
+    #[test]
+    fn r2_the_coeff_bound_is_restored_after_a_panic_inside_it() {
+        assert_eq!(rational::coeff_bound(), rational::COEFF_BITS);
+        let r = std::panic::catch_unwind(|| {
+            rational::with_coeff_bound(1024, || {
+                assert_eq!(rational::coeff_bound(), 1024);
+                panic!("planted");
+            })
+        });
+        assert!(r.is_err());
+        assert_eq!(rational::coeff_bound(), rational::COEFF_BITS);
+    }
+
+    /// The first attempt's receipt is bit-identical with and without the
+    /// ladder, on a mixed bag of decisions, when every retry is REFUSED —
+    /// and the retry memos hold something afterwards only when a retry ran.
+    #[test]
+    fn r2_a_refused_ladder_leaves_every_column_where_it_was() {
+        let bag = || {
+            let a = decides_zero(power_two_ways(10));
+            let b = decides_zero(closes_only_with_rule_g_off() + Sym::from_f64(1.0e-3));
+            let x = p("w", 0.37);
+            let c = decides_zero(x + Sym::from_f64(2.0) * x - Sym::from_f64(3.0) * x);
+            (a, b, c)
+        };
+        let (o1, none) = with_session(budget(), bag);
+        let (o2, ladder) = with_session_retry(budget(), SymRules::shipped(), ring(300), bag);
+        assert_eq!(o1, o2);
+        assert_eq!(cols(&none)[..4], cols(&ladder)[..4]);
+        assert_eq!(none.frozen, ladder.frozen, "retry freezes are not counted into `frozen`");
+        assert_eq!(ladder.retried, 0);
+    }
+
+    /// **The memo discipline, at the scalar.** Decision 1 is closed by a
+    /// 512-bit retry (its `c^5` node is a 265-bit constant in the retry's
+    /// memo). Decisions 2 and 2' share that node and close ONLY while it
+    /// is FROZEN at 256 bits — `c^5·c^5` is 530 bits and refuses at every
+    /// bound below 1024, so an opened `c^5` freezes at two different outer
+    /// nodes and the identity is lost. 2' closes at the PLAIN rung, 2 at
+    /// the EARLY rung (an `abs` fold keeps the plain rung out). A retry's
+    /// form leaking into either memo turns one of them numeric.
+    #[test]
+    fn r2_a_retrys_forms_never_reach_the_first_attempts_memos() {
+        let c = || Sym::<f64>::from_f64(1.0 / 3.0);
+        let c5 = || c() * c() * c() * c() * c();
+        let two = || Sym::<f64>::from_f64(2.0);
+        let bag = || {
+            let d1 = decides_zero(power_two_ways(5));
+            // 2': plain.
+            let d2p = decides_zero((c5() * c5()) * two() - c5() * (c5() * two()));
+            // 2: early.
+            let d2 = decides_zero(z().abs() * ((c5() * c5()) * two()) - z() * (c5() * (c5() * two())));
+            (d1, d2p, d2)
+        };
+        let (_, none) = with_session(budget(), bag);
+        let (_, ladder) = with_session_retry(budget(), SymRules::shipped(), ring(512), bag);
+        println!("none {:?}  ring512 {:?}", cols(&none), cols(&ladder));
+        assert_eq!(cols(&none), [2, 0, 0, 1, 0], "2 and 2' close on the frozen node; 1 refuses");
+        assert_eq!(
+            cols(&ladder),
+            [3, 0, 0, 0, 1],
+            "the retry closes 1 and 2/2' are still closed by the first attempt on the frozen node"
+        );
+    }
+}
