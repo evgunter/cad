@@ -91,7 +91,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 7.811e2,
             refuses_at: 7.814e2,
             registered: 140,
-            symbolic_zero: 803,
+            // DECIDE-3: eight more THEOREMS (803 -> 811) out of
+            // `numeric` (470 -> 462) — comparisons of two rational
+            // constants A0 now decides exactly. `registered` unmoved.
+            symbolic_zero: 811,
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {

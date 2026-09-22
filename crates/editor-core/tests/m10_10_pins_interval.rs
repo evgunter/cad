@@ -197,11 +197,10 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     );
     assert_eq!(
         row(&on, "line_span"),
-        [0, 0, 0, 8],
+        [8, 0, 0, 0],
         "the plate's eight `line_span` comparisons are between two rational CONSTANTS, \
-         which the decision read declines by construction — an exact comparison reads no \
-         value, and folding it is A0's \
-         (`work/decide/a0-leaves-max-and-min-of-constants-opaque`)"
+         which A0 decides exactly — THEOREMS, no value read \
+         (`work/decide/a0-leaves-max-and-min-of-constants-opaque`'s fix)"
     );
     for (p, before) in &off {
         let after = row(&on, p);

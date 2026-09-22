@@ -585,14 +585,13 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// the boss's side plane, where the value channel's
 /// `newell_plane_residual` is `Invalid` and no tier is asked at all
 /// (`Decide for Sym<T>` turns a domain violation into no symbolic
-/// question). The plain tier freezes NOTHING getting there, and A0
-/// alone freezes ten forms and refuses the same clause-1 margin — so
-/// what refuses is not a freeze either way, and no rule of the atom
-/// algebra stands between the derived frame and its authored twin.
-/// A0's ten are the products under a `max`/`min` of two CONSTANTS it
-/// does not fold (`work/decide/a0-leaves-max-and-min-of-constants-opaque`),
-/// and they are why A0 stops at the gate's `carrier_endpoint_start`
-/// one step before the plain tier's clause-1 margin.
+/// question). Neither the plain tier nor A0 alone freezes ANYTHING
+/// getting there, so what refuses is not a freeze either way, and no
+/// rule of the atom algebra stands between the derived frame and its
+/// authored twin. The ten forms that used to freeze at A0's rung sat
+/// under `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two
+/// CONSTANTS — and A0 decides those exactly now
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
 ///
 /// The rung that used to read `carrier_endpoint_start` under `none`
 /// was a golden of the plain form's first refusal on the construction
@@ -628,18 +627,16 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     };
     let (a0_fails, a0_counts) = sym_failures_under(&derived, ProfileLift::Pinned, a0);
     assert_eq!(
-        a0_counts.frozen, 10,
-        "A0 alone freezes ten — the products under `1/max(1, min(1, max(0, 1))/4)`, a \
-         `max`/`min` of two CONSTANTS that A0 does not fold \
-         (`work/decide/a0-leaves-max-and-min-of-constants-opaque`). None of them is what \
-         refuses: {a0_counts:?}"
+        a0_counts.frozen, 0,
+        "A0 alone freezes NOTHING: the products that used to freeze sat under \
+         `1/max(1, min(1, max(0, 1))/4)`, a `max`/`min` of two CONSTANTS, and A0 decides \
+         those exactly now: {a0_counts:?}"
     );
     assert_eq!(a0_fails.len(), 1, "and still refuses once: {a0_fails:?}");
     assert!(
-        a0_fails[0].contains("carrier_endpoint_start"),
-        "and A0's own refusal is the gate's, at `[0, 0.32]`: the ten freezes above are in \
-         the read frame the gate's residual is built over, so A0 stops one step before \
-         the plain tier's clause-1 margin rather than reaching it: {a0_fails:?}"
+        a0_fails[0].contains("newell_plane_residual") && a0_fails[0].contains("margin is invalid"),
+        "with no freeze left the refusal is clause 1's, the same one the plain tier \
+         reaches: {a0_fails:?}"
     );
 }
 

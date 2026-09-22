@@ -99,21 +99,27 @@ fn a0_alone() -> SymRules {
     }
 }
 
-/// **The shipped set is inert on straight geometry**: the M10-3 slab
-/// has no `sqrt` of a constant and no `sqrt` of a square to fold, and
-/// the comparisons its conditioning floors carry are between two
-/// rational CONSTANTS, which the decision read declines by
-/// construction — so a shipped drive serializes byte for byte what
-/// M10-7's tier did.
+/// **What the shipped set reaches on straight geometry, and it is
+/// eight THEOREMS.** The M10-3 slab has no `sqrt` of a constant and no
+/// `sqrt` of a square to fold, so every rule of the form-level algebra
+/// is inert on it — and that was the whole of this row until A0 learned
+/// to decide a `max`/`min` of two rational CONSTANTS, which is what
+/// the slab's conditioning floors are made of.
 ///
-/// The read's declining them is the load-bearing half, and it is
-/// asserted below as well as implied: a read that answered an exact
-/// comparison would report a theorem-shaped fact as one conditional on
-/// the leaf's box, and whether it could would turn on whether the
-/// session happened to hold a parameter. Folding them is A0's
-/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`); until it
-/// does, the honest answer is the numeric channel's, and it is the one
-/// M10-7's tier gave.
+/// So the row's claim is now the one that was always load-bearing, and
+/// it is stronger than byte-identity was: the eight come out of
+/// `numeric` and NOTHING is gated. A comparison of two rationals is a
+/// fact of the form, arithmetic in the coefficient ring; answering it
+/// as a certified READ would report that fact as conditional on the
+/// leaf's box, and the earlier cut of this unit did exactly that
+/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque` measured
+/// it). Byte-identity with `none()` could not tell the two apart and
+/// said "no gain" where a gain is what happened.
+///
+/// The third arm pins what IS still inert: with the form-level algebra
+/// off (`without_the_algebra`) the slab is `none()` bit for bit, so
+/// rules A/B, D, E, F, G and the decision read reach nothing here and
+/// A0 is the whole of the difference.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -135,13 +141,28 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
         .serialize()
     };
     let (shipped, plain) = (run(SymRules::shipped()), run(SymRules::none()));
+    let line = |s: &str| {
+        s.lines()
+            .find(|l| l.starts_with("decisions "))
+            .unwrap_or_default()
+            .to_owned()
+    };
     assert_eq!(
-        shipped, plain,
-        "straight geometry: the shipped tier is M10-7's, bit for bit"
+        line(&plain),
+        "decisions symbolic_zero=482 numeric=263 frozen=0",
+        "the plain tier on straight geometry"
     );
-    assert!(
-        plain.contains("decisions symbolic_zero=482 numeric=263 frozen=0\n"),
-        "and nothing on the slab is gated: {plain}"
+    assert_eq!(
+        line(&shipped),
+        "decisions symbolic_zero=490 numeric=255 frozen=0",
+        "eight of the 263 numeric refusals are comparisons of two rational CONSTANTS, which \
+         A0 decides exactly — THEOREMS, and nothing here is gated"
+    );
+    assert_eq!(
+        run(SymRules::without_the_algebra()),
+        plain,
+        "and with the form-level algebra off the slab is M10-7's bit for bit: A0 is the \
+         whole of the difference"
     );
 }
 

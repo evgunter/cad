@@ -259,24 +259,18 @@ const SLAB_LEDGER: [&str; 3] = [
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest 4c206fa8091829f2e72e255bfcf8cb34\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 9a5a90ce2fb285a663e9cb3773b3fb8d\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 85442726b3cf98cbb8a069474fdffc31\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest ec472ae73ea4c7420d838e1560bb36d0",
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest 68a31dec794118be1e5494c295c01a77\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest dc273a096929ffb480ee3ac3734fcf6e\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest 3a1a7e636b4ae6b64d4479799c3f4588\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest e83eae7723869354725ac1ce959e7302",
     "\
      Plain/Decision calls 980 forms 9686 frozen 0 digest b2316116afff13c352e218269a06ec67\n\
      Plain/Assertion calls 510 forms 918 frozen 0 digest 03d710606e809b65dc34948ac3a0d5b9\n\
-     Plain/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 16 forms 36 frozen 0 digest decd8ef36980d8f320cb03f6ac5b09e2\n\
-     Early/Assertion calls 510 forms 1958 frozen 0 digest b7a4d03115255d5b5102048229d24127\n\
-     Early/Report calls 16 forms 0 frozen 0 digest 00000000000000000000000000000000",
+     Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
+     Early/Assertion calls 510 forms 1958 frozen 0 digest 171de8349a6fabdbdc04441d2abb73b7",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -308,12 +302,12 @@ const SLAB_LEDGER: [&str; 3] = [
 ///
 /// **What IS rule G's, by the same differential**: the plate's
 /// `Early/Assertion` and `Door/Decision` freezes fall 104 → 0, and the
-/// `Early/*` and `Door/*` digests move. **What is the decision read's**:
-/// the slab's `Early/Assertion` digest. The slab's `*/Report` rows are
-/// back at 16 calls — the sixteen sites the shape report was called on
-/// are comparisons of two rational CONSTANTS, which the read declines
-/// by construction and A0 has yet to fold
-/// (`work/decide/a0-leaves-max-and-min-of-constants-opaque`).
+/// `Early/*` and `Door/*` digests move. **What A0's new fold is**: the
+/// slab's `Early/*` digests, and the `*/Report` rows absent on both
+/// documents — the sites the shape report used to be called on are
+/// comparisons of two rational CONSTANTS, and A0 decides those exactly
+/// now (`work/decide/a0-leaves-max-and-min-of-constants-opaque`), so
+/// there is nothing left for the instrument to report.
 const SLAB_MAX_TERMS: usize = 6;
 const PLATE_MAX_TERMS: usize = 252;
 
@@ -323,10 +317,8 @@ const PLATE_MAX_TERMS: usize = 252;
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 951 forms 15030 frozen 672 digest aa581ad9960b7ef704f978c1bb2d7ce3\n\
      Plain/Assertion calls 462 forms 2594 frozen 372 digest 702ce928fd05aeeb766afa8c0ae157bb\n\
-     Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7979 frozen 8 digest c7d84b29c57b64c74e48af5f04b3fa0f\n\
-     Early/Assertion calls 462 forms 3406 frozen 0 digest e0fb82295930981aefe9bb2bc4000755\n\
-     Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
+     Early/Decision calls 320 forms 7979 frozen 8 digest 5274cafc352ceecaf7e8fef294baa3f0\n\
+     Early/Assertion calls 462 forms 3406 frozen 0 digest 4bcf903191f8a0a9db825a2798908440\n\
      Door/Decision calls 330 forms 11884 frozen 0 digest 90c99c9e033c9e0adf0032dacb84aee1\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
