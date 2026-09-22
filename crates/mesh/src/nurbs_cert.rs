@@ -2451,18 +2451,28 @@ pub(crate) mod tests {
     /// re-derived, not blind-reused from the integral thresholds:
     ///
     /// - `muu`/`mvv`: the degree-1 `Ã_dd`/`w_dd` terms are exact
-    ///   zeros and the `w_d` hulls of a CONSTANT weight column stay
-    ///   outward-rounded zeros through refinement (convex combinations
-    ///   of `0.5` are exact), so the cross terms are subnormal dust
-    ///   over `w_min` — the integral 1e-100 class survives (measured
-    ///   at the deep-subnormal ~1e-16x scale, run-dependent in the
-    ///   last decades: 5e-166 here, 5e-162 by the R1 review; the
-    ///   1e-100 pin is the claim).
-    /// - `muv`: the refined homogeneous net carries knot-INSERTION
-    ///   rounding (~ulp of O(1) coefficients), and the mixed
-    ///   differencing scales it by `p/Δu` at the 16-fold-refined span
-    ///   width — measured ~2e-13, so the integral arm's 1e-12 pin
-    ///   would be blind reuse; pinned an order above at 1e-11.
+    ///   zeros, so what is left is the `S_d · w_d` cross term. `w_d` of
+    ///   a constant weight column is zero in ℝ, and what the refined
+    ///   net can say about it is the width the INSERTION contributed:
+    ///   the ratios' own outward rounding, scaled by the differencing's
+    ///   `p/Δd` at the 16-fold-refined span width. Measured ~2.8e-13,
+    ///   pinned an order above at 1e-12.
+    /// - `muv`: the same insertion width, taken through the MIXED
+    ///   differencing, so it is scaled twice. Measured ~9.1e-12, pinned
+    ///   an order above at 1e-10.
+    ///
+    /// **These ceilings are the cost of the enclosure covering the
+    /// described patch, and they replace three that recorded the
+    /// opposite.** While the refinement ran in `f64`, a constant weight
+    /// column refined to bitwise-equal weights and `w_d` differenced to
+    /// an exact zero, so `muu` and `mvv` came out at the deep-subnormal
+    /// scale (~5e-166) and were pinned at 1e-100. That number was the
+    /// `f64` refinement reproducing an exact cancellation, and the
+    /// enclosure it belonged to was an enclosure of the refined-`f64`
+    /// patch. The refinement is part of the enclosure now, so the dust
+    /// it contributes is reported rather than cancelled — and, being an
+    /// enclosure of a zero, it CONTAINS that zero, which the old one did
+    /// not always do (`geom_brep::patch_bound::PatchCell`).
     #[test]
     fn rational_uniform_weight_bilinear_dust() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
@@ -2475,9 +2485,9 @@ pub(crate) mod tests {
         let s = NurbsSurface::new(kv.clone(), kv, control, vec![0.5; 4]).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
         assert!(
-            b.muu < 1e-100 && b.muv < 1e-11 && b.mvv < 1e-100,
+            b.muu < 1e-12 && b.muv < 1e-10 && b.mvv < 1e-12,
             "rational dust escaped its derivation: certified (uu, uv, vv) \
-             ({:.17e}, {:.17e}, {:.17e}) against ceilings (1e-100, 1e-11, 1e-100)",
+             ({:.17e}, {:.17e}, {:.17e}) against ceilings (1e-12, 1e-10, 1e-12)",
             b.muu,
             b.muv,
             b.mvv
