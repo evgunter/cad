@@ -453,3 +453,28 @@ rows; the constant is theirs to re-size). Widening's top 1 % exceeds
 the spec's ~1e-12 (max 5.4e-12) and is reported, cause named (a fold
 of 16 single insertions), filed as a follow-on rather than shipped
 silently. Five more f64-inside-an-enclosure sites filed on PROPS.
+
+## TESS-2 dual adjudicated; fix pass sent (2026-09-22)
+
+Both APPROVE-WITH-FIXES, no escape produced by either (R1 33,750
+exact containment checks; R2 704,835 on the head and 12,615 on the
+reverted tree — the bulk on the INTEGRAL refined arm, which the row
+had not named). No tally candidate: R1's one MAJOR (the deterministic
+stratum row passes bit-identically with the fix reverted — it compares
+through the 64-ulp allowance and its worst patch is unit-weight) is
+R2's MINOR-1. Record on `tess/b1-block`.
+
+- **CLASS, both reviewers, recorded here so it outlives the report**:
+  every row this PR added or re-pinned on the rational arm is
+  monotone in the safe direction (allowance-widened comparisons,
+  ceilings above both worlds, a hull claim against a hull wider than
+  the step's) — the one row that reds when the guarantee degrades is
+  the structural-zero row. The fix pass makes the stratum coverage red
+  pre-fix (exact literals, bare), floors the dust re-pin, and pins the
+  convex form's bulge instead of claiming it cannot.
+- Also converged: the PR body's post-fix digits were not taken on the
+  head; the referee's round-down argument is not what `Decimal.sqrt`
+  does (the literals are right — both certified them exactly); the
+  sampler-error method was deleted and its figures sit on two rows.
+- Ordinal 5101 on main (PR 3081). Fix pass sent, union A–K; two review
+  targets reclaimed; 26 G free.
