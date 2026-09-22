@@ -1148,3 +1148,27 @@ F2, F3 — taken in the state-sync commit. Spec deleted with its ledger
 entry; the unit closed. Next: SYM-13 (block SYM-B3 slot 2, Opus); the
 seam row is the `props/sign-hull` merge's.
 
+
+## SYM-14 spec'd and dispatched (2026-09-22): the chain demo Ev asked for
+
+Ev, in chat: "a demo of error propagation like with the two holed
+plate but it's a chain of 4ish elements joined with some error in the
+angle at each join and so it will be visibly be more and more
+dispersed going down the chain" — "if it is possible ... take it on as
+a unit; if it isn't possible, mark it and its prerequisites down in the
+appropriate track ... p1 specifically requested". Surveyed: possible
+today on the advisory lane (the plate's own picture lane — `f64`
+replays over `Angle`-dimensioned parameters with a `Distribution`,
+`Node::Transform`, the built bodies read back, the tour's SVG); NOT
+today on the certified lane (a widened rotation angle unmeasured; the
+derived-frame walls; the drive's cost). So: **SYM-14** takes the demo
+and measures the certified lane on the same document; the certified
+picture's prerequisites are on
+`a-widened-rotation-angle-is-unmeasured-on-the-certified-lane` (P1,
+requested), which the unit answers or leaves with the walls named,
+each filed at P1. Spec `docs/SYM-14-SPEC.md`; v7 OUT (a demo and a
+measurement, no kernel change): OPUS implementer, one OPUS style
+review, no draw, no ordinal, no row. Lane `/home/user/lanes/sym-14`,
+branch `sym/14-chain-demo`, cut from the spec commit; the seams
+announced to CIW (`demos/render-mc.sh`) and PROPS (the analysis lane,
+read only) in the PR. Runs beside SYM-13's fix pass.
