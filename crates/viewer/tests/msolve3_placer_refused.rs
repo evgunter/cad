@@ -351,3 +351,90 @@ fn a_part_selecting_another_copy_blames_the_mate_and_not_the_part() {
     );
     assert_the_mate_is_blamed(&ev, &doc, s.mate, part);
 }
+
+/// **When the named node fails in its own right, both rows are loud and
+/// neither points at the other** — the counter-case to the two rows
+/// above, whose named node happens to evaluate.
+///
+/// The fault reaches the mate alone (it is raised where the solve reads
+/// the mate's references), so blame decides only the mate's own row;
+/// the named node's row is the evaluation's own verdict about it.
+fn assert_both_loud(
+    ev: &Evaluation<f64>,
+    doc: &Doc<ProfileProgram>,
+    mate: RecipeNodeId,
+    named: RecipeNodeId,
+) {
+    let rows = tree::rows(doc, Some(ev));
+    for id in [mate, named] {
+        let Some(NodeResult::Failed(error)) = ev.result(id) else {
+            panic!("{id:?} must be Failed in the evaluation");
+        };
+        assert_eq!(
+            common::status_of(&rows, id),
+            RowStatus::Failed {
+                message: error.to_string()
+            },
+            "{id:?} carries its own words"
+        );
+    }
+    let pointed: Vec<RecipeNodeId> = rows
+        .iter()
+        .filter(|row| matches!(row.status, RowStatus::Poisoned { through, .. } if through == mate || through == named))
+        .map(|row| row.id)
+        .collect();
+    assert_eq!(
+        pointed,
+        Vec::<RecipeNodeId>::new(),
+        "no row is sent anywhere"
+    );
+}
+
+/// A `Part` re-pointed PAST its pattern's count: the mate refuses with
+/// `PartSelectsAnotherCopy`, and the `Part` fails on its own.
+#[test]
+fn a_part_past_its_patterns_count_fails_beside_the_mate() {
+    let tol = Tol::witness();
+    let s = copies("msolve3-view-part-past", 1, Some(1), tol);
+    let part = s.part.expect("this fixture has a Part");
+    let (doc, _) = common::edited(
+        &s.doc,
+        DocEdit::SetStructuralParam {
+            node: part,
+            slot: SlotId::Instance,
+            expr: Expr::count(5),
+        },
+        tol,
+    );
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
+    let fault = mate_fault(&ev, s.mate);
+    assert!(
+        matches!(fault, MateFault::PartSelectsAnotherCopy { part: p, .. } if p == part),
+        "the fixture reaches the arm, naming the Part: {fault:?}"
+    );
+    assert_both_loud(&ev, &doc, s.mate, part);
+}
+
+/// A pattern shrunk to ZERO copies: the mate refuses with
+/// `DanglingHead` at the pattern, and the pattern fails on its own.
+#[test]
+fn a_pattern_of_no_copies_fails_beside_the_mate() {
+    let tol = Tol::witness();
+    let s = copies("msolve3-view-dangling-zero", 1, None, tol);
+    let (doc, _) = common::edited(
+        &s.doc,
+        DocEdit::SetStructuralParam {
+            node: s.pattern,
+            slot: SlotId::Count,
+            expr: Expr::count(0),
+        },
+        tol,
+    );
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
+    let fault = mate_fault(&ev, s.mate);
+    assert!(
+        matches!(fault, MateFault::DanglingHead { head, .. } if head == s.pattern),
+        "the fixture reaches the arm, naming the pattern: {fault:?}"
+    );
+    assert_both_loud(&ev, &doc, s.mate, s.pattern);
+}

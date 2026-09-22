@@ -64,9 +64,8 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 Some(tree::downstream_wording(extrude).as_str()),
                 "a poisoned row POINTS at the cause's row; it does not recite it"
             );
-            // It names that row the way the rest of the chrome names a
-            // node, so the number a reader carries off this line is
-            // the one every other surface calls it by.
+            // It names that row by `tree::node_number`, the chrome's one
+            // spelling of a node's number.
             let pointer = message.as_deref().unwrap_or_default();
             assert!(
                 pointer.contains(&tree::node_number(extrude)),

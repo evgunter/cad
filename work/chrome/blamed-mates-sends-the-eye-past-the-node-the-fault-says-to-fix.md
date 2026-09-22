@@ -96,54 +96,68 @@ nothing.
 
 Signed: (CHROME implementer lane, `chrome/band-refusal-badging`)
 
-## Re-tested 2026-09-22 (`chrome/badge-attribution`, PR 3090) — three of five is one of five; that one is a question
+## Re-tested 2026-09-22 (`chrome/badge-attribution`, PR 3090) — decided by reach for every arm but one raise path of `PlacerRefused`
 
-**Two of the three arms are not in the class; the row's premise is
-false for them**, read off `crates/editor-core/src/mate.rs`'s
-`enum MateFault` and its `Display`:
+**What decides it is where the solve records the fault**
+(`crates/editor-core/src/mate/solve.rs`, `solve_with_env`):
 
-- `DanglingHead`: the arm's doc says the node the walk stopped at
-  *"may be perfectly live"*, and its `Display` names the recourse —
-  *"— rebind it"*, a change to the mate's reference. `solve::undecided`
-  calls deleting the offending mate *"the recourse every such refusal
-  names"*. The quotation this row carries (*"the mate's own head is
-  often live and fine"*) is about the REFERENCE's head, not about the
-  `head` field.
-- `PartSelectsAnotherCopy`: the kernel refuses *"rather than choosing"*
-  between the name and the `Part`; neither is the one to fix.
-- Measured: both reached the way a user reaches them (the named node
-  edited after the mate was authored), the named node's row is `Ok`.
-  A `Poisoned` row may only point at a row the tree badges `Failed`,
-  so blaming it would point at a green row. Pinned by
-  `msolve3_placer_refused.rs`'s
-  `a_stranded_copy_blames_the_mate_and_not_the_pattern_it_stopped_at`
-  and `a_part_selecting_another_copy_blames_the_mate_and_not_the_part`,
-  each proved red by moving the blame to the named node.
+- **Raised where the solve reads one mate's references** —
+  `mate::member::check_reference` and the walk, collected as `broken`
+  and inserted with `out.faults.insert(mate, fault)`: every
+  `DanglingHead`, every `PartSelectsAnotherCopy`, and a
+  `PlacerRefused` whose placer's own slot does not evaluate. **The
+  fault reaches the mate only.** So `blamed_mates`' answer for these
+  decides one row — whether the mate reads `Failed` with the words,
+  or `Poisoned`, pointing away from the only row that has them. There
+  is nothing to redirect: blaming the named node could only demote
+  the cause's row.
+- **Raised while a cluster's fold derives an offset** —
+  `mate::member::derived_offset`, called by the fold: a
+  `PlacerRefused` only. It fans out to every instance and mate of the
+  cluster, and those rows point at the mate.
+
+The kernel's per-arm docs agree, as a second argument: `DanglingHead`'s
+`head` *"may be perfectly live"* and its `Display` names the recourse
+*"— rebind it"*; `PartSelectsAnotherCopy` is refused *"rather than
+choosing"*. (This row's quotation *"the mate's own head is often live
+and fine"* is about the REFERENCE's head, not the `head` field.) The
+named node's own row is whatever the evaluation says of it:
+`Ok` in the stranding fixtures, and `Failed` beside the mate — both
+loud, neither pointing — when the node fails in its own right (a `Part`
+indexed past its pattern's count; a pattern of zero copies). Pinned by
+four rows in `crates/viewer/tests/msolve3_placer_refused.rs`, each
+proved red by moving the blame to the named node.
 
 `Under` and `SelfMate` re-tested too: out, for the reasons above.
-`tree.rs`'s module header now says the blamed node is the row carrying
-the fault's words and gives the per-arm reason; the claim that a
-subject *"is a mate node"* is gone.
+`tree.rs`'s module header carries this as the one statement of why;
+`blamed_mates`' doc points at it.
 
-**Open: `PlacerRefused`.** The kernel does call the placer *"the node
-an author goes and fixes"*. Where the refusal reaches the placer's
-row, that row is `Poisoned` (through an instance the tree redraws as
-downstream of the mate; `the_mate_row_names_the_direction_and_not_a_dangling_head`
-measures it), and the mate's `Failed` row carries the words. Two
-defensible answers, and they change which row is loud:
+**Open: `PlacerRefused` on the `derived_offset` path only.** The
+kernel calls the placer *"the node an author goes and fixes"*. On the
+`check_reference` path the fault reaches the mate alone and the placer
+fails in its own right, so both rows are `Failed` and nothing is open.
+On the `derived_offset` path the placer sits on the chain above an
+instance the fault reached, so the evaluation POISONS it even when its
+own slots are broken (`the_mate_row_names_the_direction_and_not_a_dangling_head`
+measures a pattern with a `1e200` direction drawn `Poisoned` through
+the mate); its row carries the pointer, and the mate's `Failed` row
+carries the placer's refusal verbatim. Two defensible answers, and
+they change which row is loud:
 
-- **(a) Status quo.** The mate is `Failed` with the placer's refusal,
-  naming it by number; the placer points at the mate; the eye goes
-  mate → reads "node P refuses — …" → P. Nothing is drawn that the
-  evaluation did not record.
+- **(a) Status quo.** Mate `Failed` naming the placer by number; the
+  placer and the cluster's instances point at the mate. Nothing is
+  drawn that the evaluation did not record.
 - **(b) The tree draws the placer `Failed`** from the fault's own
   `error: NodeRefusal` — the placer's typed refusal, carried
   unaltered — and points the mate and the cluster's instances at it.
-  The eye lands on the node to fix; but the tree then draws a
-  failure for a node the evaluation reports as never run, which the
-  module header's *"invents none of them"* has to be re-argued for.
+  The eye lands on the node to fix; the tree then draws a failure for
+  a node the evaluation reports as poisoned, which the module
+  header's *"invents none of them"* has to be re-argued for. Changes
+  nothing on the `check_reference` path.
 
 A cheaper middle is a structural link from the mate's `Failed` row to
 the node its payload names, which changes nothing about which row is
-loud. Where the placer fails in its own right (a count that does not
-evaluate), both rows are `Failed` already and nothing is open.
+loud. Related, filed on MSOLVE's slate: `check_reference` sites a
+`Part`'s non-evaluating index at the pattern below it, so on that path
+the named placer can be the wrong node
+(`work/msolve/placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate.md`).

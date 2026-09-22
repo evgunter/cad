@@ -170,6 +170,9 @@ nothing else patched. Every site that reds, and only these:
   since `work/README.md`'s 2026-09-20 ruling.
 - `crates/viewer/src/frame.rs` — `badge_site`'s guard test
   `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`.
+- *(Since PR 3090)* `crates/viewer/src/pane/features.rs` — the link
+  decision described next is exhaustive too, so it reds as well: four
+  places, the count `tree::has_faults`'s doc now carries.
 
 **`features.rs` is not one mechanical arm, and the compiler is why
 this reads as though it were.** Twelve lines below the exhaustive
@@ -228,36 +231,47 @@ adding the variant.
 
 **Not built, because it has several defensible answers with a
 user-visible consequence: what does a row reached by
-`MateFault::Band` badge?** The fact that decides between them,
-measured on this tree: `ProductError::RootFailed { node }` carries no
-error, and `frame::badge_site` sends `RootFailed` to the feature tree,
-so **the tree is the only channel a band refusal has today** — the
-frame cannot tell a band refusal from any other root failure without
-reading the evaluation.
+`MateFault::Band` badge?** What exists today, read off the tree
+(corrected in the fix pass; the first draft of this section said no
+document-level mark existed, which was wrong):
+
+- A loud document mark already exists. `crates/viewer/src/session.rs`
+  raises `AtRestBadge::Refused` (`Tone::Actionable`) for ANY gather
+  fault on an assembly-shaped document, and every document a Band
+  refusal reaches is one — the fault is recorded against instances.
+- What that badge lacks is the band's WORDS: its message is
+  `AssemblyError::product_refusal` over `ProductError::RootFailed
+  { node }`, which reads *"product: root N failed to evaluate (ask
+  `Evaluation::node_error` for the typed cause)"* — the gather error
+  carries no cause, and `frame::badge_site` leaves `RootFailed` to the
+  tree.
+
+The options:
 
 - **(a) Status quo.** Every reached row `FAILED`, `Actionable`, the
-  payload's own words. Honest wording, wrong scope: N loud rows, the
-  eye sent nowhere. `child_band_refusal_rows` pins it.
-- **(b) A run-refusal `RowStatus` (e.g. `RunRefused { message }`),
-  toned `Advisory` on every reached row, plus a document-level frame
-  badge carrying the band error once.** Mirrors how `Poisoned` already
-  works (quiet rows, one loud mark where the cause lives) — and the
-  cause's home is the document's tolerance, which is document-level.
-  Costs a new frame channel that reads the evaluation, not the gather's
-  class; without it, a document that is not building has NO actionable
-  mark anywhere. `badge_site`'s one-for-one pairing then says the new
-  state pairs with no gather class, and its guard test is restated.
+  payload's own words, beside a document badge that names a root and
+  no cause. N+1 loud marks. `child_band_refusal_rows` pins the rows.
+- **(b) Put the cause in the badge that already exists, then quiet the
+  rows.** Render the root's `Evaluation::node_error` into the
+  at-rest refusal (following `through` for a poisoned root, which
+  `node_error` already does in one hop), so the one document mark
+  says *"the mate solve could not build a band: …"*; and give the
+  reached rows a run-refusal `RowStatus` (e.g. `RunRefused`) toned
+  `Advisory`. One loud mark for one cause, at document level — which
+  is where the cause lives (the document's tolerance). The badge half
+  helps every `RootFailed`, not only Band. `badge_site`'s one-for-one
+  pairing is restated (the new state pairs with no gather class) and
+  its guard test with it; the link decision answers `None` for the
+  new state.
 - **(c) The same variant, toned `Actionable` on every row.** Honest
-  scope wording ("the run refused, not this node"), no new channel,
-  still N loud rows.
+  scope wording ("the run refused, not this node"), no badge change,
+  still N+1 loud marks.
 
 Under (b) or (c): `tree::has_faults` must answer `true` (its match is
-exhaustive, so it will ask); the link decision above answers `None`
-(no row to go to) unless (b)'s frame badge is made the target; and
-`crates/viewer/GUI-DESIGN.md`'s GQ2 sentence ("those rows draw as
-downstream of the mate the fault names") gains its Band half.
+exhaustive, so it will ask), and `crates/viewer/GUI-DESIGN.md`'s GQ2
+sentence ("those rows draw as downstream of the mate the fault names")
+gains its Band half.
 
-The lane's recommendation is (b), because it is the only one that
-leaves exactly one loud mark for one cause — but it spans a frame
-channel the tree cannot supply, which is why it is asked rather than
-built.
+The lane's recommendation is (b). Its badge half touches
+`session.rs`, which is live ground this wave (#3052, #2960, #2961),
+which is one more reason it is asked rather than built.

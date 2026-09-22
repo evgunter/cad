@@ -39,31 +39,47 @@
 //! read being which node the kernel's own words point at.
 //!
 //! **The blamed node is the row that carries the fault's words, and
-//! it need not be the node an author edits.** Three arms name a second
-//! node beside the mate, and the mate row's message names it by
-//! number. Blame stays on the mate for each, for reasons the kernel's
-//! own documentation of that arm gives:
+//! it need not be the node an author edits.** This is the one
+//! statement of why; [`blamed_mates`] points here. Several arms name a
+//! node beside the mate, and three name one that the kernel's own doc
+//! for the arm calls the thing to repair, or could be read as calling
+//! so: `DanglingHead`'s `head`, `PartSelectsAnotherCopy`'s `part` and
+//! `PlacerRefused`'s `placer`. (`Under`'s pair and `SelfMate`'s
+//! instance are named as evidence about where the refusal held; the
+//! repair is the mate's.) Blame stays on the mate for all three, and
+//! what decides it is REACH — where the solve records the fault:
 //!
-//! - [`MateFault::DanglingHead`]'s `head` is where the walk STOPPED,
-//!   which the arm's doc says *"may be perfectly live"*; the recourse
-//!   its message names is *"rebind it"* — the mate's reference.
-//! - [`MateFault::PartSelectsAnotherCopy`]'s `part` is one side of a
-//!   disagreement the kernel refuses *"rather than choosing"*, and
-//!   the `Part` evaluates on its own.
-//! - [`MateFault::PlacerRefused`]'s `placer` IS the node the arm's doc
-//!   calls *"the node an author goes and fixes"* — and the same doc
-//!   says this fault *"is the only place that cause appears"*: where
-//!   the refusal reaches the placer's own row, that row is poisoned
-//!   and has no words, so the mate's row is where they are read.
-//!   (Where the placer fails in its own right, its row is `Failed`
-//!   beside the mate's, and the eye reaches it either way.) Whether
-//!   the placer's row should carry those words instead is an open
-//!   question (`work/chrome/blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix.md`).
+//! - **Raised where the solve reads one mate's references**
+//!   (`mate::member::check_reference` and the walk): every
+//!   [`MateFault::DanglingHead`], every
+//!   [`MateFault::PartSelectsAnotherCopy`], and a
+//!   [`MateFault::PlacerRefused`] whose placer's own slot does not
+//!   evaluate. The fault is recorded against THAT MATE ONLY, so blame
+//!   decides a single row: whether the mate reads `Failed` with the
+//!   words, or `Poisoned` — a pointer away from the only row that has
+//!   them. The named node's row is whatever the evaluation says of it
+//!   on its own: `Ok` when it evaluates, `Failed` beside the mate when
+//!   it does not (a `Part` indexing past its pattern's count, a pattern
+//!   of no copies), and then both rows are loud and neither points at
+//!   the other.
+//! - **Raised while a cluster's fold derives an offset**
+//!   (`mate::member::derived_offset`): a `PlacerRefused` only. It
+//!   reaches every instance and mate of the cluster, and they point at
+//!   the mate, whose row carries the placer's refusal verbatim. A
+//!   placer on the chain above an instance the fault reached is
+//!   poisoned by the evaluation even when its own slots are broken, so
+//!   its row carries the pointer at the mate rather than the words —
+//!   the arm's doc's *"this fault is the only place that cause
+//!   appears"*. Whether that row should carry the words instead is an
+//!   open question
+//!   (`work/chrome/blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix.md`).
 //!
-//! A [`RowStatus::Poisoned`] row may only point at a row this tree
-//! badges `Failed`, and none of those three nodes is one in general:
-//! a head or a `Part` may be live and `Ok`, and a placer the refusal
-//! reaches is poisoned.
+//! The kernel's docs agree for the first two arms: `DanglingHead`'s
+//! `head` *"may be perfectly live"* and its message's recourse,
+//! *"rebind it"*, is the mate's reference; `PartSelectsAnotherCopy` is
+//! refused *"rather than choosing"* between the name and the `Part`.
+//! `crates/viewer/tests/msolve3_placer_refused.rs` holds one fixture of
+//! each shape above.
 //!
 //! **[`MateFault::Band`] names none, and it is the arm that still
 //! reaches rows.** A band is the RUN's tolerance, not a decision about
@@ -289,8 +305,9 @@ pub fn node_label(node: &Node<ProfileProgram>, id: RecipeNodeId) -> String {
 /// `feature 3`.
 ///
 /// One home for the phrase, because it is the word a person carries
-/// between surfaces — a combo entry, a tree row, a property panel's
-/// heading, a refusal's subject — and a surface that spelled it
+/// between surfaces — a combo entry, a downstream row's pointer, a
+/// property panel's heading, a refusal's subject — and a surface that
+/// spelled it
 /// `node 3` would be talking about something a reader has to
 /// translate.
 pub fn node_number(id: RecipeNodeId) -> String {
@@ -545,9 +562,9 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 /// here whether it names a mate, rather than falling into a wildcard
 /// and silently drawing every reached row as downstream of nothing.
 ///
-/// Every arm that names a mate blames it — including the three that
-/// also name a node an author may repair, for the per-arm reasons the
-/// module header's second section gives.
+/// Every arm that names a mate blames it, whatever else it names; why
+/// that holds for an arm naming a node an author may repair is stated
+/// once, in the module header's second section.
 ///
 /// Two arms name none, and they get an arm each because they are not
 /// the same case: one reaches rows and one cannot reach any.
@@ -631,10 +648,10 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
 /// not name, so a fifth [`RowStatus`] would be silently not-a-fault
 /// and those gates would stay green over it. It reds HERE — at the
 /// policy the new state has to answer — rather than a schedule away
-/// from it. (Not nowhere: `pane::features`'s badge draw and
-/// `frame::badge_site`'s guard are exhaustive too, so a fifth state
-/// is a compile error in three places. What none of them is, is
-/// this policy.)
+/// from it. (Not nowhere: `pane::features`'s badge draw and its link
+/// decision, and `frame::badge_site`'s guard, are exhaustive too, so a
+/// fifth state is a compile error in four places. What none of them
+/// is, is this policy.)
 ///
 /// **Every arm is this chrome's own policy, and none of it is read off
 /// the kernel.** A [`RowStatus`] is already a viewer reading of an
