@@ -2,10 +2,13 @@
 id: the-overlay-lanes-drop-the-leg-disposition-has-no-row
 kind: issue
 title: The overlay lanes' drop-the-leg disposition is asserted nowhere and its public door needs a window
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: D
+closed: 2026-09-22
+branch: vgeom/seam-refusals
+pr: 3065
 ---
 
 
