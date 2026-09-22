@@ -154,6 +154,14 @@ use pncad::quantity::UnitDef;
 /// consequence of an ancestor's failure, so counting it would make one
 /// failure register as many and make the verdict depend on how deep the
 /// recipe happens to be below the break.
+///
+/// **[`crate::tree::has_faults`] counts a poisoned row, and answers a
+/// different question**: whether the document is building at all — a
+/// boolean, which nothing inflates — where this is a SET whose size
+/// decides whether a value got worse. They disagree about whether
+/// anything is wrong only on a poisoned row whose chain ends at no
+/// failure, which that reading calls not building and over which this
+/// verdict is empty.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Verdict(BTreeSet<RecipeNodeId>);
 

@@ -32,12 +32,38 @@
 //! it as its own `Failed`. Read verbatim that draws four identical
 //! FAILED badges and sends the eye nowhere.
 //!
-//! The fault itself resolves that wherever it names a subject, and
-//! that subject is a mate node (`blamed_mates` is the reading). So a
-//! row whose id the fault NAMES is the cause and stays `Failed`; a row
-//! the same fault merely reached is [`RowStatus::Poisoned`] through
-//! the mate that is named — the only thing read being which node the
-//! kernel's own words point at.
+//! The fault itself resolves that wherever it names a mate
+//! (`blamed_mates` is the reading). So a mate the fault BLAMES is the
+//! cause and keeps its `Failed`; a row the same fault merely reached
+//! is [`RowStatus::Poisoned`] through the blamed mate — the only thing
+//! read being which node the kernel's own words point at.
+//!
+//! **The blamed node is the row that carries the fault's words, and
+//! it need not be the node an author edits.** Three arms name a second
+//! node beside the mate, and the mate row's message names it by
+//! number. Blame stays on the mate for each, for reasons the kernel's
+//! own documentation of that arm gives:
+//!
+//! - [`MateFault::DanglingHead`]'s `head` is where the walk STOPPED,
+//!   which the arm's doc says *"may be perfectly live"*; the recourse
+//!   its message names is *"rebind it"* — the mate's reference.
+//! - [`MateFault::PartSelectsAnotherCopy`]'s `part` is one side of a
+//!   disagreement the kernel refuses *"rather than choosing"*, and
+//!   the `Part` evaluates on its own.
+//! - [`MateFault::PlacerRefused`]'s `placer` IS the node the arm's doc
+//!   calls *"the node an author goes and fixes"* — and the same doc
+//!   says this fault *"is the only place that cause appears"*: where
+//!   the refusal reaches the placer's own row, that row is poisoned
+//!   and has no words, so the mate's row is where they are read.
+//!   (Where the placer fails in its own right, its row is `Failed`
+//!   beside the mate's, and the eye reaches it either way.) Whether
+//!   the placer's row should carry those words instead is an open
+//!   question (`work/chrome/blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix.md`).
+//!
+//! A [`RowStatus::Poisoned`] row may only point at a row this tree
+//! badges `Failed`, and none of those three nodes is one in general:
+//! a head or a `Part` may be live and `Ok`, and a placer the refusal
+//! reaches is poisoned.
 //!
 //! **[`MateFault::Band`] names none, and it is the arm that still
 //! reaches rows.** A band is the RUN's tolerance, not a decision about
@@ -478,10 +504,13 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
 /// because both point at a row this same tree badges `Failed`, where
 /// the payload's own words are read once instead of once per row the
 /// failure reached.
+///
+/// The row pointed at is named by [`node_number`], the chrome's one
+/// spelling of a node: this sentence is chrome, drawn in the tree.
 pub fn downstream_wording(through: RecipeNodeId) -> String {
     format!(
-        "upstream failure at node {} — that row carries the cause",
-        through.0
+        "upstream failure at {} — that row carries the cause",
+        node_number(through)
     )
 }
 
@@ -515,6 +544,10 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 /// Exhaustive on purpose: a fault arm the kernel grows must decide
 /// here whether it names a mate, rather than falling into a wildcard
 /// and silently drawing every reached row as downstream of nothing.
+///
+/// Every arm that names a mate blames it — including the three that
+/// also name a node an author may repair, for the per-arm reasons the
+/// module header's second section gives.
 ///
 /// Two arms name none, and they get an arm each because they are not
 /// the same case: one reaches rows and one cannot reach any.
@@ -640,9 +673,8 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
 /// a boolean, which nothing inflates. Where they can actually differ
 /// is the one state that has a poisoned row with no failed row behind
 /// it ([`RowStatus::Poisoned`] with `message: None`) — this calls that
-/// document not building, and a verdict over it is empty. That the two
-/// are compatible is stated here because neither site said so:
-/// `work/chrome/two-is-this-broken-readings-argue-opposite-on-poisoned.md`.
+/// document not building, and a verdict over it is empty. `Verdict`'s
+/// own doc names this reading back, so each site states the other.
 pub fn has_faults(rows: &[TreeRow]) -> bool {
     rows.iter().any(|row| match row.status {
         RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => true,

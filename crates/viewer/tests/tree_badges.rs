@@ -9,7 +9,7 @@
 //! must say where the failure is and must NOT recite what it was —
 //! the defect that reading gives is four instance rows carrying the
 //! same paragraph of refusal prose — and the row it points at must be
-//! one this same tree badges FAILED, or "upstream failure at node 5"
+//! one this same tree badges FAILED, or "upstream failure at feature 5"
 //! sends the user somewhere there is nothing to read.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -63,6 +63,14 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 message.as_deref(),
                 Some(tree::downstream_wording(extrude).as_str()),
                 "a poisoned row POINTS at the cause's row; it does not recite it"
+            );
+            // It names that row the way the rest of the chrome names a
+            // node, so the number a reader carries off this line is
+            // the one every other surface calls it by.
+            let pointer = message.as_deref().unwrap_or_default();
+            assert!(
+                pointer.contains(&tree::node_number(extrude)),
+                "the pointer spells its row as `tree::node_number` does: {pointer}"
             );
         }
         other => panic!("expected Poisoned, got {other:?}"),

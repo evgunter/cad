@@ -116,9 +116,17 @@ impl ViewerBehavior<'_> {
         // that has them — which is a CLICK, so "that row" is one
         // gesture away rather than an id to hunt for.
         if let Some(message) = row.status.message() {
+            // Exhaustive for the badge match's reason: whether a row's
+            // line sends the eye to ANOTHER row is this pane's
+            // decision, so a status the tree grows answers it here
+            // rather than defaulting to "nowhere".
             let through = match &row.status {
                 RowStatus::Poisoned { through, .. } => Some(*through),
-                _ => None,
+                // The words are this row's own cause; there is nowhere
+                // further to go.
+                RowStatus::Failed { .. } => None,
+                // No line to link ([`RowStatus::message`]).
+                RowStatus::Ok | RowStatus::Unevaluated => None,
             };
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
