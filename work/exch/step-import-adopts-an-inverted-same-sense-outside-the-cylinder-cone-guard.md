@@ -15,7 +15,25 @@ Filed by ATREST-2 (measurement unit), outside its fence.
 each face's stated `advanced_face.same_sense` into the body verbatim,
 through `topo::Body::set_face_sense`. Import's only defence against a
 stated inversion is the pre-adoption refusal in `normalize.rs`, whose
-own prose names its reach: it fires on **cylinder/cone wall faces**
+own prose names its reach:
+
+**The sentence this row falsifies is the crate-level contract**, in
+`crates/step-import/src/lib.rs`'s module header, step 5 — the shared
+at-rest gate: *"the body is handed to `topo::validate_geometric` … and
+only a body it passes ships as `StepImport::Solid`. Steps 1-4 certify
+each edge's description; this certifies the BODY, which is what
+'import is adoption' has to mean if it means anything."* It is that
+step 5, not the `normalize.rs` guard, that carries import's promise
+about the body's ORIENTATION, and the measurement below is that step 5
+makes no such promise on the classes check 6 skips. `normalize.rs`'s
+guard and `FullPeriodTorus`'s rustdoc (*"import returns certified
+bodies — the kernel's tier-3 curved sense gate (check 6, M6-6) refuses
+the inside-out face adoption would build, so the refusal fires
+pre-body instead"*) are the two places that reasoning is written down
+explicitly; the contract sentence is the one they are both standing
+on. All three want the same narrowing.
+
+`normalize.rs`'s own prose names its reach: it fires on **cylinder/cone wall faces**
 whose `same_sense` disagrees with the winding of their two rims, and
 it justifies itself by saying that adoption "would copy both encodings
 verbatim and the kernel's tier-3 curved sense gate (check 6) would
@@ -24,13 +42,19 @@ refuse the built body".
 That justification does not hold for the face classes check 6 skips,
 and those classes are reachable in STEP. ATREST-2 measured the at-rest
 battery on a `sweep::loft_body` solid and found all four `Face::sense`
-readers gated shut on it:
+readers gated shut on it. It is one instance of a class the same
+measurement found three times — **prose justifying itself by a check
+that does not reach this population** (the other two:
+`topo::Body::set_face_sense`'s rustdoc, narrowed by ATREST-2;
+`crates/mesh/src/planar.rs`'s crate posture, filed on TESS's slate) —
+so the narrowing here is not a one-line wording fix in isolation:
 
 - check 6's planar arm is `all_lines`-gated, so an arc-bounded planar
   cap is skipped;
 - check 6's curved arm skips `Surface::spline_chart()`, so a NURBS
   wall is skipped;
-- tier 2's C7 material arm is behind `nurbs_adjacent`;
+- tier 3's check 4 MATERIAL arm is behind `nurbs_adjacent`
+  (`C7` is the tangency vocabulary the arm consults, not a tier);
 - check 7's flux is winding-derived on both classes, so the enclosure
   is bit-identical under an inversion.
 

@@ -118,19 +118,26 @@ in the body is therefore unread by the at-rest battery, so inverting
 all six bits at once leaves `validate_geometric` `Ok(())` with the
 metered enclosure bit-identical and positive.
 
-That is the first body found in which the two residuals cover the
-whole face population rather than part of it, and it does not need a
-conic-trimmed wall to get there (residual 1's counterexample shape) —
-an ordinary loft over an ordinary bulged sketch suffices. The
-line-bounded control loft, same constructor, refuses exactly two
-`LoopRoleInverted` — one per cap, none from its four walls — which
-isolates `all_lines` as the whole discriminant.
+It is **not** the first whole-body inversion recorded here to stay
+green — residual 1's `cut_cylinder` is one already. What is new is
+which residuals do it and how cheaply: residuals 3 and 4 in
+conjunction, over the whole face population rather than part of it,
+with no conic-trimmed wall needed (residual 1's counterexample shape)
+— an ordinary loft over an ordinary bulged sketch suffices. The
+line-bounded control prism, same constructor, refuses exactly two
+`LoopRoleInverted` — one per cap, none from its four walls. The
+2x2 over {bulged, unbulged} x {3 stations at v-degree 2, 2 stations at
+v-degree 1} isolates the discriminant: the outcome is constant along
+each carrier row, so station count and degree move nothing and the
+`Circle` carrier on the cap loop is the whole difference.
 
 Two further facts for the file. The inversion is reachable through the
 PUBLIC `topo::Body::set_face_sense`, not only through
 `flipped_face_sense_for_tests`, so this is a gap rather than a
 test-door artefact. And a fifth gate belongs in the residual list
-beside the four already there: tier 2's C7 material arm reads
+beside the four already there: tier 3's check 4 MATERIAL arm (the
+`validate` banner's "Tier 3, checks 4-5" sweep; `C7` is the tangency
+VOCABULARY the arm consults, not a tier) reads
 `Face::sense` on both sides of a definitely-smooth edge, but
 `nurbs_adjacent` short-circuits before it, so on a body every edge of
 which touches a spline chart — every loft — that reader is unreachable

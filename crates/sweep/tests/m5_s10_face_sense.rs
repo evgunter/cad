@@ -11,21 +11,28 @@
 //! and revolve's inward walls), and the S10 `finding_*` rows below
 //! flipped to construction rows pinning the fixed behaviour.
 //!
-//! The instrument is `Body::flipped_face_sense_for_tests`, which
-//! inverts ONE face's bit and nothing else. That is deliberately an
-//! incoherent body — by the interior-left rule a face's outer loop
-//! winds CCW about its *outward* normal, so flipping the bit alone
-//! puts the two encodings of orientation (the bit and the winding)
-//! into disagreement. Each row below picks a consumer and asks whether
-//! it noticed.
+//! **Two instruments, and every row says which it used.**
+//! `Body::flipped_face_sense_for_tests` inverts ONE face's bit and
+//! nothing else; `Body::set_face_sense` is the PUBLIC door, and the
+//! rows that use it invert EVERY face of a body at once. Either way
+//! the result is deliberately an incoherent body — by the
+//! interior-left rule a face's outer loop winds CCW about its
+//! *outward* normal, so writing the bit alone puts the two encodings
+//! of orientation (the bit and the winding) into disagreement. Each
+//! row below picks a consumer and asks whether it noticed.
 //!
 //! **Tolerance shape.** These rows are STRUCTURAL, in the sense of the
 //! `PartialSphereFace` precedent (M5 PR 9c): the sense is a `bool`
-//! selecting a negation, never a decided quantity, so no row here has
-//! an ε-relative margin to sweep — the discriminations are exact
-//! arithmetic sign changes and typed refusals. Where a row does need a
-//! numeric comparison it is against an ANALYTIC constant with a
-//! generous absolute slack, not against a band.
+//! selecting a negation, never a decided quantity, so the
+//! discriminations are exact arithmetic sign changes and typed
+//! refusals. Where a row needs a numeric comparison it is against an
+//! ANALYTIC constant with a generous absolute slack, not against a
+//! band. That is not the same as "nothing here is ε-coupled": this
+//! corpus contains bodies whose walls are RATIONAL, and on those the
+//! fixed quadrature schedule honestly runs out of budget at a tight ε.
+//! A row over such a body states its claim over the door's whole
+//! OUTCOME — a refusal is as much an output as a number is — rather
+//! than over a volume that may not exist at every point of the matrix.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -96,7 +103,7 @@ fn first_face(body: &Body<f64>) -> FaceKey {
 #[test]
 fn props_flux_flips_with_the_rimless_band_sense() {
     let b = ball();
-    let honest = topo::props::mass_properties(&b, Tol::witness()).unwrap();
+    let honest = topo::mass_properties(&b, Tol::witness()).unwrap();
     assert!(
         (honest.volume - 4.0 * PI / 3.0).abs() < 1e-9,
         "the unit ball meters 4π/3, got {}",
@@ -104,7 +111,7 @@ fn props_flux_flips_with_the_rimless_band_sense() {
     );
 
     let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
-    let lied = topo::props::mass_properties(&flipped, Tol::witness()).unwrap();
+    let lied = topo::mass_properties(&flipped, Tol::witness()).unwrap();
     assert!(
         lied.volume.abs() < 1e-9,
         "flipping one band's sense must negate its flux (the two halves \
@@ -139,7 +146,7 @@ fn props_flux_flips_with_the_rimless_band_sense() {
 #[test]
 fn offcentre_flipped_ball_still_cancels() {
     let b = ball_at(5.0);
-    let honest = topo::props::mass_properties(&b, Tol::witness()).unwrap();
+    let honest = topo::mass_properties(&b, Tol::witness()).unwrap();
     assert!(
         (honest.volume - 4.0 * PI / 3.0).abs() < 1e-9,
         "the off-centre unit ball still meters 4π/3, got {}",
@@ -147,7 +154,7 @@ fn offcentre_flipped_ball_still_cancels() {
     );
 
     let flipped = b.flipped_face_sense_for_tests(first_face(&b)).unwrap();
-    let lied = topo::props::mass_properties(&flipped, Tol::witness()).unwrap();
+    let lied = topo::mass_properties(&flipped, Tol::witness()).unwrap();
     assert!(
         lied.volume.abs() < 1e-9,
         "off-centre flipped ball must STILL meter zero (anchored halves \
@@ -184,7 +191,7 @@ fn assembly_flip_is_wrong_but_nonzero() {
         .body;
     let r = topo::boolean::union(&ball, &cuboid, Tol::witness()).unwrap();
     let body = &r.body().expect("a disjoint assembly is a body").body;
-    let honest = topo::props::mass_properties(body, Tol::witness()).unwrap();
+    let honest = topo::mass_properties(body, Tol::witness()).unwrap();
     assert!(
         (honest.volume - (4.0 * PI / 3.0 + 6.0)).abs() < 1e-9,
         "the assembly meters ball + cuboid, got {}",
@@ -197,7 +204,7 @@ fn assembly_flip_is_wrong_but_nonzero() {
         .map(|(k, _)| k)
         .expect("the assembly keeps the ball's sphere bands");
     let flipped = body.flipped_face_sense_for_tests(band_face).unwrap();
-    let lied = topo::props::mass_properties(&flipped, Tol::witness()).unwrap();
+    let lied = topo::mass_properties(&flipped, Tol::witness()).unwrap();
     assert!(
         (lied.volume - 6.0).abs() < 1e-9,
         "wrong-but-nonzero: the bands cancel and the cuboid stands, so \
@@ -370,12 +377,8 @@ fn fixed_concave_arc_wall_sense_is_false() {
 fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
     let a = mixed_turn_arcs().body;
     let b = pellet::<f64>();
-    let vol_a = topo::props::mass_properties(&a, Tol::witness())
-        .unwrap()
-        .volume;
-    let vol_b = topo::props::mass_properties(&b, Tol::witness())
-        .unwrap()
-        .volume;
+    let vol_a = topo::mass_properties(&a, Tol::witness()).unwrap().volume;
+    let vol_b = topo::mass_properties(&b, Tol::witness()).unwrap().volume;
     assert!(
         (vol_b - 0.008).abs() < 1e-12,
         "the pellet meters 0.008, got {vol_b}"
@@ -383,7 +386,7 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
 
     let r = topo::boolean::union(&a, &b, Tol::witness()).unwrap();
     let out = r.body().expect("union of two non-empty solids");
-    let vol = topo::props::mass_properties(&out.body, Tol::witness())
+    let vol = topo::mass_properties(&out.body, Tol::witness())
         .unwrap()
         .volume;
     let shells = out.body.shells().count();
@@ -414,45 +417,15 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
 // are `sweep::loft_body` output: `topo` cannot reach the constructor
 // that builds them, and a hand-assembled stand-in would pin a fixture
 // rather than the loft the finding is about.
+//
+// The two bodies are the crate's shared `arc_prism` and `square_prism`
+// (`common`), which differ in the BULGE alone — same station count,
+// same v-degree — so a row that runs both isolates the carrier.
 // =====================================================================
-
-/// The three-station arc loft, the finding's body: four profile
-/// vertices, one of them bulged, so each cap loop carries one circular
-/// arc among its lines.
-fn atrest2_arc_loft() -> Body<f64> {
-    sweep::loft_body::<f64>(
-        &[
-            crate::common::arc_section(1.0),
-            crate::common::arc_section(1.0),
-            crate::common::arc_section(1.0),
-        ],
-        &crate::common::stacked(&[0.0, 1.0, 2.0], 1.0),
-        2,
-        Tol::witness(),
-    )
-    .expect("the arc loft lofts")
-    .body
-}
-
-/// The two-station square loft, the control: the same construction with
-/// an unbulged profile, so every cap loop is line-bounded.
-fn atrest2_square_loft() -> Body<f64> {
-    sweep::loft_body::<f64>(
-        &[
-            crate::common::quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-            crate::common::quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        ],
-        &crate::common::stacked(&[0.0, 2.0], 1.0),
-        1,
-        Tol::witness(),
-    )
-    .expect("the square loft lofts")
-    .body
-}
 
 /// Every face's sense inverted, through the PUBLIC door
 /// [`topo::Body::set_face_sense`] — not the `_for_tests` hand-flip.
-fn atrest2_inverted(body: &Body<f64>) -> Body<f64> {
+fn sense_inverted_everywhere(body: &Body<f64>) -> Body<f64> {
     let mut out = body.clone();
     let flips: Vec<(FaceKey, bool)> = out.faces().map(|(k, f)| (k, f.sense)).collect();
     for (k, sense) in flips {
@@ -461,117 +434,165 @@ fn atrest2_inverted(body: &Body<f64>) -> Body<f64> {
     out
 }
 
-/// Whether `face`'s outer loop is bounded by lines alone — check 6's
-/// planar arm's `all_lines` gate, re-derived here from the same stored
-/// carriers the arm reads.
-fn atrest2_outer_is_line_bounded(body: &Body<f64>, face: FaceKey) -> bool {
-    let f = body.get_face(face).expect("the face is live");
-    let ld = body.get_loop(f.outer).expect("the loop is live");
-    let topo::entity::LoopBoundary::Cycle { first } = ld.boundary else {
-        return true; // bounds no area
-    };
-    body.loop_cycle(first)
-        .expect("the cycle resolves")
-        .iter()
-        .all(|&he| {
-            body.get_half_edge(he)
-                .and_then(|hd| body.get_edge(hd.edge))
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(topo::null::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
-        })
+/// Whether `face`'s surface is a spline chart — the discriminant of
+/// check 6's curved-arm skip and of tier 3's `nurbs_adjacent`
+/// short-circuit, asked of a FACE key.
+fn is_spline_chart_face(body: &Body<f64>, face: FaceKey) -> bool {
+    body.get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .is_some_and(|s| s.spline_chart().is_some())
+}
+
+/// **The (face, loop) pairs check 6's PLANAR arm actually examines** on
+/// `body`, re-derived here from the same stored data the arm reads.
+///
+/// It is a re-derivation of the arm's own entry conditions, in the
+/// arm's order, and it must match all four of them or the row that uses
+/// it reports a false red:
+///
+/// - the face's surface is a `Plane` (the arm `continue`s on every
+///   other kind — there is no planarity filter anywhere else, so a
+///   predicate that omitted this one would drag the NURBS walls in the
+///   day `loft_body` mints `Line` carriers for straight rails);
+/// - the loop is the outer loop OR one of `face.rings` (the arm runs
+///   over both);
+/// - the loop's boundary is a `Cycle` (the arm `continue`s otherwise —
+///   an empty ring bounds no area, so it is NOT examined, and a
+///   predicate answering "yes" there would have the semantics
+///   inverted);
+/// - every certified carrier on the cycle is a `Line` (`all_lines`).
+///
+/// A `(face, loop)` PAIR and not a face, because `LoopRoleInverted`
+/// names both and a face can refuse once per loop — a face key vector
+/// would need deduping to be comparable and would lose which loop it
+/// was.
+fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
+    let mut out = Vec::new();
+    for (fk, f) in body.faces() {
+        if !matches!(
+            body.get_surface(f.surface),
+            Some(geom::Surface::Plane { .. })
+        ) {
+            continue;
+        }
+        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+            let Some(ld) = body.get_loop(l) else { continue };
+            let topo::entity::LoopBoundary::Cycle { first } = ld.boundary else {
+                continue; // bounds no area: the arm skips it
+            };
+            let Some(cycle) = body.loop_cycle(first) else {
+                continue;
+            };
+            let all_lines = cycle.iter().all(|&he| {
+                body.get_half_edge(he)
+                    .and_then(|hd| body.get_edge(hd.edge))
+                    .and_then(|e| body.get_curve_geom(e.curve))
+                    .and_then(topo::null::CurveGeom::certified)
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
+            });
+            if all_lines {
+                out.push((fk, l));
+            }
+        }
+    }
+    out.sort();
+    out
 }
 
 /// **Answer 1.** The only at-rest site that produces `LoopRoleInverted`
 /// is tier 3's check 6 PLANAR arm, and the only thing that silences it
-/// on the arc loft is that arm's `all_lines` gate: a cap loop carrying
+/// on the arc prism is that arm's `all_lines` gate: a cap loop carrying
 /// one circular arc is skipped, a cap loop of four lines is not.
 ///
-/// The row states both halves as runtime facts. On the square loft the
+/// The row states both halves as runtime facts. On the square prism the
 /// refusal set is non-empty, is `LoopRoleInverted` and NOTHING else,
-/// and its faces are exactly the line-bounded ones — so the four NURBS
-/// walls contribute no refusal on either body and the discriminant is
-/// the cap. On the arc loft the same inversion validates clean, and
-/// each of its caps carries a non-line carrier.
+/// and its `(face, loop)` pairs are exactly the ones the planar arm
+/// examines — so the four NURBS walls contribute no refusal on either
+/// body and the discriminant is the cap. On the arc prism the same
+/// inversion validates clean, and the arm examines NOTHING there.
 ///
 /// **How it goes red.** Widening the planar arm past line carriers
 /// (`verbs-1031b-assigner-checker-divergence`'s open question) makes
-/// `validate_geometric` on `inverted_arc` return `Err`, and the
+/// `validate_geometric` on the inverted arc prism return `Err`, and the
 /// `is_ok` assertion fails. A curved arm that stopped exempting spline
-/// charts would put wall faces into `square_faces` and fail the
-/// exactly-the-line-bounded-faces assertion. A loft that stopped
-/// emitting an arc carrier for a bulged segment fails the last
+/// charts would raise `CurvedSenseInverted` on the walls, which this
+/// row's `other => panic!` arm catches first — still red, and named
+/// here so a reader knows which value fires. A loft that stopped
+/// emitting an arc carrier for a bulged segment makes
+/// `planar_arm_reaches` non-empty on the arc prism and fails the last
 /// assertion. The runtime values are the error vector from
 /// `validate_geometric` and the stored carrier discriminants.
+///
+/// **What it deliberately does NOT claim** is that the walls are absent
+/// from the examined set because they are curved. They are absent
+/// because they are not `Plane`, which `planar_arm_reaches` asks
+/// directly — so the day `loft_body` mints `Line` carriers for a
+/// straight rail (an obvious improvement, and one that changes nothing
+/// about check 6) this row stays green.
 #[test]
 fn only_the_line_bounded_cap_refuses_a_whole_body_sense_inversion() {
     let tol = Tol::witness();
-    let arc = atrest2_arc_loft();
-    let square = atrest2_square_loft();
+    let arc = crate::common::arc_prism();
+    let square = crate::common::square_prism();
     assert!(
         topo::validate_geometric(&arc, tol).is_ok(),
-        "the arc loft is honest at rest"
+        "the arc prism is honest at rest"
     );
     assert!(
         topo::validate_geometric(&square, tol).is_ok(),
-        "the square loft is honest at rest"
+        "the square prism is honest at rest"
     );
 
-    let errs = topo::validate_geometric(&atrest2_inverted(&square), tol)
-        .expect_err("a whole-body inversion of the square loft is refused");
-    let mut square_faces: Vec<FaceKey> = errs
+    let errs = topo::validate_geometric(&sense_inverted_everywhere(&square), tol)
+        .expect_err("a whole-body inversion of the square prism is refused");
+    let mut refused: Vec<(FaceKey, topo::LoopKey)> = errs
         .iter()
         .map(|e| match e {
-            topo::ValidationError::LoopRoleInverted { face, .. } => *face,
-            other => panic!("only check 6's planar arm should speak here, got {other:?}"),
+            topo::ValidationError::LoopRoleInverted { face, r#loop } => (*face, *r#loop),
+            other => panic!(
+                "only check 6's planar arm should speak here; a `CurvedSenseInverted` \
+                 is what a curved arm that stopped exempting spline charts would \
+                 raise. Got {other:?}"
+            ),
         })
         .collect();
-    square_faces.sort();
-    let mut line_bounded: Vec<FaceKey> = square
-        .faces()
-        .map(|(k, _)| k)
-        .filter(|&k| atrest2_outer_is_line_bounded(&square, k))
-        .collect();
-    line_bounded.sort();
+    refused.sort();
+    let examined = planar_arm_reaches(&square);
     assert!(
-        !line_bounded.is_empty(),
-        "the square loft has line-bounded caps"
+        !examined.is_empty(),
+        "check 6's planar arm examines the square prism's line-bounded caps"
     );
     assert_eq!(
-        square_faces, line_bounded,
-        "the refusing faces must be exactly the line-bounded ones — check 6's \
-         planar arm is the sole raiser and `all_lines` is its whole gate"
+        refused, examined,
+        "every (face, loop) the planar arm examines refuses under a whole-body \
+         inversion, and nothing else does — the arm is the sole raiser and \
+         `all_lines` is its whole gate"
     );
 
     assert!(
-        topo::validate_geometric(&atrest2_inverted(&arc), tol).is_ok(),
-        "MEASURED GAP: the same whole-body inversion of the arc loft is clean at \
+        topo::validate_geometric(&sense_inverted_everywhere(&arc), tol).is_ok(),
+        "MEASURED GAP: the same whole-body inversion of the arc prism is clean at \
          rest. This row pins the gap; when a check closes it, re-cut the row \
          rather than loosening it"
     );
-    for (k, _) in arc.faces() {
-        if matches!(
-            arc.get_surface(arc.get_face(k).unwrap().surface),
-            Some(geom::Surface::Plane { .. })
-        ) {
-            assert!(
-                !atrest2_outer_is_line_bounded(&arc, k),
-                "an arc loft cap must carry a non-line carrier — that is what \
-                 `all_lines` rejects, and the reason the arm never runs on it"
-            );
-        }
-    }
+    assert_eq!(
+        planar_arm_reaches(&arc),
+        Vec::new(),
+        "check 6's planar arm examines NO loop of the arc prism — each cap loop \
+         carries a `Circle`, which is what `all_lines` rejects and the whole \
+         reason the arm never runs on this body"
+    );
 }
 
-/// **Answer 2.** No at-rest check reads `Face::sense` on the arc loft
-/// at all, and the row pins the three gates that stop each reader
-/// rather than the absence itself:
+/// **Answer 2.** No at-rest check reads `Face::sense` on the arc prism
+/// at all, and the row pins the four gates that stop each reader rather
+/// than the absence itself:
 ///
 /// - check 6's PLANAR arm reads the bit through `plane_outward_normal`
 ///   and is gated on `all_lines` — every planar face here fails it;
 /// - check 6's CURVED arm reads `face.sense` directly and skips
 ///   `Plane` and spline charts — every face here is one or the other;
-/// - tier 2's C7 material arm reads `sense` on both sides of a
+/// - tier 3's **check 4 MATERIAL arm** reads `sense` on both sides of a
 ///   definitely-smooth edge, behind `nurbs_adjacent` — every edge here
 ///   has a spline-chart face, so the short-circuit fires first;
 /// - check 7 reads the bit only at `props::curved_face`'s rimless-band
@@ -587,49 +608,42 @@ fn only_the_line_bounded_cap_refuses_a_whole_body_sense_inversion() {
 /// nurbs-adjacent. If the quadrature ever folds the bit into a loft
 /// face's flux, the same-reading assertion fails. The runtime values
 /// are the stored `Surface` discriminants, the per-edge face pair, and
-/// the `f64` bits of the metered volume.
+/// the `f64` bits of the metered volume (or the typed `MassPropsError`
+/// where the schedule refuses).
 #[test]
 fn every_sense_reading_gate_shuts_on_the_arc_loft() {
     let tol = Tol::witness();
-    let arc = atrest2_arc_loft();
+    let arc = crate::common::arc_prism();
 
-    // The planar arm's gate: no planar face of this body is
-    // line-bounded, so `all_lines` rejects every one of them.
-    for (k, f) in arc.faces() {
-        if matches!(
-            arc.get_surface(f.surface),
-            Some(geom::Surface::Plane { .. })
-        ) {
-            assert!(
-                !atrest2_outer_is_line_bounded(&arc, k),
-                "planar face {k:?} is line-bounded — check 6's planar arm now \
-                 reads `Face::sense` on this body and this row's answer has changed"
-            );
-        }
-    }
+    // The planar arm's gate: it examines no loop of this body at all,
+    // because no planar face of it is line-bounded.
+    assert_eq!(
+        planar_arm_reaches(&arc),
+        Vec::new(),
+        "check 6's planar arm now examines a loop of the arc prism, so it reads \
+         `Face::sense` on this body and this row's answer has changed"
+    );
 
     // The curved arm's gate: `Plane` or a spline chart, face by face.
     for (k, f) in arc.faces() {
         let s = arc.get_surface(f.surface).expect("the surface is live");
         assert!(
-            matches!(s, geom::Surface::Plane { .. }) || s.spline_chart().is_some(),
-            "face {k:?} is neither planar nor a spline chart — check 6's curved \
-             arm would now run on it and this row's answer has changed"
+            matches!(s, geom::Surface::Plane { .. }) || is_spline_chart_face(&arc, k),
+            "face {k:?} is neither planar nor a spline chart ({s:?}) — check 6's \
+             curved arm would now run on it and this row's answer has changed"
         );
     }
 
-    // The C7 material arm's gate: every edge nurbs-adjacent.
+    // Check 4's MATERIAL arm's gate: every edge nurbs-adjacent.
     for (k, e) in arc.edges() {
-        let is_spline = |he| {
+        let spline_side = |he| {
             arc.face_of_half_edge(he)
-                .and_then(|fk| arc.get_face(fk))
-                .and_then(|f| arc.get_surface(f.surface))
-                .is_some_and(|s| s.spline_chart().is_some())
+                .is_some_and(|fk| is_spline_chart_face(&arc, fk))
         };
         assert!(
-            is_spline(e.he_plus) || is_spline(e.he_minus),
-            "edge {k:?} has no spline-chart face — tier 2's `nurbs_adjacent` \
-             short-circuit no longer covers it and the material arm's \
+            spline_side(e.he_plus) || spline_side(e.he_minus),
+            "edge {k:?} has no spline-chart face — tier 3's `nurbs_adjacent` \
+             short-circuit no longer covers it and check 4's MATERIAL arm's \
              `Face::sense` read is now reachable here"
         );
     }
@@ -641,12 +655,12 @@ fn every_sense_reading_gate_shuts_on_the_arc_loft() {
     // posture) — a refusal is as much the door's output as a number is,
     // and both must be unmoved by a bit no lane here reads.
     let honest = topo::mass_properties(&arc, tol);
-    let lied = topo::mass_properties(&atrest2_inverted(&arc), tol);
+    let lied = topo::mass_properties(&sense_inverted_everywhere(&arc), tol);
     match (&honest, &lied) {
         (Ok(h), Ok(l)) => {
             assert!(
                 h.volume > 0.0,
-                "the honest arc loft encloses positive volume; got {}",
+                "the honest arc prism encloses positive volume; got {}",
                 h.volume
             );
             assert_eq!(
@@ -658,8 +672,7 @@ fn every_sense_reading_gate_shuts_on_the_arc_loft() {
             );
         }
         (Err(h), Err(l)) => assert_eq!(
-            format!("{h:?}"),
-            format!("{l:?}"),
+            h, l,
             "the door's typed refusal must not move under the inversion either"
         ),
         _ => panic!("the inversion changed WHETHER the enclosure computes: {honest:?} vs {lied:?}"),
@@ -667,38 +680,62 @@ fn every_sense_reading_gate_shuts_on_the_arc_loft() {
 }
 
 /// **Answer 3.** The inverted body is reachable through the PUBLIC API:
-/// `atrest2_inverted` builds it with [`topo::Body::set_face_sense`]
-/// alone, which is `pub`, not `#[doc(hidden)]`, and callable from
-/// outside `topo` — this integration test is the witness. So the
-/// finding is a real gap, not an artefact of the `_for_tests` door.
+/// [`sense_inverted_everywhere`] builds it with
+/// [`topo::Body::set_face_sense`] alone, which is `pub`, not
+/// `#[doc(hidden)]`, and callable from outside `topo` — this
+/// integration test is the witness. So the finding is a real gap, not
+/// an artefact of the `_for_tests` door.
 ///
 /// The control half is what makes the row a guard rather than a
-/// restatement: the same public door on the square loft DOES earn a
-/// refusal, so the door genuinely writes the bit and the arc loft's
-/// silence is the checks', not the door's.
+/// restatement: the same public door on the square prism DOES earn a
+/// refusal, so the door genuinely writes the bit and the arc prism's
+/// silence is the checks', not the door's. The control asserts the
+/// exact refusal SET, not merely that something refused — an `is_err`
+/// would still pass the day the square prism started refusing for an
+/// unrelated reason, which is not the fact this row rests on.
 ///
 /// **How it goes red.** Making `set_face_sense` private or hiding it
 /// breaks compilation, which is this row failing. A gate that catches
-/// the public-door inversion on the arc loft fails the `is_ok`
-/// assertion; one that stops catching it on the square loft fails the
-/// `is_err` one. The runtime values are the two error vectors.
+/// the public-door inversion on the arc prism fails the `is_ok`
+/// assertion; one that stops catching it on the square prism fails the
+/// refusal-set assertion. The runtime values are the two error vectors
+/// and the per-face `sense` bits.
 #[test]
 fn the_public_sense_door_builds_an_inverted_arc_loft_tier_3_accepts() {
     let tol = Tol::witness();
-    let arc = atrest2_arc_loft();
-    let inverted = atrest2_inverted(&arc);
-    for ((_, before), (_, after)) in arc.faces().zip(inverted.faces()) {
-        assert_ne!(before.sense, after.sense, "every face's bit is inverted");
+    let arc = crate::common::arc_prism();
+    let inverted = sense_inverted_everywhere(&arc);
+    // Keyed, not positional: the claim is about each face's own bit,
+    // and a `zip` over two iterators would rest on the unstated premise
+    // that arena order survives `clone`.
+    for (k, before) in arc.faces() {
+        let after = inverted
+            .get_face(k)
+            .expect("the clone keeps every face key");
+        assert_ne!(before.sense, after.sense, "face {k:?}'s bit is inverted");
     }
     assert!(
         topo::validate_geometric(&inverted, tol).is_ok(),
         "MEASURED GAP: a body built inverted through the public `set_face_sense` \
          door validates clean at rest"
     );
-    assert!(
-        topo::validate_geometric(&atrest2_inverted(&atrest2_square_loft()), tol).is_err(),
-        "the same public door on the line-bounded control IS refused — the door \
-         writes the bit, so the arc loft's silence is check 6's gate and not a \
-         no-op write"
+
+    let square = crate::common::square_prism();
+    let errs = topo::validate_geometric(&sense_inverted_everywhere(&square), tol)
+        .expect_err("the same public door on the line-bounded control IS refused");
+    let mut refused: Vec<(FaceKey, topo::LoopKey)> = errs
+        .iter()
+        .map(|e| match e {
+            topo::ValidationError::LoopRoleInverted { face, r#loop } => (*face, *r#loop),
+            other => panic!("the control must refuse by check 6's planar arm, got {other:?}"),
+        })
+        .collect();
+    refused.sort();
+    assert_eq!(
+        refused,
+        planar_arm_reaches(&square),
+        "the control's refusal is exactly check 6's planar arm over the loops it \
+         examines — the door writes the bit, so the arc prism's silence is that \
+         arm's gate and not a no-op write"
     );
 }
