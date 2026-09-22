@@ -159,11 +159,12 @@ pub struct DriveConfig {
     /// form every other leaf of this drive would build; the memo hands
     /// it back instead of rebuilding it, which on the M10-3 slab is a
     /// walk the tier otherwise repeats once per leaf. Every verdict and
-    /// every decision count is the same either way, and the receipt's
-    /// `frozen` column means the same thing either way — the DISTINCT
+    /// every decision count is the same either way, and so is the
+    /// `frozen` column on both receipts — the drive's is the DISTINCT
     /// nodes frozen over the drive, which the memo counts whether or
-    /// not it is serving forms (`geom_core::SymCounts::frozen` argues
-    /// the column).
+    /// not it is serving forms, and a leaf's is its NEED against that
+    /// same set, which is what it reached and not what it computed
+    /// (`geom_core::SymCounts::frozen` argues the column).
     ///
     /// Off is the differential lane the pins compare against, in
     /// `parallel`'s own mould: a dial whose effect on a document is a
@@ -635,8 +636,10 @@ pub struct CertifiedLeaf {
     /// What its replay produced.
     pub results: LeafResults,
     /// How this leaf's decisions were answered — the E12 receipt
-    /// ([`SymbolicDials`]). All zero when the tier is off, because no
-    /// session exists to count in.
+    /// ([`SymbolicDials`]), `frozen` being this leaf's NEED of the
+    /// drive's frozen set rather than the work it happened to do
+    /// (`geom_core::SymCounts::frozen`). All zero when the tier is off,
+    /// because no session exists to count in.
     pub decisions: SymCounts,
 }
 
@@ -648,7 +651,8 @@ pub struct RefusedLeaf {
     /// The typed reason.
     pub reason: RefusalReason,
     /// How this leaf's decisions were answered before it refused — the
-    /// E12 receipt ([`SymbolicDials`]).
+    /// E12 receipt ([`SymbolicDials`]), `frozen` being this leaf's NEED
+    /// of the drive's frozen set (`geom_core::SymCounts::frozen`).
     pub decisions: SymCounts,
 }
 
@@ -736,9 +740,11 @@ impl ParamBoxVerdict {
     /// `numeric`, with `frozen` beside them.
     ///
     /// **`frozen` is the odd one out**: the decision columns are sums
-    /// over the leaves, and `frozen` is the DISTINCT nodes frozen over
-    /// the drive (`geom_core::sym::DriveMemo::frozen`). `SymCounts::frozen`
-    /// is where the column's two meanings are argued.
+    /// over the leaves, and `frozen` is a SET — the DISTINCT nodes
+    /// frozen over the drive (`geom_core::sym::DriveMemo::frozen`),
+    /// which is not the sum of the leaves' own columns because those
+    /// are sets over the same nodes and they overlap.
+    /// `SymCounts::frozen` argues both receipts' column.
     ///
     /// All zero when the symbolic tier is off ([`SymbolicDials::off`]),
     /// which is not a claim that nothing decided: with no session
