@@ -145,10 +145,10 @@ mod spline_hull;
 mod sym11_witness_kind_interval_rows;
 #[path = "sym11_witness_kind_rows.rs"]
 mod sym11_witness_kind_rows;
-#[path = "sym_drive_memo.rs"]
-mod sym_drive_memo;
 #[path = "sym13_r2_probes.rs"]
 mod sym13_r2_probes;
+#[path = "sym_drive_memo.rs"]
+mod sym_drive_memo;
 #[path = "sym_rule_e_rows.rs"]
 mod sym_rule_e_rows;
 #[path = "sym_rule_f_interval_rows.rs"]

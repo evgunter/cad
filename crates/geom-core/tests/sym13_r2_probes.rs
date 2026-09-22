@@ -102,7 +102,10 @@ fn r2_a_leaf_with_no_roots_needs_nothing() {
     let (_, builder) = with_session_memo(tight(), rules(), &m, || {
         let _s = three();
     });
-    assert_eq!(builder.frozen, 0, "built the frozen node, asked nothing: {builder:?}");
+    assert_eq!(
+        builder.frozen, 0,
+        "built the frozen node, asked nothing: {builder:?}"
+    );
 }
 
 /// **The unrecorded branch, by execution.** Leaf A reaches, in its
@@ -134,7 +137,12 @@ fn r2_an_unrecorded_node_in_the_closure_is_counted_by_order() {
     );
 
     let (_, b) = with_session_memo(tight(), rules(), &m, || zero(three() - three()));
-    assert_eq!(m.size().frozen, 1, "B recorded it and froze it: {:?}", m.size());
+    assert_eq!(
+        m.size().frozen,
+        1,
+        "B recorded it and froze it: {:?}",
+        m.size()
+    );
     assert_eq!(b.frozen, 1, "{b:?}");
 
     let (_, a_after) = with_session_memo(tight(), rules(), &m, || zero(outside - outside));
