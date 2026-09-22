@@ -1852,6 +1852,11 @@ struct Session {
     plain_built: Vec<SymId>,
     plain_atoms: Vec<u128>,
     plain_frozen: Vec<SymId>,
+    /// **The roots the PLAIN walk was asked for**, in the order it was
+    /// asked — the leaf's NEED is counted over their closure
+    /// ([`leaf_need`]). Kept only while a drive memo is installed,
+    /// where the column is a NEED; empty otherwise.
+    plain_roots: Vec<SymId>,
     /// **The nodes whose plain form this leaf built out of an
     /// UNRECORDED one**, and which it therefore may not publish.
     ///
@@ -1889,6 +1894,7 @@ impl Session {
             plain_built: Vec::new(),
             plain_atoms: Vec::new(),
             plain_frozen: Vec::new(),
+            plain_roots: Vec::new(),
             plain_tainted: IdSet::default(),
         }
     }
@@ -2074,8 +2080,17 @@ fn with_session_in<R>(
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
     }
-    if let Some(s) = &sess {
+    let mut sess = sess;
+    if let Some(s) = &mut sess {
         publish_to_memo(s);
+        if let Some(memo) = s.memo.clone() {
+            // THE PLANT (SYM-13 Phase 1.4), behind `CAD_SYM_NEED`: the
+            // leaf's column as its NEED, and the cost of computing it.
+            if need_planted() {
+                let need = leaf_need(s, &memo);
+                s.counts.frozen = need;
+            }
+        }
     }
     let counts = sess.map_or_else(SymCounts::default, |s| s.counts);
     (out, counts)
@@ -2114,6 +2129,73 @@ fn publish_to_memo(sess: &Session) {
         }),
         sess.plain_frozen.iter().copied(),
     );
+}
+
+/// SYM-13 Phase 1.4's local dial, read once: `CAD_SYM_NEED=1` makes a
+/// leaf's `frozen` column its NEED. The plant is what the phase
+/// measures the column's cost with and is deleted with the phase.
+fn need_planted() -> bool {
+    static PLANTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *PLANTED.get_or_init(|| std::env::var("CAD_SYM_NEED").as_deref() == Ok("1"))
+}
+
+/// **The leaf's NEED** — the distinct nodes of the drive's frozen set
+/// that lie in the plain closure of the leaf's own walk roots
+/// ([`SymCounts::frozen`] argues the column).
+///
+/// **The set walked is the HASH-CONSING TABLE, not `Session::forms`.**
+/// `forms` is the plain walk's memo and a drive-memo HIT truncates it:
+/// a leaf that inherits a form for a node never expands that node's
+/// subtree, so which nodes are in `forms` is a function of what the
+/// other leaves published first — the very dependence the column is
+/// being cured of. The table (`Session::nodes`) is the leaf's own DAG,
+/// built by its replay out of its box, and every node the walk would
+/// have visited absent the memo is in it.
+///
+/// The closure is taken from the roots the walk was ASKED for rather
+/// than over the whole table, so the column counts what this leaf
+/// REASONED over: a node the leaf built and no decision of its ever
+/// asked about is not part of its reasoning, and — the load-bearing
+/// half — a frozen node in the closure is frozen in the memo BEFORE
+/// this leaf reads it (this leaf froze it, or it inherited a form for
+/// it, or it inherited a form for an ancestor whose own publisher had
+/// already published the freeze; `publish` writes the frozen ids
+/// before the forms). A node outside the closure has no such
+/// guarantee, and counting one would put the drive's progress into the
+/// column.
+fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
+    // Nothing froze over the drive, so nothing the leaf reached can be
+    // in the set: the answer is 0 and the traversal is skipped whole.
+    // A document that freezes nothing pays one read lock per leaf for
+    // the column (the M10-3 slab is that document).
+    if memo.frozen_is_empty() {
+        return 0;
+    }
+    let t0 = std::time::Instant::now();
+    let mut reached: IdSet = IdSet::default();
+    let mut stack: Vec<SymId> = sess.plain_roots.clone();
+    while let Some(id) = stack.pop() {
+        if reached.insert(id, ()).is_some() {
+            continue;
+        }
+        // An unrecorded node has no children HERE, which is exactly
+        // what the plain walk does with one: it freezes it and stops.
+        if let Some(node) = sess.nodes.get(&id) {
+            let arity = node.op.arity();
+            stack.extend(node.kids[..arity].iter().copied());
+        }
+    }
+    let need = memo.need(&reached);
+    if std::env::var("CAD_SYM_NEED_TRACE").as_deref() == Ok("1") {
+        println!(
+            "need: roots {} closure {} table {} need {need} in {:?}",
+            sess.plain_roots.len(),
+            reached.len(),
+            sess.nodes.len(),
+            t0.elapsed()
+        );
+    }
+    need
 }
 
 /// The counts so far in the installed session (`None` outside one) — the
@@ -2487,6 +2569,12 @@ fn form_in(
     // which a value-dependent refusal can make differ between leaves.
     let plain = !early && !registry;
     let drive = plain.then(|| sess.memo.clone()).flatten();
+    // **The walk root, noted for the leaf's NEED** ([`leaf_need`]): the
+    // column counts the drive's freezes inside the closure of what this
+    // leaf ASKED, and the asking is here.
+    if drive.is_some() {
+        sess.plain_roots.push(root);
+    }
     // **One place that notes what this walk computed** — the profile's
     // distinct-id counter, and the drive memo's publication list.
     //

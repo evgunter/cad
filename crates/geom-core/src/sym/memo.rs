@@ -190,6 +190,32 @@ impl DriveMemo {
         self.read().frozen.len() as u64
     }
 
+    /// Whether the drive has frozen nothing at all — the door a leaf
+    /// asks before it walks its own DAG, because a leaf's NEED is zero
+    /// over an empty frozen set whatever the leaf reached.
+    pub(super) fn frozen_is_empty(&self) -> bool {
+        self.read().frozen.is_empty()
+    }
+
+    /// **A leaf's NEED**: the DISTINCT nodes of the drive's frozen set
+    /// that lie in `reached` — the plain closure of the leaf's own
+    /// walk roots over its own hash-consing table
+    /// ([`super::SymCounts::frozen`] argues the column and
+    /// `super::leaf_need` builds the set).
+    ///
+    /// The intersection is walked from the FROZEN side: a drive freezes
+    /// a small fraction of the nodes a leaf reaches (1,044 against
+    /// ~17,000 on the plate) and the count is the same either way, so
+    /// the cheaper side is the one that answers.
+    pub(super) fn need(&self, reached: &IdSet) -> u64 {
+        let inner = self.read();
+        inner
+            .frozen
+            .keys()
+            .filter(|id| reached.contains_key(id))
+            .count() as u64
+    }
+
     /// What the memo came to at the drive's end.
     #[must_use]
     pub fn size(&self) -> MemoSize {
