@@ -2,11 +2,12 @@
 id: creation-form-fields-lost-two-spellings-egui-accepted
 kind: issue
 title: The creation forms stopped parsing interior spaces and U+2212, which egui's own parser accepted
-status: open
+status: closed
 opened: 2026-09-21
 priority: P2
 cost: E
 refs: [3007]
+closed: 2026-09-22
 ---
 
 Filed by the review fix pass on #3007, which disclosed this cost in
@@ -58,3 +59,30 @@ answer is that both spellings are kept, this row is where it lands.
 
 `crates/viewer/src/widgets.rs` and `crates/viewer/src/props.rs` —
 VGEOM's, double-claimed with CHROME and VIEW.
+
+## Ruled: option 1, leave it (Ev, in chat, 2026-09-22)
+
+Put to Ev by this orchestrator at the VGEOM hand-over, as the fork
+above states it. Ev's answer: *"less expressive, simpler parser is
+fine if that means we have simpler code / more consistent behavior /
+less duplication."*
+
+That is option 1 on all three of its own terms, and the fork's own
+text says so: one parser and one rule is the simpler code; the panel
+and the creation forms reading the same texts is the more consistent
+behaviour; and options 2 and 3 both add a normalisation layer that
+option 1 does not have — option 3 explicitly a second one, above
+`field_edit`, so the widget and the expression door would read
+different texts.
+
+**So `crate::props::field_edit` stays as it is**: trim, then
+`f64::from_str`. `1 234 567` and a U+2212 minus do not parse, in the
+creation forms or in the properties panel, and the rule *what Rust
+reads as a float is a number and everything else is source* keeps
+`1 234` an expression rather than a quantity.
+
+**What this closes and what it does not.** It closes the question the
+row was opened to ask. It is not a finding that the two spellings are
+undesirable: if a person hits the missing U+2212 in practice — a
+paste from a document is the realistic route — that is new evidence
+and a new row, against the shared parser, not a reopening of this one.

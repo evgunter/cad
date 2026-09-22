@@ -303,3 +303,131 @@ with the rational-cells row landed on ENCL (no orchestrator seated).
   loop; the tess-budget baseline is not re-cut by the lane.
 - Dispatch waits for TESS-1's head to freeze — one kernel unit on a
   mutex-width-1, 18-G-free box at a time.
+
+## PR 2848 merged (2026-09-20)
+
+Domination asserts in `crates/mesh` fail through one helper: sides
+labelled, `{:.17e}`, the escaping component named; what is asserted is
+unchanged. Merged at `9f30cef5f` on a green full matrix (12 test jobs,
+5 k-lint). Fix pass: all eight items done; ten mutants of the helper
+run and killed before the outage took the target dir. No A/B row
+(middle tier). Wall-clock is contaminated by the usage-limit gap.
+
+- The lane's two calls at the merge of main, both upheld: a new
+  message-less domination assert main brought into `chords.rs` was
+  converted (compiled by hosted CI only); and the rows I told it to file
+  on TESS went to CHORD, which owns that ground since the cut
+  (`r2-probe-whole-net-digits-asserts-nothing`,
+  `mesh-message-less-ordering-asserts-have-no-unit`). TINT holds the
+  unswept-asserts row and the two-helpers-opposite-operand-orders row.
+- The NURBS bound row stays open on TESS-2. Lane clone reclaimed.
+
+## TESS-1 frozen and in dual review (2026-09-20)
+
+PR 2852 at `7a5fe831e`, hosted full matrix green (run 35550649883).
+`TessellateError::MeridianFreeCurvedFace { face, surface }`, raised in
+`walk::loop_polygon` by `require_a_meridian` right after `traversals`.
+Ordinal **5100** claimed on main (PR 2962); the R1/R2 draw, the stored
+briefs' hashes and the implementer-phase gap are on `tess/b1-block`.
+Both reviewers dispatched concurrently on the frozen head with
+identical briefs (modulo the lane label) served from neutral paths, so
+neither reads the block branch.
+
+- **The lane treated my post-outage RESUME message as untrusted**
+  because the harness delivered it inside a tool result; it re-derived
+  the state itself (target dir gone, main moved) and carried on per the
+  brief. Correct behaviour, and worth knowing: a resume message may not
+  arrive looking like the orchestrator's.
+- Lane findings with homes already: the all-meridians torus meshes as
+  a hole (`rim-free-loop-on-a-poleless-chart-meshes-as-a-hole`); the
+  trimmed and planar lanes can answer `Ok` on an empty patch, by
+  reading only (`trimmed-and-planar-lanes-answer-ok-on-an-empty-patch`);
+  LIB's guide and `.pyi` lag the refusal list; TINT's poleguard prose.
+- Not yet homed, mine to check at adjudication: `geom-brep/README.md`
+  item (6) cites `UnsupportedCurvedShape` for general trimmed faces
+  (looks stale); slot-2's build lock carries a dead holder record
+  (pid 142349, "exclusive" since 09-14) that the wrapper reads as stale.
+- **TESS-2 is held** until the reviews return: three concurrent
+  targets do not fit in 16 G, and the protocol prefers less concurrency
+  to a narrowed method.
+
+## TESS-1: dual adjudicated, fix pass green; merge blocked on the box (2026-09-21)
+
+- **Dual (ordinal 5100)**: both APPROVE-WITH-FIXES, no behavioural
+  claim falsified, mutant reproduced by both. No tally candidate — every
+  MAJOR was mentioned by the other reviewer and none was shown by
+  execution. Record, rubric and method notes: `tess/b1-block`,
+  `work/tess/logs/tess-1-adjudication.md`.
+- **My spec's error, surfaced by both**: it filed the refusal under D2
+  row 2 (valid, unbuilt). Under (N) it is row 1; the fix pass re-filed
+  the prose and kept the name and python tag.
+- **Fix pass** (implementer-inherited, union A–L): head `02c589569`,
+  hosted run 35582378069 green at the full matrix, read at step level.
+  NO local build ran — disk was under the 8 G floor — so every fix-pass
+  edit was compiled and tested by CI only. Main moved under it three
+  times; PROPS' `props_rim_side` unanimity now ESCALATES a rim-only cap
+  whose levels sit a band apart at the shape door, so the topo row pins
+  Δv = 0 → `MeridianFreeCurvedFace` and 1.5ε → `UnsupportedCurvedShape
+  {Escalated}`; the 0.5ε point was dropped rather than guessed.
+  New: `walk::LoopKinds`; `walk_anchor`'s dead arm is `unreachable!`;
+  the zero-height witness restored; reviewer probes lifted
+  (`loops_the_meridian_guard_admits.rs`); filed
+  `geom-brep-readme-c12-misstates-the-mesh-lanes`.
+- **Correction to my own brief**: I told the lane a short meridian spur
+  is caught "δ-dependently". The lifted rows refuse `CertificateExceeded`
+  at δ = 0.01 AND 0.1, so δ-dependence is not shown; the lane corrected
+  its prose to claim only what the rows pin.
+- **Not merged yet**: from 2026-09-20 evening the box sat at ~5 G free,
+  load ~45, and GitHub unreachable for minutes at a time (`gh`, `curl`
+  and `git fetch` all hang; processes in D state). Main moved once more
+  after the lane's last merge, so mergeability on the green head is
+  UNVERIFIED. Next act: confirm `MERGEABLE/CLEAN` and that no check is
+  in flight on `02c589569`, merge, record the row (sample number at
+  merge), close TESS-1 and the cap row, delete `docs/TESS-1-SPEC.md`.
+- Class for the record: **the pre-push fmt hook takes >9 minutes under
+  load and GitHub drops the idle ssh before the pack is sent** — the
+  lane worked around it with `ServerAliveInterval` and a detached push.
+  Whoever owns `local-scripts/hooks` wants a row; filed when the box
+  can run `work.py`.
+
+## Main moved 540 commits; the sweep was silenced (2026-09-21)
+
+Box recovered (27 G free). Session restarted; the staged log entry
+survived and is pushed. Pulled main: RING-2 (SCALAR, PR 3032) made the
+ring a newtype over a backend that pads only inexact operations —
+bounds moved tighter — and, when the soundness sweep and the hull rows
+went red on the ULP-scale escape, attributed it to the sampler and
+added a 64-ulp relative allowance to `Domination::sampled_under_
+certified`. That is ~50× the sampler error the diagnostic measured and
+hides the proven certificate escape; the sweep is green on main and the
+certificate is still unsound. Not a fudge on the certificate (my spec's
+line), but a fudge on the falsifier, which is the same blindness.
+
+- Filed on CHORD (`soundness-sweep-allowance-is-fifty-times-…`), the
+  measurement appended to PROPS' three-spellings row and to the
+  rational-cells row; TESS-2's spec amended: Phase 1 compares exact
+  truth BARE (`Domination::new`), Phase 2 measures the sampler's error
+  against the exact referee so the allowance gets a number. Not
+  re-sized by TESS — the home is PROPS' row.
+- TESS-1's green head `02c589569` is 540 commits behind main; the lane
+  is merging main and re-running CI (merge-tree: clean). Merge on
+  green; then TESS-2 dispatches (disk allows it now).
+
+## TESS-2 dispatched (2026-09-22)
+
+PR 3057 merged (the amended spec on main). TESS-2's implementer
+dispatched — block TESS-B1 slot 1, branch `tess/2-refinement-in-the-
+ring`, 24 G free. Told to read RING-2's reworked `ring_interval.rs` on
+main before designing the ring insertion and to use its primitives
+rather than re-derive one. TESS-1's lane is on its post-merge CI round
+concurrently; it builds nothing locally beyond a check, so two lanes
+fit the disk.
+
+## TESS-1 merged (2026-09-22)
+
+PR 2852 at `c25a1ed80` (post-merge round on 541 commits of main, full
+matrix green) merged as `5a83b580b`. TESS-1 and the cap row closed;
+spec deleted (ledger); A/B row recorded, sample #236, no tally
+candidate. Lane clone and target reclaimed. What the unit leaves: a
+meridian-free curved face refuses typed in every profile; the rest of
+ruling (N) is EXCH's and ATREST's. Next TESS unit is TESS-2, in flight.
