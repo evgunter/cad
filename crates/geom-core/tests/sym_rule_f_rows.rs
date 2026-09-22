@@ -84,6 +84,22 @@ pub(crate) fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String,
     (label(out, counts), value)
 }
 
+/// [`how`] with the session's counts beside the label and the value,
+/// for a row that has to say what STOOD when a fold did not fire.
+pub(crate) fn how_counted(
+    rules: SymRules,
+    build: impl FnOnce() -> Sym<f64>,
+) -> (String, f64, geom_core::SymCounts) {
+    let ((out, value), counts) = with_session_rules(budget(), rules, || {
+        let m = build();
+        (
+            geom_core::k_stats::decide("sym_rule_f_row", Margin::of(m), band()),
+            m.value,
+        )
+    });
+    (label(out, counts), value, counts)
+}
+
 /// **The soundness check every row below shares**: a theorem must be
 /// numerically zero at the point it was taken at.
 ///
@@ -461,6 +477,34 @@ fn the_underflowed_positive_form_spells_its_zero_positive() {
     );
 }
 
+/// **The negative arm's reflection of the row above.** The one
+/// reachable zero of a manifestly NEGATIVE form is the same underflow
+/// with the sign carried: `−1/(1 + t²)` at `t = 1e200` is `−0.0`, whose
+/// sign BIT is the one the negative arm's fold assumes — and the fold
+/// reads no value, so `copysign(1, X) + 1` is a theorem there
+/// regardless.
+#[test]
+fn the_underflowed_negative_form_spells_its_zero_negative() {
+    let x = || -(one() / (one() + p("t", 1.0e200).powi(2)));
+    let v = x().value;
+    println!(
+        "  −1/(1 + t²) at t = 1e200 = {v:e}, sign_negative {}",
+        v.is_sign_negative()
+    );
+    assert!(v == 0.0, "the value underflows");
+    assert!(
+        v.is_sign_negative(),
+        "the underflowed negative form spells its zero −0.0, which is the sign bit the fold assumes"
+    );
+    assert_eq!(
+        sound(
+            "copysign(1, −1/(1 + t²)) + 1 at t = 1e200",
+            how(SymRules::shipped(), || one().copysign(x()) + one())
+        ),
+        "theorem"
+    );
+}
+
 /// **THE PREDICATE'S POSITIVE BOUNDARY (R2, addendum 4).** Four shapes
 /// that DO fold, each checked against the value at the point and each
 /// NOT a theorem with rule F shut: a positive constant carrying a
@@ -540,11 +584,19 @@ fn the_negative_arm_folds_the_start_caps_atoms() {
         "theorem",
         "copysign(1, X) = −1 for a manifestly negative X"
     );
-    assert_ne!(
-        sound("without_rule_f", how(SymRules::without_rule_f(), cs_resid)),
-        "theorem",
-        "with rule F shut the copysign stays an opaque atom"
-    );
+    // With rule F shut what stands is said in full, not only "not a
+    // theorem": the atom is minted (no symbolic discharge of any
+    // kind), the VALUE channel is what answers, and the value it reads
+    // at the point is exactly zero — so the shipped theorem above is
+    // the fold's and not the value channel's.
+    let (shut_label, shut_value, shut_counts) = how_counted(SymRules::without_rule_f(), cs_resid);
+    println!("  without_rule_f: {shut_label} value {shut_value:e} counts {shut_counts:?}");
+    assert_eq!(shut_label, "numeric Zero", "the value channel answers");
+    assert_eq!(shut_counts.symbolic_zero, 0, "no theorem was reached");
+    assert_eq!(shut_counts.sign_gated, 0, "and no value was read by a rule");
+    assert_eq!(shut_counts.registered, 0, "and no axiom was stated");
+    assert!(shut_counts.numeric >= 1, "the numeric channel decided it");
+    assert!(shut_value == 0.0, "−1 + 1 is exactly zero at the point");
     // And a NON-constant magnitude: `copysign(Y, X) = −|Y|` mints the
     // `Abs` atom over `Y` negated, the same indeterminate `abs(Y)`
     // mints, so `copysign(t, X) + abs(t)` is a theorem too.
@@ -561,11 +613,80 @@ fn the_negative_arm_folds_the_start_caps_atoms() {
     );
 }
 
+/// **THE TWO SPELLINGS OF A NEGATIVE MAGNITUDE MEET.** A
+/// `copysign(Y, X)` node's `|Y|` is `manifest::magnitude`'s, an
+/// `abs(Y)` node's is `fold_abs`'s, and for a manifestly NEGATIVE `Y`
+/// the two parted when the negative arm was first cut into `fold_abs`
+/// alone: `abs(Y)` folded to `−Y` while `magnitude` still minted the
+/// `Abs` atom, so `copysign(Y, X) − abs(Y)` — a theorem before the arm,
+/// both spellings one atom — read `numeric` on a residual the plain
+/// walk cannot close. `magnitude` now reads `fold_abs` first, and this
+/// row pins that: the bare pair, the arm's own identity
+/// `copysign(Y, X) + Y`, and the pair through a factor only rule E's
+/// `Q/Q → 1` clears, all theorems at the shipped set; the positive `Y`
+/// beside them, which never parted.
+#[test]
+fn the_two_spellings_of_a_negative_magnitude_meet() {
+    let y = || -(one() + p("t", 0.25).powi(2));
+    let x = || one() + p("s", 0.5).powi(2);
+    assert_eq!(
+        sound(
+            "copysign(Y, X) − abs(Y), Y = −(1 + t²), X = 1 + s²",
+            how(SymRules::shipped(), || y().copysign(x()) - y().abs())
+        ),
+        "theorem"
+    );
+    assert_eq!(
+        sound(
+            "copysign(Y, X) + Y — the arm's own identity",
+            how(SymRules::shipped(), || y().copysign(x()) + y())
+        ),
+        "theorem"
+    );
+    let q = || one() + p("t", 0.25).powi(2);
+    let through_e = || {
+        let unit = (q() / q()).sqrt();
+        y().copysign(x()) * unit - y().abs()
+    };
+    assert_eq!(
+        sound(
+            "copysign(Y, X)·sqrt(Q/Q) − abs(Y): the pair the plain walk cannot close",
+            how(SymRules::shipped(), through_e)
+        ),
+        "theorem",
+        "the two spellings of |Y| for a manifestly negative Y must fold to one form"
+    );
+    assert_ne!(
+        sound(
+            "… with rule F shut",
+            how(SymRules::without_rule_f(), through_e)
+        ),
+        "theorem",
+        "and it is rule F that closes it"
+    );
+    let yp = || one() + p("t", 0.25).powi(2);
+    assert_eq!(
+        sound(
+            "the same shape with Y = 1 + t² (the positive arm's, unchanged)",
+            how(SymRules::shipped(), || {
+                let unit = (q() / q()).sqrt();
+                yp().copysign(x()) * unit - yp().abs()
+            })
+        ),
+        "theorem"
+    );
+}
+
 /// **The shapes the NEGATIVE arm must NOT fold** — the positive arm's
 /// negatives reflected: each is non-positive by its syntax and can be a
 /// real ZERO, or carries a term whose sign the syntax cannot read, and
 /// the arm must decline it exactly as the positive arm declines its
 /// mirror image.
+///
+/// By construction this row is every `assert_ne!` and cannot tell the
+/// arm EXISTS — it is green with `negative` returning `false` — so it
+/// is read together with [`the_negative_arm_folds_the_start_caps_atoms`],
+/// the existence pin, which reds on that plant.
 #[test]
 fn the_shapes_the_negative_arm_must_not_fold() {
     println!("=== shapes the negative arm must not fold, shipped set");
@@ -640,7 +761,7 @@ fn the_shapes_the_negative_arm_must_not_fold() {
     );
 
     // A NEGATED `sqrt` atom of a bare square — the ring row's atom,
-    // reflected.
+    // reflected — under both spellings.
     assert_ne!(
         sound(
             "abs(−sqrt(t²)) − sqrt(t²) at t = 0.25",
@@ -652,6 +773,28 @@ fn the_shapes_the_negative_arm_must_not_fold() {
         "theorem",
         "a negated sqrt of a bare square is zero wherever its argument is"
     );
+    assert_ne!(
+        sound(
+            "copysign(1, −sqrt(t²)) + 1 at t = 0.25",
+            how(s, || one().copysign(-p("t", 0.25).powi(2).sqrt()) + one())
+        ),
+        "theorem",
+        "the copysign spelling is held to the same predicate"
+    );
+
+    // POISON, negated: `−‖0̂‖` is a function of an expression with no
+    // value, and `negative`'s poison guard is what keeps the arm off
+    // it — this is the row that reds if that guard goes.
+    let poisoned = sound(
+        "copysign(1, −‖0̂‖) + 1 (the zero vector, negated)",
+        how(s, || {
+            let z = Vec3::new(p("a", 0.0), p("b", 0.0), p("c", 0.0))
+                .normalize()
+                .norm();
+            one().copysign(-z) + one()
+        }),
+    );
+    assert_ne!(poisoned, "theorem", "poison folds nothing, negated or not");
 }
 
 /// **THE NEGATIVE ARM'S ORDER AGAINST RULE C is pinned the same way**
@@ -692,5 +835,87 @@ fn the_negative_arms_order_against_rule_c_is_pinned_the_same_way() {
         sound("abs(−2/t²) − 2/t², C only", how(c_not_f(), resid_b)),
         "sign_gated",
         "rule C takes it by reading the bracket"
+    );
+}
+
+/// **THE `copysign` MINT SITES THE TREE HOLDS, counted by the source
+/// and not by prose.** `manifest.rs`'s header lists the sites outside
+/// the tier that mint a `copysign` atom; a list in a doc-comment is a
+/// claim, and SYM-12's own first cut of it was wrong twice (a site
+/// dropped, four never named). This row is the register: every
+/// `.copysign(` call in the shipped sources of every crate under
+/// `crates/`, outside `geom-core/src/sym/` (the tier, where the atom is
+/// consumed) and outside the files that DEFINE `fn copysign(` (the
+/// scalar impls, which forward it), read over
+/// [`test_utils::source::code_only`] so prose and literals do not
+/// count and with each file cut at its in-file `#[cfg(test)]` module,
+/// since a test's own `copysign` mints nothing shipped. The expected
+/// table is per file with its count; a site that appears or goes reds
+/// here, and the fix is to re-ask the census on the measured
+/// documents and then move BOTH the table below and the header's
+/// list. The shape is `flagged_census`'s (the `decide_flagged` site
+/// register), which is this repo's precedent for a source census.
+#[test]
+fn the_copysign_mint_sites_the_tree_holds_are_these() {
+    let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
+    let crates = root.join("crates");
+    let mut found: std::collections::BTreeMap<String, usize> = Default::default();
+    for entry in std::fs::read_dir(&crates).expect("the crates directory lists") {
+        let src = entry.expect("a directory entry").path().join("src");
+        if !src.is_dir() {
+            continue;
+        }
+        for path in test_utils::source::rust_sources(&src) {
+            let rel = path
+                .strip_prefix(&root)
+                .expect("a source under the root")
+                .to_string_lossy()
+                .replace('\\', "/");
+            if rel.starts_with("crates/geom-core/src/sym/") || rel == "crates/geom-core/src/sym.rs"
+            {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("a source file reads");
+            let code = test_utils::source::code_only(&text);
+            // The shipped part of the file: everything above its
+            // in-file test module.
+            let shipped = code
+                .lines()
+                .position(|l| l.trim() == "#[cfg(test)]")
+                .map_or(code.as_str(), |n| {
+                    let at: usize = code.lines().take(n).map(|l| l.len() + 1).sum();
+                    &code[..at]
+                });
+            if shipped.contains("fn copysign(") {
+                continue;
+            }
+            let n = shipped.matches(".copysign(").count();
+            if n > 0 {
+                found.insert(rel, n);
+            }
+        }
+    }
+    let expected: std::collections::BTreeMap<String, usize> = [
+        ("crates/geom-brep/src/implicit.rs", 1),
+        ("crates/geom-brep/src/props/curved.rs", 1),
+        ("crates/geom-core/src/linalg/svd.rs", 1),
+        ("crates/geom-core/src/linalg/vec.rs", 1),
+        ("crates/profile/src/path.rs", 1),
+        ("crates/profile/src/sugar.rs", 2),
+        ("crates/sweep/src/blend/arms.rs", 1),
+        ("crates/sweep/src/revolve/axis.rs", 1),
+        ("crates/topo/src/boolean/solid_contain.rs", 1),
+    ]
+    .into_iter()
+    .map(|(f, n)| (f.to_owned(), n))
+    .collect();
+    for (f, n) in &found {
+        println!("  {f}: {n}");
+    }
+    assert_eq!(
+        found, expected,
+        "the copysign mint sites moved: a site appeared or went. Re-ask the census \
+         (`m10_10_evidence_interval`'s `sym12_the_copysign_census_at_the_nominal`) on the \
+         measured documents, then move this table and `manifest.rs`'s header list together."
     );
 }

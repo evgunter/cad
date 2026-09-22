@@ -33,17 +33,21 @@ dual. Spec: `docs/SYM-12-SPEC.md`.
   Not the budget; recorded on the item.
 - **The census**: no `copysign` atom from any mint site reaches a
   decision on any of the seven takeable measured documents, rule F on
-  or shut; the pad's nominal replay is not takeable with the report on
-  this box. The cone site, the two arc-leg fillet sites and Householder
-  never run on a measured document at `Sym`; the line×line fillet's
-  turn side runs and never reaches a residual.
+  or shut (gated on the five cheap ones); the pad's nominal replay is
+  not takeable with the report on this box. The tree holds ten generic
+  sites, not the spec's six (that was SYM-8's list): the register row
+  `the_copysign_mint_sites_the_tree_holds_are_these` pins them, and
+  the empirical claim covers them all. Only the basis reaches a
+  decision on any measured document.
 - **The negative arm**: takes the tilt-`u` START cap and `FlipZ` to
-  the END cap's rule-F-on numbers to the digit at both lifts
-  (`carrier_endpoint_end` every decision a theorem, the refusal moved
-  to the Newell straddle; 122 decisions out of `numeric` under
-  `Pinned`), moves nothing on the end cap, `tiltUV`, `tiltNZ`,
-  tilt-`v`, and leaves the eight documents' splits and ceilings and the
-  walk ledger bit-identical. Phase 2 earned.
+  the END cap's rule-F-on state by name and by count at both lifts
+  (`carrier_endpoint_end` 33/0/0/0, the refusal moved to the Newell
+  straddle; under `Pinned` the start cap 108 decisions out of `numeric`
+  at 12.2 → 1.0 s, `FlipZ` 122 at 7.8 → 1.2 s), moves nothing on the
+  end cap, `tiltUV`, `tiltNZ`, tilt-`v` — nor on `FlipV`, a negative
+  `n.z` on a tilt about `v` the arm folds and does not reach — and
+  leaves the eight documents' splits and ceilings and the walk ledger
+  bit-identical. Phase 2 earned.
 
 ## Phase 2, taken (2026-09-21)
 
@@ -55,4 +59,16 @@ signed-zero edge closed by strict negativity; the scalar-door rows and
 the ordering pin that reds under C-before-F; the gating document row
 on the start cap and `FlipZ`. Every pin that did not move is
 bit-identical.
+
+## Fix pass (2026-09-21)
+
+The union of both reviews: `magnitude` reads `fold_abs` so the two
+spellings of a negative `|Y|` meet (R2's demonstrated row carried as
+the pin); the mint-site census made a register of ten sites with the
+empirical claim gated on the five cheap documents; `negative` tests
+before it allocates; the reach narrowed to the tilt-`u` family (the
+reviews' `FlipV` folds and moves nothing, `FlipX` reads the end cap);
+each document's own numbers; the two forced rows reflected; the
+render width restored by `take_shape_report`; the DECIDE-3 seam filed
+(`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
 

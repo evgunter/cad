@@ -34,14 +34,34 @@
 //! what the negative arm is for. That construction is not permanent:
 //! PROPS' sign-hull work replaces it, and the replacement frame's own
 //! `|n.z|` is the next `abs` of the same shape, so the rule outlives
-//! the spelling that motivated it. The other `copysign` mint sites —
-//! `implicit.rs`'s cone gradient, `sugar.rs`'s arc-leg fillet trims,
-//! `path.rs`'s line×line fillet turn side, `svd.rs`'s Householder —
-//! were counted against the eight measured documents (SYM-12): no
-//! `copysign` atom from any of them reaches a decision the tier is
-//! asked there (`m10_10_evidence_interval`'s
-//! `sym12_the_copysign_census_at_the_nominal`), so the reach either
-//! arm has MEASURED is the orthonormal basis's atoms alone.
+//! the spelling that motivated it.
+//!
+//! **What the census proves, and what the list is.** Two different
+//! claims, kept apart. (1) The EMPIRICAL claim, which covers every
+//! mint site whether named below or not: on the seven measured
+//! documents whose nominal replay the shape report can take (the
+//! plate, the annulus, the link, the bracket, R1's segment boss, both
+//! D-tabs), no `copysign` atom from ANY site stands in any residual
+//! the tier is asked to decide, with rule F on or shut
+//! (`m10_10_evidence_interval`'s
+//! `sym12_the_copysign_census_at_the_nominal`, and its gating half
+//! `sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`);
+//! so the reach either arm has MEASURED is the orthonormal basis's
+//! atoms alone. (2) The sites the tree holds at this commit, outside
+//! this module and the scalar impls that merely forward the function:
+//! `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
+//! only); `geom-brep/src/implicit.rs`'s cone gradient;
+//! `geom-brep/src/props/curved.rs`'s sphere-meridian pole margins;
+//! `profile/src/sugar.rs`'s arc-leg fillet trims (two);
+//! `profile/src/path.rs`'s line×line fillet turn side;
+//! `sweep/src/revolve/axis.rs`'s radial extent;
+//! `sweep/src/blend/arms.rs`'s cone nappe;
+//! `topo/src/boolean/solid_contain.rs`'s `cbrt`. That list is not
+//! prose: `sym_rule_f_rows`'s
+//! `the_copysign_mint_sites_the_tree_holds_are_these` greps the
+//! shipped sources and reds when a site appears or goes, so the day a
+//! new site is minted the census is re-asked rather than the sentence
+//! silently overclaiming.
 //!
 //! # The predicate: manifestly POSITIVE
 //!
@@ -162,8 +182,9 @@
 //! there unambiguously. The negative arm closes the same edge the same
 //! way: a manifestly negative `X` is `< 0` at every such point, so the
 //! sign is `−` there, and the real zero — the one point where the two
-//! spellings of zero part — is on neither side of either predicate. The tier's own premise carries the rest —
-//! every node denotes a real-valued function of its indeterminates and
+//! spellings of zero part — is on neither side of either predicate.
+//! The tier's own premise carries the rest — every node denotes a
+//! real-valued function of its indeterminates and
 //! every operation's value channel encloses that same real — so a
 //! value channel that answered `−0.0` for a form this predicate calls
 //! positive would be one that failed to enclose, which is a break of
@@ -209,8 +230,9 @@
 //! brackets
 //! (`the_negative_arms_order_against_rule_c_is_pinned_the_same_way`).
 //! Each is a `theorem` at the shipped order and `sign_gated` with rule
-//! F shut, and planting C before F reds every one of them. A residual rule C cannot reach —
-//! one built with `Sym::param`, which records no bracket, or one whose
+//! F shut, and planting C before F reds every one of them. A residual
+//! rule C cannot reach — one built with `Sym::param`, which records no
+//! bracket, or one whose
 //! argument carries a `sqrt` atom `signed::fold` will not enclose — is
 //! green under either order and pins nothing.
 
@@ -330,6 +352,14 @@ pub(super) fn negative(f: &Form, sess: &Session) -> bool {
     if f.poisoned || f.num.is_zero() {
         return false;
     }
+    // Test before allocating. `positive(−N / D)` needs every coefficient
+    // of `−N` non-negative, so every coefficient of `N` must be negative
+    // — a scan that declines the common case, an argument the positive
+    // arm has just declined, without materialising `−N`; only a
+    // numerator that passes it is negated and read by the predicate.
+    if !f.num.terms().iter().all(|(_, c)| c.is_negative()) {
+        return false;
+    }
     f.neg().is_some_and(|n| positive(&n, sess))
 }
 
@@ -337,6 +367,16 @@ pub(super) fn negative(f: &Form, sess: &Session) -> bool {
 /// for a manifestly negative one; `None` otherwise. The positive arm
 /// is asked first; a form is never both, so the order between the two
 /// arms decides nothing.
+///
+/// **The one home of a signed magnitude.** [`magnitude`] — what a
+/// `copysign(Y, X)` node's `|Y|` becomes — reads this first and mints
+/// its `Abs` atom only where this declines, so the two spellings of
+/// `|Y|` the DAG can hold, an `abs(Y)` node and a `copysign(Y, X)`
+/// node's magnitude, fold to the same form or to the same atom and
+/// cannot drift apart (they did, for a manifestly negative `Y`, when
+/// the negative arm was first cut into this function alone:
+/// `sym_rule_f_rows`'s
+/// `the_two_spellings_of_a_negative_magnitude_meet`).
 pub(super) fn fold_abs(arg: &Form, sess: &Session) -> Option<Form> {
     if positive(arg, sess) {
         return Some(arg.clone());
@@ -352,11 +392,13 @@ pub(super) fn fold_abs(arg: &Form, sess: &Session) -> Option<Form> {
 /// form.
 ///
 /// A constant `Y` folds to its exact rational magnitude — the case the
-/// orthonormal basis mints, `copysign(1, n.z)` — and a `Y` the form
-/// already shows non-negative is its own magnitude. Anything else mints
+/// orthonormal basis mints, `copysign(1, n.z)` — then [`fold_abs`]
+/// answers a manifestly signed `Y` (`Y` or `−Y`), and a `Y` the form
+/// shows only non-negative is its own magnitude. Anything else mints
 /// the `Abs` ATOM over `Y`, which is the same indeterminate an
 /// `abs(Y)` node elsewhere in the DAG mints (same op tag, same zero
-/// payload, same argument digest), so the rewrite trades one opaque
+/// payload, same argument digest) — and only where [`fold_abs`] would
+/// have left that node an atom too, so the rewrite trades one opaque
 /// atom for another the tier may already hold rather than for a new
 /// one.
 pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
@@ -365,6 +407,9 @@ pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
         && let Some(c) = n.mul(&d.recip()?)
     {
         return Some(Form::poly(Poly::constant(c.abs())));
+    }
+    if let Some(m) = fold_abs(y, sess) {
+        return Some(m);
     }
     if nonneg(y, sess) {
         return Some(y.clone());

@@ -34,7 +34,7 @@
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};
-use crate::m10_8_harness::head;
+use crate::m10_8_harness::{atom_census, distinct_atoms, head};
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
@@ -551,6 +551,19 @@ enum Base {
     /// the case `Interval::copysign` must answer `[−1, 1]` on. Rule F
     /// must decline it.
     TiltNZ,
+    /// **SYM-12's reviews (R1).** A tilt about `v` with `v` FLIPPED:
+    /// `u = (1,0,0)`, `v = (0,−1,−t)`, so the face normal is
+    /// `(0, t, −1)/sqrt(1 + t²)` and `n.z` is manifestly NEGATIVE — the
+    /// same shape as `FlipZ`'s on the OTHER axis. The negative arm
+    /// folds its atoms and moves NOTHING: the tilt-`v` family stops on
+    /// residuals the frame's atoms never reach.
+    FlipV,
+    /// **SYM-12's reviews (R2).** The tilt-`u` frame with `u` flipped
+    /// instead of `v`: `u = (−1,0,t)`, `v = (0,1,0)`, so the face normal
+    /// is `(−t, 0, −1)/sqrt(1 + t²)` — a third manifestly negative
+    /// `n.z` reached through a different tilt, which reads the end
+    /// cap's state at a half-width the unit did not use (`2e-3`).
+    FlipX,
 }
 
 fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
@@ -586,6 +599,14 @@ fn base_frame(r: &mut Recorder, t: &Expr, base: Base) -> RecipeNodeId {
         Base::TiltNZ => (
             [scl(1.0), scl(0.0), scl(0.0)],
             [scl(0.0), t.clone(), scl(1.0)],
+        ),
+        Base::FlipV => (
+            [scl(1.0), scl(0.0), scl(0.0)],
+            [scl(0.0), scl(-1.0), Expr::neg(t.clone())],
+        ),
+        Base::FlipX => (
+            [scl(-1.0), scl(0.0), t.clone()],
+            [scl(0.0), scl(1.0), scl(0.0)],
         ),
     };
     r.insert(Node::Datum(Datum::Frame {
@@ -810,64 +831,6 @@ fn shipped_with_rule_f() -> SymRules {
         "the rows below read the shipped set as rule F's ON column"
     );
     s
-}
-
-/// How many `copysign(`/`abs(`/`sqrt(` atoms a rendered form spells,
-/// and how many of its TOP-LEVEL terms carry one — arithmetic on the
-/// render, which is what the census of a frozen kid's terms is.
-fn atom_census(rendered: &str) -> String {
-    let terms: Vec<&str> = rendered.split(" + ").collect();
-    let carrying = |needle: &str| terms.iter().filter(|t| t.contains(needle)).count();
-    format!(
-        "copysign {} in {} terms | abs {} in {} terms | sqrt {} | terms(top) {}",
-        rendered.matches("copysign(").count(),
-        carrying("copysign("),
-        rendered.matches("abs(").count(),
-        carrying("abs("),
-        rendered.matches("sqrt(").count(),
-        terms.len()
-    )
-}
-
-/// The DISTINCT `<name>(…)` atoms a render spells, each with its
-/// argument to the render's own nesting depth — balanced on the
-/// parentheses, so `copysign(1, (1) / (sqrt(…)))` comes back whole.
-/// What "the fold never fires" is READ from: an atom still standing
-/// in a rule-F-ON render is one the predicate declined, and its
-/// argument is the form it declined.
-fn distinct_atoms(rendered: &str, name: &str) -> Vec<String> {
-    let needle = format!("{name}(");
-    let mut out: Vec<String> = Vec::new();
-    let mut from = 0;
-    while let Some(i) = rendered[from..].find(&needle) {
-        let start = from + i;
-        let mut depth = 0usize;
-        let mut end = None;
-        for (j, ch) in rendered[start..].char_indices() {
-            match ch {
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end = Some(start + j + ch.len_utf8());
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-        // The explanation cuts a long render at a fixed width, so an
-        // atom can be cut open: keep what stands and say so.
-        let (atom, end) = match end {
-            Some(end) => (rendered[start..end].to_owned(), end),
-            None => (format!("{}…[cut]", &rendered[start..]), rendered.len()),
-        };
-        if !out.contains(&atom) {
-            out.push(atom);
-        }
-        from = end;
-    }
-    out
 }
 
 /// **The wall, rendered** — one document at the named widths, both
@@ -1320,9 +1283,13 @@ fn sym12_phase1_the_one_sided_documents_ladder() {
 /// reds and says which; when the Newell wall is answered, the second
 /// half fails and the two join the parity list. The `Pinned` lift is
 /// the ladder's (`sym12_phase1_the_one_sided_documents_ladder`): it
-/// certifies at both dials, and what the arm buys there is 122
-/// decisions out of `numeric` at a sixth of the cost, which is a
-/// reading and not a pin.
+/// certifies at both dials, and what the arm buys there is each
+/// document's own reading — the start cap 108 decisions out of
+/// `numeric` (768 → 876) at 12.2 → 1.0 s, `FlipZ` 122 (754 → 876) at
+/// 7.8 → 1.2 s — which is a reading and not a pin. "The end cap's
+/// state" is BY NAME AND BY COUNT: `FlipZ`'s Newell residual is the end
+/// cap's mirrored (the same DAG), the start cap's is its own residual
+/// with the same decision count.
 ///
 /// Cost: four evaluations of two small documents with the shape report
 /// installed, a few seconds each in the test profile.
@@ -1405,6 +1372,184 @@ fn m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm() {
             "{name}: and by name (`work/sym/the-tilt-u-newell-residual-is-the-next-wall`): \
              {on_fails:?}"
         );
+    }
+}
+
+/// **SYM-12's reviews' two negative-`n.z` documents — the arm folds
+/// on both and REACHES only one.** Both carry the same manifestly
+/// negative `n.z` shape as the start cap and `FlipZ`, reached through a
+/// different tilt, and they part on what the arm buys:
+///
+/// - `FlipX` (`u` flipped instead of `v`, `half = 2e-3`) reads the
+///   end cap's state by name and by count at both lifts — `Pinned`
+///   754/568/1270 → 876/446/1270, `Guided` 525/308/37 → 631/320/720
+///   with `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and the refusal
+///   moved to `newell_plane_residual` 32/0/0/1 — a third document of
+///   the tilt-`u` family, asserted here as the gating row asserts the
+///   first two;
+/// - `FlipV` (a tilt about `v` with `v` flipped, `half` 3e-3, 1e-2
+///   and 5e-2) moves NOT ONE count at either lift, arm on or off,
+///   because with rule F shut its `carrier_endpoint_end` is already
+///   32/0/0/0 and its first refusal already the Newell straddle: the
+///   tilt-`v` family stops on residuals the frame's atoms never reach,
+///   so there is nothing there for either arm to buy. Asserted as the
+///   arm's reach being no wider than the documents behind it.
+#[test]
+#[ignore = "evidence-only: the reviews' two negative-n.z documents, the arm's reach and its edge"]
+fn sym12_a_negative_nz_the_arm_folds_and_does_not_reach() {
+    use geom_core::sym::report::{start_shape_report, take_shape_report};
+    let endpoint_and_newell = |doc: &ProfileDoc, lift, rules| {
+        start_shape_report();
+        let _ = sym(doc, lift, rules, budget());
+        let split = crate::m10_8_harness::split(&take_shape_report());
+        let row = |p: &str| split.get(p).copied().unwrap_or([0; 4]);
+        (row("carrier_endpoint_end"), row("newell_plane_residual"))
+    };
+    // FlipX: reached.
+    let doc = r2_document(2.0e-3, Base::FlipX, Place::Derived(1));
+    for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
+        let mut seen = Vec::new();
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on ", shipped_with_rule_f()),
+        ] {
+            let t0 = std::time::Instant::now();
+            let (fails, counts) = sym(&doc, lift, rules, budget());
+            println!(
+                "flipX derived half=2e-3 {lift:?} {label}: {counts:?} ({:.1}s)\n  fails {} {}",
+                t0.elapsed().as_secs_f64(),
+                fails.len(),
+                head(fails.first().map_or("", String::as_str), 200)
+            );
+            if lift == ProfileLift::Guided {
+                let (ep, nw) = endpoint_and_newell(&doc, lift, rules);
+                println!("  carrier_endpoint_end {ep:?} newell_plane_residual {nw:?}");
+                seen.push((ep, nw, fails));
+            }
+        }
+        if lift == ProfileLift::Guided {
+            let (off_ep, _, off_fails) = &seen[0];
+            let (on_ep, on_nw, on_fails) = &seen[1];
+            assert_eq!(off_ep[3], 1, "F shut: the endpoint is one decision short");
+            assert!(
+                off_fails.len() == 1 && off_fails[0].contains("carrier_endpoint_end"),
+                "{off_fails:?}"
+            );
+            assert_eq!(*on_ep, [33, 0, 0, 0], "F on: the end cap's endpoint count");
+            assert_eq!(
+                *on_nw,
+                [32, 0, 0, 1],
+                "F on: the end cap's Newell straddle count"
+            );
+            assert!(
+                on_fails.len() == 1 && on_fails[0].contains("newell_plane_residual"),
+                "{on_fails:?}"
+            );
+        }
+    }
+    // FlipV: folded, not reached.
+    for (half, lift) in [
+        (3.0e-3, ProfileLift::Guided),
+        (1.0e-2, ProfileLift::Guided),
+        (5.0e-2, ProfileLift::Guided),
+        (3.0e-3, ProfileLift::Pinned),
+    ] {
+        let doc = r2_document(half, Base::FlipV, Place::Derived(1));
+        let mut seen = Vec::new();
+        for (label, rules) in [
+            ("F-off", SymRules::without_rule_f()),
+            ("F-on ", shipped_with_rule_f()),
+        ] {
+            let t0 = std::time::Instant::now();
+            let (fails, counts) = sym(&doc, lift, rules, budget());
+            println!(
+                "flipV derived half={half:e} {lift:?} {label}: {counts:?} ({:.1}s)\n  fails {} {}",
+                t0.elapsed().as_secs_f64(),
+                fails.len(),
+                head(fails.first().map_or("", String::as_str), 200)
+            );
+            let split = if fails.is_empty() {
+                None
+            } else {
+                let (ep, nw) = endpoint_and_newell(&doc, lift, rules);
+                println!("  carrier_endpoint_end {ep:?} newell_plane_residual {nw:?}");
+                Some((ep, nw))
+            };
+            seen.push((counts, fails, split));
+        }
+        let (c_off, f_off, s_off) = &seen[0];
+        let (c_on, f_on, s_on) = &seen[1];
+        assert_eq!(
+            (c_off.symbolic_zero, c_off.numeric, c_off.frozen),
+            (c_on.symbolic_zero, c_on.numeric, c_on.frozen),
+            "flipV half={half:e} {lift:?}: rule F moves not one count here"
+        );
+        assert_eq!(f_off.len(), f_on.len(), "and not the refusal");
+        assert_eq!(s_off, s_on, "and not a split");
+        if let Some((ep, _)) = s_off {
+            assert_eq!(
+                ep[3], 0,
+                "the endpoint predicate is already whole with rule F shut"
+            );
+        }
+    }
+}
+
+/// **SYM-12's census on the REVOLVED document** — the one measured
+/// construction that reaches `sweep/src/revolve/axis.rs`'s
+/// `radial_extent` `copysign` (the arc-interior radial extrema's
+/// membership sign) at the lane scalar: the tilt-`v` frame, a square
+/// revolved a half turn about its `v`, the `FaceFrame` on the revolved
+/// cap, the boss on that (`Place::Revolved`). Replayed under `Guided`
+/// at `half = 1e-3` with the shape report installed, rule F on and
+/// shut: per predicate how many numeric residuals rendered and how
+/// many carry a `copysign` or `abs` atom, and the distinct atoms with
+/// their arguments — what says whether that site's atom reaches a
+/// decision the tier is asked.
+#[test]
+#[ignore = "evidence-only: the copysign census on the revolved-cap document (tens of seconds a replay)"]
+fn sym12_the_copysign_census_on_the_revolved_cap() {
+    use geom_core::sym::report::{name_param, start_shape_report, take_shape_report};
+    let doc = r2_document(1.0e-3, Base::TiltV, Place::Revolved);
+    name_param("t");
+    for (label, rules) in [
+        ("F-on ", shipped_with_rule_f()),
+        ("F-off", SymRules::without_rule_f()),
+    ] {
+        start_shape_report();
+        let t0 = std::time::Instant::now();
+        let (fails, counts) = sym(&doc, ProfileLift::Guided, rules, budget());
+        let shapes = take_shape_report();
+        println!(
+            "revolved-cap Guided 1e-3 {label}: {counts:?} ({:.1}s)\n  fails {} {}",
+            t0.elapsed().as_secs_f64(),
+            fails.len(),
+            head(fails.first().map_or("", String::as_str), 200)
+        );
+        let mut per: std::collections::BTreeMap<&'static str, (usize, usize, usize)> =
+            Default::default();
+        let mut atoms: Vec<String> = Vec::new();
+        for s in &shapes {
+            let Some(f) = &s.early_form else { continue };
+            let e = per.entry(s.predicate).or_default();
+            e.0 += 1;
+            let cs = distinct_atoms(f, "copysign");
+            let ab = distinct_atoms(f, "abs");
+            e.1 += usize::from(!cs.is_empty());
+            e.2 += usize::from(!ab.is_empty());
+            for a in cs {
+                if !atoms.contains(&a) {
+                    atoms.push(a);
+                }
+            }
+        }
+        for (pred, (r, c, a)) in &per {
+            println!("  {pred:<36} rendered {r:>4}  with copysign {c:>4}  with abs {a:>4}");
+        }
+        println!("  distinct copysign atoms: {}", atoms.len());
+        for a in &atoms {
+            println!("     {}", head(a, 300));
+        }
     }
 }
 

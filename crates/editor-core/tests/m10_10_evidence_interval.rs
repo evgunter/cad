@@ -24,7 +24,7 @@ use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
 use crate::m10_8_arc_family_interval::replay;
-use crate::m10_8_harness::nominal_box;
+use crate::m10_8_harness::{distinct_atoms, nominal_box};
 
 /// A named study: a document as a function of the SCALE of its real
 /// study, so a ceiling is a multiple of the study a user would ask for.
@@ -676,42 +676,6 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
     }
 }
 
-/// The DISTINCT `<name>(…)` atoms a render spells, balanced on the
-/// parentheses; one cut open by the render's width is kept as it
-/// stands and marked.
-fn distinct_atoms(rendered: &str, name: &str) -> Vec<String> {
-    let needle = format!("{name}(");
-    let mut out: Vec<String> = Vec::new();
-    let mut from = 0;
-    while let Some(i) = rendered[from..].find(&needle) {
-        let start = from + i;
-        let mut depth = 0usize;
-        let mut end = None;
-        for (j, ch) in rendered[start..].char_indices() {
-            match ch {
-                '(' => depth += 1,
-                ')' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        end = Some(start + j + ch.len_utf8());
-                        break;
-                    }
-                }
-                _ => {}
-            }
-        }
-        let (atom, end) = match end {
-            Some(end) => (rendered[start..end].to_owned(), end),
-            None => (format!("{}…[cut]", &rendered[start..]), rendered.len()),
-        };
-        if !out.contains(&atom) {
-            out.push(atom);
-        }
-        from = end;
-    }
-    out
-}
-
 /// **SYM-12 Phase 1.2 — the `copysign` census at the nominal.** Every
 /// document (`CAD_M10_10_DOCS` names a subset) replayed at its
 /// NOMINAL under `CAD_M10_10_RULES` (default shipped) with the shape
@@ -781,11 +745,75 @@ fn sym12_the_copysign_census_at_the_nominal() {
                 "      {pred:<36} rendered {rendered:>4}  with copysign {with_copysign:>4}  with abs {with_abs:>4}"
             );
         }
+        // The totals the table quotes, printed rather than summed by
+        // hand (a hand sum was off by one on three documents once).
+        println!(
+            "      TOTAL rendered {} over {} predicates; with copysign {}; with abs {}",
+            per.values().map(|e| e.0).sum::<usize>(),
+            per.len(),
+            per.values().map(|e| e.1).sum::<usize>(),
+            per.values().map(|e| e.2).sum::<usize>()
+        );
         for (kind, list) in &atoms {
             println!("      distinct {kind} atoms: {}", list.len());
             for a in list.iter().take(12) {
                 println!("         {}", crate::m10_8_harness::head(a, 240));
             }
+        }
+    }
+}
+
+/// **The census's claim, GATED where it is affordable.** "No `copysign`
+/// atom from any mint site reaches a decision the tier is asked" is
+/// what `manifest.rs`'s header rests on for every site outside the
+/// orthonormal basis, and the row above that measures it is
+/// `#[ignore]`d. This row asserts it on the five documents whose
+/// nominal replay with the shape report is seconds (the plate 2.3 s,
+/// the annulus 2.2 s, R1's boss 1.4 s, the D-tabs 1.6 s and 6.4 s, dev
+/// build), with rule F ON and SHUT — shut so that an atom the positive
+/// arm would fold still stands and the SITE is what is counted. The
+/// link (14.8 s) and the bracket (105 s) are measured by the row above
+/// and left out of the gate for their cost; the pad's nominal replay
+/// with the report is not takeable on a small box at all.
+#[test]
+fn sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents() {
+    let tol = Tol::witness();
+    let cheap = [
+        "two_hole_plate",
+        "r1_annulus",
+        "r1_segment_boss",
+        "r2_d_tab_literal",
+        "r2_d_tab_parameter",
+    ];
+    for (name, at) in documents(tol) {
+        if !cheap.contains(&name) {
+            continue;
+        }
+        let doc = at(1.0);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        for (label, rules) in [
+            ("shipped", SymRules::shipped()),
+            ("no_f", SymRules::without_rule_f()),
+        ] {
+            let (shapes, _, _) = replay(&doc, &nominal_box(&analyzed), rules, tol);
+            let mut standing: Vec<(&'static str, String)> = Vec::new();
+            let mut rendered = 0usize;
+            for s in &shapes {
+                let Some(f) = &s.early_form else { continue };
+                rendered += 1;
+                for a in distinct_atoms(f, "copysign") {
+                    standing.push((s.predicate, crate::m10_8_harness::head(&a, 200)));
+                }
+            }
+            println!(
+                "   {name} {label}: {rendered} numeric residuals rendered, {} copysign atoms",
+                standing.len()
+            );
+            assert!(
+                standing.is_empty(),
+                "{name} ({label}): a copysign atom reached a decision the tier is asked — the \
+                 mint-site census in `manifest.rs`'s header is stale: {standing:?}"
+            );
         }
     }
 }

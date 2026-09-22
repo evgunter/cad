@@ -152,3 +152,27 @@ fn the_adversary_at_the_interval_lift_is_a_plain_theorem() {
     println!("  interval lift over x ∈ [1e8 ∓ 1]: {l} enclosure {v:?}");
     assert_eq!(l, "theorem");
 }
+
+/// **The adversary, REFLECTED for the negative arm.** `E′ = (x + 1)² −
+/// x² − 2x − 1 − 1e-30·(1 + y²)` is the form the predicate calls
+/// manifestly NEGATIVE (as a polynomial it is `−1e-30·(1 + y²)`: every
+/// coefficient negative, one constant term) whose `f64` channel reads
+/// POSITIVE near `x = 1e8` by cancellation. At the interval lift the
+/// certified enclosure holds the truth and `copysign(1, E′) + 1` is a
+/// plain theorem, as the positive adversary above is.
+#[test]
+fn the_reflected_adversary_at_the_interval_lift_is_a_plain_theorem() {
+    let tiny = 1.0e-30;
+    let (l, v) = how_i(SymRules::shipped(), || {
+        let x = over("x", 1.0e8 - 1.0, 1.0e8 + 1.0);
+        let y = over("y", 0.4, 0.6);
+        let e = (x + one_i()).powi(2)
+            - x.powi(2)
+            - Sym::from_f64(2.0) * x
+            - one_i()
+            - Sym::from_f64(tiny) * (one_i() + y.powi(2));
+        one_i().copysign(e) + one_i()
+    });
+    println!("  reflected adversary over x ∈ [1e8 ∓ 1]: {l} enclosure {v:?}");
+    assert_eq!(l, "theorem");
+}

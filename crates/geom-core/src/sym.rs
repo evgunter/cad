@@ -479,22 +479,40 @@
 //! (754 → 876) at a sixth of the cost (2.6 → 0.4 s at `1e-3`,
 //! 2.3 → 0.3 s at `5e-2`). The authored twin is untouched.
 //!
-//! **The reach is TWO-SIDED since SYM-12, and measured on both
-//! sides.** The positive arm alone refused a negative coefficient
-//! outright, so the START cap of that same cube — whose normal is the
-//! negation, `n.z = −1/sqrt(P(t))` — and the same frame with `v`
-//! flipped (`FlipZ`) read the tilt-`u` document's rule-F-OFF numbers
-//! to the digit. The negative arm takes them to the END cap's rule-F-ON
-//! numbers to the digit: under `Guided` at `half = 1e-3` the refused
-//! `carrier_endpoint_end` (28/0/0/1 on the start cap, 24/0/0/1 on
-//! `FlipZ`) is every decision a theorem and the refusal moves on to
-//! the same `newell_plane_residual` straddle 32/0/0/1; under `Pinned`
-//! both certify at both dials and the arm moves 122 decisions out of
-//! `numeric` (754 → 876 `symbolic_zero`) at a sixth of the cost
-//! (`m10_derived_frame_tilted_interval`'s
+//! **The negative arm (SYM-12) reaches the other sign of the SAME
+//! shape, and no wider.** The positive arm alone refused a negative
+//! coefficient outright, so the START cap of that same cube — whose
+//! normal is the negation, `n.z = −1/sqrt(P(t))` — and the same frame
+//! with `v` flipped (`FlipZ`, whose `n.z` is the end cap's negated)
+//! read the tilt-`u` document's rule-F-OFF numbers. The negative arm
+//! takes both to the END cap's rule-F-ON state BY NAME AND BY COUNT:
+//! under `Guided` at `half = 1e-3` the refused `carrier_endpoint_end`
+//! (28/0/0/1 on the start cap, 24/0/0/1 on `FlipZ`) is 33/0/0/0, every
+//! decision a theorem, and the refusal moves on to a
+//! `newell_plane_residual` straddle 32/0/0/1 — `FlipZ`'s is the end
+//! cap's residual exactly mirrored (the same DAG, enclosure
+//! `[−5.744e-2, 5.744e-2]`), the start cap's is its OWN residual
+//! (`[−3.0416e-2, 3.0464e-2]`) that matches by the predicate's decision
+//! count; under `Pinned` both certify at both dials and the arm moves
+//! the start cap 108 decisions out of `numeric` (768 → 876
+//! `symbolic_zero`, 12.2 → 1.0 s) and `FlipZ` 122 (754 → 876,
+//! 7.8 → 1.2 s) (`m10_derived_frame_tilted_interval`'s
 //! `m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm`
 //! is the gating pin; `sym12_phase1_the_one_sided_documents_ladder`
 //! the ladder). The end cap itself is bit-identical under the arm.
+//!
+//! **What the reach IS, stated no wider than the documents behind
+//! it**: a `FaceFrame` whose `carrier_endpoint_end` residual carries
+//! the frame's own `copysign`/`abs` atoms — a tilt about `u`, either
+//! cap, either sign of `u` or `v` (`FlipX`, `u` flipped instead of
+//! `v`, reads the same at `half = 2e-3`). It is NOT "every negative
+//! `n.z`": a tilt about `v` with `v` flipped (`FlipV`,
+//! `n.z = −1/sqrt(1 + t²)`) moves NOT ONE count at either lift, arm
+//! on or off, because with rule F shut its `carrier_endpoint_end` is
+//! already 32/0/0/0 and its first refusal already the Newell straddle
+//! — the frame's atoms never reach a residual the tilt-`v` family
+//! stops on (`sym12_a_negative_nz_the_arm_folds_and_does_not_reach`
+//! carries both documents).
 //!
 //! **What neither arm reaches, and why.** A tilt about `u` AND `v`
 //! (`tiltUV`), which both SYM-8 reviews predicted as the shape rule F
@@ -557,6 +575,19 @@
 //! within the measurement's noise and slightly cheaper on most
 //! documents — it removes indeterminates and mints none.
 //! [`SymRules::without_rule_f`] is SYM-5's tier bit for bit.
+//!
+//! **The negative arm's cost on the same instrument** (SYM-12, release,
+//! one whole-box leaf, rule F shut → shipped with both arms, on a box
+//! shared with another lane at load ≈ 3): plate at `1e2 · ε`
+//! 0.397 → 0.379 s, plate at its real study 0.403 → 0.376, bracket
+//! 2.052 → 2.022, annulus 0.330 → 0.327, pad 16.212 → 16.022, link
+//! 2.661 → 2.789; a second shipped run reads 0.378, 0.387, 1.998,
+//! 0.328, 16.030, 2.710, so the arm is inside the run-to-run spread
+//! on every leaf — as it must be, since it fires on none of the eight
+//! and costs there one coefficient-sign scan per declined node. The
+//! bracket, the link and the pad stand over the 1.6 s line as they have
+//! since rule E, disclosed there; the arm moves none of them by more
+//! than the spread.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -1499,10 +1530,12 @@ pub struct SymRules {
     /// the negated numerator). All four are equalities of reals at
     /// every point clause 1 admits and none reads a value, so a zero
     /// reached through this rule is a THEOREM. One dial for both arms:
-    /// they are one predicate read on `N` and on `−N`, no measured
-    /// document reaches one without the construction that reaches the
-    /// other (a body's two caps), and the census tells them apart by
-    /// the argument's leading sign rather than by a second bit.
+    /// they are one predicate read on `N` and on `−N`, and the census
+    /// tells them apart by the argument's leading sign rather than by
+    /// a second bit (a differential on a document reaches whichever
+    /// arm that document's atoms have — the tilt-`u` END cap the
+    /// positive one, its START cap the negative one — so a per-arm
+    /// bit would separate nothing the documents do not already).
     ///
     /// It is rule C's shape without rule C's value read: where C folds
     /// `abs(R)` on a bracket of `R` the session holds, this folds it on
@@ -1570,7 +1603,7 @@ impl SymRules {
     /// | C in the early walk (`signed_root`) | none; folds on no document at 256 bits | ~2× | no (inert; reads a value) |
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
     /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | free to the measurement's noise and cheaper on most — the six leaf numbers live once, in the module header's rule-F section | **yes**, with the pad's four `symbolic_zero` → `registered` ratified as a spec deviation |
-    /// | F's NEGATIVE arm (the same dial, SYM-12) | none, on all EIGHT measured documents, to the digit, splits and ceilings both, and the walk ledger unmoved; the tilt-`u` cube's START cap and its `FlipZ` twin read the end cap's rule-F-on numbers to the digit (`carrier_endpoint_end` every decision a theorem, `Pinned` 122 decisions out of `numeric`) | free: the arm fires on none of the eight (no `copysign` atom reaches a decision there, and no `abs` atom's argument is manifestly signed), so its cost is one negation and one predicate read per declined atom | **yes** |
+    /// | F's NEGATIVE arm (the same dial, SYM-12) | none, on all EIGHT measured documents, to the digit, splits and ceilings both, and the walk ledger unmoved; the tilt-`u` cube's START cap and its `FlipZ` twin read the end cap's rule-F-on state by name and by count (`carrier_endpoint_end` 33/0/0/0, the refusal moved to the Newell straddle; `Pinned` the start cap 108 decisions out of `numeric` at 12.2 → 1.0 s, `FlipZ` 122 at 7.8 → 1.2 s) | the arm fires on none of the eight (no `copysign` atom reaches a decision there, and no `abs` atom's argument is manifestly signed), so what it costs there is one coefficient-sign scan per `abs`/`copysign` node the positive arm declined, and a negation plus the predicate only on a numerator whose every coefficient is negative; the release leaf instrument's reading is in the header's cost paragraph below the rule-F section, the one place those numbers live | **yes** |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
     /// and `m10_10_pins_interval.rs` hold each layer to what it
@@ -1675,10 +1708,11 @@ impl SymRules {
     }
 
     /// **The shipped set with rule F SHUT** — the `copysign` and `abs`
-    /// atoms of a manifestly positive argument left opaque, every other
-    /// rule as it is: SYM-5's tier exactly, bit for bit, and the
-    /// differential every claim about what rule F costs and what it
-    /// buys is measured against ([`Self::manifest_sign`]).
+    /// atoms of a manifestly SIGNED argument (either arm) left opaque,
+    /// every other rule as it is: SYM-5's tier exactly, bit for bit,
+    /// because neither arm existed there, and the differential every
+    /// claim about what rule F costs and what it buys is measured
+    /// against ([`Self::manifest_sign`]).
     #[must_use]
     pub const fn without_rule_f() -> Self {
         Self {

@@ -1083,3 +1083,27 @@ without a second payment of its class. Phase 2 taken:
 under `manifest_sign`, the rows and the ordering pin, the gating
 document row. Sample and ordinal at the dual's dispatch.
 
+## SYM-12 fix pass (2026-09-22): the union of both reviews
+
+Both reviews MERGEABLE-AFTER-FIXES (R1 one MAJOR: the mint-site census
+incomplete and presented as exhaustive; R2 one demonstrated MINOR: the
+two spellings of a negative magnitude parted). Taken, A–W: `magnitude`
+reads `fold_abs` first, R2's row the pin; the tree's ten `copysign`
+sites registered by a source-census row with the empirical claim
+gated on the five cheap documents and measured on the revolved cap
+(no atom reaches a decision); `negative` tests before it allocates;
+each document's own numbers (the start cap 108 out of `numeric`,
+`FlipZ` 122); the census table's totals printed by the row (three
+hand sums were off by one to four); the release leaf instrument run
+(the arm inside the run-to-run spread on all six leaves; the bracket,
+link and pad over the line since rule E); the two forced rows
+reflected; the render width restored by `take_shape_report`; the pad's
+pins stated exactly (bracket pinned, nominal split by no row, over-band
+set evidence-only); the reach narrowed to the tilt-`u` family (R1's
+`FlipV` folds and moves nothing; R2's `FlipX` reads the end cap); the
+one-dial reason's false half dropped; the negatives row's poison and
+`copysign` cases; the fold row's F-shut arm said in full; the helpers
+one home; the DECIDE-3 seam filed
+(`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Frozen again for the delta.
+
