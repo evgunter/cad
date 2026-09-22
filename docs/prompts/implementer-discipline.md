@@ -57,6 +57,29 @@ you:
   run already gates. The one case left to think about is a run YOU narrowed to
   `lane=default` over a diff of interval-named files.
 
+**A missing run is not a slow queue — it is what a merge conflict looks like
+from the runs API.** GitHub builds a `pull_request` run from
+`refs/pull/N/merge`, and for a head that conflicts with its base that ref does
+not exist, so nothing is queued, nothing is red, and the checks never appear at
+all. **Read the PR's `mergeable_state` before you conclude anything from a run
+that has not shown up**: `dirty` means no run was ever going to be created, and
+the remedy is to merge the base out and push. Not to wait, and not to push an
+empty commit to re-trigger — measured, that does nothing, and merging the base
+out produced a run immediately. The commit-status API cannot tell you either,
+because this repo reports through check runs: `get_status` answers `pending`
+with `total_count 0` on a healthy PR and an ungated one alike, so the run
+itself is the only record. **A foreground poll that loops until a run concludes
+will loop forever here** — the rule below, that a hosted CI wait is polled in
+the foreground rather than slept on, assumes a run exists to poll. The base
+that conflicts is not always `main`: a stacked PR goes runless whenever the
+branch it is based on advances, which is the ordinary life of a lane rather
+than an accident. It is the same failure as the demoted nightly row below — a
+check that never ran reports the same green as one that ran and passed — and it
+has cost lanes roughly forty minutes an occurrence, repeatedly, across several
+programs. `work/ciw/dirty-pr-gets-no-actions-run` and
+`work/ciw/an-unmergeable-pr-is-silently-ungated-not-visibly-red` carry the
+measurements.
+
 **When the hosted gate is not enough**, run `local-scripts/ci-local.sh`. What it
 adds over hosted is its opt-in `--nightly` row. Reach for it before a merge that
 would be expensive to get wrong, not routinely.
