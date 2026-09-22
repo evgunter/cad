@@ -102,3 +102,21 @@ large undercount.
 
 **The concision half is untouched** and the worked example above
 stands.
+
+## Ev's ruling on the concision half (in chat, 2026-09-22)
+
+Asked whether the viewer should summarise (a one-line summary with the
+full text behind a toggle), the kernel prose should be rewritten, or
+both, Ev answered:
+
+> probably rewrite kernel prose. if it is IMPOSSIBLE to include all
+> IMPORTANT information within a reasonable amout of space in the gui,
+> then you could consider adding a summary, but i'd really like to
+> avoid that added complexity
+
+So the concision half is fixed **at the source**: the refusals the
+viewer shows are rewritten in the crates that raise them, keeping what
+the person holding the mouse needs and dropping what is written for
+kernel developers. A viewer-side summary is the fallback for a refusal
+whose important content genuinely cannot fit, and needs that case
+shown, not asserted.

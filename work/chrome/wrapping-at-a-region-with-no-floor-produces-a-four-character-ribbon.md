@@ -56,3 +56,17 @@ scroll area do its job, or clip with an ellipsis and put the text on
 hover. Which one is the same question
 `messages-wrapped-at-a-region-and-numbers-bounded-by-characters-are-two-answers`
 asks, and this row should be taken with it.
+
+## Ev's ruling on a too-narrow region (in chat, 2026-09-22)
+
+Asked what a message owes a region too narrow to hold it — keep
+wrapping, wrap to a floor and then let the pane scroll, or wrap to a
+floor and then clip with the full text on hover — Ev answered:
+
+> floor then scroll i guess, but instances of this probably point to
+> places where the gui should be changed to make the issue not happen
+
+So: **wrap down to a floor, and below it stop narrowing and let the
+enclosing scroll area scroll.** And a site that reaches the floor is a
+finding about the layout that put a sentence there, not only a case for
+the floor to absorb.
