@@ -106,7 +106,7 @@ use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
     BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
-    PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
+    PartSelectSpec, PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -115,7 +115,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 44;
+const OP_COUNT: usize = 46;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -319,6 +319,11 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             distance: len(0.001),
             selection: vec![face(node)],
         },
+        SessionOp::AddPart {
+            of: node,
+            select: PartSelectSpec::Instance(1),
+        },
+        SessionOp::Duplicate { input: node },
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
@@ -409,6 +414,11 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // and both fenced for `SetParam`'s reason.
         SessionOp::SetParamUnit { .. } => (42, false),
         SessionOp::SetParamText { .. } => (43, false),
+        // Two more insert doors, fenced with every other one: both
+        // commit to the history, which is what a drag has to be
+        // protected from.
+        SessionOp::AddPart { .. } => (44, false),
+        SessionOp::Duplicate { .. } => (45, false),
     }
 }
 
@@ -864,6 +874,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddPlacedUnion { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. } => false,
     }
 }
@@ -1468,6 +1480,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddPlacedUnion { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
+        | SessionOp::AddPart { .. }
+        | SessionOp::Duplicate { .. }
         | SessionOp::AddInstance { .. } => false,
     }
 }

@@ -108,6 +108,12 @@ vocabulary! {
         PatternBody,
         /// The datum axis a circular pattern steps around.
         PatternAxis,
+        /// The split a part projects one half of.
+        PartSplit,
+        /// The pattern a part projects one instance of.
+        PartInstance,
+        /// The body a duplicate copies.
+        DuplicateBody,
     }
 
     /// Every seat, so a sweep over the vocabulary cannot silently
@@ -141,11 +147,14 @@ impl Seat {
             Self::RevolveAxis => NodeKindWanted::SketchAxis,
             Self::PatternAxis => NodeKindWanted::Axis,
             Self::SplitPlane => NodeKindWanted::Plane,
+            Self::PartSplit => NodeKindWanted::Split,
+            Self::PartInstance => NodeKindWanted::Instances,
             Self::OperandA
             | Self::OperandB
             | Self::SplitTarget
             | Self::TransformBody
-            | Self::PatternBody => NodeKindWanted::Body,
+            | Self::PatternBody
+            | Self::DuplicateBody => NodeKindWanted::Body,
         }
     }
 
@@ -161,6 +170,9 @@ impl Seat {
             Self::TransformBody => "transformed body",
             Self::PatternBody => "patterned body",
             Self::PatternAxis => "pattern axis",
+            Self::PartSplit => "split to project",
+            Self::PartInstance => "pattern to project",
+            Self::DuplicateBody => "duplicated body",
         }
     }
 }

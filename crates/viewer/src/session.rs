@@ -89,7 +89,7 @@ pub mod probe;
 pub mod refuse;
 pub mod select;
 
-pub use author::{DatumSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
+pub use author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
@@ -1320,6 +1320,8 @@ impl DocSession {
                 distance,
                 selection,
             } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
+            SessionOp::AddPart { of, select } => self.add_part(of, select),
+            SessionOp::Duplicate { input } => self.add_duplicate(input),
             SessionOp::AddInstance { id } => self.add_instance(id),
         }
     }
@@ -2291,6 +2293,83 @@ impl DocSession {
             PatternOutputChoice::Fused => combine::placed_union_node(input, count, rule),
         };
         self.commit(DocEdit::InsertNode { node })
+    }
+
+    /// Insert one projection of a multi-body value
+    /// ([`SessionOp::AddPart`]).
+    ///
+    /// **The seat is the SELECTION's**, not one kind for both arms: a
+    /// half reads a split and an index reads a pattern, and which of
+    /// the two a node is, is a fact about the committed document. The
+    /// refusal therefore names the kind the chosen selector wanted,
+    /// which is what a user can act on — "that is a pattern, and a
+    /// half comes out of a split".
+    fn add_part(&mut self, of: RecipeNodeId, select: PartSelectSpec) -> OpOutcome {
+        let wanted = match select {
+            PartSelectSpec::SplitHalf(_) => NodeKindWanted::Split,
+            PartSelectSpec::Instance(_) => NodeKindWanted::Instances,
+        };
+        if let Err(refusal) = self.require_kind(of, wanted) {
+            return OpOutcome::refused(refusal);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: combine::part_node(of, select),
+        })
+    }
+
+    /// Duplicate one body ([`SessionOp::Duplicate`]): a pattern of two
+    /// over it, and one projection per instance.
+    ///
+    /// **Three inserts as ONE action and therefore one undo**, the
+    /// shape [`Self::add_profile_on_new_xy`] takes and for its reason:
+    /// the projections name the id the pattern insert MINTED, so each
+    /// edit is built from what its predecessor produced rather than
+    /// from a predicted id, and all-or-nothing comes free — a refusal
+    /// anywhere leaves no half-built duplicate behind.
+    ///
+    /// **Why the projections are part of the gesture and not a
+    /// follow-up.** The viewport draws `Doc::roots`, and `roots`
+    /// maintenance drops a new node's inputs: the pattern alone is one
+    /// root holding two bodies, which cannot be hidden, placed or
+    /// blended one copy at a time, and the first `Part` authored
+    /// afterwards would consume the pattern and leave the other copy
+    /// undrawn. Committing both projections is what leaves two roots,
+    /// so the copy is movable and the original stays on screen.
+    fn add_duplicate(&mut self, input: RecipeNodeId) -> OpOutcome {
+        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        let rule = match combine::duplicate_rule() {
+            Ok(rule) => rule,
+            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+        };
+        let mut rule = Some(rule);
+        self.commit_run(|minted| match minted {
+            [] => Some(DocEdit::InsertNode {
+                node: combine::pattern_node(
+                    input,
+                    combine::DUPLICATE_COUNT,
+                    // Loud, like the profile door's: the generator is
+                    // called once per position and this one comes
+                    // round once.
+                    rule.take()
+                        .unwrap_or_else(|| unreachable!("the pattern's position comes round once")),
+                ),
+            }),
+            // The ORIGINAL first, so it keeps the root slot the
+            // pattern took from the body it replicates and the copy
+            // joins after it — the order a reader of the tree expects.
+            [Some(pattern)] => Some(DocEdit::InsertNode {
+                node: combine::part_node(*pattern, PartSelectSpec::Instance(0)),
+            }),
+            [Some(pattern), Some(_)] => Some(DocEdit::InsertNode {
+                node: combine::part_node(*pattern, PartSelectSpec::Instance(1)),
+            }),
+            [None] | [_, None] => {
+                unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)")
+            }
+            _ => None,
+        })
     }
 
     /// Insert one blend — fillet or chamfer — on a set of an existing

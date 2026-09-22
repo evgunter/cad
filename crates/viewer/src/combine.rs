@@ -21,10 +21,13 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{BooleanOp, Doc, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
+use pncad::document::{
+    BooleanOp, Doc, Expr, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+};
+use pncad::select::SplitHalf;
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
-use crate::session::{PatternRuleSpec, SessionOp};
+use crate::session::{PartSelectSpec, PatternRuleSpec, SessionOp};
 use crate::vocab::vocabulary;
 
 /// **The boolean tool**: two sequential body picks and one operation
@@ -461,6 +464,225 @@ pub fn transform_node(
         translation,
         rotation_axis,
         rotation_angle,
+    }
+}
+
+/// **The part tool**: one pick of a multi-body value, committing one
+/// [`SessionOp::AddPart`].
+///
+/// **Two seats for one pick**, which is the seat vocabulary's routing
+/// rule doing the work rather than a second gate: a half is read out
+/// of a `Node::Split` and an index out of a `Node::Pattern`, so the
+/// two selections want different KINDS. A user clicks the thing they
+/// mean and [`Seats::pick`] puts it in the seat only it can fill; the
+/// form's selector then picks the commit door, exactly as the pattern
+/// form's rule choice does. The alternative — one seat admitting
+/// either, and the half-against-a-pattern pairing checked somewhere
+/// below — would be a second authority on a question the seat already
+/// answers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PartTool {
+    seats: Seats,
+}
+
+impl Default for PartTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PartTool {
+    /// A tool holding nothing.
+    pub const fn new() -> Self {
+        Self {
+            seats: Seats::new([Seat::PartSplit, Seat::PartInstance]),
+        }
+    }
+
+    /// The held split, if one was picked.
+    pub fn split(&self) -> Option<RecipeNodeId> {
+        self.seats.held(0)
+    }
+
+    /// The held pattern, if one was picked.
+    pub fn pattern(&self) -> Option<RecipeNodeId> {
+        self.seats.held(1)
+    }
+
+    /// Feed one node pick; `doc` routes it, and does not judge it.
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        self.seats.pick(doc, node);
+    }
+
+    /// Empty both seats.
+    pub fn clear(&mut self) {
+        self.seats.clear();
+    }
+
+    /// The survival step ([`crate::seats`]).
+    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
+        self.seats.reconcile(doc)
+    }
+
+    /// **The one committed edit**, selecting a split's named half.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] until a split is picked.
+    pub fn half_op(&self, half: SplitHalf) -> Result<SessionOp, SeatError> {
+        Ok(SessionOp::AddPart {
+            of: self.seats.require(0)?,
+            select: PartSelectSpec::SplitHalf(half),
+        })
+    }
+
+    /// **The one committed edit**, selecting one instance of a
+    /// pattern.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] until a pattern is picked. An index
+    /// outside the pattern's instances is NOT judged here: it is a
+    /// fact about the pattern's VALUE, and one past the end refuses
+    /// typed at evaluation on the node's own badge
+    /// (`NodeErrorKind::InstanceOutOfRange`) — the division of labour
+    /// a non-positive pattern count already takes.
+    pub fn instance_op(&self, index: i64) -> Result<SessionOp, SeatError> {
+        Ok(SessionOp::AddPart {
+            of: self.seats.require(1)?,
+            select: PartSelectSpec::Instance(index),
+        })
+    }
+}
+
+/// **The duplicate tool**: one body pick, committing one
+/// [`SessionOp::Duplicate`].
+///
+/// One seat and no fields, which is the gesture's whole point: Ev's
+/// framing is that the step after duplicating is to MOVE the copy
+/// away, so a form asking where the copy should go first would be the
+/// pattern form again under another name. The step this gesture
+/// commits is [`DUPLICATE_DIRECTION`] and [`DUPLICATE_SPACING`], and
+/// both are ordinary slots of the pattern node it authors — editable
+/// in the property panel the moment the edit lands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DuplicateTool {
+    seats: Seats,
+}
+
+impl Default for DuplicateTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DuplicateTool {
+    /// A tool holding nothing.
+    pub const fn new() -> Self {
+        Self {
+            seats: Seats::one(Seat::DuplicateBody),
+        }
+    }
+
+    /// The held body.
+    pub fn input(&self) -> Option<RecipeNodeId> {
+        self.seats.held(0)
+    }
+
+    /// Feed one node pick — a second pick REPLACES the first, this
+    /// tool having only the one seat. `doc` routes it, and does not
+    /// judge it.
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        self.seats.pick(doc, node);
+    }
+
+    /// Empty the seat.
+    pub fn clear(&mut self) {
+        self.seats.clear();
+    }
+
+    /// The survival step ([`crate::seats`]).
+    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
+        self.seats.reconcile(doc)
+    }
+
+    /// **The one committed edit**.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] until a body is picked.
+    pub fn op(&self) -> Result<SessionOp, SeatError> {
+        Ok(SessionOp::Duplicate {
+            input: self.seats.require(0)?,
+        })
+    }
+}
+
+/// **Which way a duplicate steps its copy**: world +x, unnormalized
+/// as every direction slot in this vocabulary is.
+///
+/// A world direction rather than one read off the body, because the
+/// body's extent is a fact about the landed EVALUATION and a gesture
+/// that needed one could not be committed before the document had
+/// landed. What the number costs is an offset that does not scale with
+/// the part; what it buys is a gesture that behaves the same whatever
+/// the viewport is showing, and a slot the property panel edits.
+pub const DUPLICATE_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
+
+/// **How far a duplicate steps its copy**, in metres.
+///
+/// The pattern form's own default spacing, which is the same question
+/// answered for the same vocabulary: far enough to clear the shapes
+/// the creation forms author at their defaults, so the two copies are
+/// visibly two rather than one body drawn twice.
+pub const DUPLICATE_SPACING: f64 = 0.02;
+
+/// The pattern rule a duplicate commits: [`DUPLICATE_DIRECTION`]
+/// stepped by [`DUPLICATE_SPACING`].
+///
+/// # Errors
+///
+/// [`pncad::document::DimensionError`] never in practice — every
+/// component is a finite constant above — and it is a `Result` for
+/// [`crate::session::ProfilePlane::world_xy`]'s reason: whether a
+/// number is authorable keeps ONE home, the expression door.
+pub fn duplicate_rule() -> Result<PatternRuleSpec, pncad::document::DimensionError> {
+    use pncad::document::Dimension;
+    let scalar = |v: f64| Expr::literal(v, Dimension::Scalar);
+    Ok(PatternRuleSpec::Linear {
+        direction: [
+            scalar(DUPLICATE_DIRECTION[0])?,
+            scalar(DUPLICATE_DIRECTION[1])?,
+            scalar(DUPLICATE_DIRECTION[2])?,
+        ],
+        spacing: Expr::literal(DUPLICATE_SPACING, Dimension::Length)?,
+    })
+}
+
+/// **How many bodies a duplicate leaves**: the original and one copy.
+///
+/// Named rather than written `2` at the door, because the two `Part`
+/// projections the same action commits index exactly this many
+/// instances and a reader has to see that they are one number.
+pub const DUPLICATE_COUNT: i64 = 2;
+
+/// Lower one part spec to its node, minting the STRUCTURAL index.
+///
+/// The index is [`Expr::count`] — an exact integer — for the reason
+/// [`pattern_node`]'s count is: `SlotId::Instance` is Count-dimensioned
+/// and the structural/continuous split is typed rather than emergent
+/// (spec D3).
+///
+/// Total, for [`pattern_node`]'s reason: whether the selection suits
+/// the value it reads is evaluation's question, asked of authored and
+/// hand-written documents alike.
+pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> Node<ProfileProgram> {
+    Node::Part {
+        of,
+        select: match select {
+            PartSelectSpec::SplitHalf(half) => PartSelect::SplitHalf(half),
+            PartSelectSpec::Instance(index) => PartSelect::Instance(Expr::count(index)),
+        },
     }
 }
 

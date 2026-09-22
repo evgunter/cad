@@ -38,7 +38,7 @@
 use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 
 use crate::blend::{BlendEvent, BlendTool};
-use crate::combine::{BooleanTool, PatternTool, SplitTool, TransformTool};
+use crate::combine::{BooleanTool, DuplicateTool, PartTool, PatternTool, SplitTool, TransformTool};
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickindex::PickKinds;
 use crate::revolvetool::RevolveTool;
@@ -65,6 +65,11 @@ vocabulary! {
         Pattern,
         /// The blend tool: one body and a SET of its edges.
         Blend,
+        /// The part tool: one split or one pattern, and which body of
+        /// it.
+        Part,
+        /// The duplicate tool: one body.
+        Duplicate,
     }
 
     /// Every kind, for the test suites that sweep them — which are
@@ -91,6 +96,8 @@ impl ToolKind {
             Self::Transform => "transform tool",
             Self::Pattern => "pattern tool",
             Self::Blend => "blend tool",
+            Self::Part => "part tool",
+            Self::Duplicate => "duplicate tool",
         }
     }
 
@@ -119,9 +126,13 @@ impl ToolKind {
         match self {
             Self::Mate => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
-            Self::Revolve | Self::Boolean | Self::Split | Self::Transform | Self::Pattern => {
-                PickKinds::Any
-            }
+            Self::Revolve
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Part
+            | Self::Duplicate => PickKinds::Any,
         }
     }
 
@@ -152,6 +163,11 @@ impl ToolKind {
                 op,
                 SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. }
             ),
+            // ONE op for both selectors: the two doors mint the same
+            // op with different payloads, so a landed `AddPart` is
+            // this tool's edit whichever selector authored it.
+            Self::Part => matches!(op, SessionOp::AddPart { .. }),
+            Self::Duplicate => matches!(op, SessionOp::Duplicate { .. }),
         }
     }
 }
@@ -208,6 +224,10 @@ pub enum OpenTool {
     Pattern(PatternTool),
     /// The blend tool.
     Blend(BlendTool),
+    /// The part tool.
+    Part(PartTool),
+    /// The duplicate tool.
+    Duplicate(DuplicateTool),
 }
 
 impl OpenTool {
@@ -222,6 +242,8 @@ impl OpenTool {
             Self::Transform(_) => ToolKind::Transform,
             Self::Pattern(_) => ToolKind::Pattern,
             Self::Blend(_) => ToolKind::Blend,
+            Self::Part(_) => ToolKind::Part,
+            Self::Duplicate(_) => ToolKind::Duplicate,
         }
     }
 }
@@ -275,6 +297,8 @@ impl Tools {
             ToolKind::Transform => OpenTool::Transform(TransformTool::new()),
             ToolKind::Pattern => OpenTool::Pattern(PatternTool::new()),
             ToolKind::Blend => OpenTool::Blend(BlendTool::new()),
+            ToolKind::Part => OpenTool::Part(PartTool::new()),
+            ToolKind::Duplicate => OpenTool::Duplicate(DuplicateTool::new()),
         });
     }
 
@@ -334,6 +358,22 @@ impl Tools {
     pub fn pattern(&self) -> Option<PatternTool> {
         match &self.open {
             Some(OpenTool::Pattern(tool)) => Some(*tool),
+            _ => None,
+        }
+    }
+
+    /// The open part tool.
+    pub fn part(&self) -> Option<PartTool> {
+        match &self.open {
+            Some(OpenTool::Part(tool)) => Some(*tool),
+            _ => None,
+        }
+    }
+
+    /// The open duplicate tool.
+    pub fn duplicate(&self) -> Option<DuplicateTool> {
+        match &self.open {
+            Some(OpenTool::Duplicate(tool)) => Some(*tool),
             _ => None,
         }
     }
@@ -434,6 +474,12 @@ impl Tools {
                 Some(OpenTool::Pattern(tool)) => {
                     on_node_pick(selection, |node| tool.pick(doc, node));
                 }
+                Some(OpenTool::Part(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
+                Some(OpenTool::Duplicate(tool)) => {
+                    on_node_pick(selection, |node| tool.pick(doc, node));
+                }
             }
         }
         notices
@@ -480,6 +526,8 @@ impl Tools {
             OpenTool::Split(tool) => tool.reconcile(doc),
             OpenTool::Transform(tool) => tool.reconcile(doc),
             OpenTool::Pattern(tool) => tool.reconcile(doc),
+            OpenTool::Part(tool) => tool.reconcile(doc),
+            OpenTool::Duplicate(tool) => tool.reconcile(doc),
             OpenTool::Blend(tool) => {
                 return tool
                     .reconcile(doc, landed)

@@ -60,6 +60,33 @@ pub enum NodeKindWanted {
     /// ([`combine::denotes_body`] carries the admissible set and why a
     /// split's sides and a pattern's instances are not in it).
     Body,
+    /// A `Node::Split` — the value a [`pncad::document::PartSelect::
+    /// SplitHalf`] reads a half out of.
+    ///
+    /// The node kind IS the family here, with no placer to walk
+    /// through: `eval::wire`'s placeable operand door refuses a split
+    /// value outright, so a transform over a split is a failed node
+    /// and never a second way to hold one.
+    Split,
+    /// A node whose value is a pattern's INSTANCES — what a
+    /// [`pncad::document::PartSelect::Instance`] indexes.
+    ///
+    /// **Classified off the node kind, and that is narrower than the
+    /// evaluator by one shape**: `Node::Transform` is shape-preserving
+    /// over its input's value, so a transform of a pattern evaluates to
+    /// `Instances` and `wire_part` would index it, while this answers
+    /// `no`. The viewer cannot author that shape — its body seats
+    /// refuse a pattern — but a loaded document may hold one, and the
+    /// direction of the disagreement is the safe one: an honest
+    /// refusal rather than a node that lands and then fails. It is the
+    /// same defect [`Self::Body`] has in the other direction, wanting
+    /// the same repair — read the family through the placer chain — so
+    /// it is tracked on the row that already asks for it,
+    /// `work/chrome/body-seat-reads-through-the-placer-chain`. The row
+    /// `combine_ops::the_part_seats_track_the_evaluators_part_door`
+    /// asserts the disagreement by name, so the day the classifier
+    /// walks the chain that row says so.
+    Instances,
 }
 
 /// **Whether `held` is the wanted kind** — the one classification
@@ -89,6 +116,8 @@ pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bo
             Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
         ),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
+        NodeKindWanted::Split => matches!(held, Some(Node::Split { .. })),
+        NodeKindWanted::Instances => matches!(held, Some(Node::Pattern { .. })),
     }
 }
 
@@ -102,6 +131,8 @@ impl NodeKindWanted {
             Self::Plane => "a plane datum",
             Self::Frame => "a frame datum",
             Self::Body => "a body",
+            Self::Split => "a split",
+            Self::Instances => "a pattern",
         }
     }
 }

@@ -7,14 +7,17 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
+use pncad::quantity::UnitDef;
+use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
-use crate::combine::PatternOutputChoice;
+use crate::combine::{DUPLICATE_DIRECTION, DUPLICATE_SPACING, PatternOutputChoice};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PatternKindChoice, ShapeEdits, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    PartSelectChoice, PatternKindChoice, ShapeEdits, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    split_half_label,
 };
 use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
@@ -28,6 +31,80 @@ use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
 };
+
+/// **The smallest instance index the part form offers.**
+///
+/// A pattern's instances are indexed from zero, and an index below it
+/// refuses at evaluation (`InstanceOutOfRange`, typed, on the node's
+/// own badge), so the form declines to author one — the same rule
+/// [`MIN_PATTERN_COUNT`] follows. There is deliberately no upper
+/// bound: how many instances the pattern has is a fact about its
+/// VALUE, not about the document, so a cap here would be a limit read
+/// off a picture that can change under it.
+pub(crate) const MIN_PART_INSTANCE: i64 = 0;
+
+/// **The part form's selector rows**: which of the two selections is
+/// being authored, and the one field or radio row that selection
+/// needs.
+///
+/// A free function over the `Ui` for [`profile_plane_row`]'s reason —
+/// `ViewerBehavior` borrows the whole application, so this is the only
+/// seam a headless row can drive, and the method's job is to call it.
+pub(crate) fn part_selector_rows(
+    ui: &mut egui::Ui,
+    select: &mut PartSelectChoice,
+    half: &mut SplitHalf,
+    instance: &mut i64,
+) {
+    ui.horizontal(|ui| {
+        ui.label("select");
+        for (choice, label) in PartSelectChoice::ALL {
+            ui.radio_value(select, choice, label);
+        }
+    });
+    match select {
+        PartSelectChoice::Half => {
+            ui.horizontal(|ui| {
+                ui.label("half");
+                // One button per half the KERNEL has, in its order:
+                // the form offers the vocabulary, never a copy of it.
+                for side in SplitHalf::ALL {
+                    ui.radio_value(half, side, split_half_label(side));
+                }
+            });
+            ui.weak("the tool plane's normal side is above");
+        }
+        PartSelectChoice::Instance => {
+            ui.horizontal(|ui| {
+                ui.label("instance");
+                ui.add(
+                    number_field(instance, COUNT_DRAG_SPEED).range(MIN_PART_INSTANCE..=i64::MAX),
+                );
+            });
+            ui.weak("instances are numbered from zero, in placement order");
+        }
+    }
+}
+
+/// **What the duplicate tool tells a user before they click it** —
+/// where the copy lands, so the one number this gesture commits
+/// without asking is on screen rather than buried in the node it
+/// authors.
+///
+/// A free function answering a STRING rather than painting, so a
+/// headless row can read the sentence and the panel can only show what
+/// this composed.
+pub(crate) fn duplicate_note(unit: UnitDef) -> String {
+    let [x, y, z] = DUPLICATE_DIRECTION;
+    // The step written in the unit the form is working in — the same
+    // conversion every length field on this page shows, so the
+    // sentence and the field a user edits next read in one unit.
+    let step = DUPLICATE_SPACING / unit.factor();
+    format!(
+        "the copy lands {step} {} along ({x}, {y}, {z}); every slot is editable afterwards",
+        unit.symbol(),
+    )
+}
 
 /// **The smallest pattern count the form offers.**
 ///
@@ -160,6 +237,14 @@ impl ViewerBehavior<'_> {
             self.transform_tool_ui(ui);
             ui.separator();
             self.pattern_tool_ui(ui);
+            ui.separator();
+            // The two doors of AUTH-4, beside the pattern they read
+            // and author: a part projects ONE body out of a split's
+            // or a pattern's several, and a duplicate authors a
+            // pattern of two with both projections already made.
+            self.part_tool_ui(ui);
+            ui.separator();
+            self.duplicate_tool_ui(ui);
         });
         // The blend tools sit in their own section (GAUTH-5): they
         // take a body that exists and reshape its EDGES, which is a
@@ -1101,6 +1186,65 @@ impl ViewerBehavior<'_> {
         );
     }
 
+    /// The part tool's panel: one pick of a split or a pattern, the
+    /// selector with its field, and the one committed edit.
+    ///
+    /// **Two seats, one pick.** A half is read out of a split and an
+    /// index out of a pattern, so the two selections want different
+    /// node kinds and the seat machinery routes a click to the seat
+    /// only it can fill ([`crate::combine::PartTool`]). The selector
+    /// then picks which seat the commit reads, so a user who picked a
+    /// pattern and asked for a half is told which pick is missing
+    /// rather than having one silently substituted.
+    pub(crate) fn part_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.part() else {
+            if ui.button("Part tool…").clicked() {
+                self.tools.open(ToolKind::Part);
+            }
+            return;
+        };
+        ui.label(ToolKind::Part.says(&"pick the split or the pattern to project"));
+        ui.weak(seat_line(&[
+            (Seat::PartSplit, tool.split()),
+            (Seat::PartInstance, tool.pattern()),
+        ]));
+        part_selector_rows(
+            ui,
+            &mut self.drafts.part_select,
+            &mut self.drafts.part_half,
+            &mut self.drafts.part_instance,
+        );
+        self.tool_commit_row(ui, "Commit part", ToolKind::Part, |drafts| {
+            Ok(match drafts.part_select {
+                PartSelectChoice::Half => tool.half_op(drafts.part_half)?,
+                PartSelectChoice::Instance => tool.instance_op(drafts.part_instance)?,
+            })
+        });
+    }
+
+    /// The duplicate tool's panel: one body pick, the sentence saying
+    /// where the copy lands, and the one committed edit.
+    ///
+    /// **No fields, deliberately.** The gesture's whole point is that
+    /// the next thing a user does is move the copy, so a form asking
+    /// where it should go first would be the pattern form again. What
+    /// the panel owes instead is the number it commits without asking,
+    /// which [`duplicate_note`] states.
+    pub(crate) fn duplicate_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.duplicate() else {
+            if ui.button("Duplicate tool…").clicked() {
+                self.tools.open(ToolKind::Duplicate);
+            }
+            return;
+        };
+        ui.label(ToolKind::Duplicate.says(&"pick the body to duplicate"));
+        ui.weak(seat_line(&[(Seat::DuplicateBody, tool.input())]));
+        ui.weak(duplicate_note(self.drafts.length_unit.def()));
+        self.tool_commit_row(ui, "Commit duplicate", ToolKind::Duplicate, |_| {
+            Ok(tool.op()?)
+        });
+    }
+
     /// The blend tool's panel: activation, the freeze sentence, the
     /// live count of held edges, the all-edges affordance, the kind
     /// choice with its one Length field, and the one committed edit.
@@ -1305,8 +1449,110 @@ mod tests {
 
     use pncad::document::RecipeNodeId;
 
-    use super::{NEW_XY_LABEL, ProfilePlane, profile_plane_row};
+    use pncad::select::SplitHalf;
+
+    use super::{
+        MIN_PART_INSTANCE, NEW_XY_LABEL, ProfilePlane, duplicate_note, part_selector_rows,
+        profile_plane_row,
+    };
+    use crate::forms::PartSelectChoice;
     use crate::pane::headless::{painted_after_clicking, painted_text};
+
+    /// The part form's selector rows, driven: the half choice paints
+    /// the kernel's own two sides and no index field.
+    ///
+    /// The row exists because the two selections are one form: a form
+    /// that painted both a half choice and an index would be offering
+    /// a pairing no node has, and the selector is the only thing
+    /// keeping them apart.
+    #[test]
+    fn the_part_form_paints_the_halves_when_a_half_is_selected() {
+        let (mut select, mut half, mut instance) =
+            (PartSelectChoice::Half, SplitHalf::Above, 1_i64);
+        let drawn =
+            painted_text(|ui| part_selector_rows(ui, &mut select, &mut half, &mut instance));
+        assert!(drawn.contains("half"), "{drawn}");
+        assert!(
+            drawn.contains("above") && drawn.contains("below"),
+            "{drawn}"
+        );
+        assert!(
+            !drawn.contains("numbered from zero"),
+            "the index field's own sentence is not painted under the half choice: {drawn}"
+        );
+    }
+
+    /// And the index choice paints the field with its numbering
+    /// sentence, and no half radios.
+    #[test]
+    fn the_part_form_paints_the_index_when_an_instance_is_selected() {
+        let (mut select, mut half, mut instance) =
+            (PartSelectChoice::Instance, SplitHalf::Above, 3_i64);
+        let drawn =
+            painted_text(|ui| part_selector_rows(ui, &mut select, &mut half, &mut instance));
+        assert!(drawn.contains("instance"), "{drawn}");
+        assert!(
+            drawn.contains("numbered from zero"),
+            "the field says where the numbering starts: {drawn}"
+        );
+        assert!(
+            !drawn.contains("the tool plane's normal side"),
+            "the half choice's own sentence is not painted here: {drawn}"
+        );
+    }
+
+    /// **The selector row actually switches the form**: clicking the
+    /// instance radio leaves the index field painted where the half
+    /// radios were.
+    ///
+    /// Drives the widget rather than the enum, because a radio row
+    /// that painted the right labels and wrote to nothing would pass
+    /// every assertion above.
+    #[test]
+    fn clicking_the_instance_selector_opens_the_index_field() {
+        let (mut select, mut half, mut instance) =
+            (PartSelectChoice::Half, SplitHalf::Above, 1_i64);
+        let drawn = painted_after_clicking("instance of a pattern", |ui| {
+            part_selector_rows(ui, &mut select, &mut half, &mut instance);
+        });
+        assert_eq!(
+            select,
+            PartSelectChoice::Instance,
+            "the click wrote: {drawn}"
+        );
+        assert!(
+            drawn.contains("numbered from zero"),
+            "and the form now paints the index field: {drawn}"
+        );
+    }
+
+    /// **The duplicate panel says where the copy lands**, in the unit
+    /// the form is working in — the one number the gesture commits
+    /// without asking.
+    #[test]
+    fn the_duplicate_note_names_the_step_it_commits() {
+        let note = duplicate_note(pncad::quantity::MM.def());
+        assert!(
+            note.contains("20 mm"),
+            "twenty millimetres, written: {note}"
+        );
+        assert!(note.contains("(1, 0, 0)"), "along world +x: {note}");
+        assert!(
+            note.contains("editable afterwards"),
+            "and it says the slot is not frozen: {note}"
+        );
+        let metres = duplicate_note(pncad::quantity::M.def());
+        assert!(
+            metres.contains("0.02 m"),
+            "the same step in the form's own unit: {metres}"
+        );
+    }
+
+    /// The instance field's floor is the pattern's own numbering.
+    #[test]
+    fn the_index_field_starts_where_a_patterns_instances_do() {
+        assert_eq!(MIN_PART_INSTANCE, 0);
+    }
 
     /// A stand-in labeller: the number alone, so a row asserting on
     /// the pose half is asserting on text this closure did not write.

@@ -19,10 +19,11 @@ use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
 use pncad::profile::{Step, Target};
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
+use pncad::select::SplitHalf;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
+use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
 use crate::session::{DatumSpec, FaceSelection, ProfilePlane, ProfileShape, SessionOp};
 use crate::sketch::{self, HeldRefusal};
@@ -238,6 +239,16 @@ pub(crate) struct Drafts {
     pub(crate) pattern_spacing: f64,
     /// The circular rule's angular step, radians.
     pub(crate) pattern_step: f64,
+    /// The part form's selector choice — which of the two commit
+    /// doors the button calls, and so which seat it reads.
+    pub(crate) part_select: PartSelectChoice,
+    /// Which half of a split the part form projects.
+    pub(crate) part_half: SplitHalf,
+    /// Which instance of a pattern it projects — an INTEGER all the
+    /// way from the field, for [`Drafts::pattern_count`]'s reason: the
+    /// slot it lands in is Count-typed and a number rounded on the way
+    /// could differ from the one on screen.
+    pub(crate) part_instance: i64,
     /// The blend form's kind choice — which of the two doors the
     /// commit button calls.
     pub(crate) blend_kind: BlendKindChoice,
@@ -454,6 +465,13 @@ impl Default for Drafts {
             pattern_direction: [1.0, 0.0, 0.0],
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
+            part_select: PartSelectChoice::Half,
+            part_half: SplitHalf::Above,
+            // The FIRST instance, which is the copy rather than the
+            // original: a projection of instance 0 is the master where
+            // it already stands, so the index a person opening this
+            // form wants is the one that selects something new.
+            part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
             profile_edit: None,
@@ -1050,7 +1068,13 @@ mod tests {
             match wanted {
                 // Made by the add-profile form and by the ops that
                 // produce bodies, not by this one.
-                NodeKindWanted::Profile | NodeKindWanted::Body => continue,
+                //
+                // The two part selectors read a split and a pattern,
+                // which no datum form authors either.
+                NodeKindWanted::Profile
+                | NodeKindWanted::Body
+                | NodeKindWanted::Split
+                | NodeKindWanted::Instances => continue,
                 NodeKindWanted::Axis
                 | NodeKindWanted::SketchAxis
                 | NodeKindWanted::Plane

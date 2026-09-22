@@ -33,13 +33,13 @@ use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use pncad::select::SplitHalf;
 use viewer::combine::{
-    BooleanTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
+    BooleanTool, PartTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
 };
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
-    DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfilePlane, ProfileShape, Refusal,
-    Selection, SessionOp,
+    DatumSpec, DocSession, NodeKindWanted, PartSelectSpec, PatternRuleSpec, ProfilePlane,
+    ProfileShape, Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, Tools};
 use viewer::tree::{self, RowStatus};
@@ -1295,6 +1295,8 @@ fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
         ToolKind::Transform => tools.transform().is_some(),
         ToolKind::Pattern => tools.pattern().is_some(),
         ToolKind::Blend => tools.blend().is_some(),
+        ToolKind::Part => tools.part().is_some(),
+        ToolKind::Duplicate => tools.duplicate().is_some(),
     })
 }
 
@@ -1396,6 +1398,27 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
         },
     );
+    // The two multi-body values the part selectors read. Each is a
+    // legal node of SOME kind, so what the part seats refuse is the
+    // kind and never the absence — and each is the OTHER's near miss.
+    let split = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body,
+            tool: plane,
+        },
+    );
+    let pattern = insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: body,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
     let right = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => body,
         NodeKindWanted::Profile => profile,
@@ -1403,6 +1426,8 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         NodeKindWanted::Frame => sketch_frame,
         NodeKindWanted::Axis => axis,
         NodeKindWanted::SketchAxis => sketch_axis,
+        NodeKindWanted::Split => split,
+        NodeKindWanted::Instances => pattern,
     };
     let wrong = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => profile,
@@ -1417,6 +1442,12 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         // word, different node kind, and the seat that used to take it
         // is exactly the seat that must not any more.
         NodeKindWanted::SketchAxis => axis,
+        // The near miss each part selector has is the OTHER
+        // multi-body value: both are several bodies, and which of
+        // the two a selector reads is the whole of what the seat
+        // decides.
+        NodeKindWanted::Split => pattern,
+        NodeKindWanted::Instances => split,
     };
 
     for seat in Seat::ALL {
@@ -1449,6 +1480,17 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                 translation: len3([0.0; 3]),
                 rotation_axis: scl3([0.0, 0.0, 1.0]),
                 rotation_angle: ang(0.0),
+            },
+            Seat::PartSplit => SessionOp::AddPart {
+                of: filled(Seat::PartSplit),
+                select: PartSelectSpec::SplitHalf(SplitHalf::Above),
+            },
+            Seat::PartInstance => SessionOp::AddPart {
+                of: filled(Seat::PartInstance),
+                select: PartSelectSpec::Instance(0),
+            },
+            Seat::DuplicateBody => SessionOp::Duplicate {
+                input: filled(Seat::DuplicateBody),
             },
             // The CIRCULAR rule, because it is the only one with an
             // axis seat to refuse about.
@@ -2209,7 +2251,9 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
             | ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Transform
-            | ToolKind::Pattern => PickKinds::Any,
+            | ToolKind::Pattern
+            | ToolKind::Part
+            | ToolKind::Duplicate => PickKinds::Any,
         };
         assert_eq!(tools.pick_kinds(), want, "{kind:?}");
     }
@@ -2237,4 +2281,607 @@ fn the_split_plane_is_the_datum_form_s_own_plane() {
         session.committed_doc().node(plane),
         Some(Node::Datum(Datum::Plane { .. }))
     ));
+}
+
+// ---------------------------------------------------------------
+// AUTH-4: projecting one body out of several, and duplicating one.
+// ---------------------------------------------------------------
+
+/// The whole document's drawn volume — the gather over `Doc::roots`
+/// the viewport draws, as one number.
+///
+/// **The product and not a node**, because every row below this line
+/// is about WHAT IS DRAWN rather than about what one node evaluates
+/// to, and the two stopped agreeing the moment a projection entered
+/// the recipe: `roots` maintenance decides which values reach the
+/// gather at all.
+fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
+    session.pump();
+    let body = session.landed_body().expect("the landing kept a product");
+    pncad::topo::mass_properties(body, tol)
+        .expect("mass properties")
+        .volume
+}
+
+/// A box, and a pattern of two of it stepped clear along +x.
+fn box_and_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    let pattern = insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: body,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(A[0] * 2.0),
+            },
+        },
+    );
+    (session, body, pattern)
+}
+
+/// **The projection is a body**: a part of a split's named half
+/// evaluates to that half, and the door mints the selector it was
+/// asked for.
+#[test]
+fn a_part_projects_the_named_half_of_a_split() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, 0.0, A[2] / 4.0]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    let split = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body,
+            tool: plane,
+        },
+    );
+    let (above, below) = split_volumes(&mut session, split, tol);
+    let part = insert(
+        &mut session,
+        SessionOp::AddPart {
+            of: split,
+            select: PartSelectSpec::SplitHalf(SplitHalf::Below),
+        },
+    );
+    assert!(matches!(
+        session.committed_doc().node(part),
+        Some(Node::Part {
+            select: PartSelect::SplitHalf(SplitHalf::Below),
+            ..
+        })
+    ));
+    let projected = body_volume(&mut session, part, tol);
+    assert!(
+        near(projected, below),
+        "the lower half {projected} vs {below}"
+    );
+    assert!(
+        !near(projected, above),
+        "and it is the lower half, not the upper {above}",
+    );
+}
+
+/// **The index crosses the door as an `i64` and lands as an exact
+/// Count literal** — [`SessionOp::AddPattern`]'s rule for a structural
+/// slot, which `SlotId::Instance` is.
+///
+/// The assertion is on the LITERAL the door minted, not on the
+/// arithmetic: a door that lowered the index through a continuous
+/// expression could still select the right body and would still be
+/// the thing spec D3 forbids.
+#[test]
+fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
+    let tol = Tol::witness();
+    let (mut session, _body, pattern) = box_and_pattern(tol);
+    let part = insert(
+        &mut session,
+        SessionOp::AddPart {
+            of: pattern,
+            select: PartSelectSpec::Instance(1),
+        },
+    );
+    let Some(Node::Part {
+        select: PartSelect::Instance(index),
+        ..
+    }) = session.committed_doc().node(part)
+    else {
+        panic!("the door authored an instance selector");
+    };
+    assert_eq!(
+        *index,
+        Expr::count(1),
+        "the index is the exact Count literal, not a continuous one",
+    );
+    let one = A[0] * A[1] * A[2];
+    let projected = body_volume(&mut session, part, tol);
+    assert!(near(projected, one), "one instance {projected} vs {one}");
+}
+
+/// **A half comes out of a split and an index out of a pattern**, and
+/// the door refuses the other pairing by naming the kind the selector
+/// wanted.
+///
+/// The pairing is a fact about the COMMITTED document — a split never
+/// evaluates to instances and a pattern never to two halves — so it is
+/// the door's question and not evaluation's, the rule
+/// [`SessionOp::AddFillet`] states for its target's kind.
+#[test]
+fn the_part_door_refuses_the_crossed_selector() {
+    let tol = Tol::witness();
+    let (mut session, body, pattern) = box_and_pattern(tol);
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, 0.0, A[2] / 4.0]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    let split = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body,
+            tool: plane,
+        },
+    );
+    let before = session.committed_doc().clone();
+
+    let half_of_a_pattern = session.perform(SessionOp::AddPart {
+        of: pattern,
+        select: PartSelectSpec::SplitHalf(SplitHalf::Above),
+    });
+    assert!(matches!(
+        half_of_a_pattern.refusal,
+        Some(Refusal::WrongNodeKind {
+            wanted: NodeKindWanted::Split,
+            ..
+        })
+    ));
+
+    let instance_of_a_split = session.perform(SessionOp::AddPart {
+        of: split,
+        select: PartSelectSpec::Instance(0),
+    });
+    assert!(matches!(
+        instance_of_a_split.refusal,
+        Some(Refusal::WrongNodeKind {
+            wanted: NodeKindWanted::Instances,
+            ..
+        })
+    ));
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "neither refusal moved the document",
+    );
+}
+
+/// **The finding this unit was sent to settle, asserted**: a `Part` of
+/// a pattern takes the PATTERN out of `Doc::roots`, so the copy it did
+/// not select stops being drawn.
+///
+/// Measured, not read: `roots` maintenance puts a new node in the
+/// earliest consumed root's slot and drops its inputs, the viewport
+/// draws roots, and the product gathers them — so the number that
+/// moves is the DRAWN volume. One projection halves it; the second
+/// puts it back, because the second's input is no longer a root and it
+/// is appended instead of replacing anything.
+///
+/// This is why the duplicate gesture commits two projections rather
+/// than one, and it is the row that reds if any of the three
+/// mechanisms changes.
+#[test]
+fn a_part_of_a_pattern_takes_the_pattern_out_of_the_drawn_set() {
+    let tol = Tol::witness();
+    let (mut session, body, pattern) = box_and_pattern(tol);
+    let one = A[0] * A[1] * A[2];
+
+    assert_eq!(
+        session.committed_doc().roots(),
+        [pattern],
+        "the pattern consumed the body it replicates",
+    );
+    let two_copies = drawn_volume(&mut session, tol);
+    assert!(near(two_copies, one * 2.0), "two copies drawn {two_copies}");
+
+    let first = insert(
+        &mut session,
+        SessionOp::AddPart {
+            of: pattern,
+            select: PartSelectSpec::Instance(0),
+        },
+    );
+    assert_eq!(
+        session.committed_doc().roots(),
+        [first],
+        "the projection consumed the pattern",
+    );
+    let projected = drawn_volume(&mut session, tol);
+    assert!(
+        near(projected, one),
+        "and the copy it did not select stopped being drawn: {projected}",
+    );
+
+    let second = insert(
+        &mut session,
+        SessionOp::AddPart {
+            of: pattern,
+            select: PartSelectSpec::Instance(1),
+        },
+    );
+    assert_eq!(
+        session.committed_doc().roots(),
+        [first, second],
+        "the second projection's input is no longer a root, so it is appended",
+    );
+    let both = drawn_volume(&mut session, tol);
+    assert!(near(both, one * 2.0), "both copies drawn again {both}");
+    // The body itself is still in the document and still not drawn on
+    // its own account: it is the pattern's input, not a sink.
+    assert!(session.committed_doc().node(body).is_some());
+}
+
+/// **Duplicate leaves two drawn, separately rooted bodies** — the
+/// gesture Ev asked for, and the shape the roots finding forces.
+#[test]
+fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    let one = A[0] * A[1] * A[2];
+    assert!(near(drawn_volume(&mut session, tol), one), "one to start");
+
+    let outcome = session.perform(SessionOp::Duplicate { input: body });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 3, "a pattern and two projections");
+    let minted = outcome.minted.clone();
+    let [pattern, original, copy] = minted[..] else {
+        panic!("three inserts mint three ids: {minted:?}");
+    };
+
+    assert!(matches!(
+        session.committed_doc().node(pattern),
+        Some(Node::Pattern { .. })
+    ));
+    for (node, want) in [(original, 0_i64), (copy, 1_i64)] {
+        let Some(Node::Part {
+            of,
+            select: PartSelect::Instance(index),
+        }) = session.committed_doc().node(node)
+        else {
+            panic!("the gesture authored two instance projections");
+        };
+        assert_eq!(*of, pattern, "both read the pattern it just authored");
+        assert_eq!(*index, Expr::count(want), "instance {want}");
+    }
+    assert_eq!(
+        session.committed_doc().roots(),
+        [original, copy],
+        "both projections are roots, the original first",
+    );
+    let both = drawn_volume(&mut session, tol);
+    assert!(near(both, one * 2.0), "two copies drawn {both}");
+}
+
+/// **One gesture, one undo**: the three inserts are one action, so one
+/// `Undo` puts the document back exactly as it was.
+#[test]
+fn duplicating_is_one_undo() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    let before = session.committed_doc().clone();
+    assert!(
+        session
+            .perform(SessionOp::Duplicate { input: body })
+            .refusal
+            .is_none()
+    );
+    assert!(
+        session.perform(SessionOp::Undo).refusal.is_none(),
+        "one undo",
+    );
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo puts back all three inserts, bit for bit",
+    );
+}
+
+/// **The payoff**: the copy moves and the original stays put, both
+/// still drawn.
+///
+/// This is what the two projections buy and what a bare pattern of two
+/// could not express — a transform over the pattern would place both
+/// copies, and a transform over the pattern's one root has no way to
+/// name a single instance.
+#[test]
+fn a_duplicates_copy_moves_on_its_own() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    let one = A[0] * A[1] * A[2];
+    let outcome = session.perform(SessionOp::Duplicate { input: body });
+    let minted = outcome.minted.clone();
+    let [_pattern, original, copy] = minted[..] else {
+        panic!("three inserts mint three ids: {minted:?}");
+    };
+
+    let placed = insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: copy,
+            translation: len3([0.0, A[1] * 3.0, 0.0]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
+        },
+    );
+    assert_eq!(
+        session.committed_doc().roots(),
+        [original, placed],
+        "the placement took the copy's root slot; the original is untouched",
+    );
+    let both = drawn_volume(&mut session, tol);
+    assert!(
+        near(both, one * 2.0),
+        "both copies are still drawn after one of them moved: {both}",
+    );
+    // And the two are apart in SPACE, not merely in the tree: a datum
+    // plane between them cuts each entirely to one side. `split` is
+    // the probe because it is a door this suite already drives, and
+    // an empty side is a typed value rather than a number to compare.
+    //
+    // These splits consume their targets from `roots`, so they come
+    // after every claim above.
+    let between = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, A[1] * 2.0, 0.0]),
+                normal: scl3([0.0, 1.0, 0.0]),
+            },
+        },
+    );
+    let cut_copy = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: placed,
+            tool: between,
+        },
+    );
+    let (copy_above, copy_below) = split_volumes(&mut session, cut_copy, tol);
+    assert!(
+        near(copy_above, one),
+        "the moved copy is wholly above the plane"
+    );
+    assert_eq!(copy_below, 0.0, "and nothing of it is below");
+
+    let cut_original = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: original,
+            tool: between,
+        },
+    );
+    let (original_above, original_below) = split_volumes(&mut session, cut_original, tol);
+    assert_eq!(original_above, 0.0, "the original did not move");
+    assert!(near(original_below, one), "it is wholly below the plane");
+}
+
+/// **The part seats track the evaluator's own part door**, in both
+/// directions, over every node kind this suite can build — the shape
+/// `the_body_seat_tracks_the_evaluators_operand_door` takes for the
+/// single-body operand door.
+///
+/// The check drives the REAL door: each candidate is fed to a
+/// `Node::Part` with each selector, and the part node's own failure is
+/// the verdict — `WrongOperand` means `wire_part` refused the
+/// candidate's VALUE as the family that selector reads.
+///
+/// **The named exception, asserted rather than assumed**: a
+/// `Node::Transform` over a pattern evaluates to `Instances` and the
+/// door indexes it, while the seat — which classifies off the node
+/// kind alone — refuses it. The viewer cannot author that shape (its
+/// body seats refuse a pattern), a loaded document can hold one, and
+/// the direction of the disagreement is the safe one: an honest
+/// refusal, not a node that lands and then fails. It is the same
+/// defect `work/chrome/body-seat-reads-through-the-placer-chain` names
+/// at the BODY seat and asks the same repair for, so it is tracked
+/// there rather than as a second row; the day the classifier walks the
+/// chain, this row says so.
+#[test]
+fn the_part_seats_track_the_evaluators_part_door() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, 0.0, A[2] / 4.0]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    let split = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body,
+            tool: plane,
+        },
+    );
+    let pattern = insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: body,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(A[0] * 2.0),
+            },
+        },
+    );
+    // The shape the seat and the door disagree about, authored past
+    // the viewer's own body seat because that seat refuses a pattern.
+    let mut doc = session.committed_doc().clone();
+    let placed_pattern = common::insert_into(
+        &mut doc,
+        Node::Transform {
+            input: pattern,
+            translation: len3([0.0; 3]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
+        },
+        tol,
+    );
+
+    let candidates = [
+        ("the split", split),
+        ("the pattern", pattern),
+        ("the body", body),
+        ("the datum plane", plane),
+        ("a transform of the pattern", placed_pattern),
+    ];
+    for (name, candidate) in candidates {
+        for (wanted, select) in [
+            (
+                NodeKindWanted::Split,
+                PartSelect::SplitHalf(SplitHalf::Above),
+            ),
+            (
+                NodeKindWanted::Instances,
+                PartSelect::Instance(Expr::count(0)),
+            ),
+        ] {
+            let admitted = viewer::session::admits(doc.node(candidate), wanted);
+            let mut with_part = doc.clone();
+            let part = common::insert_into(
+                &mut with_part,
+                Node::Part {
+                    of: candidate,
+                    select: select.clone(),
+                },
+                tol,
+            );
+            let mut probe = DocSession::inline(with_part, tol);
+            probe.pump();
+            let eval = probe.evaluation().expect("the inline seam landed");
+            let refused = matches!(
+                eval.result(part).and_then(NodeResult::error),
+                Some(NodeError {
+                    kind: NodeErrorKind::WrongOperand { .. },
+                    ..
+                })
+            );
+            if name == "a transform of the pattern" && wanted == NodeKindWanted::Instances {
+                assert!(!admitted, "the seat refuses a transform of a pattern");
+                assert!(
+                    !refused,
+                    "and the part door indexes its instances: the one disagreement, filed",
+                );
+                continue;
+            }
+            if admitted {
+                assert!(
+                    !refused,
+                    "the {wanted:?} seat admits {name}, so the part door must not refuse it",
+                );
+            } else {
+                assert!(
+                    refused,
+                    "the {wanted:?} seat refuses {name}; the part door must refuse it too, \
+                     or the seat is losing a capability the kernel has: {:?}",
+                    eval.result(part).and_then(NodeResult::error),
+                );
+            }
+        }
+    }
+}
+
+/// **The part tool's two seats take one pick each, routed by kind** —
+/// a split lands in the split seat and a pattern in the pattern seat,
+/// whichever order they are clicked in, because only one seat can hold
+/// each.
+#[test]
+fn the_part_tools_seats_route_a_pick_to_the_one_that_can_hold_it() {
+    let tol = Tol::witness();
+    let (mut session, _body, pattern) = box_and_pattern(tol);
+    let body = boxed(&mut session, B);
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, 0.0, B[2] / 4.0]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    let split = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body,
+            tool: plane,
+        },
+    );
+    let doc = session.committed_doc();
+
+    // The PATTERN first, which the plain fill-the-first-empty rule
+    // would put in the split seat.
+    let mut tool = PartTool::new();
+    tool.pick(doc, pattern);
+    assert_eq!((tool.split(), tool.pattern()), (None, Some(pattern)));
+    tool.pick(doc, split);
+    assert_eq!((tool.split(), tool.pattern()), (Some(split), Some(pattern)));
+
+    // Each commit door reads its own seat, so the selector decides
+    // which pick is used and neither is substituted for the other.
+    assert!(matches!(
+        tool.half_op(SplitHalf::Above),
+        Ok(SessionOp::AddPart { of, .. }) if of == split
+    ));
+    assert!(matches!(
+        tool.instance_op(1),
+        Ok(SessionOp::AddPart { of, .. }) if of == pattern
+    ));
+
+    // And an empty seat refuses by NAME rather than by borrowing the
+    // other seat's pick.
+    let mut half_only = PartTool::new();
+    half_only.pick(doc, split);
+    assert!(matches!(
+        half_only.instance_op(0),
+        Err(SeatError::Empty {
+            seat: Seat::PartInstance
+        })
+    ));
+}
+
+/// **Each of the two tools closes on its own committed edit**, and on
+/// nothing else — the rule that makes a tool modal.
+#[test]
+fn the_part_and_duplicate_tools_close_on_their_own_edits() {
+    let node = RecipeNodeId(1);
+    let part = SessionOp::AddPart {
+        of: node,
+        select: PartSelectSpec::Instance(0),
+    };
+    let duplicate = SessionOp::Duplicate { input: node };
+    let mut tools = Tools::new();
+
+    tools.open(ToolKind::Part);
+    assert!(tools.commits_open_tool(&part));
+    assert!(!tools.commits_open_tool(&duplicate));
+
+    tools.open(ToolKind::Duplicate);
+    assert!(tools.commits_open_tool(&duplicate));
+    assert!(!tools.commits_open_tool(&part));
 }
