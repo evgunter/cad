@@ -2,11 +2,12 @@
 id: a-count-slots-cast-still-saturates-for-a-finite-value-too-large
 kind: issue
 title: A finite Count value outside i64 still saturates to i64::MAX, and there is no refusal vocabulary for it
-status: open
+status: parked
 opened: 2026-09-21
 priority: P2
 cost: E
 refs: [need-count-spells-every-failure-as-a-pattern-count, a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it]
+blocked_on: [need-count-spells-every-failure-as-a-pattern-count]
 ---
 
 
@@ -154,3 +155,40 @@ service in `crates/viewer/src/session/` is VSEAM's), and nothing here
 was driven end to end through the GUI. The chrome-side chain
 (`props::SlotValue::of`'s saturating cast, `slot_field`'s absent range)
 is the parent row's and was established there.
+
+## Parked on WIRE's siting decision (2026-09-22, VGEOM orchestrator)
+
+Taken up in the sitting that dispatched the rest of this program's
+slate, and **parked rather than dispatched, because the diff this row
+wants is one this program may not write.**
+
+The re-derivation above establishes the fork's answer — (a), a door in
+`crates/editor-core`, because a viewer-side `session::Refusal` would
+be a second spelling of a fault the kernel is already trying to spell
+and getting wrong. What it does not establish is a right to write it.
+`work/vgeom/program.md`'s `keep_out` is explicit: *"a numeric door the
+viewer consumes is a hand-off and never a diff from here"*, and
+`crates/editor-core` is EDIT's and MSOLVE's. So VGEOM can hold the
+evidence and cannot mint the variant.
+
+**Nor is there a VGEOM half that lands alone.** The chrome-side repair
+is to stop `props::SlotValue::of`'s `Count` arm saturating — and to
+refuse instead of saturating, the arm needs a word. The parent row's
+fix works precisely because `DimensionError::NonFiniteLiteral` already
+existed. For *this count does not fit* there is no variant anywhere
+the viewer may raise, so a chrome-side diff today would either invent
+the viewer's first numeric refusal (option (b), re-derived as the
+worse of the two) or go on saturating. Neither is worth a lane.
+
+**Parked on `need-count-spells-every-failure-as-a-pattern-count`**,
+which is the same decision one crate over and already load-bearing:
+`eval/wire.rs`'s `need_count` maps every failure of
+`usize::try_from(n)` onto `NodeErrorKind::NonPositiveCount`, so on
+`wasm32` a V-degree of `5e9` is already reported as *"pattern count
+5000000000 is not at least 1"*. The variant that row needs minted is
+the variant this row needs raised. When WIRE and EDIT site it, this
+row is a small chrome-side diff and nothing else.
+
+**Announced to WIRE rather than left to be found**: the trigger is
+named in `blocked_on`, and this note says what VGEOM will do when it
+fires. Nothing here asks WIRE to schedule it.

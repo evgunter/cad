@@ -85,6 +85,27 @@ valid is merely in the way.
    `ArcParity`/`NoWalk` residue gets its own file at the moment the
    unit discloses it (`work/README.md`: disclosing a residue is not
    scheduling it).
+
+**The three containment rows are not siblings, and the slate used to
+read as if they were.** Settled 2026-09-21 by reading the tree rather
+than by asking: the containment layer already exists —
+`splitting::containment::point_in_loop` is the 2-D walk,
+`boolean::solid_contain` is its 3-D promotion (same `SCHEDULE` const,
+calls `point_in_loop` per face, public and consumed by `census.rs`),
+and `boolean::contain::disc_side` is the exact decide for the
+one-circle class. So:
+
+- `check-9-nesting-is-line-bounded-only` and
+  `validate-tier3-curved-boundary-containment` are blocked on ONE
+  thing between them — `point_in_loop` cannot express a non-polygon
+  loop's region — and that is `work/tang/arc-aware-point-in-loop`
+  (#1076), **another program's row**. Announced on TANG's log.
+- `tier-3-does-not-check-shell-roles-per-solid` is blocked on none of
+  it. `solid_contain` can already answer whether one shell lies
+  inside another; what is missing is an at-rest CONSUMER, since no
+  tier calls it. That makes it cheaper than its `H` suggests and
+  **independent of #1076**, which moves it up rather than leaving it
+  behind its two apparent siblings.
 5. `validate-tier3-curved-boundary-containment` is the last unmarked
    deferral in the not-yet-checked list and closes the set. The
    P3 pair ride whichever unit lands beside them.

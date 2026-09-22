@@ -58,14 +58,44 @@ a local loop is right, say why the schedule cannot be shared, and
 write the row that holds the two in step (same targets, same sources,
 on a sweep of knot vectors).
 
+## The allowance that now hides the defect (read before Phase 1)
+
+Since RING-2 (SCALAR, PR 3032, 2026-09-21) `nurbs_cert::tests::
+Domination::sampled_under_certified` widens the certified side by
+`SAMPLER_ULPS = 64` ulps, relative, and `r1_random_rational_soundness_
+sweep` and the hull rows compare through it. The sampler does carry
+rounding the certificate never claimed — that obligation is real and
+has its own row, `work/props/the-samplers-own-error-has-three-
+spellings-and-no-home.md` — but 64 ulps (1.4e-14 relative) is ~50×
+the sampler error the diagnostic MEASURED (≤ 6e-17 absolute per
+channel on a value of 2.66, i.e. ~0.1 ulp) and ~50× the certificate's
+proven escape (+3.07e-16 relative, ~1.4 ulps). So the sweep is green
+on main today and the certificate is still unsound; RING-2's sentence
+that the sampled `uu` "exceeds [the certified] in the reals by nothing
+at all" is falsified by the exact referee. Two consequences for you:
+
+- **Phase 1's rows compare TRUE values, bare.** The literal is the
+  exact-rational truth rounded DOWN to `f64` — not a sample, so no
+  sampler allowance applies — and the row uses `Domination::new`
+  (allowance zero), never `sampled_under_certified`. Say so at the row.
+- **Phase 2 measures the sampler's own error**, so the allowance has a
+  number instead of a house figure: over the bilinear census, per
+  component, the distance between `sample_worst`'s value and the exact
+  referee's truth at the same point (the referee is on the evidence
+  branch). Report the distribution (max, and where it sits in ulps of
+  the certified figure). Do NOT re-size `SAMPLER_ULPS` yourself — the
+  home for that rule is PROPS' row above — but put the measurement on
+  that row and on `work/chord/…soundness-sweep…` (filed with this
+  spec) so whoever sizes it has the number.
+
 ## Phase 1 — before touching the bound (measure-first)
 
 1. Make the defect a red ROW on main's code, not a fuzz draw: the
    diagnostic's bilinear rational patch (bits in
    `diag/logs/diagA.log`; weights ≈ 0.0103–0.0135, knots `[0,0,1,1]²`)
    with the exact referee's true `‖S_uu‖(0,0)` rounded DOWN to an `f64`
-   literal, asserted `<= muu`. It must be red before your fix and you
-   say so in the PR with the 17-digit numbers. Add the second surface
+   literal, asserted `<= muu` BARE (see above). It must be red before
+   your fix and you say so in the PR with the 17-digit numbers. Add the second surface
    (seed `0x5ca58da03160d407`, trial 29) the same way. Say in a comment
    how the literal was produced (exact rational arithmetic; the script
    is on the evidence branch) — a reader must be able to re-derive it.
@@ -97,7 +127,8 @@ on a sweep of knot vectors).
   structural predicate because of it is named in the PR, not changed.
 - The falsifier: `r1_random_rational_soundness_sweep` draws bilinear
   patches one trial in nine, which is why two hosted hits took
-  thousands of runs. Give the tight stratum its own deterministic
+  thousands of runs — and it now compares through the 64-ulp
+  allowance, so it cannot see this defect at all (above). Give the tight stratum its own deterministic
   coverage (read `memories/test-suite-cost.md` on which SHAPE of row
   this is before giving anything a seed), and run a bilinear-only
   census of at least 30,000 trials once, locally, reporting reds (the
