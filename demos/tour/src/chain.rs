@@ -67,6 +67,34 @@
 //! the datum the tip's position is measured against, and the measure
 //! is the distance between the two pins' axes: a true-position error,
 //! nominally zero, first order in every joint.
+//!
+//! # What was awkward to write, stated rather than smoothed over
+//!
+//! Per `memories/demo-purpose.md`, the awkwardness is the finding:
+//!
+//! 1. **There is no joint in the vocabulary.** A revolute joint is
+//!    spelled as a rigid transform whose rotation axis the author has
+//!    to remember passes through the WORLD origin, so the stack reads
+//!    outermost-first and its kinematics has to be unfolded by the
+//!    reader. And it does not SHARE: link `k`'s stack and link
+//!    `k+1`'s agree on every joint but differ in their innermost
+//!    operand, so there is no sub-expression the two have in common
+//!    and a four-link chain with its pins is twenty-four transform
+//!    nodes for four rigid bodies.
+//! 2. **The measure cannot reach the tip end face's centre.** The
+//!    closed form that gives a CENTRE exactly is cylinder × cylinder
+//!    (`eval::measure`'s `distance`, the axis distance); a planar end
+//!    face arrives as a plane carrier, whose point-plane distance is
+//!    the chain's REACH — second order in the joint errors, so it
+//!    barely disperses — and the face's own corner vertices have no
+//!    exact selector, only the DECIDED `GeomPred::DatumDistance`,
+//!    which would be re-decided on every one of 512 replays. Hence
+//!    the pins: they make the quantity the study is about reachable
+//!    through an exact door, and they are what a chain has anyway.
+//! 3. **The selection door needs an evaluation mid-authoring** — the
+//!    plate's note, unchanged: the document is evaluated once here,
+//!    before the measure, purely to ask each pin for its cylindrical
+//!    face's name.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -303,9 +331,10 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     let tip_pin = pin_at(&mut doc, LINK_LENGTH, tol);
 
     // **The joint stack.** `place(k, what)` wraps `what` in joints
-    // `k`, `k-1`, … 1, innermost first: joint `k`'s node is BELOW
-    // joint `k-1`'s, so an error at joint `j` moves everything joints
-    // `j+1..k` placed and nothing above it.
+    // `k`, `k-1`, … 1, innermost first. Joint `j`'s node therefore
+    // sits ABOVE every joint below it in the chain and BELOW every
+    // joint above it, which is the kinematics: joint `j` turns links
+    // `j..n` and leaves links `1..j` where they were.
     let place = |doc: &mut ProfileDoc, k: usize, what: RecipeNodeId, tol| {
         let mut node = what;
         for j in (1..=k).rev() {
