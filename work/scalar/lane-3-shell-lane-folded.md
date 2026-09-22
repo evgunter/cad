@@ -5,6 +5,7 @@ title: LANE-3: ShellLane folds into AtRestPolicy — the shell door is a value t
 status: review
 opened: 2026-09-21
 branch: scalar/lane-3
+pr: 3049
 ---
 
 
