@@ -7422,6 +7422,30 @@ seventeen rows; and a `f64` caller of the `_structural` door now
 receives a refusal whose text blames the scalar, filed on ATREST and
 left byte-identical per the spec. Sample number at merge. Row at merge.
 
+## LANE-3 review ordinal fixed at dispatch (2026-09-22)
+
+`lane-3-shell-lane-folded` (LANE-3; SCALAR; PR #3049 open — frozen
+head `1df70b9ec8`): **ordinal 4116** (SCALAR band). Protocol v6 dual:
+draw = `/dev/urandom` byte **139**, parity 1 ⇒ **R1 = FABLE, R2 =
+OPUS**, concurrent on the frozen head, read-side isolation (v6 item
+5), briefs identical and stored before either ran, with a line telling
+both arms that the branch's spec commit is the orchestrator's. Pre-draw
+difficulty **E / structural** (the plan's class, recorded branch-side
+in the block SCALAR-B6 pre-draw section before the block's byte 153,
+which put the OPUS arm on slot 1; the sub-unit's own sentence cut on
+2026-09-21 after the byte with the arm known). Impl phase: ~1 h 42 min
+to the PR (dispatched 23:27Z, PR 01:09Z), no red head; the lane died
+twice on API overloads while polling CI after its push, so the
+orchestrator recorded the run: impl CI **35674872222** GREEN on the
+frozen head (39 jobs, 36 success, 3 expected skips; twelve `test`
+legs, five `k-lint (gate, …)`, the python suite, `gate ok`). The unit
+landed four disclosed deviations the brief puts to both arms — the
+witness `pub(crate)` under `unreachable_pub`, the `bounds-allowlist.sh`
+counts moved outside the fence, `real.rs`'s SEAT-9 paragraph filed
+rather than reached, a doc-link disambiguator — and a third copy of
+the wiring pattern left for LANE-4. Sample number at merge. Row at
+merge.
+
 ## SCALAR program rows (`work/scalar/`; band 4100–4199; blocks named SCALAR-B<n>)
 
 Protocol v6, implementer ratio 1:2, full dual on every kernel unit;
