@@ -1759,3 +1759,84 @@ pose, the toolbar's own unconverted sentence, and the text-style
 resolution difference.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-22 — Wave 2 unit 3 landed: the split-circle fixture, and a brief that asked for something impossible
+
+PR 3059. Closes `a-split-circle-fixture-sits-inside-the-1e-6-escalation-band`
+— a red live on `main` at `1e-6`, under a green gate, because the
+viewer's `app`-feature rows run at one eps row of three.
+
+**The dispatch asked for a constant radius and there is none.** I
+briefed the lane to find one clearing all three bands. The figure is
+conditioned purely relatively — the sagitta and the carrier-identity
+residue are both ∝ r and both read against `(ε, K·ε)` — so the
+admissible radii are an interval IN ε and both walls are walls in
+`r/ε`. ε = 1e-6 wants `r > 2.129 m`; ε = 1e-12 wants `r < 1.467 m`.
+The lane established that rather than working around it.
+
+**It is disjoint by 1.45×, and the reviewer made that the finding.**
+The window is 5.84 decades at its narrowest against the 6.00 a constant
+needs, and the miss hangs entirely on the SOFTER wall — the empirical
+f64 residue, not the closed form. Had that residue come out at
+3.2e12·ε, a constant would have worked and the brief would have been
+right. A comment reading *"the interval is six decades wide and NO
+CONSTANT sits in it"* was the narrowest possible miss dressed as a
+comfortable result.
+
+**The multiplier moved on a ratified clause, and that is the useful
+part.** The first cut took `1.5e9·ε`, the geometric centre of the
+window — a numeric criterion with a physical consequence nobody had
+priced: a **15 km** circle at the 1e-5 row. `docs/DESIGN.md` D4
+(`:609`) ratifies **micron-to-kilometre** coverage. Solving the
+envelope over the nine swept eps instead gives `m ∈ [1e7, 1e8]`, and
+`1e8` is the round choice: 47× clear of the exact lower wall, ~1.47e4×
+of the empirical upper one, 1 km at ε = 1e-5 and 10 µm at 1e-13. The
+trade is the right way round — margin spent on the wall that is exact
+and ε-independent, to buy it on the wall the whole conclusion rests on.
+
+**Two of my own adjudications overturned with measurement, both
+correctly.** (Fifth and sixth in two waves.)
+
+1. I wrote that `r_min ∝ n²` means *"any circle meets it at a count
+   four times smaller for each halving of the radius"*. That inverts
+   it: `n_max ∝ √r`, so QUARTERING the radius halves the offending
+   count, and halving the count buys 4× in radius.
+2. I passed on the review's claim that every ε-scaled literal in the
+   tree is a small multiple where the multiplier IS the margin, so this
+   reading was new. True of the citations, false of the workspace —
+   `crates/sweep/tests` spells `1.0e9 * eps` at 12 sites and
+   `1.0e12 * eps` at 5. What is actually local is only that here the
+   multiplier is a WINDOW PLACEMENT rather than a size or a margin, so
+   it reads off nothing; which is why the derivation beside it is long.
+
+**A coverage claim of mine was closed by execution rather than
+disclosed.** I had written into CIW's row that the lane *"swept the
+whole viewer app-feature population at nine ε values"*. It had not:
+`--lib` ran at six extra eps and `--test all` at four, and the two
+missing were **1e-8 and 1e-10** — the neighbours of the DEFAULT gated
+row — for 82% of the population. An overstatement of coverage on a row
+whose subject is invisible coverage gaps. `--test all` is ~95 s, so the
+fix pass ran both populations at all nine: 27 runs, all green.
+
+**The standing trap landed on the disclosure this time.** The unit's
+pass-2 instrument is "run the population at neighbouring eps, so an
+absolutely-scaled fixture near a wall reds there" — valid for the other
+833 rows. But an **ε-relative fixture passes at every ε by
+construction** and is invisible to that instrument forever, and this
+fix introduces the crate's only one. The PR listed three blind spots
+and not that one. It is now written into the CIW row — the durable
+home, since CHROME's rows die at close — with what does guard it: the
+fixture's own `expect`, which reds under controls on both walls.
+
+**Rows filed**:
+`the-circle-split-cap-offers-counts-the-document-refuses` (at the
+AUTHORABLE cap and the DEFAULT eps, a circle under 2.12 mm split 1024
+ways is refused in the shipping app; the boundary is a curve in (r, n)
+and the cap, not the geometry, is what keeps the exposure small) and
+`the-kernel-takes-any-count-has-four-homes-in-the-viewer`, whose fourth
+home is the doc comment eight lines above its own refutation in the
+file this unit edited.
+
+Wave 2 is complete: three units, four rows closed, PRs 3055, 3058, 3059.
+
+Signed (CHROME orchestrator).
