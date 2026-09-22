@@ -522,3 +522,62 @@ the others. And the decay this unit incidentally repaired: **`main`
 had silently lost rustdoc list items 6–9** from the numbered tier-3
 check list while eight variant docs and four sibling doors cited those
 numbers. First read to notice, in a file every unit edits.
+
+## 2026-09-22 — ATREST-1 merged; the slate is over budget and will NOT split
+
+**ATREST-1 merged** (PR #2977, `fe65559e5` + state-sync, CI run
+35705847283 green at twelve `test (…)` and five `k-lint (gate, …)`
+read at step level). Check 7's subject is the solid, and
+`an-inside-out-part-passes-tier-3-because-only-the-body-total-volume-is-pinned`
+is CLOSED — the first of the program's opening P0 admit-holes shut.
+`ATREST-2` closed earlier the same way. Four rows closed this sitting.
+
+**The board reads 34.5/30 and stays there, deliberately.** Rows
+arrived faster than they closed: three from other programs' sweeps
+onto `validate.rs` (`census-lane-unsupported-display-names-the-scalar-not-the-door`,
+`structural-suffix-means-two-things-across-the-six-doors`,
+`validate-rs-exports-sixteen-doors-on-an-irregular-matrix`) plus two
+of ATREST-1's own.
+
+`work/README.md` says a track that grows past its ceiling splits, and
+the seam is visible — *what tier 3 DECIDES* against *how `validate.rs`
+is SPELLED*. **But the spelled-side residue is 6 points** (one `E`,
+two `D`), and the same section warns that cutting a slate into tracks
+too thin to charter is the failure mode, not the remedy. There is no
+sibling program to re-home them to either: `door` closed, and the rows
+are about `validate.rs`'s own public matrix, which is ATREST's
+territory by the cut. So the answer is to work the slate down rather
+than to mint a track nobody could charter, and the 34.5 is recorded
+here as the report the README says it is.
+
+**Two housekeeping corrections to what ATREST-1's fix pass filed**,
+both mine to make:
+
+- `expect-one-solid-on-solids-next-has-twenty-homes` **re-homed to
+  HELPER** by `git mv`, id and body unchanged. The class is HELPER's
+  — one test helper with several private homes — and ATREST's charter
+  is what the validator decides, not how a suite spells its topology
+  helpers. It is NOT a duplicate of
+  `the-face-to-solid-walk-is-spelled-per-test-file`, which is the
+  `face → shell → solid` walk and now has a door; this one is solid
+  ENUMERATION under an unchecked premise, and the re-homing note says
+  why HELPER should not file it under duplication alone: `.next()`
+  cannot check "one solid", several of the twenty bodies are boolean
+  or split products, and ATREST-1 has just made multi-solid bodies
+  matter more at rest.
+- `the-multi-solid-reporting-quadrature-is-unscheduled` **banded P1,
+  priced D, and set to RIDE WITH
+  `tier3-prime-still-couples-plus-v-to-the-reporting-target`.** Both
+  rows are one question asked twice — *what does a tier-3 door promise
+  to return, and at what derivation level does it owe the answer* —
+  and both live in `tier3_local_checks_marked`, `PlusVCheck` and the
+  certificate types ATREST-1 just restructured. Specced apart they
+  would restructure the same hook twice, which is exactly the mistake
+  the per-solid pair was merged to avoid. P1 rather than P4 because
+  `gate3` is a shipped consumer on the production import path: this is
+  what a door promises, not what the suite costs.
+
+Both rows arrived with **no `priority` and no `cost`**. Lint does not
+require either, and the unpriced default of 2.5 means a slate can
+drift over budget on rows nobody banded. Worth watching rather than
+filing: the fix-pass brief did not ask for a band, and it should have.
