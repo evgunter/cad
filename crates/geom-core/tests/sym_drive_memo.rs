@@ -44,11 +44,53 @@ fn memo() -> Arc<DriveMemo> {
     Arc::new(DriveMemo::new(budget(), SymRules::shipped()))
 }
 
+/// **Two terms**, the budget the NEED rows freeze under: a three-term
+/// sum does not fit and nothing else they build comes near it.
+fn tight() -> SymBudget {
+    SymBudget {
+        max_terms: 2,
+        max_degree: 128,
+    }
+}
+
+/// The plain quotient form and the constant fold — no rule can rewrite
+/// a sum into something that fits, so what freezes under [`tight`] is
+/// the budget's verdict on the sum itself.
+fn plain_rules() -> SymRules {
+    SymRules {
+        const_fold: true,
+        ..SymRules::none()
+    }
+}
+
+fn tight_memo() -> Arc<DriveMemo> {
+    Arc::new(DriveMemo::new(tight(), plain_rules()))
+}
+
+fn p(n: &str, v: f64) -> Sym<f64> {
+    Sym::param(ParamSymbol::of(n), v)
+}
+
+/// A three-term sum, which does not fit [`tight`] and therefore freezes.
+fn three() -> Sym<f64> {
+    p("a", 0.25) + p("b", 0.5) + p("c", 0.75)
+}
+
+/// A DIFFERENT three-term sum, so two leaves can freeze two nodes.
+fn other_three() -> Sym<f64> {
+    p("d", 1.25) + p("e", 1.5) + p("f", 1.75)
+}
+
+/// One leaf of a drive over `m`, and its receipt.
+fn leaf<R>(m: &Arc<DriveMemo>, f: impl FnOnce() -> R) -> SymCounts {
+    with_session_memo(tight(), plain_rules(), m, f).1
+}
+
 /// The decision columns, `frozen` set aside — the rows that compare two
 /// leaves here compare what each DECIDED, and the two leaves of a
 /// comparison do not always reach the same nodes.
-/// [`a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it`] is
-/// the row about `frozen` itself.
+/// The rows from [`a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it`]
+/// down are the ones about `frozen` itself.
 fn decisions(c: SymCounts) -> (u64, u64, u64) {
     (c.symbolic_zero, c.numeric, c.sign_gated)
 }
@@ -99,18 +141,18 @@ fn an_unrecorded_freeze_is_never_published_to_the_drive_memo() {
         (0, 1, 0),
         "leaf A freezes the unrecorded node: {a:?}"
     );
-    // **The freeze is not on the column, and that is the column being
-    // right**: `frozen` on a leaf is its NEED of the DRIVE's frozen set
-    // (`SymCounts::frozen`), and an unrecorded node's freeze is never
-    // published to that set — it is this leaf's own answer about a node
-    // another leaf computes a real form for, which is what the
-    // assertion below is about. The profile's `FreezeCause::Unrecorded`
-    // is where an unrecorded freeze is counted, and
-    // `editor-core`'s `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
-    // pins that branch at zero over both measured documents.
+    // **The freeze is on A's column although no drive holds it.** A's
+    // `frozen` is its NEED (`SymCounts::frozen`), and a freeze a leaf
+    // cannot publish is still one its own reasoning rested on, so it is
+    // counted on the leaf's own side of the union — which is what makes
+    // the reading the same whichever leaf ran first
+    // (`a_leafs_need_does_not_move_with_the_order_across_the_unrecorded_branch`
+    // walks both orders). `editor-core`'s
+    // `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
+    // pins the branch at zero over every drive measured.
     assert_eq!(
-        a.frozen, 0,
-        "an unrecorded freeze is in no drive's set: {a:?}"
+        a.frozen, 1,
+        "the freeze A could not publish is still A's own need: {a:?}"
     );
 
     // Leaf B: `c` minted inside its session — recorded, foldable.
@@ -272,25 +314,12 @@ fn a_hit_carries_the_atoms_the_top_residual_reduce_needs() {
 /// fit and reports 0 with the drive's set non-empty.
 #[test]
 fn a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it() {
-    let tight = SymBudget {
-        max_terms: 2,
-        max_degree: 128,
-    };
-    // The plain quotient form and the constant fold: no rule can
-    // rewrite the sum into something that fits, so what freezes is the
-    // budget's verdict on the sum itself.
-    let rules = SymRules {
-        const_fold: true,
-        ..SymRules::none()
-    };
-    let m = Arc::new(DriveMemo::new(tight, rules));
-    let p = |n: &str, v: f64| Sym::param(ParamSymbol::of(n), v);
-    let three = || p("a", 0.25) + p("b", 0.5) + p("c", 0.75);
+    let m = tight_memo();
 
     // Leaf 1: builds the three-term sum, which does not fit, and
     // reaches it TWICE — once per decision, the second a second walk
     // over the same id.
-    let (_, one) = with_session_memo(tight, rules, &m, || {
+    let one = leaf(&m, || {
         let first = zero(three() - three());
         let second = zero(three() * p("d", 2.0) - three() * p("d", 2.0));
         (first, second)
@@ -305,7 +334,7 @@ fn a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it() {
 
     // Leaf 2: the same reasoning, every form inherited — it freezes
     // nothing itself and its column is the same 1.
-    let (_, two) = with_session_memo(tight, rules, &m, || zero(three() - three()));
+    let two = leaf(&m, || zero(three() - three()));
     assert_eq!(
         two.frozen, 1,
         "the leaf that paid nothing needs exactly what leaf 1 needed: {two:?}"
@@ -313,13 +342,217 @@ fn a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it() {
 
     // Leaf 3: reaches nothing that froze, with the drive's set
     // non-empty.
-    let (_, three_) = with_session_memo(tight, rules, &m, || {
+    let third = leaf(&m, || {
         let x = p("x", 0.125);
         zero(x - x)
     });
     assert_eq!(
-        three_.frozen, 0,
-        "a leaf that reached no frozen node needs none of them: {three_:?}"
+        third.frozen, 0,
+        "a leaf that reached no frozen node needs none of them: {third:?}"
     );
     assert_eq!(m.size().frozen, 1, "and the drive's set is still one node");
+}
+
+/// **A node the DRIVE froze but this leaf never reached counts zero** —
+/// with the drive's set holding TWO nodes, so the row is not the
+/// nothing-froze short circuit wearing a different hat.
+///
+/// Adopted from SYM-13's first reviewer.
+#[test]
+fn a_frozen_node_outside_this_leafs_closure_is_not_its_need() {
+    let m = tight_memo();
+    let one = leaf(&m, || zero(three() - three()));
+    let two = leaf(&m, || zero(other_three() - other_three()));
+    assert_eq!(
+        m.size().frozen,
+        2,
+        "two distinct nodes froze: {:?}",
+        m.size()
+    );
+    assert_eq!(one.frozen, 1, "leaf one reached only its own: {one:?}");
+    assert_eq!(two.frozen, 1, "leaf two reached only its own: {two:?}");
+    let both = leaf(&m, || {
+        zero(three() - three()) && zero(other_three() - other_three())
+    });
+    assert_eq!(both.frozen, 2, "the leaf that reached both: {both:?}");
+}
+
+/// **One frozen node under two different decision roots counts once.**
+///
+/// Adopted from SYM-13's second reviewer, beside the same claim within
+/// one root ([`a_leaf_needs_a_frozen_node_once_however_often_it_reaches_it`]).
+#[test]
+fn a_frozen_node_under_two_roots_counts_once() {
+    let m = tight_memo();
+    let one = leaf(&m, || {
+        let first = zero(three() - three());
+        let second = zero((three() + p("e", 1.0)) - (three() + p("e", 1.0)));
+        (first, second)
+    });
+    assert_eq!(m.size().frozen, 1, "{:?}", m.size());
+    assert_eq!(one.frozen, 1, "two roots, one frozen node: {one:?}");
+}
+
+/// **The set is the closure of the ROOTS, not the whole table**: a leaf
+/// that BUILDS the frozen node — so it is in its hash-consing table —
+/// and never asks a decision that reaches it reads 0.
+///
+/// The row that tells the two spellings apart: seeded from
+/// `Session::nodes` instead of the roots, every other row in the tree
+/// stays green and this one reds. Adopted from SYM-13's second
+/// reviewer.
+#[test]
+fn a_node_built_but_never_asked_is_not_a_need() {
+    let m = tight_memo();
+    let paid = leaf(&m, || zero(three() - three()));
+    assert_eq!(paid.frozen, 1, "{paid:?}");
+    assert_eq!(m.size().frozen, 1, "{:?}", m.size());
+
+    let built = leaf(&m, || {
+        // Built — minted into this session's table — and never walked.
+        let _in_the_table = three();
+        let x = p("x", 0.125);
+        zero(x - x)
+    });
+    assert_eq!(
+        built.frozen, 0,
+        "the node is in the table and in the drive's set, but in no root's closure: {built:?}"
+    );
+}
+
+/// **A leaf with no plain-walk root at all** — no decision, or nothing
+/// but construction — reads 0 against a non-empty drive set.
+///
+/// Adopted from SYM-13's second reviewer.
+#[test]
+fn a_leaf_with_no_roots_needs_nothing() {
+    let m = tight_memo();
+    let paid = leaf(&m, || zero(three() - three()));
+    assert_eq!(paid.frozen, 1, "{paid:?}");
+
+    let idle = leaf(&m, || 0u8);
+    assert_eq!(idle.frozen, 0, "no roots: {idle:?}");
+
+    let builder = leaf(&m, || {
+        let _s = three();
+    });
+    assert_eq!(
+        builder.frozen, 0,
+        "built the frozen node, asked nothing: {builder:?}"
+    );
+}
+
+/// **THE UNRECORDED BRANCH, in both orders**: the same leaf, the same
+/// box, reads the same column whichever leaf of the drive ran first.
+///
+/// Leaf U mints the freezing node OUTSIDE its session, so the node is
+/// unrecorded there: the plain walk freezes it, taints everything above
+/// it and publishes NOTHING (`sym::memo`'s unrecorded paragraph). The
+/// node is nevertheless in U's closure — it is a child of a recorded
+/// parent — so an intersection with the drive's set ALONE would read it
+/// as 0 when U ran first and 1 once the recording leaf had published
+/// the same freeze. That is a reading of the schedule, and it is why a
+/// leaf's NEED unions its own unpublishable freezes with the drive's
+/// set: U needs the node in both orders because U froze it in both.
+///
+/// Both reviewers of SYM-13 demonstrated the dependence, each with a
+/// row of their own; this is those two rows as the claim that closes
+/// them.
+#[test]
+fn a_leafs_need_does_not_move_with_the_order_across_the_unrecorded_branch() {
+    // Order A: the leaf that does not record the node runs FIRST.
+    let outside_a = three();
+    let m_a = tight_memo();
+    let u_first = leaf(&m_a, || zero(outside_a - outside_a));
+    assert_eq!(
+        m_a.size().frozen,
+        0,
+        "U's freeze is not published: {:?}",
+        m_a.size()
+    );
+    let r_after = leaf(&m_a, || zero(three() - three()));
+
+    // Order B: the RECORDING leaf runs first and publishes the freeze.
+    let outside_b = three();
+    let m_b = tight_memo();
+    let r_first = leaf(&m_b, || zero(three() - three()));
+    let u_after = leaf(&m_b, || zero(outside_b - outside_b));
+
+    assert_eq!(m_a.size().frozen, m_b.size().frozen, "same drive set size");
+    assert_eq!(
+        (u_first.frozen, u_after.frozen),
+        (1, 1),
+        "the leaf that could not publish reads the same in both orders: \
+         {u_first:?} {u_after:?}"
+    );
+    assert_eq!(
+        (r_after.frozen, r_first.frozen),
+        (1, 1),
+        "and so does the leaf that could: {r_after:?} {r_first:?}"
+    );
+    // The same leaf, twice in one drive, before and after the leaf that
+    // records the node — the second reviewer's shape of the row.
+    let m_c = tight_memo();
+    let outside_c = three();
+    let before = leaf(&m_c, || zero(outside_c - outside_c));
+    let recorder = leaf(&m_c, || zero(three() - three()));
+    let after = leaf(&m_c, || zero(outside_c - outside_c));
+    assert_eq!(
+        (before.frozen, recorder.frozen, after.frozen),
+        (1, 1, 1),
+        "before and after the recording leaf: {before:?} {recorder:?} {after:?}"
+    );
+    assert_eq!(
+        (before.symbolic_zero, before.numeric),
+        (after.symbolic_zero, after.numeric),
+        "and no decision column moved either"
+    );
+}
+
+/// **A TAINTED freeze is the leaf's own need too, in either order**:
+/// not only the unrecorded node itself but the recorded ancestor whose
+/// form this leaf built out of it, which the taint guard also keeps out
+/// of the memo.
+///
+/// `outside + d + e` over an unrecorded `outside`: the leaf freezes the
+/// unrecorded node AND the three-term sum above it, publishes neither,
+/// and needs both. A leaf that recorded the node freezes and publishes
+/// the same two ids — the sum is over the budget either way — so the
+/// union counts two whichever ran first.
+#[test]
+fn a_tainted_freeze_is_the_leafs_own_need_in_either_order() {
+    let over = |base: Sym<f64>| base + p("d", 2.0) + p("e", 3.0);
+
+    let m_a = tight_memo();
+    let outside_a = three();
+    let tainted_first = leaf(&m_a, || zero(over(outside_a) - over(outside_a)));
+    assert_eq!(
+        m_a.size().frozen,
+        0,
+        "a tainted freeze is published no more than an unrecorded one: {:?}",
+        m_a.size()
+    );
+    let recorder_after = leaf(&m_a, || zero(over(three()) - over(three())));
+
+    let m_b = tight_memo();
+    let recorder_first = leaf(&m_b, || zero(over(three()) - over(three())));
+    let outside_b = three();
+    let tainted_after = leaf(&m_b, || zero(over(outside_b) - over(outside_b)));
+
+    assert_eq!(
+        m_b.size().frozen,
+        2,
+        "the recording leaf publishes both freezes: {:?}",
+        m_b.size()
+    );
+    assert_eq!(
+        (tainted_first.frozen, tainted_after.frozen),
+        (2, 2),
+        "the tainted leaf needs both in either order: {tainted_first:?} {tainted_after:?}"
+    );
+    assert_eq!(
+        (recorder_after.frozen, recorder_first.frozen),
+        (2, 2),
+        "and so does the recording leaf: {recorder_after:?} {recorder_first:?}"
+    );
 }

@@ -83,3 +83,42 @@ decision rather than an implementation one:
 `crates/editor-core/src/drive.rs` (`CertifiedLeaf`, `RefusedLeaf`) — the
 last is PROPS' file by territory, so a fix that moves the leaf receipt's
 shape is a seam to announce.
+
+## ANSWERED by SYM-13
+
+**The readings above are as filed and two of them have since moved**:
+the leaves' own `frozen` is no longer 0 with the dial on (it is 50,112
+on the plate at 48 leaves, the same number the dial-off lane reads),
+and `SymCounts::frozen` no longer says it is a per-leaf WORK measure.
+
+**The race was built.** Of the two shapes named above, "a drive whose
+first level is wider than one box" is unreachable — `drive`'s frontier
+starts as exactly one box on every document — and the other one is: a
+drive over the M10-3 slab with the symbolic budget cut through the
+public `DriveConfig::symbolic` reaches nodes no earlier level
+published. On it, before the fix, the leaves' own column read
+`0:1613 6:369 7:1061` sequentially and `0:1613 1:369 6:369 7:1061` on
+four rayon workers, with every other column, the drive's `frozen` and
+the whole serialization identical — so
+`m10_3_r2_probes_interval::my_own_drive_is_bit_identical_across_repeats_and_schedules`'s
+own comparison was false on it.
+
+**The option taken was the second one: the leaf's NEED.** A leaf's
+`frozen` is now the frozen nodes its own reasoning rested on — the
+drive's frozen set inside the closure of the leaf's plain-walk roots,
+unioned with the freezes the leaf made and could not publish. Both
+sides are functions of the leaf's box and of the drive, so the column
+is the same under every schedule and with the memo dial either way;
+`geom_core::sym::memo`'s header carries the argument, and the gating
+row is
+`m10_sym_drive_memo_interval::every_leaf_reports_one_column_under_every_schedule_and_both_dials`
+over three adversary drives, one of which certifies leaves.
+
+**What it left open.** One direction of the memo's unrecorded
+asymmetry is still order-dependent, and it is the pre-existing one the
+memo's header already names: a leaf that did not RECORD a node can
+inherit a recorded ancestor's form instead of freezing, in which case
+its decisions — not only this column — depend on which leaf ran first.
+`no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded` counts
+`FreezeCause::Unrecorded` over five drives (both measured documents and
+the three adversaries) and pins it at zero.

@@ -72,6 +72,19 @@ fn the_plate(tol: Tol) -> ProfileDoc {
     plate(5.0e-5, 1.0e-5, tol).0
 }
 
+/// **Every leaf's `frozen` column, in receipt order** — the certified
+/// leaves then the refused ones, which is the order
+/// `ParamBoxVerdict::serialize` writes them in. The one spelling the
+/// rows here read the column through (`geom_core::SymCounts::frozen`
+/// says what it means).
+fn leaf_column(v: &ParamBoxVerdict) -> Vec<u64> {
+    v.certified()
+        .iter()
+        .map(|l| l.decisions.frozen)
+        .chain(v.refused().iter().map(|l| l.decisions.frozen))
+        .collect()
+}
+
 /// The leaf budget the pins drive at — small enough that the row costs
 /// seconds rather than the minutes the ceiling rows pay, and large
 /// enough that the frontier spreads over several levels, so a premise
@@ -217,10 +230,6 @@ fn the_opaque_sets_a_drive_mints_are_reported_per_leaf() {
     }
 }
 
-/// Everything a leaf's receipt says that is a CLAIM about that leaf's
-/// predicates — the decision columns, without `frozen`, which is a
-/// measure of the work that leaf happened to do and is exactly what
-/// the memo moves (`SymCounts::frozen`).
 /// The two drives of `doc` the differential compares: the memo on and
 /// the memo off, sequentially, at `max_leaves`.
 fn on_and_off(doc: &ProfileDoc, max_leaves: usize) -> (ParamBoxVerdict, ParamBoxVerdict) {
@@ -320,13 +329,7 @@ fn the_plain_memo_moves_no_decision() {
             0,
             "{label}: the dial off must serve no form"
         );
-        let own = |v: &ParamBoxVerdict| -> u64 {
-            v.certified()
-                .iter()
-                .map(|l| l.decisions.frozen)
-                .chain(v.refused().iter().map(|l| l.decisions.frozen))
-                .sum()
-        };
+        let own = |v: &ParamBoxVerdict| -> u64 { leaf_column(v).iter().sum() };
         println!(
             "{label}: memo {memo:?} | leaves' own frozen on {} off {} | drive frozen {}",
             own(&on),
@@ -505,7 +508,9 @@ fn a_freezing_drive_is_identical_across_schedules_and_the_dial() {
     assert_same("plate seq on vs seq off", &run(false, false), &seq_on);
 }
 
-/// The leaf budget and the symbolic budget of the RACING drive.
+/// **The adversary drives**, and the one place their numbers are
+/// written: the gating row below drives all three, and the
+/// unrecorded-freeze census drives the first.
 ///
 /// A drive's level 0 is always ONE box (`drive`'s frontier starts as
 /// one and each level's boxes split in two), so a later leaf can only
@@ -513,121 +518,166 @@ fn a_freezing_drive_is_identical_across_schedules_and_the_dial() {
 /// are not subsets of the root's. Cutting the symbolic budget produces
 /// exactly that on the slab: the root box's predicates go indeterminate
 /// where a narrower box's do not, so the narrower boxes' replays get
-/// further and build what the root's never did — and at this budget
+/// further and build what the root's never did — and at these budgets
 /// what they build FREEZES.
-const RACE_LEAVES: usize = 8;
-const RACE_TERMS: usize = 8;
-const RACE_DEGREE: u32 = 4;
+struct Racing {
+    label: &'static str,
+    leaves: usize,
+    terms: usize,
+    degree: u32,
+    /// Whether this drive certifies any leaf at all. A drive that
+    /// refuses every box compares an EMPTY `certified()` list, and the
+    /// row says which of its arms is carrying that comparison rather
+    /// than leaving it to be assumed.
+    certifies: bool,
+}
 
-/// **The adversary: a drive whose leaves RACE for a freezing node** —
-/// the row the item's residue asks for, and the row the leaf column's
-/// old meaning cannot pass.
+/// Three of them, because one document's leaf partition is one shape:
+/// the unit's own race, the second reviewer's (which hands twelve
+/// leaves nine distinct NEEDs), and a wider drive that CERTIFIES — the
+/// only arm in which the `certified()` comparison below is about
+/// anything.
+const RACING: [Racing; 3] = [
+    Racing {
+        label: "race",
+        leaves: 8,
+        terms: 8,
+        degree: 4,
+        certifies: false,
+    },
+    Racing {
+        label: "race (the second reviewer's)",
+        leaves: 12,
+        terms: 16,
+        degree: 6,
+        certifies: false,
+    },
+    Racing {
+        label: "certifying",
+        leaves: 64,
+        terms: 512,
+        degree: 32,
+        certifies: true,
+    },
+];
+
+fn racing_config(r: &Racing, parallel: bool, plain_memo: bool) -> DriveConfig {
+    DriveConfig {
+        max_leaves: r.leaves,
+        parallel,
+        plain_memo,
+        symbolic: editor_core::drive::SymbolicDials {
+            max_terms: r.terms,
+            max_degree: r.degree,
+            ..editor_core::drive::SymbolicDials::default()
+        },
+        ..DriveConfig::default()
+    }
+}
+
+/// **The gating row: every leaf reports ONE column, whatever the
+/// schedule and whichever way the memo dial is set.** The column is
+/// each leaf's NEED of the drive's frozen set
+/// (`geom_core::SymCounts::frozen`), and the drives here are the ones
+/// where a leaf's own freezes are not the root leaf's — where the old
+/// work-count column could not have passed.
 ///
-/// On every shipped fixture the level-0 root publishes the whole DAG
-/// before anything splits, so no later leaf freezes at all and a leaf's
-/// `frozen` column was pinned across schedules only at zero. Here two
-/// leaves of one level reach one freezing node, and which of them pays
-/// for it is the schedule's business. Measured on this lane before the
-/// column became a NEED: the leaves' own columns read
-/// `0:1613 6:369 7:1061` sequentially and `0:1613 1:369 6:369 7:1061`
-/// on four rayon workers, so
-/// `m10_3_r2_probes_interval::my_own_drive_is_bit_identical_across_repeats_and_schedules`'s
-/// own comparison — `a.refused() == c.refused()`, over a `PartialEq`
-/// that covers `decisions` — was FALSE on this drive while every other
-/// column, the drive's `frozen` and the whole serialization agreed.
+/// **What this row gates is AGREEMENT ACROSS LANES, not the column's
+/// meaning.** A column that was uniformly wrong — every leaf reading
+/// the same wrong number under every schedule — would pass everything
+/// here; what pins the meaning is `geom-core`'s `sym_drive_memo` rows
+/// at the scalar door (reached twice counted once, built-but-never-
+/// asked counted zero, inherited counted all the same, and the
+/// unrecorded branch in both orders). The non-vacuity below is against
+/// the other failure: a document that quietly stopped freezing, or a
+/// column that collapsed to one value for every leaf.
 ///
-/// Under NEED all five lanes report one column, leaf for leaf: the
-/// distinct nodes of the drive's frozen set inside each leaf's own
-/// reasoning, which is a function of the leaf's box and of the drive
-/// (`geom_core::SymCounts::frozen`). The reading here is
-/// `3048 1804 902 902 902 902 1804 3048` against a drive column of
-/// 4,847 — printed rather than asserted, because it moves with the ε
-/// row the matrix draws; what is asserted is that nothing moves it
-/// WITHIN a matrix point.
-///
-/// **The dial arm is the one that reds deterministically under the old
-/// column**: with the memo off a leaf froze every node it needed
-/// itself, so the off lane read the leaf's NEED already, and the on
-/// lane read what the schedule left it.
+/// **What the old column did here.** With `frozen` as the work a leaf
+/// happened to do, the `seq off` arm reds DETERMINISTICALLY on every
+/// one of these drives — the off lane re-freezes per leaf while the on
+/// lane leaves nearly everything to the root leaf. The parallel arms
+/// red too, but that is a DRAW and not a reading: which leaf of a level
+/// gets to a node first is the schedule's business, and the vector
+/// differs from run to run (measured on the first drive here: leaf 1
+/// read 369 in one run of four workers and 284 in another, against 0
+/// sequentially).
 #[test]
-fn the_leaves_of_a_racing_drive_report_one_column_under_every_schedule() {
+fn every_leaf_reports_one_column_under_every_schedule_and_both_dials() {
     let tol = Tol::witness();
     let doc = slab();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let run = |parallel, plain_memo| {
-        drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                max_leaves: RACE_LEAVES,
-                parallel,
-                plain_memo,
-                symbolic: editor_core::drive::SymbolicDials {
-                    max_terms: RACE_TERMS,
-                    max_degree: RACE_DEGREE,
-                    ..editor_core::drive::SymbolicDials::default()
-                },
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .unwrap()
-    };
-    let column = |v: &ParamBoxVerdict| -> Vec<u64> {
-        v.certified()
-            .iter()
-            .map(|l| l.decisions.frozen)
-            .chain(v.refused().iter().map(|l| l.decisions.frozen))
-            .collect()
-    };
-    let seq_on = run(false, true);
-    println!(
-        "racing slab at {RACE_LEAVES} leaves, budget {RACE_TERMS}/{RACE_DEGREE}: \
-         receipt {:?} | drive frozen {} | leaves' NEED {:?} | memo {:?}",
-        seq_on.receipt(),
-        seq_on.decisions().frozen,
-        column(&seq_on),
-        seq_on.plain_memo(),
-    );
-    // Non-vacuity, three ways: the document really freezes, the leaves
-    // really need some of it, and they do not all need the same amount
-    // — a row whose leaves all read 0, or all read one number, would
-    // pass every comparison below without being about anything.
-    let base = column(&seq_on);
-    assert!(
-        seq_on.decisions().frozen > 0 && seq_on.plain_memo().forms > 0,
-        "the drive must freeze and the memo must hold forms: {:?} {:?}",
-        seq_on.decisions(),
-        seq_on.plain_memo()
-    );
-    assert!(
-        base.iter().filter(|&&n| n > 0).count() >= 2
-            && base.iter().collect::<BTreeSet<_>>().len() > 1,
-        "the leaves must need different amounts of the drive's frozen set: {base:?}"
-    );
-    for (label, v) in [
-        ("par@2 on", on_pool(2, || run(true, true))),
-        ("par@4 on", on_pool(4, || run(true, true))),
-        ("seq off", run(false, false)),
-        ("par@4 off", on_pool(4, || run(true, false))),
-    ] {
-        // The column first, because it is what this row is about and a
-        // whole-list comparison names the leaf rather than the number.
-        assert_eq!(column(&v), base, "{label}: the leaves' NEED moved");
-        // Then the comparison `my_own_drive_is_bit_identical…` makes,
-        // on the drive that used to break it.
-        assert_eq!(
-            v.certified(),
-            seq_on.certified(),
-            "{label}: certified leaves"
+    for r in &RACING {
+        let run = |parallel, plain_memo| {
+            drive(
+                &doc,
+                &analyzed,
+                &racing_config(r, parallel, plain_memo),
+                tol,
+            )
+            .unwrap()
+        };
+        let seq_on = run(false, true);
+        let base = leaf_column(&seq_on);
+        println!(
+            "{} slab at {} leaves, budget {}/{}: receipt {:?} | drive frozen {} | \
+             leaves' NEED {base:?} | memo {:?}",
+            r.label,
+            r.leaves,
+            r.terms,
+            r.degree,
+            seq_on.receipt(),
+            seq_on.decisions().frozen,
+            seq_on.plain_memo(),
         );
-        assert_eq!(v.refused(), seq_on.refused(), "{label}: refused leaves");
-        assert_eq!(v.serialize(), seq_on.serialize(), "{label}: serialization");
-        assert_eq!(
-            v.content_key(),
-            seq_on.content_key(),
-            "{label}: content key"
+        // Non-vacuity: the document really freezes, the memo really
+        // held forms, the leaves need visibly different amounts of the
+        // set, and the `certified()` comparison below is about
+        // something in the arm that says it is.
+        assert!(
+            seq_on.decisions().frozen > 0 && seq_on.plain_memo().forms > 0,
+            "{}: the drive must freeze and the memo must hold forms: {:?} {:?}",
+            r.label,
+            seq_on.decisions(),
+            seq_on.plain_memo()
         );
+        assert!(
+            base.iter().collect::<BTreeSet<_>>().len() >= 3,
+            "{}: the leaves must need visibly different amounts: {base:?}",
+            r.label
+        );
+        assert_eq!(
+            !seq_on.certified().is_empty(),
+            r.certifies,
+            "{}: the row's certified arm is vacuous unless this drive certifies: {:?}",
+            r.label,
+            seq_on.receipt()
+        );
+        for (label, v) in [
+            ("par@2 on", on_pool(2, || run(true, true))),
+            ("par@4 on", on_pool(4, || run(true, true))),
+            ("seq off", run(false, false)),
+            ("par@4 off", on_pool(4, || run(true, false))),
+        ] {
+            let label = format!("{} {label}", r.label);
+            // The column first, because it is what this row is about
+            // and a whole-list comparison names the leaf rather than
+            // the number.
+            assert_eq!(leaf_column(&v), base, "{label}: the leaves' NEED moved");
+            // Then the comparison `my_own_drive_is_bit_identical…`
+            // makes, on the drives that used to break it.
+            assert_eq!(
+                v.certified(),
+                seq_on.certified(),
+                "{label}: certified leaves"
+            );
+            assert_eq!(v.refused(), seq_on.refused(), "{label}: refused leaves");
+            assert_eq!(v.serialize(), seq_on.serialize(), "{label}: serialization");
+            assert_eq!(
+                v.content_key(),
+                seq_on.content_key(),
+                "{label}: content key"
+            );
+        }
     }
 }
 
@@ -819,31 +869,26 @@ fn a_memo_from_one_drive_never_serves_the_next() {
 /// (`geom-core`'s `sym_drive_memo`) needs a node unrecorded in one leaf
 /// and recorded in another, so the question this row answers is whether
 /// a DRIVE ever produces one at all. Measured: it does not, on either
-/// measured document nor on the racing drive, and the row pins that — a count that moves off zero means
-/// some lane started minting nodes outside the session, and the guard in
-/// `form_in` is then load-bearing rather than belt-and-braces.
+/// measured document nor on any of the three racing drives, and the row
+/// pins that — a count that moves off zero means some lane started
+/// minting nodes outside the session, and the guard in `form_in` is
+/// then load-bearing rather than belt-and-braces.
 #[test]
 fn no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded() {
     let tol = Tol::witness();
-    // The RACING drive is censused too, and it is the one this row
-    // owes most: it is the drive whose leaf DAGs are NOT subsets of the
-    // root's, which is the state an unrecorded freeze would have to
-    // come out of, and every claim about the leaves' NEED there
-    // (`the_leaves_of_a_racing_drive_report_one_column_under_every_schedule`)
-    // rests on the same branch staying empty.
-    let racing = DriveConfig {
-        max_leaves: RACE_LEAVES,
-        symbolic: editor_core::drive::SymbolicDials {
-            max_terms: RACE_TERMS,
-            max_degree: RACE_DEGREE,
-            ..editor_core::drive::SymbolicDials::default()
-        },
-        ..DriveConfig::default()
-    };
+    // The RACING drives are censused too, and they are what this row
+    // owes most: they are the drives whose leaf DAGs are NOT subsets of
+    // the root's, which is the state an unrecorded freeze would have to
+    // come out of, and the one thing left unsettled about a leaf's NEED
+    // (`geom_core::sym::memo`'s header, last paragraph) is what a leaf
+    // does when it INHERITS a form across that branch.
+    let racing = |i: usize| racing_config(&RACING[i], false, true);
     for (label, doc, cfg) in [
         ("slab", slab(), config(UNRECORDED_LEAVES)),
         ("plate", the_plate(tol), config(UNRECORDED_LEAVES)),
-        ("racing slab", slab(), racing),
+        ("racing slab", slab(), racing(0)),
+        ("racing slab (the second reviewer's)", slab(), racing(1)),
+        ("certifying slab", slab(), racing(2)),
     ] {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         start_profile();
@@ -1035,10 +1080,12 @@ fn the_leaf_column_across_schedules_probe() {
             .and_then(|v| v.parse().ok())
             .unwrap_or(d)
     };
-    let max_leaves = env("CAD_NEED_LEAVES", 8);
+    // Defaulted to the first adversary the gating row drives, so the
+    // probe and the row are one spelling of it rather than two.
+    let max_leaves = env("CAD_NEED_LEAVES", RACING[0].leaves);
     let dials = editor_core::drive::SymbolicDials {
-        max_terms: env("CAD_NEED_TERMS", 4096),
-        max_degree: env("CAD_NEED_DEGREE", 128) as u32,
+        max_terms: env("CAD_NEED_TERMS", RACING[0].terms),
+        max_degree: env("CAD_NEED_DEGREE", RACING[0].degree as usize) as u32,
         ..editor_core::drive::SymbolicDials::default()
     };
     let threads: Vec<usize> = std::env::var("CAD_NEED_THREADS")
@@ -1062,13 +1109,7 @@ fn the_leaf_column_across_schedules_probe() {
         )
         .unwrap()
     };
-    let own = |v: &ParamBoxVerdict| -> Vec<u64> {
-        v.certified()
-            .iter()
-            .map(|l| l.decisions.frozen)
-            .chain(v.refused().iter().map(|l| l.decisions.frozen))
-            .collect()
-    };
+    let own = leaf_column;
     let report = |label: &str, v: &ParamBoxVerdict, base: Option<&ParamBoxVerdict>| {
         let o = own(v);
         let nz: Vec<(usize, u64)> = o

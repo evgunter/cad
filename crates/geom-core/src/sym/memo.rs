@@ -58,43 +58,61 @@
 //! counts `FreezeCause::Unrecorded` over both documents and pins it at
 //! zero. Both directions are rows in `geom-core`'s `sym_drive_memo`.
 //!
-//! # Why a LEAF's NEED is schedule-independent — the second argument
+//! # Why a LEAF's NEED is the same under every schedule
 //!
-//! A leaf receipt's `frozen` column is that leaf's NEED: the distinct
-//! nodes of THIS memo's frozen set that lie in the plain closure of
-//! what the leaf asked ([`super::SymCounts::frozen`] says what the
-//! column means; this is why it cannot move). Both factors are fixed
-//! before any worker starts.
+//! A leaf receipt's `frozen` column is that leaf's NEED: the frozen
+//! nodes its own reasoning rested on ([`super::SymCounts::frozen`] says
+//! what the column means on each receipt). `super::leaf_need` reads it
+//! as a union of two sets — this memo's frozen ids inside the closure
+//! of the leaf's plain-walk roots, and the freezes the leaf made and
+//! could not publish — and every part of that is fixed before any
+//! worker starts.
 //!
-//! **The frozen set is a property of the drive.** Whether a node
-//! freezes is the budget's verdict on its plain form, and a plain form
-//! is a function of the node's id and the two dials above — the
-//! argument this header opens with. So every leaf that computes a node
-//! freezes it or none does, the set is a set, and which leaf paid for
-//! a freeze is not in it.
+//! **The leaf's side is its box.** Its hash-consing table is the DAG
+//! its replay built and its roots are the decisions it asked a plain
+//! form of; a drive-memo hit changes how much of that closure the walk
+//! WALKS but not what is in it, which is why the count is taken over
+//! the table and not over `Session::forms`.
 //!
-//! **The leaf's side is a function of its box**: its hash-consing
-//! table is the DAG its own replay built, and the roots are the
-//! decisions it asked a plain form of. Neither is the memo's — a
-//! drive-memo HIT changes how much of that closure the walk WALKS, and
-//! that is exactly why the count is taken over the table and the roots
-//! rather than over `Session::forms`, which a hit truncates.
+//! **The drive's side is the drive's.** By the argument this header
+//! opens with, a node's plain form — and therefore the budget's
+//! verdict on it — is a function of its id, so every leaf that
+//! computes a node freezes it or none does and the set says nothing
+//! about who got there first.
 //!
-//! **And the set is complete when the leaf reads it.** For a frozen
-//! node in the leaf's closure, either the leaf computed it — and froze
-//! it, and published the freeze, this count being taken after the
-//! leaf's own publish — or it took a form for that node or for an
-//! ancestor of it, in which case the publishing leaf had already
-//! published the freeze: [`DriveMemo::publish`] writes the frozen ids
-//! BEFORE the forms, under one lock, and the same induction carries
-//! through a publisher that was itself served by an earlier one. A
-//! node OUTSIDE the closure has no such guarantee, which is the second
-//! reason the closure and not the whole table is the set.
+//! **The set is complete when the leaf reads it.** Take a frozen node
+//! in the closure. Either this leaf computed it, froze it and
+//! published — the count is taken after the leaf's own publish — or it
+//! took a form for that node or for an ancestor, and the leaf that
+//! published that form published its freezes in the same call:
+//! [`DriveMemo::publish`] takes ONE write lock for the whole
+//! publication, so no reader sees a form without the freezes that came
+//! with it, and the induction carries through a publisher that was
+//! itself served by an earlier one. (The order inside that lock is a
+//! separate promise, for poison recovery; [`DriveMemo::read`] is where
+//! it is argued.)
 //!
-//! The exception is the same one as everywhere here: a leaf that
-//! freezes a node it never RECORDED publishes nothing, so that freeze
-//! is in no drive's set and another leaf's identical freeze could be —
-//! the branch the paragraph above pins at zero.
+//! **A freeze the leaf could not publish is still the leaf's.** An
+//! unrecorded node, or one whose form was built out of one, freezes in
+//! this leaf and never reaches the memo — so the intersection alone
+//! would read it as 0 when this leaf ran first and 1 once a leaf that
+//! RECORDED the node had published the same freeze, which is a reading
+//! of the schedule and not of the leaf. Counting it on the leaf's own
+//! side closes that: it is counted once whoever ran first, because the
+//! two sides are UNIONED and not summed, and the leaf's own side is a
+//! function of its table.
+//!
+//! **What is left is the branch above, and only it**: a leaf that does
+//! not record a node can INHERIT a recorded ancestor's form instead of
+//! freezing, and then it neither froze nor needs it. That is the
+//! direction the paragraph above calls sound but not order-independent
+//! — it is the decisions that move there first, so a NEED that moved
+//! with them would be reporting a receipt that had itself moved. The
+//! rows pin that branch at zero on every drive measured
+//! (`editor-core`'s
+//! `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`, on
+//! three drives including the racing one) and `geom-core`'s
+//! `sym_drive_memo` walks both orders of it by hand.
 //!
 //! # What it holds, and what it does not
 //!
@@ -236,22 +254,32 @@ impl DriveMemo {
     }
 
     /// **A leaf's NEED**: the DISTINCT nodes of the drive's frozen set
-    /// that lie in `reached` — the plain closure of the leaf's own
-    /// walk roots over its own hash-consing table
-    /// ([`super::SymCounts::frozen`] argues the column and
-    /// `super::leaf_need` builds the set).
+    /// that lie in `reached` — the plain closure of the leaf's own walk
+    /// roots — TOGETHER WITH the freezes the leaf could not publish
+    /// (`unpublished`, which the closure contains). The header argues
+    /// why that number is the same under every schedule;
+    /// `super::leaf_need` builds both sets.
     ///
-    /// The intersection is walked from the FROZEN side: a drive freezes
-    /// a small fraction of the nodes a leaf reaches (1,044 against
-    /// ~17,000 on the plate) and the count is the same either way, so
-    /// the cheaper side is the one that answers.
-    pub(super) fn need(&self, reached: &IdSet) -> u64 {
+    /// A union, counted without materialising one: the drive's side is
+    /// walked from the FROZEN end, which is the smaller of the two on
+    /// every document measured (1,044 ids against a 17,624-node closure
+    /// on the plate), and the leaf's own side counts only what the
+    /// drive's does not already hold.
+    ///
+    /// Both counts under ONE read lock, so the two halves are read
+    /// against one state of the memo rather than two.
+    pub(super) fn need(&self, reached: &IdSet, unpublished: &IdSet) -> u64 {
         let inner = self.read();
-        inner
+        let shared = inner
             .frozen
             .keys()
             .filter(|id| reached.contains_key(id))
-            .count() as u64
+            .count();
+        let own = unpublished
+            .keys()
+            .filter(|id| !inner.frozen.contains_key(id))
+            .count();
+        (shared + own) as u64
     }
 
     /// What the memo came to at the drive's end.
