@@ -27,7 +27,7 @@
 //! its four literals, and reading them off a struct is what keeps the
 //! lowering free of a shell-specific spelling.
 //!
-//! # The lane door
+//! # The door value
 //!
 //! The kernel door validates what it built with a CERTIFIED claim
 //! (`topo::shell_open`'s last act is the certified at-rest validator),
@@ -145,9 +145,9 @@ pub(crate) fn shell<T: geom_core::Real>() -> ShellVerb<T> {
     }
 }
 
-/// **This lane's `f64` witness of a shell refusal**: the total fold
-/// below, every field read at the end it declares through the lane's
-/// own [`Lane::end`].
+/// **The `f64` witness of a shell refusal at any scalar**: the total
+/// fold below, every field read at the end it declares through that
+/// scalar's own [`Lane::end`].
 ///
 /// A free function and not a per-scalar method, because there is
 /// nothing per-scalar left to say: the arms are the kernel's and the

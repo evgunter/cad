@@ -2366,7 +2366,7 @@ fn wire_blend<
 /// ([`crate::verbs::shell`]): resolve the frozen, ORDERED list of open
 /// faces through the target's name table into face keys, evaluate the
 /// thickness slot to `T`, build the kernel verb, run it through the
-/// seat's lane door, emit names from the birth record under THIS
+/// seat's shell door, emit names from the birth record under THIS
 /// node's id.
 ///
 /// # Refusals
