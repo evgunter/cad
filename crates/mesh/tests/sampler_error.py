@@ -21,7 +21,9 @@ the unit `SAMPLER_ULPS` is written in.
     cargo test --release -p mesh --lib sampler_error_dump -- --ignored --nocapture \
       | python3 crates/mesh/tests/sampler_error.py
 
-or with a saved dump as the one argument. The argmax is why the dump exists:
+or with a saved dump as the one argument. 400 patches at
+`CAD_FUZZ_EFFORT=1`, and that dial scales the breadth. The argmax is why the
+dump exists:
 the sampler's error has to be measured where the sampler actually looked, not
 at a point this script would pick.
 """

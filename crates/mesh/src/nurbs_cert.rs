@@ -2968,6 +2968,8 @@ pub(crate) mod tests {
     ///   | python3 crates/mesh/tests/sampler_error.py
     /// ```
     ///
+    /// 400 patches at `CAD_FUZZ_EFFORT=1`, and the dial scales it.
+    ///
     /// What it dumps, per trial: the described bilinear patch's bits, the
     /// certified triple, and the 61x61 sampler's per-component ARGMAX —
     /// which is the part that matters, because the referee has to evaluate
@@ -2980,10 +2982,11 @@ pub(crate) mod tests {
     #[test]
     #[ignore = "measurement apparatus: prints a dump for crates/mesh/tests/sampler_error.py"]
     fn sampler_error_dump() {
-        let trials: usize = std::env::var("SAMPLER_ERROR_TRIALS")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(400);
+        // Breadth rides the shared EFFORT dial rather than an env var of
+        // its own: `mesh` is a kernel crate and may not read the
+        // environment at all (the `no ambient environment in the kernel`
+        // gate), and `CAD_FUZZ_EFFORT` is the lever the repo already has.
+        let trials = test_utils::fuzz::scaled(400);
         // A varying seed, logged: this is a counterexample-shaped
         // measurement (the DISTRIBUTION over draws is the answer), so
         // successive runs are supposed to sample different patches, and
