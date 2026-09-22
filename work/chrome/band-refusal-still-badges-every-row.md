@@ -165,10 +165,27 @@ nothing else patched. Every site that reds, and only these:
 - `crates/viewer/src/tree.rs` — `RowStatus::badge`, `tone`, `message`,
   `has_faults`. The lane's own ground.
 - `crates/viewer/src/pane/features.rs` — the pane's deliberately
-  exhaustive *does this row draw a badge* match. One arm; ordinary
-  shared ground since `work/README.md`'s 2026-09-20 ruling.
+  exhaustive *does this row draw a badge* match, under its *"Exhaustive
+  on purpose"* comment. One arm, mechanical. Ordinary shared ground
+  since `work/README.md`'s 2026-09-20 ruling.
 - `crates/viewer/src/frame.rs` — `badge_site`'s guard test
   `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`.
+
+**`features.rs` is not one mechanical arm, and the compiler is why
+this reads as though it were.** Twelve lines below the exhaustive
+match, inside the same `feature_row`, the pane asks the second
+question — *does this row's message link anywhere* — as
+`match &row.status { RowStatus::Poisoned { through, .. } => Some(*through), _ => None }`.
+That wildcard does **not** red, so the scratch variant above never
+surfaced it. What it decides silently is that a row in the new state
+has no row to link to: its message, if it has one, is drawn with
+`ui.weak` and the eye is sent nowhere — which is issue 1463's symptom,
+the symptom this row exists for, reappearing in the fix for it. And it
+is the SAME question `frame.rs` declines to answer below: does a
+run-refusal state point somewhere? So the taker's fence spans two
+decisions in `features.rs`, one of which the build will not remind
+them of. (The wildcard is a class, not a one-off: filed as
+`a-wildcard-match-decides-viewer-policy-in-five-places`.)
 
 **The `frame.rs` half is not a mechanical re-spelling, and that is the
 finding.** With the new arm added to every match above *including*
@@ -186,15 +203,16 @@ viewer --features app --lib -- the_tree_still_has_exactly` fails at
 
 **Citations in the sections above, corrected by subject.**
 `MateFault::Band` is declared at `crates/editor-core/src/mate.rs`'s
-`enum MateFault` (line 796 today, not the 414-418 the first section
-cites), and `solve_document` / `solve_with_env` — where the refusal is
+`enum MateFault` (line 752 today, with the `Band` arm at 796, not the
+414-418 the first section cites), and `solve_document` / `solve_with_env` — where the refusal is
 inserted against every `Node::Mate` and `Node::InstantiatePart` in
 `doc.order()` — live in `crates/editor-core/src/mate/solve.rs`, not in
 `mate.rs`. The behaviour the 2026-09-15 section describes is exactly
 what that code does; only the addresses had moved.
 
-**So what a taker needs is a fence spanning `frame.rs`**, which is not
-a wider effort than this row already expected — it is the same
-sentence the row has carried since 2026-09-15, with `pane/features.rs`
-struck off it and `frame.rs` left on. The `has_faults` half is done
-and no longer part of the cost.
+**So what a taker needs is a fence spanning `frame.rs` and
+`pane/features.rs`**, which is not a wider effort than this row
+already expected — it is the same sentence the row has carried since
+2026-09-15. `features.rs` stays on it not for the badge arm, which is
+mechanical, but for the link decision twelve lines below it. The
+`has_faults` half is done and no longer part of the cost.

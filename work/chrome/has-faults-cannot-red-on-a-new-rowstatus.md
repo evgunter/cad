@@ -81,10 +81,42 @@ what the chrome shows.
 `has_faults` is an exhaustive `match`, with `Unevaluated` and `Ok`
 each an arm carrying its reason rather than the complement of a
 pattern, and the doc says which axis it is and how it differs from
-`RowStatus::tone` (the collapse a later reader would reach for).
+`RowStatus::tone` (the collapse a later reader would reach for) and
+from `bounds::Verdict`, which excludes `Poisoned` for a reason argued
+at its own site and never reconciled with this one — filed as
+`two-is-this-broken-readings-argue-opposite-on-poisoned`.
+
+**Two claims in the sections above are corrected rather than
+inherited.**
+
+- *"what a chrome shows as \"this document is not building\""* — the
+  doc sentence this row quotes, and the role the Finding gives the
+  function — **describes a role nothing plays**. `grep -rn has_faults`
+  over the workspace returns the definition plus
+  `crates/viewer/tests/` and `crates/viewer/examples/r1_e2e.rs`, and
+  nothing else: there is no `src/` caller and `lib.rs` re-exports
+  none. What a chrome shows is decided per row by `pane/features.rs`'s
+  badge draw and, for the product, by `frame::product_badge`.
+  `has_faults` is a **test oracle** — twenty-two call sites, fifteen
+  of them the `!has_faults(…)` "this evaluates clean" gate, across
+  seven suites and `r1_e2e.rs`. That is a smaller claim than "the GUI
+  would lie to a user" and it is not a weaker reason to fix the
+  construct: a silently-wrong oracle lets all fifteen of those gates
+  keep passing on documents broken in the new way.
+- *"the `Unevaluated` omission is a deliberate policy call"* (Finding,
+  above) claims an intent the history does not carry.
+  `-S'pub fn has_faults'` over this file's log puts the function in
+  the crate's founding commit (`1a7c38d2d`) and nothing since settles
+  why. The REASONS the fix writes out ARE corroborated, which is a
+  different claim and the one the doc now makes —
+  `review_gui3_r2::a_document_with_no_result_yet_reads_unevaluated_and_reports_no_faults`
+  pins that an unevaluated tree reports no faults and
+  `tree_badges::only_the_row_whose_own_operation_refused_is_actionable`
+  pins its tone, so the doc says *the reading the tests pin* rather
+  than recovered intent.
 
 **Proved red, both ways, rather than asserted.** A scratch fifth
-variant made `has_faults` one of five `E0004`s in the crate —
+variant made `has_faults` one of **six** `E0004`s in the crate —
 `tree.rs`'s `badge`, `tone`, `message` and `has_faults`, plus
 `pane/features.rs`'s draw decision and `frame.rs`'s guard. And the
 policy itself now has a test that a bug breaks:
@@ -94,8 +126,39 @@ where a `Poisoned` row stands alone, so dropping `Poisoned` from the
 policy — or rewriting it as *any actionable row* — reds only there.
 Confirmed by making that mutation and watching it fail.
 
+**What that test may NOT be built from**, since the first draft of it
+was built that way: a poisoned row beside a `Failed` cause. Any tree
+carrying a `Failed` row satisfies the policy through THAT row, so the
+mutation above stops reddening — measured rather than reasoned: with
+the cause row switched to `Failed`, mutating `Poisoned` out of the
+policy leaves the test green. The one shape that carries the claim is
+`Poisoned { message: None }`, which `poisoned_through` mints when the
+chain does not end at a failure and which `RowStatus::Poisoned`'s own
+doc names as the reporting of that; so the fixture is a tree state the
+module has a rendering for, not one it declares broken.
+
 The sweep this row asks for is
-`matches-subset-policy-survives-in-four-viewer-modules`: four more
-live in `crates/viewer/src`, and the closest sibling is `bounds.rs`'s
-`Verdict::of`, which is this defect one enum up with its policy
-already argued in prose above it.
+`matches-subset-policy-survives-in-four-viewer-modules`: 21 more
+`matches!` sites live in `crates/viewer/src`, the wildcard-`match`
+spelling of the same construct has its own row
+(`a-wildcard-match-decides-viewer-policy-in-five-places`), and the
+closest sibling is `bounds.rs`'s `Verdict::of`, which is this defect
+one enum up with its policy already argued in prose above it.
+
+### Raised at review and declined, recorded rather than dropped
+
+- **Moving `has_faults` onto `RowStatus` as `is_fault(&self)`**, beside
+  `badge` / `tone` / `message`. Right shape, wrong moment: ~11 call
+  sites churned for a taste improvement on a green PR, and the
+  reviewer was explicitly unsure. Carried on
+  `matches-subset-policy-survives-in-four-viewer-modules` so the next
+  lane that opens that impl gets it for free.
+- **Splitting `tree.rs`'s 77-line module header**, and the observation
+  that `has_faults`'s doc is now the file's largest. No action: the
+  header is the second-section argument `blamed_mates` and
+  `downstream_of_mate` both cite, and splitting it is a change to what
+  those citations point at.
+- **The fixture's `kind: "Transform"` / `depth: 0` / `root: false`
+  being a shape `rows()` would not build.** `has_faults` reads none of
+  those fields, and the reviewer was unsure. No action — but the
+  fixture's *status* shape was a real defect and is fixed above.
