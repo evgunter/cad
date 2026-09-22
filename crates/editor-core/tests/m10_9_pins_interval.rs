@@ -123,10 +123,13 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
             registered: 144,
-            // DECIDE-3: fifteen more theorems (1083 -> 1098) and
-            // thirteen decisions the read answers, all out of
-            // `numeric` (794 -> 766); `registered` is unmoved.
-            symbolic_zero: 1098,
+            // DECIDE-3: twenty-one more theorems (1083 -> 1104) and
+            // seven decisions the read answers, all out of `numeric`
+            // (794 -> 766); `registered` is unmoved. Six of the
+            // twenty-one are A0's constant fold
+            // (`work/decide/a0-leaves-max-and-min-of-constants-opaque`),
+            // the rest rule G's.
+            symbolic_zero: 1104,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {

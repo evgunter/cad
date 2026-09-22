@@ -95,6 +95,7 @@ What that yielded, every number measured on this branch:
 | M10-3 slab (`m10_8_the_shipped_set_is_inert_on_straight_geometry`) | `symbolic_zero 482, numeric 263` | **`490 / 255`, nothing gated**; with the form-level algebra off it is still `none()` bit for bit |
 | plate, `line_span` at the nominal | `[0, 0, 0, 8]` | **`[8, 0, 0, 0]`** |
 | plate study (`m10_9`), `symbolic_zero` | 803 | **811** (`numeric` 470 → 462) |
+| bracket study (`m10_9`), `symbolic_zero` | 1098 | **1104** (six more, `registered` unmoved) |
 | D-tab, `line_span`, literal and parameter | `[0, 0, 0, 8]` | **`[4, 0, 0, 4]`** — four are constants, four carry a parameter |
 | segment boss, `line_span` | `[0, 0, 0, 2]` | **`[2, 0, 0, 0]`** |
 | derived-frame row's A0 rung | frozen **10**, stopping at the gate's `carrier_endpoint_start` | frozen **0**, reaching the same clause-1 `newell_plane_residual` the plain tier does — the row's original claim, restored by the fold rather than re-aimed |

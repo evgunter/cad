@@ -116,10 +116,11 @@ fn a0_alone() -> SymRules {
 /// it). Byte-identity with `none()` could not tell the two apart and
 /// said "no gain" where a gain is what happened.
 ///
-/// The third arm pins what IS still inert: with the form-level algebra
-/// off (`without_the_algebra`) the slab is `none()` bit for bit, so
-/// rules A/B, D, E, F, G and the decision read reach nothing here and
-/// A0 is the whole of the difference.
+/// The third arm pins what IS still inert, and byte-identity is still
+/// how: the shipped tier serialises byte for byte what **A0 alone**
+/// does on this document, so rules A/B, D, E, F, G, the decision read
+/// and the registered-identity door reach nothing here and the eight
+/// are A0's own yield.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -159,10 +160,14 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
          A0 decides exactly — THEOREMS, and nothing here is gated"
     );
     assert_eq!(
-        run(SymRules::without_the_algebra()),
-        plain,
-        "and with the form-level algebra off the slab is M10-7's bit for bit: A0 is the \
-         whole of the difference"
+        shipped,
+        run(SymRules {
+            const_fold: true,
+            ..SymRules::none()
+        }),
+        "and the FORM-LEVEL rules are inert on the slab: the shipped tier serialises byte \
+         for byte what A0 alone does, so the eight are A0's own yield and rules A/B, D, E, \
+         F, G, the decision read and the door reach nothing here"
     );
 }
 
