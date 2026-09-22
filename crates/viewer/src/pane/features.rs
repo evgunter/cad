@@ -121,14 +121,18 @@ impl ViewerBehavior<'_> {
             };
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
+                // Through `widgets::message`, not `ui.link`/`ui.weak`:
+                // this is a payload's own words, so it is a sentence and
+                // not a name, and the row it is indented under is the
+                // region it has to stay inside (`widgets::message`).
                 match through {
                     Some(through) => {
-                        if ui.link(message).clicked() {
+                        if crate::widgets::message_link(ui, message).clicked() {
                             self.ops.push(SessionOp::Select(Selection::Node(through)));
                         }
                     }
                     None => {
-                        ui.weak(message);
+                        crate::widgets::message(ui, egui::RichText::new(message).weak());
                     }
                 }
             });
@@ -138,7 +142,7 @@ impl ViewerBehavior<'_> {
         if let Some(note) = &row.note {
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
-                ui.weak(note);
+                crate::widgets::message(ui, egui::RichText::new(note.as_str()).weak());
             });
         }
     }

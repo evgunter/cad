@@ -73,7 +73,12 @@ impl ViewerBehavior<'_> {
         };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
-            ui.label(status.text());
+            // The status line is a sentence wherever it is drawn, so it
+            // is drawn the one way (`widgets::message`) — this pane's
+            // column happens to be the layout egui would have wrapped
+            // it in anyway, and that is a fact about the column rather
+            // than about the message.
+            crate::widgets::message(ui, status.text());
         }
     }
 

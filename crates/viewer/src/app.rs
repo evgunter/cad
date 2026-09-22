@@ -1388,7 +1388,12 @@ impl ViewerApp {
                             {
                                 ops.push(SessionOp::Select(Selection::Node(finding.root)));
                             }
-                            ui.label(finding.to_string());
+                            // A finding is a composed sentence beside a
+                            // button, so it is drawn through
+                            // `widgets::message`: a plain label in a
+                            // horizontal row is laid out at infinite
+                            // width and runs past the window's edge.
+                            crate::widgets::message(ui, finding.to_string());
                         });
                     }
                     if !report.skipped.is_empty() {
@@ -1722,7 +1727,12 @@ impl ViewerApp {
             }
             if let Some(status) = &self.status {
                 ui.separator();
-                ui.label(status.text());
+                // The one message in this chrome drawn in a WRAPPING
+                // row, and the reason `widgets::message` exists: a
+                // plain label here begins beside the badge that raised
+                // it and puts every line after the first at the panel's
+                // left edge, which for a top panel is the window's.
+                crate::widgets::message(ui, status.text());
             }
         });
     }

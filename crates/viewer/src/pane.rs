@@ -135,6 +135,67 @@ pub(crate) mod headless {
         text
     }
 
+    /// **Where a painted text LANDED**, one entry per row of its
+    /// galley.
+    ///
+    /// [`painted`] answers what a frame said; this answers where it
+    /// put it, which is the only thing a layout defect shows up in. A
+    /// sentence drawn past the right edge of its pane and a sentence
+    /// wrapped inside it paint the same string.
+    pub(crate) struct Landed {
+        /// The whole galley's text, as [`painted`] reports it.
+        pub(crate) text: String,
+        /// One rect per row of the galley, in the same coordinates the
+        /// caller's region is in, and each **excluding the leading
+        /// space** egui indents a first row by — so `left()` is where
+        /// the reader's eye finds the row's first glyph.
+        pub(crate) rows: Vec<egui::Rect>,
+    }
+
+    /// Every text one pass of `draw` painted, with [`Landed`] for each.
+    pub(crate) fn landed(draw: impl FnOnce(&mut egui::Ui)) -> Vec<Landed> {
+        let ctx = egui::Context::default();
+        let mut draw = Some(draw);
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            if let Some(draw) = draw.take() {
+                draw(ui);
+            }
+        });
+        let mut out = Vec::new();
+        collect_landed(&output.shapes, &mut out);
+        output.textures_delta.clear();
+        out
+    }
+
+    /// The [`Landed`] of every `Shape::Text` in a tree of shapes.
+    fn collect_landed(shapes: &[egui::epaint::ClippedShape], out: &mut Vec<Landed>) {
+        fn walk(shape: &egui::Shape, out: &mut Vec<Landed>) {
+            match shape {
+                egui::Shape::Text(text) => out.push(Landed {
+                    text: text.galley.text().to_owned(),
+                    rows: text
+                        .galley
+                        .rows
+                        .iter()
+                        .map(|row| {
+                            row.rect_without_leading_space()
+                                .translate(text.pos.to_vec2())
+                        })
+                        .collect(),
+                }),
+                egui::Shape::Vec(inner) => {
+                    for shape in inner {
+                        walk(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        for clipped in shapes {
+            walk(&clipped.shape, out);
+        }
+    }
+
     /// The text of every `Shape::Text` in a tree of shapes.
     fn collect(shapes: &[egui::epaint::ClippedShape], out: &mut Vec<String>) {
         fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
