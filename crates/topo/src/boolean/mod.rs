@@ -1477,7 +1477,8 @@ fn meeting_recourse(kind: &str) -> String {
 impl core::fmt::Display for BooleanError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Band(e) => write!(f, "the run's tolerance is not usable: {e}"),
+            // The band's own refusal names itself and carries its recourse.
+            Self::Band(e) => write!(f, "{e}"),
             // No operand is named: the raise sites disagree on whether
             // `operand` is the face's own operand or the operand of the
             // edge that met it.
