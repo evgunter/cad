@@ -106,9 +106,7 @@ fn find_square(
                     // carried this arm would be a tier that never
                     // existed — and every differential taken against
                     // it would measure two rules at once.
-                    SymOp::Abs
-                        if rules.sqrt_square && rules.canonical_root && rules.abs_square =>
-                    {
+                    SymOp::Abs if rules.sqrt_square && rules.canonical_root && rules.abs_square => {
                         // A budget refusal on the squared argument is
                         // not an answer about the FORM: skip this atom
                         // and keep looking, the way a rule that can

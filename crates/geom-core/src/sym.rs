@@ -1884,7 +1884,8 @@ impl SymRetry {
     /// left.
     fn attempts(self, first: SymRules) -> impl Iterator<Item = (SymRules, u64)> {
         [
-            self.without.map(|mask| (first.masked_by(mask), rational::COEFF_BITS)),
+            self.without
+                .map(|mask| (first.masked_by(mask), rational::COEFF_BITS)),
             self.bits.map(|bits| (first, bits)),
         ]
         .into_iter()
@@ -3334,11 +3335,7 @@ fn discharge_in(id: SymId, retries: bool) -> Option<(Discharge, u8)> {
 /// **The ladder**: the plain rung once, then the rungs of the first
 /// attempt, then — only into their silence — each retry's rungs in
 /// [`SymRetry::attempts`]'s order.
-fn ladder(
-    sess: &mut Session,
-    id: SymId,
-    retries: bool,
-) -> Option<(Discharge, Rung, u8)> {
+fn ladder(sess: &mut Session, id: SymId, retries: bool) -> Option<(Discharge, Rung, u8)> {
     // **THE PLAIN RUNG, and the first attempt's alone.** A plain
     // theorem is the strongest claim the tier makes; re-asking it under
     // other rules could only re-label it, so no attempt above the first
@@ -3358,7 +3355,11 @@ fn ladder(
         // **The GROWTH GUARD** (`RETRY_FORMS`): an attempt whose memos
         // are already at the cap is not offered again for the rest of
         // the leaf, and the decision stays numeric.
-        if sess.retries.get(attempt).is_some_and(|m| m.len() >= RETRY_FORMS) {
+        if sess
+            .retries
+            .get(attempt)
+            .is_some_and(|m| m.len() >= RETRY_FORMS)
+        {
             continue;
         }
         if let Some((d, rung)) = rungs(sess, id, &plain, rules, bits, k) {

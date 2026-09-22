@@ -149,7 +149,14 @@ fn replay(
             }
         });
     });
-    (if reported { take_shape_report() } else { Vec::new() }, counts)
+    (
+        if reported {
+            take_shape_report()
+        } else {
+            Vec::new()
+        },
+        counts,
+    )
 }
 
 /// The receipt's four decision columns, in the split's order — the
