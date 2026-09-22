@@ -819,16 +819,35 @@ fn a_memo_from_one_drive_never_serves_the_next() {
 /// (`geom-core`'s `sym_drive_memo`) needs a node unrecorded in one leaf
 /// and recorded in another, so the question this row answers is whether
 /// a DRIVE ever produces one at all. Measured: it does not, on either
-/// document, and the row pins that — a count that moves off zero means
+/// measured document nor on the racing drive, and the row pins that — a count that moves off zero means
 /// some lane started minting nodes outside the session, and the guard in
 /// `form_in` is then load-bearing rather than belt-and-braces.
 #[test]
 fn no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded() {
     let tol = Tol::witness();
-    for (label, doc) in [("slab", slab()), ("plate", the_plate(tol))] {
+    // The RACING drive is censused too, and it is the one this row
+    // owes most: it is the drive whose leaf DAGs are NOT subsets of the
+    // root's, which is the state an unrecorded freeze would have to
+    // come out of, and every claim about the leaves' NEED there
+    // (`the_leaves_of_a_racing_drive_report_one_column_under_every_schedule`)
+    // rests on the same branch staying empty.
+    let racing = DriveConfig {
+        max_leaves: RACE_LEAVES,
+        symbolic: editor_core::drive::SymbolicDials {
+            max_terms: RACE_TERMS,
+            max_degree: RACE_DEGREE,
+            ..editor_core::drive::SymbolicDials::default()
+        },
+        ..DriveConfig::default()
+    };
+    for (label, doc, cfg) in [
+        ("slab", slab(), config(UNRECORDED_LEAVES)),
+        ("plate", the_plate(tol), config(UNRECORDED_LEAVES)),
+        ("racing slab", slab(), racing),
+    ] {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         start_profile();
-        drive(&doc, &analyzed, &config(UNRECORDED_LEAVES), tol).unwrap();
+        drive(&doc, &analyzed, &cfg, tol).unwrap();
         let p = take_profile();
         let unrecorded = p
             .freezes

@@ -2,11 +2,12 @@
 id: SYM-13
 kind: unit
 title: the leaf receipt's frozen column is the leaf's NEED, not its work — schedule-independent by construction
-status: dispatched
+status: review
 opened: 2026-09-22
 priority: P0
 cost: D
 branch: sym/13-leaf-need
+pr: 3054
 refs: [leaf-frozen-column-is-schedule-dependent-under-the-drive-memo]
 ---
 
