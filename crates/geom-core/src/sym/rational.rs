@@ -308,8 +308,7 @@ pub(super) struct Rat {
 /// `i128`, the worst forms freeze again, and the plate's rim residual
 /// (degree 12 in a 53-bit nominal, ~640 bits) does NOT fit: that is
 /// the measured trade, recorded on M10's closed
-/// `plate-rim-residual-needs-the-wide-coefficient-ring`
-/// (`docs/DOC-LEDGER.md` sweep 13).
+/// `plate-rim-residual-needs-the-wide-coefficient-ring`.
 pub(super) const COEFF_BITS: u64 = 256;
 
 impl Rat {

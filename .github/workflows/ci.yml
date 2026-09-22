@@ -462,8 +462,7 @@ jobs:
       # Whether this run compiles the GUI toolkit graph (eframe + wgpu +
       # naga + winit). SEED-keyed per Ev's viewer-CI-posture ruling
       # (2026-08-27), which was recorded in the closed GUI program's log;
-      # that log left the tracker with the program's directory in
-      # DOC-LEDGER sweep 5 and reads at
+      # that log left the tracker with the program's directory and reads at
       # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`.
       # The argument is at `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
@@ -1882,7 +1881,7 @@ jobs:
       # `--skip-viewer-toolkit` when the change filter's seeds do not buy
       # the GUI toolkit rows (Ev's viewer-CI-posture ruling, 2026-08-27,
       # in the closed GUI program's log, which left the tracker with that
-      # program's directory in DOC-LEDGER sweep 5 and reads at
+      # program's directory and reads at
       # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`).
       # It takes `viewer` out of the
       # --all-features pass and puts it back at DEFAULT features, so its
@@ -2199,8 +2198,7 @@ jobs:
       # on `pncad`, so a leg that excludes the façade cannot include a
       # crate sitting on top of it. GUI-5 owns the real wasm lane for
       # the GUI (the closed GUI program's unit list, which left the
-      # tracker with that program's directory in DOC-LEDGER sweep 5 and
-      # reads at
+      # tracker with that program's directory and reads at
       # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/plan.md`);
       # this guard's subject is
       # the kernel plus `editor-core`, and it stays that. What the
@@ -2379,8 +2377,7 @@ jobs:
       # crates that no other row in this workflow needs. It is not a
       # default feature, and per Ev's viewer-CI-posture ruling
       # (2026-08-27, in the closed GUI program's log, which left the
-      # tracker with that program's directory in DOC-LEDGER sweep 5 and
-      # reads at
+      # tracker with that program's directory and reads at
       # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`)
       # the rows that compile it run only
       # when the change filter's SEEDS intersect {viewer, pncad, bvh} —
@@ -2463,7 +2460,7 @@ jobs:
   # Ev's viewer-CI-posture ruling (2026-08-27, "the GUI is treated as a
   # third-party consumer of the API") was recorded in the closed GUI
   # program's log, which left the tracker with that program's directory
-  # in DOC-LEDGER sweep 5 and reads at
+  # and reads at
   # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`.
   # It is paraphrased at `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
   # THE RULING HAS TWO CLAUSES AND THEY TRAVEL TOGETHER: the toolkit
