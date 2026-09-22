@@ -1,3 +1,37 @@
+## Per-merge deletion — RING-2's spec (2026-09-22)
+
+Recoverable at `git show 4cb762495d:docs/RING-2-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "ANY row that comes out
+LOOSER is a finding: stop, characterise, file" against the committed
+tess-budget baseline — the baseline's diff shows fifty-five looser
+certified cells on lily faces (≤ 6.4e-13 rel), every one main's own
+drift between the 09-15 cut and the merge base (the gate reads only
+sizing), RING-2's share measured with only `ring_interval.rs` swapped
+back being all tighter; characterised in the PR body and filed on
+INSTR; the "zero looser" claim is true of every corpus in the tree
+(16,995 rows, 2,294 tighter) and false of the arithmetic at the
+subnormal and overflow corners, where the newtype gives one subnormal
+step back — pinned executable; the register's "31 hazards" — 30
+(`ssi/certify.rs:692`'s read is the evaluation scalar's), the census
+made executable and its population rule (files naming the type)
+stated as a blind spot with a fixed extra roster; the Q9 gate's
+"outer rule two counts short" mutant — the outer rule two short is
+exact on the fixture (its image is degree 1) and the `1.96e-6` figure
+is the inner order's, the row renamed to what it pins; the spec's
+red-row table premise "the dry run's 22 rows" — two hosted heads
+after the PR opened went red on six more rows (two meter rows on an
+exactly-zero curvature bound, the reader-census ledger, two interval
+eps-1e-12 rows, the `step-export` sidecars), each dispositioned;
+"`from_certified` returns the DECORATED bracket" needed a way to read
+a scalar's endpoints beside its verdict — `CertifiedEnclosure` gained
+`crossing_bracket` (DL1 unchanged on both reviewing arms; the
+member-free route through `Enclosure` compiles and is refused by the
+bounds gate's ratification rule, so the member stays with the trait's
+doc made true). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `RING-2-SPEC.md` — RING-2, `RingInterval` is a newtype over `DInterval`; poison is `dec < Def`; every certificate re-pinned with its cause (#3032)
+
 # docs ledger — deleted historical documents
 
 This file is the permanent record of documents deleted from `docs/`

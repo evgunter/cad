@@ -309,3 +309,34 @@ slate. Two of its rows are this program's by §Charter, moved by
 Neither is dispatched. `startup-notices` is a design question before
 it is a unit; `app.rs` is shared with CHROME, AUTHOR and VGEOM, so
 its seam is announced when it goes out.
+
+## 2026-09-22 — one row in from VIEW, and its stated reason to wait is spent
+
+`opoutcome-committed-doc-says-at-most-one` (P4, E) moved by `git mv`,
+id, body and history unchanged. Filed onto VIEW's slate by AUTHOR's
+AUTH-3 lane on 2026-09-21; VIEW does not dispatch, and `plan.md` §What
+is left of this slate says a row landing on its ground goes to the
+successor whose charter covers it.
+
+**Why here and not VDOC**, since the fix is one doc sentence and
+changes no viewer behaviour, which is VDOC's charter exactly: VDOC's
+`paths` are `crates/viewer/README.md`, `crates/viewer/tests/*` and
+`crates/viewer/src/lib.rs`. **`session/op.rs` is not among them and is
+in this program's**, so a VDOC lane could not edit the file its own fix
+needs. Territory decides where charter cannot.
+
+**The row's reason for deferring is already spent.** It says *"the row
+beside it (`opoutcome-superseded-has-no-production-reader`) is already
+reading this type's fields … taking both in one sitting is cheaper
+than taking this alone."* That sibling is **closed** on `main`. So this
+is a lone one-line unit now, not half a pair — worth knowing before
+someone schedules it expecting company.
+
+The finding itself is sound and was checked: `OpOutcome::committed`'s
+doc says *"at most one per op"*, while `DocSession::delete_node`
+commits one `DocEdit::DeleteNode` per doomed node through
+`commit_action` and has answered with several for as long as the
+cascade has existed. AUTH-3's `ProfilePlane::NewXy` added a second
+such door but did not make the sentence false; it was false before.
+Nothing reads it as a bound — the row records that the twenty-one test
+sites assert a length rather than assuming one.

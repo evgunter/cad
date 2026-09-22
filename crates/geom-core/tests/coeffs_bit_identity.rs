@@ -224,9 +224,15 @@ pub fn check(rows: &[(String, u64)], row_count: usize, want: u64, spot: &[(&str,
 /// green by producing a shorter stream.
 const ROW_COUNT: usize = 960;
 
-/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order,
-/// captured through the retired spellings at the merge base.
-const DIGEST: u64 = 0xdedc_bc91_037f_daab;
+/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
+///
+/// **Re-captured when the C9 ring became a newtype over the backend**
+/// (`0xdedc_bc91_037f_daab` before): the ring padded one representable
+/// step outward on every operation unconditionally, and the backend
+/// pads only where the operation was inexact. 436 of this corpus's 960
+/// rows moved TIGHTER and none moved looser, so every door's bracket
+/// still encloses what it did and encloses less of what it did not.
+const DIGEST: u64 = 0xa4cd_6925_d86b_7355;
 
 /// Individual values from the same capture — one foothold per door
 /// family and per lane.
@@ -235,13 +241,21 @@ const SPOT: &[(&str, u64)] = &[
     ("d1.rat.ring.hull_rat@2.lo", 0xbfd7_9db2_2d0e_5604),
     ("d2m2.nr.f64.sup_domain", 0x4002_4fdf_3b64_5a1d),
     ("d2m2.rat.f64.hull_rat@4.hi", 0x4002_4fdf_3b64_5a1d),
-    ("d3.nr.ring.dhull@5.lo", 0xc002_8106_24dd_2f1f),
-    ("d3.rat.ring.ddomain.hi", 0x4020_2872_b020_c49f),
+    // Tighter by two steps: the derivative-hull fold's differences
+    // and sums are exact at these coefficients, so the backend's
+    // witnesses fire where the ring padded anyway.
+    ("d3.nr.ring.dhull@5.lo", 0xc002_8106_24dd_2f1d),
+    // Tighter by two steps, same cause one door over: the rational
+    // derivative-domain hull's exact steps stop being padded.
+    ("d3.rat.ring.ddomain.hi", 0x4020_2872_b020_c49d),
     ("d3m2.rat.f64.sup@6", 0x4002_4fdf_3b64_5a1d),
     ("d3m3.nr.f64.domain.hi", 0x4002_4fdf_3b64_5a1d),
     ("d3m3.rat.f64.sup_domain_rat", 0x4002_4fdf_3b64_5a1d),
     ("d4.nr.f64.hull@7.hi", 0x4002_4fdf_3b64_5a1d),
-    ("d4.nr.f64.dcoeff.3.hi", 0xc017_cac0_8312_6e94),
+    // Tighter by four steps (a `hi` on a negative value, so the bit
+    // pattern rises): the degree-4 derivative coefficient is a chain
+    // of exact differences, and the ring padded each one.
+    ("d4.nr.f64.dcoeff.3.hi", 0xc017_cac0_8312_6e98),
     ("d4.rat.ring.domain_rat.lo", 0xbff8_0000_0000_0000),
 ];
 

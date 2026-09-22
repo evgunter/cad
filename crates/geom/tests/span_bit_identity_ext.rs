@@ -436,13 +436,31 @@ fn digest(rows: &[(String, u64)]) -> u64 {
 /// cannot leave the digest green by producing a shorter stream.
 const ROW_COUNT: usize = 11_151;
 
-/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order,
-/// measured on the retired `(kv, span)` spellings at the merge base.
-const DIGEST: u64 = 0x606f_ae2d_7244_63e4;
+/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
+///
+/// **Re-captured when the C9 ring became a newtype over the backend**
+/// (`0x606f_ae2d_7244_63e4` before): the ring padded one representable
+/// step outward on every operation and the backend pads only where the
+/// operation was inexact. Exactly 28 of these 11 151 rows moved, all of
+/// them a `derivative_span_hull` or `derivative_domain_hull` endpoint
+/// and all of them TIGHTER — a derivative hull is a fold of exact
+/// differences, which is where the retired pad had nothing to cover, so
+/// each one lands on the exact value the reals give (`-6`, `4.5`, `1.5`,
+/// `12`). None moved looser.
+const DIGEST: u64 = 0xd572_6f5c_cd9a_ef62;
 
 #[test]
 fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {
     let r = rows();
+    // The dump hook runs BEFORE the assertions, like the sibling
+    // corpora's: a re-pin is measured row by row, and a digest that
+    // names nothing cannot be measured at all.
+    if std::env::var_os("CAD_PRINT_ROWS").is_some() {
+        for (n, b) in &r {
+            println!("ROW {n} {b:#018x}");
+        }
+        println!("rows {} digest {:#018x}", r.len(), digest(&r));
+    }
     assert_eq!(
         r.len(),
         ROW_COUNT,
@@ -454,11 +472,6 @@ fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {
         DIGEST,
         "a value in the extended corpus moved; run with --nocapture to print every row"
     );
-    if std::env::var_os("CAD_PRINT_ROWS").is_some() {
-        for (n, b) in &r {
-            println!("ROW {n} {b:#018x}");
-        }
-    }
 }
 
 fn bf64(x: f64) -> Vec<u64> {
