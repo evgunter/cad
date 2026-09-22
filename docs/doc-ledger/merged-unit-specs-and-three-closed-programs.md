@@ -1,6 +1,7 @@
-# Sweep 3 — 2026-08-28: the merged units' specs, and three closed programs
+# Merged units' specs, and three closed programs — 2026-08-28
 
-Sweep 1's rule applied to what had closed since.
+The rule of `milestone-plans-specs-and-docs-archive`, applied to what had
+closed since.
 
 Sweep SHA `4eda8abec43166ec4c027bb401a8f2cf9f3f7a9f`.
 
@@ -37,7 +38,7 @@ Sweep SHA `4eda8abec43166ec4c027bb401a8f2cf9f3f7a9f`.
 
 - `M8-PLAN.md`, `M8-LOG.md` — M8 closed 2026-08-15; done-state of
   record `M8-EXIT-WALK.md`. `DESIGN.md`'s M8 roadmap bullet, which
-  sweep 1 named as the reason to keep them, was trimmed to its
+  the first prune named as the reason to keep them, was trimmed to its
   exit-walk pointer in this sweep.
 - `M9-PLAN.md`, `M9-LOG.md` — M9 closed 2026-08-27; done-state of
   record `M9-EXIT-WALK.md`, which quotes the plan's criteria verbatim.

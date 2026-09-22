@@ -1,8 +1,9 @@
-# Sweep 11 — 2026-09-11: code-quality leaves the tracker
+# code-quality leaves the tracker — 2026-09-11
 
 **code-quality** — *"where a structural finding waits until a program
 claims it"* — opened 2026-08-18 as the tracker home of the 2026-08
-structural-findings register (`docs/SMELL-SCAN-2026-08.md`, sweep 4) and
+structural-findings register (`docs/SMELL-SCAN-2026-08.md`, retired by
+`smell-scan-register-and-stream-cut-replaced-by-the-tracker`) and
 its Tracks K–X schedule, and closed 2026-09-11. It is the first program to
 close empty by design: on 2026-09-11 all 110 of its remaining live rows
 were claimed at once by eleven programs opened for them

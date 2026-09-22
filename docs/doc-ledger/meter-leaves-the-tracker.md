@@ -1,11 +1,11 @@
-# Sweep 10 — 2026-09-09: METER leaves the tracker
+# METER leaves the tracker — 2026-09-09
 
 METER — the budget and K instruments, code-quality Track K's `tools/*` half
 (`tools/tess-lint`, `tools/tess-meter`, `tools/k-lint` and the two
 documents they feed, `docs/TESS-BUDGET.md` and `docs/K-REPORT.md`) — opened
 2026-09-06 and closed 2026-09-08 on Ev's ratification of
 `docs/METER-EXIT-WALK.md` (PR #2212, in three comments in that thread).
-Sweep 5's rule: `work/meter/` whole, seventeen rows closed. Thirteen unit
+The closed-program rule (`five-closed-programs-leave-the-tracker`): `work/meter/` whole, seventeen rows closed. Thirteen unit
 PRs, numbered 0–12 (2111, 2114, 2115, 2125, 2132, 2140, 2151, 2158, 2167,
 2177, 2179, 2180, 2187) — not the twelve the plan and the log both claimed,
 which is criterion 1's recorded honesty. Two `[ev]` rulings ratified (2109,

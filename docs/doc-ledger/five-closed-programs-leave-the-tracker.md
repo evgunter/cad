@@ -1,4 +1,4 @@
-# Sweep 5 — 2026-09-03: the five closed programs leave the tracker
+# Five closed programs leave the tracker — 2026-09-03
 
 **The rule the later sweeps run on** (Ev, 2026-09-03): `work/` tracks work
 still to be done, so a closed program's directory leaves the tracker whole
@@ -19,7 +19,7 @@ Sweep SHA `f955ddc75cda454a268f9214d2a753ae1a9bbd0f`.
 | `pcurve` | PCURVE — edge-description unification | 2026-08-29 | `docs/PCURVE-EXIT-WALK.md` (criterion rows quoted verbatim) |
 | `qa` | S-QA — gates that lie | 2026-08-31 | `docs/S-QA-EXIT-WALK.md` (criteria quoted verbatim) |
 
-Those five walks left `docs/` at sweep 6 ("finished work leaves `docs/`").
+Those five walks left `docs/` with `exit-walks-and-design-docs-leave-docs`.
 
 **Two of the five leave content that is only in git**, which is why this is
 named rather than left to be found: `gauth` had no exit walk, so the

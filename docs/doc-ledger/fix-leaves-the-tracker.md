@@ -1,9 +1,9 @@
-# Sweep 18 — 2026-09-21: FIX leaves the tracker
+# FIX leaves the tracker — 2026-09-21
 
 FIX — kernel and facade doors with the fix written — opened 2026-09-03 in
 the tracker-wide cut of that day (`docs/WORK-TRACKS-2026-09.md` §FIX) and
-closed 2026-09-21 on Ev's in-chat ruling, quoted in the walk. Sweep 5's
-rule: `work/fix/` whole, with no row re-homed at the sweep — the slate was
+closed 2026-09-21 on Ev's in-chat ruling, quoted in the walk. The closed-program rule
+(`five-closed-programs-leave-the-tracker`): `work/fix/` whole, with no row re-homed at the sweep — the slate was
 emptied first. Forty-eight rows closed, forty-four carrying a PR, none
 larger than class E and none reviewed adversarially; the last wave merged
 #2943, #2944, #2945, #2946 and #2948. Band **1700–1799** was claimed at the

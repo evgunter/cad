@@ -1,9 +1,9 @@
-# Sweep 16 — 2026-09-16: S-MESH leaves the tracker
+# S-MESH leaves the tracker — 2026-09-16
 
 S-MESH — mesh honesty and budget — opened 2026-08-31 from the ratified
 stream cut (`docs/WORK-STREAMS-2026-08.md` §S-MESH) and closed 2026-09-16
 on the walk Ev ratified on its PR (#2776, "lgtm", merged `6b1efa457`).
-Sweep 5's rule: `work/mesh/` whole. Eleven units (#1389, #1421, #1460,
+The closed-program rule (`five-closed-programs-leave-the-tracker`): `work/mesh/` whole. Eleven units (#1389, #1421, #1460,
 #1507, #1517, #1545, #1565, #1585, #1595, #1599, #1617), ordinals
 1200–1210. Three rulings ratified in-program (Ev, in chat, 2026-09-01):
 Q1, S65 stays compiled out; Q2, option (d); Q3, explicit doors and no

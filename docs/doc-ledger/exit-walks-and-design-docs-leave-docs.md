@@ -1,27 +1,4 @@
-# DOC-LEDGER sweep 6
-
-Three sweeps carried this number. They are distinct sweeps of distinct
-subjects, kept in one file so that a citation reading "DOC-LEDGER sweep 6"
-resolves to one place.
-
-## Sweep 6 — 2026-09-04: S-MATE leaves the tracker
-
-S-MATE — the mate program — closed on the ratification of
-`docs/S-MATE-EXIT-WALK.md` (`[ev]` PR #1528, merged by Ev 2026-09-01;
-confirmed in chat 2026-09-04). Sweep 5's rule. Four files: `work/mate/`'s
-`program.md`, `plan.md`, `log.md` and `MATE-EXIT.md`. Nine units, ordinals
-1300–1308 in `docs/MODEL-AB-LOG.md`. Residue was re-homed before the sweep
-and each moved row carries its own note.
-
-Sweep SHA `386e170f`.
-
-    git show 386e170f:work/mate/<FILE>
-    git show 386e170f:docs/S-MATE-EXIT-WALK.md
-
-Done-state of record: this note, the walk at the SHA above, the design at
-`crates/editor-core/ASSEMBLY.md`, and the A/B rows.
-
-## Sweep 6 — 2026-09-03: finished work leaves `docs/`; its design moves beside the code
+# Finished work leaves `docs/`; its design moves beside the code — 2026-09-03
 
 **The rule this sweep adds.** A document written for the implementer of
 finished work — an exit walk, a merged unit's spec, a design conversation
@@ -54,11 +31,11 @@ that lands here resolves without opening the walk:
 | `PCURVE-EXIT-WALK.md` | 2026-08-29 | in-chat | this row; `docs/PCURVE-UNIFY-DESIGN.md` stays (P-2 residue is S-CERT's) |
 | `S-BLEND-EXIT-WALK.md` | 2026-08-31 | PR #1370 | this row; vocabulary at `crates/sweep/README.md`, enclosing tangency at `crates/profile/README.md` |
 | `S-QA-EXIT-WALK.md` | 2026-08-31 | PR #1341 | this row |
-| `S-MATE-EXIT-WALK.md` | 2026-09-04 | PR #1528, merged by Ev 2026-09-01; ratification confirmed in-chat 2026-09-04 | this row; design at `crates/editor-core/ASSEMBLY.md`; the S-MATE sweep in this file |
-| `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, ratified in-chat 2026-09-06 | this row; sweep 7; vocabulary and bands at `crates/sweep/README.md` |
-| `DOCM-EXIT-WALK.md` | 2026-09-14 | ratified in advance in chat 2026-09-13 ("write it as ready to merge"); merged with sweep 14 | this row; sweep 14; design at `crates/editor-core/REFERENCES.md` (DM1–DM6) and `crates/editor-core/IDENTITY.md` (DI1–DI5) |
-| `FIX-EXIT-WALK.md` | 2026-09-21 | ratified in advance in chat 2026-09-21 ("please do close fix; most of those were either mis-filed or should've been done as drive-by fixes"); merged with sweep 18 | this row; sweep 18; the program claimed A/B band 1700–1799 and never drew an ordinal |
-| `S-CERT-EXIT-WALK.md` | 2026-09-06 | PR #1924, merged by Ev 2026-09-06 (the merge is the ratification, per the S-MATE convention) | this row; A/B record ordinals 700–714 in `docs/MODEL-AB-LOG.md`; sweep 7 |
+| `S-MATE-EXIT-WALK.md` | 2026-09-04 | PR #1528, merged by Ev 2026-09-01; ratification confirmed in-chat 2026-09-04 | this row; design at `crates/editor-core/ASSEMBLY.md`; `s-mate-leaves-the-tracker` |
+| `FILLET-EXIT-WALK.md` | 2026-09-06 | PR #1973, ratified in-chat 2026-09-06 | this row; `fillet-leaves-the-tracker`; vocabulary and bands at `crates/sweep/README.md` |
+| `DOCM-EXIT-WALK.md` | 2026-09-14 | ratified in advance in chat 2026-09-13 ("write it as ready to merge"); merged with `docm-leaves-the-tracker` | this row; `docm-leaves-the-tracker`; design at `crates/editor-core/REFERENCES.md` (DM1–DM6) and `crates/editor-core/IDENTITY.md` (DI1–DI5) |
+| `FIX-EXIT-WALK.md` | 2026-09-21 | ratified in advance in chat 2026-09-21 ("please do close fix; most of those were either mis-filed or should've been done as drive-by fixes"); merged with `fix-leaves-the-tracker` | this row; `fix-leaves-the-tracker`; the program claimed A/B band 1700–1799 and never drew an ordinal |
+| `S-CERT-EXIT-WALK.md` | 2026-09-06 | PR #1924, merged by Ev 2026-09-06 (the merge is the ratification, per the S-MATE convention) | this row; A/B record ordinals 700–714 in `docs/MODEL-AB-LOG.md`; `s-cert-leaves-the-tracker` |
 
 
 - `M5-EXIT-WALK.md` — M5 exit walk (PR 14) — criteria vs evidence
@@ -207,22 +184,3 @@ conversation and the code had since diverged.
 - `CONTACT-DESIGN.md` — Contact census & declared contact (pre-implementation design doc)
 - `PROFILES-V2-DESIGN.md` — PROFILES-V2-DESIGN: profiles as programs — the representation switch
 - `GUI-DESIGN.md` — GUI / Editor Architecture — Design Document
-
-## Sweep 6 — 2026-09-04: VERBS leaves the tracker
-
-VERBS — the modeling-verb breadth program — closed 2026-09-04 on
-`docs/VERBS-EXIT-WALK.md`, ratified by Ev at PR #1793 (merged
-`fd45920d5`). Sweep 5's rule. Twenty files: `work/verbs/` whole. A/B band
-100–199 stays claimed in `docs/MODEL-AB-LOG.md`. Fourteen live rows were
-re-homed to `work/issues/` in the dispositions commit first, each carrying
-its own note.
-
-Sweep SHA `c1e7ea19501d9e625dbd0de260d01a53a0384b42`.
-
-    git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:work/verbs/<FILE>
-    git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:docs/VERBS-EXIT-WALK.md
-
-Done-state of record: this note and the walk at the SHA above — 28
-delivered unit/PR rows (every implementation row of `docs/KERNEL-VERBS.md`),
-two measured-and-refused boundaries, ~10 transfers, and the A/B instrument
-at close.

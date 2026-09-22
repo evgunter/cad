@@ -1,6 +1,6 @@
 //! MSOLVE-6 acceptance — **the mate's lever is the mated parts' own
 //! extent**, taken from each part's evaluated body (the MSOLVE-6
-//! spec's rows A2–A5; the spec is ledgered in `docs/DOC-LEDGER.md`).
+//! spec's rows A2–A5; the spec was deleted at the unit's merge).
 //!
 //! The lever a mate's angular decisions turn on is
 //! `(R_a + ‖a.origin‖) + (R_b + ‖b.origin‖) + Σ|authored lengths|`,

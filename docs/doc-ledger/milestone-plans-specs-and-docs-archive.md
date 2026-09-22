@@ -1,4 +1,4 @@
-# Sweep 1 — 2026-08-20
+# Closed milestones' plans and logs, merged units' specs, and `docs/archive/` — 2026-08-20
 
 The first sweep: closed milestones' plans and logs, merged units' binding
 specs, and `docs/archive/` retired in full. **109 files.**

@@ -1,4 +1,4 @@
-# Sweep 19 — 2026-09-21: DOOR leaves the tracker
+# DOOR leaves the tracker — 2026-09-21
 
 DOOR — the doors whose fix is already written — opened 2026-09-11 in the
 eleven-program cut of that day (`docs/WORK-TRACKS-2026-09.md` addendum 3)

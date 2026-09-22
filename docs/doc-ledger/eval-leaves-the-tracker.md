@@ -1,9 +1,9 @@
-# Sweep 9 — 2026-09-08: EVAL leaves the tracker
+# EVAL leaves the tracker — 2026-09-08
 
 EVAL — the evaluation seat (`crates/editor-core/src/eval/*`, the verb seat,
 the names emitters, `topo::query`/`flush`) — opened 2026-09-06 and closed
 2026-09-08 on Ev's ratification of `docs/EVAL-EXIT-WALK.md` (PR #2201,
-"lgtm!", merged `8d34121c7`). Sweep 5's rule: `work/eval/` whole. Eleven E
+"lgtm!", merged `8d34121c7`). The closed-program rule (`five-closed-programs-leave-the-tracker`): `work/eval/` whole. Eleven E
 units (PRs 2139, 2153, 2160, 2165, 2168, 2173, 2176, 2186, 2190, 2194,
 2195), no A/B rows (band 3000–3099 claimed and unused), two `[ev]` rulings
 (PRs 2137, 2138). Five rows were re-homed first, each carrying its own

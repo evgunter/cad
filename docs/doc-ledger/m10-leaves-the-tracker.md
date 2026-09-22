@@ -1,8 +1,8 @@
-# Sweep 13 — 2026-09-13: M10 leaves the tracker
+# M10 leaves the tracker — 2026-09-13
 
 M10 — the error-propagation MVP — opened 2026-08-29 and closed 2026-09-13
 on Ev's ratification of `docs/M10-EXIT-WALK.md` (PR #1700, in chat).
-Sweep 5's rule: `work/m10/` whole — `program.md`, `plan.md`, `log.md`,
+The closed-program rule (`five-closed-programs-leave-the-tracker`): `work/m10/` whole — `program.md`, `plan.md`, `log.md`,
 seven unit rows and twelve closed issue rows. Thirteen units: M10-D
 (#1146), M10-DI (#1154), M10-1 (#1147), M10-P (#1174), M10-2 (#1213),
 M10-3 (#1231), M10-4 (#1627), M10-5 (#1638), M10-6 (#1685), M10-7 (#1725),

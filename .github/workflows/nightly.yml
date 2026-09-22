@@ -240,7 +240,7 @@ jobs:
   # {viewer, pncad, bvh} — Ev's viewer-CI-posture ruling, 2026-08-27, "the
   # GUI is treated as a third-party consumer of the API". It was recorded in
   # the closed GUI program's log, which left the tracker with that program's
-  # directory in DOC-LEDGER sweep 5 and reads at
+  # directory and reads at
   # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`.
   # That skip is sound for the class of breakage it was reasoned about
   # (kernel changes reaching viewer through `pncad`'s re-exports, which

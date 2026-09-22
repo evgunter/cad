@@ -1,10 +1,10 @@
-# Sweep 12 — 2026-09-12: CITE leaves the tracker
+# CITE leaves the tracker — 2026-09-12
 
 CITE — citations, numbering and the paperwork a lane runs on — opened
 2026-09-11 in the tracker cut of that day
 (`docs/WORK-TRACKS-2026-09.md` addendum 3) and closed 2026-09-12 on Ev's
 ratification of `docs/CITE-EXIT-WALK.md` (PR #2405). It claimed **no
-paths**, by charter. Sweep 5's rule: `work/cite/` whole — `program.md`,
+paths**, by charter. The closed-program rule (`five-closed-programs-leave-the-tracker`): `work/cite/` whole — `program.md`,
 `plan.md`, `log.md` and eight closed item files. Two PRs merged, #2397 (the
 convention, the repairs and four rulings) and #2405 (the walk).
 Infra-and-prose: no A/B rows, no ordinal spent; band 4000–4099 stays

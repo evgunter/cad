@@ -178,8 +178,7 @@ fn measure_the_ceiling_on_the_two_hole_plate() {
     // multiple of the ceiling — past the ceiling several predicates
     // are over the band at once and the first name is evaluation
     // order (M10's closed
-    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
-    // `docs/DOC-LEDGER.md` sweep 13).
+    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
     let doc = doc_at(on_hi);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, refusal, counts) = crate::m10_8_arc_family_interval::replay(

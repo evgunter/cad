@@ -1,17 +1,19 @@
-# Sweep 4 — 2026-09-03: the work tracker replaces the register and the survey
+# The findings register and the stream cut, replaced by the tracker — 2026-09-03
 
 Two documents deleted, their content carried into `work/` (contract:
 `work/README.md`).
 
-    git show <sweep 4's commit>^:docs/SMELL-SCAN-2026-08.md
-    git show <sweep 4's commit>^:docs/WORK-STREAMS-2026-08.md
+    git show <this deletion's commit>^:docs/SMELL-SCAN-2026-08.md
+    git show <this deletion's commit>^:docs/WORK-STREAMS-2026-08.md
 
 - `SMELL-SCAN-2026-08.md` — the 2026-08 structural-findings register and
   its Tracks K–X schedule. Its rows became item files under
-  `work/code-quality/`, which itself left the tracker at sweep 11; the rows
+  `work/code-quality/`, which itself left the tracker at
+  `code-quality-leaves-the-tracker`; the rows
   are on the eleven programs of the 2026-09-11 cut
   (`docs/WORK-TRACKS-2026-09.md` addendum 3). The register's `D<N>`/`S<N>`
-  numbering scheme is retired, not relocated — see sweep 11's amendment.
+  numbering scheme is retired, not relocated — see the amendment in
+  `code-quality-leaves-the-tracker`.
 - `WORK-STREAMS-2026-08.md` — the 2026-08-29 stream cut. Every stream it
   proposed graduated to a program, and each `work/<program>/program.md`
   carries the charter and territory it assigned.
@@ -23,7 +25,8 @@ Every `docs/<NAME>-PLAN.md` / `docs/<NAME>-LOG.md` pair became
 `4916f90cfc5cd45c0092b9464fd1fed604f93140` (PR #1619) or its siblings, with
 no content change — `git log --follow -- <new path>` walks through the
 rename. The nine `SMELL-*-LOG.md` track logs went to
-`work/code-quality/logs/` and left the tree at sweep 11.
+`work/code-quality/logs/` and left the tree with
+`code-quality-leaves-the-tracker`.
 `docs/MODEL-AB-LOG.md` stays in `docs/`. `scripts/work.py lint` refuses a
 plan or log reappearing in `docs/`.
 

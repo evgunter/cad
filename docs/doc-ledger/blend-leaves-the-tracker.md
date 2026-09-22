@@ -1,8 +1,8 @@
-# Sweep 17 — 2026-09-17: BLEND leaves the tracker
+# BLEND leaves the tracker — 2026-09-17
 
 BLEND — the blend kernel and the profile fillet door — opened 2026-09-06 as
 FILLET's successor and closed 2026-09-17 on the walk Ev ratified on its PR
-(#2826, merged `1addbf098`). Sweep 5's rule: `work/blend/` whole —
+(#2826, merged `1addbf098`). The closed-program rule (`five-closed-programs-leave-the-tracker`): `work/blend/` whole —
 `program.md`, `plan.md`, `log.md`, `logs/` (eighteen stored review briefs)
 and twenty-three closed rows. Fifteen units and one ruling: E units 1–5
 (#2123, #2122, #2141, #2129, #2155), unit K (#2149), and H units 6, 7, 9,

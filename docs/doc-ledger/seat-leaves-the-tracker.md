@@ -1,9 +1,9 @@
-# Sweep 8 — 2026-09-06: SEAT leaves the tracker
+# SEAT leaves the tracker — 2026-09-06
 
 SEAT — the verb-seat program — closed 2026-09-06 on Ev's ratification of
 `docs/SEAT-EXIT-WALK.md` (`[ev]` PR #1997, "1997 looks good", merged
 `6fe98d312`); the text correction it carried was ratified the same way on
-`[ev]` PR #1983. Sweep 5's rule. Fifteen files: `work/seat/` whole.
+`[ev]` PR #1983. The closed-program rule (`five-closed-programs-leave-the-tracker`). Fifteen files: `work/seat/` whole.
 Twelve units — SEAT-1 #1399, SEAT-2 #1521, SEAT-3 #1531, SEAT-4 #1547,
 SEAT-DV #1564, SEAT-5 #1581, SEAT-6 #1593, SEAT-7 #1910, SEAT-8 #1950,
 SEAT-FW #1974, SEAT-DN #1987, SEAT-9 #1995 — ordinals 1000–1011 in

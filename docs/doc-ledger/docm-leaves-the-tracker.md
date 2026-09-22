@@ -1,8 +1,8 @@
-# Sweep 14 — 2026-09-14: DOCM leaves the tracker
+# DOCM leaves the tracker — 2026-09-14
 
 DOCM — the document model — opened 2026-09-03 and closed 2026-09-14 on the
 walk Ev ratified in advance (in chat, 2026-09-13: *"write it as ready to
-merge"*), merged with this sweep. Sweep 5's rule: `work/docm/` whole —
+merge"*), merged with this sweep. The closed-program rule (`five-closed-programs-leave-the-tracker`): `work/docm/` whole —
 `program.md`, `plan.md`, `log.md`, nine unit rows and fourteen closed issue
 rows. Nine dualled units (#1808, #1803, #1829, #1860, #1871, #2028, #2035,
 #2073, #2534), ordinals 1800–1808, plus three mechanical E units (#1839,
