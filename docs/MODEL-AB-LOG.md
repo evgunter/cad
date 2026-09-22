@@ -7098,6 +7098,24 @@ SYM-7 RECORDED AT MERGE (2026-09-15, PR #2609 merged; sample #199 — prior high
 
 SYM-8 RECORDED AT MERGE (2026-09-21, PR #2616 merged; sample #226 — prior highest #225 on main at merge; block SYM-B2 slot 1 concluded; the block record stays on `sym/b2-block`). **Protocol v7 triage, recorded late (v7 is 09-19; the unit was spec'd 09-14 under v6): SYM-8 triaged IN — a rule of the atom algebra, H / NUMERIC; the dual is the v6 full dual, dispatched 09-19 22:50Z.** **The orchestrator's model, per phase:** spec, dispatch and adjudication FABLE (the local fork); fix pass, state-sync and merge FABLE (the cloud session); the unit changed hands at the fork of 09-19. Method notes applying to both arms: the dual ran on Ev's shared local box (load 26–58, four orchestrators) where NEITHER arm could run its editor-core re-takes (R1's interval test binary did not link in 2.5 h; R2's was OOM-killed twice), so both arms' numeric claims ride the hosted gate and the PR's tables; both arms were stopped by an account session limit and resumed with state intact; R2's report was written by the resumed agent from its finished rows; the reports, the union brief and the delta crossed sessions through PR #2949. R1 disclosed two glimpses (an `ls -la` of the lanes directory, one `pgrep -af` on its own path), neither carrying a finding; the pair is FLAGGED. No unilateral MAJOR. Tokens per phase: impl + fix ~614k (one agent), reviews ~245k (R1) + ~275k (R2), delta ~35k; adjudication ~1 h on the local fork.
 
+## SYM-13 review ordinal fixed at dispatch (2026-09-22)
+
+SYM-13 (the leaf receipt's `frozen` column is the leaf's NEED —
+schedule-independent by construction; PR #3054 open against `main` —
+frozen head `47ae64a4e3e2b06aad73c22bdb5816f7edd20ce6`, run 35688938411 GREEN
+on the full matrix, twelve `test (…)` and five `k-lint (gate, …)`, the
+interval oracle/backend jobs skipped by the change filter — a question
+put to both reviewers): **ordinal 4707** (SYM's band — 4700–4799).
+Protocol v7 IN (a receipt-contract decision: what a column on a leaf
+receipt MEANS; D / STRUCTURAL, pre-draw on `sym/b3-block`). The v6
+dual: draw = `/dev/urandom` byte **248**, parity 0 ⇒ **R1 = OPUS,
+R2 = FABLE**, concurrent on the frozen head, read-side isolation (v6
+item 5), briefs identical but for the lane name and stored with sha256
+before either ran (`cbbc9ff170cf…` / `b42762950fa1…`). Implementer arm OPUS per
+block SYM-B3's draw (byte 178 ⇒ fable at slot 1). Impl phase: ~324k
+tokens / ~2.2 h on the harness counter (dispatch ~03:29Z, PR ~05:30Z);
+no intermediate red. Sample number at merge. Row at merge.
+
 ## SYM-12 review ordinal fixed at dispatch (2026-09-21)
 
 SYM-12 (the derived-frame freeze's next shape — `tiltUV` rendered, the
@@ -7991,5 +8009,7 @@ time — partial wall-clock concurrency, applied to both arms equally.
 Sample number at merge.
 
 ## TESS program rows (work/tess/; band 5100–5199; blocks named TESS-B<n>)
+
+TESS-1 RECORDED AT MERGE (2026-09-22, PR #2852 merged at `5a83b580b`; sample #236 — prior highest #235 on main at merge; block TESS-B1 slot 0 concluded; the block record, draw bytes and stored briefs stay on `tess/b1-block`). Ordinal 5100. Pre-draw M / STRUCTURAL. Implementer arm FABLE (block TESS-B1, byte 87 → fable position 0). Dual: byte 82, parity 0 ⇒ R1 OPUS, R2 FABLE, concurrent same-head on `7a5fe831e`, briefs identical modulo the lane label (sha256 on the block branch). R1 APPROVE-WITH-FIXES 2/6/7, rubric 4/4/3, devs 4 reported / 3 silent by its count (two DESIGN-adjacent, one an understated disclosure); R2 APPROVE-WITH-FIXES 1/5/5, rubric 4/4/3, devs 5 / 0. MAJORs (prose): R1 — the walk doc's "enforced, not assumed" over-claims (the guard covers the no-meridian half only), and the deleted executed witness that `require_swept_rectangle` admits a zero-height box; R2 — the variant filed under D2 row 2 while the naming rule makes row 2 `Unsupported*` (the spec's error, under ruling (N) it is row 1). **No tally candidate**: every MAJOR was mentioned by the other reviewer, none demonstrated by execution. Both reproduced the guard-removed mutant; R2 also ran assertions-off. Method: both briefs carried the same disk note (per-package builds, 8 G floor); R1 skipped the assertions-off rebuild by its own economy at 13 G, R2 did not — no relaxation granted, pair FAIR; one names-only glimpse (R1 saw the other lane's directory name in a listing; no content). Fix pass implementer-inherited, union A–L, three hosted rounds, no local build (disk under the floor) — every fix-pass edit compiled by CI only; then one merge-forward round on 541 commits of main. Tokens: impl ~274k, fix ~426k (includes the merge round ~408k harness figure at report — the two figures overlap in the harness's accounting; the lane's own estimate is ~2 h editing), reviews ~258k (R1) + ~234k (R2). Wall-clock: impl ~3.5–4 h active across a usage-limit outage (2026-09-19 → 20); reviews ~50 min (R1) / ~2 h 20 m (R2), both mostly build-slot waits; fix pass ~6–7 h elapsed, mostly CI rounds and a wedged box (5 G free, load 45; annotated). Orchestrator FABLE for every phase.
 
 TESS-1 review ordinal fixed at dispatch (2026-09-20, PR #2852 open, frozen head `7a5fe831e`, hosted run 35550649883 green on the full matrix): **ordinal 5100** (TESS band, its first). Unit: a curved face whose loop classifies with no meridian traversal refuses typed (`TessellateError::MeridianFreeCurvedFace`) where it meshed as a hole. Pre-draw fields, logged in `work/tess/log.md` before the block draw: difficulty **M**, task-class **STRUCTURAL**; implementer arm per block TESS-B1 slot 0 (record branch-side on `tess/b1-block`). Protocol v6 dual: R1/R2 byte and assignment recorded branch-side with the block. Method, recorded before either review runs: CONCURRENT same-head, both briefs generated from one template and STORED with sha256 on `tess/b1-block` before either dispatches, neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and scratch per reviewer. Method note applying to BOTH arms equally: ~16 G free on the box, so `CARGO_INCREMENTAL=0`, debug, per-package builds, and a stop-building floor at 8 G, stated identically in both briefs. Implementer-phase gap annotated branch-side (a usage-limit outage, 2026-09-19 → 2026-09-20). Sample number assigned at merge.

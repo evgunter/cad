@@ -5328,6 +5328,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "certificate_exceeded",
             "empty_loop",
             "invalid_chordal_tolerance",
+            "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",
             "resolution_overflow",
