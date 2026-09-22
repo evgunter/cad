@@ -2,10 +2,13 @@
 id: a-bare-field-still-commits-its-own-render
 kind: issue
 title: A bare egui::DragValue takes the render from the context and the echo guard from nothing, so it still commits its own text
-status: open
+status: closed
 opened: 2026-09-21
 priority: P2
 cost: D
+branch: vgeom/field-product
+pr: 3067
+closed: 2026-09-22
 ---
 
 Filed by `vgeom/p0-fields` while generalising the echo guard of
