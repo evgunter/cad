@@ -1,14 +1,14 @@
-//! **The two iso-bounded witnesses no public construction mints**,
+//! **The iso-bounded witnesses no public construction mints**,
 //! assembled through the Euler doors — the one route the walk's own
 //! docs name as fronted by no certification. Shared by the integration
-//! suite (`tests/iso_rectangle_door.rs`, through the public
-//! `tessellate`) and by `curved`'s in-crate rows (through the walk
-//! itself), so the bodies both sides measure are one definition. Uses
-//! nothing from `mesh`, which is what lets one file compile in both.
+//! suites (through the public `tessellate`) and by `curved`'s in-crate
+//! rows (through the walk itself), so the bodies both sides measure
+//! are one definition. Uses nothing from `mesh`, which is what lets
+//! one file compile in both.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::EdgeCurveSpec;
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceKey, FaceSurface, MefSite, MevSite};
@@ -414,4 +414,75 @@ pub fn apex_crossing_bowtie() -> (Body<f64>, FaceKey, FaceKey) {
         )
         .unwrap();
     (body, seed.face, made.face)
+}
+
+/// **The one-circle cut**: a closed two-face body whose faces share ONE
+/// circle, stated as two half arcs between the circle's `t = 0` and
+/// `t = π` points — so each face's single loop is those two arcs and
+/// nothing else. With the circle a rim of a curved `seed` or `made`
+/// surface this is the meridian-free face: a sphere cap, a cone's apex
+/// cap or a cylinder's one-rim face, closed by a disc (`made` a plane)
+/// or by its own complement (`made` absent, both faces on `seed`).
+///
+/// With two surfaces the edges are described as their intersection,
+/// each with a witness point on its own arc; with one they are
+/// described at rest on it.
+pub fn one_circle_cut(
+    circle: &Curve3<f64>,
+    seed: Surface<f64>,
+    made: Option<Surface<f64>>,
+) -> Body<f64> {
+    use core::f64::consts::{FRAC_PI_2, PI, TAU};
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let start = body.mvfs(circle.eval(0.0)).unwrap();
+    body.set_face_surface(start.face, FaceSurface::New(seed))
+        .unwrap();
+    let first = body
+        .mev(
+            MevSite::Lone {
+                r#loop: start.r#loop,
+            },
+            circle.eval(PI),
+            arc(circle.clone(), 0.0, PI),
+            tol,
+        )
+        .unwrap();
+    let transverse = made.is_some();
+    let second = body
+        .mef(
+            MefSite::Chords {
+                he1: first.he_minus,
+                he2: first.he_plus,
+            },
+            arc(circle.clone(), PI, TAU),
+            made.map_or(FaceSurface::Inherit, FaceSurface::New),
+            tol,
+        )
+        .unwrap();
+    let s_seed = body.get_face(start.face).unwrap().surface;
+    let s_made = body.get_face(second.face).unwrap().surface;
+    for (edge, mid) in [(first.edge, FRAC_PI_2), (second.edge, PI + FRAC_PI_2)] {
+        if transverse {
+            let curve = body.get_edge(edge).unwrap().curve;
+            let spec = body
+                .get_curve_geom(curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .restated_spec();
+            let spec = EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: s_seed,
+                    s2: s_made,
+                    witness: circle.eval(mid),
+                },
+                ..spec
+            };
+            body.set_edge_curve(edge, spec, tol).unwrap();
+        } else {
+            body.describe_at_rest(edge, s_seed, tol).unwrap();
+        }
+    }
+    body
 }
