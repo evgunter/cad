@@ -12,7 +12,10 @@ use geom_core::spline::knots::KnotVector;
 struct Lcg(u64);
 impl Lcg {
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.0 >> 11
     }
     fn unit(&mut self) -> f64 {
@@ -177,7 +180,10 @@ fn r2_refined_weight_lost_positivity_reachability() {
             }
         );
         if w >= 1e-300 {
-            assert!(!matches!(r, Err(PatchBoundError::RefinedWeightLostPositivity)));
+            assert!(!matches!(
+                r,
+                Err(PatchBoundError::RefinedWeightLostPositivity)
+            ));
         }
     }
 }

@@ -50,8 +50,8 @@ fn r2_bilinear_census_dump() {
             ));
             weights.push(10f64.powf(r.range(-2.0, 2.0)));
         }
-        let s = NurbsSurface::new(kv.clone(), kv.clone(), control.clone(), weights.clone())
-            .unwrap();
+        let s =
+            NurbsSurface::new(kv.clone(), kv.clone(), control.clone(), weights.clone()).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
         let list = |v: &[f64]| v.iter().map(|x| hex(*x)).collect::<Vec<_>>().join(",");
         let pts: Vec<f64> = control.iter().flat_map(|p| [p.x, p.y, p.z]).collect();

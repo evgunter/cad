@@ -29,10 +29,17 @@ fn r2_constant_coefficients_leave_the_hull() {
             let inside = r.lo() >= c.min(c) && r.hi() <= c;
             if !inside {
                 left += 1;
-                println!("c={c}: slot {i} = [{:.17e}, {:.17e}] leaves hull [{c}, {c}]", r.lo(), r.hi());
+                println!(
+                    "c={c}: slot {i} = [{:.17e}, {:.17e}] leaves hull [{c}, {c}]",
+                    r.lo(),
+                    r.hi()
+                );
             }
         }
-        println!("c={c}: {left} of {} slots left the degenerate hull", out.len());
+        println!(
+            "c={c}: {left} of {} slots left the degenerate hull",
+            out.len()
+        );
     }
 }
 
@@ -45,12 +52,25 @@ fn r2_hairline_insertion_is_total() {
     let u = 0.5f64.next_up();
     let out = chain(&kv, &[u, 0.25], &[0.0, 1.0, -2.0, 3.0]);
     for (i, r) in out.iter().enumerate() {
-        println!("slot {i}: poison={} [{:.17e}, {:.17e}] width {:e}", r.is_poison(), r.lo(), r.hi(), r.width());
+        println!(
+            "slot {i}: poison={} [{:.17e}, {:.17e}] width {:e}",
+            r.is_poison(),
+            r.lo(),
+            r.hi(),
+            r.width()
+        );
         assert!(!r.is_poison());
     }
     // Repeated insertion at an EXISTING interior knot up to the C1 budget.
     let out2 = chain(&kv, &[0.5], &[0.0, 1.0, -2.0, 3.0]);
-    println!("repeat at 0.5 (mult 1 -> 2 = p): {} slots, poison={}", out2.len(), out2.iter().any(|r| r.is_poison()));
+    println!(
+        "repeat at 0.5 (mult 1 -> 2 = p): {} slots, poison={}",
+        out2.len(),
+        out2.iter().any(|r| r.is_poison())
+    );
     let over = refine_plan_homogeneous(&kv, &[0.5, 0.5]);
-    println!("repeat at 0.5 twice (over the degree budget): {:?}", over.map(|p| p.len()));
+    println!(
+        "repeat at 0.5 twice (over the degree budget): {:?}",
+        over.map(|p| p.len())
+    );
 }
