@@ -2,7 +2,7 @@
 id: lane-3-shell-lane-folded
 kind: unit
 title: LANE-3: ShellLane folds into AtRestPolicy — the shell door is a value the policy answers, the verb takes it, the witness is a function
-status: open
+status: review
 opened: 2026-09-21
 branch: scalar/lane-3
 ---
