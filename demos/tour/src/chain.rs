@@ -174,6 +174,12 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 /// swing however many joints it is spread over, and that single
 /// threshold is the wall. MEASURED by [`crate::chaintol`] and pinned
 /// there; [`CERTIFIABLE_FRACTION`] is the last row.
+///
+/// Read only by that cell, which is behind the `interval` feature, so
+/// a default build legitimately has no consumer for it — the
+/// measurement is part of this document's record either way, and the
+/// sheet's own [`CERTIFIABLE_FRACTION`] is the last row of it.
+#[cfg_attr(not(feature = "interval"), allow(dead_code))]
 pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
 
 /// **The certified enclosure of each joint pin's centre at that box**
