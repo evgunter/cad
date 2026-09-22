@@ -42,3 +42,7 @@ proptest = { workspace = true }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "tess2_r2_probes"
+path = "tests/tess2_r2_probes.rs"
