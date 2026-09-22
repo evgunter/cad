@@ -283,8 +283,8 @@ impl Bounds {
     /// **A bound may be zero or negative, and the render is right about
     /// both.** The rule is that a text reads back as the value, not that
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
-    /// a distance ([`crate::readout::REL_TOLERANCE`] is relative to the
-    /// magnitude). This is what stops the rule being
+    /// a distance ([`crate::readout::reads_back`] measures how far a
+    /// text reads FROM the value). This is what stops the rule being
     /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
     ///
