@@ -1,3 +1,21 @@
+## Per-merge deletion — TESS-1's spec (2026-09-22)
+
+Recoverable at `git show c25a1ed80:docs/TESS-1-SPEC.md` (the merged
+head). What it decided: a curved face whose loop classifies with no
+meridian traversal refuses typed at the walk, on that structural fact
+alone (`TessellateError::MeridianFreeCurvedFace`), where it walked to
+a zero-height polygon and meshed as a hole; the refusal is per kind
+(sphere, cone, cylinder), the torus member stays behind PROPS' shape
+door; the census message says what it counted. Its sentences that did
+not survive: "D2 addendum row 2 — valid input, unbuilt lane" (ruling
+(N) landed mid-unit: row 1, invalid input; both reviewers caught the
+spec's error and the fix pass re-filed the prose, keeping the name and
+python tag); "refuses at every Δv" (PROPS' `props_rim_side` unanimity
+now escalates a band-apart pair one door earlier). Recorded in the PR
+body and the unit's `## Closed` section.
+
+- `TESS-1-SPEC.md` — TESS-1, a meridian-free curved face refuses typed (#2852)
+
 ## Per-merge deletion — RING-2's spec (2026-09-22)
 
 Recoverable at `git show 4cb762495d:docs/RING-2-SPEC.md` (the fix-pass
