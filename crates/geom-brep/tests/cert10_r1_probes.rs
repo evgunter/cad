@@ -724,3 +724,226 @@ fn cert10r1_the_coarsened_grid_still_meets_its_chord_tolerance() {
         "the coarsened grid does not deliver its chord tolerance: {failures:?}"
     );
 }
+
+// ---------------------------------------------------------------
+// TESS-2 r1 REVIEW PROBE: exact-referee containment dump.
+//
+// The suites above sample the true partials in `f64` and allow slack.
+// This one emits the description and every cell enclosure as BITS, so
+// an exact-rational referee (`scratch/tess2_r1_exact_containment.py`)
+// can decide containment with no allowance at all, at degrees and
+// multiplicities the PR's two bilinear corners do not reach.
+// ---------------------------------------------------------------
+
+fn hexes(xs: impl IntoIterator<Item = f64>) -> String {
+    xs.into_iter()
+        .map(|x| format!("{:016x}", x.to_bits()))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn dump_fixture(name: &str, n: &NurbsSurface<f64>, splits: usize, stride: usize) {
+    let cells = geom_brep::patch_bound::patch_cells_refined(n, splits).expect("cells");
+    let (nu, nv) = n.control_counts();
+    println!(
+        "FIXTURE {name} du={} dv={}",
+        n.knots_u().degree(),
+        n.knots_v().degree()
+    );
+    println!("KNOTS_U {}", hexes(n.knots_u().knots().iter().copied()));
+    println!("KNOTS_V {}", hexes(n.knots_v().knots().iter().copied()));
+    println!("NUNV {nu} {nv}");
+    println!("WEIGHTS {}", hexes(n.weights().iter().copied()));
+    println!(
+        "CONTROL {}",
+        hexes(n.control().iter().flat_map(|p| [p.x, p.y, p.z]))
+    );
+    println!("NCELLS {}", cells.len());
+    for (ci, cell) in cells.iter().enumerate() {
+        let corner = ci == 0 || ci + 1 == cells.len();
+        if !corner && ci % stride != 0 {
+            continue;
+        }
+        println!(
+            "CELL {ci} u {} v {}",
+            hexes([cell.u.0, cell.u.1]),
+            hexes([cell.v.0, cell.v.1])
+        );
+        for (tag, arr) in [
+            ("s_u", &cell.s_u),
+            ("s_v", &cell.s_v),
+            ("s_uu", &cell.s_uu),
+            ("s_uv", &cell.s_uv),
+            ("s_vv", &cell.s_vv),
+        ] {
+            for (c, iv) in arr.iter().enumerate() {
+                println!("  {tag} {c} {}", hexes([iv.lo(), iv.hi()]));
+            }
+        }
+    }
+    println!("ENDFIXTURE {name}");
+}
+
+/// Emits bits for the exact referee. Always green; the claim is decided
+/// by the python side reading its stdout.
+#[test]
+fn tess2r1_dump_cells_for_the_exact_referee() {
+    // 1. Bilinear, weight ratio 1e4 (the brief's 1e-2..1e2).
+    let kv1 = kv(1, &[]);
+    let extreme_bilinear = NurbsSurface::new(
+        kv1.clone(),
+        kv1.clone(),
+        vec![
+            p(0.0, 0.0, 0.0),
+            p(0.1, 1.0, 0.3),
+            p(1.0, -0.2, -0.7),
+            p(1.3, 1.1, 0.9),
+        ],
+        vec![1.0e-2, 1.0e2, 3.0, 1.0e-2],
+    )
+    .expect("surface");
+    dump_fixture("extreme_bilinear", &extreme_bilinear, 3, 1);
+
+    // 2. Degree 2x2 with one interior knot each, mixed weights.
+    let ku = kv(2, &[0.375]);
+    let kvv = kv(2, &[0.5]);
+    let (nu, nv) = (ku.control_count(), kvv.control_count());
+    let mut ctrl = Vec::new();
+    let mut ws = Vec::new();
+    for i in 0..nu {
+        for j in 0..nv {
+            let x = f64::from(u32::try_from(i).unwrap()) * 0.6;
+            let y = f64::from(u32::try_from(j).unwrap()) * 0.9;
+            let s = if (i + j) % 2 == 0 { 1.0 } else { -1.0 };
+            ctrl.push(p(x, y, s * 0.8));
+            ws.push(if (i * nv + j) % 3 == 0 { 0.05 } else { 4.0 });
+        }
+    }
+    let quad2 = NurbsSurface::new(ku, kvv, ctrl, ws).expect("surface");
+    dump_fixture("deg22_interior", &quad2, 2, 1);
+
+    // 3. Degree 3 in u with an interior knot of MULTIPLICITY 2 (the C1
+    //    gate's boundary, p-1), degree 1 in v.
+    let ku3 = kv(3, &[0.5, 0.5]);
+    let kv1b = kv(1, &[]);
+    let (nu3, nv1) = (ku3.control_count(), kv1b.control_count());
+    let mut c3 = Vec::new();
+    let mut w3 = Vec::new();
+    for i in 0..nu3 {
+        for j in 0..nv1 {
+            let x = f64::from(u32::try_from(i).unwrap()) * 0.45;
+            let y = f64::from(u32::try_from(j).unwrap()) * 1.7;
+            let s = if i % 2 == 0 { 1.0 } else { -1.0 };
+            c3.push(p(x, y, s * 1.1));
+            w3.push(if i % 2 == 0 { 0.2 } else { 2.5 });
+        }
+    }
+    let cubic_mult2 = NurbsSurface::new(ku3, kv1b, c3, w3).expect("surface");
+    dump_fixture("deg31_mult2", &cubic_mult2, 2, 1);
+
+    // 4. Higher split count on the bilinear extreme-weight patch:
+    //    `offset_meters` asks for more than the fixed schedule.
+    dump_fixture("extreme_bilinear_s16", &extreme_bilinear, 16, 11);
+
+    // 5. The PR's own two exact-escape fixtures, from the same bits its
+    //    mesh row uses — but checking ALL FIVE partials componentwise on
+    //    the cells, where the mesh row only asserts `uu`'s norm.
+    let hexsurf = |ws: [u64; 4], cs: [u64; 12]| {
+        NurbsSurface::new(
+            kv(1, &[]),
+            kv(1, &[]),
+            (0..4)
+                .map(|i| {
+                    p(
+                        f64::from_bits(cs[3 * i]),
+                        f64::from_bits(cs[3 * i + 1]),
+                        f64::from_bits(cs[3 * i + 2]),
+                    )
+                })
+                .collect(),
+            ws.iter().map(|b| f64::from_bits(*b)).collect(),
+        )
+        .expect("surface")
+    };
+    let fa = hexsurf(
+        [
+            0x3f85_1d67_0625_33ec,
+            0x3f85_e951_aad1_06d4,
+            0x3f8b_ae9f_b921_3c25,
+            0x3f89_570f_cf39_bbfe,
+        ],
+        [
+            0xbfd4_5c5e_a128_e388,
+            0xbfe3_53dc_5381_e28c,
+            0x3fee_e4c7_4f58_da14,
+            0x3ffa_dea5_3eea_524a,
+            0xbffe_1bfe_e0da_6176,
+            0xbfb5_7ac6_093c_8d60,
+            0x3ff2_4217_85e0_9da0,
+            0xbff7_ec6a_dc24_3a5c,
+            0xbffd_007c_723f_c4a6,
+            0xbfd9_ac7d_34a0_77d8,
+            0x3ff2_2092_5d90_b010,
+            0xbfc5_0c20_054b_4c20,
+        ],
+    );
+    let fb = hexsurf(
+        [
+            0x4014_b6e6_9928_91ad,
+            0x400a_864c_9997_93db,
+            0x4010_ca99_b259_0ee1,
+            0x4010_6199_a0a8_9a72,
+        ],
+        [
+            0xbff5_4a0c_eafe_35ba,
+            0x3f95_e6ac_362b_df80,
+            0xbfd0_260d_ed55_9cd0,
+            0x3fea_bff6_7292_74d0,
+            0xbfe5_f005_b8eb_add4,
+            0x3fe4_64f4_1381_1098,
+            0xbff5_221f_c005_d982,
+            0xbff8_6db2_84fd_9286,
+            0xbfe9_576c_7148_3e30,
+            0x3fe4_da54_6f12_0828,
+            0x3ff4_7c37_162b_9746,
+            0xbfcb_0fc4_c9a4_7fd0,
+        ],
+    );
+    dump_fixture("escape_a_s16", &fa, 16, 17);
+    dump_fixture("escape_b_s16", &fb, 16, 17);
+}
+
+/// r1 REVIEW PROBE: is `RefinedWeightLostPositivity` reachable at all?
+/// Nothing in the tree constructs a surface that reaches it (the arm is
+/// named only in `patch_bound.rs`). The guard now reads the refined
+/// weight ENCLOSURE's `lo`, so a weight small enough that the fold's
+/// own rounding is the same size as the weight should trip it.
+#[test]
+fn tess2r1_probe_refined_weight_enclosure_can_lose_positivity() {
+    use geom_brep::patch_bound::{PatchBoundError, patch_cells};
+    let k = kv(1, &[]);
+    let ctrl = vec![
+        p(0.0, 0.0, 0.0),
+        p(0.0, 1.0, 0.0),
+        p(1.0, 0.0, 0.0),
+        p(1.0, 1.0, 0.3),
+    ];
+    // Deep-subnormal weights: one ulp of these IS the value.
+    for scale in [5.0e-324_f64, 1.0e-320, 1.0e-310, 1.0e-300, 1.0e-200] {
+        let ws = vec![scale, scale, scale, scale * 2.0];
+        let Ok(s) = NurbsSurface::new(k.clone(), k.clone(), ctrl.clone(), ws) else {
+            println!("[tess2r1] scale {scale:e}: NurbsSurface::new refused");
+            continue;
+        };
+        match patch_cells(&s) {
+            Ok(cells) => println!(
+                "[tess2r1] scale {scale:e}: {} cells, no refusal",
+                cells.len()
+            ),
+            Err(PatchBoundError::RefinedWeightLostPositivity) => {
+                println!("[tess2r1] scale {scale:e}: REACHED RefinedWeightLostPositivity");
+            }
+            Err(e) => println!("[tess2r1] scale {scale:e}: other refusal {e:?}"),
+        }
+    }
+}

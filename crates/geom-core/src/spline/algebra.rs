@@ -1037,6 +1037,61 @@ mod tests {
         println!("ring refinement: widest coefficient {worst_width_ulps:.2} ulps of scale");
     }
 
+    /// r1 REVIEW PROBE: does the convex form keep every refined slot
+    /// inside the hull of the two coefficients it combines? The doc on
+    /// `the_ring_applier_stays_in_step_and_inside_the_hull` claim 3 says
+    /// the lerp form can bulge outside and "the convex form cannot".
+    /// With a CONSTANT coefficient column the hull is a single point, so
+    /// any width at all is a bulge.
+    #[test]
+    fn tess2r1_probe_constant_column_bulges_outside_its_hull() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let n = kv.control_count();
+        let coeffs = vec![0.5f64; n];
+        let input: Vec<RingInterval> = coeffs.iter().copied().map(RingInterval::point).collect();
+        let mut add = Vec::new();
+        for k in 1..16 {
+            add.push(f64::from(k) / 16.0);
+        }
+        let plans = refine_plan_homogeneous(&kv, &add).unwrap();
+        let mut out = input.clone();
+        for plan in &plans {
+            out = plan.apply_ring(&out);
+        }
+        let mut worst = 0.0f64;
+        let mut outside = 0usize;
+        for (i, r) in out.iter().enumerate() {
+            if r.lo() < 0.5 || r.hi() > 0.5 {
+                outside += 1;
+                worst = worst.max((r.hi() - 0.5).max(0.5 - r.lo()));
+                if outside <= 3 {
+                    println!(
+                        "slot {i} = [{:.17e}, {:.17e}] outside hull [0.5, 0.5]",
+                        r.lo(),
+                        r.hi()
+                    );
+                }
+            }
+        }
+        println!(
+            "[tess2r1] constant column, 15 insertions: {outside} of {} slots outside the \
+             two-coefficient hull, worst excursion {worst:.3e}",
+            out.len()
+        );
+        // The FINDING, pinned rather than asserted away: the convex form
+        // DOES leave the hull of the two coefficients it combines, because
+        // `alpha` and `beta` are rounded outward independently and their sum
+        // straddles 1. `the_ring_applier_stays_in_step_and_inside_the_hull`
+        // cannot see this: its hull is the whole input net's, not the step's.
+        // Soundness is unaffected (the enclosure is still outward); what is
+        // wrong is the claim that the convex form "cannot" bulge.
+        assert!(
+            outside > 0,
+            "the convex form stayed inside the per-step hull after all — \
+             re-read claim 3's prose"
+        );
+    }
+
     #[test]
     fn insertion_is_evaluation_invariant() {
         let (kv, w, x) = fixture();
