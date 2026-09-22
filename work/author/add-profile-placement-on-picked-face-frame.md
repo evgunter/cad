@@ -2,11 +2,14 @@
 id: add-profile-placement-on-picked-face-frame
 kind: issue
 title: Nothing in the viewer can mint a Datum::FaceFrame, so a profile still cannot be placed on a picked face
-status: open
+status: closed
 opened: 2026-08-31
 github: 1374
 priority: P0
 cost: H
+branch: author/face-frame-seat
+closed: 2026-09-21
+pr: 2955
 ---
 
 ## Premise re-cut (2026-09-15, `chrome/citation-repoint`)
@@ -107,7 +110,7 @@ decision. What is left is the missing seat above, and nothing else.
 
 ## Relation to the sibling row
 
-`work/chrome/add-profile-mints-no-frame.md` is the nearer of the two
+`work/author/add-profile-mints-no-frame.md` is the nearer of the two
 halves and the further of the other. Its half 1 — an empty document
 cannot draw a sketch, because minting a world-XY frame means leaving
 the form — wants a node kind the chrome **can already mint**
@@ -129,9 +132,10 @@ reason, not for the commit door.
 
 ## Home
 
-CHROME (this row sits on CHROME's slate; the `## Home` section it was
-migrated with said `work/issues/`, which stopped being true when CHROME
-claimed it). Everything above is `crates/viewer/src/`: the seat in
+AUTHOR (this row sits on AUTHOR's slate; it came here from CHROME by
+the 2026-09-20 priority-seam cut, `work/author/log.md`, and the `##
+Home` section it was migrated with said `work/issues/`, which stopped
+being true when CHROME claimed it). Everything above is `crates/viewer/src/`: the seat in
 `session/author.rs`, the choice in `forms.rs`, the form in
 `pane/create.rs`. The kernel doors — `Datum::FaceFrame`,
 `face_carrier_kind`, `face_frame` — all exist.
@@ -145,3 +149,46 @@ offer, when the current selection is a planar face, placing the new
 profile on that face's frame. The spec's fallback was taken and this is
 the scheduled follow-up (protocol v5 — a filed issue, not a silent
 narrowing).
+
+## Dispatched 2026-09-21 — AUTH-1
+
+`docs/AUTH-1-SPEC.md`, branch `author/face-frame-seat`. The spec takes
+this row's scope EXACTLY as the body above cuts it — the sixth
+`DatumSpec` seat, its `DatumKindChoice` offering and mirror entry, the
+draft seats, a planarity gate sited where a test can reach it, and one
+`SessionOp::AddDatum`. The sibling's picker labels and its
+`commit_action` gesture stay with
+`work/author/add-profile-mints-no-frame.md`, which runs next; after
+AUTH-1 a face frame is authored in the add-datum form and drawn on in
+the add-profile form, which is a two-form trip and the known residue.
+
+## Closed 2026-09-21 — PR 2955 merged (`2cf83b500`)
+
+**The viewer can mint a `Datum::FaceFrame`.** A person picks a face,
+adds the datum, and draws a profile on it in the add-profile form,
+which already admitted the node. Landed green at 39 jobs — twelve
+`test (…)` across both lanes and three ε rows, five
+`k-lint (gate, …)` — after one implementer pass, a correctness and a
+style review, and a twelve-item fix pass.
+
+**What the fix pass changed that the first pass had wrong**, because
+this is the part a reader of the diff alone will not see: the gate
+tested a node KIND (`combine::denotes_body`) where the evaluator's
+door tests a VALUE (`body_operand`), so a transform over a pattern was
+admitted by the form and refused after the edit landed — the
+mint-a-node-that-refuses-later this row exists to prevent. It now
+reads the landed value through `refuse::is_one_body`. A second
+refusal sentence conflated "this node is gone" with "this node is
+several bodies" and told an author to project a feature an undo had
+removed. And the gate's `Ok` half was dead in `src/` while
+`Drafts::datum_spec` re-derived the same pair — the duplication this
+unit closed, minted fresh, now one derivation.
+
+**Residue, all scheduled.** The gesture is two forms —
+`work/author/add-profile-mints-no-frame.md`, next in the order, which
+also carries the honest label for the held face. The `AddBoolean`
+declaration gap this unit measured (a boss drawn on a face frame is
+flush by construction and the union refuses `UndeclaredContact`) is
+evidence on `work/author/addboolean-doc-names-a-vocabulary-that-does-not-exist`.
+Five classes went to CHROME and are cited where this branch leaves an
+instance of each.

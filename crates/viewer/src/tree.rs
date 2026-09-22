@@ -7,9 +7,16 @@
 //! failure is a typed value the GUI renders, never a string invented
 //! at the interaction layer. So a failing row's message is
 //! `NodeError`'s own `Display`, and nothing here composes a sentence
-//! about what went wrong. The one sentence this module does write is
-//! a DOWNSTREAM row's ([`downstream_wording`]), and it says only
-//! WHERE the failure is.
+//! about what went wrong. The one sentence this module writes ABOUT A
+//! FAILURE is a downstream row's ([`downstream_wording`]), and it says
+//! only WHERE the failure is.
+//!
+//! What it does write, and what the rule above does not reach, is what
+//! a node IS: [`node_kind`]'s vocabulary spelling, [`node_number`]'s
+//! `feature 3`, and [`frame_pose`]'s statement of which frame a datum
+//! frame is. Those are readings of the node, not verdicts about a run,
+//! and they are sited here because the tree and the creation forms'
+//! pickers have to name a node the same way.
 //!
 //! Because that is the other thing this module owns: the *shape* —
 //! which rows exist, in which order, at what indentation, which of
@@ -73,11 +80,13 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Datum, Doc, Evaluation, MateFault, Node, NodeError, NodeErrorKind, NodeResult, ProfileProgram,
-    RecipeNodeId,
+    Datum, Doc, Evaluation, Expr, MateFault, Node, NodeError, NodeErrorKind, NodeResult,
+    ProfileProgram, RecipeNodeId,
 };
+use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
+use crate::props::{in_written, render_number};
 
 /// A node's status, as the tree draws it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -172,6 +181,11 @@ pub struct TreeRow {
     pub id: RecipeNodeId,
     /// The node's kind, as the vocabulary spells it.
     pub kind: &'static str,
+    /// **Which one of its kind this node is**, when the node itself can
+    /// say — today a datum frame's pose ([`frame_pose`]). `None` is a
+    /// node kind that has no such sentence, not a sentence that came
+    /// out empty.
+    pub pose: Option<String>,
     /// How far the node sits below the document's sources.
     pub depth: usize,
     /// Whether this node is one of the document's product roots.
@@ -232,6 +246,149 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
     }
 }
 
+/// **How the chrome names one node inside a sentence**: its number,
+/// and what the node itself says about which one of its kind it is.
+///
+/// The one home for a picker entry's text. The number is what every
+/// refusal in this crate calls a node by, so it stays; what follows it
+/// is [`frame_pose`], which is the half that tells two frames apart.
+pub fn node_label(node: &Node<ProfileProgram>, id: RecipeNodeId) -> String {
+    match frame_pose(node) {
+        Some(pose) => format!("{} — {pose}", node_number(id)),
+        None => node_number(id),
+    }
+}
+
+/// **How the chrome names a node when there is nothing more to say**:
+/// `feature 3`.
+///
+/// One home for the phrase, because it is the word a person carries
+/// between surfaces — a combo entry, a tree row, a property panel's
+/// heading, a refusal's subject — and a surface that spelled it
+/// `node 3` would be talking about something a reader has to
+/// translate.
+pub fn node_number(id: RecipeNodeId) -> String {
+    format!("feature {}", id.0)
+}
+
+/// **What the NODE says about a datum frame's pose** — the sentence
+/// that tells two frames a centimetre apart apart.
+///
+/// **Read off the node and off nothing else, deliberately.** A pose
+/// read from an evaluation would have nothing to say on exactly the
+/// rows a person is diagnosing: [`rows`] draws a row for every node in
+/// the document, including the [`RowStatus::Unevaluated`] ones before
+/// the first run lands and the [`RowStatus::Failed`] ones whose value
+/// does not exist. A label sourced there would need this one as its
+/// fallback anyway, which is one sentence with two spellings.
+///
+/// So a component that is not a literal is not evaluated and not
+/// guessed: the label says the origin is driven and names no number. A
+/// [`Datum::FaceFrame`] says whose face it is read off; it cannot say
+/// WHICH face, because a face's identity is its role path and
+/// `RoleSeg` has no `Display` (`crate::idpass`'s note says so in as
+/// many words).
+///
+/// `None` is a node with no such sentence — every kind but the two
+/// frames.
+pub fn frame_pose(node: &Node<ProfileProgram>) -> Option<String> {
+    match node {
+        Node::Datum(Datum::Frame { origin, u, v }) => {
+            Some(match (plane_name(u, v), written_point(origin)) {
+                (Some(plane), Some(at)) => format!("{plane} at {at}"),
+                (Some(plane), None) => format!("{plane}, origin driven"),
+                (None, Some(at)) => format!("at {at}"),
+                (None, None) => "origin driven".to_owned(),
+            })
+        }
+        Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", node_number(*at))),
+        _ => None,
+    }
+}
+
+/// The two-letter name of the plane a frame's axes span, when they are
+/// the world's own and point the positive way (`xy`, `zx`, …).
+///
+/// `None` is every other pair — a driven component, an oblique frame,
+/// or an axis pointing backwards — and it is a label that says LESS
+/// rather than one that says something else: the origin still
+/// separates two frames, and a spelling for the oblique case would be
+/// a matrix, not a name.
+fn plane_name(u: &[Expr; 3], v: &[Expr; 3]) -> Option<&'static str> {
+    let (u, v) = (axis_name(u)?, axis_name(v)?);
+    match (u, v) {
+        ('x', 'y') => Some("xy"),
+        ('y', 'z') => Some("yz"),
+        ('z', 'x') => Some("zx"),
+        ('y', 'x') => Some("yx"),
+        ('z', 'y') => Some("zy"),
+        ('x', 'z') => Some("xz"),
+        // Two axes that are the SAME axis span no plane. The datum
+        // door refuses such a frame at evaluation; the label declines
+        // to name a plane for it rather than printing one.
+        _ => None,
+    }
+}
+
+/// The positive world axis a literal triple IS, exactly — `(1, 0, 0)`
+/// is `x` and `(0.999, 0, 0)` is nothing.
+///
+/// Exact, because the triple is what an author typed and the claim is
+/// that they typed the axis. A near-miss is a frame a shade off
+/// square, which is the case a person most needs the label not to
+/// paper over; evaluation normalizes it and this does not.
+fn axis_name(v: &[Expr; 3]) -> Option<char> {
+    let mut components = [0.0_f64; 3];
+    for (slot, expr) in components.iter_mut().zip(v) {
+        *slot = expr.literal_value()?;
+    }
+    match components {
+        [1.0, 0.0, 0.0] => Some('x'),
+        [0.0, 1.0, 0.0] => Some('y'),
+        [0.0, 0.0, 1.0] => Some('z'),
+        _ => None,
+    }
+}
+
+/// A literal 3-D point as the chrome writes it — the numbers in the
+/// unit they were AUTHORED in, which is the unit the property panel
+/// shows and edits the same slots in.
+///
+/// `None` as soon as one component is not a literal: a partial point
+/// with a hole in it would read as a position, and the caller says
+/// "driven" instead.
+///
+/// The unit is written once after the triple when all three share it,
+/// and against each number when they do not — a frame whose origin was
+/// typed in three notations is rare, and printing one of its units for
+/// all three would be wrong rather than terse.
+fn written_point(origin: &[Expr; 3]) -> Option<String> {
+    let mut written: Vec<(f64, UnitDef)> = Vec::with_capacity(origin.len());
+    for expr in origin {
+        let unit = expr.display_unit()?;
+        written.push((in_written(expr.literal_value()?, unit), unit));
+    }
+    let (_, first) = *written.first()?;
+    let shared = written.iter().all(|(_, unit)| *unit == first);
+    let numbers = written
+        .iter()
+        .map(|(value, unit)| {
+            let number = render_number(*value);
+            if shared {
+                number
+            } else {
+                format!("{number} {}", unit.symbol())
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(if shared {
+        format!("({numbers}) {}", first.symbol())
+    } else {
+        format!("({numbers})")
+    })
+}
+
 /// The tree's rows for a document under an evaluation.
 ///
 /// `evaluation` is optional because a session shows a tree before its
@@ -254,6 +411,7 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
         rows.push(TreeRow {
             id,
             kind: node_kind(node),
+            pose: frame_pose(node),
             depth,
             root: roots.contains(&id),
             status: status_of(id, evaluation),

@@ -978,3 +978,49 @@ rather than an announcement; `crates/topo/src/param_source.rs` is in no
 open program's `paths`.
 
 Signed (DOOR orchestrator).
+
+## `active` → `ready`: the flag was stale (2026-09-21, Ev in chat)
+
+**Not this program's orchestrator writing.** Set by the DOOR
+orchestrator at Ev's direction in chat, while closing DOOR, and recorded
+here loudly rather than flipped quietly: `status` is the program's own
+word (`work/README.md`, Track status) and a seat that is not on this
+track does not get to claim what this track's seat is doing. What Ev
+answered is the half the tree cannot see; the half it can see is below,
+and it was already unambiguous.
+
+**The measurement.** The last unit merged was CENSUS-HAND-LISTED-SIBLINGS
+(#2712, closed by #2722 on 2026-09-15 19:48 PDT). Nothing has been
+dispatched in the five and a half days since, and every write into
+`work/census/` after that date came from ANOTHER program's sweep — four
+rows from FIX and one from DOOR, both on 2026-09-20. The entry above
+this one is signed `(DOOR orchestrator)`, and so is the one before it.
+
+**`active` with nothing in flight is the shape that gave it away.**
+Twenty-nine live rows, every one `open`: none in `spec`, `dispatched` or
+`review`. `work/README.md` distinguishes `active` from `ready` precisely
+because *"a session with a full slate and nothing dispatched yet looks
+exactly like an abandoned one"* — but that ambiguity is about a slate
+not yet dispatched, and this slate has been not-yet-dispatched for five
+days across two other programs' sweeps. `ready` is the true value: no
+orchestrator, and plenty to pick up.
+
+**Two things the next seat inherits, neither of them fixed here.**
+
+1. **The track is over budget at 44/30**, and `work/README.md` says a
+   program that grows past its ceiling splits. Note how it grew: the
+   five rows that arrived on 2026-09-20 landed while nobody was on the
+   track, so the ceiling was crossed by ARRIVAL rather than by filing.
+   The budget rule reads as a check on a program's own appetite; this
+   is the other way it breaks.
+2. **The seam is already in the slate** — twenty P3 rows against nine
+   P4 — which is the priority seam the README prescribes, not a
+   territory one.
+
+The `## Next` above (settle the `pncad-py` size row with LIB, then
+`validation-error-reason-…`, the only row here naming a live
+user-visible defect rather than a missing instrument) is the previous
+seat's and is left standing: it was written from this slate and nothing
+since has falsified it.
+
+Signed (DOOR orchestrator, on the way out).

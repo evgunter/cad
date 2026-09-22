@@ -206,6 +206,63 @@ Evidence for the split, not a task. Nothing here asks a lane to move
 it.
 
 
+## The rule to split on (VIEW orchestrator, 2026-09-16) — and the split is now dispatchable
+
+This item says the second move is *"not a lane's call"* and that
+*"a split with no rule to split on is a rename."* The cheap half landed
+at #1957, so the row exists to split against. Here is the rule.
+
+**The module's own first sentence is the test.** *"The per-frame
+policies the viewport runs — as values, so they are replayable."* A
+concern that is not per-frame, or not replayable, is not what this
+module is for, whatever else is true of it.
+
+Applied to the eight:
+
+- **Out: concerns 4, 5, 6 — the environment probes.** `ChooserBackend`,
+  `chooser_backend`, `chooser_backend_of`, `zenity_on_path`,
+  `session_bus_hinted`, `prefs_path`, `prefs_path_in`,
+  `running_under_wsl` — `frame.rs:1671-1878` as this item measured it.
+  They run **once at startup** and read **ambient process state**,
+  which is what not-replayable means. This item already made that
+  argument and called it *"the cleanest available argument for the
+  second move"*; it is hereby the ruling.
+- **Out: concern 8 — the id pass's bookkeeping.** `IdStep`,
+  `IdQueryLog`, `IdSubject`, `Disagreement`, `disagreement`. This is
+  the picking seam's state carried ACROSS frames, keyed on
+  `(cursor, revision, generation)` since #2622. A per-frame policy is a
+  pure function of the frame; this remembers.
+- **Stays: concerns 1, 2, 3, 7** — the status-line vocabulary and its
+  ranking, `product_badge`, the draft/offer chrome, `folded_moved`.
+  Each is a pure function or a small value the frame loop consumes and
+  the charter is true of all four.
+
+**The gate is not an obstacle, and the reason matters.**
+`scripts/gates/no-ambient-env.sh` says *"ONE file on purpose: every
+ambient read the viewer performs lives in `frame.rs`, so this entry is
+a single door, not a pattern."* Moving the probes to a module whose
+whole purpose is that door makes the claim **stronger** — the door
+stops being a sub-region of a per-frame policy module. What the gate
+DECIDES (ambient reads have one home, argued against four rows) is
+untouched; only the path changes. That is the re-wording-because-the-
+code-moved case, so it lands with the split — but the taker runs
+`git log -S` on the sentence and says what it found, per `CLAUDE.md`.
+
+**What the split is NOT.** Not a rewrite: the precedent is unit 1
+(#1830), which moved `session.rs` 3,260 → 1,500 and `app.rs`
+5,696 → 1,752 into thirteen modules with **no test file touched and no
+assertion changed**. Same here — items move, nothing is re-decided, no
+behaviour changes, and the README's `frame` row is amended to say what
+the module holds after the cut rather than being rewritten.
+
+**Why now.** The ledger this item keeps: 984 lines when filed, 1,131 at
+#1886, 2,037 at #1933, 2,298 at #1957, 2,475 at #2026, 2,536 after the
+`dialog_status` deletion — and **2,996 today**. Five units since the
+row was taken have grown it and none wrote the ledger. It is now the
+largest file in the crate, larger than either hub was immediately after
+the god-module split that existed to prevent exactly this. Ev raised
+the splitting question in-chat on 2026-09-16 and endorsed the
+direction.
 ## The split is taken, and the ledger's last entry (2026-09-16)
 
 984 lines when this was filed, 1,131 at #1886, 2,037 at #1933, 2,298 at

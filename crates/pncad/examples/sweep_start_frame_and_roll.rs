@@ -31,7 +31,8 @@ fn main() {
     let (t0, t1) = path.domain();
 
     // 1. The door, as a user reaches it.
-    let place = path_start_frame(path.eval(t0), path.deriv(t0), tol).expect("start frame");
+    let (p, tau) = path.ders1(t0);
+    let place = path_start_frame(p, tau, tol).expect("start frame");
     println!("start frame: {place:?}");
     let section =
         vec![polygon(&[(-0.1, -0.1), (0.1, -0.1), (0.1, 0.1), (-0.1, 0.1)], tol).expect("square")];
@@ -79,7 +80,7 @@ fn main() {
         .map(|i| {
             let u = f64::from(i) / f64::from(stations - 1);
             let t = (t1 - t0).mul_add(u, t0);
-            let (p, d) = (path.eval(t), path.deriv(t));
+            let (p, d) = path.ders1(t);
             let plane = path_start_frame(p, d, tol).expect("station frame");
             // The roll turns the AXES and leaves the origin the
             // station point: composing the affine rotation instead

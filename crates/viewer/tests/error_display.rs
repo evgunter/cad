@@ -70,6 +70,13 @@ fn camera_error_names_the_offending_value() {
 
     prose(&CameraError::UnusableBounds.to_string(), "UnusableBounds");
 
+    // The one arm whose fact is about the SEAM rather than the
+    // camera: the algebra succeeded and the GPU cannot hold what it
+    // produced, so the sentence names the bound rather than a field.
+    let undrawable = CameraError::UndrawableProjection.to_string();
+    assert!(undrawable.contains("3.4e38"), "{undrawable}");
+    prose(&undrawable, "UndrawableProjection");
+
     let unfittable = CameraError::Unfittable {
         required: 12.5,
         max_distance: 8.25,
@@ -173,6 +180,20 @@ fn scene_error_names_the_counts_it_carries() {
     .to_string();
     assert!(broken.contains('9') && broken.contains('4'), "{broken}");
     prose(&broken, "BrokenPatchIndex");
+
+    // Scientific, like the δ-overflow arm above and for the same
+    // reason: a coordinate that reaches this arm is past `f32::MAX`,
+    // and the sentence has to be one a person can read.
+    let undrawable = SceneError::UndrawablePosition {
+        position: [1.0e39, 0.0, 0.0],
+    }
+    .to_string();
+    assert!(undrawable.contains("1e39"), "{undrawable}");
+    assert!(
+        !undrawable.contains("10000000"),
+        "the coordinate is spelled in exponent form: {undrawable}"
+    );
+    prose(&undrawable, "UndrawablePosition");
 }
 
 /// The tessellation arm forwards `mesh`'s own refusal: the kernel

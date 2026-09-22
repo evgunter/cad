@@ -107,6 +107,44 @@ removed AFTER the row was filed. A future lane reading that paragraph
 would hunt a symbol that is not there; the row now says so and says
 what survives instead.
 
+## 2026-09-20 — the order corrected, ATREST-2 dispatched as measurement
+
+**The parallel pair was wrong and is fixed before it cost anything.**
+The order set this morning ran `tier3-prime-still-couples-plus-v-to-the-reporting-target`
+beside ATREST-1, on the reading that check 7's hook is a different
+region of `validate.rs` from a per-solid pass. Specifying ATREST-1
+showed the two share a FUNCTION: ATREST-1 gives
+`props::sign_certified` a face-restricted sibling, and what tier 3'
+needs is that same walk carrying the LANE's hook instead of the
+certified one. Two lanes restructuring one `pub(crate)` walk in one
+file is not parallelism. Tier 3' moves to third and inherits the
+restriction; what is left to it is its own question — which hook, and
+what `validate_pseudomanifold_certificate`'s return type becomes.
+
+**ATREST-2 takes the parallel slot instead**
+(`docs/ATREST-2-SPEC.md`, branch `atrest/2-sense-measure`), carrying
+`sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts`. It is
+specced as MEASUREMENT and explicitly not as a fix: the row is `H`
+because nobody knows what it is, its own body ends in three questions,
+and `memories/refusal-text-is-not-cause.md` makes answering them a
+checkpoint rather than a preamble. A measurement lane also cannot
+collide with ATREST-1 at all — it reads check 6 and the `sense_sign`
+consumers and produces a report, not a diff.
+
+What it owes beyond the three answers: **a row per answer that can go
+red if the answer changes.** A measurement with no guard is a sentence
+someone re-takes later, which is how this row's own subject reached
+its second reviewer.
+
+The spec hands the lane the row's three candidate causes as the
+DISPATCHER'S HYPOTHESES rather than as findings, per the reviewer
+brief's §1, and asks for a correction as a result in its own right if
+none of the three is it.
+
+**Triage (protocol v7): OUT.** Opus implementer, opus reviewer; style
+lane plus one correctness claim — that the measurements say what the
+report says they say, and that each pinned row can go red.
+
 ## 2026-09-20 — ATREST-1 implemented (branch `atrest/1-per-solid`)
 
 Check 7's subject is the SOLID, and check 10 is new. Both reads are at
@@ -158,3 +196,67 @@ Reported to the orchestrator rather than worked around: D-C and the
 ratified behaviour of five doors cannot both stand, and which one moves
 is not a lane's call. Measured, filed and reproducible on PR #2977:
 `one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
+
+## 2026-09-21 — ATREST-1's measurement refuted my own spec; check 10 dropped
+
+The lane stopped on check 10 rather than working around it, which is
+what the dispatch asked for, and it was right to.
+
+**D-C was wrong, and it was mine.** The spec settled *"each solid has
+exactly one shell that classifies `Outer`, and every other shell of
+that solid classifies `Void`"* as a decision. That is a STRONGER claim
+than `tier-3-does-not-check-shell-roles-per-solid` ever made, and the
+strengthening is the whole defect: the lane measured **36 pinned rows**
+that go red under it, every one a body a kernel verb produces on
+purpose — `graft_disjoint`'s onto door fusing into one solid, the
+boolean coplanar split carrying three outer shells under one solid,
+the two-shell complement of a through hole, editor-core's placed
+union, and a door that deliberately mints a solid with **no** outer
+shell at all.
+
+Verified before ruling, from the tree rather than the report:
+`editor-core/src/checks.rs` counts `Outer` shells as **components** and
+reports them against an authored `expected_components` expectation,
+under an explicitly Ev-ratified rule governing when a check may offer
+`error`. So several disjoint outer boundaries under one solid is a
+state this kernel produces deliberately and reports at the document
+layer against an authored number. Tier 3 refusing it would be tier 3
+being wrong, not the five doors.
+
+**Ruled, no question for Ev needed** — the posture is already ratified
+one layer up:
+
+- **check 10 and `MultipleOuterShells` come out entirely**;
+- **check 7's per-solid half lands alone**, and is the unit: the
+  per-solid subject, `faces_of_solid`, `sign_certified` taking its
+  faces, `NegativeVolume { solid }`, `VolumeUncomputable { solid }`,
+  the `PlusVCheck` restriction. It closes
+  `an-inside-out-part-...-total-volume-is-pinned` on its own;
+- **the measurement becomes a row**, keeping the id
+  `one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`
+  and rewritten from three-options-open to settled-and-here-is-why. It
+  is the most valuable thing the unit produced and must not die with
+  the branch;
+- **`tier-3-does-not-check-shell-roles-per-solid` is re-stated, not
+  closed.** Re-read, its subject was never the outer COUNT: *"an
+  `Outer` shell, a `Void` and a second `Outer` **inside that void**"*.
+  That is a CONTAINMENT claim, which tier 3 has no at-rest walk for,
+  putting it in the same family as check 9's nesting gap and
+  `validate-tier3-curved-boundary-containment`. Back to `open`, with
+  refs to both.
+
+**The lane's deviation 1 is accepted as an improvement, not a
+deviation**: D-D asked for a restricted SIBLING of `sign_certified`
+and the lane built one door taking its faces, because with check 7 per
+solid a whole-body wrapper has no caller and dead `pub(crate)` code
+fails the gate. Better than the spec's letter; per protocol v5 nothing
+further is owed. Deviations 2 and 3 were artefacts of check 10 and go
+with it.
+
+**The lesson worth carrying.** I settled D-C from a filed row's summary
+sentence without checking whether the kernel's own doors produce the
+shape it called invalid. A spec that settles a design call owes the
+same measurement it demands of the lane — the row said "two material
+components filed under one solid" and I read that as a defect instead
+of asking who mints it. The system worked because the lane was told to
+stop rather than work around a decision, and did.

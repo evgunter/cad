@@ -207,7 +207,7 @@ operand, the out-type, and the bound the door can run at) and that no
 row is a claim about any one alone. `One` and `Split` take the same
 operand and are two doors because their out-types differ; `One` and
 `Shell` agree at both ends and are two doors because the shell's op door
-demands certification rights (`Decide + PropsQuadLane + CertifiedBounds`)
+demands certification rights (`Decide + CertifiedBounds + AtRestPolicy`)
 no `Dual` scalar has — which is why `run_shell` lives in a second `impl`
 block, so the mixed pass instantiated at `Dual` still compiles against
 `run`. The name is kept for continuity — it crosses the document layer's

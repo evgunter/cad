@@ -42,12 +42,16 @@ type NamedStudy = (&'static str, Box<dyn Fn(f64) -> ProfileDoc>);
 type StudyAtCeiling<'a> = (&'static str, f64, Study<'a>);
 
 /// The two rule sets this unit is a differential between: the shipped
-/// tier with the registered-identity door open, and M10-8's exactly
-/// (`SymRules::shipped_without_the_door`).
+/// tier with the registered-identity door open, and the same tier with
+/// the door shut (`SymRules::shipped_without_the_door` — shipped minus
+/// the door and nothing else; M10-8's tier itself is `a0_alone()`).
 fn door_rows() -> [(&'static str, SymRules); 2] {
     [
-        ("door OFF (M10-8)", SymRules::shipped_without_the_door()),
-        ("door ON  (M10-9)", SymRules::shipped()),
+        (
+            "door OFF (shipped minus the door)",
+            SymRules::shipped_without_the_door(),
+        ),
+        ("door ON  (shipped)", SymRules::shipped()),
     ]
 }
 

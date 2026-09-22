@@ -24,29 +24,26 @@
 use editor_core::{DocEdit, ProfileDoc};
 use pncad::geom_core::Tol;
 use viewer::readout;
-use viewer::scene::{self, DisplayTolerance, ProbeStop, TRIANGLE_BUDGET};
+use viewer::scene::{
+    self, DisplayTolerance, INITIAL_DELTA, ProbeStop, SCALE_PROBE_DELTA, TRIANGLE_BUDGET,
+};
 use viewer::session::DocSession;
 
 use crate::corpus;
 
-/// The δ the application starts on (`app::INITIAL_DELTA`, which is
-/// `cfg`-gated behind the `app` feature and so is restated here; the
-/// rows below say what the gallery ring and the startup plate cost AT
-/// this δ, so a change to the number that matters moves them).
-const INITIAL_DELTA: f64 = 1.0e-4;
-
-/// How much coarser than the δ it prices a rung of the fit's ladder
-/// runs (`scene`'s `PROBE_FACTOR`, which is private to it and so is
-/// restated here; the rung bound below is read against this number, so
-/// a change to it moves what this row asserts).
-const PROBE_FACTOR: f64 = 8.0;
-
-/// A request the gallery ring exceeds the budget at: a decade finer
-/// than the starting δ, where the ring's ~1.6·10⁵ triangles at 0.1 mm
-/// become ~1.6·10⁶ (the 1/δ law `fit_delta` solves). The budget rows
-/// need a document that is actually over budget, and since the torus
-/// sizing spends its chord bound without slack the ring is not one at
-/// the starting δ any more.
+/// A request the gallery ring exceeds the budget at, where the ring's
+/// ~1.6·10⁵ triangles at 0.1 mm become ~1.6·10⁶ (the 1/δ law
+/// `fit_delta` solves). The budget rows need a document that is
+/// actually over budget, and since the torus sizing spends its chord
+/// bound without slack the ring is not one at the starting δ any more.
+///
+/// **Chosen to be over budget, not derived from [`INITIAL_DELTA`].**
+/// It is a decade finer than the starting δ as both stand, but that
+/// is an observation rather than the requirement: what this constant
+/// has to be is a request the fixture exceeds the budget at, and
+/// spelling it `INITIAL_DELTA / 10.0` would break the row the moment
+/// the starting δ coarsened — a decade under a coarser start is a δ
+/// this same doc records as INSIDE the budget.
 const OVER_BUDGET_DELTA: f64 = 1.0e-5;
 
 /// The tour's gallery ring, as the committed fixture.
@@ -260,6 +257,18 @@ const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
 /// twenty-two characters.
 fn reads_back_as_a_delta(d: DisplayTolerance) {
     let text = d.render_mm();
+    // BOTH factors below are spelled here DELIBERATELY rather than
+    // read from the code, and they are two different numbers.
+    //
+    // `1.0e3` is the render's: this row checks that `render_mm`
+    // applies it, so reading `scene::MM_PER_METRE` would make the
+    // check agree with the render by construction.
+    //
+    // `1.0e-3` is the δ FIELD's commit factor (`pane::view`'s
+    // `delta_field`), which the field spells itself. Restating it
+    // states independently that the two are inverses — which is the
+    // coincidence `DisplayTolerance::new`'s doc argues its bound
+    // from, and which no constant in the crate holds.
     let mm = d.get() * 1.0e3;
     let read: f64 = text.parse().unwrap_or_else(|error| {
         panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
@@ -1070,14 +1079,19 @@ fn the_budget_commits_the_delta_it_always_has() {
                 .unwrap_or_else(|error| panic!("{document} fits at {requested}: {error}"));
             // The per-rung bound, on every document the fit is ever
             // asked about: a rung is PLACED at
-            // `TRIANGLE_BUDGET / PROBE_FACTOR` triangles, and what it
-            // counts meets that up to the law's own error. The 1% is
-            // that error and nothing else — the largest rung the
-            // corpus produces is 121_272, under the placement itself.
-            // Sizing a probe off the REQUEST had no bound at all: at
-            // 0.01 mm `hollow_tube_ring` ran one of 1_452_960.
-            #[allow(clippy::cast_precision_loss)]
-            let placed = TRIANGLE_BUDGET as f64 / PROBE_FACTOR;
+            // `scene::placed_rung_cost` triangles, and what it counts
+            // meets that up to the law's own error. The 1% is that
+            // error and nothing else — the largest rung the corpus
+            // produces is 121_272, under the placement itself. Sizing
+            // a probe off the REQUEST had no bound at all: at 0.01 mm
+            // `hollow_tube_ring` ran one of 1_452_960.
+            //
+            // The bound is READ rather than restated, and that does
+            // not make this row circular: the other side of the
+            // comparison is a count tessellated from a real body, so a
+            // ladder that placed its probe elsewhere still exceeds
+            // this and says so.
+            let placed = scene::placed_rung_cost();
             #[allow(clippy::cast_precision_loss)]
             let largest = fitted.largest_probe as f64;
             assert!(
@@ -1247,9 +1261,10 @@ fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
         let body = session
             .landed_body()
             .unwrap_or_else(|| panic!("{document} gathers"));
-        // The δ the scale probe runs at (`scene`'s SCALE_PROBE_DELTA,
-        // which is private; the row states the number it depends on).
-        let scale = 1.0e9;
+        // The δ the scale probe runs at, read from the ladder rather
+        // than restated: the rows below are about the first rung's
+        // count, which is the count AT this δ whatever it is.
+        let scale = SCALE_PROBE_DELTA;
         let extent = extent_of(body, scale, tol);
         assert!(
             extent > 0.0 && extent.is_finite(),

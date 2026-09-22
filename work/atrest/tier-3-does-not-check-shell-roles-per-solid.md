@@ -4,7 +4,7 @@ kind: issue
 title: tier 3 does not read where one shell of a solid sits relative to another, so a second Outer shell NESTED inside that solid's own void is unchecked
 status: open
 opened: 2026-09-08
-priority: P1
+priority: P0
 cost: H
 refs: [validate-tier3-curved-boundary-containment, check-9-nesting-is-line-bounded-only, 2977]
 ---
@@ -32,6 +32,12 @@ COUNT — several `Outer` shells under one solid — is a state five kernel
 doors produce deliberately, and tier 3 may not refuse it; that was
 measured on 36 pinned rows and is recorded at
 `one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
+
+**The band stays P0.** A solid holding a second `Outer` nested in its
+own void is a body a normal verb produces — the hollow-operand
+subtraction — and that tier 3 blesses: a live wrong answer. What
+ATREST-1's measurement moved is this row's shape and cost, not its
+severity, and `cost: H` carries the effort separately.
 
 ## Why it is not cheap
 

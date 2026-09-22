@@ -42,8 +42,8 @@ use viewer::display::DisplayView;
 use viewer::pickindex::{PickIndex, PickKinds, PictureKey};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{
-    DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, ProfileShape, Refusal,
-    Selection, SessionOp,
+    DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, ProfilePlane,
+    ProfileShape, Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, ToolNotice, Tools};
 use viewer::tree::{self, RowStatus};
@@ -67,7 +67,7 @@ fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: side,
                 height: side,
@@ -678,7 +678,7 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: SIDE,
                 height: SIDE,
@@ -1003,7 +1003,8 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
             .perform(SessionOp::SetSlot {
                 node: b,
                 slot: SlotId::Translation(pncad::document::Axis3::X),
-                value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0),
+                value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0)
+                    .expect("a finite length is a value"),
             })
             .refusal
             .is_none()
@@ -1082,7 +1083,8 @@ fn the_strand_check_is_not_asked_without_an_answer() {
             .perform(SessionOp::SetSlot {
                 node: target,
                 slot: SlotId::Distance,
-                value: viewer::props::SlotValue::of(Dimension::Length, 0.0),
+                value: viewer::props::SlotValue::of(Dimension::Length, 0.0)
+                    .expect("a finite length is a value"),
             })
             .refusal
             .is_none()

@@ -304,3 +304,204 @@ CONSTRUCTION, dial-gated, would remove the two-site convention rule E
 now keeps — `form_in` cancels what the walk memoizes and
 `trig::sqrt_atom` cancels what rule D builds by hand, and the two have
 to agree by hand. Declined for PR-2; recorded here.
+
+## What SYM-8 took: the tilt-`u` wall (2026-09-15)
+
+**Rule F — the manifest sign** (`geom_core::sym::manifest`,
+`SymRules::manifest_sign`) folds the two atoms the tilt-`u` wall sat
+behind. `Vec3::orthonormal_basis` mints `s = 1.copysign(n.z)` and
+`r = 1/(1 + |n.z|)`, and on this document `n.z` is `1/sqrt(P(t))` — an
+`Inv` of a `sqrt` atom, which the FORM shows positive. In the early
+walk `copysign(Y, X) → abs(Y)` and `abs(X) → X` wherever `X` is
+manifestly POSITIVE; both are equalities of reals at every point
+clause 1 admits and neither reads a value, so a zero reached through
+them is a theorem. Strict positivity rather than the non-negativity
+rule D's `atan2` fold reads: `copysign` reads a SIGN BIT, so
+`copysign(1, −0.0) ≠ copysign(1, +0.0)` and at a real zero the node
+denotes no function of the real value of its argument.
+
+Measured on the tilt-`u` derived document (`u = (1,0,t)`, a cube
+extruded from it, a `FaceFrame` on its cap, the boss on that —
+`m10_derived_frame_tilted_interval`'s `sym8_phase1_*` rows), rule F
+off → on:
+
+| rung (`half = 1e-3`) | rule F off | rule F on |
+| --- | --- | --- |
+| derived, `Guided` | refuses `carrier_endpoint_end` `[0, 5.521e-2]`; the residual is `sqrt(?#…)` over a FROZEN `Powi ^2` whose kid is 440 terms at degree 27 over 298 at degree 28 (`440² > MAX_TERMS`) | that node is BUILT; `carrier_endpoint_end` 24/0/0/1 → **33/0/0/0**, every decision a theorem, and the refusal moves on to `newell_plane_residual` `[−5.744e-2, 5.744e-2]`, 662 terms and three frozen nodes on its path |
+| derived, `Pinned` | certifies; `symbolic_zero` 754, `numeric` 568, 2.6 s | certifies; **876 / 446** — 122 decisions out of `numeric` — in **0.4 s** |
+| derived, `Guided`, `half = 5e-2` | refuses `interval_span_forward` | identical, the same refusal |
+| the authored twin, every rung and width | certifies | certifies, byte-identical counts |
+
+So the wall this row named IS the two atoms, and it falls. The document
+still does not certify under `Guided`: what stands there now is a
+`newell_plane_residual` straddle the tier does not prove, filed as
+`work/sym/the-tilt-u-newell-residual-is-the-next-wall`.
+
+**What it moves elsewhere: nothing, with one disclosed exception.**
+Every per-predicate split at the nominal is bit-identical with the rule
+on and off on seven of the eight measured documents (the pad's nominal
+split with the shape report installed exhausts the measuring box's
+memory at BOTH dials and was not takeable there), and every
+whole-certifying ceiling is identical to the digit on all eight, with
+the over-band set at ceiling + δ identical too. The exception is the
+pad at the scale it certifies whole at: `symbolic_zero` 858 → 854,
+`registered` 104 → 128, `numeric` 991 → 971, `frozen` 2750 either way.
+The four that left `symbolic_zero` are the ring row's class and are
+recorded there. Cost on the leaf instrument: free to the measurement's
+noise, and cheaper on most documents.
+
+### What the two reviews added, and what rule F does NOT reach (2026-09-21)
+
+Both blinded reviews built documents the unit had not, and the fix pass
+ran all of them (neither review's box could link the `editor-core`
+interval binary). The rows are
+`m10_derived_frame_tilted_interval`'s
+`sym8_the_reviews_documents_the_unit_did_not_measure`, which carries the
+table; what it settles:
+
+- **The reach is ONE-SIDED, and that is now measured, not inferred.**
+  A `FaceFrame` on the tilt-`u` cube's START cap carries
+  `n.z = −1/sqrt(P(t))`, and the predicate refuses a negative
+  coefficient outright, so neither arm folds. The same frame with `v`
+  flipped (`FlipZ`) reads, under `Pinned`, exactly the tilt-`u`
+  document's rule-F-OFF numbers to the digit — the same document with
+  the fold declined. **A manifest-NEGATIVE arm — `abs(−X) = X` and
+  `copysign(1, −X) = −1` for a manifestly positive `X`, which are
+  identities of reals exactly as the folded ones are — is the next
+  shape and was NOT taken by SYM-8.** It would want its own
+  measurement: the same predicate reversed doubles the shapes the early
+  walk opens, and this row's own history says opening an atom is not
+  free (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`).
+- **`n.z` a bare parameter over a `sqrt` atom** (`u = (1,0,0)`,
+  `v = (0,t,1)`) is declined too, at a narrow box and at one wide
+  enough to hold `n.z = 0`; at `half = 3e-1` under `Guided` the
+  document refuses on a clause-1 INVALID newell margin at both dials,
+  which is the value channel's and not the tier's.
+- **A tilt about `u` AND `v`** (`n.z = 1/sqrt(1 + 2t²)`) — which both
+  reviews predicted as the shape rule F folds — moves NOT ONE count at
+  either lift. The prediction is not confirmed, and why is unmeasured:
+  the fold either never fires on that document's `n.z` form or fires
+  without reaching a decision. Whoever takes the next unit on this row
+  should render it first.
+
+So the reach measured for rule F is still the tilt-`u` document alone,
+and the class it belongs to is narrower than the shape of the predicate
+suggested.
+
+## What SYM-12 measured, and took: the negative arm (2026-09-21)
+
+The three things SYM-8 left standing beside rule F, measured before
+anything was written (`docs/SYM-12-SPEC.md`; PR body carries the
+three tables whole):
+
+**`tiltUV`, rendered — the fold never fires, and it is not the
+budget.** On the tilt-about-`u`-and-`v` document at `half = 1e-3` under
+`Guided`, the `copysign(1, n.z)` atom STANDS in the rule-F-on render of
+the refused `carrier_endpoint_end` residual's path, bit-identical to
+the rule-F-off render (525/308/37 both). The reviews' `n.z =
+1/sqrt(1 + 2t²)` was the geometry's closed form, not the DAG's: the
+form the walk builds is a quotient of two polynomials in the
+parameter's OFFSET (numerator degree 20, denominator degree 22, every
+coefficient positive) whose terms carry `t` at ODD powers as bare
+factors beside three `sqrt` atoms — `sqrt(P/Q)` with quartic `P`, `Q`,
+`sqrt(17/16 + t/2 + t²)` (the `|u|` the tilt-`u` document also carries)
+and a `sqrt` over a FROZEN node — so no term is signed by syntax and
+rule F's predicate declines at its first clause; the manifest-NEGATIVE
+arm cannot read it either. What refuses the document at both dials is a
+`Sub` the early walk freezes on its kids' size (a cross-multiplication
+of `102·69 + 204·35` terms over a degree-108 denominator), and it is
+the same node with the fold off and on. Under `Pinned` the pinned plane
+leaves a constant-argument `copysign(1, C₁/sqrt(C₂))` that rule F does
+fold, in 2 of 300 rendered numeric residuals, and no count moves
+(576/746/291 both). The tilt-`u` document's own atom, rendered through
+the same row, is `copysign(1, 1/sqrt(17/16 + t/2 + t²))` — a positive
+constant over a `sqrt` atom, positive by the denominator clause alone —
+which is the whole difference. The row is
+`m10_derived_frame_tilted_interval`'s
+`sym12_phase1_the_tilt_uv_document_rendered`.
+
+**The `copysign` census — no mint site but the basis reaches the tier
+on a measured document, and the site list is now a register.**
+`m10_10_evidence_interval`'s `sym12_the_copysign_census_at_the_nominal`,
+rule F on and shut: not one `copysign` atom stands in any numeric
+residual of the plate, the annulus, the link, the bracket (102
+rendered over 14 predicates), R1's boss or either D-tab at the nominal
+(the pad's nominal replay with the report installed exhausts the
+measuring box's memory, as SYM-8 found); the five cheap ones are gated
+(`sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`).
+That empirical claim covers every site, named or not. The tree holds
+TEN generic sites outside the tier and the scalar impls — the basis,
+`svd.rs`'s Householder (`f64` only), `implicit.rs`'s cone gradient,
+`props/curved.rs`'s sphere-meridian pole margins, `sugar.rs`'s two
+arc-leg fillet trims, `path.rs`'s line×line turn side,
+`revolve/axis.rs`'s radial extent, `blend/arms.rs`'s cone nappe,
+`solid_contain.rs`'s `cbrt` — pinned by
+`sym_rule_f_rows`'s `the_copysign_mint_sites_the_tree_holds_are_these`
+(the spec's "five other sites" was SYM-8's list; the unit's first cut
+repeated it and dropped `curved.rs`, and its two reviews counted the
+rest). Of the ten, only the basis reaches a decision on the reviews'
+documents; on the eight, none. `path.rs`'s turn side RUNS on the
+bracket and the pad (line×line fillets) and never reaches a residual;
+`revolve/axis.rs`'s radial extent runs on the REVOLVED document
+(measured on it, `sym12_the_copysign_census_on_the_revolved_cap`: nine numeric residuals rendered, none carrying a `copysign` atom, rule F on or shut — 477/289/902 both, four refusals, the `pcurve_loop_continuity` row's); the cone, sphere and blend sites need a
+surface no measured document has; `cbrt` is the boolean containment
+solver's. The `abs` atoms the seven carry are all unreadable by either
+arm (a parameter at an odd power, a `sqrt` of a bare square, a frozen
+node).
+
+**The negative arm, hand-planted, measured, then taken** (a seam with
+DECIDE-3's `definite_quadratic`, which widens this arm's denominator
+clause through `nonneg_poly` the day the branches meet, is filed as
+`work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`). `abs(X) =
+−X` and `copysign(Y, X) = −|Y|` for a manifestly NEGATIVE `X` — `X`
+whose negated numerator is manifestly positive over a non-negative
+denominator, the predicate reflected term for term, the signed-zero
+edge closed by strict negativity the same way. Measured (rule F on,
+arm off → on, `half = 1e-3`):
+
+| document, lift | arm off | arm on |
+| --- | --- | --- |
+| tilt-`u` START cap, `Guided` | 573/316/398, refuses `carrier_endpoint_end` 28/0/0/1 | **631/320/720**, `carrier_endpoint_end` every decision a theorem, refuses `newell_plane_residual` 32/0/0/1 |
+| tilt-`u` START cap, `Pinned` | 768/554/1270, certifies, 12.2 s | **876/446/1270**, certifies, 1.0 s — 108 decisions out of `numeric` |
+| `FlipZ`, `Guided` | 525/308/37, refuses `carrier_endpoint_end` 24/0/0/1 | **631/320/720**, refuses `newell_plane_residual` 32/0/0/1 |
+| `FlipZ`, `Pinned` | 754/568/1270, certifies, 7.8 s | **876/446/1270**, certifies, 1.2 s — 122 decisions out of `numeric` |
+| tilt-`u` END cap, `tiltUV`, `tiltNZ`, tilt-`v`, both lifts | — | unmoved on every count and every half-width ceiling |
+| `FlipX` (`u` flipped, `half = 2e-3`; the reviews') | reads as `FlipZ` | reads the end cap's state by name and by count at both lifts |
+| `FlipV` (a tilt about `v`, `v` flipped; the reviews') | 956/526/1467 `Guided`, 876/446/1269 `Pinned` — tilt-`v`'s numbers | identical: NOT reached (`carrier_endpoint_end` already 32/0/0/0 with rule F shut) |
+| the eight measured documents, splits at the nominal (seven takeable) | — | bit-identical |
+| the eight measured documents, whole-certifying ceilings and the over-band set at ceiling + δ | — | identical to the digit on all eight (brackets, the counts at ceiling + δ, the over-band sets); s/probe within noise |
+| the walk ledger (slab, plate) | — | bit-identical (the pinned digests green at both arm states) |
+
+So the arm takes the start cap and `FlipZ` to the END cap's rule-F-on
+state BY NAME AND BY COUNT — `FlipZ`'s Newell residual is the end
+cap's mirrored (the same DAG, the same enclosure); the start cap's is
+its OWN residual (`[−3.0416e-2, 3.0464e-2]` against the end cap's
+`[−5.744e-2, 5.744e-2]`) with the same 32/0/0/1 — with the Newell
+straddle behind all three
+(`work/sym/the-tilt-u-newell-residual-is-the-next-wall`, DECIDE-3's
+ground, untouched here) — and moves nothing anywhere else: the ring
+item's acceptance is met with no split or ceiling down and the class it
+records not paid a second time (no `abs` atom on the eight is
+manifestly negative, so nothing is opened). Shipped as the second arm
+of rule F under the same dial (`manifest::negative`, the reflection of
+`positive` stated once; `manifest.rs`'s header carries the argument),
+with the scalar-door rows in `sym_rule_f_rows`
+(`the_negative_arm_folds_the_start_caps_atoms`,
+`the_shapes_the_negative_arm_must_not_fold`,
+`the_negative_arms_order_against_rule_c_is_pinned_the_same_way`) and
+the gating document row
+`m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm`.
+
+**What stands on this row now.** The reach of rule F is no wider than
+the documents behind it: a `FaceFrame` whose `carrier_endpoint_end`
+residual carries the frame's own atoms — the tilt-`u` family, either
+cap, either sign (`FlipZ`, `FlipX`), each stopped at the Newell wall.
+It is not "every signed `n.z`": `FlipV` (a tilt about `v`, `v`
+flipped) carries the same manifestly negative `n.z`, the arm folds its
+atoms, and nothing moves, because the tilt-`v` family stops on
+residuals those atoms never reach;
+`tiltUV` stands on a size freeze no sign rule reaches, and `tiltNZ` on
+a sign that is the box's and not the form's — both are the atom
+algebra's next shapes if anyone wants them, and neither is a predicate
+this row's mechanism names.
+

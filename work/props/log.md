@@ -1864,3 +1864,239 @@ defect `1e-9 * x.abs().max(1.0)` FLOORED it and rendered every
 sub-nanometre margin as `0`.
 
 Signed (DOOR orchestrator).
+
+**Curved-residues built, and its dual half-ran (2026-09-20).** PR #2924
+at `3f918e808`, run 35550288011 green on the full matrix. All three
+residues served. Its ruling on the red row I handed it was right and
+well-argued: the door's escalation is CORRECT and the row's `Ok(())`
+was what became wrong — margin `−1.3163737899724026e-9` is the
+axial-sine reading of `R·Δv = 1.5e-9` shrunk by `cos v̄`, the two
+extremes are 1.3 nm apart at a 1 nm zero band, and escalate-never-guess
+is ratified. It re-baselined with the reason rather than widening a
+meshing gate, which is what the spec asked for.
+
+**The fable arm is out of credits.** Ordinal 2408 drew R1 = FABLE, and
+R1 died on its first request — not the session limit but account-level
+`You've reached your Fable limit`. R2 (opus) ran to completion. I have
+NOT substituted opus for the fable arm: that would quietly convert a
+cross-model dual into two same-model reviews, which is the one thing the
+row exists to measure. Recorded as an amendment under the claim rather
+than an edit to it, and put to Ev, whose call the credits are.
+
+**R2's MAJOR is a live defect on main, and it is my premise failing a
+third time.** `require_rim_only_closed` — the guard the sphere unit
+added to close its OWN major — decides a span **SUM**, not a **cover**.
+`du_of_rims` sums a group's arc spans, so any multiset of same-level,
+same-direction arcs summing to a turn passes: the same HALF rim stated
+twice answers the whole cap's area on half a circle. The four shapes the
+unit red-firsts are instances of the non-covering class, not the class.
+
+The guard has two callers, and the sphere's is **on main today**, so a
+rim-only sphere cap built that way is measured as a full cap right now.
+I verified the guard body and both call sites against `origin/main`
+before dispatching anything.
+
+The lineage is worth stating because it is three failures of one
+premise, and the first was mine: the sphere SPEC asserted that
+`du_of_rims` already sums a full rim to `2π` instead of requiring a
+decide; the unit inherited the assertion and shipped a MAJOR; the fix
+added a guard that checks the SUM, which is the same premise one level
+down. Filed as `closure-guard-decides-a-sum-not-a-cover` and handed to
+the fix pass with the instruction not to patch it a fourth time at the
+same depth — the guard must decide that the arcs TILE the circle, every
+comparison through the funnel under its own name, with a red-first row
+at BOTH call sites and the property generated rather than enumerated.
+If the cover check needs interval machinery past a fix pass, the lane
+stops and it becomes its own unit.
+
+Also adopted from R2: a falsified sentence the unit's four-sentence
+sweep missed, in `topo/src/coherence.rs` — the file that cites the very
+row the unit moved; the door's new refusal is not band-continuous with
+its own charter (a cylinder wall passes at `Δv = 0`, refuses at 1.5e-9
+and 5e-9, passes again at 1e-7) and the 40-pair corpus was structurally
+incapable of seeing it; a gate that reads a side off an extent it never
+checks closes; and the deleted sphere row's prose landing on an
+unrelated test's doc comment.
+
+Confirmed clean and not to be re-litigated: the transposed premise
+holds (`rim_interior_side` is a fixed involution of `d_u_sign`), the
+MESH-12 arithmetic and its audit citation, the manufactured-escalation
+removal under an independent widened sweep, and the `work/tess/`
+coverage-loss filing. R2 also re-derived the cone's closed form on
+general cones — α ∈ {0.05, π/6, 1.4}, both nappes, both traversals,
+off-origin apex — and found the code right where the committed fixtures
+could not have caught a sin/cos swap.
+
+**Ordinal 2408 retired without a row (Ev, in chat, 2026-09-20).** With
+the fable arm out of credits, the choice was to run R1 late and accept
+the 2404 asymmetry, or record the unit with a single review and no A/B
+row. Ev ruled the second: no dual needed for this unit. The number stays
+claimed so nothing reuses it, and the A/B log says why the band has a
+gap rather than a blank.
+
+What that does and does not change. The opus arm's review is the unit's
+**review of record** — its findings bind the fix pass exactly as a
+dual's would, and one of them is a live defect on main. What is not
+claimed is any A/B signal: one arm is no comparison, so there is no
+rubric pair and no tally candidate, and the reviewer's ratings sit here
+as a review rather than in the log as data. PROPS-B3 slot 2 is still
+owed to fable.
+
+For the record, since it bears on how much weight one arm can carry:
+this reviewer executed C1 through C12, re-derived the cone's closed form
+independently on general cones rather than checking the unit's
+arithmetic, found the guard defect by constructing the fifth shape after
+reproducing the unit's four, and rated the unit 4 / 3 / 3. Its
+confidence vocabulary was used honestly — the guard defect `sure` and
+executed, the gate's reachability `unsure` and said so, and its own
+unread coverage declared rather than glossed (the topo battery went
+unrun because the build mutex was held and disk fell to 15 GB).
+
+## HOLD IN FORCE — no A/B dispatches until Ev lifts it (2026-09-20)
+
+**Ev, in chat:** do not dispatch anything that needs the A/B protocol,
+and do not record *any* implementation under the A/B protocol, until Ev
+says the fable limit has reset. This is a standing constraint, not a
+note — it is written here because this log is what an orchestrator
+re-reads after a context compaction, and a temporary hold is exactly the
+kind of thing that gets lost.
+
+**What it stops.** Every PROPS kernel implementer unit: they all take a
+block slot and record a row, so all of them are blocked. No ordinal
+claims, no parity draws, no block-slot assignments, no rows. And no
+off-protocol implementer dispatch as a way around it — dispatching an
+implementer without a slot is the exact error disclosed at ordinal 2407,
+and doing it deliberately would be worse than doing it by accident.
+
+**What continues.** The curved-residues fix pass, already in flight:
+Ev retired ordinal 2408 without a row, so that unit is no longer an A/B
+item and finishing it records nothing under the protocol. It merges with
+a single review of record and no row. Orchestrator work that is not a
+dispatch — adjudication, filing, verification, tracker hygiene — is
+unaffected.
+
+**Lift condition:** Ev says the fable limit has reset. Until then, if a
+unit looks ready to dispatch, it waits.
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your ground:** `crates/geom-core/src/spline/knots.rs` (NURBS and
+PROPS) and `crates/geom/src/curves/fit.rs` (PROPS).
+
+**A sixth carrier the row never named.** `KnotVectorIssue` — reached
+through `SplineError::KnotVectorInvalid` — had **7 of 7** renderings
+stopping at the condition. Without it `SplineError`'"'"'s one delegating
+arm could not be asserted transitively and the chain was false at one
+remove. Both now carry enforcement rows.
+
+`FitError`'"'"'s `Lsq` and `KnotAlgebra` arms are asserted as
+**delegations only**, and **a row is filed on PROPS'"'"'s slate** saying
+why: `fit-error-delegates-to-two-carriers-that-name-no-recourse`.
+`LsqError` (`linalg/lsq.rs`) and `KnotAlgebraError`
+(`spline/algebra.rs`) state their conditions and name no repair, and
+`FitError` contributes five characters over them, so whatever they omit
+is simply absent from what a caller of `NurbsCurve3::interpolate` reads.
+Asserting a recourse over them would have been a claim about the one
+payload the test built — the conditional-transitivity rule this class
+established.
+
+Signed (FIX orchestrator).
+
+**MERGED: curved-residues (2026-09-21).** Merge `0cd022b32`, fix run
+35565268986 green on the full matrix. **No A/B row** — ordinal 2408 was
+retired on Ev's ruling and the single opus review is the unit's review
+of record.
+
+**The live defect on main is closed, and closed at the right depth.**
+`require_rim_only_closed` now decides a COVER: the span sum as before,
+AND `props_rim_only_join`, which requires each edge's traversal END to
+be the next one's traversal START, cyclically — a point deviation in
+metres through the funnel at `require_rim_incidence`'s own dimension, no
+raw `f64` comparison. Both call sites, so the sphere arm on main is
+fixed by the same change.
+
+I checked the argument rather than taking it. Same-direction arcs have
+non-negative spans, so a chained arc `k` covers `[S_{k−1}, S_k]`; the
+joins fix each start azimuth modulo `τ` and the cumulative sum lifts it
+to `ℝ`; consecutive non-overlapping intervals totalling `τ` cover the
+circle exactly once. **Neither half suffices and each catches what the
+other cannot**: three arcs of `2τ/3` chain into a closed cycle and
+double-cover, which only the sum refuses; a half rim stated twice totals
+a turn and covers half, which only the joins refuse.
+
+**The lane declined my stop condition with a measurement, correctly.**
+I said to stop if the cover check needed interval machinery. The obvious
+"sorted, contiguous, no gap, no overlap" reading does need it — `atan2`,
+modular normalisation, a tolerance on wrapped joins. The head-to-tail
+formulation decides the same property with one length margin per join
+and no normalisation at all, so it fitted a fix pass. It said so rather
+than smuggling it, which is the behaviour the escape hatch exists for.
+
+Three further things worth keeping:
+
+- **Tested as a property, not a list.** Tilings for `n ∈ 1..=6` measured
+  at every anchor, and four generated refusing families — including `n`
+  copies of one arc and a tiling with two adjacent arcs exchanged, both
+  summing to exactly `τ`. Those last two are precisely what a sum cannot
+  see, and an enumeration of shapes would not have contained them.
+- **The `_folded_apex` finding closed by construction, not by patch.**
+  Moving the guard into the fold means `cone_boundary` returns a
+  `LinearBoundary` again and no caller can forget the flag, because
+  there is no flag.
+- **The lane checked a claim I passed on rather than trusting me.** I
+  relayed the reviewer's finding that a zero-width slit claim was
+  falsified; the lane executed the row, found the claim still TRUE, and
+  reworded it to say why instead of deleting it. Relayed findings are
+  not established findings, and it treated mine accordingly.
+
+**Argued and accepted: the two folds stay two.** What they genuinely
+share is now shared — `unanimous_rim_dir` with the σ-involution argument
+at it, `span_sum`, and the fixed `require_rim_only_closed`. What is left
+per kind is the extent MARGIN and which extreme is pushed, the two
+things this file insists each kind states for itself, and each fold is
+about ten lines. An indirection that hides the metering would not earn
+its place. Accepted as argued.
+
+**Two adoption costs found on the matrix rather than reasoned about**,
+both fixtures rather than kernel: a probe cap at a literal `v = 1e-4`
+was a 5 µm rim levered at exactly that radius, decidable at default ε
+and escalating at 1e-6 (now `1e3 × escalate / sin α`); and a flat
+`1e-12` area tolerance on a row placing the apex 62 mm out with a 10 µm
+cap, where recovering `v` from `(center − apex)·axis` cancels digits the
+area then squares — measured `rel = 3.4e-12`. Now `1e-12 × conditioning`,
+which IS the flat `1e-12` wherever the apex is the origin: a statement
+about `f64` and the fixture, not a loosening of the closed form.
+
+## A repair from CHROME (2026-09-21) — three conflict-marker lines, no content touched
+
+`work/props/log.md` carried a complete, committed conflict block on
+`main`: `<<<<<<< HEAD` at `:1868`, `=======` at `:1981`,
+`>>>>>>> origin/main` at `:2014`. Both sides were intact and neither
+had deleted anything — side A is a DOOR orchestrator entry
+(curved-residues, PR #2924), side B a FIX orchestrator entry ending
+*"Signed (FIX orchestrator)"*. A log is append-only narrative, so two
+sessions appending at the same place is a union and not a choice: the
+three marker lines are deleted and **both narratives are kept, in
+order, unedited**. Nothing else in this file was touched.
+
+Found incidentally by a CHROME lane's tree-wide grep for conflict
+markers (the check `memories/agent-lane-operations.md` prescribes
+*after* a resolution — here run against `main` itself). Repaired as a
+drive-by under `work/README.md`'s *"if you notice something small and
+you can fix it where you stand, fix it"*, rather than filed: the fix
+is smaller than the file that would schedule it, and it was live on
+`main`.
+
+**If either side was meant to replace the other rather than sit beside
+it, this repair is wrong and the correction is yours** — the two texts
+are as they were, so nothing is lost either way.
+
+Signed (CHROME orchestrator).

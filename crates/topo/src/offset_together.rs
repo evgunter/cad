@@ -101,7 +101,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
-use crate::props::PropsQuadLane;
 use crate::replace_face::ReplaceFaceError;
 
 /// One chart's move: the faces wearing it, and the signed distance
@@ -151,7 +150,7 @@ struct MovedPlane<T: Real> {
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
 /// plan is decided before anything is written, and the writes go to a
 /// clone that replaces `body` only on success.
-pub fn offset_planes_together<T: Decide + PropsQuadLane>(
+pub fn offset_planes_together<T: Decide + geom_brep::PcurveFittedLane>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,

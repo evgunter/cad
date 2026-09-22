@@ -4,6 +4,19 @@ Newest entries at the bottom; the tail is the program's live status.
 Plan: `work/sym/plan.md`. A/B band 4700–4799
 (`docs/MODEL-AB-LOG.md` owns every live experiment number).
 
+## SYM-13 dispatched (2026-09-22): the leaf receipt's `frozen` column as the leaf's NEED — block SYM-B3 slot 2
+
+Spec `docs/SYM-13-SPEC.md` on `main` (the orchestrator's tracker PR);
+item `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+(P0, SYM-7's residue). Pre-draw D / STRUCTURAL on `sym/b3-block`; arm
+OPUS by the block's draw (byte 178). Protocol v7 IN — a receipt-contract
+decision — the full v6 dual, ordinal claimed on `main` at the dual's
+dispatch. Phase 1 measures the race (an adversary document where two
+leaves race for a node, the cross-schedule row red today), the column
+under three schedules, the consumers and NEED's cost; Phase 2 makes the
+column NEED with the adversary as a gating row; "drop" only by Ev's
+call if NEED's cost is above the line. Branch `sym/13-leaf-need`.
+
 ## Opening state (2026-09-13)
 
 Opened at M10's exit sweep, on Ev's call in chat that day: M10's walk
@@ -969,3 +982,169 @@ two reconciled on `[ev]` #2949 — the record is in `work/decide/log.md`
 the orchestrator of SYM's remainder going forward; the local copy's one
 unmerged docs commit (`mngr/sym` @ `8dfe5c1fb`, SYM-10's dispatch) is
 folded here rather than merged.
+
+## SYM-11 spec'd and dispatched (2026-09-21): the point channel is not a proof — block SYM-B3 opens
+
+The orchestrator returns to SYM's own slate with DECIDE's remainder
+waiting on Ev (#2970) and on SYM-10. The plan's order puts
+`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` first — the
+one row that is a live crash rather than a refusal or a freeze — and
+its two mechanisms (the far placement's rounding, rule F's sign
+amplification) share one cause: the theorem-vs-numeric `debug_assert!`
+assumes its numeric channel is a certified enclosure, which is true at
+`Interval` and false at `f64`/`Probe`. SYM-6 drew exactly this
+partition for the registered-identity door (`Contradicted` from an
+exact witness, `Disputed` from an inexact one); SYM-11 draws it for the
+theorem channels — declared on the lane scalar, asserted at an exact
+witness, counted and never panicking at an inexact one, the numeric
+answer kept. Spec `docs/SYM-11-SPEC.md`; unit `work/sym/SYM-11.md`;
+branch `sym/11-witness-kind`. **Triaged IN under v7** (an architectural
+decision on the door; H / STRUCTURAL, pre-draw). **Block SYM-B3 opens**
+on `sym/b3-block` with slot 0 = SYM-11, slot 1 = SYM-12 (the
+derived-frame freeze's next shape, H / NUMERIC) and slot 2 = SYM-13
+(the leaf's `frozen` column under the drive memo, D / STRUCTURAL); the
+pre-draw fields for all three are logged there before the draw, the
+specs for slots 1 and 2 are written at their dispatch (recorded as the
+block's one deviation from SYM-B2's "all three specs on main first").
+The draw: byte 178, 178 mod 3 = 1 ⇒ fable at slot 1. SYM-11's
+implementer arm is therefore OPUS. The
+ordinal is claimed on main at the dual's dispatch in SYM's band
+(4700–4799, next 4705; the 2026-09-20 roster line that says SYM keeps
+"5800–5899" collides with ENCL's band and is a roster error to correct
+at that claim).
+
+## SYM-11 merged (2026-09-21): the point channel is not a proof — block SYM-B3 slot 0
+
+PR #3028 merged at `the merge commit` (fix-pass head `c6addfa56`, run
+35639015619 green on the full matrix). The theorem-vs-numeric
+`debug_assert!` in `Decide for Sym<T>` assumed a certified enclosure;
+the unit charges the contradiction by WITNESS KIND, the partition
+`Real::register_equal` already draws: `Real::WITNESS: Witness`
+(`Exact` | `Inexact`, required, no default — `Interval` the only
+`Exact`; `f64` and `Probe` `Inexact`; `Dual<T>` and `Sym<T>` forward),
+asserted at an exact witness exactly as before, COUNTED at an inexact
+one (`SymCounts::theorems_disputed`, a refusal column declared on the
+DECIDE-2 pins' non-discharge side, both theorem kinds) with the numeric
+answer kept and nothing panicking. Phase 1: both mechanisms reproduced
+and counted (the far placement at (1e-9, 1e9), (1e-12, 1e6), (1e-12,
+1e9) on the stadium and the washer; rule F's adversary 6 of 6 at `f64`
+and `Probe`); the pole recorded (the inexact channel has no clause 1,
+which is why it keeps the numeric answer); the exact channel never
+trips it — zero on the five measured documents past their ceilings at
+three ε (stop clause not triggered); the partition written down. No
+decision at `Sym<Interval>` moves; every pin bit-identical; the
+serialized receipt byte-identical (the column is present only when
+non-zero, and no reader exists). The far-placement rows and the
+adversary are gating; the `Sym<Probe>` rows rostered in the probe
+census's executed floor.
+
+Review: the v6 dual on `df23fca26` (ordinal 4705; R1 FABLE
+MERGEABLE-AFTER-FIXES 0/3/5 + 8 style, R2 OPUS MERGEABLE-AFTER-FIXES
+1/4/6, rubrics 4/3/3 both); both found the same first defect — the
+two-contract pin was a hand roster a mis-declared `Probe` walked
+through — so no unilateral MAJOR. Fix pass A–K: the pin made generic
+over `T: Real` with ten instantiations and three plants shown to red;
+`SignGated` ruled into the one column with its doc corrected and a
+gated-dispute row; the rotted prose and the hoisted contradiction
+predicate; the undisclosed `probe-suite-census.sh` edit announced; the
+unnamed-predicate deviation filed
+(`a-dispute-names-no-predicate-on-the-receipt`); the far-placement rows
+assert their whole table (R2's triangle at `3.7e7` added: the point
+lanes build where the bare lift refuses, and the certified lane is a
+superset of neither); the past-ceiling receipts asserted; one home for
+the own-thread helper (`test-utils`); the cost number (~1.7 %, inside
+run-to-run spread, and zero in every profile this workspace builds).
+Delta by R1: MERGEABLE (every item CLOSED but two citation PARTIALs and three non-blocking notes, taken in the state-sync commit: the profile row's comment explaining its guard by the wrong arm, the filed row cited on the item and the unit, the one remaining uncited copy of `E`). Row at ordinal 4705, sample #230. The box
+restarted once during the fix pass (18:35Z); every commit was on disk
+and pushed, the cost measurement had completed, and the agent was
+resumed. Spec deleted with its ledger entry; item
+`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` closed;
+unit closed.
+
+## SYM-12 spec'd and dispatched (2026-09-21): the derived-frame freeze's next shape — block SYM-B3 slot 1
+
+With SYM-11 merged (#3028, sample #230) a lane is free and block
+SYM-B3's slot 1 dispatches per its pre-draw fields (H / NUMERIC, FABLE
+by the draw's byte 178). The unit takes the derived-frame item's own
+"whoever takes the next unit on this row should render it first":
+Phase 1 renders `tiltUV` (the fold never fires, or fires into a frozen
+node, or fires where no decision is asked — one of three, recorded),
+counts the five other `copysign` mint sites against the eight measured
+documents, and hand-plants the manifest-NEGATIVE arm against the ring
+item's acceptance; Phase 2 takes the arm only if no split or ceiling
+moves down anywhere. The Newell wall after rule F is DECIDE-3's ground
+and is read-only here. Spec `docs/SYM-12-SPEC.md`; unit
+`work/sym/SYM-12.md`; branch `sym/12-negative-arm`. Triaged IN under v7
+by the program's default for a unit that changes what the tier decides
+on a document (the block record says so; re-asked here: IN).
+
+## SYM-12 at its PR (2026-09-21): the negative arm earned and taken
+
+Phase 1 first, all three tables committed before Phase 2. `tiltUV`
+rendered: the fold never fires — that document's `n.z` is not
+`1/sqrt(P)` in the DAG but a degree-20/22 quotient in the parameter's
+offset carrying odd powers beside three `sqrt` atoms (one over a frozen
+node), and a size-frozen `Sub` refuses it at both dials; not the
+budget. The `copysign` census: no mint site other than the orthonormal
+basis reaches a decision on any takeable measured document, rule F on
+or shut. The negative arm, hand-planted: the tilt-`u` START cap and
+`FlipZ` read the END cap's rule-F-on numbers to the digit at both
+lifts, nothing else moves, the eight documents' splits and ceilings and
+the walk ledger are bit-identical — the ring item's acceptance met
+without a second payment of its class. Phase 2 taken:
+`manifest::negative` as `positive` of the negated numerator, both arms
+under `manifest_sign`, the rows and the ordering pin, the gating
+document row. Sample and ordinal at the dual's dispatch.
+
+## SYM-12 fix pass (2026-09-22): the union of both reviews
+
+Both reviews MERGEABLE-AFTER-FIXES (R1 one MAJOR: the mint-site census
+incomplete and presented as exhaustive; R2 one demonstrated MINOR: the
+two spellings of a negative magnitude parted). Taken, A–W: `magnitude`
+reads `fold_abs` first, R2's row the pin; the tree's ten `copysign`
+sites registered by a source-census row with the empirical claim
+gated on the five cheap documents and measured on the revolved cap
+(no atom reaches a decision); `negative` tests before it allocates;
+each document's own numbers (the start cap 108 out of `numeric`,
+`FlipZ` 122); the census table's totals printed by the row (three
+hand sums were off by one to four); the release leaf instrument run
+(the arm inside the run-to-run spread on all six leaves; the bracket,
+link and pad over the line since rule E); the two forced rows
+reflected; the render width restored by `take_shape_report`; the pad's
+pins stated exactly (bracket pinned, nominal split by no row, over-band
+set evidence-only); the reach narrowed to the tilt-`u` family (R1's
+`FlipV` folds and moves nothing; R2's `FlipX` reads the end cap); the
+one-dial reason's false half dropped; the negatives row's poison and
+`copysign` cases; the fold row's F-shut arm said in full; the helpers
+one home; the DECIDE-3 seam filed
+(`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Frozen again for the delta.
+
+## SYM-12 merged (2026-09-22): the derived-frame freeze's next shape — block SYM-B3 slot 1
+
+PR #3046 (fix-pass head `47e5a0a64` green on the full matrix, run
+35672457048; the state-sync commit on top). Rule F's NEGATIVE arm:
+`manifest::negative` as `positive` of the negated numerator, both folds
+under `manifest_sign`; the reach the tilt-`u` family, either cap, either
+sign (the start cap 108 out of `numeric`, `FlipZ` 122, both to the end
+cap's state by name and by count; `FlipV` folds and moves nothing);
+`tiltUV` rendered — the fold never fires on a 21-over-23-term quotient
+with odd powers of `t`, not the budget; the `copysign` census — no atom
+reaches a decision on the seven takeable documents or the revolved cap,
+ten mint sites registered by a source-census row; `magnitude`'s two
+spellings meet; the leaf cost measured (cheaper on five of six leaves,
+the link +4.8 %); the eight
+documents' splits, ceilings and the walk ledger bit-identical.
+
+Review: the dual on `c6cf72319` (R1 OPUS MERGEABLE-AFTER-FIXES 1/5/5 —
+the mint-site census incomplete and presented as exhaustive; R2 FABLE
+MERGEABLE-AFTER-FIXES 0/4/5 — the two spellings of a negative
+magnitude parted, demonstrated). Fix pass A–W (the register row and
+its reader-ledger line, the census gate, the leaf instrument run, the
+reflected rows, the reach narrowed, the seam filed as
+`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Delta by R1: MERGEABLE with F1 (must-fix: the render width per pass),
+F2, F3 — taken in the state-sync commit. Spec deleted with its ledger
+entry; the unit closed. Next: SYM-13 (block SYM-B3 slot 2, Opus); the
+seam row is the `props/sign-hull` merge's.
+
