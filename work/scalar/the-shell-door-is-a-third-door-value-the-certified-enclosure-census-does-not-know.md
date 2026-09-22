@@ -1,7 +1,7 @@
 ---
 id: the-shell-door-is-a-third-door-value-the-certified-enclosure-census-does-not-know
 kind: issue
-title: The shell door is a third door value and the CertifiedEnclosure impl census still reads two rosters
+title: The shell door is a fourth door value and the CertifiedEnclosure impl census still reads two rosters
 status: open
 opened: 2026-09-22
 priority: P3
@@ -21,12 +21,21 @@ those two are supposed to carry: *"a sixth `impl CertifiedEnclosure`
 would form both doors and owe a row in each without anything going
 red. This census is that red."*
 
-LANE-3 added a THIRD door value of the same class — `topo::ShellDoor`,
+LANE-3 added another door value of the same class — `topo::ShellDoor`,
 one private fn-pointer field, one constructor `ShellDoor::certified()`
 bounded `Decide + CertifiedBounds + AtRestPolicy`. A new
 `CertifiedEnclosure` impl would form that door too, and the census does
-not know it exists: the sentence above is now one door short of the
-tree, and it reads green either way.
+not know it exists, and it reads green either way.
+
+Counting the doors: there are FOUR door values in the tree —
+`geom_brep::OffsetFitLane`, `topo::QuadLane`, `topo::RegionLane` and
+`topo::ShellDoor` — and four pointer-identity pin sites, three of them
+`wiring_rows` modules (`props.rs`, `chart_region.rs` and
+`geom-brep/src/offset_fit_lane.rs`, whose three `fn_addr_eq` rows the
+`ROSTERS` list does not name either) plus the shell door's inline rows
+in `props.rs`'s `at_rest_policy_tests`. The census header was
+corrected at LANE-3's fix pass to say which two it reads; the
+`ROSTERS` list itself is untouched.
 
 The shell door IS pinned by pointer identity — in
 `props.rs`'s `at_rest_policy_tests::certifying_arms_are_the_doors`,
@@ -35,19 +44,28 @@ which `fn_addr_eq`s each certifying arm's door against
 `wiring_rows`-shaped module with a needle helper, which is the shape
 `ROSTERS` reads.
 
-## Why it was not fixed where it was found
+## What is left, and what was wrong about the first answer
 
-Adding a third roster entry does not work as the census stands: the
-census requires a roster to name EVERY `CertifiedEnclosure` scalar,
-and `certifying_arms_are_the_doors` is instantiated at `f64`, `Probe`
-and `Interval` only — `at_rest_policy_tests` has no `Sym` row for any
-of its three methods, which predates LANE-3. So closing this means
-either giving the shell door its own `wiring_rows` module with the
-full roster, or giving `at_rest_policy_tests` a `Sym` arm and
-teaching the census this roster's shape. Both are outside LANE-3's
-fence (`crates/topo/tests/*` is TCOST's and S-TINT's).
+The blocker this row was filed with does NOT hold, and the correction
+belongs here: it said a roster entry cannot be added because the
+census requires a roster to name EVERY `CertifiedEnclosure` scalar
+while `certifying_arms_are_the_doors` runs at `f64`, `Probe` and
+`Interval` only. The missing `Sym` arm was three lines in `props.rs`,
+inside LANE-3's fence, and it passes —
+`at_rest_policy_tests::sym_over_f64_gates_run_the_doors` now covers
+all four policy methods at `Sym<f64>`, added at LANE-3's fix pass on
+both reviewers' finding. So the roster's SCALARS are no longer the
+obstacle.
 
-It rides naturally with the wiring-module fold LANE-4 carries: three
-copies of the pointer-identity pin now exist (`QuadLane`'s,
-`RegionLane`'s and the shell's), and whatever one module they fold
-into is the thing the census should read.
+What is genuinely left is the census-side work, which stays outside
+LANE-3's fence (`crates/topo/tests/*` is TCOST's and S-TINT's): the
+`ROSTERS` edit, and the shape it reads. `ROSTERS` names a file and a
+needle instantiated as `helper::<…>()`, so it can only read a pin
+written as a helper called per scalar; the shell door's pin is inline
+in the gate rows, and the offset fit's `wiring_rows` — the fourth pin
+site, unlisted too — would want its own entry.
+
+It rides naturally with the wiring-module fold LANE-4 carries: FOUR
+pin sites now exist (`QuadLane`'s, `RegionLane`'s, the offset fit's
+and the shell's), and whatever one module they fold into is the thing
+the census should read.

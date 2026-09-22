@@ -8,10 +8,18 @@
 //! scalar without the right cannot hold a value. It does not carry the
 //! which-scalars half: each `wiring_rows` module is a hand-written
 //! list of the scalars whose door is pinned by pointer identity, and a
-//! sixth `impl CertifiedEnclosure` would form both doors and owe a row
-//! in each without anything going red. This census is that red. It
-//! reads the impls off the code view of every `crates/*/src` file and
-//! the instantiations of each roster's needle
+//! sixth `impl CertifiedEnclosure` would form every door value in the
+//! tree and owe a row wherever that door is pinned, without anything
+//! going red. This census is that red for the two doors whose pins it
+//! reads. There are FOUR door values — `geom_brep::OffsetFitLane`,
+//! `QuadLane`, `RegionLane` and `ShellDoor` — and `ROSTERS` below
+//! names two of them: the offset fit's `wiring_rows` module
+//! (`geom-brep/src/offset_fit_lane.rs`) is of this shape and is not
+//! listed, and the shell door's pin sits inline in `props.rs`'s
+//! at-rest policy rows rather than in a `wiring_rows` module with a
+//! needle helper at all. It reads the impls off the code view of
+//! every `crates/*/src` file and the instantiations of each roster's
+//! needle
 //! (`holds_the_certified_quadrature::<…>()` off `props.rs`,
 //! `holds_the_certified_region_doors::<…>()` off `chart_region.rs`),
 //! and every roster must agree exactly with the impls after the ones
