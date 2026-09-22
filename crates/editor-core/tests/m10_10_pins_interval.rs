@@ -108,18 +108,33 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             && !off.common_factor
             && !off.manifest_sign
             && !off.canonical_root
+            && !off.abs_square
+            && !off.root_magnitude
             && !off.decision_read,
         "the algebra off: {off:?}"
     );
-    // EIGHT dials since DECIDE-3: rule E (the quotient's common factor,
-    // SYM-5), rule F (the manifest sign, SYM-8), rule G (the canonical
-    // root) and the decision read are form-level algebra in the early
-    // walk like the other four, and `without_the_algebra` is M10-9's
-    // tier bit for bit, which had none of them.
-    // `m10_9_pins_interval` holds M10-9's rows under it. A dial left
-    // out of this list makes the differential one against a tier that
-    // never existed — SYM-8's review found exactly that, with rule F on
-    // BOTH sides of it.
+    // TEN dials since SYM-9, and the two it added are rule G's own
+    // halves. Eight of them have been the list since DECIDE-3: rule E
+    // (the quotient's common factor, SYM-5), rule F (the manifest sign,
+    // SYM-8), rule G (the canonical root) and the decision read are
+    // form-level algebra in the early walk like the other four, and
+    // `without_the_algebra` is M10-9's tier bit for bit, which had none
+    // of them. `m10_9_pins_interval` holds M10-9's rows under it. A
+    // dial left out of this list makes the differential one against a
+    // tier that never existed — SYM-8's review found exactly that, with
+    // rule F on BOTH sides of it.
+    //
+    // **`abs_square` and `root_magnitude` are the ninth and tenth**
+    // (SYM-9): rule G's companion rewrite `|X|² = X²` and its magnitude
+    // door `sqrt(R²) = |R|`, each read as a conjunction with
+    // `canonical_root`, so neither can turn a step ON in a tier that
+    // has rule G shut and `without_the_algebra` is the same TIER it was
+    // before they existed. They are here because they must be the same
+    // VALUE too: a tier shut two ways is one `SymRules` and rows
+    // compare them (`m10_8_pins_interval`'s `a0_alone`). What made them
+    // dials is SYM-9's kept-atom retry, which needs a mask bit per
+    // shape — the RETRY LADDER itself adds no dial to this struct at
+    // all, it is `geom_core::SymRetry` and lives beside it.
     assert_eq!(
         SymRules {
             trig_of_atan: true,
@@ -129,11 +144,13 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
+            abs_square: true,
+            root_magnitude: true,
             decision_read: true,
             ..off
         },
         s,
-        "`without_the_algebra` differs from `shipped` in the eight algebra dials and nothing else"
+        "`without_the_algebra` differs from `shipped` in the ten algebra dials and nothing else"
     );
 }
 
