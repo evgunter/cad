@@ -4691,3 +4691,30 @@ a gated dispute is producible (`sqrt(((r + d) − d)²) − r` at
 entry.
 
 - `SYM-11-SPEC.md` — SYM-11, the point channel is not a proof (#3028)
+
+## Per-merge deletion — SYM-12's spec (2026-09-22)
+
+Recoverable at `git show 47e5a0a64:docs/SYM-12-SPEC.md` (the fix-pass
+head). What it decided: rule F's NEGATIVE arm taken —
+`manifest::negative` as `positive` of the negated numerator, both folds
+under `SymRules::manifest_sign` (one rule, two arms, one dial); the
+reach is the tilt-`u` family, either cap, either sign (the start cap
+and `FlipZ` read the end cap's state by name and by count; `FlipV`, a
+negative `n.z` on a tilt about `v`, folds and moves nothing); `tiltUV`:
+the fold never fires — the DAG's `n.z` is a 21-over-23-term quotient
+in the parameter's offset with odd powers of `t` beside three `sqrt`
+atoms, not the budget's; the `copysign` census: no atom from any mint
+site reaches a decision on the seven takeable documents or the
+revolved cap, and the tree's ten mint sites are registered by a
+source-census row (the spec's "five other sites" was SYM-8's list);
+`magnitude`'s two spellings of `|Y|` meet (R2's demonstrated row); the
+release leaf cost measured (cheaper than rule-F-shut on five of six
+leaves, the link +4.8 %); the DECIDE-3 seam filed
+(`work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Its sentences that did not survive: "five other `copysign` mint sites"
+(ten, counted); "the eight documents' splits" (seven takeable — the
+pad's nominal replay with the report is not); the walk stays
+recoverable at the merge SHA. Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `SYM-12-SPEC.md` — SYM-12, the derived-frame freeze's next shape (#3046)

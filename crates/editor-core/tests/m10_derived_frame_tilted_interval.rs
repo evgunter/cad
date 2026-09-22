@@ -853,12 +853,9 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
         .ok()
         .and_then(|d| d.trim().parse().ok())
         .unwrap_or(6);
-    if let Some(chars) = std::env::var("CAD_SYM12_CHARS")
+    let chars: Option<usize> = std::env::var("CAD_SYM12_CHARS")
         .ok()
-        .and_then(|d| d.trim().parse().ok())
-    {
-        geom_core::sym::report::explain_render_chars(chars);
-    }
+        .and_then(|d| d.trim().parse().ok());
     for &half in halves {
         if only_half
             .as_deref()
@@ -895,6 +892,12 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
                 };
                 start_shape_report();
                 explain_depth(depth);
+                // Per pass, AFTER `start_shape_report`: `take_shape_report`
+                // restores the default width, so a width set once
+                // before the loop reaches the first pass only.
+                if let Some(chars) = chars {
+                    geom_core::sym::report::explain_render_chars(chars);
+                }
                 let t0 = std::time::Instant::now();
                 let (refusal, counts) = geom_core::sym::with_session_rules(budget(), rules, || {
                     let ev: Evaluation<geom_core::Sym<Interval>> =
@@ -1385,15 +1388,23 @@ fn m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm() {
 ///   754/568/1270 → 876/446/1270, `Guided` 525/308/37 → 631/320/720
 ///   with `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and the refusal
 ///   moved to `newell_plane_residual` 32/0/0/1 — a third document of
-///   the tilt-`u` family, asserted here as the gating row asserts the
-///   first two;
+///   the tilt-`u` family, checked here the way the gating row checks
+///   the first two;
 /// - `FlipV` (a tilt about `v` with `v` flipped, `half` 3e-3, 1e-2
 ///   and 5e-2) moves NOT ONE count at either lift, arm on or off,
 ///   because with rule F shut its `carrier_endpoint_end` is already
 ///   32/0/0/0 and its first refusal already the Newell straddle: the
 ///   tilt-`v` family stops on residuals the frame's atoms never reach,
-///   so there is nothing there for either arm to buy. Asserted as the
+///   so there is nothing there for either arm to buy. Checked as the
 ///   arm's reach being no wider than the documents behind it.
+///
+/// EVIDENCE, not a gate: the row is `#[ignore]`d, so its assertions run
+/// when it is run by hand and nowhere in CI. What gates the reached
+/// class is `m10_the_start_cap_and_flip_z_read_the_end_cap_under_the_negative_arm`
+/// (two documents of the same family); `FlipX` is left here rather
+/// than gated because it adds a third instance of a class already
+/// pinned, and `FlipV` because a row that asserts nothing moved is
+/// green on the plant that removes the arm.
 #[test]
 #[ignore = "evidence-only: the reviews' two negative-n.z documents, the arm's reach and its edge"]
 fn sym12_a_negative_nz_the_arm_folds_and_does_not_reach() {

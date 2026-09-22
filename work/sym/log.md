@@ -1107,3 +1107,31 @@ one home; the DECIDE-3 seam filed
 (`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
 Frozen again for the delta.
 
+## SYM-12 merged (2026-09-22): the derived-frame freeze's next shape — block SYM-B3 slot 1
+
+PR #3046 (fix-pass head `47e5a0a64` green on the full matrix, run
+35672457048; the state-sync commit on top). Rule F's NEGATIVE arm:
+`manifest::negative` as `positive` of the negated numerator, both folds
+under `manifest_sign`; the reach the tilt-`u` family, either cap, either
+sign (the start cap 108 out of `numeric`, `FlipZ` 122, both to the end
+cap's state by name and by count; `FlipV` folds and moves nothing);
+`tiltUV` rendered — the fold never fires on a 21-over-23-term quotient
+with odd powers of `t`, not the budget; the `copysign` census — no atom
+reaches a decision on the seven takeable documents or the revolved cap,
+ten mint sites registered by a source-census row; `magnitude`'s two
+spellings meet; the leaf cost measured (cheaper on five of six leaves,
+the link +4.8 %); the eight
+documents' splits, ceilings and the walk ledger bit-identical.
+
+Review: the dual on `c6cf72319` (R1 OPUS MERGEABLE-AFTER-FIXES 1/5/5 —
+the mint-site census incomplete and presented as exhaustive; R2 FABLE
+MERGEABLE-AFTER-FIXES 0/4/5 — the two spellings of a negative
+magnitude parted, demonstrated). Fix pass A–W (the register row and
+its reader-ledger line, the census gate, the leaf instrument run, the
+reflected rows, the reach narrowed, the seam filed as
+`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Delta by R1: MERGEABLE with F1 (must-fix: the render width per pass),
+F2, F3 — taken in the state-sync commit. Spec deleted with its ledger
+entry; the unit closed. Next: SYM-13 (block SYM-B3 slot 2, Opus); the
+seam row is the `props/sign-hull` merge's.
+

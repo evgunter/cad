@@ -582,12 +582,17 @@
 //! 0.397 → 0.379 s, plate at its real study 0.403 → 0.376, bracket
 //! 2.052 → 2.022, annulus 0.330 → 0.327, pad 16.212 → 16.022, link
 //! 2.661 → 2.789; a second shipped run reads 0.378, 0.387, 1.998,
-//! 0.328, 16.030, 2.710, so the arm is inside the run-to-run spread
-//! on every leaf — as it must be, since it fires on none of the eight
-//! and costs there one coefficient-sign scan per declined node. The
+//! 0.328, 16.030, 2.710. What the numbers show: shipped is CHEAPER
+//! than shut on five of the six leaves, by 0.9 % (annulus) to 6.7 %
+//! (the plate's real study) — the pad by 0.190 s against a 0.008 s
+//! shipped-shipped spread, so that one is not noise — and dearer on
+//! the link alone, +0.128 s (4.8 %) against a 0.079 s spread. A rule
+//! that fires on none of the eight and costs one coefficient-sign scan
+//! per declined node cannot be what makes a leaf cheaper; the
+//! differential also removes the first cut's `−N` allocation on every
+//! declined node, which is the direction of five of the six. The
 //! bracket, the link and the pad stand over the 1.6 s line as they have
-//! since rule E, disclosed there; the arm moves none of them by more
-//! than the spread.
+//! since rule E, disclosed there.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!

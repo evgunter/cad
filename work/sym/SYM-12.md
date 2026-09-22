@@ -2,12 +2,14 @@
 id: SYM-12
 kind: unit
 title: the derived-frame freeze's next shape: tiltUV rendered, the manifest-NEGATIVE arm measured, the other copysign mint sites counted
-status: dispatched
+status: closed
 opened: 2026-09-21
 priority: P0
 cost: H
 branch: sym/12-negative-arm
 refs: [derived-frame-placement-freezes-on-the-symbolic-lane, coefficient-ring-width-is-not-monotone-in-reach]
+pr: 3046
+closed: 2026-09-22
 ---
 
 ## What
@@ -71,4 +73,15 @@ reviews' `FlipV` folds and moves nothing, `FlipX` reads the end cap);
 each document's own numbers; the two forced rows reflected; the
 render width restored by `take_shape_report`; the DECIDE-3 seam filed
 (`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+
+## Closed (2026-09-22)
+
+Merged as #3046. The dual on `c6cf72319`: R1 OPUS
+MERGEABLE-AFTER-FIXES 1/5/5, R2 FABLE MERGEABLE-AFTER-FIXES 0/4/5;
+the fix pass A–W; the delta by R1 on `47e5a0a64`: MERGEABLE with one
+must-fix (F1, the render width set per pass after
+`start_shape_report`; F2 the leaf-cost sentence said as the numbers
+read; F3 the FlipV/FlipX row named as evidence). Spec deleted with its
+`docs/DOC-LEDGER.md` entry; the item's "what rule F does not reach"
+section answered; the seam row stands for the `props/sign-hull` merge.
 

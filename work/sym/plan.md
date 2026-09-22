@@ -54,9 +54,14 @@ architectural decision on the `Decide` door's contract per witness
 kind, H / STRUCTURAL, block SYM-B3 slot 0; the two placement-freeze
 rows are the default IN (they change what the tier decides on a
 document) and are triaged when spec'd (SYM-12 = the derived-frame
-freeze's next shape, H / NUMERIC, slot 1);
+freeze's next shape, H / NUMERIC, slot 1 — CLOSED 2026-09-22, #3046:
+rule F's negative arm; its seam with DECIDE-3,
+`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`,
+is scheduled at the `props/sign-hull` merge, whoever merges it owing
+the ladder and the eight with both units in);
 `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
-(SYM-13, D / STRUCTURAL, slot 2) is IN as a receipt-contract decision;
+(SYM-13, D / STRUCTURAL, slot 2, Opus by the block's draw) is IN as a
+receipt-contract decision and is NEXT;
 the ring item and the pcurve row are triaged when spec'd (the latter
 is not certainly SYM's). The block's pre-draw fields and draw are on
 `sym/b3-block`.
