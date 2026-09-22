@@ -303,3 +303,49 @@ dismissed it as out of class because the crate does not run check 6 —
 without noticing that the sentence it had just falsified was that
 file's stated premise. A sweep that names a file and asks the wrong
 question of it reads exactly like a sweep that covered it.
+
+## 2026-09-21 — the one-walk question, answered from the tree
+
+I logged earlier that three of ATREST's rows look like one missing
+containment walk, and said the fork would go to Ev before any of them
+was specced. **It is not a fork. The walk largely exists**, and reading
+it settles the question and re-orders the slate.
+
+What is in the tree today, in layers:
+
+- `splitting::containment::point_in_loop` — the 2-D loop walk. It takes
+  a `normal` and walks the polygon through the loop's vertices, which
+  is exactly why check 9's nesting arm reaches the `Polygon` class and
+  nothing else.
+- `boolean::solid_contain` — **point-in-solid, already built as the 3-D
+  promotion of that same walk**: its own header says so, it reads the
+  same 16-member golden-angle `SCHEDULE` const rather than a copy, and
+  it calls `point_in_loop` for the per-face test. It is public
+  (`point_in_solid`, `point_in_solid_faces`, `point_in_solid_of`) and
+  `census.rs` consumes it.
+- `boolean::contain::disc_side` — the exact decide for the one-circle
+  loop class, one radial margin.
+
+So the three gaps are not one question wanting one answer. They are
+**three consumers that do not reach existing machinery, for two
+distinct reasons**:
+
+1. `check-9-nesting-is-line-bounded-only` and
+   `validate-tier3-curved-boundary-containment` are both blocked on the
+   SAME thing: `point_in_loop` cannot express an arc-bearing or curved
+   loop's region. That is `work/tang/arc-aware-point-in-loop` (#1076),
+   on TANG's slate, and it is the **keystone of two of my P0/P1 rows**.
+2. `tier-3-does-not-check-shell-roles-per-solid` is blocked on nothing
+   of the sort — `solid_contain` can already answer "is this shell
+   inside that one" in principle. What is missing is an at-rest
+   CONSUMER: no tier calls it. That is a cheaper row than its `H`
+   suggests once someone looks, and it is independent of #1076.
+
+**What this changes.** The order in `plan.md` had check 9 fourth and
+treated the three as siblings. They are not siblings: two wait on
+another program's row and one does not. Nothing here is a design
+question for Ev — it is a reading of what is already built, and the
+dominant argument is the code's own layering.
+
+A note goes on TANG's board: #1076 is load-bearing for two ATREST rows,
+which its own slate has no way to know.
