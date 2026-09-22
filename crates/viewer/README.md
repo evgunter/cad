@@ -1108,6 +1108,15 @@ chrome and leave a message where it is. `widgets::message_toned` adds
 the voice, through `app::toned`, so what `Advisory` looks like stays
 decided in one place.
 
+The region is taken down to a floor and no further:
+`widgets::message_floor` is the widest number `readout::number`
+returns (`widgets::widest_number`, over `readout::widest_render`) and
+one space after it. Below the floor a message stops narrowing and the
+pane's `ScrollArea::both()` scrolls, and a line never breaks inside a
+number `readout` renders. `widgets::message`'s doc says why the space
+is there and what the floor does not cover, and states the rule for
+which texts are bounded by characters and which by their region.
+
 Its call sites are `app.rs`, `pane/features.rs`, `pane/profile.rs` and
 `pane/view.rs` — a roster this page states twice (here and in the
 module table above) and therefore does not keep by hand:
@@ -1117,7 +1126,8 @@ creation and properties panes'
 (`work/chrome/messages-in-the-creation-and-properties-panes-still-draw-past-their-row.md`).
 `widgets::message_tests` holds the measurements — that the sentence
 fills the region it is in rather than a width of its own, across three
-region widths; that egui's own scroll container hands its content the
+region widths; that below the floor it stops narrowing and never breaks
+inside a rendered number; that egui's own scroll container hands its content the
 visible width rather than an infinite one, so a pane that scrolls both
 ways still wraps its sentences instead of answering with a scrollbar —
 and `app`'s `the_toolbars_status_line_wraps_under_itself_rather_than_at_the_windows_edge`

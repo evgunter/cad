@@ -170,6 +170,8 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "refusal_concision.rs"]
+mod refusal_concision;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 

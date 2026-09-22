@@ -216,6 +216,6 @@ field-level route considered and declined);
 `work/vgeom/a-fields-text-commits-within-the-renders-own-tolerance.md`
 (the generalisation to every field, corrected to describe the text
 guard); `work/chrome/bounds-reading-respells-the-panels-one-divide`
-and `work/chrome/dimension-to-unit-ladders-have-six-homes-in-the-viewer`.
+and `work/forms/dimension-to-unit-ladders-have-six-homes-in-the-viewer`.
 The harness cannot drive refusal paths — stated in a comment on
 `Row::frame` rather than papered over.

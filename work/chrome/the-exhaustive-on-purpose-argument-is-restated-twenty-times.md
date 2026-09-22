@@ -61,3 +61,13 @@ restatements share.
 Found by the style review of PR 3055, whose fence was `tree.rs` and
 `crates/viewer/tests/`. Every named path is claimed by CHROME jointly
 with one or more of AUTHOR, VIEW, VNEWS, VSEAM and VGEOM.
+
+## Evidence 2026-09-22 (`chrome/badge-attribution`, PR 3090)
+
+That lane made `pane/features.rs`'s link decision in `feature_row` an
+exhaustive `match` and minted a fresh restatement above it (*"Exhaustive
+for the badge match's reason…"*); review caught it and the fix pass cut
+it to nothing — the badge match twelve lines up carries the argument
+for both. The site is an instance of the construct this row counts,
+with no comment of its own, which is the shape this row wants the
+others to end in.

@@ -2,7 +2,8 @@
 //!
 //! Module kind: **vocabulary** (`crates/viewer/README.md`, Module
 //! boundaries) — one pure function over an `f64`, the grid it renders
-//! on and the two constants that shape it.
+//! on and the two constants that shape it, and the width of the widest
+//! text it returns ([`widest_render`]) for a box that has to hold one.
 //!
 //! # The rule
 //!
@@ -239,7 +240,34 @@ const fn decimals_reaching(cap: f64) -> usize {
 /// A box narrower than this clips, and a clipped render reads as a
 /// different value — that is the box's number to meet, not this one's
 /// to lower.
+///
+/// A sentence is bounded by its region instead —
+/// `crate::widgets::message`'s *Characters or width* states the rule.
 pub const MAX_CHARS: usize = 22;
+
+/// Every character [`number`] spells a value longer than four
+/// characters in: the digits, the point, the sign and the exponent's
+/// `e`. The non-finite fallbacks (`NaN`, `inf`, `-inf`) are the only
+/// spellings with other letters, and none is wider than four widest
+/// glyphs.
+pub const GLYPHS: &str = "0123456789.-e";
+
+/// **How wide the widest text [`number`] returns is**, in a font whose
+/// advance for a character is `advance(character)`: [`MAX_CHARS`] and
+/// one more character, each at the widest of [`GLYPHS`].
+///
+/// The one more is the sign. [`MAX_CHARS`] bounds the decimal arm with
+/// its sign counted and the scientific arm with it aside, so the widest
+/// spellings are two: twenty-two digits (`1000000000000000000000`), and
+/// twenty-three characters at the top of the type
+/// (`-1.7976931348623157e308`). Which is wider is the font's to say — in
+/// a proportional font the point and the sign are narrow and the
+/// digits win; in a monospace one every glyph is one width and the
+/// twenty-three do — so the bound counts twenty-three of the widest.
+pub fn widest_render(mut advance: impl FnMut(char) -> f32) -> f32 {
+    let widest = GLYPHS.chars().map(&mut advance).fold(0.0, f32::max);
+    (MAX_CHARS + 1) as f32 * widest
+}
 
 /// `value` as text a person reads.
 ///

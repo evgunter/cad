@@ -81,7 +81,7 @@ validation.
   one, so it is not a member of this class; its own open row is
   `the-fields-door-has-no-width-bound-at-all`, about width.
 
-`work/chrome/viewer-substituted-value-class-is-crate-wide` names *"a
+`work/vgeom/viewer-substituted-value-class-is-crate-wide` names *"a
 division that yields `inf`, a norm that overflows"* as a blind spot of
 its own greps rather than as members, so these three are not filed
 there.
@@ -255,7 +255,7 @@ operand and whether its product reaches a text. Hits and disposition:
 | `camera.rs`'s `radius * FRAMING_MARGIN / half.sin()` | can be `inf` for a fov near zero, and `clamp_distance` clamps it back into `[r·0.05, r·100]` before anything reads it — bounded downstream, not a member |
 | `camera.rs`'s `scene_radius * MIN_DISTANCE_FACTOR`, `distance * NEAR_FACTOR` | multiply DOWN; cannot overflow |
 | `camera.rs`'s `sphere` radius | closed by `finite-bounds-yield-an-infinite-scene-radius` |
-| `datums.rs`'s depth norm and `metres_per_pixel * TARGET_PITCH_PX`; `scene.rs`'s normal norm; `pane/viewport.rs`'s `at_offset`; `pickindex.rs`'s distances | all feed the PICTURE, never a text — outside this class by its own subject. `pane/viewport.rs`'s `at_offset` is the site `vgeom/deletions` disposed of as *"not a member"*, and this pass agrees, for the same reason from the other direction. `datums.rs`'s norm is `work/chrome/metres-per-pixel-at-hand-rolls-a-norm-the-file-already-calls` |
+| `datums.rs`'s depth norm and `metres_per_pixel * TARGET_PITCH_PX`; `scene.rs`'s normal norm; `pane/viewport.rs`'s `at_offset`; `pickindex.rs`'s distances | all feed the PICTURE, never a text — outside this class by its own subject. `pane/viewport.rs`'s `at_offset` is the site `vgeom/deletions` disposed of as *"not a member"*, and this pass agrees, for the same reason from the other direction. `datums.rs`'s norm is `work/vgeom/metres-per-pixel-at-hand-rolls-a-norm-the-file-already-calls` |
 | `sketch.rs`'s two `hypot` calls | `hypot` is overflow-safe by construction; not the shape |
 | `pane/features.rs`'s `depth.min(INDENT_MAX_DEPTH) as f32 * INDENT_STEP` | bounded by the `min` |
 | `pane/view.rs`'s `to_degrees` pair | `yaw` is in `[−π, π)` and `pitch` inside `±(π/2 − margin)`; the product cannot leave the type |
