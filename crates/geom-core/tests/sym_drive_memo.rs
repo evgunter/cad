@@ -705,3 +705,58 @@ fn a_taint_induced_freeze_under_a_hit_is_read_by_order() {
          {tainted_first:?} {tainted_after:?}"
     );
 }
+
+/// **A foreign id the leaf later mints itself is not a need.** The
+/// first reviewer's delta-2 probe, adopted.
+///
+/// The parent names the node's id before the session mints it — so the
+/// id is a `Session::foreign` candidate — and the session then mints
+/// the very same id, which is the leaf resolving it. By the time the
+/// leaf reasons, its own table holds the node and nothing of its
+/// reasoning rests on an indeterminate, so the candidate is reconciled
+/// away at the leaf's end.
+#[test]
+fn a_foreign_id_the_leaf_later_records_itself_is_not_a_need() {
+    let m = tight_memo();
+    let outside = lit(2.0);
+    let c = leaf(&m, || {
+        // The parent names the outside id BEFORE the session mints it.
+        let parent = outside * outside;
+        // Now the session mints the very same id.
+        let inside = lit(2.0);
+        let _ = inside * inside;
+        zero(parent - parent)
+    });
+    assert_eq!(
+        c.frozen, 0,
+        "the leaf's own table holds the node, so it needs nothing for it: {c:?}"
+    );
+    assert_eq!(m.size().frozen, 0, "and nothing froze: {:?}", m.size());
+}
+
+/// **A leaf's column can exceed the drive's.** The first reviewer's
+/// delta-2 probe, adopted as the pin of [`SymCounts::frozen`]'s drive
+/// bullet.
+///
+/// Nothing freezes anywhere: the recording leaf folds its product and
+/// publishes a real form, and the drive's frozen set stays empty. The
+/// leaf that did not record the node inherits that form, never walks
+/// below it — and still reads 1, because the id its own table does not
+/// hold is one its reasoning could not resolve. The drive's column is
+/// the freezes its leaves published; it does not bound theirs.
+#[test]
+fn a_foreign_id_no_one_freezes_is_still_a_need() {
+    let m = tight_memo();
+    let outside = lit(2.0);
+    let recorder = leaf(&m, || {
+        let c = lit(2.0);
+        zero(c * c - lit(4.0))
+    });
+    let after = leaf(&m, || zero(outside * outside - outside * outside));
+    assert_eq!(m.size().frozen, 0, "no drive freeze exists at all");
+    assert_eq!(recorder.frozen, 0, "the recording leaf needs nothing");
+    assert_eq!(
+        after.frozen, 1,
+        "and the leaf whose table lacks the node needs it, over a drive that froze nothing"
+    );
+}

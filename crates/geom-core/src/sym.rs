@@ -1358,12 +1358,14 @@ pub struct SymCounts {
     pub theorems_disputed: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
-    /// **Nodes frozen** into indeterminates (a budget or an overflow),
-    /// as a SET and not as work — a claim about this receipt's subject,
-    /// like the decision columns beside it, and the same under every
-    /// schedule but for one reading named below. [`memo`]'s header is
-    /// where the one argument for that lives; here is what the number
-    /// means on each receipt that carries it.
+    /// **The nodes this receipt's subject could not resolve to a form**
+    /// — frozen into indeterminates by a budget or an overflow, or, on
+    /// a leaf, absent from its own table. A SET and not a count of
+    /// work: a claim about the subject, like the decision columns
+    /// beside it, and the same under every schedule but for one reading
+    /// named below. [`memo`]'s header is where the one argument for
+    /// that lives; here is what the number means on each receipt that
+    /// carries it.
     ///
     /// - **On a LEAF of a drive: that leaf's NEED** — the frozen nodes
     ///   its own reasoning rested on, which is what a reader of a
@@ -1374,11 +1376,16 @@ pub struct SymCounts {
     ///   on, a leaf inherits forms another leaf froze, and counting the
     ///   work would report which leaf got to a node first.
     /// - **On a DRIVE: the distinct nodes frozen over it**
-    ///   ([`DriveMemo::frozen`]), the set the leaves' NEEDs are read
-    ///   against. A leaf needs part of what the drive froze, so the
-    ///   drive's column is not the sum of theirs and
-    ///   [`SymCounts::absorb`] does not add it up; the driver writes
-    ///   the drive's own when the drive is done.
+    ///   ([`DriveMemo::frozen`]) — every freeze any leaf published,
+    ///   and the set a leaf's NEED is read against. It neither sums
+    ///   the leaves' columns nor bounds them: the leaves' sets overlap,
+    ///   so [`SymCounts::absorb`] does not add this one up, and a
+    ///   leaf's own side carries ids this set never holds — a node its
+    ///   table does not hold, or a freeze it could not publish — so a
+    ///   leaf's column can EXCEED the drive's (a leaf reading 1 under a
+    ///   drive that froze nothing at all is a row: `geom-core`'s
+    ///   `sym_drive_memo::a_foreign_id_no_one_freezes_is_still_a_need`).
+    ///   The driver writes the drive's own when the drive is done.
     /// - **Outside a drive** ([`with_session`], [`with_session_rules`]):
     ///   the session's own distinct freezes. The leaf is the whole
     ///   drive there, so this is the same quantity.
@@ -1888,9 +1895,14 @@ struct Session {
     /// closure walk wants each once. Kept only while a drive memo is
     /// installed, where the column is a NEED; empty otherwise.
     plain_roots: IdSet,
-    /// **The ids this leaf's table does not hold**, seen as children of
-    /// nodes it does — a node minted before the session was installed,
+    /// **The ids this leaf's table did not hold when a node named them
+    /// as a child** — a node minted before the session was installed,
     /// or outside one.
+    ///
+    /// A CANDIDATE set, reconciled against the table at the leaf's end
+    /// ([`leaf_need`]): a node named before the session minted it and
+    /// minted inside it afterwards is one the leaf holds by the time it
+    /// reasons, and it needs nothing for it.
     ///
     /// The plain walk freezes such a node when it reaches it, and that
     /// freeze never leaves the leaf (`memo`'s unrecorded paragraph) —
@@ -2271,11 +2283,22 @@ fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
     // **The leaf's own side**: the ids under its roots that it cannot
     // resolve to a form of its own — the ones its table does not hold,
     // whether or not its walk ever reached them — together with the
-    // freezes it made and could not publish. Restricted to the
+    // freezes it made and could not publish. Both restricted to the
     // closure, because a node the leaf built outside its own reasoning
     // is not part of it.
     let mut own: IdSet = IdSet::default();
-    for id in sess.foreign.keys().chain(sess.plain_unpublished.keys()) {
+    // `foreign` is collected as the DAG is built and is reconciled
+    // HERE: a node named by a parent before the session minted it, and
+    // minted inside it afterwards, is one this leaf's table holds by
+    // the time it reasons — so the leaf resolved it and needs nothing
+    // for it. The reconciliation is one lookup per candidate, and the
+    // candidates are none on every drive measured.
+    for id in sess.foreign.keys() {
+        if reached.contains_key(id) && !sess.nodes.contains_key(id) {
+            own.insert(*id, ());
+        }
+    }
+    for id in sess.plain_unpublished.keys() {
         if reached.contains_key(id) {
             own.insert(*id, ());
         }

@@ -38,8 +38,11 @@ zero folds it away — two terms, no freeze, and it publishes the form.
 A leaf that does not carries an indeterminate in its place — three
 terms, frozen. Run first that leaf reads `frozen 2`; run after the
 recording leaf it takes the published form at the decision root, never
-walks there, and reads `frozen 1`. No drive's frozen set is non-empty
-in either order.
+walks there, and reads `frozen 1`. Neither drive's frozen set is
+non-empty there, but that is the fixture and not the condition: SYM-13's
+first reviewer re-derived the same 2-against-1 with the set seeded
+non-empty in both orders, so the reading is the order's and not the
+nothing-froze short circuit.
 
 ## Why it is not urgent
 
