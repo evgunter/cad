@@ -1231,3 +1231,37 @@ found. That is the one row of the nine this program cannot take, and
 it is parked on a trigger that can fire rather than deferred.
 
 **Slate after this sitting: 9 open → 7 dispatched, 1 closed, 1 parked.**
+
+### The disk ceiling, measured wrong and corrected mid-wave
+
+The wave was sized at four lanes on a measurement of **3.6 G** — a
+plain `cargo build -p viewer --features app` into a fresh target dir.
+That number is right and was the wrong number to size on. With test
+artifacts and `debug/incremental`, the four target dirs reached
+**0.8 / 4.7 / 5.6 / 6.0 G after cleanup and 27 G of 28 G before it**,
+and the session hit 100% disk with 348 M free while all four lanes
+were live.
+
+**Roughly 11 G of the 27 G was `debug/incremental` alone.** Deleting
+the four incremental directories recovered all of it and cost nothing
+but a rebuild. `CARGO_INCREMENTAL=0` is now set in every lane for the
+rest of the wave: incremental buys a tight edit-compile loop, and with
+hosted CI as the verification of record and four lanes sharing one
+disk, that is the wrong trade.
+
+`memories/agent-lane-operations.md` says *"each lane grows a multi-GB
+`target/`"* and prescribes the remedy for the aftermath — *"after a
+disk-full crash, purge torn binaries (ELF-magic scan) and treat
+pressure-window test results as suspect."* Both were followed. The
+ELF-magic scan over all four target dirs found **zero** torn
+binaries, so no lane's artifacts were corrupted; the lanes were told
+to re-run anything that failed during the window rather than read an
+ENOSPC as a finding about their code.
+
+**The rule this wave learned, stated so the next sizing does not
+repeat it**: size a parallel wave on a target dir that has RUN THE
+TESTS, not one that has built the crate. The two differ by about 2.5×
+here, and the difference is what decides how many lanes fit. Offered
+to Ev as a refinement to `agent-lane-operations.md`'s disk paragraph,
+which today says only *multi-GB*; it is not written there yet, because
+`memories/` is Ev's call.
