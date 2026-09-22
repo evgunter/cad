@@ -2,11 +2,13 @@
 id: TESS-2
 kind: unit
 title: the rational patch bound encloses the DESCRIBED patch: knot refinement inside the ring
-status: spec
+status: review
 opened: 2026-09-20
 refs: [nurbs-face-bound-unsound-on-a-random-rational]
 priority: P0
 cost: H
+pr: 3080
+branch: tess/2-refinement-in-the-ring
 ---
 
 
