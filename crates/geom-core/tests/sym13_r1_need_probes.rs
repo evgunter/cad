@@ -59,10 +59,13 @@ fn other_three() -> Sym<f64> {
 fn a_frozen_node_outside_this_leafs_closure_is_not_its_need() {
     let m = Arc::new(DriveMemo::new(tight(), rules()));
     let (_, one) = with_session_memo(tight(), rules(), &m, || zero(three() - three()));
-    let (_, two) = with_session_memo(tight(), rules(), &m, || {
-        zero(other_three() - other_three())
-    });
-    assert_eq!(m.size().frozen, 2, "two distinct nodes froze: {:?}", m.size());
+    let (_, two) = with_session_memo(tight(), rules(), &m, || zero(other_three() - other_three()));
+    assert_eq!(
+        m.size().frozen,
+        2,
+        "two distinct nodes froze: {:?}",
+        m.size()
+    );
     assert_eq!(one.frozen, 1, "leaf one reached only its own: {one:?}");
     assert_eq!(two.frozen, 1, "leaf two reached only its own: {two:?}");
     // The leaf that reaches BOTH reports both.
