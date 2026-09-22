@@ -2,10 +2,13 @@
 id: the-display-seams-refusal-is-drawn-and-never-said
 kind: issue
 title: The f32 seam's overlay refusal drops a leg and its pane refusal drops a frame, and neither reaches a reader
-status: open
+status: closed
 opened: 2026-09-21
 priority: P2
 cost: D
+closed: 2026-09-22
+branch: vgeom/seam-refusals
+pr: 3065
 ---
 
 
