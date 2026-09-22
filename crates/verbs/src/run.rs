@@ -10,9 +10,9 @@ use sweep::blend::naming::BlendNaming;
 use sweep::{ExtrudeError, Extruded, RevolveError, Revolved};
 use topo::splitting::SplitNaming;
 use topo::{
-    Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords,
-    ShellDoor, ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult,
-    SweepStrategy, boolean_op_with, split,
+    Body, BooleanError, BooleanNaming, BooleanResult, BooleanResultKind, ContactRecords, ShellDoor,
+    ShellError, ShellNaming, Shelled, SplitError, SplitPart, SplitResult, SweepStrategy,
+    boolean_op_with, split,
 };
 
 use crate::verb::{Arity, Verb, VerbKind};

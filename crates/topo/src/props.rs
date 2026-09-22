@@ -2078,7 +2078,7 @@ pub struct ShellDoor<T: Decide> {
 impl<T: Decide + geom_core::CertifiedBounds + AtRestPolicy> ShellDoor<T> {
     /// The certified hollowing door — the whole inventory of this
     /// door, and the only constructor there is. Its body is
-    /// [`crate::shell_open`], so the sealed hollow ([`crate::shell`],
+    /// [`crate::shell_open`], so the sealed hollow ([`crate::shell()`],
     /// an empty designation) is reached through the same door.
     #[must_use]
     pub const fn certified() -> Self {

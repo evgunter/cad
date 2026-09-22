@@ -2220,9 +2220,9 @@ fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeError
         // arm, every nested payload, every number — declared by the
         // lane's own end reading (`crate::verbs::shell::
         // fold_shell_error_at`), never a rendering or a drop.
-        verbs::VerbError::Shell(error) => NodeErrorKind::Shell(Box::new(
-            crate::verbs::shell::fold_shell_error_at(*error),
-        )),
+        verbs::VerbError::Shell(error) => {
+            NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error_at(*error)))
+        }
     }
 }
 
@@ -2424,14 +2424,11 @@ fn wire_shell<
     // The door is the scalar's own answer, read at the ONE seam that
     // holds it; a scalar that may not certify has none and refuses
     // here rather than at an unvalidated hollow.
-    let door = <T as topo::AtRestPolicy>::shell_door().ok_or(
-        NodeErrorKind::ShellLaneUnsupported {
+    let door =
+        <T as topo::AtRestPolicy>::shell_door().ok_or(NodeErrorKind::ShellLaneUnsupported {
             lane: <T as crate::lane::Lane>::NAME,
-        },
-    )?;
-    let out = built
-        .run_shell(&body, tol, door)
-        .map_err(verb_refused)?;
+        })?;
+    let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
