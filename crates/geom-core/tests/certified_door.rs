@@ -191,9 +191,10 @@ fn ring_corpus() -> Vec<(String, RingInterval)> {
     out
 }
 
-/// **The row S86 is about.** The ring has two states and no decorations,
-/// so `is_poison` is its whole domain-violation channel and the door has
-/// to consult it. Before the fix this sweep went red on the first
+/// **The row S86 is about.** The ring's poison is the decoration it
+/// carries (`dec < Def`, NaI and empty below that), so `is_poison` is its
+/// whole domain-violation channel and the door has to consult it — a
+/// refused ring's endpoints are ordinary numbers and certify nothing. Before the fix this sweep went red on the first
 /// poisoned member, which certified `Some((NaN, NaN))`.
 #[test]
 fn the_ring_door_refuses_exactly_its_poison() {
@@ -221,6 +222,13 @@ fn the_ring_door_refuses_exactly_its_poison() {
 
 /// Poison has to be **reachable by arithmetic**, or the refusing half of
 /// the sweep above is a hand-built seed testing itself.
+///
+/// Every producer inside the ring is a division: an explicit one by a
+/// divisor not proven away from zero, or a negative integer power,
+/// which is the reciprocal of the positive one. The three rows below
+/// are the three shapes a division answers with — the empty set, an
+/// unbounded half-line, and a bounded bracket — so the row is not one
+/// witness wearing three names.
 #[test]
 fn ring_poison_is_reached_by_arithmetic_not_only_by_construction() {
     let derived = [
@@ -229,8 +237,12 @@ fn ring_poison_is_reached_by_arithmetic_not_only_by_construction() {
             RingInterval::from_bounds(1.0, 2.0) / RingInterval::point(0.0),
         ),
         (
-            "[0,1]*[0,inf]",
-            RingInterval::from_bounds(0.0, 1.0) * RingInterval::from_bounds(0.0, f64::INFINITY),
+            "[-2,-1]/[0,5e-324]",
+            RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(0.0, 5e-324),
+        ),
+        (
+            "[5e-324,1].powi(-1)",
+            RingInterval::from_bounds(5e-324, 1.0).powi(-1),
         ),
     ];
     for (tag, r) in derived {

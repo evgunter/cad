@@ -1,3 +1,37 @@
+## Per-merge deletion — RING-2's spec (2026-09-22)
+
+Recoverable at `git show 4cb762495d:docs/RING-2-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "ANY row that comes out
+LOOSER is a finding: stop, characterise, file" against the committed
+tess-budget baseline — the baseline's diff shows fifty-five looser
+certified cells on lily faces (≤ 6.4e-13 rel), every one main's own
+drift between the 09-15 cut and the merge base (the gate reads only
+sizing), RING-2's share measured with only `ring_interval.rs` swapped
+back being all tighter; characterised in the PR body and filed on
+INSTR; the "zero looser" claim is true of every corpus in the tree
+(16,995 rows, 2,294 tighter) and false of the arithmetic at the
+subnormal and overflow corners, where the newtype gives one subnormal
+step back — pinned executable; the register's "31 hazards" — 30
+(`ssi/certify.rs:692`'s read is the evaluation scalar's), the census
+made executable and its population rule (files naming the type)
+stated as a blind spot with a fixed extra roster; the Q9 gate's
+"outer rule two counts short" mutant — the outer rule two short is
+exact on the fixture (its image is degree 1) and the `1.96e-6` figure
+is the inner order's, the row renamed to what it pins; the spec's
+red-row table premise "the dry run's 22 rows" — two hosted heads
+after the PR opened went red on six more rows (two meter rows on an
+exactly-zero curvature bound, the reader-census ledger, two interval
+eps-1e-12 rows, the `step-export` sidecars), each dispositioned;
+"`from_certified` returns the DECORATED bracket" needed a way to read
+a scalar's endpoints beside its verdict — `CertifiedEnclosure` gained
+`crossing_bracket` (DL1 unchanged on both reviewing arms; the
+member-free route through `Enclosure` compiles and is refused by the
+bounds gate's ratification rule, so the member stays with the trait's
+doc made true). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `RING-2-SPEC.md` — RING-2, `RingInterval` is a newtype over `DInterval`; poison is `dec < Def`; every certificate re-pinned with its cause (#3032)
+
 # docs ledger — deleted historical documents
 
 This file is the permanent record of documents deleted from `docs/`
@@ -4691,6 +4725,38 @@ a gated dispute is producible (`sqrt(((r + d) − d)²) − r` at
 entry.
 
 - `SYM-11-SPEC.md` — SYM-11, the point channel is not a proof (#3028)
+
+## Per-merge deletion — LANE-2's spec (2026-09-21)
+
+Recoverable at `git show 6f8f7132ab:docs/LANE-2-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "What must not change:
+every certificate, verdict, refusal and `Display` at every scalar" —
+overridden by the spec's own §1 ("the `_structural` twin `None`") and
+by ruling 3: the `_structural` doors at `f64` on a declared straddle
+seat answer `Ok(())` at the base and, at the head, a
+`CensusLaneUnsupported` refusal plus the two crossings the declaration
+backed as `UndeclaredContact`, both reviews' MAJOR, ruled to stand
+(the base's `f64` reach of Door 2 through the supertrait was the
+lane-keeping hybrid the cut removes) and disclosed in the door docs,
+the PR body and the extended ATREST row; "with the certified door's
+`Some` replaced by `None` … the census rows that assert an overlap
+verdict go red (`census_g2_carrier`, `mate5_cyl_eps_rung`,
+`r1_mate5_probe`, `r2_probes`, `m9_2_chart_region_loft`)" — those
+call the two doors directly and cannot red; the set that notices is
+seventeen topo+sweep rows (twenty-four reach; thirty-five more in
+`editor-core`), measured; "a row that `pair_region_verified` with
+`None` answers `false` where `Some` answers `true` on the mate9
+crossing rung's isolator body" — the isolator's `Some` answers `false`
+too; the pin is on the straddle seat's declared pair; the survey's
+"the `_structural` twin is the dual's door" — it is a public door with
+`f64` callers in the tree; the citations were taken at the branch
+point `5b74236e03` and the merge base was `ff1e982788` (the counts
+agree); `real.rs`'s M9-2 entry was called naming-only and its
+selector moved from scalar-keyed to door-keyed (an agent-written
+sentence; no ratification owed). Recorded in the PR body and the
+unit's `## Closed` section.
+
+- `LANE-2-SPEC.md` — LANE-2, `ChartRegionLane` deleted: the chart-region doors are one `Option<RegionLane<T>>` parameter through the census, `None` keeping today's typed refusal (#3038)
 
 ## Per-merge deletion — SYM-12's spec (2026-09-22)
 

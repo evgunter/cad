@@ -564,16 +564,25 @@ impl Bounds for Interval {
 /// The certified door, refusing exactly where [`Decide::sign_within`]
 /// does ([`Interval::is_certified`]).
 ///
-/// This is the seam the C9 ring reads an evaluation scalar through, and
-/// it is the *only* channel available there: [`crate::RingInterval`] has two
-/// states and no decorations, so whatever the accessor does not refuse
-/// cannot be refused anywhere downstream. A `Trv` enclosure with finite
-/// endpoints — `sqrt([−1, 4])` clamping to `[0, 2]` — is the case that
-/// needs it: it is a perfectly sound bracket, so [`Bounds`] reports it
-/// unchanged and must, while certification has to see the violation.
+/// This is the seam the C9 ring reads an evaluation scalar through. A
+/// `Trv` enclosure with finite endpoints — `sqrt([−1, 4])` clamping to
+/// `[0, 2]` — is the case that needs it: it is a perfectly sound
+/// bracket, so [`Bounds`] reports it unchanged and must, while
+/// certification has to see the violation.
+///
+/// The ring's own refusal channel is a decoration too, so the crossing
+/// carries both halves rather than collapsing them:
+/// `crossing_bracket` hands over the sound endpoints and the certified
+/// door hands over the verdict, and the ring caps its decoration with
+/// it. Nothing is laundered — the value arrives at `Trv`, which is the
+/// ring's poison.
 impl crate::real::CertifiedEnclosure for Interval {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.is_certified().then(|| (self.0.lo(), self.0.hi()))
+    }
+
+    fn crossing_bracket(self) -> (f64, f64) {
+        (self.0.lo(), self.0.hi())
     }
 }
 

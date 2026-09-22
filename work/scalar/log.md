@@ -646,3 +646,42 @@ EXCH. Two of the spec's premises were wrong (`run_checks` at `Dual`;
 `Bounds` on `AtRestPolicy`), and the tour needed `CertifiedBounds` on
 its `Scalar` trait; the ledger names them. LANE-2 dispatches on this
 shape.
+
+## LANE-2 merged (2026-09-21)
+
+PR 3038, block SCALAR-B6 slot 0, ordinal 4115. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's bilateral
+MAJOR — the `_structural` doors' verdict move at `f64` — was ruled to
+stand under ruling 3 and is disclosed at the door, in the PR body and
+on the ATREST row. Four of the spec's premises were wrong (the
+"every verdict at every scalar" sentence against its own §1, the
+red-first list, the isolator pin, the merge base); the ledger names
+them. LANE-3 dispatches on this shape; LANE-4 folds the wiring
+module's copies.
+
+## RING-2 merged (2026-09-22)
+
+PR 3032, block SCALAR-B5 slot 2, ordinal 4114. What landed: the item's
+§Closed. The spec is deleted per the ledger. The dual's two bilateral
+MAJORs were disclosure: the committed tess-budget baseline's looser
+cells are main's own drift between cuts (filed on INSTR) and the
+red-row table now carries every red head. `crossing_bracket` stays:
+the member-free route compiles and the bounds gate refuses it pending
+ratification — RING-3's slate, with `Enclosure` and the three guard
+residues. Block SCALAR-B5 closes on this merge with one tally
+candidate, RING-0's.
+
+## Block SCALAR-B5 closed (2026-09-22)
+
+Three slots, three duals, one counted tally candidate: RING-0 (OPUS,
+#230, R2's unilateral test-gap MAJOR by execution — `powi(-1)` outside
+the sampled allowlist — on the OPUS reviewing arm), LANE-1 (FABLE,
+#231, the fold's verdict MAJOR bilateral, ruled to stand), RING-2
+(OPUS, #234, both MAJORs bilateral at differing severity — main's
+tess-budget drift, the red-row table short by one head). The block's
+record — pre-draw fields (cut before byte 244), the draw, the three
+rows — lands on main with this PR. Exposures the rows carry: the
+sample-#230 collision with SYM-11's landed-highest numbering (filed);
+the vendor footer the REST route re-appends (stripped everywhere; the
+MCP path is clean); two container restarts (RING-2's implementer three
+lanes on one arm; LANE-2's reviewers resumed from their own material).

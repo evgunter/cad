@@ -3490,6 +3490,10 @@ impl<T: CertifiedEnclosure> CertifiedEnclosure for Sym<T> {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
     }
+
+    fn crossing_bracket(self) -> (f64, f64) {
+        self.value.crossing_bracket()
+    }
 }
 
 /// Span selection is STRUCTURE selection and reads the value channel;
