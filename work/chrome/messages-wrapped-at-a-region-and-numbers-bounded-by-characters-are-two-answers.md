@@ -50,3 +50,17 @@ A sentence in one of the two docs saying which answer applies when, and
 a pointer from each to the other. If the answer is "a value gets the
 character bound and prose gets the width bound", that is a rule with a
 name and it belongs at one of them.
+
+## Ev's ruling on a too-narrow region (in chat, 2026-09-22)
+
+Asked what a message owes a region too narrow to hold it — keep
+wrapping, wrap to a floor and then let the pane scroll, or wrap to a
+floor and then clip with the full text on hover — Ev answered:
+
+> floor then scroll i guess, but instances of this probably point to
+> places where the gui should be changed to make the issue not happen
+
+So: **wrap down to a floor, and below it stop narrowing and let the
+enclosing scroll area scroll.** And a site that reaches the floor is a
+finding about the layout that put a sentence there, not only a case for
+the floor to absorb.
