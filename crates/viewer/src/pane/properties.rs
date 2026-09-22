@@ -97,7 +97,7 @@ impl ViewerBehavior<'_> {
                             FieldShowing {
                                 writing: field,
                                 dimension: row.dimension,
-                                number: field.shown(row.value.as_f64()),
+                                number: props::shown_value(field.unit, row.value.as_f64()),
                                 text: None,
                             },
                             value_gesture(ValueGestureName::Param(name.clone())),
@@ -502,6 +502,18 @@ impl ViewerBehavior<'_> {
                 // and a bare `0.5` with nothing saying what unit they
                 // are in. Three components of one frame, one writing.
                 let field = FieldWriting::of(Dimension::Length, Some(quantity::MM.def()));
+                // **A conversion above the widget, and the one in this
+                // crate that cannot fail.** A millimetre value leaves
+                // `f64` above `f64::MAX * MILLI`
+                // ([`crate::props::written`]), which is why the panel's
+                // value fields ask before they convert. The translation
+                // here is not a document value: it is one this probe
+                // itself authored, either out of this field — bounded
+                // by what a finite millimetre text can spell, which is
+                // `1e305` m short of the overflow — or out of a pointer
+                // drag in world coordinates. A door that minted a frame
+                // from a document value would make this
+                // `crate::props::shown_value` like the other two.
                 let mut mm = current.map(|v| field.shown(v));
                 // The G1 gesture triple over DISPLAY state, through the
                 // one widget→gesture mapping (`drag_ops`) so the typed-
@@ -627,10 +639,18 @@ impl ViewerBehavior<'_> {
         if let Err(ref error) = row.value {
             ui.weak(format!("{error}"));
         }
-        let number = field.shown(match row.value {
-            Ok(value) => value.as_f64(),
-            Err(_) => 0.0,
-        });
+        // **The conversion is where the refusal is asked.** A slot the
+        // notation cannot name has no number for the field to show
+        // ([`crate::props::shown_value`]), and a slot that did not
+        // evaluate has no number at all — zero is what the widget
+        // holds for it, under the source text the row shows instead.
+        let number = props::shown_value(
+            field.unit,
+            match row.value {
+                Ok(value) => value.as_f64(),
+                Err(_) => 0.0,
+            },
+        );
         // What the field says, when that is not the dragged number:
         // the text a parse refusal handed back, else the slot's own
         // source. A LITERAL slot with a value shows no fixed text at

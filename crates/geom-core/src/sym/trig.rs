@@ -190,8 +190,7 @@ fn read_argument(arg: &Form, sess: &Session) -> Option<(i128, u32, Arc<Form>)> {
     // theorem, unreachable from any document (a 53-bit product is
     // `Int::Big` and refused above) but a false theorem all the same
     // (M10's closed
-    // `rule-d-multiple-reader-wraps-on-a-huge-dyadic-coefficient`,
-    // `docs/DOC-LEDGER.md` sweep 13;
+    // `rule-d-multiple-reader-wraps-on-a-huge-dyadic-coefficient`;
     // R1's `r1_the_multiple_reader_wraps_on_a_huge_dyadic_coefficient`
     // is the pin). An overflow here is a multiple past every cap, and
     // `None` is the answer.

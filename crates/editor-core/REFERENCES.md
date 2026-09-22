@@ -10,8 +10,8 @@ in chat on 2026-09-04; DM4 gained its member-space declaration channel
 on 2026-09-06 and was bounded at DOCM-8's review (2026-09-07); DM7 and
 DM8 were ruled on EDIT's `[ev]` PR of 2026-09-16. The page
 was `docs/DOCM-REFERENCES-DESIGN.md` until DOCM's exit on 2026-09-13,
-when it moved beside the code it governs; `docs/DOC-LEDGER.md` carries
-the history. Identity across time is the companion page
+when it moved beside the code it governs. Identity across time is the
+companion page
 `crates/editor-core/IDENTITY.md`. Mechanics here are measured, not
 assumed; where a file:line has drifted, the name beside it is the
 stable half.
@@ -119,8 +119,7 @@ sketch +x the carrier's u-reference rotated by `spin`.
   is two inserts in one committed action (`commit_action`); "on this
   face" mints one `FaceFrame` and one profile the same way.
 
-*Record: built by DOCM-1 (PR 1829), with DM1a, DM1b and DM2; history
-in `docs/DOC-LEDGER.md`.*
+*Record: built by DOCM-1 (PR 1829), with DM1a, DM1b and DM2.*
 
 ## DM2 — A carrier-kind read is a value, not a verdict
 
@@ -140,7 +139,7 @@ intent is stored. `select_where` filters on `SurfaceKind` exactly
 - The chrome offers DM1's frame only for a planar carrier; DM1b is
   the kernel's own refusal when a caller bypasses the offer.
 
-*Record: built by DOCM-1 (PR 1829); history in `docs/DOC-LEDGER.md`.*
+*Record: built by DOCM-1 (PR 1829).*
 
 ## DM3 — A part of a multi-body value is selected by a projection node
 
@@ -167,7 +166,7 @@ so every downstream selector spells what it already spells.
   keeps asserting that a bare split or pattern is refused at a body
   seat; the Part node is how a user says which body they meant.
 
-*Record: built by DOCM-2 (PR 1860); history in `docs/DOC-LEDGER.md`.*
+*Record: built by DOCM-2 (PR 1860).*
 
 ## DM4 — Flat operators before splice: an n-ary union
 
@@ -275,8 +274,7 @@ the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
 that row names; the flat
-`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).
-History in `docs/DOC-LEDGER.md`.*
+`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).*
 
 ## DM5 — A node's inputs are pairwise distinct
 
@@ -292,8 +290,7 @@ a hand-written snapshot never passes an edit door. Refusal:
 `EditError::DuplicateInput { node, input }` at the edit doors, the
 validator's own `SnapshotError` arm at load.
 
-*Record: built by DOCM-3 (PR 1803) with DM4; history in
-`docs/DOC-LEDGER.md`.*
+*Record: built by DOCM-3 (PR 1803) with DM4.*
 
 ## DM6 — Splice is not added
 
@@ -306,7 +303,7 @@ operator cannot flatten and that a user needs to edit from the middle
 stays the delete for a node with consumers.
 
 *Record: ruled with DM4's build, DOCM-3 (PR 1803), which is what makes
-the die's chain unnecessary; history in `docs/DOC-LEDGER.md`.*
+the die's chain unnecessary.*
 
 ## DM7 — A stranded name is reported at the delete, never refused
 

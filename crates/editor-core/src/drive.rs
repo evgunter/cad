@@ -245,8 +245,7 @@ pub struct DriveConfig {
 /// tier the FASTER lane — the work it saves is the subdivision it makes
 /// unnecessary. Where it cannot certify, it is pure overhead, and the
 /// worst measured case is curved geometry: 17x for nothing, because the
-/// arc family it cannot discharge (M10-8, `docs/DOC-LEDGER.md`
-/// sweep 13) means the box
+/// arc family it cannot discharge (M10-8) means the box
 /// refuses either way.
 ///
 /// Two things keep that bill down and both are measured rather than

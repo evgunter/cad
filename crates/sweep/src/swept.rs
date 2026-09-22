@@ -407,8 +407,8 @@ fn handle_registration(answer: SymRegistration, what: &'static str) {
 /// discharged against an `abs` — rule C's shape, which folds on no
 /// document at the shipped 256-bit ring and needs ~640 bits and up at
 /// a leaf cost of minutes (`geom_core::sym`'s module docs,
-/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`,
-/// `docs/DOC-LEDGER.md` sweep 13). The ring width is a COST wall, and
+/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`).
+/// The ring width is a COST wall, and
 /// this door is the recourse E12 named for exactly that case.
 ///
 /// **What it touches: nothing.** `rim.norm()` is the node
@@ -459,8 +459,7 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) 
 /// with the rim identity registered and this one not, the residual
 /// `carrier_endpoint_end` is what bounds the two-hole plate, its
 /// rendered form carrying `cos(4·atan(1·abs(1)))` verbatim
-/// (M10's closed `plate-ceiling-is-now-the-arc-span-identity`,
-/// `docs/DOC-LEDGER.md` sweep 13).
+/// (M10's closed `plate-ceiling-is-now-the-arc-span-identity`).
 ///
 /// **What it touches: nothing.** `carrier.eval(param_end)` is
 /// evaluated here and thrown away; node ids are content hashes, so the

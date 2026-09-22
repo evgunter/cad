@@ -73,7 +73,10 @@ impl ViewerBehavior<'_> {
         };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
-            ui.label(status.text());
+            // A sentence, so `widgets::message` — here in a layout
+            // egui would have wrapped it in anyway, which is a fact
+            // about the column and not about the message.
+            crate::widgets::message(ui, status.text());
         }
     }
 
@@ -129,19 +132,17 @@ fn camera_mm(metres: f64) -> String {
 /// `the_field_shows_every_render_the_bound_covers` measures it against
 /// egui's own font metrics rather than asserting it in prose.
 ///
-/// **What the bound does not cover is the top of `f64`.** Four
-/// significant figures round out of the type from `1.7975e308` up, so
-/// [`crate::readout::number`] spells a value there exactly instead, at
-/// twenty-two characters; a δ whose millimetre product lands in that
-/// band is shown clipped here. That is the right way round for a field:
-/// the draft holds the whole text and commits the whole text, so a
-/// clipped exact render round-trips where `1.798e308` committed
-/// infinity. Sizing this box for a δ within a decade of `f64::MAX` would
-/// widen every document's chrome for a tessellation no document has.
+/// **The bound now covers every render, the top of `f64` included**,
+/// so this box has no excepted band left to argue about: it is the
+/// width of the widest text the render can hand it, and the render's
+/// own grid decides that rather than a field width deciding the grid.
+/// The box roughly doubled when the grid did — a render owes the
+/// accuracy the kernel can distinguish, and the characters that takes
+/// are the box's to find.
 ///
 /// A pane narrower than this clips anyway; that is every field in the
 /// chrome and is not this number's to fix.
-const FIELD_WIDTH: f32 = 88.0;
+const FIELD_WIDTH: f32 = 176.0;
 
 /// The δ field: the display tolerance as a number the user types, in
 /// millimetres, writing a committed δ into `delta_request` and a
@@ -455,8 +456,8 @@ mod tests {
     /// leave the user's own draft reading exactly as the render did —
     /// and committing a render can only coarsen δ to a spelling of
     /// itself. δ here is 1/30 of the starting δ, whose render
-    /// (`0.001667`) is a rounding: committing it would move δ from
-    /// 1.6666…e-6 to 1.667e-6.
+    /// (`0.0016666667`) is a rounding: committing it would move δ from
+    /// 1.66666666666…e-6 to 1.6666667e-6.
     #[test]
     fn a_draft_typed_back_to_the_render_commits_nothing() {
         let mut field = Field::at(0.05 / 30.0);
@@ -467,7 +468,7 @@ mod tests {
         field.backspace();
         assert_eq!(
             field.draft.as_deref(),
-            Some("0.001667"),
+            Some("0.0016666667"),
             "and the draft is back to the render it started from"
         );
         field.tab();
@@ -508,12 +509,10 @@ mod tests {
     /// characters can spell out of the alphabet a render uses, rather
     /// than asserted in prose.
     ///
-    /// **It is the bound that is measured, not the render's worst
-    /// case**, and those are two different things at the top of `f64`:
-    /// there the four-figure arm rounds out of the type and the render
-    /// is the exact twenty-two-character spelling, which this field
-    /// clips. `FIELD_WIDTH`'s own doc is where that is argued; this row
-    /// would not go red for it, so it does not claim it.
+    /// **The bound IS the render's worst case now**, so the two are
+    /// one thing: the exact spelling at the top of `f64` is what
+    /// `crate::readout::MAX_CHARS` is the width of, and this row
+    /// therefore covers every text the render can hand the field.
     ///
     /// The chrome sets no text styles of its own, so the headless
     /// context's metrics are the application's.
@@ -540,7 +539,8 @@ mod tests {
                 let wanted = shown.galley.size().x;
                 assert!(
                     wanted <= room,
-                    "ten '{character}' need {wanted} points and the field offers {room}"
+                    "{} '{character}' need {wanted} points and the field offers {room}",
+                    crate::readout::MAX_CHARS
                 );
             }
         });

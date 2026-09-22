@@ -580,13 +580,73 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
     })
 }
 
-/// Whether any row reports a failure or a poisoning — what a chrome
-/// shows as "this document is not building".
+/// Whether any row of a tree reports a failure or a poisoning.
+///
+/// **A test oracle, not a chrome surface.** No `src/` caller reads
+/// this: what a chrome actually shows as "this document is not
+/// building" is decided per row by the Features pane's badge draw
+/// ([`crate::pane::features`]) and, for the product, by
+/// [`crate::frame::product_badge`]. Every caller is an assertion —
+/// `!has_faults(…)` is the "this evaluates clean" gate at fifteen of
+/// the twenty-two sites, across seven suites and
+/// `examples/r1_e2e.rs`. That is what a wrong answer here costs: an
+/// oracle silent about a state lets every one of those gates keep
+/// passing on documents broken in the new way.
+///
+/// **An exhaustive `match` rather than a `matches!`, and that is the
+/// point.** A subset pattern answers `false` for everything it does
+/// not name, so a fifth [`RowStatus`] would be silently not-a-fault
+/// and those gates would stay green over it. It reds HERE — at the
+/// policy the new state has to answer — rather than a schedule away
+/// from it. (Not nowhere: `pane::features`'s badge draw and
+/// `frame::badge_site`'s guard are exhaustive too, so a fifth state
+/// is a compile error in three places. What none of them is, is
+/// this policy.)
+///
+/// **Every arm is this chrome's own policy, and none of it is read off
+/// the kernel.** A [`RowStatus`] is already a viewer reading of an
+/// evaluation, so there is no upstream rule to cite here the way
+/// `frame::badge_site` cites `ProductErrorKind::means_no_body`: what a
+/// chrome shows as "not building" is decided here, one state at a
+/// time.
+///
+/// - [`RowStatus::Failed`] and [`RowStatus::Poisoned`] are faults. A
+///   poisoned row's failure is someone else's, but the document it
+///   belongs to is no more building for that.
+/// - [`RowStatus::Unevaluated`] is **not** a fault, and it is stated
+///   rather than left to the complement of a pattern: an absent
+///   measurement is not a bad one, and a tree drawn before the first
+///   result would otherwise report every document as broken. That is
+///   the reading the tests pin, not recovered intent — the function
+///   is as old as the crate and its history settles nothing;
+///   `review_gui3_r2::a_document_with_no_result_yet_reads_unevaluated_and_reports_no_faults`
+///   is the reading held executably.
+/// - [`RowStatus::Ok`] is not a fault, and needs no reason beyond
+///   that: it is the state the other three are named against.
+///
+/// **A different axis from [`RowStatus::tone`]**, which is why it is a
+/// second reading and not a call to that one: `tone` asks what a
+/// reader can ACT on and leaves a poisoned row [`Tone::Advisory`],
+/// pointing at the row that owns the failure. This asks whether the
+/// document is building, and a poisoned row says it is not. Collapsing
+/// the two would make a document whose only fault is downstream report
+/// clean.
+///
+/// **And the opposite reading from [`crate::bounds::Verdict`]**, which
+/// excludes poisoning for a reason argued at its own site — *"counting
+/// it would make one failure register as many"*. Both readings are
+/// right for their question: a verdict is a SET whose size decides
+/// whether a value got worse, and a poisoned node inflates it; this is
+/// a boolean, which nothing inflates. Where they can actually differ
+/// is the one state that has a poisoned row with no failed row behind
+/// it ([`RowStatus::Poisoned`] with `message: None`) — this calls that
+/// document not building, and a verdict over it is empty. That the two
+/// are compatible is stated here because neither site said so:
+/// `work/chrome/two-is-this-broken-readings-argue-opposite-on-poisoned.md`.
 pub fn has_faults(rows: &[TreeRow]) -> bool {
-    rows.iter().any(|row| {
-        matches!(
-            row.status,
-            RowStatus::Failed { .. } | RowStatus::Poisoned { .. }
-        )
+    rows.iter().any(|row| match row.status {
+        RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => true,
+        RowStatus::Unevaluated => false,
+        RowStatus::Ok => false,
     })
 }
