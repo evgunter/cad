@@ -310,3 +310,15 @@ from the unit: `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
 DECIDE-B1 slot 1). The SYM-12/DECIDE-3 seam
 (`work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`)
 is the `props/sign-hull` merge's.
+
+## SYM-9 in review (2026-09-22)
+
+Block DECIDE-B1 slot 1, arm OPUS. PR #3083 against `props/sign-hull`.
+The retry ladder: a decision every rung of the first attempt refuses is
+re-asked with a rule that opens an atom shut. Phase 1's tables chose
+the two kept-atom attempts over the wider ring by measurement — the
+ring recovers a strict subset at 4.4x to 11.6x. Twelve decisions on R2's
+link (the ten `rule-g-trades-sixteen-…` records as lost) and six on R2's
+filleted bracket. Rows: the rule-G row answered to its last shape and
+downgraded to P2; the decision-read cost row read and left where it is;
+one new row filed on SYM's slate for the pad's unmeasurable replay.
