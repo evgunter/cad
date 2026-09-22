@@ -2,11 +2,11 @@
 id: sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts
 kind: issue
 title: inverting every face's sense on an arc-capped loft leaves tier 3 green with an unchanged positive enclosure
-status: dispatched
+status: open
 opened: 2026-09-12
 priority: P0
 cost: H
-parent: ATREST-2
+refs: [verbs-1031b-assigner-checker-divergence, m6-sense-gate-recorded-residuals, 2969]
 ---
 
 
@@ -256,3 +256,26 @@ Prior art, not duplicated: `m5_s11_concave_sense.rs`'s
 pins a SINGLE lofted wall's flip being invisible. What is new here is
 the whole-body inversion, the cap half, the gate enumeration and the
 public-door reachability.
+
+## What is left, after the measurement (2026-09-21)
+
+The row stays OPEN and stays `cost: H`, and both are deliberate.
+
+**Open**, because the defect in the title is unchanged: a body whose
+every face sense is inverted still certifies. What the measurement
+removed is the mystery, not the hole. The closure is to widen check
+6's planar arm past `all_lines` to conic carriers — `crates/topo/src/validate.rs`
+is ATREST's ground, so that unit is ATREST's to spec, and the
+assigner/checker half of the same seam is ZIP's
+(`work/zip/verbs-1031b-assigner-checker-divergence`), which this row
+now refs. The 2×2 above is the ready-made opening measurement for the
+refusal-surface question that row defers.
+
+**`cost: H`**, not re-priced down, even though the geometry is now
+understood and `merge_faces::loop_winding` already states the bulge
+decomposition the arm would need. The expensive and risky part is the
+REFUSAL SURFACE over real revolve output: a widening that starts
+refusing bodies the kernel produces on purpose is what ATREST-1 walked
+into on check 10, which measured 36 such rows after the claim had been
+settled as a design decision. That measurement is the opening step of
+the widening unit, not an afterthought to it.
