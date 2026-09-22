@@ -28,6 +28,23 @@ pub(crate) fn indent(depth: usize) -> f32 {
     depth.min(INDENT_MAX_DEPTH) as f32 * INDENT_STEP
 }
 
+/// **The indent a line UNDER a row draws at** — a failure's own
+/// words, the pointer at the row that has them, a standing note.
+///
+/// One step past the row's own [`indent`], so the line reads as the
+/// row's — for as long as that leaves the line the width
+/// [`crate::widgets::message_floor`] names. Past that the indent gives
+/// way first: a deep row in a narrow pane draws its line further left
+/// rather than wrapping it into a ribbon or pushing it past the pane's
+/// edge, since the depth the indent shows is already on the row above
+/// it and the sentence's width is not on screen anywhere else.
+///
+/// `ui` is the line's own row, before anything is placed in it.
+pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
+    let spare = (ui.available_width() - crate::widgets::message_floor(ui)).max(0.0);
+    (indent(depth) + INDENT_STEP).min(spare)
+}
+
 /// **What one feature-tree row reads as, drawn**: the node's kind,
 /// which one of its kind it is, and the root glyph.
 ///
@@ -121,7 +138,7 @@ impl ViewerBehavior<'_> {
                 _ => None,
             };
             ui.horizontal(|ui| {
-                ui.add_space(indent(row.depth) + INDENT_STEP);
+                ui.add_space(message_indent(ui, row.depth));
                 // A payload's own words are a sentence, so
                 // `widgets::message`, not `ui.link`/`ui.weak`.
                 match through {
@@ -145,7 +162,7 @@ impl ViewerBehavior<'_> {
         // record) — the admission verdict, outliving the commit.
         if let Some(note) = &row.note {
             ui.horizontal(|ui| {
-                ui.add_space(indent(row.depth) + INDENT_STEP);
+                ui.add_space(message_indent(ui, row.depth));
                 crate::widgets::message_toned(
                     ui,
                     note.as_str(),
@@ -167,10 +184,88 @@ mod tests {
 
     use pncad::document::RecipeNodeId;
 
-    use super::row_label;
+    use eframe::egui;
+
+    use super::{INDENT_MAX_DEPTH, INDENT_STEP, indent, message_indent, row_label};
     use crate::app::GLYPH_ROOT;
-    use crate::pane::headless::painted_text;
+    use crate::pane::headless::{landed, painted_text};
     use crate::tree::{RowStatus, TreeRow};
+    use crate::widgets::message_tests::SLACK;
+    use crate::widgets::{message, message_floor};
+
+    /// A failure line of the length and shape a refusal has, quoting a
+    /// number.
+    const FAILURE: &str = "the offset is 0.30000000000000004 mm, which the solver refused";
+
+    /// One headless frame of a line under a row at `depth`, drawn the
+    /// way `feature_row` draws one, in a region `spare` points wider
+    /// than [`message_floor`]. Answers with the region, the floor, and
+    /// the rows [`FAILURE`] landed in.
+    fn line_under_a_row(depth: usize, spare: f32) -> (egui::Rect, f32, Vec<egui::Rect>) {
+        let region = core::cell::Cell::new(egui::Rect::NOTHING);
+        let floor = core::cell::Cell::new(f32::NAN);
+        let painted = landed(|ui| {
+            floor.set(message_floor(ui));
+            ui.allocate_ui(egui::vec2(floor.get() + spare, 400.0), |ui| {
+                region.set(ui.max_rect());
+                ui.horizontal(|ui| {
+                    ui.add_space(message_indent(ui, depth));
+                    message(ui, FAILURE);
+                });
+            });
+        });
+        let rows = painted
+            .into_iter()
+            .find(|landed| landed.text == FAILURE)
+            .expect("the failure line was painted")
+            .rows;
+        (region.get(), floor.get(), rows)
+    }
+
+    /// **A deep row's line gives up its indent before its width**, in
+    /// a pane with room for the floor and not for the indent too.
+    ///
+    /// The measured site of the ribbon: at [`INDENT_MAX_DEPTH`] the
+    /// line's indent is `8 * 12 + 12` points, and a pane that leaves a
+    /// sentence less than the floor after it would, with the indent
+    /// taken whole, lay the line out at the floor from there and run
+    /// it past the pane's right edge by the difference.
+    #[test]
+    fn a_deep_rows_line_gives_up_its_indent_before_its_width() {
+        let wanted = indent(INDENT_MAX_DEPTH) + INDENT_STEP;
+        let spare = wanted / 2.0;
+        let (region, floor, rows) = line_under_a_row(INDENT_MAX_DEPTH, spare);
+        let past = rows
+            .iter()
+            .map(|row| row.right() - region.right())
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            past <= SLACK,
+            "the line stays inside a pane {spare} points wider than the \
+             {floor}-point floor ({past} points past, region {region:?}, rows {rows:?})"
+        );
+        assert!(
+            rows[0].left() - region.left() > SLACK,
+            "and it keeps the indent the pane has room for, rather than \
+             dropping to the pane's edge ({:?} in {region:?})",
+            rows[0]
+        );
+    }
+
+    /// **And where there is room, the line keeps the row's indent
+    /// whole** — the depth a person reads the tree by does not move
+    /// for a pane that has space for it.
+    #[test]
+    fn a_line_under_a_row_in_a_wide_pane_keeps_its_whole_indent() {
+        let wanted = indent(INDENT_MAX_DEPTH) + INDENT_STEP;
+        let (region, _, rows) = line_under_a_row(INDENT_MAX_DEPTH, wanted * 4.0);
+        let at = rows[0].left() - region.left();
+        assert!(
+            (at - wanted).abs() <= SLACK,
+            "the line begins {at} points in, where the row's indent and \
+             one step put it at {wanted}"
+        );
+    }
 
     /// A row as `tree::rows` builds one for a `Datum::Frame` node.
     fn frame_row(id: u64, pose: &str) -> TreeRow {

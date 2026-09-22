@@ -2,8 +2,10 @@
 id: an-auto-sized-window-makes-available-width-last-frames-content
 kind: issue
 title: viewer: in a window with no default_width, available_width is last frame's content, so a wrap at it never fires
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-09-22
+pr: 3089
 priority: P1
 cost: E
 refs: [messages-in-the-creation-and-properties-panes-still-draw-past-their-row]
@@ -46,3 +48,17 @@ Either a `default_width` on the "Add part" window, or a third bullet in
 container and that a caller in one has to give it a width. A converted
 site in that window with neither is a change that looks like the others
 and behaves differently.
+
+## Closed
+
+Closed by PR 3089 (`chrome/message-floor`) with the doc half.
+`widgets::message`'s doc now lists three cases for what
+`available_width` names. The third is an auto-sized container:
+`egui::Resize::begin` ratchets to last frame's content, so the wrap
+never fires, and a caller in one gives the container a width, as
+`checks_window`'s `default_width` does. The "Add part" window's own
+`default_width` belongs to `pane/create.rs`, which was live in three
+other PRs this wave. It is carried as a bullet on
+`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`,
+where the `add_part_ui` conversion is scheduled, so the conversion and
+the width land together.

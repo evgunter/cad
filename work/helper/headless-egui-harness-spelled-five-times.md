@@ -101,3 +101,11 @@ widget that has nothing to do with any pane, and `app::tests` now says
 `crate::pane::headless::landed_in`. A `painted`/`drive` pair is still
 the shape; `landed_in`, `landed`, `painted` and `hit` are what
 whichever home takes them inherits.
+
+**One constant goes with the harness (`chrome/message-floor`,
+2026-09-22).** Measuring against `landed` needs a tolerance for rows
+placed at whole pixels. It is spelled `const SLACK: f32 = 1.0` in
+`widgets::message_tests`, which now exports it as `pub(crate)` for
+`pane::features::tests` so that module does not spell a third, and again
+in `app::tests`. That makes two spellings. Whichever home takes the
+harness should take `SLACK` beside `landed` and `landed_in`.

@@ -2,8 +2,10 @@
 id: message-resolves-its-text-style-differently-from-ui-label
 kind: issue
 title: viewer: wrapped_in_region passes TextStyle::Body where Label::layout_in_ui passes FontSelection::Default, which differ under a style override
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-09-22
+pr: 3089
 priority: P3
 cost: E
 ---
@@ -48,3 +50,23 @@ way, or say at `wrapped_in_region` why a message's text style is not
 the chrome's. A row that goes red is cheap here: lay the same sentence
 out through `message` and through `ui.label` in one headless frame with
 an `override_text_style` set, and compare the galleys.
+
+## Closed
+
+Closed by PR 3089 (`chrome/message-floor`), on a premise that did not
+hold. In egui 0.36.1 the two fallbacks do not differ under an override.
+`WidgetText::into_galley_impl`'s `Text` arm resolves
+`FontSelection::default().resolve_with_fallback(style, fallback)`, and
+`RichText::into_text_and_format` reads `style.override_font_id`, then
+the text's own style or `style.override_text_style`, before it touches
+the fallback. So both arms consult both overrides ahead of whatever
+fallback is passed. With no override, `FontSelection::Default` falls
+back to Body. The two spellings are equal under every style.
+
+`wrapped_in_region` now passes `FontSelection::Default` anyway, so
+that a message and `ui.label` make the same call rather than two calls
+that agree, and its doc says why the font is the chrome's while the
+wrap mode is the message's. `message_floor` measures in the same
+resolved font. The row the finding proposed was written and then
+deleted: it could not go red against the old code (proved by reverting
+to `TextStyle::Body`, which stayed green), so it was documentation.
