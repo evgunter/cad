@@ -2533,7 +2533,7 @@ pub(crate) mod tests {
     /// description is a rational, so the whole quotient-rule jet is
     /// exact) and then **rounded DOWN to an `f64`** — so it is a real
     /// number the patch genuinely attains, or below one.
-    /// `scripts/nurbs-exact-referee.py` re-derives both from the bit
+    /// `crates/mesh/tests/nurbs_exact_referee.py` re-derives both from the bit
     /// patterns this row builds its surfaces from.
     ///
     /// Two consequences of the literal being a TRUTH and not a sample.

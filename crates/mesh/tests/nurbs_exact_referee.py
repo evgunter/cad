@@ -23,7 +23,7 @@ a language boundary without rounding). `crates/mesh/src/nurbs_cert.rs`'s
 `the_exact_truth_of_a_bilinear_rational_escapes_no_certified_sup` asserts the
 numbers this prints.
 
-    python3 scripts/nurbs-exact-referee.py
+    python3 crates/mesh/tests/nurbs_exact_referee.py
 
 Independent of the kernel by construction: it shares no code with the Rust
 side, only the description's bits and the mathematics.
@@ -94,12 +94,12 @@ def diff_along_first(net, knots, degree):
     out = []
     for i in range(len(net) - 1):
         span = knots[i + degree + 1] - knots[i + 1]
-        out.append([degree * (b - a) / span for a, b in zip(net[i], net[i + 1])])
+        out.append([degree * (b - a) / span for a, b in zip(net[i], net[i + 1], strict=True)])
     return out, knots[1:-1]
 
 
 def transpose(net):
-    return [list(row) for row in zip(*net)]
+    return [list(row) for row in zip(*net, strict=True)]
 
 
 def basis_on_span(knots, degree, span, t):

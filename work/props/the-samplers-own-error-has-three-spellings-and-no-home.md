@@ -90,6 +90,6 @@ route, which is the sharper form of this row's point: two independent
 measurements of the same obligation both land near 1 ulp and both sit
 under a house figure of 64.
 
-The referee is committed as `scripts/nurbs-exact-referee.py` (exact
+The referee is committed as `crates/mesh/tests/nurbs_exact_referee.py` (exact
 rational arithmetic, shares no code with the kernel), so the "how to
 size it" bullet has a re-runnable method and not only a number.

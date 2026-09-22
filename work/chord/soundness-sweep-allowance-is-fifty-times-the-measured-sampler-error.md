@@ -52,7 +52,7 @@ thirty-eight times the bound it guards" at the rehearsal site.
 ## The measurement TESS-2 owed, 2026-09-22
 
 Measured by TESS-2 on its own head, with the exact-rational referee
-now committed as `scripts/nurbs-exact-referee.py`: 400 random bilinear
+now committed as `crates/mesh/tests/nurbs_exact_referee.py`: 400 random bilinear
 rational patches (degrees 1x1, knots `[0,0,1,1]²`, log-uniform weights
 1e-2..1e2 — `r1_random_rational_soundness_sweep`'s own draw restricted
 to the tight stratum), and for each one `sample_worst(&s, 60)`'s value
