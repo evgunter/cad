@@ -74,3 +74,39 @@ So the fold is worth its own unit: it is value-free, it belongs in
 A0's own class (an exact comparison of two rationals), and it converts
 reads back into theorems, which is the one direction the receipt is
 allowed to move in.
+
+## ANSWERED by DECIDE-3's fix pass (2026-09-22)
+
+Ev, 02:05Z on #3039: *"make sure that the code that goes in is clean,
+and doesn't have any concession towards skipping a rebaseline"*. The
+concession was on this row: DECIDE-3's first fix pass made the decision
+READ decline a comparison of two rational constants so that the slab's
+byte-identity pin could stand. The change for the better is the other
+way round, and it is this row's fix — **A0 now decides a `max`/`min`
+of two rational constants exactly, and a `max`/`min` whose two
+arguments are ONE form**, both value-free, both counted
+`symbolic_zero`. The read declines nothing and no longer consults
+`Session::params` to decide whether it may answer.
+
+What that yielded, every number measured on this branch:
+
+| row | before | after |
+| --- | --- | --- |
+| M10-3 slab (`m10_8_the_shipped_set_is_inert_on_straight_geometry`) | `symbolic_zero 482, numeric 263` | **`490 / 255`, nothing gated**; with the form-level algebra off it is still `none()` bit for bit |
+| plate, `line_span` at the nominal | `[0, 0, 0, 8]` | **`[8, 0, 0, 0]`** |
+| plate study (`m10_9`), `symbolic_zero` | 803 | **811** (`numeric` 470 → 462) |
+| D-tab, `line_span`, literal and parameter | `[0, 0, 0, 8]` | **`[4, 0, 0, 4]`** — four are constants, four carry a parameter |
+| segment boss, `line_span` | `[0, 0, 0, 2]` | **`[2, 0, 0, 0]`** |
+| derived-frame row's A0 rung | frozen **10**, stopping at the gate's `carrier_endpoint_start` | frozen **0**, reaching the same clause-1 `newell_plane_residual` the plain tier does — the row's original claim, restored by the fold rather than re-aimed |
+| slab and plate walk ledgers | `*/Report` rows at 16 and 8 calls | **absent** — nothing left for the shape report to report |
+| `min(x, x) − x`, `max(x, x) − x` at the scalar door | opaque, or `sign_gated` through the read | **theorems** (`m10_7_r1_sym_probes::r1_min_and_max_of_one_form_are_that_form`) |
+
+The rows that carried this row's evidence are re-aimed to the fold:
+`m10_7_r1_sym_probes`' conservative list, `m10_7_r2_sym_probes`' kink
+row, and `geom-core/tests/sym_root_rows::a_comparison_of_two_constants_is_a_theorem`,
+which names A0 as the dial that decides it.
+
+**This row closes with DECIDE-3's merge.** What it does NOT cover, and
+what stays open elsewhere: `max(A, B)` for two distinct non-constant
+forms is still the decision read's, and that is right — it is a fact
+about the box, not about the form.
