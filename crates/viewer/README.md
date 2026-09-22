@@ -308,11 +308,25 @@ gate's own header states the rest of its blind spots.
 
 ### The drivers
 
-Two, as the rule says, and the second is split for size. **This table
-is the roster**, not a summary of one: `viewer-module-kinds.sh` reads
-it, requires every module in it to declare `driver` in its own header,
-and refuses a `driver` declaration on a module the table does not
-list. A third driver is an amendment here, not a header edit.
+**Two drivers, eleven modules — and the table counts MODULES.** The
+rule above ratifies two drivers, `session` and `app`; the app driver is
+split for size across ten of the rows below (*The app driver, split for
+size*), so the roster is eleven rows long and always was. A reader who
+takes the two as a count over this table meets a contradiction, and the
+count that answers to it is **eleven**.
+
+**This table is the roster**, not a summary of one:
+`viewer-module-kinds.sh` reads it, requires every module in it to
+declare `driver` in its own header, and refuses a `driver` declaration
+on a module the table does not list. The rule that re-derives the number is the other
+side of that pairing — the modules that declare the kind:
+
+    rg --files-with-matches '^//! Module kind: \*\*driver\*\*' crates/viewer/src | wc -l
+
+which prints **11**, one per row below; drop the `| wc -l` and it names
+them. That pairing is exactly what the gate holds the two sides to. So a new module OF the app driver is a row
+here plus its own header; a third DRIVER is an amendment to the rule
+above as well, and neither is a header edit alone.
 
 | Module | Is |
 |---|---|
@@ -339,8 +353,8 @@ vocabulary is not a forbidden import path.
 | Module | Holds |
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
-| `session::refuse` | `Refusal` with its `rank`/`preferred` ladder, its `Display`, and the recourse composers `affordance`/`exists_wording`/`offer_wording`; `NodeKindWanted` and `admits`, since they are a `Refusal` payload and its predicate |
-| `session::op` | `SessionOp` and `OpOutcome` — already the crate's shared vocabulary, read by `tools`, `pickindex`, `frame`, `blend`, `combine`, `matetool`, `revolvetool` |
+| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder and the composers `affordance`/`exists_wording`/`offer_wording`, plus the `NodeKindWanted` payload and its predicate `admits`; and `FaceFrameFault`, with `face_frame_seat`, the free function that answers it, and the recourse constant `NO_FACE_PICKED`, which `forms` spends |
+| `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
 | `session::author` | `DatumSpec`, `PatternRuleSpec`, `datum_node`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
 | `session::probe` | `BoundsTarget`, `BoundsReading` and the range probe |
@@ -379,21 +393,38 @@ population of adjacent same-typed `bool` parameters in this crate;
 `work/view/adjacent-same-typed-arguments-are-the-same-swap.md` carries
 the wider class, where the types are not `bool`.
 
-**Every "is work outstanding" answer consults the seam it asked.**
-There are three seams — evaluation, the pick index and the display fit
-— and each has a consumer that reports whether work is owed.
-`DocSession::running` is `EvalService::busy`; `PickCache::indexing` is
-`IndexService::busy` beside the cache's own record of which picture was
-asked for, so a build already destined to be discarded
-(`IndexLanding::Stale`) does not light the indicator and a build nobody
-is answering stops lighting it; and the fit's two reads in `app` are
-`FitService::busy` directly, with no second record to consult. What the
-rule is for is a build already destined to be discarded: the cache's
-own record says which picture was asked for, and asking the seam is
-what keeps a consumer from promising an answer out of its own
-bookkeeping — a spinner for the life of the window, a repaint every
-frame to collect a result nobody will send, and every click refused
-with *the picture is still being indexed*.
+**Every "is work outstanding" answer comes from whichever of the two
+records can be wrong about it, and there are only two.** There are
+three seams — evaluation, the pick index and the display fit — and
+each has a consumer that reports whether work is owed. The seam knows
+that it is busy; a consumer that keeps its own record knows WHAT it is
+busy with, and where they can disagree the consumer's record is the
+one that decides.
+
+- `DocSession::running` is `EvalService::busy` directly. The session's
+  own record (`DocSession::busy`, its two generations) answers a
+  different question — is the picture older than the document — and
+  the two differ after a cancel, which is the whole of
+  `Outstanding::Canceled`.
+- `PickCache::indexing` is the cache's own record alone. The seam
+  cannot tell an orphan from a live build: `PickCache::forget` drops
+  the attempt when the picture stops existing, and a build already
+  destined to be discarded (`IndexLanding::Stale`) must not go on
+  lighting the indicator while the seam finishes it. In the other
+  direction they cannot disagree — an attempt is recorded in the step
+  that submits it and the seam holds the request until the answer
+  `pump` takes straight to `land`.
+- The fit's two reads in `app` are `FitService::busy` directly; there
+  is no second record to consult.
+
+**A seam that has stopped answering is no longer one of the states any
+of this covers.** It used to be: reporting the cache's record alone
+left the toolbar spinning on `indexing…` for the life of the window,
+repainting every frame to collect a result nobody would send, and
+refusing every click with *the picture is still being indexed*, of a
+picture nobody was indexing. What closed that is the panic below and
+not a second read — a seam whose worker has gone ends the process
+where it finds out, so no consumer has to describe one.
 
 **A worker that CRASHED is no longer one of the states this rule
 covers, and the change is deliberate** (Ev, in-chat, 2026-09-17:
@@ -556,10 +587,12 @@ reader who knows `std` and not this page could take for the whole of a
 this cache does not have. `finish`/`finish_non_exhaustive` says whether
 every FIELD is shown; whether the value shown is the whole field is
 answered at the field, which is the only place a two-valued marker
-could not have said it. **The sweep behind that list**: in each of the
-four walks read every `.field(…)` call — 22 — and take the ones whose
-value argument is not the destructured binding itself. Nine calls,
-seven fields: `checks` and `index` each spend two arms, and the absent
+could not have said it. **The sweep behind that list**, and it is a
+reading of four `fmt` bodies rather than a grep: in each of the four
+walks — `Derived`, `LandedRun` and `DocSession` in `session`,
+`PickCache` in `pickcache` — read every `.field(…)` call, **21 of
+them**, and take the ones whose value argument is not the destructured
+binding itself. **Nine calls, seven fields**: `checks` and `index` each spend two arms, and the absent
 arm renders `None`, which is the whole field. `viewer`'s
 `tests/debug_dumps.rs` holds the seven to their spellings, and is the
 only reader of these dumps in the tree. What holds the NEXT summarised
@@ -571,9 +604,10 @@ what it reads a dump for is these spellings — so a lapse costs a reader
 a misreading and can never cost an answer.
 
 `PickCache::forget` takes the same destructuring for the same reason
-one seam further: it clears the four fields that describe a picture and
-must not miss a fifth, since a missed `attempted` is what lets a late
-build install an index of a document nobody is looking at.
+one seam further, and is a row of the table below: it clears the three
+fields that describe a picture — `index`, `attempt`, `error` — and must
+not miss a fourth, since a missed `attempt` is what lets a late build
+install an index of a document nobody is looking at.
 
 **The rule is a field census, not a `Debug` rule.** A CENSUS is a walk
 whose correctness argument is that its list IS the value's fields —
@@ -582,7 +616,53 @@ whose correctness argument is that its list IS the value's fields —
 crate destructures the value instead of listing its fields by hand, so
 the list cannot fall behind the declaration; which trait the census
 sits in decides only what a missed field COSTS, and the sharpest cost
-is not a dump's. Nine of these are not dumps:
+is not a dump's.
+
+**The rule that produces the table below**, stated here because a
+population certified in prose is where the next defect hides. The
+mechanical half is every line under `crates/viewer/src` that opens a
+destructuring `let`, and the command IS the answer rather than
+something to read an answer off:
+
+    rg -n --no-heading 'let\s+&?([a-z_]\w*::)*[A-Z]\w*\s*\{' crates/viewer/src | wc -l
+
+which prints **24**. Drop the `| wc -l` and it prints one line per
+bind, and no hit is in a comment. The reading half sorts those 24, and
+every member is named so the sort can be argued with rather than
+trusted:
+
+- **Four are `Debug` dumps**, the walks above: `Derived`, `LandedRun`
+  and `DocSession` (`session`), `PickCache` (`pickcache`).
+- **Four bind a parameter or a returned vocabulary struct to name its
+  parts**, and claim nothing about completeness:
+  `widgets::drag_gesture_ops` over `GestureVocabulary`,
+  `widgets::value_field_ops` over `FieldShowing`, and the two
+  `ProbeOps` unpacks in `pane::properties` and `widgets`.
+- **Two destructure a TOOLKIT type at the chrome boundary** and are
+  not rows: `pane::viewport`'s `viewer_modifiers` over
+  `egui::Modifiers` and `scroll_event` over `egui::Vec2`. Each carries
+  a completeness argument of its own and each is worth having, but the
+  declaration they are held to is the toolkit's rather than this
+  crate's — a field arriving there is a version bump's news, which is
+  the upgrade hold `scroll_event`'s own doc calls nominal, and not a
+  value of ours whose account has fallen behind it.
+- **The remaining fourteen binds are the thirteen censuses below.**
+  `PartialEq for Camera` spends two of them, the second over
+  `Point3`'s coordinates, which is the one place a census here reaches
+  past this crate's own fields.
+
+What that rule cannot see, said rather than left: a census
+destructuring in a `match` arm or a function's parameter pattern
+instead of in a `let`, and one over a value reached through an
+accessor. Neither exists under `src/` today and both would be members
+if one did — so the table is the population of record and this
+paragraph is how a reader re-takes it, not a claim that no other shape
+could hold a census. The qualified-path arm of the pattern is there
+because leaving it out is how the two toolkit binds above went unseen
+by an earlier taking of this rule, which then reported a smaller
+population with nothing to say it was short.
+
+Thirteen censuses, none of them a dump:
 
 | census | costs, if it misses a field |
 |---|---|
@@ -595,6 +675,10 @@ is not a dump's. Nine of these are not dumps:
 | `Withdrawal::all` | a KIND of withdrawal reaches the chrome's notices and is never worded — the fan-out from a `PruneReport` that three hand-written `extend` calls in `app`-gated code used to do, where no row could execute it |
 | `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
 | `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+| `PruneReport::is_empty` | a fourth kind of withdrawal leaves the revision where it was, which is the chrome not rebuilding a picture that changed |
+| `PickCache::forget` | a fourth thing describing the picture outlives the picture — a missed `attempt` is what lets a late build install an index of a document nobody is looking at |
+| `Display for Unusable` | the one sentence a refused preferences store shows says less than the value holds |
+| `Unusable::refusal` | the refusal the `save` door returns and the sentence the read composes drift apart, which is the divergence the type exists to prevent |
 
 `Camera`'s census reaches one type further out: `target` is a
 `Point3<f64>` expanded coordinate by coordinate, so a second pattern
@@ -605,8 +689,11 @@ it destructures at all: an accessor call is a field READ, so a census
 assembled from accessors is a hand list again and a seventh field
 would leave it silently short.
 
-Two of the eight name a field the walk deliberately does not spend.
-`DisplayState::clear` binds `revision` and does not clear it: the
+Three of the thirteen name a field the walk deliberately does not
+spend. `PickCache::forget` binds `seam: _` and must: the seam is the
+service, not the picture, so forgetting it would drop the worker along
+with the answer it is holding. `DisplayState::clear` binds `revision`
+and does not clear it: the
 counter is the chrome's rebuild key, it is bumped when the reset was
 visible, and a counter that went backwards would name a picture the
 chrome has already drawn. `Display for Message` binds `subject: _` — a
@@ -618,9 +705,12 @@ SOURCE. A line that printed its own routing would say to the user what
 the chrome says to itself.
 
 **A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
-The five `Display`s above are the struct half of a population of 36
-`Display` impls under `src/`; the other 31 are over enums, and being a
-`match` settles nothing about their fields. Sweeping those 31 for a
+The six `Display`s above are the struct half of a population of 41
+`Display` impls under `src/` — `rg 'impl.*fmt::Display for '
+crates/viewer/src | wc -l` prints that 41, and no hit of it is in a
+comment — and the other 35 are over enums, where
+being a `match` settles nothing about their fields. Sweeping those 35
+for a
 pattern that drops a field of the variant it renders — `{ .. }` or
 `, ..}` in a pattern, a catch-all `_ =>` or bare-binding arm over the
 subject enum, and a tuple variant matched at less than its arity —
@@ -644,18 +734,28 @@ plural no constructor can reach is never worded.
 **What was swept for the writing hat, and what it could not see.**
 Every `fn` under `src/` naming two or more distinct `self.<field>`
 assignments, `.clear()`s or `.take()`s, each hit read against its
-struct's declaration: **23 hits, and none is a census**. A converted
+struct's declaration: **not one of them is a census**. A converted
 census does not match the rule at all — it has no `self.<field>` write
-left — so a clean sweep is the receipt. The 23 are bookkeeping, where
+left — so a clean sweep is the receipt. The hits are bookkeeping, where
 the field list comes from the walk's INPUTS rather than from the
 declaration and a new field has no claim on it: `ViewerApp::sync_scene`
 installs a rebuild's eleven outputs, `BlendTool::load_all_edges` seats
 a computed pick set, `PickCache::sync` and `land` install a landing's
 fate, and `evalseam`'s one `Coalescing::close` closes a channel and
-leaves the language's own drop glue to be exhaustive. **The count above
-is a reading nothing re-takes**, and it does not reproduce:
-`work/view/viewer-readme-multi-field-write-sweep-count-does-not-reproduce`
-holds later readings of the same rule against it.
+leaves the language's own drop glue to be exhaustive.
+
+**This sweep carries no number, and that is the finding rather than an
+omission.** It said *23 hits* for a while. Two later takings of the
+same words read **24** and **28**, and the second pair was over ONE
+tree — so the disagreement is not drift. The rule as stated does not
+determine which `fn` a `self.<field>` write belongs to: a closure
+inside a `fn`, a `Drop` body in an `impl` block and a macro expansion
+are each counted or not by the instrument rather than by the rule, and
+three instruments gave three answers. What the sweep is FOR survives
+that completely, because it is a claim about the population and not
+about its size: every hit is bookkeeping and none is a census, and a
+reader who re-takes the rule with their own instrument can check that
+against whatever set it hands them.
 `DocSession::clear_for_new_document` is the case the rule matches and
 the design answers: its two statements are `Derived::none()` and
 `display.clear()`, and its doc says so — the census is collapsed into
@@ -833,9 +933,11 @@ would leave the class on its own.
 
 **The badges.** A `frame::Badge` carries its subject, a `frame::Tone`
 (`Advisory` for a report, `Actionable` for a verdict a reader may need
-to act on — the rule `pane::features` argues for poisoned rows, stated
-by a value rather than picked per call site), an optional hover detail,
-and a `frame::Affordance`: `Read` for a label, `Opens` for a control,
+to act on — the rule that a poisoned row stays `Advisory` is STATED by
+`tree::RowStatus::tone`, the one function outside `frame` that decides
+a tone, and `pane::features` reads that value rather than arguing it at
+its draw), an optional hover detail, and a `frame::Affordance`: `Read`
+for a label, `Opens` for a control,
 which the advisory-checks badge is because a tooltip is the wrong home
 for text a reader keeps open while acting on it. There is one member
 per read — the at-rest verdict, the advisory checks, the product
@@ -858,9 +960,12 @@ no badge can be built anywhere else. The count is held by
 which scans the return types rather than the names. A door answers
 the subject from the refusal TYPE it was handed, and where one seam's
 refusal arrives as two types both name one constant, so its two
-channels move together. `app::draw_badge` is the single draw; what a
-click on a control means stays at the call site, which is why the draw
-hands the response back and names no window. `tree::RowStatus::badge`
+channels move together. `app::draw_badge` is the single draw and
+`app::toned` the single tone-to-chrome mapping, read by that draw and
+by the feature tree's row badge, so what `Advisory` looks like is
+changed in one place or nowhere; what a click on a control means stays
+at the call site, which is why the draw hands the response back and
+names no window. `tree::RowStatus::badge`
 is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
@@ -930,6 +1035,34 @@ file's own complaints and the theme and preset resolutions produce,
 `prefs::PrefsError` and `prefs::StoreError` — because what holds the
 line is the door each string passes through and not the type it arrived
 as.
+
+**What is NOT a consumer, and the test rather than the list.** Sharing
+the spelling is not membership: `LIST_SEPARATOR` is `"; "`, two
+characters any sentence may use. A site is a consumer only if the mark
+separates the items of a list ONE `frame::Message` carries, introduced
+by a counted preamble — the test the third consumer failed on, applied
+forwards. Two sites in `crates/viewer/src` write those two characters
+between items of their own and are NOT consumers by it, both because
+they reach no `frame::Message` and nothing counts or introduces their
+items: `seats::seat_line`'s panel label, whose doc comment carries the
+argument, and `pane::create`'s mate-tool panel, which spells the same
+line a second time inside a format string
+(`work/vnews/mate-panel-hand-rolls-the-seat-line` is that duplication,
+and a second copy is still not a consumer). **The list is disposed, not
+swept**, and deliberately. Neither available pattern is the property:
+
+    rg -n '"; "' crates/viewer/src
+
+prints **3** — the constant, `seat_line`'s join and the doc comment
+that argues about it — and misses the mate panel entirely, whose mark
+is inside `"pick a: node {}; pick b: node {}"`; while
+
+    rg -n '"[^"]*; ' crates/viewer/src
+
+prints **43**, which is every sentence in the crate that uses a
+semicolon. Between the two there is no pattern for *joins its own
+items*, so what this section holds is the test, run against the two
+sites it has been run against.
 
 ### The app driver, split for size
 
@@ -1787,9 +1920,45 @@ renamed, not a second row.
 ### What the boundary does not decide
 
 The rule says where things live. It does not say the wording family
-has one shape — recourse text is composed six ways across five modules,
-and `AtRestBadge` stores a refusal it has already stringified. Naming
-one shape for that family is a separate question, and the move above
+has one shape. **The count below is over SHAPES, not over sites**, and
+saying so is half the repair: the sentence used to read *composed six
+ways across five modules* without stating what a *way* was, so a
+reviewer meeting a new site could not tell whether it made seven or
+was one more instance of a way already counted. A shape has no
+syntactic marker and no grep produces the population, so the
+enumeration rule is the list itself — **six shapes, composed in five
+modules of this crate** — and a new site is a seventh member only when
+its shape is not one of these:
+
+- **A composer on the vocabulary type, one home, called by every
+  surface that shows the sentence** — `Refusal::affordance`,
+  `::exists_wording`, `::offer_wording` (`session::refuse`).
+- **Composed in the vocabulary's own `Display`, riding the sentence**
+  — `Refusal`'s `NoDocumentDirectory` arm, `FaceFrameFault`'s
+  `NotOneBody` arm (`session::refuse`).
+- **A named `&'static str` owned by the layer the fact belongs to and
+  spent by more than one door** — `refuse::NO_FACE_PICKED` (spent at
+  `FaceFrameFault`'s `NoFace` arm and by `forms`),
+  `platform::NO_CHOOSER_BACKEND` (spent at two `on_disabled_hover_text`
+  calls in `app`), and `editor_core::edit::UNDECLARED_PARAM_RECOURSE`,
+  whose home is the crate that owns the fact.
+- **A literal at the chrome site, composed where it is drawn** —
+  `pane::create`'s *add a frame datum first*, `pane::profile`'s *its
+  last step has to target the start*.
+- **A reason accumulated as chrome-local data and rendered once** —
+  `pane::create`'s `blocked: Option<&'static str>`.
+- **Already stringified into the value and stored** —
+  `session::AtRestBadge::Refused`, whose `message` `frame::at_rest_badge`
+  renders unaltered.
+
+The five modules are the ones a shape is COMPOSED in —
+`session::refuse`, `platform`, `pane::create`, `pane::profile` and
+`session` — not the ones that spend one: `app`, `forms` and `frame`
+each render a sentence composed elsewhere and add no shape.
+`AtRestBadge` used to sit OUTSIDE this count, named beside it as a
+separate fact; it is a shape like the other five and is counted here,
+so the population moved even where the digit did not. Naming ONE shape
+for the whole family is still a separate question, and the move above
 neither answers nor forecloses it.
 
 ## Rustdoc posture: the host all-features pass is the link gate
@@ -1835,31 +2004,55 @@ where, exhaustively:
   toolkit; but a link also breaks when the item it points at is renamed
   or deleted, and that happens on someone else's branch.
   `cargo_scope` is the dependent closure while `run_viewer_toolkit` is
-  keyed on the SEEDS (`ci.yml:1833-1836`), so a branch seeded elsewhere
-  takes skip mode **with `viewer` in scope** — and the
-  default-features pass, link lint inert, is then the only rustdoc
-  reading this crate.
+  keyed on the SEEDS — `scripts/ci-filter.py`'s
+  `res["RUN_VIEWER_TOOLKIT"] = "true" if seeds & VIEWER_TOOLKIT_SEEDS`
+  (`:2495`), read by `ci.yml`'s `rustdoc (gate)` step, whose
+  `if [ … run_viewer_toolkit = 'true' ]` picks `scripts/doc-gate.sh`
+  over `scripts/doc-gate.sh --skip-viewer-toolkit` (`ci.yml:1890-1894`).
+  So a branch seeded elsewhere takes skip mode **with `viewer` in
+  scope** — and the default-features pass, link lint inert, is then the
+  only rustdoc reading this crate.
 
-  **That case is empty today by a contingency, not by construction, and
-  the contingency is the thing to write down.** Every cross-crate link
-  in the renderer-free half targets `pncad` — twelve sites:
-  `blend.rs:425`, `display.rs:262`, `docio.rs:85`, `marks.rs:324`,
-  `matetool.rs:33`, `:54`, `:153`, `:220`, `parts.rs:11`,
-  `props.rs:652`, `sketch.rs:939`, `tree.rs:143` — and `pncad` is itself
-  a toolkit seed (`scripts/ci-filter.py:1428`,
-  `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad", "bvh"}`). So every branch
-  that can break one of these links seeds the toolkit and takes the
-  all-features pass. **A first link into any crate outside that set —
-  `editor-core`, `topo`, anything — opens the hole, and nothing reds
-  when it does.** The ruling's second clause, `nightly.yml:291-293`'s
+  **That case is NOT empty, and it is the contingency that used to keep
+  it empty that lapsed rather than anything about the mechanism.** The
+  rule that produces the population is *every intra-doc link in a `///`
+  or `//!` line under `crates/viewer/src`, outside the `app`-gated
+  modules, whose first path segment is one of this crate's non-`app`
+  dependencies*, which is
+
+      rg -n -g '!{app,drafts,forms,gpu,widgets,pane}.rs' -g '!pane/**' -g '!bin/**' -e '(\[`|\]\()(pncad|bvh|editor_core|toml)::' crates/viewer/src
+
+  and it prints **15** lines, one per site; add `| wc -l` for the
+  number alone. **Fourteen target `pncad`**, which is itself a toolkit
+  seed (`scripts/ci-filter.py:1436`,
+  `VIEWER_TOOLKIT_SEEDS = {"viewer", "pncad", "bvh"}`), so every branch
+  that can break one of those fourteen seeds the toolkit and takes the
+  all-features pass. **The fifteenth does not.**
+  `session::refuse`'s `Refusal::NoSuchParam` doc links
+  `` [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`] ``, and
+  `editor-core` is not in the seed set — so a branch that renames or
+  deletes that constant reaches `viewer` through the closure, takes
+  skip mode, and nothing anywhere reports the break. **The hole this
+  bullet once described as theoretical is open**, and the row that owns
+  the repair owns this instance with it.
+
+  **What the rule cannot match**, stated because the claim above it is a
+  universal: a link whose target is reached through a `use`, since the
+  link text then carries the in-scope name and not the defining crate.
+  `sketch.rs`'s `` [`ProfileVertex`] `` is one — it resolves into
+  `pncad`, and no path-shaped sweep can see it. A bare code span naming
+  another crate is not a link at all and is unchecked in both passes.
+
+  The ruling's second clause, `nightly.yml:291-293`'s
   `rustdoc (viewer, all features)`, does not close it: that row is
   `cargo doc -p viewer --all-features --no-deps` with no `RUSTDOCFLAGS`
   anywhere in the file, so a broken link there is a warning and the step
   exits 0 — measured, by planting one. It re-takes the RENDER, not the
   lint. The sweep rule this bullet owes is *the renderer-free half's
-  cross-crate link targets, against `VIEWER_TOOLKIT_SEEDS`*, and
-  `work/view/renderer-free-cross-crate-links-are-ungated-off-the-seed-set.md`
-  owns it.
+  cross-crate link targets, against `VIEWER_TOOLKIT_SEEDS`*, written
+  above as the command that produces it, and
+  `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` — on
+  MIRROR's slate, having moved there with CIW's cut — owns the repair.
 
 Someone who runs `cargo doc` on this crate without `app` — the reader
 the renderer-free half exists for — meets one of those links as the

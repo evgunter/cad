@@ -3,13 +3,25 @@
 //! shape it must never fold.
 //!
 //! The rule is `copysign(Y, X) → abs(Y)` and `abs(X) → X` wherever the
-//! FORM of `X` is manifestly POSITIVE, so the rows that matter are the
-//! ones at the boundary of that predicate: a quantity the form shows
-//! positive (folds), and a quantity the form shows only NON-negative —
+//! FORM of `X` is manifestly POSITIVE, and `−abs(Y)`, `−X` wherever it
+//! is manifestly NEGATIVE, so the rows that matter are the ones at the
+//! boundary of those predicates: a quantity the form shows positive or
+//! negative (folds), and a quantity the form shows only NON-negative —
 //! a sum of squares, a perfect square, a `sqrt` atom of a bare square —
-//! which may be a real zero and must not (`copysign(1, +0.0)` and
-//! `copysign(1, −0.0)` are different numbers, so a fold there would be
-//! a claim about a spelling).
+//! or only non-positive (the same shapes negated), which may be a real
+//! zero and must not (`copysign(1, +0.0)` and `copysign(1, −0.0)` are
+//! different numbers, so a fold there would be a claim about a
+//! spelling).
+//!
+//! **Rule F's ADVERSARY is not here.** `copysign(1, E) − 1` for
+//! `E = (x + 1)² − x² − 2x − 1 + 1e-30·(1 + y²)` — the form rule F
+//! calls manifestly positive whose `f64` channel reads negative at
+//! `x ≈ 1e8` — is a row about what the DOOR does with a
+//! theorem-vs-numeric contradiction, not about what the rule folds, so
+//! it lives with the rest of that partition in
+//! `sym11_witness_kind_rows` (both inexact lane scalars, gating) and
+//! at the certified lift in `sym_rule_f_interval_rows`
+//! (`the_adversary_at_the_interval_lift_is_a_plain_theorem`).
 //!
 //! Every row drives the tier through the same door a document does
 //! (`k_stats::decide` over a `Margin`), and every THEOREM is checked
@@ -70,6 +82,22 @@ pub(crate) fn how(rules: SymRules, build: impl FnOnce() -> Sym<f64>) -> (String,
         )
     });
     (label(out, counts), value)
+}
+
+/// [`how`] with the session's counts beside the label and the value,
+/// for a row that has to say what STOOD when a fold did not fire.
+pub(crate) fn how_counted(
+    rules: SymRules,
+    build: impl FnOnce() -> Sym<f64>,
+) -> (String, f64, geom_core::SymCounts) {
+    let ((out, value), counts) = with_session_rules(budget(), rules, || {
+        let m = build();
+        (
+            geom_core::k_stats::decide("sym_rule_f_row", Margin::of(m), band()),
+            m.value,
+        )
+    });
+    (label(out, counts), value, counts)
 }
 
 /// **The soundness check every row below shares**: a theorem must be
@@ -449,6 +477,34 @@ fn the_underflowed_positive_form_spells_its_zero_positive() {
     );
 }
 
+/// **The negative arm's reflection of the row above.** The one
+/// reachable zero of a manifestly NEGATIVE form is the same underflow
+/// with the sign carried: `−1/(1 + t²)` at `t = 1e200` is `−0.0`, whose
+/// sign BIT is the one the negative arm's fold assumes — and the fold
+/// reads no value, so `copysign(1, X) + 1` is a theorem there
+/// regardless.
+#[test]
+fn the_underflowed_negative_form_spells_its_zero_negative() {
+    let x = || -(one() / (one() + p("t", 1.0e200).powi(2)));
+    let v = x().value;
+    println!(
+        "  −1/(1 + t²) at t = 1e200 = {v:e}, sign_negative {}",
+        v.is_sign_negative()
+    );
+    assert!(v == 0.0, "the value underflows");
+    assert!(
+        v.is_sign_negative(),
+        "the underflowed negative form spells its zero −0.0, which is the sign bit the fold assumes"
+    );
+    assert_eq!(
+        sound(
+            "copysign(1, −1/(1 + t²)) + 1 at t = 1e200",
+            how(SymRules::shipped(), || one().copysign(x()) + one())
+        ),
+        "theorem"
+    );
+}
+
 /// **THE PREDICATE'S POSITIVE BOUNDARY (R2, addendum 4).** Four shapes
 /// that DO fold, each checked against the value at the point and each
 /// NOT a theorem with rule F shut: a positive constant carrying a
@@ -497,101 +553,369 @@ fn the_positive_boundary_folds_and_every_fold_is_zero_at_the_point() {
     }
 }
 
-/// **THE REACH IS ONE-SIDED (R2, addendum 5).** The START cap of the
+/// **THE NEGATIVE ARM'S THEOREM ROWS (SYM-12).** The START cap of the
 /// tilt-`u` cube carries `n.z = −1/sqrt(P(t))`, and `abs(−X) = X` and
 /// `copysign(1, −X) = −1` are identities of reals for a manifestly
-/// positive `X` exactly as the folded ones are — the predicate declines
-/// them, because a negative coefficient is refused outright. Not a
-/// soundness question, a document-class one: a `FaceFrame` on the start
-/// cap of that body is NOT reached by rule F, and a manifest-NEGATIVE
-/// arm is the next shape rather than one this unit took.
+/// positive `X` exactly as the folded ones are. SYM-8's positive arm
+/// declined them (a negative coefficient was refused outright) and this
+/// row, written by its review R2, used to pin that decline; the arm
+/// SYM-12 measured and took folds them, and the row now says which
+/// rule does: a theorem under the shipped set, not reached with rule F
+/// shut.
 #[test]
-fn a_manifestly_negative_argument_is_declined_by_both_arms() {
+fn the_negative_arm_folds_the_start_caps_atoms() {
     let neg = || -(one() / (one() + p("t", 0.25).powi(2)).sqrt());
-    assert_ne!(
-        sound(
-            "abs(−1/sqrt(1 + t²)) + 1/sqrt(1 + t²)",
-            how(SymRules::shipped(), || { neg().abs() + neg() })
-        ),
+    println!("=== abs(−1/sqrt(1 + t²)) + 1/sqrt(1 + t²)");
+    let abs_resid = || neg().abs() + neg();
+    assert_eq!(
+        sound("shipped", how(SymRules::shipped(), abs_resid)),
         "theorem",
-        "if this folds now, the predicate grew a negative branch"
+        "abs(X) = −X for a manifestly negative X"
     );
     assert_ne!(
+        sound("without_rule_f", how(SymRules::without_rule_f(), abs_resid)),
+        "theorem",
+        "with rule F shut the abs stays an opaque atom"
+    );
+    println!("=== copysign(1, −1/sqrt(1 + t²)) + 1");
+    let cs_resid = || one().copysign(neg()) + one();
+    assert_eq!(
+        sound("shipped", how(SymRules::shipped(), cs_resid)),
+        "theorem",
+        "copysign(1, X) = −1 for a manifestly negative X"
+    );
+    // With rule F shut what stands is said in full, not only "not a
+    // theorem": the atom is minted (no symbolic discharge of any
+    // kind), the VALUE channel is what answers, and the value it reads
+    // at the point is exactly zero — so the shipped theorem above is
+    // the fold's and not the value channel's.
+    let (shut_label, shut_value, shut_counts) = how_counted(SymRules::without_rule_f(), cs_resid);
+    println!("  without_rule_f: {shut_label} value {shut_value:e} counts {shut_counts:?}");
+    assert_eq!(shut_label, "numeric Zero", "the value channel answers");
+    assert_eq!(shut_counts.symbolic_zero, 0, "no theorem was reached");
+    assert_eq!(shut_counts.sign_gated, 0, "and no value was read by a rule");
+    assert_eq!(shut_counts.registered, 0, "and no axiom was stated");
+    assert!(shut_counts.numeric >= 1, "the numeric channel decided it");
+    assert!(shut_value == 0.0, "−1 + 1 is exactly zero at the point");
+    // And a NON-constant magnitude: `copysign(Y, X) = −|Y|` mints the
+    // `Abs` atom over `Y` negated, the same indeterminate `abs(Y)`
+    // mints, so `copysign(t, X) + abs(t)` is a theorem too.
+    println!("=== copysign(t, −1/sqrt(1 + t²)) + abs(t)");
+    assert_eq!(
         sound(
-            "copysign(1, −1/sqrt(1 + t²)) + 1",
-            how(SymRules::shipped(), || { one().copysign(neg()) + one() })
+            "shipped",
+            how(SymRules::shipped(), || {
+                p("t", 0.25).copysign(neg()) + p("t", 0.25).abs()
+            })
         ),
         "theorem",
-        "if this folds now, the predicate grew a negative branch"
+        "the negated magnitude is the same Abs atom an abs node mints"
     );
 }
 
-/// **THE ADVERSARY: a manifestly positive form whose `f64` channel
-/// reads NEGATIVE at the point (R2, item G).**
-/// `E = (x + 1)² − x² − 2x − 1 + 1e-30·(1 + y²)` is the polynomial
-/// `1e-30 + 1e-30·y²` as a FORM — a positive constant plus a
-/// non-negative term — so rule F folds `copysign(1, E)` to `1`. At
-/// `x ≈ 1e8` the `f64` evaluation of the first four terms is roundoff
-/// of order one and can be negative, so the value channel's
-/// `copysign(1, E)` is `−1` there and the margin `copysign(1, E) − 1`
-/// is a DEFINITE `−2` while the tier says the same margin is
-/// identically zero.
-///
-/// **That is not an unsoundness of rule F**: `E > 0` for every real
-/// `x`, `y`, and the `f64` lift is not an enclosure, so the
-/// disagreement is the channel's roundoff. What rule F adds is that a
-/// one-ulp error in the SIGN argument becomes a whole `2.0` at the
-/// margin — it is the first rule that turns one into the other. At
-/// `Sym<Interval>` the enclosure of `E` contains zero, the value
-/// channel cannot decide, and the tier answers `theorem`.
-///
-/// `#[ignore]`d because `Sym<f64>::sign_within`'s contradiction
-/// `debug_assert!` FIRES here by design, and a row that panics on
-/// purpose in every CI log is read as a break. The class is
-/// `work/sym/sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`;
-/// changing that assertion is SYM's row and not this unit's.
+/// **THE TWO SPELLINGS OF A NEGATIVE MAGNITUDE MEET.** A
+/// `copysign(Y, X)` node's `|Y|` is `manifest::magnitude`'s, an
+/// `abs(Y)` node's is `fold_abs`'s, and for a manifestly NEGATIVE `Y`
+/// the two parted when the negative arm was first cut into `fold_abs`
+/// alone: `abs(Y)` folded to `−Y` while `magnitude` still minted the
+/// `Abs` atom, so `copysign(Y, X) − abs(Y)` — a theorem before the arm,
+/// both spellings one atom — read `numeric` on a residual the plain
+/// walk cannot close. `magnitude` now reads `fold_abs` first, and this
+/// row pins that: the bare pair, the arm's own identity
+/// `copysign(Y, X) + Y`, and the pair through a factor only rule E's
+/// `Q/Q → 1` clears, all theorems at the shipped set; the positive `Y`
+/// beside them, which never parted.
 #[test]
-#[ignore = "evidence-only: fires Sym<f64>'s contradiction debug_assert by design (R2's adversary)"]
-fn the_adversary_a_positive_form_whose_f64_channel_reads_negative() {
-    use std::panic::{AssertUnwindSafe, catch_unwind};
-    let tiny = 1.0e-30;
-    let (mut contradicted, mut flipped) = (0, 0);
-    for &x0 in &[1.0e8, 3.0e8, 5.0e8, 7.0e8, 1.0e9, 1.3e9] {
-        let resid = move || {
-            let x = p("x", x0);
-            let y = p("y", 0.5);
-            let e = (x + one()).powi(2) - x.powi(2) - Sym::from_f64(2.0) * x - one()
-                + Sym::from_f64(tiny) * (one() + y.powi(2));
-            one().copysign(e) - one()
-        };
-        // Each point on its own thread: a panic inside
-        // `with_session_rules` leaves that thread's session installed
-        // and the next point would refuse to nest.
-        let outcome = std::thread::spawn(move || {
-            catch_unwind(AssertUnwindSafe(|| how(SymRules::shipped(), resid)))
-        })
-        .join()
-        .expect("the probe thread itself joins");
-        match outcome {
-            Ok((l, v)) => {
-                println!("  x = {x0:e}: copysign(1, E) − 1 → {l}, value {v:e}");
-                assert_eq!(l, "theorem", "E is manifestly positive");
-                if v != 0.0 {
-                    flipped += 1;
-                }
+fn the_two_spellings_of_a_negative_magnitude_meet() {
+    let y = || -(one() + p("t", 0.25).powi(2));
+    let x = || one() + p("s", 0.5).powi(2);
+    assert_eq!(
+        sound(
+            "copysign(Y, X) − abs(Y), Y = −(1 + t²), X = 1 + s²",
+            how(SymRules::shipped(), || y().copysign(x()) - y().abs())
+        ),
+        "theorem"
+    );
+    assert_eq!(
+        sound(
+            "copysign(Y, X) + Y — the arm's own identity",
+            how(SymRules::shipped(), || y().copysign(x()) + y())
+        ),
+        "theorem"
+    );
+    let q = || one() + p("t", 0.25).powi(2);
+    let through_e = || {
+        let unit = (q() / q()).sqrt();
+        y().copysign(x()) * unit - y().abs()
+    };
+    assert_eq!(
+        sound(
+            "copysign(Y, X)·sqrt(Q/Q) − abs(Y): the pair the plain walk cannot close",
+            how(SymRules::shipped(), through_e)
+        ),
+        "theorem",
+        "the two spellings of |Y| for a manifestly negative Y must fold to one form"
+    );
+    assert_ne!(
+        sound(
+            "… with rule F shut",
+            how(SymRules::without_rule_f(), through_e)
+        ),
+        "theorem",
+        "and it is rule F that closes it"
+    );
+    let yp = || one() + p("t", 0.25).powi(2);
+    assert_eq!(
+        sound(
+            "the same shape with Y = 1 + t² (the positive arm's, unchanged)",
+            how(SymRules::shipped(), || {
+                let unit = (q() / q()).sqrt();
+                yp().copysign(x()) * unit - yp().abs()
+            })
+        ),
+        "theorem"
+    );
+}
+
+/// **The shapes the NEGATIVE arm must NOT fold** — the positive arm's
+/// negatives reflected: each is non-positive by its syntax and can be a
+/// real ZERO, or carries a term whose sign the syntax cannot read, and
+/// the arm must decline it exactly as the positive arm declines its
+/// mirror image.
+///
+/// By construction this row is every `assert_ne!` and cannot tell the
+/// arm EXISTS — it is green with `negative` returning `false` — so it
+/// is read together with [`the_negative_arm_folds_the_start_caps_atoms`],
+/// the existence pin, which reds on that plant.
+#[test]
+fn the_shapes_the_negative_arm_must_not_fold() {
+    println!("=== shapes the negative arm must not fold, shipped set");
+    let s = SymRules::shipped();
+
+    // A NEGATED SUM OF SQUARES is zero at the origin.
+    assert_ne!(
+        sound(
+            "copysign(1, −(x² + y²)) + 1 at (3, 4)",
+            how(s, || one()
+                .copysign(-(p("x", 3.0).powi(2) + p("y", 4.0).powi(2)))
+                + one())
+        ),
+        "theorem",
+        "a negated sum of squares can be zero"
+    );
+    assert_ne!(
+        sound(
+            "abs(−(x² + y²)) − (x² + y²) at (3, 4)",
+            how(s, || {
+                let q = p("x", 3.0).powi(2) + p("y", 4.0).powi(2);
+                (-q).abs() - q
+            })
+        ),
+        "theorem",
+        "the abs arm is held to the same predicate"
+    );
+
+    // A NEGATED PERFECT SQUARE `−(t − 1)²` is zero at `t = 1`.
+    assert_ne!(
+        sound(
+            "copysign(1, −(t − 1)²) + 1 at t = 0.25",
+            how(s, || {
+                let d = p("t", 0.25) - one();
+                one().copysign(-d.powi(2)) + one()
+            })
+        ),
+        "theorem",
+        "a negated perfect square vanishes at the root of its root"
+    );
+
+    // A NON-NEGATIVE TERM beside the negative ones: `t² − 1/sqrt(1 + t²)`
+    // is negative at the point and has no sign the syntax can read.
+    assert_ne!(
+        sound(
+            "copysign(1, t² − 1/sqrt(1 + t²)) + 1 at t = 0.25",
+            how(s, || {
+                let x = p("t", 0.25).powi(2) - inv_sqrt_positive();
+                one().copysign(x) + one()
+            })
+        ),
+        "theorem",
+        "a form with a non-negative term beside its negative ones has no manifest sign"
+    );
+
+    // A NEGATED PARAMETER of unknown sign.
+    assert_ne!(
+        sound(
+            "abs(−t) − t at t = 0.25",
+            how(s, || (-p("t", 0.25)).abs() - p("t", 0.25))
+        ),
+        "theorem",
+        "a negated parameter has no sign the form can read"
+    );
+    assert_ne!(
+        sound(
+            "copysign(1, −t) + 1 at t = 0.25",
+            how(s, || one().copysign(-p("t", 0.25)) + one())
+        ),
+        "theorem",
+        "a negated parameter has no sign the form can read"
+    );
+
+    // A NEGATED `sqrt` atom of a bare square — the ring row's atom,
+    // reflected — under both spellings.
+    assert_ne!(
+        sound(
+            "abs(−sqrt(t²)) − sqrt(t²) at t = 0.25",
+            how(s, || {
+                let r = p("t", 0.25).powi(2).sqrt();
+                (-r).abs() - r
+            })
+        ),
+        "theorem",
+        "a negated sqrt of a bare square is zero wherever its argument is"
+    );
+    assert_ne!(
+        sound(
+            "copysign(1, −sqrt(t²)) + 1 at t = 0.25",
+            how(s, || one().copysign(-p("t", 0.25).powi(2).sqrt()) + one())
+        ),
+        "theorem",
+        "the copysign spelling is held to the same predicate"
+    );
+
+    // POISON, negated: `−‖0̂‖` is a function of an expression with no
+    // value, and `negative`'s poison guard is what keeps the arm off
+    // it — this is the row that reds if that guard goes.
+    let poisoned = sound(
+        "copysign(1, −‖0̂‖) + 1 (the zero vector, negated)",
+        how(s, || {
+            let z = Vec3::new(p("a", 0.0), p("b", 0.0), p("c", 0.0))
+                .normalize()
+                .norm();
+            one().copysign(-z) + one()
+        }),
+    );
+    assert_ne!(poisoned, "theorem", "poison folds nothing, negated or not");
+}
+
+/// **THE NEGATIVE ARM'S ORDER AGAINST RULE C is pinned the same way**
+/// as the positive arm's, by residuals BOTH rules take: `abs(−(1 + t²))`
+/// and `abs(−2/t²)` over brackets that exclude zero. Rule F folds each
+/// because the argument is manifestly negative (a negative constant
+/// times an even power, or over one); rule C would fold each because
+/// the argument is enclosable with a certified NEGATIVE sign (`abs(R) →
+/// −R`). Shipped order, a THEOREM; with rule F shut, rule C's
+/// `sign_gated`; so planting C before F reds both, as it reds the
+/// positive arm's two rows above.
+#[test]
+fn the_negative_arms_order_against_rule_c_is_pinned_the_same_way() {
+    let resid_a = || {
+        let x = -(one() + p_over("t", 0.25, 0.2, 0.3).powi(2));
+        x.abs() + x
+    };
+    assert_eq!(
+        sound("abs(−(1 + t²)) − (1 + t²), C+F", how(with_c(), resid_a)),
+        "theorem",
+        "F before C: the value-free rule answers first"
+    );
+    assert_eq!(
+        sound("… F shut, C on", how(c_not_f(), resid_a)),
+        "sign_gated",
+        "rule C alone takes this residual, and gates it"
+    );
+    let resid_b = || {
+        let x = -(Sym::from_f64(2.0) / p_over("t", 0.4, 0.3, 0.5).powi(2));
+        x.abs() + x
+    };
+    assert_eq!(
+        sound("abs(−2/t²) − 2/t², C+F", how(with_c(), resid_b)),
+        "theorem",
+        "with both on the value-free rule must be asked first"
+    );
+    assert_eq!(
+        sound("abs(−2/t²) − 2/t², C only", how(c_not_f(), resid_b)),
+        "sign_gated",
+        "rule C takes it by reading the bracket"
+    );
+}
+
+/// **THE `copysign` MINT SITES THE TREE HOLDS, counted by the source
+/// and not by prose.** `manifest.rs`'s header lists the sites outside
+/// the tier that mint a `copysign` atom; a list in a doc-comment is a
+/// claim, and SYM-12's own first cut of it was wrong twice (a site
+/// dropped, four never named). This row is the register: every
+/// `.copysign(` call in the shipped sources of every crate under
+/// `crates/`, outside `geom-core/src/sym/` (the tier, where the atom is
+/// consumed) and outside the files that DEFINE `fn copysign(` (the
+/// scalar impls, which forward it), read over
+/// [`test_utils::source::code_only`] so prose and literals do not
+/// count and with each file cut at its in-file `#[cfg(test)]` module,
+/// since a test's own `copysign` mints nothing shipped. The expected
+/// table is per file with its count; a site that appears or goes reds
+/// here, and the fix is to re-ask the census on the measured
+/// documents and then move BOTH the table below and the header's
+/// list. The shape is `flagged_census`'s (the `decide_flagged` site
+/// register), which is this repo's precedent for a source census.
+#[test]
+fn the_copysign_mint_sites_the_tree_holds_are_these() {
+    let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
+    let crates = root.join("crates");
+    let mut found: std::collections::BTreeMap<String, usize> = Default::default();
+    for entry in std::fs::read_dir(&crates).expect("the crates directory lists") {
+        let src = entry.expect("a directory entry").path().join("src");
+        if !src.is_dir() {
+            continue;
+        }
+        for path in test_utils::source::rust_sources(&src) {
+            let rel = path
+                .strip_prefix(&root)
+                .expect("a source under the root")
+                .to_string_lossy()
+                .replace('\\', "/");
+            if rel.starts_with("crates/geom-core/src/sym/") || rel == "crates/geom-core/src/sym.rs"
+            {
+                continue;
             }
-            Err(_) => {
-                println!(
-                    "  x = {x0:e}: the f64 margin is definite and the form is zero — \
-                          Sym<f64>'s contradiction assertion FIRED"
-                );
-                contradicted += 1;
+            let text = std::fs::read_to_string(&path).expect("a source file reads");
+            let code = test_utils::source::code_only(&text);
+            // The shipped part of the file: everything above its
+            // in-file test module.
+            let shipped = code
+                .lines()
+                .position(|l| l.trim() == "#[cfg(test)]")
+                .map_or(code.as_str(), |n| {
+                    let at: usize = code.lines().take(n).map(|l| l.len() + 1).sum();
+                    &code[..at]
+                });
+            if shipped.contains("fn copysign(") {
+                continue;
+            }
+            let n = shipped.matches(".copysign(").count();
+            if n > 0 {
+                found.insert(rel, n);
             }
         }
     }
-    println!("  contradiction fired at {contradicted} of 6 points, value ≠ 0 at {flipped}");
-    assert!(
-        contradicted + flipped > 0,
-        "the adversary is meant to make the f64 channel disagree at least once"
+    let expected: std::collections::BTreeMap<String, usize> = [
+        ("crates/geom-brep/src/implicit.rs", 1),
+        ("crates/geom-brep/src/props/curved.rs", 1),
+        ("crates/geom-core/src/linalg/svd.rs", 1),
+        ("crates/geom-core/src/linalg/vec.rs", 1),
+        ("crates/profile/src/path.rs", 1),
+        ("crates/profile/src/sugar.rs", 2),
+        ("crates/sweep/src/blend/arms.rs", 1),
+        ("crates/sweep/src/revolve/axis.rs", 1),
+        ("crates/topo/src/boolean/solid_contain.rs", 1),
+    ]
+    .into_iter()
+    .map(|(f, n)| (f.to_owned(), n))
+    .collect();
+    for (f, n) in &found {
+        println!("  {f}: {n}");
+    }
+    assert_eq!(
+        found, expected,
+        "the copysign mint sites moved: a site appeared or went. Re-ask the census \
+         (`m10_10_evidence_interval`'s `sym12_the_copysign_census_at_the_nominal`) on the \
+         measured documents, then move this table and `manifest.rs`'s header list together."
     );
 }

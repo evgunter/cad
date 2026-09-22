@@ -121,9 +121,25 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
         // many near-empty cells can honestly cost a few cells MORE
         // than the whole-patch grid — #547 measured exactly that on
         // the swept blades, span 0.9x.)
+        // **A PLANAR face certifies exactly zero.** `mesh::budget`'s
+        // `worst_cert` names two readings of a `0.0` — a genuinely
+        // tight face, and one that certified nothing — and names the
+        // caller's own `tessellate` result as the discriminant, which
+        // this fixture took above. Since the C9 ring became a newtype
+        // over the backend it pads only where an operation is inexact,
+        // so a plane's second-derivative bound is exactly `0` where it
+        // used to be subnormal-positive, and its certificate with it.
         assert!(
-            n.worst_cert.is_finite() && n.worst_cert > 0.0,
+            n.worst_cert.is_finite() && n.worst_cert >= 0.0,
             "the face's worst certificate is recorded: {n:?}"
+        );
+        // What a bug can still break, which the strict `> 0.0` above
+        // was standing in for: a CURVED face certifying exactly zero
+        // is a bound nothing computed, not a tight one.
+        assert!(
+            n.worst_cert > 0.0 || (n.muu == 0.0 && n.muv == 0.0 && n.mvv == 0.0),
+            "a face whose second-derivative bound is nonzero certified EXACTLY zero, \
+             so its certificate is one nothing computed rather than a tight face: {n:?}"
         );
         assert!(
             n.worst_dev.is_nan() && n.dev_samples == 0,

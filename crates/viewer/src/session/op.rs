@@ -25,7 +25,7 @@ use pncad::select::ContactClass;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
-use crate::session::author::{DatumSpec, PatternRuleSpec};
+use crate::session::author::{DatumSpec, PatternRuleSpec, ProfilePlane};
 use crate::session::probe::BoundsTarget;
 use crate::session::refuse::Refusal;
 use crate::session::select::{Hovered, Selection};
@@ -463,20 +463,23 @@ pub enum SessionOp {
     /// the literal door). The plane is a REFERENCE to a frame node,
     /// which the pick below spells out.
     AddProfile {
-        /// **The frame node the profile is drawn on** — a PICK, not a
-        /// field.
+        /// **The frame the profile is drawn on** — a PICK, not a
+        /// field, and [`ProfilePlane`] says which of the two ways it
+        /// was picked.
         ///
-        /// It was a `SketchPlane<f64>` the form filled in from a
-        /// world-XY constant. A profile's plane is a document node
-        /// now, so the form names one that already exists rather than
-        /// minting one on the side: one submit inserts one node, and
-        /// the frame a person drew on is the frame they can see in the
-        /// viewport and edit afterwards.
+        /// A profile's plane is a document node, so the form names
+        /// one rather than carrying a plane on the side: the frame a
+        /// person drew on is the frame they can see in the viewport
+        /// and edit afterwards.
         ///
-        /// A reference that does not name a `Datum::Frame` refuses
-        /// [`Refusal::WrongNodeKind`] at the door, like every other
-        /// pick.
-        plane: RecipeNodeId,
+        /// [`ProfilePlane::Existing`] names a node that is already
+        /// there; a reference that does not name a `Datum::Frame`
+        /// refuses [`Refusal::WrongNodeKind`] at the door, like every
+        /// other pick. [`ProfilePlane::NewXy`] inserts the world XY
+        /// frame FIRST and draws on it, both edits in one committed
+        /// action and therefore one undo — so an empty document can
+        /// author a sketch without a trip to another form.
+        plane: ProfilePlane,
         /// The loop programs, in description order.
         loops: Vec<LoopProgram>,
     },
@@ -736,7 +739,250 @@ pub enum SessionOp {
     },
 }
 
+/// **Which VALUE drag an operation names**: the slot or the document
+/// parameter a [`SessionOp::BeginGesture`] or
+/// [`SessionOp::BeginParamGesture`] opened a gesture on.
+///
+/// Two arms and no third, because a value gesture's target has two
+/// kinds: the session's gesture target mints one of these and nothing
+/// else, so the comparison that decides whether a preview belongs to
+/// the open gesture is total over what a drag can be on.
+///
+/// **It mints its own three driving operations**, which is what holds
+/// them to one target: a chrome that names the slot once cannot emit
+/// a preview for one field and a commit for another.
+///
+/// The wider question — which of this crate's gestures an operation
+/// names at all — is [`GestureName`], of which this is one half.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ValueGestureName {
+    /// A node's slot.
+    Slot {
+        /// The node whose slot the gesture drags.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+    },
+    /// A document parameter.
+    Param(ParamName),
+}
+
+impl ValueGestureName {
+    /// The operation that opens this gesture.
+    #[must_use]
+    pub fn begin(&self) -> SessionOp {
+        match self {
+            Self::Slot { node, slot } => SessionOp::BeginGesture {
+                node: *node,
+                slot: *slot,
+            },
+            Self::Param(name) => SessionOp::BeginParamGesture { name: name.clone() },
+        }
+    }
+
+    /// The operation that moves it, carrying the value under the
+    /// pointer.
+    #[must_use]
+    pub fn preview(&self, value: f64) -> SessionOp {
+        match self {
+            Self::Slot { node, slot } => SessionOp::PreviewGesture {
+                node: *node,
+                slot: *slot,
+                value,
+            },
+            Self::Param(name) => SessionOp::PreviewParamGesture {
+                name: name.clone(),
+                value,
+            },
+        }
+    }
+
+    /// The operation that lands it.
+    #[must_use]
+    pub fn commit(&self) -> SessionOp {
+        match self {
+            Self::Slot { node, slot } => SessionOp::CommitGesture {
+                node: *node,
+                slot: *slot,
+            },
+            Self::Param(name) => SessionOp::CommitParamGesture { name: name.clone() },
+        }
+    }
+}
+
+/// **Which free-move probe an operation names**: the instance, which
+/// is the whole identity because an instance has one probe
+/// ([`SessionOp::PreviewFreeMove`] carries why).
+///
+/// A type rather than a bare [`RecipeNodeId`] so that the probe's
+/// three driving operations are minted from one value, the way
+/// [`ValueGestureName`] mints the value drag's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FreeMoveName {
+    /// The instance being probed.
+    pub instance: RecipeNodeId,
+}
+
+impl FreeMoveName {
+    /// The operation that opens this probe.
+    #[must_use]
+    pub const fn begin(&self) -> SessionOp {
+        SessionOp::BeginFreeMove {
+            instance: self.instance,
+        }
+    }
+
+    /// The operation that moves it, carrying the whole composed frame
+    /// rather than a delta.
+    #[must_use]
+    pub const fn preview(&self, frame: Frame) -> SessionOp {
+        SessionOp::PreviewFreeMove {
+            instance: self.instance,
+            frame,
+        }
+    }
+
+    /// The operation that lands it.
+    #[must_use]
+    pub const fn commit(&self) -> SessionOp {
+        SessionOp::CommitFreeMove {
+            instance: self.instance,
+        }
+    }
+}
+
+/// **Which gesture an operation names** — one type for every drag in
+/// this crate.
+///
+/// The six driving operations spell their subject three ways, each
+/// right for its own door: a node and a slot, a parameter name, an
+/// instance. What they are all spellings OF is this. A gesture's name
+/// is what a preview and a commit are checked against before they
+/// touch anything ([`crate::g1::Slot`]'s two name checks), and
+/// [`SessionOp::names_gesture`] is the one place an operation becomes
+/// one — exhaustive over the enum, so an operation that joins a drag
+/// cannot skip the question.
+///
+/// **The layers below still speak their own subjects.** The session
+/// compares a [`ValueGestureName`] and the display state compares an
+/// instance, because each holds only the gesture it can have; this is
+/// the name an OPERATION carries, which is the level at which all
+/// three are the same kind of fact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GestureName {
+    /// A slot or document-parameter drag.
+    Value(ValueGestureName),
+    /// An instance's free-move probe.
+    FreeMove(FreeMoveName),
+}
+
+impl GestureName {
+    /// The operation that opens this gesture.
+    #[must_use]
+    pub fn begin(&self) -> SessionOp {
+        match self {
+            Self::Value(value) => value.begin(),
+            Self::FreeMove(probe) => probe.begin(),
+        }
+    }
+
+    /// The operation that lands it.
+    #[must_use]
+    pub fn commit(&self) -> SessionOp {
+        match self {
+            Self::Value(value) => value.commit(),
+            Self::FreeMove(probe) => probe.commit(),
+        }
+    }
+
+    /// The operation that abandons it.
+    ///
+    /// **It names no gesture and is still the name's to mint**: the
+    /// two cancels are one per DRAG rather than one per gesture
+    /// ([`SessionOp::CancelGesture`] carries why a cancel names no
+    /// target), so which of the two a control emits is decided by
+    /// which drag it is driving and by nothing else.
+    #[must_use]
+    pub const fn cancel(&self) -> SessionOp {
+        match self {
+            Self::Value(_) => SessionOp::CancelGesture,
+            Self::FreeMove(_) => SessionOp::CancelFreeMove,
+        }
+    }
+}
+
 impl SessionOp {
+    /// **Which gesture this operation drives**, or `None` for an
+    /// operation that drives none.
+    ///
+    /// The one place a [`SessionOp`] becomes a [`GestureName`], and
+    /// the answer to *are these three spellings the same kind of
+    /// fact*: they are, and this is where the tree says so. The match
+    /// is exhaustive, so an operation joining a drag does not compile
+    /// until someone writes down which gesture it names — the same
+    /// property [`SessionOp::permitted_during_value_gesture`] buys for
+    /// the mid-drag policy.
+    ///
+    /// **The two cancels answer `None`, and that is the rule rather
+    /// than an omission**: a cancel names no target
+    /// ([`SessionOp::CancelGesture`]), so it drives whichever gesture
+    /// is open. [`GestureName::cancel`] is the other direction, which
+    /// a name can answer because the DRAG it belongs to is decided.
+    #[must_use]
+    pub fn names_gesture(&self) -> Option<GestureName> {
+        let value = |name| Some(GestureName::Value(name));
+        let probe = |instance| Some(GestureName::FreeMove(FreeMoveName { instance }));
+        match self {
+            Self::BeginGesture { node, slot }
+            | Self::PreviewGesture { node, slot, .. }
+            | Self::CommitGesture { node, slot } => value(ValueGestureName::Slot {
+                node: *node,
+                slot: *slot,
+            }),
+            Self::BeginParamGesture { name }
+            | Self::PreviewParamGesture { name, .. }
+            | Self::CommitParamGesture { name } => value(ValueGestureName::Param(name.clone())),
+            Self::BeginFreeMove { instance }
+            | Self::PreviewFreeMove { instance, .. }
+            | Self::CommitFreeMove { instance } => probe(*instance),
+            Self::CancelGesture
+            | Self::CancelFreeMove
+            | Self::Select(_)
+            | Self::Hover(_)
+            | Self::DeleteNode { .. }
+            | Self::SetSlot { .. }
+            | Self::ProbeBounds { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetParam { .. }
+            | Self::SetParamUnit { .. }
+            | Self::SetParamText { .. }
+            | Self::CreateParam { .. }
+            | Self::Undo
+            | Self::Redo
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Open(_)
+            | Self::Save(_)
+            | Self::SetInstanceHidden { .. }
+            | Self::AddMate { .. }
+            | Self::NewDocument { .. }
+            | Self::AddDatum { .. }
+            | Self::AddProfile { .. }
+            | Self::EditProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddPlacedUnion { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddInstance { .. } => None,
+        }
+    }
+
     /// Whether this operation is permitted while a **value gesture**
     /// is in flight — a slot or document-parameter drag opened by
     /// [`SessionOp::BeginGesture`] or [`SessionOp::BeginParamGesture`],
@@ -783,9 +1029,12 @@ impl SessionOp {
     ///   [`crate::display::DisplayState::begin_free_move`]);
     /// - the view the scene draws
     ///   ([`super::DocSession::display_view`]) resolves against the
-    ///   PREVIEWED one, and so does the Properties pane's own copy of
-    ///   the admission test, which decides whether to DRAW the control
-    ///   the operation then decides whether to ACCEPT;
+    ///   PREVIEWED one, and so does the Properties pane, which runs
+    ///   the SAME admission test the view does
+    ///   ([`crate::display::instance_check`], which
+    ///   [`crate::display::drawn_targets`] runs first) to decide
+    ///   whether to DRAW the control the operation then decides
+    ///   whether to ACCEPT;
     /// - every committed edit prunes the display state against the new
     ///   document — a prune that DISCARDS committed probes and kills
     ///   an in-flight free-move whose instance stopped being eligible,
@@ -1061,6 +1310,18 @@ pub struct OpOutcome {
     pub committed: Vec<DocEdit<ProfileProgram>>,
     /// The edits evaluated against scratch state and NOT recorded.
     pub previewed: Vec<DocEdit<ProfileProgram>>,
+    /// **The ids this operation's inserts MINTED**, in the order the
+    /// action applied them — empty for every operation that inserted
+    /// nothing.
+    ///
+    /// The `EditRecord::minted` the edit door already answers with,
+    /// carried out to the chrome instead of being dropped at the
+    /// session's edge. A form that has just committed a node it will
+    /// go on referring to has no other way to learn its id: a
+    /// `DocEdit::InsertNode` carries the payload and not the id, and
+    /// reading "the last node in document order" would be a guess
+    /// about an action nobody promised inserts only one thing.
+    pub minted: Vec<RecipeNodeId>,
     /// Why nothing (or nothing more) happened.
     pub refusal: Option<Refusal>,
     /// What this operation's document transition WITHDREW from the

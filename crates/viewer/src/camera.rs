@@ -32,13 +32,30 @@
 //! clamped and never silently dropped: a caller folding user input
 //! gets a [`CameraOpError`] it can show, and the camera it already had.
 //!
-//! # The one free transform
+//! # The one free transform, and the one door that does not refuse
 //!
 //! [`cursor_projection`] is about no camera state at all — a matrix, a
-//! cursor and a viewport in, a matrix out. It is here because
-//! projection algebra is this module's subject, not because the doors
-//! meet at the type: it takes `f32` and every matrix here is `f64`
-//! (`work/view/cursor-projection-is-f32-in-a-module-whose-matrices-are-f64`).
+//! cursor and a viewport in, a matrix out — and it is here because
+//! projection algebra is this module's subject.
+//!
+//! **It takes `f32` where the rest of this module is `f64`, and that
+//! is deliberate rather than a gap.** The matrix it transforms has to
+//! be the one the GPU is actually rasterizing with, which is the
+//! narrowed one ([`Camera::view_projection_f32`]): handing it the
+//! `f64` original would have the id pass compute with a matrix the
+//! shaded pass does not have, which is precisely the divergence
+//! `crate::idpass::disagreement` exists to report. The narrowing
+//! itself is `crate::narrowing`'s and is spelled nowhere here.
+//!
+//! **It is also the one door here that answers for every input**, and
+//! the refusal discipline above is not weakened by it: everything it
+//! takes has already been refused or vouched for one step out. A
+//! component that is not a finite `f32` cannot reach it, because
+//! `crate::narrowing::Narrow` is what produced every one of them; a
+//! viewport with no area cannot, because `ViewportSize::ndc_of`
+//! answers `None` first and no query is built. What is left for a
+//! `Result` to carry is nothing, and allocating one per hovered frame
+//! to carry nothing is the cost this declines.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -46,6 +63,8 @@
 use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Vec3};
 use pncad::select::Ray;
+
+use crate::narrowing::Narrow;
 
 /// Elevation is held strictly inside `±(π/2 − POLE_MARGIN)`.
 ///
@@ -194,6 +213,16 @@ pub enum CameraError {
     /// buy that one bit at the cost of a promoted review suite that
     /// pins this arm by name.
     UnusableBounds,
+    /// The view-projection this camera and viewport give does not
+    /// narrow to the `f32` a GPU matrix holds
+    /// ([`crate::narrowing::Narrow`]).
+    ///
+    /// **Every entry of it is an ordinary finite `f64`**, which is why
+    /// it is not [`CameraError::NotFinite`]: the algebra succeeded and
+    /// the seam is what refuses. `f32::MAX` is about `3.40e38`, so a
+    /// scene framed a few dozen orders of magnitude out gives a matrix
+    /// this module is happy with and a GPU cannot be handed.
+    UndrawableProjection,
     /// The distance needed to fit the scene at this aspect lies beyond
     /// the scene-derived zoom band, so no camera in the band contains
     /// the scene.
@@ -231,6 +260,10 @@ impl core::fmt::Display for CameraError {
             Self::FieldOfViewOutOfRange { fov_y } => write!(
                 f,
                 "a vertical field of view of {fov_y} rad is not strictly inside (0, pi)"
+            ),
+            Self::UndrawableProjection => f.write_str(
+                "the view projection is past the largest number a GPU matrix can hold \
+                 (about 3.4e38), so there is nothing to draw the picture with",
             ),
             Self::UnusableBounds => f.write_str(
                 "the framing request names no view — the bounds are empty or carry a \
@@ -649,6 +682,28 @@ impl Camera {
         Ok(mul(&self.projection_matrix(aspect)?, &self.view_matrix()))
     }
 
+    /// **The same matrix, at the display seam**:
+    /// [`Camera::view_projection`] narrowed to the `f32` a GPU holds.
+    ///
+    /// Here rather than at the caller because the caller is a driver
+    /// and this is the algebra's own output type meeting the
+    /// renderer's — and because [`cursor_projection`] takes exactly
+    /// this value, so the module that owns the transform also
+    /// produces the thing it transforms. The narrowing is
+    /// [`crate::narrowing::Narrow`]'s single test and is not
+    /// re-decided here.
+    ///
+    /// # Errors
+    ///
+    /// As [`Camera::view_projection`], plus
+    /// [`CameraError::UndrawableProjection`] when the matrix is a
+    /// projection this module can form and a GPU cannot hold.
+    pub fn view_projection_f32(&self, aspect: f64) -> Result<[[f32; 4]; 4], CameraError> {
+        self.view_projection(aspect)?
+            .narrow()
+            .ok_or(CameraError::UndrawableProjection)
+    }
+
     /// Where a world point lands in normalized device coordinates,
     /// or `None` when it is on or behind the eye plane (`w ≤ 0`).
     ///
@@ -918,6 +973,24 @@ pub fn cursor_projection(
 }
 
 /// The centre and radius of a box's bounding sphere.
+///
+/// **The endpoints being numbers does not make the radius one**, and
+/// the radius is what the caller frames against. Squaring spends the
+/// exponent twice, so a box a few hundred orders of magnitude across
+/// — `±1e155` on one axis is enough — sums to infinity with every
+/// endpoint an ordinary finite number, and `radius < MIN_SCENE_RADIUS`
+/// is false for an infinity. The check is therefore on the PRODUCT as
+/// well as on the inputs, which is [`finite`]'s question asked where
+/// the overflow is rather than only where the caller's numbers are.
+///
+/// **The centre needs no check of its own.** `0.5 * (lo + hi)`
+/// overflows only when one endpoint is past half of `f64::MAX`, and at
+/// that magnitude the spacing of the representable numbers is about
+/// `2e292`, so the same axis's `hi - lo` is either exactly zero — a
+/// radius of zero, refused below — or at least that spacing, whose
+/// square is infinite. Measured over every pair of magnitudes from
+/// `1e150` to `1e308` in both signs and the first 64 floats above each:
+/// 126 non-finite centres, none of them with a finite radius.
 fn sphere(bounds: &Aabb) -> Result<(Point3<f64>, f64), CameraError> {
     let lo = [
         bounds.min(Axis::X),
@@ -946,6 +1019,7 @@ fn sphere(bounds: &Aabb) -> Result<(Point3<f64>, f64), CameraError> {
         0.5 * (hi[2] - lo[2]),
     ];
     let radius: f64 = (half[0] * half[0] + half[1] * half[1] + half[2] * half[2]).sqrt();
+    finite("scene radius", radius)?;
     if radius < MIN_SCENE_RADIUS {
         return Err(CameraError::DegenerateScene { radius });
     }

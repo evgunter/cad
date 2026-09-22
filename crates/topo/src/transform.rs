@@ -67,9 +67,9 @@
 //!   FIT net both by the full affine map (weights and knots are
 //!   invariants of it — [`geom::NurbsSurface::map_points`]), `d`, the
 //!   window and the tolerance unchanged, and the two-limb certificate
-//!   **re-derived** on the mapped pair through the scalar's own fit
-//!   lane ([`geom_brep::PcurveFittedLane::remap_certificate`]) — never
-//!   the stored one, which is a claim about a different geometry. The
+//!   **re-derived** on the mapped pair through the injected fit door
+//!   ([`geom_brep::OffsetFitLane::remap`]) — never the stored one,
+//!   which is a claim about a different geometry. The
 //!   composition law is what makes the mapped pair a pair at all: a
 //!   rigid map carries unit normals to unit normals, so
 //!   `M(S + d·n) = M(S) + d·n_M`. A scalar with no fit lane refuses
@@ -149,9 +149,12 @@ pub enum TransformError {
     /// it would launder poison as geometry. A DESCRIBED net is not
     /// this arm: it maps, by its control points.
     NurbsPlaceholder,
-    /// An approximating surface at a scalar with no fit lane: its
+    /// An approximating surface with no fit door in hand: its
     /// certificate cannot be re-derived on the mapped pair, and a
     /// certificate is never carried across a geometry change.
+    ///
+    /// Where `Some` comes from, and what its absence means:
+    /// [`crate::AtRestPolicy::offset_fit_lane`].
     ApproxLaneUnsupported {
         /// The scalar's lane name, as the lane itself reports it.
         lane: &'static str,
@@ -306,7 +309,7 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
 /// ([`crate::entity::LoopBoundary::Cycle`]'s `first`;
 /// [`crate::Body::revert`] is the map that does both). `det = +1` is
 /// enforced upstream, so there is no such branch to write here today.
-fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
+fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     map: &Affine3<T>,
     s: &Surface<T>,
     band: Band,
@@ -380,7 +383,12 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
             }
             Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
         }
-        Surface::Approx(ref a) => Surface::Approx(std::sync::Arc::new(map_approx(map, a, band)?)),
+        Surface::Approx(ref a) => Surface::Approx(std::sync::Arc::new(map_approx(
+            map,
+            a,
+            band,
+            <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+        )?)),
     })
 }
 
@@ -427,14 +435,21 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
 /// collapse reach); the two limbs are classified against `tolerance`
 /// directly. So a tighter run band can make this door refuse a surface
 /// its mint accepted, which is the fail-loud direction, and the shape
-/// is exactly `geom_brep::recertify_approx`'s — the door tier 3 reaches
+/// is exactly [`geom_brep::OffsetFitLane::recertify`]'s — the door
+/// tier 3 reaches
 /// per face, which likewise meters at the run's band and classifies at
 /// the caller's tolerance. The map and the validator therefore agree
 /// about any given surface, which is the property that matters.
+/// `offset_fit` is the re-derivation door ([`geom_brep::OffsetFitLane`]),
+/// handed in as a parameter; what a `None` means is
+/// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. A caller
+/// holding such a surface with no door refuses typed rather than
+/// carrying the certificate it already has across a geometry change.
 fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
     band: Band,
+    offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> Result<geom::ApproxSurface<T>, TransformError> {
     let old = a.spec();
     let geom::SurfaceDescription::Offset { ref base, d } = old.description;
@@ -448,18 +463,21 @@ fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
         tolerance: old.tolerance,
     };
     let rounds = a.certificate().rounds;
-    geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
-        match T::remap_certificate(description, fit, window, tolerance, band) {
+    geom::ApproxSurface::certify(
+        spec,
+        |description, fit, window, tolerance| match offset_fit {
             None => Err(TransformError::ApproxLaneUnsupported {
                 lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
             }),
-            Some(Err(source)) => Err(TransformError::ApproxRecertify { source }),
-            Some(Ok(certificate)) => Ok(geom::OffsetCertificate {
-                rounds,
-                ..certificate
-            }),
-        }
-    })
+            Some(lane) => match lane.remap(description, fit, window, tolerance, band) {
+                Err(source) => Err(TransformError::ApproxRecertify { source }),
+                Ok(certificate) => Ok(geom::OffsetCertificate {
+                    rounds,
+                    ..certificate
+                }),
+            },
+        },
+    )
 }
 
 fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {
@@ -547,7 +565,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -565,7 +583,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
 /// check 2 does: `None` certifies through
 /// [`EdgeCurve::certify`] and `Some` through
 /// [`EdgeCurve::certify_nurbs_lane`], the same two doors
-/// `topo::validate`'s lane-keeping and certified arms take. **This
+/// `topo::validate`'s `_structural` and certified doors take. **This
 /// grants no certification capability the at-rest validator does not
 /// already have** — the lane is `geom_brep::plane_nurbs_limbs`, the
 /// one function both sides inject, and the checks and their order are
@@ -583,7 +601,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -901,5 +919,82 @@ mod tests {
         let mut described: Body<f64> = Body::new();
         described.add_surface(described_surface());
         assert!(transform_rigid(&described, &aside(), Tol::witness()).is_ok());
+    }
+}
+
+/// **The transform door's fit door, as the pass takes it** — the rows
+/// that say what each of its two answers costs.
+///
+/// [`map_approx`] is called directly because these rows are about the
+/// PARAMETER: [`map_surface`] reads the scalar's own seam
+/// (`crate::AtRestPolicy::offset_fit_lane`), and a row that could only reach the
+/// door the seam hands it could not tell an absent door from a scalar
+/// that has none.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod offset_fit_door_rows {
+    use geom_brep::OffsetFitLane;
+    use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+
+    use super::{TransformError, map_approx};
+
+    /// A rotation about `z` — a rigid map that genuinely re-splits the
+    /// hull bound across the axes, so the re-derivation has work to do.
+    fn turned() -> Affine3<f64> {
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), 0.7)
+    }
+
+    /// **No door: the map refuses**, with the variant and the payload
+    /// the absence has always had — the certificate is never carried
+    /// across a geometry change.
+    #[test]
+    fn no_door_refuses_the_mapped_surface_by_name() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let approx = crate::fixtures::bowed_offset_approx::<f64>();
+        match map_approx(&turned(), &approx, band, None) {
+            Err(TransformError::ApproxLaneUnsupported { lane }) => assert_eq!(lane, "f64"),
+            other => panic!("the absence must name the lane: {other:?}"),
+        }
+    }
+
+    /// **The `f64` door re-derives on the mapped pair**, and what it
+    /// hands back is `geom-brep`'s own certifier run on that pair, limb
+    /// for limb, bit for bit — the assertion that the body moved rather
+    /// than being rewritten. `rounds` is the FIT's provenance and is
+    /// carried, which is why it is read off the operand.
+    ///
+    /// **The reference is the FREE FUNCTION, not the door**, the way
+    /// the mint and recertify twins pin theirs. Comparing the door
+    /// against its own `remap` would compare the door with itself and
+    /// could not see that body re-pointed — at `certify_offset_at`,
+    /// say, which drops the window rule. The free door here is the
+    /// `Tol` one, and the two classify against the same number because
+    /// the operand was minted at this run's ε, which the row asserts
+    /// first rather than assuming.
+    #[test]
+    fn the_f64_door_re_derives_the_mapped_pair() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let map = turned();
+        let approx = crate::fixtures::bowed_offset_approx::<f64>();
+        let mapped = map_approx(&map, &approx, band, Some(OffsetFitLane::fit()))
+            .expect("a rigid map of a certified fit re-certifies at the same tolerance");
+        let spec = mapped.spec();
+        let geom::SurfaceDescription::Offset { base, d } = &spec.description;
+        assert_eq!(
+            spec.tolerance.to_bits(),
+            approx.tolerance().to_bits(),
+            "the map carries the operand's stored tolerance, which is what makes the `Tol` \
+             certifier below the same classification"
+        );
+        let reference = geom_brep::certify_offset_over(base, &spec.fit, *d, spec.window, tol, band)
+            .expect("`geom-brep`'s certifier measures the mapped pair");
+        let got = mapped.certificate();
+        crate::fixtures::assert_certificates_agree("the mapped pair", got, &reference);
+        assert_eq!(
+            got.rounds,
+            approx.certificate().rounds,
+            "`rounds` is the fit's provenance and is carried, not re-measured"
+        );
     }
 }

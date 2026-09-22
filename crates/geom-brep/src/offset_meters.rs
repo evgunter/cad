@@ -245,9 +245,13 @@ impl core::fmt::Display for MeterError {
 
 impl core::error::Error for MeterError {}
 
-/// The smallest `|x|` over the enclosure — zero when it straddles (or
-/// is poisoned, whose comparisons are all false: the conservative
-/// answer).
+/// The smallest `|x|` over the enclosure — zero when it straddles, and
+/// zero when it is poisoned, which is the conservative answer.
+///
+/// **The poison arm is asked by name.** The ring's refusal is its
+/// decoration, not a NaN pair, so a refused enclosure carries ordinary
+/// endpoints and `i.lo() > 0.0` can be TRUE of one — a quotient by a
+/// divisor not proven away from zero is the shape that reaches here.
 ///
 /// The **mignitude**, and the same quantity `ssi::certify`'s
 /// `zero_free_lower_bound` reads for the transversality margin. Kept
@@ -258,6 +262,9 @@ impl core::error::Error for MeterError {}
 /// arithmetic reason. One spelling would have to pick one of the two
 /// docs, and the shared body is four comparisons.
 pub fn mig(i: RingInterval) -> f64 {
+    if i.is_poison() {
+        return 0.0;
+    }
     if i.lo() > 0.0 {
         i.lo()
     } else if i.hi() < 0.0 {
@@ -314,8 +321,17 @@ pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
 /// by ulps, which is the unsound side wherever the result is a
 /// divisor of a lower bound — so a site that wants an upper bound on
 /// a norm calls this rather than re-spelling the fold.
+/// A poisoned enclosure answers `NaN` — no bound at all, which is what
+/// every consumer of this value already treats as unbounded. The
+/// refusal is asked by name because a poisoned ring carries ordinary
+/// endpoints and `sqrt_up` of one would be a plausible bound with
+/// nothing behind it.
 pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
-    sqrt_up(norm_sq(v).hi())
+    let sq = norm_sq(v);
+    if sq.is_poison() {
+        return f64::NAN;
+    }
+    sqrt_up(sq.hi())
 }
 
 /// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
@@ -348,11 +364,19 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     let sq = RingInterval::point(mig(m[0])).sqr()
         + RingInterval::point(mig(m[1])).sqr()
         + RingInterval::point(mig(m[2])).sqr();
-    let a = sqrt_down(sq.lo());
+    // A refused enclosure separates nothing from zero, and `0.0` is
+    // the floor's conservative answer — asked by name, because a
+    // refusal here carries real endpoints.
+    let a = if sq.is_poison() {
+        0.0
+    } else {
+        sqrt_down(sq.lo())
+    };
     // Assembly B: projection onto the enclosure's midpoint direction.
-    // The direction is STRUCTURE (any direction is sound); the
-    // division by a certified upper bound on `‖d̂‖` is what keeps the
-    // projection a bound when `d̂` is unit only to rounding.
+    // The direction is STRUCTURE (any direction is sound, and that is
+    // why this midpoint needs no refusal of its own); the division by
+    // a certified upper bound on `‖d̂‖` is what keeps the projection a
+    // bound when `d̂` is unit only to rounding.
     let mid = |i: RingInterval| (i.lo() + i.hi()) * 0.5;
     let dv = [mid(m[0]), mid(m[1]), mid(m[2])];
     let dn = sqrt_up(dv[0].mul_add(dv[0], dv[1].mul_add(dv[1], dv[2] * dv[2])));
@@ -366,7 +390,12 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         // correctly-rounded f64 quotient, which is not a lower bound
         // on the real one. `dn` is a certified UPPER bound on `‖d̂‖`,
         // so dividing by it is the sound side.
-        (proj / RingInterval::point(dn)).lo().max(0.0)
+        //
+        // The quotient's refusal is asked by name: `f64::max(NaN, 0.0)`
+        // used to absorb a poisoned quotient, and a refused quotient
+        // now carries real endpoints instead.
+        let q = proj / RingInterval::point(dn);
+        if q.is_poison() { 0.0 } else { q.lo().max(0.0) }
     } else {
         0.0
     };
@@ -379,12 +408,16 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // the sphere-band fixture it is the assembly that moves the
     // certified curvature range from tens to fractions.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
-    let c = sqrt_down(gram.lo());
+    let (c, gram_sup) = if gram.is_poison() {
+        (0.0, f64::NAN)
+    } else {
+        (sqrt_down(gram.lo()), sqrt_up(gram.hi()))
+    };
     let floor = if a > b { a } else { b };
     CellNormal {
         m,
         floor: if floor > c { floor } else { c },
-        sup: norm_sup(&m).min(sqrt_up(gram.hi())),
+        sup: norm_sup(&m).min(gram_sup),
     }
 }
 
@@ -603,6 +636,16 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let c = l * nn - m.sqr();
     let h = b / (two * a);
     let k = c / a;
+    // **The refusal is asked here, not left to the finiteness check at
+    // the end.** Both divisions above are by `A`, which is not proven
+    // away from zero on a cell whose normal barely separated, and a
+    // refused quotient carries real endpoints: `k_hi.is_finite()`
+    // would pass on one. Worse, the joins below are `f64::min`/`max`,
+    // which DROP a NaN operand — so one assembly's refusal would be
+    // covered by the other assembly's number.
+    if h.is_poison() || k.is_poison() {
+        return None;
+    }
     // `H² − K` is nonnegative at every real point (the principal
     // curvatures are real), so an enclosure whose upper end is
     // negative is rounding, not geometry: the root is zero there.
@@ -617,6 +660,11 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let w12 = (g * m - f * nn) / a;
     let w21 = (e * m - f * l) / a;
     let w22 = (e * nn - f * m) / a;
+    // The same refusal, for the same reason, over Gershgorin's four
+    // entries.
+    if w11.is_poison() || w12.is_poison() || w21.is_poison() || w22.is_poison() {
+        return None;
+    }
     let b_hi = (w11.hi() + w12.mag()).max(w22.hi() + w21.mag());
     let b_lo = (w11.lo() - w12.mag()).min(w22.lo() - w21.mag());
     // Both assemblies are sound, so the tighter end of each wins.

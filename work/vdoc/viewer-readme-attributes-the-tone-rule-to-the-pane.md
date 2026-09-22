@@ -2,7 +2,9 @@
 id: viewer-readme-attributes-the-tone-rule-to-the-pane
 kind: issue
 title: The viewer README says pane::features argues the tone rule, which a value now states
-status: open
+status: closed
+closed: 2026-09-21
+branch: vdoc/readme-attributions
 opened: 2026-09-20
 priority: P4
 cost: E
@@ -55,3 +57,47 @@ home in `app::toned`, read by that draw and by the feature row.
 Three sibling members of this class are `work/vnews/tone-doc-argues-
 from-a-site-that-now-reads-the-value`, with the sweep rule that
 produces the population.
+
+## Closed — the rule is cited where it is STATED, not where it is read (#vdoc/readme-attributions)
+
+**Old citation.** *The badges* (`crates/viewer/README.md`): *"the rule
+`pane::features` argues for poisoned rows, stated by a value rather
+than picked per call site"*.
+
+**The subject, re-derived.** The rule is *a poisoned row stays
+`Advisory`*, and it is a `match` arm:
+`crates/viewer/src/tree.rs:151` —
+`Self::Ok | Self::Unevaluated | Self::Poisoned { .. } => Tone::Advisory`
+— inside `RowStatus::tone`, whose doc comment above it carries the
+argument (*"a poisoned row shows someone else's failure and points at
+the row that owns it"*). `pane::features` does not argue it: the only
+tone in that file is `row.status.tone()` passed to `toned` at
+`crates/viewer/src/pane/features.rs:89`, under a comment that says in
+as many words *"How LOUD a drawn badge is, is not decided here — that
+is `RowStatus::tone()`, read below"* (`features.rs:80-81`).
+
+**New citation.** The parenthesis now names `tree::RowStatus::tone` as
+the one function outside `frame` that DECIDES a tone, with
+`pane::features` reading the value. Cited by symbol, not by line.
+
+**The command that finds it.**
+
+    rg -n -- "-> (crate::frame::|frame::)?Tone\b" crates/viewer/src
+
+prints **2**: `tree.rs:149` and `frame.rs:1293`. The second is
+`Badge::tone`, an accessor over a tone already stored, so
+`RowStatus::tone` is the only decider outside `frame` — which is the
+claim the sentence now makes.
+
+**And the paragraph's other half, checked the same way.** The row
+observed that the tone MAPPING now has one home; it did, and the page
+did not say so. `app::draw_badge` is still the single draw
+(`crates/viewer/src/app.rs:229`), and `app::toned`
+(`crates/viewer/src/app.rs:210`) is the single tone-to-chrome mapping,
+read by that draw (`app.rs:231`) and by the feature row
+(`pane/features.rs:89`) and by nothing else:
+`rg -n 'toned\(' crates/viewer/src` prints **3** lines, the
+declaration and those two calls. That sentence is now on the page
+beside the draw clause.
+
+Re-derived on the merged tree at `fb60ba2b7f`.

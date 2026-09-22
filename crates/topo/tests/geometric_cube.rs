@@ -402,10 +402,11 @@ fn totality_no_panics_on_poison_inputs() {
 /// orientation everywhere rather than only where certification was
 /// unavailable. **An inverted body passes it BY DESIGN.**
 ///
-/// The recourse is named at the doors and pinned here: the mixed passes
-/// keep their lanes, so a dual caller that wants the sign asks
-/// `validate_pseudomanifold`, `contact_marks` or `mass_properties`,
-/// which still run check 7 through the scalar's own lane. This row is
+/// The recourse is named at the doors and pinned here: the `_structural`
+/// passes hold no quadrature lane and still make check 7 through the
+/// closed form, so a dual caller that wants the sign asks
+/// `validate_pseudomanifold_structural`, `contact_marks_structural` or
+/// `mass_properties_structural`. This row is
 /// the three verdicts side by side, so the disagreement between the
 /// at-rest doors at a dual is a tested fact rather than a surprise.
 #[test]
@@ -435,19 +436,20 @@ fn the_structural_half_does_not_judge_orientation_at_any_scalar() {
         "the structural half runs no +V check, so an inverted body passes it"
     );
 
-    // Dual64, the mixed passes H-R3 keeps: the sign is still available,
-    // through the closed form, at the scalar the composed door excludes.
+    // Dual64, the `_structural` passes H-R3 keeps: the sign is still
+    // available, through the closed form, at the scalar the composed door
+    // excludes.
     assert_eq!(
-        topo::validate_pseudomanifold(&d_inverted, &ContactRecords::default(), tol),
+        topo::validate_pseudomanifold_structural(&d_inverted, &ContactRecords::default(), tol),
         Err(vec![topo::ValidationError::NegativeVolume]),
         "the census pass still judges orientation at a dual"
     );
     assert!(
-        topo::contact_marks(&d_inverted, tol).is_err(),
+        topo::contact_marks_structural(&d_inverted, tol).is_err(),
         "the marks pass refuses the same body for the same reason"
     );
     assert!(
-        topo::mass_properties(&d_inverted, tol)
+        topo::mass_properties_structural(&d_inverted, tol)
             .expect("the closed form computes a volume at a dual")
             .volume
             .value

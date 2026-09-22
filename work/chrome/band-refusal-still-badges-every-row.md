@@ -112,3 +112,34 @@ all of the above at the code: the header's claim that *"every
 arm and one comment, which is what let the live carve-out read as
 settled. They have an arm each now, because one reaches rows and one
 cannot.
+
+## The fence is gone; the cost argument stands (2026-09-21, orchestrator)
+
+The section above closes on *"a new `RowStatus` variant does not land
+inside CHROME's fence … both VIEW's files while VIEW is live in this
+crate"*. **That fence is retired** (`work/chrome/plan.md`, *Territory
+— the carve-out is spent*): VIEW re-scoped on 2026-09-17 and
+dispatches no new units, and `work/README.md`'s 2026-09-20 ruling
+makes `pane/features.rs` and `frame.rs` ordinary shared ground. The
+row's own sentence — *"this wants a VIEW handoff or a unit whose fence
+spans `pane/`"* — is answered: a unit whose scope spans `pane/` is now
+an ordinary CHROME dispatch.
+
+**What does NOT change is the measurement.** The row's count of
+`Failed { message }` sites is the reason to add a VARIANT rather than
+a FIELD, and it is re-taken by the command the row writes out, not
+trusted from its prose. Re-take it at dispatch.
+
+## Cross-reference (added by the `chrome/empty-document-gate` lane)
+
+The new status this row's closing shape proposes is the event
+`has-faults-cannot-red-on-a-new-rowstatus` is about.
+`crates/viewer/src/tree.rs`'s `has_faults` asks
+`matches!(row.status, RowStatus::Failed { .. } | RowStatus::Poisoned
+{ .. })`, so **a `RowStatus` variant added for a refused cluster is
+silently not a fault**: every row carrying it answers `false` to
+*"this document is not building"*, and no build says so.
+
+Whoever takes this row should make that `matches!` exhaustive before
+adding the variant, or take both rows together.
+

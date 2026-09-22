@@ -5,20 +5,28 @@
 //! [`crate::session::DocSession`] because the wording it draws is the
 //! session's own answer.
 //!
-//! Every other function here draws one row or one field from values
-//! the caller already holds, and returns what the user did with it.
 //! None of the others reads the application or the session: the pane
 //! modules own that, and hand these numbers, units and labels.
 //!
-//! [`drag_ops`] is the exception worth naming — it is the one mapping
-//! from a `DragValue` to session operations, and the whole reason a
-//! dragged number in this crate emits one committed edit rather than
-//! one per frame.
+//! **Most of what is here draws one row or one field** from values the
+//! caller already holds, and returns what the user did with it. The
+//! rule that produces the exceptions is *a function that takes no
+//! `ui: &mut egui::Ui`*, and there are eight: [`number_text`] and
+//! [`number_field`], which render and build rather than draw;
+//! [`install_number_formatter`], which writes a style; [`new_row_step`],
+//! which mints a value; [`value_gesture`] and [`free_move_gesture`],
+//! which mint a gesture's operations from its name; and [`drag_ops`]
+//! with [`drag_gesture_ops`], which read a `Response`.
+//!
+//! [`drag_ops`] is the one worth naming — it is the one mapping from a
+//! `DragValue` to session operations, and the whole reason a dragged
+//! number in this crate emits one committed edit rather than one per
+//! frame.
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Dimension, RecipeNodeId};
+use pncad::document::{Dimension, Frame, RecipeNodeId};
 use pncad::geom_core::Point2;
 use pncad::profile::{
     ArcData, ArcMode, ArcSide, ArcSweep, SpecForms, Step, Target, TargetKind, TipState, Verb,
@@ -32,7 +40,7 @@ use crate::forms::{
 };
 use crate::props;
 use crate::readout;
-use crate::session::{DocSession, SessionOp};
+use crate::session::{DocSession, FreeMoveName, GestureName, SessionOp, ValueGestureName};
 use crate::sketch;
 
 /// **The text a numeric field shows**, and the one rule every field in
@@ -72,9 +80,64 @@ use crate::sketch;
 /// steps through is the text it steps through today, and the question
 /// of what a gesture means when its number stops matching its tick is
 /// one this rule never asks.
+///
+/// # And it is kept only while it FITS
+///
+/// Width is no part of reading back ([`crate::readout::reads_back`]
+/// says so in as many words), so the truth test alone takes the
+/// widget's spelling at any length. `emath::format_with_decimals_in_
+/// range` compares in `f32`, and `almost_equal(inf, inf)` is `a == b`,
+/// so at the top of `f64` its FIRST candidate is accepted: `{:.1}` of
+/// `f64::MAX`, the exact decimal expansion, **311 characters**. It
+/// reads back, so it was returned, and a `DragValue` renders its text
+/// through a `TextWrapMode::Extend` button — the field does not clip,
+/// it pushes the panel out.
+///
+/// The bound is [`crate::readout::MAX_CHARS`] because that is the
+/// bound this crate already has and this door is the one place it was
+/// not applied: `readout`'s own header calls this function *the
+/// fields' door* onto the same rule, and `MAX_CHARS`' doc already says
+/// what a box narrower than it costs. So a field is now spelled within
+/// it wherever [`crate::readout::number`] is, which is everywhere but
+/// the band at the top of the type, where four figures round out of
+/// `f64` and the exact scientific spelling is twenty-two characters.
+///
+/// **It is still invisible to a drag**, and that is a measurement
+/// rather than a hope. The widest spelling a millimetre field's range
+/// offers is `{:.1}`, which passes ten characters only at `1e8`
+/// (`1e7` once a sign is spent) — and a drag moves `FIELD_DRAG_SPEED`
+/// per pixel, so reaching either would take twenty million pixels of
+/// dragging. The substituted band is out of a drag's reach at the top
+/// exactly as it is at the bottom. Millimetres are the worst case
+/// rather than the only one measured: `UNITS` offers no length
+/// smaller, and the scalar, count and angle ticks are all coarser.
+///
+/// # An INTEGER field is exempt, because it has no search to end
+///
+/// [`crate::readout::MAX_CHARS`] is what ENDS A SEARCH — `readout`'s
+/// own doc says so, and [`crate::readout::number`] is a loop over
+/// precisions that has to stop somewhere. A range of `0..=0` offers
+/// ONE spelling, so there is no search here to end, and applying the
+/// bound anyway substitutes the render's answer for the widget's: a
+/// count of `-1000000000` was rendered `-1.000e9`, and a count of
+/// `12345678901` renders as whatever reads back within
+/// [`crate::readout::REL_TOLERANCE`] — **a different count**. For a
+/// continuous quantity that band is the ratified render accuracy; for
+/// an integer, every value inside it is a different value, so the
+/// substitution is the wrong-number-on-screen defect this door exists
+/// to prevent rather than an instance of the rule.
+///
+/// `0..=0` is the range `egui::DragValue::new` gives an INTEGRAL
+/// `Numeric`, which it also `range`s to that type's own bounds — so
+/// the exemption is bounded by the integer type and not open-ended:
+/// twenty characters for an `i64`, where the band this section is
+/// about was three hundred and eleven. A caller that spells
+/// `max_decimals(0)` over an `f64` has told this door the same thing.
 pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>) -> String {
+    let integral = *decimals.start() == 0 && *decimals.end() == 0;
     let spelling = egui::emath::format_with_decimals_in_range(value, decimals);
-    if readout::reads_back(&spelling, value) {
+    let fits = integral || spelling.chars().count() <= readout::MAX_CHARS;
+    if fits && readout::reads_back(&spelling, value) {
         spelling
     } else {
         readout::number(value)
@@ -96,13 +159,79 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
 /// `max_decimals(0)`, so the range is `0..=0`, the only spelling is
 /// `{:.0}`, and a whole number reads back as itself. Nothing here has
 /// to know which fields those are.
+///
+/// # Text the field itself produced is not an edit
+///
+/// [`number_text`] is a render AND a commit path: an `egui::DragValue`
+/// seeds its keyboard edit with the text it last showed and writes the
+/// parse back when focus leaves, so clicking into a field and clicking
+/// away again hands the chrome's own render straight back at it. The
+/// render names its value only to [`crate::readout::REL_TOLERANCE`],
+/// so that round trip MOVES the value — a field holding 1000.001 mm
+/// shows `1000.0`, and the click that touched nothing commits the
+/// micrometre away.
+///
+/// **The echo is identifiable as text, exactly**, which is why the
+/// rule is a comparison rather than a tolerance: the formatter below
+/// is the one that produced what the keyboard edit was seeded with, so
+/// the text it returned is kept and the parser compares the typed text
+/// against it ([`crate::props::echoed`], the rule's one home). Equal
+/// is the field talking to itself and parses to nothing; different is
+/// the user's and takes the number door. A numeric test cannot do it:
+/// the render is lossy by construction, so any band wide enough to
+/// swallow the echo discards real edits inside it.
+///
+/// **Here rather than at each write-back**, for the reason the
+/// formatter is here: a field's write-back is spelled at every call
+/// site and this is the one constructor they share.
+/// [`crate::pane::properties`]' two value fields arrive through
+/// [`value_field_ops`], which replaces both closures because it also
+/// has to say which DOOR a typed text took; it asks
+/// [`crate::props::echoed`] the same question in the same words.
+///
+/// **`egui`'s builders REPLACE rather than compose, so at that one
+/// call site the cell and both closures below are built and
+/// discarded** — `custom_formatter` and `custom_parser` each
+/// overwrite an `Option`. The rule there is carried by
+/// [`value_field_ops`]' own pair and by nothing here, so deleting
+/// that parser as redundant would not fall back to this one: it would
+/// leave the field on `egui`'s default parser with no echo veto at
+/// all. Two spellings of one rule, and this sentence is the only
+/// thing standing between them and a silent merge.
+///
+/// **What this does not reach is the twelfth site** — see
+/// [`install_number_formatter`], which can carry the render as a
+/// context default and cannot carry this, because `egui::Style` has a
+/// `number_formatter` and no parser.
 pub(crate) fn number_field<Num: egui::emath::Numeric>(
     value: &mut Num,
     speed: f64,
 ) -> egui::DragValue<'_> {
+    // The text this frame's field rendered, taken from the formatter
+    // that rendered it rather than re-derived: `egui` chooses the
+    // decimal range from the drag speed and the display scaling, so a
+    // second call here could disagree with the one the field used.
+    let rendered = std::rc::Rc::new(core::cell::RefCell::new(String::new()));
+    let shown = std::rc::Rc::clone(&rendered);
     egui::DragValue::new(value)
         .speed(speed)
-        .custom_formatter(number_text)
+        .custom_formatter(move |value, decimals| {
+            let text = number_text(value, decimals);
+            shown.replace(text.clone());
+            text
+        })
+        .custom_parser(move |text| {
+            if props::echoed(text, &rendered.borrow()) {
+                return None;
+            }
+            match props::field_edit(text) {
+                props::FieldEdit::Number(number) => Some(number),
+                // Not a number at all: the field keeps the value it
+                // holds, which is what `egui`'s own parser does with a
+                // text it cannot read.
+                props::FieldEdit::Expression(_) | props::FieldEdit::Empty => None,
+            }
+        })
 }
 
 /// **The floor under [`number_field`]: the same rule, as the
@@ -130,6 +259,17 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
 /// would be dropped by the first switch, in the direction nobody
 /// looks. `field_tests::a_bare_field_survives_a_theme_switch` is the
 /// assertion that would break.
+///
+/// **The floor carries the RENDER and cannot carry the COMMIT.**
+/// [`number_field`]'s other half — *text the field itself produced is
+/// not an edit* — lives in a `custom_parser`, and `egui::Style` has a
+/// `number_formatter` and no counterpart for parsing. So a bare
+/// `egui::DragValue` on a context this has run on shows the right text
+/// and still commits that text back when a click leaves it, which
+/// moves the value wherever the render is not exact. That gap is
+/// `work/vgeom/a-bare-field-still-commits-its-own-render.md`, and
+/// `field_tests::a_bare_field_commits_a_render_the_door_would_refuse`
+/// is the row that pins it.
 pub(crate) fn install_number_formatter(ctx: &egui::Context) {
     ctx.all_styles_mut(|style| {
         style.number_formatter = egui::style::NumberFormatter::new(number_text);
@@ -145,6 +285,14 @@ pub(crate) fn install_number_formatter(ctx: &egui::Context) {
 /// lands what the user abandoned and abandons what they landed, with
 /// nothing between the mistake and the user to catch it.
 ///
+/// **The four name ONE gesture, and the fields are private so that
+/// they cannot name four.** The only way to build one outside this
+/// module is [`value_gesture`] or [`free_move_gesture`], each of which
+/// takes the gesture's name once and mints all four operations from
+/// it ([`GestureName`]); a panel that spelled the target per operation
+/// could preview into one field and commit another, which is a
+/// convention away from a real edit landing on the wrong slot.
+///
 /// **The value [`Self::preview`] carries is the GESTURE's, not a
 /// widget's.** A slot and a parameter each drag one number, so for
 /// those two the distinction is invisible; the free-move probe drags a
@@ -154,15 +302,90 @@ pub(crate) fn install_number_formatter(ctx: &egui::Context) {
 /// [`drag_ops`] and [`drag_gesture_ops`] where the value is applied.
 pub(crate) struct GestureVocabulary<Preview> {
     /// Open the gesture: emitted on the press.
-    pub(crate) begin: SessionOp,
+    begin: SessionOp,
     /// Move it: emitted on every frame the value changes under the
     /// pointer, carrying that value. Nothing it emits is committed.
-    pub(crate) preview: Preview,
+    preview: Preview,
     /// Land it: emitted when a pointer release ends the drag.
-    pub(crate) commit: SessionOp,
+    commit: SessionOp,
     /// Abandon it: emitted when Escape ends the drag instead
     /// ([`drag_gesture_ops`]).
-    pub(crate) cancel: SessionOp,
+    cancel: SessionOp,
+}
+
+/// **The four operations of a VALUE drag**, minted from the one slot
+/// or parameter they all name.
+///
+/// The caller spells the target once and writes no operation at all,
+/// so the begin, the preview and the commit cannot come to name
+/// different fields and the cancel cannot be the other drag's.
+pub(crate) fn value_gesture(
+    name: ValueGestureName,
+) -> GestureVocabulary<impl Fn(f64) -> SessionOp> {
+    let gesture = GestureName::Value(name.clone());
+    GestureVocabulary {
+        begin: gesture.begin(),
+        commit: gesture.commit(),
+        cancel: gesture.cancel(),
+        preview: move |value| name.preview(value),
+    }
+}
+
+/// **Both halves of what one probe row hands [`drag_ops`]**: the four
+/// operations a drag emits and the one-shot triple a TYPED value
+/// spells.
+///
+/// A struct rather than a tuple because the two are passed as separate
+/// arguments and are the same shape at the call, so a transposition
+/// hands the drag arm to the typed parameter with nothing between the
+/// mistake and the user — the argument [`GestureVocabulary`] makes
+/// about its own four members.
+///
+/// **Boxed rather than generic.** Both members are closures minted
+/// here, so a caller never names their types; spelling them as two
+/// type parameters makes this function's return type the widest thing
+/// in the module and says nothing a reader wants. One allocation per
+/// probe row per frame is not a cost this chrome can measure.
+pub(crate) struct ProbeOps<'a> {
+    /// What the pointer drives.
+    pub(crate) gesture: GestureVocabulary<BoxedPreview<'a>>,
+    /// What a typed value spells: a begin, a preview and a commit in
+    /// one batch.
+    pub(crate) typed: Box<dyn Fn([f64; 3]) -> Vec<SessionOp> + 'a>,
+}
+
+/// One preview operation of a probe, minted from the row's three
+/// millimetre boxes.
+type BoxedPreview<'a> = Box<dyn Fn([f64; 3]) -> SessionOp + 'a>;
+
+/// **A FREE-MOVE probe's whole vocabulary**, minted from the one
+/// instance every operation in it names: the four a drag emits, and
+/// the one-shot triple a TYPED value spells.
+///
+/// The typed arm is minted here rather than beside the call because it
+/// names the same probe — a begin, a preview and a commit in one
+/// batch — and a hand-written copy of it is the one place the panel
+/// could still name a second instance. Both arms go to [`drag_ops`],
+/// which is why they are returned together.
+///
+/// `frame_of` is the panel's own writing — the millimetres its three
+/// boxes show composed into the rigid frame a preview carries — and is
+/// the only part of the probe's vocabulary that is not the name's.
+pub(crate) fn free_move_gesture<'a>(
+    instance: RecipeNodeId,
+    frame_of: impl Fn([f64; 3]) -> Frame + Copy + 'a,
+) -> ProbeOps<'a> {
+    let name = FreeMoveName { instance };
+    let gesture = GestureName::FreeMove(name);
+    ProbeOps {
+        gesture: GestureVocabulary {
+            begin: gesture.begin(),
+            commit: gesture.commit(),
+            cancel: gesture.cancel(),
+            preview: Box::new(move |mm| name.preview(frame_of(mm))),
+        },
+        typed: Box::new(move |mm| vec![name.begin(), name.preview(frame_of(mm)), name.commit()]),
+    }
 }
 
 /// **The one mapping from a `DragValue` to session operations**, and
@@ -378,6 +601,13 @@ pub(crate) fn value_field_ops(
             // field needs from it: the fixed text a row with source
             // rather than a number shows, and a copy of whatever it
             // returned.
+            //
+            // These two REPLACE the constructor's pair rather than
+            // wrapping it — `egui`'s builders overwrite an `Option` —
+            // so the echo veto below is the one that runs here and
+            // the constructor's is inert. Deleting either of these
+            // leaves this field on `egui`'s default parser, not on
+            // `number_field`'s.
             .custom_formatter(|value, decimals| {
                 let text = fixed
                     .clone()
@@ -407,9 +637,19 @@ pub(crate) fn value_field_ops(
     // including the echo this field is built to swallow.
     drag_gesture_ops(&widget, writing.authored(number), gesture, ops);
     match typed.into_inner() {
+        // **A number the dimension cannot carry is not an edit.** A
+        // `Count` field takes `inf` and `NaN` from its parser like any
+        // other (`props::field_edit`), and `props::SlotValue::of` is
+        // where that stops being a value — so there is nothing for the
+        // number door to carry and the field keeps what the document
+        // says it holds. The refusal reaches a word on the DRAG path,
+        // where the session's gesture door maps it to
+        // `crate::session::Refusal::Dimension`; on this path there is
+        // no operation to carry one, so it is silent.
         Some(props::FieldEdit::Number(written)) => {
-            let value = props::SlotValue::of(dimension, writing.authored(written));
-            ops.push((doors.number)(value));
+            if let Ok(value) = props::SlotValue::of(dimension, writing.authored(written)) {
+                ops.push((doors.number)(value));
+            }
         }
         Some(props::FieldEdit::Expression(text)) => ops.push((doors.text)(text)),
         // An emptied field is not an edit: there is no value it could
@@ -1036,8 +1276,10 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{GestureVocabulary, drag_gesture_ops, number_field, vec3_row_ops};
-    use crate::session::SessionOp;
+    use super::{
+        ProbeOps, drag_gesture_ops, free_move_gesture, number_field, value_gesture, vec3_row_ops,
+    };
+    use crate::session::{SessionOp, ValueGestureName};
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
 
@@ -1121,31 +1363,8 @@ mod tests {
                 let laid_out = ui.horizontal(|ui| match vocabulary {
                     Vocabulary::FreeMove => {
                         let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v * 1.0e-3));
-                        vec3_row_ops(
-                            ui,
-                            0.5,
-                            mm,
-                            GestureVocabulary {
-                                begin: SessionOp::BeginFreeMove { instance: NODE },
-                                preview: |mm| SessionOp::PreviewFreeMove {
-                                    instance: NODE,
-                                    frame: frame_of(mm),
-                                },
-                                commit: SessionOp::CommitFreeMove { instance: NODE },
-                                cancel: SessionOp::CancelFreeMove,
-                            },
-                            |mm| {
-                                vec![
-                                    SessionOp::BeginFreeMove { instance: NODE },
-                                    SessionOp::PreviewFreeMove {
-                                        instance: NODE,
-                                        frame: frame_of(mm),
-                                    },
-                                    SessionOp::CommitFreeMove { instance: NODE },
-                                ]
-                            },
-                            ops_ref,
-                        );
+                        let ProbeOps { gesture, typed } = free_move_gesture(NODE, frame_of);
+                        vec3_row_ops(ui, 0.5, mm, gesture, typed, ops_ref);
                     }
                     Vocabulary::Slot => {
                         // Three components, three SLOTS, three
@@ -1160,16 +1379,7 @@ mod tests {
                             drag_gesture_ops(
                                 &widget,
                                 *component,
-                                GestureVocabulary {
-                                    begin: SessionOp::BeginGesture { node: NODE, slot },
-                                    preview: |value| SessionOp::PreviewGesture {
-                                        node: NODE,
-                                        slot,
-                                        value,
-                                    },
-                                    commit: SessionOp::CommitGesture { node: NODE, slot },
-                                    cancel: SessionOp::CancelGesture,
-                                },
+                                value_gesture(ValueGestureName::Slot { node: NODE, slot }),
                                 ops_ref,
                             );
                         }
@@ -1412,6 +1622,108 @@ mod tests {
             );
         }
     }
+
+    /// **Every operation one drag emits names the SAME gesture.**
+    ///
+    /// The concept both vocabularies are spellings of is
+    /// [`crate::session::GestureName`], and this is the row that says a
+    /// control cannot drive two: the four operations are minted from
+    /// one name ([`value_gesture`], [`free_move_gesture`]) rather than
+    /// written per operation, so a preview cannot land in one field and
+    /// a commit in another.
+    ///
+    /// Driven through the real widget rather than off the constructor,
+    /// because what is being asserted is what a pointer causes: the
+    /// press, the move and the release each emit through
+    /// [`drag_gesture_ops`], and it is their ops that are read back.
+    /// Both vocabularies, because one mapping serves both.
+    #[test]
+    fn every_operation_one_drag_emits_names_the_same_gesture() {
+        for vocabulary in [Vocabulary::FreeMove, Vocabulary::Slot] {
+            let mut probe = Probe::of(vocabulary);
+            probe.frame(Vec::new());
+            probe.frame(Vec::new());
+            let x = probe.aim();
+            probe.frame(vec![egui::Event::PointerMoved(x)]);
+            let mut emitted = probe.frame(vec![egui::Event::PointerButton {
+                pos: x,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            }]);
+            emitted.extend(probe.frame(vec![egui::Event::PointerMoved(x + egui::vec2(40.0, 0.0))]));
+            emitted.extend(probe.frame(vec![egui::Event::PointerButton {
+                pos: x + egui::vec2(40.0, 0.0),
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            }]));
+            assert_eq!(
+                emitted.iter().map(kind).collect::<Vec<_>>(),
+                ["begin", "preview", "commit"],
+                "the drag this row reads back"
+            );
+            let named: Vec<_> = emitted
+                .iter()
+                .filter_map(SessionOp::names_gesture)
+                .collect();
+            assert_eq!(named.len(), emitted.len(), "an operation named no gesture");
+            assert!(
+                named.windows(2).all(|pair| pair[0] == pair[1]),
+                "one drag drove more than one gesture: {named:?}"
+            );
+        }
+    }
+
+    /// **The TYPED arm names the same gesture the drag does**, and it
+    /// is a separate row because it is a separate spelling.
+    ///
+    /// A keystroke with no pointer anywhere emits a whole
+    /// begin/preview/commit of its own
+    /// ([`a_keyboard_bump_with_no_drag_open_still_spells_the_whole_triple`]),
+    /// and that triple is handed to [`drag_ops`] beside the drag's
+    /// four rather than inside them. So the drag row above cannot see
+    /// it, and a probe whose typed arm named a neighbouring instance
+    /// would commit a frame onto a part the user never touched, in
+    /// silence.
+    ///
+    /// Only the free-move vocabulary: the value drag's typed arm is
+    /// `SetSlot` or `SetParam`, a direct edit that drives no gesture
+    /// and names none.
+    #[test]
+    fn the_typed_arm_names_the_gesture_the_drag_does() {
+        let mut probe = Probe::of(Vocabulary::FreeMove);
+        probe.frame(Vec::new());
+        probe.frame(Vec::new());
+        let mut bumped: Vec<SessionOp> = Vec::new();
+        for _ in 0..TAB_BUDGET {
+            probe.key(egui::Key::Tab);
+            bumped = probe.key(egui::Key::ArrowUp);
+            if !bumped.is_empty() {
+                break;
+            }
+        }
+        assert_eq!(
+            bumped.iter().map(kind).collect::<Vec<_>>(),
+            ["begin", "preview", "commit"],
+            "the typed triple this row reads back"
+        );
+        let named: Vec<_> = bumped.iter().filter_map(SessionOp::names_gesture).collect();
+        assert_eq!(named.len(), bumped.len(), "an operation named no gesture");
+        assert!(
+            named.windows(2).all(|pair| pair[0] == pair[1]),
+            "the typed triple drove more than one gesture: {named:?}"
+        );
+        let drawn = free_move_gesture(NODE, |mm: [f64; 3]| Frame::translation(mm))
+            .gesture
+            .commit
+            .names_gesture();
+        assert_eq!(
+            named.first(),
+            drawn.as_ref(),
+            "the typed triple names an instance the row is not drawing"
+        );
+    }
 }
 
 /// **What a numeric field says, and what saying it commits.**
@@ -1465,30 +1777,100 @@ mod field_tests {
     }
 
     /// **And nothing at or above one display unit renders differently
-    /// either**, which is the bound on how much of the chrome this
-    /// rule can reach at all.
+    /// either**, up to the width bound, which is the bound on how much
+    /// of the chrome this rule can reach at all.
     ///
-    /// Derived rather than chosen: the widest spelling the millimetre
-    /// range offers is `{:.3}`, whose error is at most 5·10⁻⁴ in
-    /// ABSOLUTE terms, so it clears `crate::readout::REL_TOLERANCE` —
-    /// which is 5·10⁻⁴ RELATIVE — for every value of magnitude at
-    /// least one. A field showing millimetres therefore keeps egui's
-    /// text for every length from a millimetre up, and the band this
-    /// changes is the sub-millimetre one the item was filed about.
+    /// Derived rather than chosen at both ends. The widest spelling the
+    /// millimetre range offers is `{:.3}`, whose error is at most
+    /// 5·10⁻⁴ in ABSOLUTE terms, so it clears
+    /// `crate::readout::REL_TOLERANCE` — which is 5·10⁻⁴ RELATIVE —
+    /// for every value of magnitude at least one, and the band that
+    /// leaves is the sub-millimetre one the item was filed about. The
+    /// CEILING is `crate::readout::MAX_CHARS`: the range's narrowest
+    /// spelling is `{:.1}`, so a magnitude of 10⁷ spends eight integer
+    /// digits, a point and a decimal, and a sign takes it past ten
+    /// characters. [`a_field_spells_no_more_than_the_render_bound_covers`]
+    /// is the band above.
     #[test]
     fn nothing_at_or_above_one_display_unit_renders_differently() {
         let mut value = 1.0_f64;
-        while value < 1.0e9 {
+        while value < 1.0e7 {
             for signed in [value, -value] {
+                let text = number_text(signed, MM);
                 assert_eq!(
-                    number_text(signed, MM),
+                    text,
                     egui::emath::format_with_decimals_in_range(signed, MM),
-                    "{signed} is at or above one millimetre, where the widest \
-                     spelling in the range already reads back"
+                    "{signed} is at or above one millimetre and inside the \
+                     width bound, where the widest spelling in the range \
+                     already reads back"
+                );
+                assert!(
+                    text.chars().count() <= crate::readout::MAX_CHARS,
+                    "{signed} renders as {text}, past the bound this band is \
+                     defined as being inside"
                 );
             }
             value *= 1.000_7;
         }
+    }
+
+    /// **A field's text is bounded, and by the bound this crate already
+    /// had.** `crate::readout::MAX_CHARS` ends
+    /// `crate::readout::number`'s search; [`number_text`] is the same
+    /// rule's fields' door and was applying only its truth half, so the
+    /// widget's own spelling was taken at any length — three hundred
+    /// and eleven characters for `f64::MAX`, which a `DragValue`
+    /// renders by EXTENDING rather than clipping.
+    ///
+    /// Each value is a row only because the widget's spelling does not
+    /// fit, which is asserted rather than assumed; the answer is the
+    /// render's own, which is what makes this one rule rather than a
+    /// second width policy.
+    #[test]
+    fn a_field_spells_no_more_than_the_render_bound_covers() {
+        for value in [1.0e8_f64, -1.0e7, 1.0e12, -1.0e12, 1.0e300] {
+            let widget = egui::emath::format_with_decimals_in_range(value, MM);
+            assert!(
+                widget.chars().count() > crate::readout::MAX_CHARS,
+                "{value} is only a row here because the widget spells it in \
+                 {} characters",
+                widget.chars().count()
+            );
+            let text = number_text(value, MM);
+            assert_eq!(
+                text,
+                crate::readout::number(value),
+                "{value} has no spelling in the field's own range that fits \
+                 the bound, so the field shows the render's"
+            );
+            assert!(
+                text.chars().count() <= crate::readout::MAX_CHARS,
+                "{value} renders as {text}, past the bound"
+            );
+        }
+    }
+
+    /// **The one band the bound gives way in is the render's own**, and
+    /// it is the band `crate::readout::number`'s doc argues: four
+    /// figures round out of `f64` there, so the value is spelled
+    /// exactly instead. Twenty-two characters, not three hundred and
+    /// eleven.
+    #[test]
+    fn the_top_of_the_type_is_the_render_bounds_own_exception() {
+        let text = number_text(f64::MAX, MM);
+        assert_eq!(text, crate::readout::number(f64::MAX));
+        assert_eq!(
+            text.chars().count(),
+            22,
+            "the top of the type is spelled exactly, as {text}"
+        );
+        assert_eq!(
+            egui::emath::format_with_decimals_in_range(f64::MAX, MM)
+                .chars()
+                .count(),
+            311,
+            "and the widget's own spelling of it is what this bound is for"
+        );
     }
 
     /// **A value no spelling in the range names is spelled truthfully
@@ -1523,10 +1905,34 @@ mod field_tests {
     /// **An integer field is untouched, and by construction.**
     /// `DragValue::new` gives an integral value one `max_decimals(0)`,
     /// so the range is `0..=0` and the only spelling is the exact one.
+    ///
+    /// **The construction is now the exemption and not an accident of
+    /// width.** Every fixture below used to fit
+    /// `crate::readout::MAX_CHARS` and so passed whatever the door
+    /// did with the ones that do not; the second half is the band
+    /// where the width bound would substitute
+    /// `crate::readout::number`'s answer, which for an integer is a
+    /// DIFFERENT integer. Each of those is asserted to be past the
+    /// bound, so the row is a row for a reason it states.
     #[test]
     fn an_integer_field_is_spelled_the_way_it_always_was() {
         for value in [3.0_f64, -12.0, 0.0, 1.0e9] {
             assert_eq!(number_text(value, 0..=0), format!("{value:.0}"));
+        }
+        for value in [-1.0e9_f64, 1.0e10, -1.0e10, 1.0e15, i64::MAX as f64] {
+            let exact = format!("{value:.0}");
+            assert!(
+                exact.chars().count() > crate::readout::MAX_CHARS,
+                "{value} is only a row here because its exact spelling is \
+                 {} characters",
+                exact.chars().count()
+            );
+            assert_eq!(
+                number_text(value, 0..=0),
+                exact,
+                "an integer field spells its integer, not \
+                 crate::readout::number's nearest reading of it"
+            );
         }
     }
 
@@ -1541,6 +1947,12 @@ mod field_tests {
     enum Built {
         Door,
         Bare,
+        /// The creation forms' constructor, which holds its value
+        /// CANONICAL and renders it in a display unit
+        /// ([`super::named_field`]). It reaches [`number_field`]
+        /// through one more conversion than the panel does, and is the
+        /// half of the chrome whose write-back is `response.changed()`.
+        Named,
     }
 
     /// One field, laid out and driven by events, so the rule below is
@@ -1571,6 +1983,13 @@ mod field_tests {
             Self::with(value, Built::Bare)
         }
 
+        /// A creation form's field over a CANONICAL value, shown in
+        /// millimetres — [`super::named_field`], the constructor the
+        /// panel's two value fields do not go through.
+        fn named(canonical: f64) -> Self {
+            Self::with(canonical, Built::Named)
+        }
+
         fn with(value: f64, built: Built) -> Self {
             Self {
                 ctx: egui::Context::default(),
@@ -1597,6 +2016,19 @@ mod field_tests {
                 *rect = match built {
                     Built::Door => ui.add(number_field(value, 0.5)).rect,
                     Built::Bare => ui.add(egui::DragValue::new(value).speed(0.5)).rect,
+                    Built::Named => {
+                        ui.scope(|ui| {
+                            super::named_field(
+                                ui,
+                                "",
+                                pncad::quantity::MM.def(),
+                                crate::forms::FIELD_DRAG_SPEED,
+                                value,
+                            );
+                        })
+                        .response
+                        .rect
+                    }
                 };
             });
             output.textures_delta.clear();
@@ -1659,6 +2091,101 @@ mod field_tests {
     /// The values the gesture rows are held over: three the widget's
     /// own spelling cannot name, and three it can.
     const ROUND_TRIP: [f64; 6] = [4.0e-5, 1.6e-3, 12.0, -4.0e-5, 0.0, 1024.5];
+
+    /// Values whose RENDER is not exact — the band the round-trip rows
+    /// above cannot reach, because every value in them is spelled
+    /// exactly by something.
+    ///
+    /// `1000.001` is the item's own worked example: `egui` spells it
+    /// `1000.0` (its acceptance test is `f32` at 16·`f32::EPSILON`,
+    /// about 1.9·10⁻⁶ relative, which 10⁻⁶ passes) and
+    /// `crate::readout::reads_back` passes it too at 5·10⁻⁴.
+    /// `123456789.5` is the band the WIDTH bound opened: the widget
+    /// spells it exactly in eleven characters, so before that bound a
+    /// click through it committed the value it held, and after it the
+    /// field shows `crate::readout::number`'s nine.
+    const RENDERED_INEXACTLY: [f64; 3] = [1000.001, -1000.001, 123_456_789.5];
+
+    /// **A click through a field commits nothing, including where the
+    /// render is not the value.**
+    ///
+    /// [`clicking_into_a_field_and_away_again_leaves_the_value_alone`]
+    /// holds the same gesture over values something spells exactly, so
+    /// it passes on a door with no echo guard at all. These three do
+    /// not: the text the field seeds its keyboard edit with reads back
+    /// as a DIFFERENT `f64`, so writing the parse back on lost focus
+    /// moves the value — by 10⁻⁶ mm for the first two, and by half a
+    /// millimetre for the third.
+    #[test]
+    fn a_field_whose_render_is_not_exact_still_commits_nothing() {
+        for start in RENDERED_INEXACTLY {
+            let mut field = Field::new(start);
+            field.click_in_and_away();
+            assert_eq!(
+                field.value, start,
+                "clicking into a field holding {start} and away again \
+                 committed {}, which is the text it showed rather than the \
+                 value it held",
+                field.value
+            );
+        }
+    }
+
+    /// **And a creation form's field commits nothing either**, which is
+    /// the half of the chrome the panel's own guard does not reach:
+    /// `super::named_field` writes back on `response.changed()`, and
+    /// `egui` marks a `DragValue` changed exactly when the value MOVED
+    /// — so before the guard, the one gesture that fired that write was
+    /// the echo that was not exact.
+    ///
+    /// Driven through `named_field` rather than through
+    /// [`number_field`] because the form holds its value canonical and
+    /// renders it in a display unit: the round trip under test is
+    /// `crate::props::in_written` → render → parse →
+    /// `crate::props::from_written`, and only the real constructor has
+    /// all four.
+    #[test]
+    fn a_creation_forms_field_commits_nothing_on_a_click_through() {
+        // 1.000001 m is 1000.001 mm, which the field spells `1000.0`.
+        for canonical in [1.000_001_f64, -1.000_001, 0.012_5] {
+            let mut field = Field::named(canonical);
+            field.click_in_and_away();
+            assert_eq!(
+                field.value, canonical,
+                "a form field holding {canonical} m committed {} after a \
+                 click that typed nothing",
+                field.value
+            );
+        }
+    }
+
+    /// **The floor under the door carries the render and not the
+    /// commit**, and that is a gap rather than a property: a bare
+    /// `egui::DragValue` takes [`number_text`] from the context's
+    /// `number_formatter` and has no parser to take the echo rule from,
+    /// because `egui::Style` has no counterpart for parsing.
+    ///
+    /// Pinned rather than argued, and filed as
+    /// `work/vgeom/a-bare-field-still-commits-its-own-render.md`. The
+    /// door's own answer is asserted beside it so the row says what the
+    /// difference IS.
+    #[test]
+    fn a_bare_field_commits_a_render_the_door_would_refuse() {
+        let start = 1000.001_f64;
+        let mut bare = Field::bare(start);
+        bare.click_in_and_away();
+        assert_eq!(
+            bare.value, 1000.0,
+            "the context carries the render, so the bare field showed \
+             `1000.0` — and committed it"
+        );
+        let mut door = Field::new(start);
+        door.click_in_and_away();
+        assert_eq!(
+            door.value, start,
+            "and the door refuses the same echo, which is the difference"
+        );
+    }
 
     /// **The twelfth site is held by the CONTEXT, not by the door.**
     ///
@@ -1747,9 +2274,10 @@ mod value_field_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use super::{FieldVocabulary, GestureVocabulary, number_text, value_field_ops};
+    use super::{FieldVocabulary, number_text, value_field_ops, value_gesture};
     use crate::forms::FieldWriting;
     use crate::props;
+    use crate::session::ValueGestureName;
     use crate::session::{DocSession, SessionOp};
     use eframe::egui;
     use pncad::document::{
@@ -2001,15 +2529,7 @@ mod value_field_tests {
                     Subject::Param(name) => value_field_ops(
                         ui,
                         showing,
-                        GestureVocabulary {
-                            begin: SessionOp::BeginParamGesture { name: name.clone() },
-                            preview: |value| SessionOp::PreviewParamGesture {
-                                name: name.clone(),
-                                value,
-                            },
-                            commit: SessionOp::CommitParamGesture { name: name.clone() },
-                            cancel: SessionOp::CancelGesture,
-                        },
+                        value_gesture(ValueGestureName::Param(name.clone())),
                         FieldVocabulary {
                             number: |value| SessionOp::SetParam {
                                 name: name.clone(),
@@ -2025,22 +2545,10 @@ mod value_field_tests {
                     Subject::Slot { node, slot } => value_field_ops(
                         ui,
                         showing,
-                        GestureVocabulary {
-                            begin: SessionOp::BeginGesture {
-                                node: *node,
-                                slot: *slot,
-                            },
-                            preview: |value| SessionOp::PreviewGesture {
-                                node: *node,
-                                slot: *slot,
-                                value,
-                            },
-                            commit: SessionOp::CommitGesture {
-                                node: *node,
-                                slot: *slot,
-                            },
-                            cancel: SessionOp::CancelGesture,
-                        },
+                        value_gesture(ValueGestureName::Slot {
+                            node: *node,
+                            slot: *slot,
+                        }),
                         FieldVocabulary {
                             number: |value| SessionOp::SetSlot {
                                 node: *node,

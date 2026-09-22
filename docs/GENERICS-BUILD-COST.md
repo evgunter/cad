@@ -383,9 +383,15 @@ accurate to 0.2%; that is worth knowing, because it means the census in
 Shape of the change, for anyone doing something similar:
 
 * It is a cargo feature like `interval`, **not** a `cfg(test)` — `Probe`
-  is wired into production `src` through sealed lane traits in six crates
-  (`Sealed`, `EdgeNurbsLane`, `PcurveFittedLane`, `PropsQuadLane`,
-  `ContentBits`, plus `bit_identity.rs`'s downcast).
+  is wired into production `src` through the four crates that carry a
+  `cfg(feature = "probe")` arm (`grep -rl 'cfg(feature = "probe")'
+  crates/*/src`): `geom-core` (the scalar impls, the span-locate
+  `Sealed` marker and `bit_identity.rs`'s downcast), `geom-brep`
+  (`PcurveFittedLane`), `topo` (`AtRestPolicy`) and `editor-core`
+  (`ContentBits` and its own lane traits). The quadrature lane is a
+  `topo::QuadLane` value, the chart-region lane a `topo::RegionLane`
+  value and the plane × NURBS lane a bound, none a trait, so none of
+  the three adds a crate to that list.
 * **`k_stats::decide` and the `CURRENT` thread-local stay ungated.** That
   funnel is the path every shipped decision takes, and it must be
   byte-identical with the feature on and off (D9). A `cfg` there would
@@ -537,6 +543,47 @@ module being absent from a default build. The other three — the
 wall-vs-billed asymmetry, the f64-only build having live consumers, and
 the **126** interval-gated test files being a test cost rather than a
 build cost — are untouched by this, and row 3 above is what merging the lanes would cost today.
+
+---
+
+## 10. Addendum — the C9 ring as a newtype over the backend (2026-09-21)
+
+`geom_core::RingInterval` is now `RingInterval(DInterval)`: the
+certification substrate's surface over `interval-transcendentals`'
+arithmetic, with the backend's decoration as its poison channel. §9
+priced the interval TYPE and the kernel's INSTANTIATION at it; this
+prices the ring's own body, which is the third thing in that family
+and the smallest.
+
+**No dependency is added, mechanically.** The ring names
+`interval_transcendentals` from `src` where it previously named
+nothing but `core`, and `geom-core` already depends on that crate
+unconditionally (RING-1, cut (i)). `cargo tree --workspace -e normal
+--prefix none | sort -u | wc -l` answers **85** on this head, which is
+§9's post-ungating number unchanged — the newtype reaches an edge that
+was already there.
+
+**The build delta is noise, as §9's row 5 predicted.** One run each on
+the landing box, the ring's file swapped and nothing else, a fresh
+target directory per row:
+
+| measurement | seconds | target |
+|---|---|---|
+| `build -p geom-core`, the retired ring | 8.86 | 49 MB |
+| `build -p geom-core`, the newtype | 8.99 | 49 MB |
+
+**+0.13 s, +1.5 %, +0 MB** — inside the ±4 % §9 measured between the
+same two shapes of this row, and a single sample either way.
+
+**Not a committed measurement of record.** The box is a shared
+container (4 vCPU, 15 GB RAM, rustc 1.97.0, `CARGO_INCREMENTAL=0`,
+`CARGO_PROFILE_DEV_OPT_LEVEL=1`, one-minute load 0.4 at the first row
+and 0.4 at the second, no other lane compiling), and
+`memories/local-battery-scope.md` puts committed timings on hosted CI
+with one reproducible box class. What this row is for is the negative
+claim the unit had to check — that making the ring a newtype costs no
+dependency and no measurable compile time — and one local pair at an
+idle box answers that without pretending to be a benchmark.
 
 ---
 

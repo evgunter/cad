@@ -89,9 +89,9 @@ pub mod probe;
 pub mod refuse;
 pub mod select;
 
-pub use author::{DatumSpec, PatternRuleSpec, ProfileShape};
+pub use author::{DatumSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
 pub use delete::DeleteAffordance;
-pub use op::{CancelDoor, OpOutcome, SessionOp};
+pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, admits, face_frame_seat,
@@ -144,19 +144,37 @@ impl GestureTarget {
     }
 
     /// Which arm a dragged `f64` becomes, through
-    /// [`SlotValue::of`] — the one home for that rule.
-    fn value_of(&self, value: f64) -> SlotValue {
+    /// [`SlotValue::of`] — the one home for that rule, refusal
+    /// included.
+    ///
+    /// # Errors
+    ///
+    /// [`SlotValue::of`]'s, which is `Expr::literal`'s own
+    /// finiteness refusal reached for a `Count` target, where the
+    /// literal door is not on the path.
+    fn value_of(&self, value: f64) -> Result<SlotValue, pncad::document::DimensionError> {
         SlotValue::of(self.dimension(), value)
     }
 
-    /// What an operation has to name to drive this gesture.
-    fn name(&self) -> GestureName {
+    /// What an operation has to name to drive this gesture: the
+    /// subject half of this target, without the facts the begin
+    /// looked up.
+    ///
+    /// A target carries the display unit or the declared dimension
+    /// its begin read off the base document; an operation arriving
+    /// from the chrome carries neither and has no business asserting
+    /// them. So the comparison that decides whether a preview belongs
+    /// to the open gesture is over [`ValueGestureName`], and this is
+    /// the one place a target becomes one — exhaustive over the
+    /// target's arms, so a third kind of gesture target cannot skip
+    /// the question.
+    fn name(&self) -> ValueGestureName {
         match self {
-            Self::Slot { node, slot, .. } => GestureName::Slot {
+            Self::Slot { node, slot, .. } => ValueGestureName::Slot {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param { name, .. } => GestureName::Param(name.clone()),
+            Self::Param { name, .. } => ValueGestureName::Param(name.clone()),
         }
     }
 
@@ -171,25 +189,6 @@ impl GestureTarget {
             Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
         }
     }
-}
-
-/// **Which gesture an operation NAMES** — the subject half of
-/// [`GestureTarget`], without the facts the begin looked up.
-///
-/// A gesture's target carries the display unit or the declared
-/// dimension its begin read off the base document; an operation
-/// arriving from the chrome carries neither and has no business
-/// asserting them. So the comparison that decides whether a preview
-/// belongs to the open gesture is over this, and
-/// [`GestureTarget::name`] is the one place a target becomes one —
-/// exhaustive over the target's arms, so a third kind of gesture
-/// target cannot skip the question.
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum GestureName {
-    /// A node's slot.
-    Slot { node: RecipeNodeId, slot: SlotId },
-    /// A document parameter.
-    Param(ParamName),
 }
 
 /// What a value gesture holds for its life: layer-3 state only.
@@ -1199,16 +1198,16 @@ impl DocSession {
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
             SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
             SessionOp::PreviewGesture { node, slot, value } => {
-                self.preview_gesture(&GestureName::Slot { node, slot }, value)
+                self.preview_gesture(&ValueGestureName::Slot { node, slot }, value)
             }
             SessionOp::CommitGesture { node, slot } => {
-                self.commit_gesture(&GestureName::Slot { node, slot })
+                self.commit_gesture(&ValueGestureName::Slot { node, slot })
             }
             SessionOp::PreviewParamGesture { name, value } => {
-                self.preview_gesture(&GestureName::Param(name), value)
+                self.preview_gesture(&ValueGestureName::Param(name), value)
             }
             SessionOp::CommitParamGesture { name } => {
-                self.commit_gesture(&GestureName::Param(name))
+                self.commit_gesture(&ValueGestureName::Param(name))
             }
             SessionOp::CancelGesture => match self.gesture.cancel(gesture_words()) {
                 // Only a drag that actually put a scratch document on
@@ -1766,14 +1765,14 @@ impl DocSession {
     /// a drag is open (`permitted_during_value_gesture`, which every
     /// driving operation has to be), and what it is not is about this
     /// drag.
-    fn preview_gesture(&mut self, named: &GestureName, value: f64) -> OpOutcome {
+    fn preview_gesture(&mut self, named: &ValueGestureName, value: f64) -> OpOutcome {
         let resolver = self.resolver_seam();
         let tol = self.tol;
         let previewed = self.gesture.preview(
             gesture_words(),
             |gesture| gesture.target.name() == *named,
             |gesture| {
-                let slot_value = gesture.target.value_of(value);
+                let slot_value = gesture.target.value_of(value).map_err(Refusal::Dimension)?;
                 let edit = gesture
                     .target
                     .edit(slot_value)
@@ -1794,8 +1793,9 @@ impl DocSession {
                 // argued.** Every display predicate is a function of
                 // the node graph, and the free-move probe is admitted
                 // against the COMMITTED document while the view and
-                // the panel's own admission test resolve against this
-                // scratch — so the two agree only while a gesture's
+                // the panel — which run ONE admission test between
+                // them, `display::instance_check` — resolve against
+                // this scratch, so the two agree only while a gesture's
                 // edits leave the graph alone. This holds the half a
                 // check can hold; the other half is that
                 // [`GestureTarget::edit`] can produce nothing but
@@ -1832,7 +1832,7 @@ impl DocSession {
     /// of another, and a gesture that ends here would end with nobody
     /// having let go of it. What is this door's own is what a landed
     /// value becomes: one `DocEdit` on the history, and one undo step.
-    fn commit_gesture(&mut self, named: &GestureName) -> OpOutcome {
+    fn commit_gesture(&mut self, named: &ValueGestureName) -> OpOutcome {
         let landed = match self
             .gesture
             .commit(gesture_words(), |gesture| gesture.target.name() == *named)
@@ -2033,17 +2033,67 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: RecipeNodeId, loops: Vec<LoopProgram>) -> OpOutcome {
-        // The plane is a PICK now, so it is gated where every other
-        // pick is: at this door, by kind, before the edit. Without
-        // this the reference would reach evaluation and refuse there
-        // — a typed refusal either way, but one the person gets after
-        // the node lands rather than instead of it.
-        if let Err(refusal) = self.require_kind(plane, NodeKindWanted::Frame) {
-            return OpOutcome::refused(refusal);
-        }
+    fn add_profile(&mut self, plane: ProfilePlane, loops: Vec<LoopProgram>) -> OpOutcome {
+        let plane = match plane {
+            // The plane is a PICK, so it is gated where every other
+            // pick is: at this door, by kind, before the edit. Without
+            // this the reference would reach evaluation and refuse
+            // there — a typed refusal either way, but one the person
+            // gets after the node lands rather than instead of it.
+            ProfilePlane::Existing(plane) => {
+                if let Err(refusal) = self.require_kind(plane, NodeKindWanted::Frame) {
+                    return OpOutcome::refused(refusal);
+                }
+                plane
+            }
+            // **No kind gate on this arm, and that is the point**: the
+            // id the profile names is one this action mints a line
+            // below, from a `DatumSpec::Frame`, so there is no pick
+            // that could be of the wrong kind. Asking `require_kind`
+            // here would be a question about a node that does not
+            // exist yet.
+            ProfilePlane::NewXy => return self.add_profile_on_new_xy(loops),
+        };
         self.commit(DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram { plane, loops }),
+        })
+    }
+
+    /// Insert the world XY frame and a profile drawn on it, as ONE
+    /// committed action and therefore one undo
+    /// ([`ProfilePlane::NewXy`]).
+    ///
+    /// The frame's id is not predicted: each edit is built from what
+    /// its predecessor MINTED ([`Self::commit_run`]), so the profile
+    /// names the node the door actually created. All-or-nothing comes
+    /// free with that — a profile the insert door refuses leaves no
+    /// orphan frame behind, because nothing is recorded until both
+    /// edits have landed.
+    fn add_profile_on_new_xy(&mut self, loops: Vec<LoopProgram>) -> OpOutcome {
+        let frame = match ProfilePlane::world_xy() {
+            Ok(frame) => datum_node(frame),
+            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+        };
+        let mut loops = Some(loops);
+        self.commit_run(|minted| match minted {
+            [] => Some(DocEdit::InsertNode {
+                node: frame.clone(),
+            }),
+            [Some(plane)] => Some(DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: *plane,
+                    // Loud, like the arm below: ending the run here
+                    // instead would commit the lone frame, which is
+                    // the exact orphan all-or-nothing promises
+                    // against. The generator is called once per
+                    // position and this position comes round once.
+                    loops: loops
+                        .take()
+                        .unwrap_or_else(|| unreachable!("the profile's position comes round once")),
+                }),
+            }),
+            [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
+            _ => None,
         })
     }
 
@@ -2455,39 +2505,69 @@ impl DocSession {
     /// document it started from. That is purity doing the work — no
     /// rollback exists to be got wrong.
     fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
-        // Threaded rather than cloned up front: the first `apply`
-        // reads the history's value in place, and each later one reads
-        // its predecessor's output, so a group of one costs exactly
-        // what a single commit always cost.
-        assert!(!edits.is_empty(), "an action commits at least one edit");
+        let mut edits = edits.into_iter();
+        self.commit_run(|_| edits.next())
+    }
+
+    /// The same door again, for an action whose later edits name the
+    /// ids its earlier ones MINTED.
+    ///
+    /// `next` is handed what each edit so far minted, in order — an
+    /// `InsertNode`'s new id, `None` for every edit that creates no
+    /// node — and answers with the next edit, or `None` to end the
+    /// run. The slice's LENGTH is how many edits have landed, so a
+    /// caller that only inserts can match on its shape and a caller
+    /// with a fixed list ([`Self::commit_action`]) ignores it.
+    ///
+    /// **All or nothing**: each edit is applied to the value the last
+    /// one produced and nothing is recorded until every one has
+    /// succeeded, so a refusal anywhere leaves the session on the
+    /// document it started from. That is purity doing the work — no
+    /// rollback exists to be got wrong. The whole run is one history
+    /// state, so one user action is one undo.
+    fn commit_run<F>(&mut self, mut next: F) -> OpOutcome
+    where
+        F: FnMut(&[Option<RecipeNodeId>]) -> Option<DocEdit<ProfileProgram>>,
+    {
         // ONE reach for the whole action, over the session's own seam
         // (the directory rule; `None` refuses typed): each edit's
         // maintenance asks it only when a cluster's gauge moves, and
         // what it decided rides the logged entry into the history.
         let resolver = self.resolver_seam();
         let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), self.tol);
+        // Threaded rather than cloned up front: the first `apply`
+        // reads the history's value in place, and each later one reads
+        // its predecessor's output, so a group of one costs exactly
+        // what a single commit always cost.
         let mut produced: Option<Doc<ProfileProgram>> = None;
-        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::with_capacity(edits.len());
-        for edit in &edits {
+        let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::new();
+        let mut minted: Vec<Option<RecipeNodeId>> = Vec::new();
+        while let Some(edit) = next(&minted) {
             let attempt = {
                 let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
-                apply(base, edit, self.tol, &reach)
+                apply(base, &edit, self.tol, &reach)
             };
             match attempt {
                 Ok(applied) => {
                     logged.push(LoggedEdit {
-                        edit: edit.clone(),
+                        edit,
                         maintenance: applied.cluster_rows(),
                     });
+                    minted.push(applied.record.minted);
                     produced = Some(applied.doc);
                 }
                 Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
             }
         }
         let Some(doc) = produced else {
-            unreachable!("the loop applied at least one edit and kept its output")
+            unreachable!("an action commits at least one edit")
         };
-        self.record_action(logged, doc)
+        let mut outcome = self.record_action(logged, doc);
+        // The ids the run minted, out to whoever asked for the action
+        // — in the order the edits applied, which is the order a
+        // caller that built one edit from another's id reasoned in.
+        outcome.minted = minted.into_iter().flatten().collect();
+        outcome
     }
 
     /// **Record an action whose document is already produced** — the

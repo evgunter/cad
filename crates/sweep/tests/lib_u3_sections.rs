@@ -106,8 +106,16 @@ fn undeclared_tangent_section_loops_still_refuse() {
 #[test]
 fn u3_differential_loft_prism_is_bit_identical_to_the_recorded_base() {
     /// `mass_properties(...).volume.to_bits()` of the chain-built
-    /// loft_prism at the U3 merge base (recorded in the LIB-U3 PR).
-    const BASE_VOLUME_BITS: u64 = 0x4022_0000_0000_0004;
+    /// loft_prism.
+    ///
+    /// **Re-pinned when the C9 ring became a newtype over the
+    /// backend** (`0x4022_0000_0000_0004` before, recorded in the
+    /// LIB-U3 PR): the ring padded one representable step outward on
+    /// every operation and the backend pads only where the operation
+    /// is inexact, so the prism's volume — exactly `9` in ℝ — lands on
+    /// exactly `9`. The claim is unmoved; the number it reads is
+    /// tighter.
+    const BASE_VOLUME_BITS: u64 = 0x4022_0000_0000_0000;
     /// (solids, shells, faces, edges, vertices) of the same body.
     const BASE_CENSUS: (usize, usize, usize, usize, usize) = (1, 1, 6, 12, 8);
 

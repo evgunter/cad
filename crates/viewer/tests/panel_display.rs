@@ -602,7 +602,8 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
     let outcome = session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,
-        value: SlotValue::of(Dimension::Length, from_written(2.0, IN.def())),
+        value: SlotValue::of(Dimension::Length, from_written(2.0, IN.def()))
+            .expect("a finite length is a value"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let row = props::slot_rows(session.doc(), extrude)
@@ -665,7 +666,8 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     // notation beside it does not.
     let outcome = session.perform(SessionOp::SetParam {
         name: name.clone(),
-        value: SlotValue::of(before.dimension, from_written(60.0, unit)),
+        value: SlotValue::of(before.dimension, from_written(60.0, unit))
+            .expect("a finite angle is a value"),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let after = row(&session);
@@ -781,9 +783,12 @@ test_utils::loud_skip_marker!(
 ///
 /// **What no value test in this crate reaches** is the widget itself:
 /// the panel's `DragValue` lives inside a private `ViewerBehavior`
-/// method over an `egui::Ui`, and this crate carries no headless egui
-/// harness, so "the field calls this" is held by the two call sites
-/// being one line each rather than by a row here.
+/// METHOD, which borrows the whole application and so cannot be
+/// driven headlessly — where a free function over the `Ui` can be, and
+/// several are (`viewer::pane::headless`, `pane::profile`,
+/// `pane::viewport`, `widgets`). So "the field calls this" is held by
+/// the two call sites being one line each rather than by a row here;
+/// giving the field a seam of its own is what would change that.
 #[cfg(feature = "app")]
 #[test]
 fn a_parameter_field_is_written_the_way_its_declaration_says() {

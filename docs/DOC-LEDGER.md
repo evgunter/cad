@@ -1,3 +1,37 @@
+## Per-merge deletion — RING-2's spec (2026-09-22)
+
+Recoverable at `git show 4cb762495d:docs/RING-2-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "ANY row that comes out
+LOOSER is a finding: stop, characterise, file" against the committed
+tess-budget baseline — the baseline's diff shows fifty-five looser
+certified cells on lily faces (≤ 6.4e-13 rel), every one main's own
+drift between the 09-15 cut and the merge base (the gate reads only
+sizing), RING-2's share measured with only `ring_interval.rs` swapped
+back being all tighter; characterised in the PR body and filed on
+INSTR; the "zero looser" claim is true of every corpus in the tree
+(16,995 rows, 2,294 tighter) and false of the arithmetic at the
+subnormal and overflow corners, where the newtype gives one subnormal
+step back — pinned executable; the register's "31 hazards" — 30
+(`ssi/certify.rs:692`'s read is the evaluation scalar's), the census
+made executable and its population rule (files naming the type)
+stated as a blind spot with a fixed extra roster; the Q9 gate's
+"outer rule two counts short" mutant — the outer rule two short is
+exact on the fixture (its image is degree 1) and the `1.96e-6` figure
+is the inner order's, the row renamed to what it pins; the spec's
+red-row table premise "the dry run's 22 rows" — two hosted heads
+after the PR opened went red on six more rows (two meter rows on an
+exactly-zero curvature bound, the reader-census ledger, two interval
+eps-1e-12 rows, the `step-export` sidecars), each dispositioned;
+"`from_certified` returns the DECORATED bracket" needed a way to read
+a scalar's endpoints beside its verdict — `CertifiedEnclosure` gained
+`crossing_bracket` (DL1 unchanged on both reviewing arms; the
+member-free route through `Enclosure` compiles and is refused by the
+bounds gate's ratification rule, so the member stays with the trait's
+doc made true). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `RING-2-SPEC.md` — RING-2, `RingInterval` is a newtype over `DInterval`; poison is `dec < Def`; every certificate re-pinned with its cause (#3032)
+
 # docs ledger — deleted historical documents
 
 This file is the permanent record of documents deleted from `docs/`
@@ -2004,6 +2038,115 @@ the residue is `work/blend/anchor-fit-refusal-reports-a-setback-excess-not-a-rad
 
 - `BLEND-11-SPEC.md` — BLEND-11, the overrun refusal reports the nearest fit (#2495)
 
+## Sweep 19 — 2026-09-21: DOOR leaves the tracker
+
+Sweep SHA: `284ca7e9889f6d86366e696e41157916133f4cb9` — the commit
+immediately before the deletion (on the closing PR's branch, reachable
+from `main` through that PR's merge commit; it is the state in which
+DOOR's directory is complete and every row in it is closed), so every
+path below is recoverable at `git show 284ca7e9889f:work/door/<FILE>`
+and `git show 284ca7e9889f:docs/DOOR-EXIT-WALK.md`.
+
+DOOR — the doors whose fix is already written — opened 2026-09-11 in the
+eleven-program cut of that day (`docs/WORK-TRACKS-2026-09.md` addendum
+3) and closed 2026-09-21 on Ev's in-chat ruling, quoted in the walk.
+**Twenty-two rows closed from the directory and twenty-seven passed
+through it**: eighteen issues, two units (`S190`, `D306`) and two
+rulings. Five left rather than closed — `viewer-cannot-author-a-part-node`
+on the program's first day (it failed the one charter test and is on
+AUTHOR's slate today) and four in the design-free sweep of 2026-09-20
+(`S114` and `patherror-display-renders-float-noise` to PROPS,
+`all-census-idiom-forces-the-visit-not-the-update` to CENSUS,
+`unit-symbol-proptest-generators-under-cover-with-no-file` to TINT).
+The last wave merged four on their own green hosted heads: #2984
+(`axis_datum`'s `expected:` comes from `phrase::DATUM_AXIS`), #2985 (the
+placer field docs say what the placers accept and yield), #2986
+(`PartFault::PartProduct` carries the class beside the sentence), #2989
+(`VectorSlot::slots` deleted). Band **3800–3899** was claimed at the cut
+and **never drew an ordinal** — the program ran style reviews with no
+A/B row for its whole life, so the band is claimed and empty in
+`docs/MODEL-AB-LOG.md` as FIX's and VIEW's are. The directory leaves
+whole, with no row re-homed at the sweep: the slate was emptied first,
+and every residue disclosed inside a closed row already has its own file
+on the slate that owns the ground.
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `door` | DOOR — the doors whose fix is already written | 2026-09-21 | this entry; the walk at the sweep SHA; the code it left — `topo::BooleanOp::ALL` and `editor_core::Dimension::ALL` published with their hand-written mirrors retired, `grid_pitch`'s non-finite fallback replaced by a refusing door, `endpoint_params`' conic and LINE arms refusing where the angle is derived, `ders1_in_span` collapsing `loop_area`'s two basis passes, `PartFault::PartProduct` carrying `ProductErrorKind`, `eval::phrase::DATUM_AXIS` as the one home of the datum-axis phrase, and `VectorSlot::slots` deleted |
+
+### What survived, and where
+
+The program's output is the tree, two rule repairs and three practices,
+not its directory.
+
+- **The ruling that closed it.** Ev, 2026-09-21: *"can you close `door`?
+  it just had its last item close."* It lands hours after FIX's, whose
+  reason reads across and reads harder here (Ev, 2026-09-21: *"most of
+  those were either mis-filed or should've been done as drive-by
+  fixes"*): **DOOR claimed no paths at all**, so every row it ever held
+  was on another program's ground by construction. The successor
+  practice is not a successor program — file the row on the slate of the
+  program whose ground it lands on the day it is found, take it in
+  passing when you are already in that file, and let `work/issues/` be
+  the last resort `work/README.md` says it is.
+- **`docs/prompts/implementer-discipline.md` §6 now agrees with
+  `work/README.md`.** DOOR's
+  `lane-cross-program-filing-two-binding-docs-conflict` found the two
+  binding documents giving a lane opposite instructions about filing on
+  another program's slate; Ev ruled for the README on PR #2421 (*"the
+  prompt is wrong and should be updated to agree with the README to have
+  no reservations about filing directly to other programs"*), against
+  the orchestrator's own proposal. §6 now directs a lane to file on the
+  owner's slate in the same PR, without permission and without routing.
+- **`CLAUDE.md`'s approval rule states a test instead of a list.**
+  `readme-ratification-amendments-need-ev` began as a confession — #2387
+  retired a ratified `crates/viewer/README.md` kind without Ev — and
+  ended as a diagnosis: the git-workflow exception was a hand-written
+  enumeration missing a member, naming open design questions and
+  `memories/` where retiring a settled clause in a crate README design
+  page is neither, and omitting `docs/prompts/` besides. The rule now
+  reads *"the exception is text that binds future work rather than
+  describing this change"*, with the four homes as what it covers today
+  and a sentence saying a new home is covered the day it exists rather
+  than the day the line is updated. The rule that governed DOOR had the
+  defect DOOR spent that day closing.
+- **Route from the instrument, never from a fence read in prose.** The
+  same finding FIX's walk records, from a program with no territory at
+  all. This one's `keep_out` asserted *"`crates/editor-core/*` is
+  DOCM's"* and #2391 measured it false; **three rows named DOCM as their
+  owner for a week after DOCM had left the tracker** (sweep 14), where
+  `scripts/work.py territory` says `node.rs` and `eval/parts.rs` are
+  EDIT's and `mate/member.rs` is MSOLVE's. The clause a reader would
+  consult for the answer now leads with the instruction not to consult
+  it.
+- **Reading a guard is not running it.** #2387's fix for a hand-written
+  complete list minted a hand-written census and its PR body asserted
+  *"No new census"* two lines after admitting it created one. Executed,
+  the hole was plain: add a variant, copy the arm the failing match asks
+  for, and the row passes green with the variant absent from `ALL` —
+  **the census forces the visit, not the update**, which is now CENSUS's
+  `all-census-idiom-forces-the-visit-not-the-update`. Two lanes and an
+  orchestrator had read that census and approved it; thirty seconds of
+  `rustc` falsified it. Its sibling: **a negative result by grep is a
+  claim about the pattern; a negative result by deletion is a fact about
+  the tree** (#2989 deleted each sibling member of `VectorSlot` in turn
+  and read the compiler).
+- **After writing a sweep's blind-spot sentence, go and look for the
+  shapes it names.** A regex-shaped sweep missed an instance inside its
+  own PR's fence three units running, and in all three the missed shape
+  was already written down — in a door's rustdoc, or in the sweep's own
+  blind-spot sentence. The rows' own counts were stale nearly every time
+  a lane re-derived them (`.slots()` 36 → 41; `Dimension::ALL`'s readers
+  filed at five, measured eight of a population of ten; *"the third and
+  last copy"* of the datum-axis phrase became a four-pattern
+  measurement).
+- **Every parallel lane gets its own `git worktree`, and a path a lane
+  names is not thereby free.** Two orchestrator errors on 2026-09-12:
+  two lanes dispatched into one checkout (shared index and scratchpad,
+  one `git add -A` from an unrecoverable commit under merge-only rules),
+  and a live lane's worktree deleted because the lane had mentioned it
+  as a loose end, discarding six uncommitted edits.
+
 ## Sweep 18 — 2026-09-21: FIX leaves the tracker
 
 Sweep SHA: `6f0e04ce1534f1c7d25e5dfbe09751b992f8492e` — the commit
@@ -2636,7 +2779,7 @@ calls a successor's opening slate rather than residue.
 | `real-margin-dependency-widening` | `work/sym/` | the numeric channel's half of E12's division of labour — what stands between the plate's 0.263 ceiling and the flip at 0.625 |
 | `plate-ceiling-is-now-the-scaffold-pushforward` | `work/sym/` | one predicate bounds all five measured documents; the fix half is a PCURVE/D3 question and `geom-brep/src/certify.rs` is in no program's paths — TRIM is PCURVE's successor |
 | `rule-d-reaches-the-unit-bulge-only` | `work/sym/` | rule D is the tier's, and this is the next ceiling class after M10-10 |
-| `interval-self-dot-straddles-before-rule-a` | `work/sym/` | rule A's reach; the FIX is `powi(2)` in PROPS' `linalg/vec.rs` and is announced there — PROPS' linalg lane may take it |
+| `interval-self-dot-straddles-before-rule-a` | `work/sym/` | rule A's reach; the FIX is `powi(2)` in PROPS' `linalg/vec.rs` and is announced there — PROPS' linalg lane may take it [the row later moved to `work/decide/` and was CLOSED on DECIDE-1's measurement (#3001) with no `linalg` change: the fix had landed at M2 PR 4 for every norm] |
 | `param-box-certification-of-implicit-quantities` | `work/sym/` | the tier's frontier: an iterated quantity has no expression in the parameters. Came to M10 from S-CERT; follows the tier |
 | `declared-tangency-needs-the-registered-identity-door` | `work/sym/` | the door's live consumer; open rather than parked, and it waits on BLEND's fillet row |
 | `the-span-identity-is-not-a-theorem-of-the-floats` | `work/sym/` | the limit of what a registration means; `register_equal` is in PROPS' `real.rs`, reached by announced seam |
@@ -4194,6 +4337,46 @@ record is its item's `## Closed` section and its MERGED entry in
 
 - `MSOLVE-7-SPEC.md` — MSOLVE-7, the member walk's residue: one environment, one seat, one account, one attribute (#2885)
 
+## Per-merge deletion - PROPS curved-residues' spec (2026-09-21)
+
+Recoverable at `git show 0cd022b32:docs/PROPS-CURVED-RESIDUES-SPEC.md`
+(PR #2924's merge commit, the last head carrying it). **No A/B row**:
+ordinal 2408 was claimed and retired without one on Ev's ruling, the
+fable arm having been out of credits, and a single opus review is the
+unit's review of record. The spec's rulings are the unit's record
+together with the closed items
+(`cone-apex-cap-refuses-degenerateface`,
+`the-shape-door-could-take-the-sense-free-rim-side-residue`,
+`rim-level-rule-manufactures-its-error-by-feeding-nan-into-classify`,
+`closure-guard-decides-a-sum-not-a-cover`), the MERGED entry in
+`work/props/log.md`, and the residues on `work/tess/`.
+
+**Spec note at deletion: this spec located its own risk exactly right
+and the mitigation it named was still not enough.** It said, in those
+words, "It needs the closure guard, and that is the whole risk" - an
+unguarded fold answers the UNBOUNDED complement with the apex cap's
+area, which is the sphere unit's own MAJOR repeated on the other chart.
+The unit built the guard the spec named and red-firsted the four shapes
+the spec listed. The blinded review then built a fifth: **the same half
+rim stated twice**, which totals a turn, passes a guard that decides a
+SUM, and answers the whole cap's area on half a circle. The four shapes
+were instances; the class is "does not cover".
+
+That made three consecutive failures of one premise, the first of them
+in a spec: `docs/PROPS-SPHERE-POLE-SIDE-SPEC.md` ASSERTED that
+`du_of_rims` already sums a full rim to `2*pi` rather than requiring it
+to be decided; the sphere unit inherited the assertion and shipped a
+MAJOR; the fix added a guard that checked the sum, which is the same
+assertion one level down and shipped to main. **The lesson for spec
+writing, which is why this note exists:** naming the right risk is not
+the same as naming a sufficient mitigation, and a spec that hands a unit
+a specific guard invites the unit to stop thinking where the spec
+stopped. The four enumerated shapes were the spec's, and the unit
+tested exactly them.
+
+Closed by `props_rim_only_join` (sum AND head-to-tail chain = cover),
+at both call sites, tested as a generated property rather than a list.
+
 ## Per-merge deletion - PROPS escalation-channel's spec (2026-09-20)
 
 Recoverable at `git show 3502371ec:docs/PROPS-ESCALATION-CHANNEL-SPEC.md`
@@ -4365,3 +4548,239 @@ dev-only or optional" — it does not (its subject is `test-support` /
 does not. Recorded in the PR body and the unit's `## Closed` section.
 
 - `RING-1-SPEC.md` — RING-1, `geom_core::interval` compiles unconditionally; the feature gates only the instantiation (#2971)
+
+## Per-merge deletion — LANE-0's spec (2026-09-21)
+
+Recoverable at `git show eb100e1cbc:docs/LANE-0-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the seam arms supply `Some`
+where the scalar is `f64` (`AtRestPolicy for f64`, the `ShellLane` →
+seam arm for `f64`, `verbs/shell.rs` ~`:248-258`) and `None`
+elsewhere; `f64`-concrete public callers …" — threading the door from
+those arms was measured at 18 public doors and ~1,200 call sites and
+declined by the orchestrator's ruling (recorded in the item and the PR
+body): the `Some` is read at the one per-scalar seam ruling 3 keeps,
+`topo::AtRestPolicy::offset_fit_lane`, and the passes keep the door as
+their `Option` parameter; the `verbs/shell.rs` pointer lands on the
+`Dual` arm (the `f64` arm is `:176`); "(three per trait method)" — the
+fifteen impls are five scalars × three methods; §0's
+`crates/geom-core/src/offset_fit.rs` — the file is
+`crates/geom-brep/src/offset_fit.rs`; "the fixtures the existing `f64`
+rows use" — the sweep fixture is minted through the `_at` instrument
+at a fixed target and cannot be re-derived at the run's ε, so the
+subject is a new patch with the largest bow that certifies at every
+eps row (a bow that refines at every row was measured impossible);
+and the review brief's claim 5 ("mint pointed at remap") cannot
+compile, the live mis-wiring modes being a same-signature closure and
+the `_at` twin, both pinned by pointer identity. Recorded in the PR
+body and the unit's `## Closed` section.
+
+- `LANE-0-SPEC.md` — LANE-0, the `f64`-only offset-fit absence becomes an `Option` hook, out of the lane traits (#2981)
+## Per-merge deletion — RING-0's spec (2026-09-21)
+
+Recoverable at `git show b32b98bee6:docs/RING-0-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "The survey expected
+`point(±inf)` (ring poison / backend `Com`), `inf − inf` and overflow
+shapes, and zero disagreements on division" — `point(±inf)` is NaI at
+the backend and collapses to agreement, `inf − inf` is unreachable
+from valid brackets, overflow is not a class of `÷` but IS the
+mechanism of the negative-`powi` class (backend refuses where the
+ring certifies, found unilaterally by one reviewer by execution), and
+division disagrees on one class (unbounded over unbounded) while
+agreeing on every zero-touching divisor — the survey's "division
+should show zero disagreements" is false; "pick three of the dry run's
+red rows in three different consumers (e.g. `props/quad.rs`,
+`ssi/enclose.rs`, `mesh/nurbs_cert.rs`)" — `ssi/enclose.rs` has no red
+row; "the survey's 28 over 14 files is the starting number" — the
+production count is 23 sites over 9 files (the survey counted test
+code and the `Interval` scalar's reads of its own backend value), and
+the register as merged carries 31 hazards, 2 conditional on what
+`from_certified` returns under cut (ii), and 3 safe; "the 36 test
+files … plus the certify/props/mesh suites" — 22 red rows of 3,771 at
+default, 23 under the feature, sixteen tighter pins and zero looser,
+the 960-row and 3,403-row coefficient corpora 436 and 1,590 tighter
+and none looser. Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `RING-0-SPEC.md` — RING-0, the poison differential and the newtype dry run (#2993)
+
+## Per-merge deletion — DECIDE-1's spec (2026-09-21)
+
+Recoverable at `git show 1972f8cebb:docs/DECIDE-1-SPEC.md` (the
+fix-pass head). Its sentences that did not survive: "render the refused
+residual at `explain_depth` and say whether the `Invalid` descends from
+a `sqrt`…" — there is no refused residual to render, the census
+recording ZERO clause-1 `Invalid` on all six documents at three ε and
+both scales, so what the rows name instead is the `Indeterminate` each
+blocked replay stopped at; "at the nominal and at ceiling + δ on
+`m10_8_harness::ceiling`'s instrument" read together with the item's
+brackets — those are `m10_9_pins_interval::measured_studies`, M10-9's
+tier's, and this census runs the SHIPPED one, whose ceilings are five
+to six orders away on the plate and the annulus, so the ceiling is
+MEASURED per run and a replay at the table's refusing end would have
+counted over a replay that was never blocked; "the pad is measured on
+the ceiling instrument only, as SYM-8 did" — true of the whole-box
+report and also of the NOMINAL one, which is killed for memory on a box
+this size, so the pad contributes a bracket and no `Invalid` count at
+all; "Phase 2 — only if Phase 1 finds a site" — Phase 1 found one
+production self-dot at `Sym<Interval>` (`topo::transform::check_rigid`)
+that is not on a measured path and whose consumer is a `sign_within`
+rather than a `sqrt`, so Phase 2 stayed empty and the site is a filed
+row on SHELL's slate. Recorded in the PR body and the item's
+`## CLOSED` section.
+
+- `DECIDE-1-SPEC.md` — DECIDE-1, the self-dot straddle (#3001)
+
+## Per-merge deletion — DECIDE-2's spec (2026-09-21)
+
+Recoverable at `git show 8badd98d03:docs/DECIDE-2-SPEC.md` (the commit
+before the deleting one). Its sentences that did not survive: "the
+item's table gains a SIXTH column, `pinned by`" — the item's table has
+three columns and gained a fourth; "the three new rows (under
+`crates/geom-core/tests/` or `crates/geom-core/src/...`'s test modules
+where the seam is private)" read together with "expose what the pin
+needs at `pub(crate)`/test-support level" — two of the three rows are
+library rows (`sym::discharge_pins`) and the third could not be one at
+any visibility, because `k_stats::SampleOutcome` exists only under
+`probe` and no hosted job runs a library's unit tests under that
+feature, so the third row is an integration row in the rostered
+`k_stats_doors` suite reading a new `probe`-only door
+(`sym::discharge_sample_outcomes`), and the CI gap is filed as
+`work/guard/feature-gated-lib-unit-tests-are-compiled-and-never-run`;
+"adding a `Discharge` variant without a `SymCounts` column ... compiles"
+(the item's premise, carried into the spec's framing) — it does not,
+since every `match` on the enum is exhaustive; what compiles and
+passes is an ARM that folds the new kind into an existing column, row
+or token, so what the three rows assert is injectivity rather than
+totality. Recorded in the PR body and the item's `## CLOSED` section.
+
+- `DECIDE-2-SPEC.md` — DECIDE-2, one pin per seam for the discharge vocabulary (#3011)
+
+## Per-merge deletion — SYM-10's spec (2026-09-21)
+
+Recoverable at `git show 96ffd6847:docs/SYM-10-SPEC.md` (the
+`needs_ev` head; the unit stopped at Phase 1). Its sentences that did
+not survive: Phase 2's three folds as the remedy ("the folds the
+measurement picks" — the measurement picked none of them: every
+combination of the three left the tilted row red, and a FOURTH piece,
+the canonical square root, is the remedy, ruled by Ev on #2970 as the
+full form at the mint site and taken by DECIDE-3); fold 2's premise
+("once `‖v‖` and `‖n‖` fold to 1" — `‖n‖` does, the candidates
+`e_k × n` are unit only for `n ⟂ e_k`, so the floor is a read, not a
+bound); "the three rows green WITHOUT edits to their assertions" as
+this unit's acceptance (owed by DECIDE-3 now); "hosted CI runs only on
+PRs to `main`" (it ran on this PR against `props/sign-hull`, and the
+three rows are red on the base too). Recorded in the PR body and the
+unit's "Closed on Phase 1" section.
+
+- `SYM-10-SPEC.md` — SYM-10, the decision door and the floor (#2970)
+
+## Per-merge deletion — LANE-1's spec (2026-09-21)
+
+Recoverable at `git show 97d8ffe54d:docs/LANE-1-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the public Python doors …
+call the `topo::` doors monomorphically at `f64` — the certified names,
+unchanged in behaviour" — `value.rs` called the lane-keeping
+`validate_pseudomanifold` at the base, so the fold (the table's own
+choice) changes its verdict on an M7-8 body from `VolumeUncomputable`
+to the edge-by-edge `EdgeCertification` findings, both reviews' MAJOR,
+ruled to stand and pinned by an in-crate row (no public door can build
+such a body — filed on EXCH); "`run_checks<T: AtRestPolicy>`, which
+runs at `Dual`" — it carried `CertifiedBounds` at the base, so
+`connectedness` takes the certified name; "`AtRestPolicy`'s supertrait
+list becomes `Decide + geom_core::Bounds + PcurveFittedLane +
+ChartRegionLane`" — `Bounds` is deliberately not a supertrait (the
+allowlist gate would have needed a licensing entry; every
+bracket-reading door spells `Bounds` at the door instead); "the tour's
+~60 sites stay type-correct under the certified bound" — they did not
+(eleven red sites), the tour's `Scalar` gaining `CertifiedBounds`;
+"`mass_properties_structural<T: Decide + Bounds>`" — `T: Decide`, the
+term unearned; the plan's ground column named "demos" (zero
+occurrences) and the survey re-drew it (ATREST, SHELL, REACH, CHART,
+LIB/BIND, WIRE, PROPS, GUARD, PCERT, TCOST/TINT, the unowned
+`props.rs`); the fold's rename reached six files the fence did not
+name (`demos/tour/src/main.rs`, `step-import`, three test files, the
+in-src probe table). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `LANE-1-SPEC.md` — LANE-1, `PropsQuadLane` deleted: the quadrature door is a parameter, the certified name keeps its quadrature, a `_structural` twin carries the `None` (#3010)
+
+## Per-merge deletion — SYM-11's spec (2026-09-21)
+
+Recoverable at `git show c6addfa56:docs/SYM-11-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the six measured
+documents" (no roster of six exists — `measured_studies` is five, the
+bulge three make eight; the unit measured the five, both far-placement
+bodies and both rule-F residuals at the certified lift); "on `Decide`
+(the door's trait) or on `Real`" left open — the marker's home is
+`Real`, beside `register_equal`, as `Real::WITNESS: Witness` with no
+default, so the two contracts read one marker and `predicate.rs` is
+untouched; "a schema bump is NOT this unit's — if the column cannot be
+added without one" (the serialized receipt has no reader, only
+`content_key` and byte comparisons, so the column ships in the wire
+format with no bump); "`SymCounts::theorems_disputed` … not a discharge
+kind" is kept, with the correction that the column counts BOTH theorem
+kinds (`Theorem` and `SignGated`) contradicted by an inexact channel —
+a gated dispute is producible (`sqrt(((r + d) − d)²) − r` at
+`d = 1e9`) and has its row. Recorded in the PR body and the unit's log
+entry.
+
+- `SYM-11-SPEC.md` — SYM-11, the point channel is not a proof (#3028)
+
+## Per-merge deletion — LANE-2's spec (2026-09-21)
+
+Recoverable at `git show 6f8f7132ab:docs/LANE-2-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "What must not change:
+every certificate, verdict, refusal and `Display` at every scalar" —
+overridden by the spec's own §1 ("the `_structural` twin `None`") and
+by ruling 3: the `_structural` doors at `f64` on a declared straddle
+seat answer `Ok(())` at the base and, at the head, a
+`CensusLaneUnsupported` refusal plus the two crossings the declaration
+backed as `UndeclaredContact`, both reviews' MAJOR, ruled to stand
+(the base's `f64` reach of Door 2 through the supertrait was the
+lane-keeping hybrid the cut removes) and disclosed in the door docs,
+the PR body and the extended ATREST row; "with the certified door's
+`Some` replaced by `None` … the census rows that assert an overlap
+verdict go red (`census_g2_carrier`, `mate5_cyl_eps_rung`,
+`r1_mate5_probe`, `r2_probes`, `m9_2_chart_region_loft`)" — those
+call the two doors directly and cannot red; the set that notices is
+seventeen topo+sweep rows (twenty-four reach; thirty-five more in
+`editor-core`), measured; "a row that `pair_region_verified` with
+`None` answers `false` where `Some` answers `true` on the mate9
+crossing rung's isolator body" — the isolator's `Some` answers `false`
+too; the pin is on the straddle seat's declared pair; the survey's
+"the `_structural` twin is the dual's door" — it is a public door with
+`f64` callers in the tree; the citations were taken at the branch
+point `5b74236e03` and the merge base was `ff1e982788` (the counts
+agree); `real.rs`'s M9-2 entry was called naming-only and its
+selector moved from scalar-keyed to door-keyed (an agent-written
+sentence; no ratification owed). Recorded in the PR body and the
+unit's `## Closed` section.
+
+- `LANE-2-SPEC.md` — LANE-2, `ChartRegionLane` deleted: the chart-region doors are one `Option<RegionLane<T>>` parameter through the census, `None` keeping today's typed refusal (#3038)
+
+## Per-merge deletion — SYM-12's spec (2026-09-22)
+
+Recoverable at `git show 47e5a0a64:docs/SYM-12-SPEC.md` (the fix-pass
+head). What it decided: rule F's NEGATIVE arm taken —
+`manifest::negative` as `positive` of the negated numerator, both folds
+under `SymRules::manifest_sign` (one rule, two arms, one dial); the
+reach is the tilt-`u` family, either cap, either sign (the start cap
+and `FlipZ` read the end cap's state by name and by count; `FlipV`, a
+negative `n.z` on a tilt about `v`, folds and moves nothing); `tiltUV`:
+the fold never fires — the DAG's `n.z` is a 21-over-23-term quotient
+in the parameter's offset with odd powers of `t` beside three `sqrt`
+atoms, not the budget's; the `copysign` census: no atom from any mint
+site reaches a decision on the seven takeable documents or the
+revolved cap, and the tree's ten mint sites are registered by a
+source-census row (the spec's "five other sites" was SYM-8's list);
+`magnitude`'s two spellings of `|Y|` meet (R2's demonstrated row); the
+release leaf cost measured (cheaper than rule-F-shut on five of six
+leaves, the link +4.8 %); the DECIDE-3 seam filed
+(`work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Its sentences that did not survive: "five other `copysign` mint sites"
+(ten, counted); "the eight documents' splits" (seven takeable — the
+pad's nominal replay with the report is not); the walk stays
+recoverable at the merge SHA. Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `SYM-12-SPEC.md` — SYM-12, the derived-frame freeze's next shape (#3046)

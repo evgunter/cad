@@ -398,15 +398,17 @@ use viewer::session::{DocSession, SessionOp};
 
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
+///
+/// Through the vocabulary's own numbers (`ProfilePlane::world_xy`)
+/// rather than a second spelling of them here: the add-profile form's
+/// `NewXy` choice mints that frame, so a suite that hand-wrote the
+/// components would stop testing the frame the chrome authors the
+/// moment either moved.
 pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     insert(
         session,
         SessionOp::AddDatum {
-            datum: viewer::session::DatumSpec::Frame {
-                origin: len3([0.0; 3]),
-                u: scl3([1.0, 0.0, 0.0]),
-                v: scl3([0.0, 1.0, 0.0]),
-            },
+            datum: viewer::session::ProfilePlane::world_xy().expect("the world xy frame lowers"),
         },
     )
 }

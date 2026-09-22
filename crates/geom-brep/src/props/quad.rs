@@ -353,6 +353,11 @@ fn pt(x: f64) -> RingInterval {
 /// an alternating series with decreasing terms — decreasing needs
 /// s² ≤ 56, ample here; both ends formed in the ring so their own
 /// rounding is outward). Poison outside the domain.
+/// **Safe by construction, and that is why the re-mint below needs no
+/// refusal**: every operand is `pt` of a finite `f64` and every
+/// divisor is a nonzero exact point, so no step can leave a domain
+/// and `lo`/`hi` are certified brackets whose endpoints mean what
+/// they say. The same argument covers [`sin_step`].
 fn cos_step(s: f64) -> RingInterval {
     if s.is_nan() || s.abs() > 1.5 {
         return RingInterval::poison();
@@ -575,9 +580,32 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: RingInterval) -> f64 {
     .mag()
 }
 
+/// One side of an enclosure, **keeping the refusal**: `NaN` whenever
+/// the enclosure may not certify.
+///
+/// The ring carries its refusal in the decoration, so a refused
+/// bracket's endpoints are ordinary numbers and a bare `.lo()`/`.hi()`
+/// hands a consumer a plausible bound with nothing behind it. `NaN` is
+/// what every consumer on these paths already reads as "no bound" —
+/// the `is_finite` tests, the margin classifiers, the gauges and the
+/// knot-collapse windows all refuse on it — so this is the one door
+/// that turns the decoration back into the value those readers expect.
+fn lo_or_refuse(x: RingInterval) -> f64 {
+    if x.is_poison() { f64::NAN } else { x.lo() }
+}
+
+/// [`lo_or_refuse`] for the upper end.
+fn hi_or_refuse(x: RingInterval) -> f64 {
+    if x.is_poison() { f64::NAN } else { x.hi() }
+}
+
 /// Midpoint of a bracket (structure selection for integration limits;
-/// the bracket's width is repaid by the endpoint pad).
+/// the bracket's width is repaid by the endpoint pad). A refused
+/// bracket has no midpoint, and says so.
 fn mid(x: RingInterval) -> f64 {
+    if x.is_poison() {
+        return f64::NAN;
+    }
     (x.lo() + x.hi()) * 0.5
 }
 
@@ -682,10 +710,10 @@ fn mean_boundary_displacement(flux: RingInterval, area: RingInterval) -> Result<
 /// As [`mean_boundary_displacement`].
 fn displacement_len(width: f64, area: RingInterval) -> Result<f64, PropsError> {
     // Bit-for-bit the pre-guard expression: `(lo + hi)·0.5`, times 3.
-    let denom = 3.0 * ((area.lo() + area.hi()) * 0.5);
-    // A poisoned enclosure reads as NaN at both endpoints, so it lands
-    // here rather than in the degeneracy branch: it is not a statement
-    // about the face's extent at all.
+    let denom = 3.0 * mid(area);
+    // A refused enclosure has no midpoint, so it lands here rather
+    // than in the degeneracy branch: it is not a statement about the
+    // face's extent at all.
     if !width.is_finite() || !denom.is_finite() {
         return Err(PropsError::QuadratureUnsupported {
             what: "a quadrature enclosure with a non-finite width or area (a poisoned \
@@ -828,7 +856,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             let perim: f64 = edges.iter().map(|e| edge_metric_length(e, radius)).sum();
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Margin::over_lever(area.lo(), perim),
+                Margin::over_lever(lo_or_refuse(area), perim),
                 band,
             )? {
                 Sign::Positive => {}
@@ -2117,7 +2145,7 @@ fn fold_terms(terms: &[(RingInterval, RVec3)]) -> RVec3 {
 
 /// An upper bound on `|v|` (2-norm) of a bracketed 3-vector.
 fn norm_hi(v: RVec3) -> f64 {
-    sqrt_enclosure(v[0].sqr() + v[1].sqr() + v[2].sqr()).hi()
+    hi_or_refuse(sqrt_enclosure(v[0].sqr() + v[1].sqr() + v[2].sqr()))
 }
 
 /// Componentwise sum of two bracketed 3-vectors.
@@ -2226,7 +2254,7 @@ pub fn boundary_chord_perimeter_lo(
         let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
         p = p + sqrt_enclosure(d[0].sqr() + d[1].sqr() + d[2].sqr());
     }
-    p.lo().max(0.0)
+    lo_or_refuse(p).max(0.0)
 }
 
 /// **The A2 area gauge** — the certified area bracket's width read as
@@ -2348,13 +2376,13 @@ fn area_gauge_ok(area: RingInterval, perimeter_lo: f64) -> bool {
     }
     if perimeter_lo > 0.0 {
         width <= AREA_GAUGE_CEILING * perimeter_lo.powi(2)
-    } else if area.lo() > 0.0 {
+    } else if lo_or_refuse(area) > 0.0 {
         // FALLBACK, and it is LIVE: a patch whose whole rectangle
         // boundary collapses to a point certifies with real interior
         // area and a zero-length traversal, which is how a face
         // reaches this arm. The relative gauge on the
         // certified-conservative endpoint is issue 472's named one.
-        width <= AREA_GAUGE_REL_CEILING * area.lo()
+        width <= AREA_GAUGE_REL_CEILING * lo_or_refuse(area)
     } else {
         // Neither gauge has a denominator. Not reachable from the
         // lanes — the face-extent gate certifies `area.lo() > 0`
@@ -2450,8 +2478,8 @@ fn area_gauge_failure_message(area: RingInterval, denominator: f64) -> String {
              length, so there is no perimeter to divide by). Width {width} against a \
              certified lower area of {} — a relative width of {}, against a ceiling of \
              {AREA_GAUGE_REL_CEILING}.",
-            area.lo(),
-            width / area.lo()
+            lo_or_refuse(area),
+            width / lo_or_refuse(area)
         )
     }
 }
@@ -2581,7 +2609,7 @@ fn area_midpoint_taylor<E>(
             // keeps the arithmetic over that tiling enclosing too.
             let cell_area = (pt(c_uhi) - pt(c_ulo)) * (pt(c_vhi) - pt(c_vlo));
             let mean = widen(c.g_mid, 0.5 * hu * c.g_u + 0.5 * hv * c.g_v)
-                .clamped_to(c.g_hull.lo(), c.g_hull.hi());
+                .clamped_to(lo_or_refuse(c.g_hull), hi_or_refuse(c.g_hull));
             acc = acc + cell_area * mean;
         }
     }
@@ -3266,7 +3294,8 @@ fn rational_patch_face<T: Decide>(
 
     let over_all = (Collapse::Over(u0, u1), Collapse::Over(v0, v1));
     let g_w = w.chan(over_all.0, over_all.1);
-    if g_w.lo() <= 0.0 || !g_w.lo().is_finite() {
+    let g_w_lo = lo_or_refuse(g_w);
+    if g_w_lo <= 0.0 || !g_w_lo.is_finite() {
         return Err(PropsError::QuadratureUnsupported {
             what: "a rational patch whose weight-function hull does not exclude zero \
                    over the trim rectangle — the quotient's enclosures are undefined",
@@ -3341,13 +3370,14 @@ fn rational_patch_face<T: Decide>(
             let wm = w.chan(m.0, m.1);
             let g_mid = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
             let wh = w.chan(over.0, over.1);
-            if wh.lo() <= 0.0 || !wh.lo().is_finite() {
+            let wh_lo = lo_or_refuse(wh);
+            if wh_lo <= 0.0 || !wh_lo.is_finite() {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a rational patch cell whose weight hull does not exclude \
                            zero — the quotient's enclosures are undefined there",
                 });
             }
-            let (w3, w4) = (wh.lo().powi(3), wh.lo().powi(4));
+            let (w3, w4) = (wh_lo.powi(3), wh_lo.powi(4));
             let ch = a.cross_num(&w, over.0, over.1);
             let c_hi = norm_hi(ch);
             let pad_d = |dc: RVec3, wd: RingInterval| -> f64 {
@@ -3489,7 +3519,7 @@ fn rational_patch_face<T: Decide>(
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Margin::over_lever(area.lo(), perimeter),
+                Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
             )? {
                 Sign::Positive => {}
@@ -3805,7 +3835,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Margin::over_lever(area.lo(), perimeter),
+                Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
             )? {
                 Sign::Positive => {}
@@ -3888,7 +3918,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Margin::over_lever(area.lo(), perimeter),
+                Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
             )? {
                 Sign::Positive => {}
@@ -4345,12 +4375,14 @@ fn piece_monotone<T: Decide>(
     let (du, dv) = (pt(cu / len), pt(cv / len));
     let mut span = f64::INFINITY;
     for w in block.windows(2) {
-        span = span.min(((w[1].0 - w[0].0) * du + (w[1].1 - w[0].1) * dv).lo());
+        span = span.min(lo_or_refuse(
+            (w[1].0 - w[0].0) * du + (w[1].1 - w[0].1) * dv,
+        ));
     }
     let (bu, bv) = block_box(block);
     let over = (
-        Collapse::Over(bu.lo(), bu.hi()),
-        Collapse::Over(bv.lo(), bv.hi()),
+        Collapse::Over(lo_or_refuse(bu), hi_or_refuse(bu)),
+        Collapse::Over(lo_or_refuse(bv), hi_or_refuse(bv)),
     );
     let (gu, gv) = (grid_vec(su, over.0, over.1), grid_vec(sv, over.0, over.1));
     let rate = norm_lo(core::array::from_fn(|k| gu[k] * du + gv[k] * dv));
@@ -4826,7 +4858,7 @@ fn chord_polygon_area(
                     area_at(su, sv, Collapse::At(um), Collapse::At(vm)),
                     0.5 * hu * cell_gu + 0.5 * hv * cell_gv,
                 )
-                .clamped_to(cell_g.lo(), cell_g.hi());
+                .clamped_to(lo_or_refuse(cell_g), hi_or_refuse(cell_g));
                 col = col + (pt(c1) - pt(c0)) * mean;
             }
             if top < v0 {
@@ -4985,8 +5017,8 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     let svv = sv.as_ref().and_then(PatchGrid::deriv_v);
     let (tb_u, tb_v) = trim_box(chords);
     let over = (
-        Collapse::Over(tb_u.lo(), tb_u.hi()),
-        Collapse::Over(tb_v.lo(), tb_v.hi()),
+        Collapse::Over(lo_or_refuse(tb_u), hi_or_refuse(tb_u)),
+        Collapse::Over(lo_or_refuse(tb_v), hi_or_refuse(tb_v)),
     );
     let s_hull = s.vec(over.0, over.1);
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
@@ -5080,8 +5112,8 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             };
             let a = c.lune_area;
             let ov = (
-                Collapse::Over(bu.lo(), bu.hi()),
-                Collapse::Over(bv.lo(), bv.hi()),
+                Collapse::Over(lo_or_refuse(bu), hi_or_refuse(bu)),
+                Collapse::Over(lo_or_refuse(bv), hi_or_refuse(bv)),
             );
             let hs = s.vec(ov.0, ov.1);
             let hc = rv_cross(
@@ -5155,7 +5187,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             // (#1368, open), and this one deliberately does not join it.
             match classify_len::<T>(
                 "props_quad_face_extent",
-                Margin::over_lever(area.lo(), perimeter),
+                Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
             )? {
                 Sign::Positive => {}
@@ -6702,24 +6734,64 @@ mod tests {
         }
     }
 
-    /// **Q9 — the outer rule's ORDER, pinned.**
+    /// **Q9 — the chord rules' ORDERS, pinned by the ANSWER.**
     ///
-    /// `3p_u + 3p_v − 1` survived every earlier row because every
-    /// fixture's chord integrand had degree ≤ 2 against a rule of order
-    /// 5 or 11: Q1–Q3 are flat (`f ≡ c`, so `h` is affine), Q7's `f` is
-    /// piecewise constant, and E1's chart is a bilinear surface
-    /// restated. A bidegree-(2,2) curved chart reaches `h`-degree 11.
+    /// The trimmed lane runs two closed Newton–Cotes rules: the OUTER
+    /// one along the chord at order `3p_u + 3p_v − 1`, and the INNER
+    /// one across the patch at `3p_v − 1`. Both survived every earlier
+    /// row because every fixture's chord integrand had degree ≤ 2
+    /// (Q1–Q3 are flat, so `h` is affine; Q7's `f` is piecewise
+    /// constant; E1's chart is a bilinear surface restated).
     ///
-    /// The oracle is the rule's own EXACTNESS, which is a statement
-    /// about refinement: a rule of the right order integrates each
-    /// sub-chord exactly, so cutting the chord into four times as many
-    /// pieces cannot move the answer beyond ring rounding. A rule one
-    /// order short is a composite that CONVERGES instead, and its
-    /// round-0 and round-2 answers differ by orders more than their own
-    /// widths. The image is degree 1, so no lune pad rides along to
-    /// blur the comparison.
+    /// **Which order this fixture pins, and at what cut** — measured
+    /// on `curved_chart(2, 2)` with the three-chord loop below, taking
+    /// round 0's midpoint against the `1e-12` window asserted here:
+    ///
+    /// | rule cut | round-0 midpoint | from `EXACT` | this row |
+    /// | --- | --- | --- | --- |
+    /// | none (shipped) | `3.2542626001979752e-1` | `2.3e-17` | passes |
+    /// | OUTER, 2 short | `3.2542626001979757e-1` | `0`, and round 2 bit-identical | **passes** |
+    /// | INNER, 2 short | `3.2542430502718228e-1` | `1.95e-6` | reds |
+    /// | OUTER, 4 short | `3.2542626002142860e-1` | `1.63e-12` | reds |
+    /// | OUTER, 6 short | `3.2542623695793438e-1` | `2.31e-8` | reds |
+    ///
+    /// So what this fixture classifies at two counts short is the
+    /// **inner** order; the outer one it catches only from four, and
+    /// there by `1.63e-12` against a `1e-12` window — a hair, not a
+    /// classification. The chord integrand's `u`-degree is what decides
+    /// that, and this chart's image is degree 1. Reaching `h`-degree 11
+    /// takes a chart whose image is not, which brings a lune pad along
+    /// to blur the comparison: a different fixture rather than a wider
+    /// one, and it is scheduled with the rest at
+    /// `work/quad/q9-refinement-invariance-does-not-classify-the-rule-order`.
+    ///
+    /// **The oracle is a golden plus a consistency check, not a
+    /// structural instrument**, and that is the residue the filed row
+    /// carries. `EXACT` is the shipped rule's own output; what keeps it
+    /// from being purely circular is that a genuinely different
+    /// quadrature reproduces it — the outer-two-short rule to
+    /// `5.5e-17`, and the outer-four-short rule exactly, at round 2.
+    ///
+    /// **Why the refinement half cannot classify on its own, measured.**
+    /// This row used to gate `|m₀ − m₂|` at a quarter ulp, and that
+    /// separated the shipped order (which answered the two rounds BIT
+    /// for bit) from the inner-two-short mutant (one ulp apart). Both
+    /// numbers were the arithmetic's rounding and not the rule's error:
+    /// that mutant is refinement-invariant too — its answer is wrong by
+    /// `1.95e-6` at BOTH rounds — so the old gate was separating an
+    /// exact zero from one ulp of luck. The C9 ring pads only where an
+    /// operation is inexact now, so an enclosure is no longer symmetric
+    /// about the round-to-nearest value and its midpoint carries that
+    /// asymmetry: the shipped order reads two ulps apart (`1.11e-16` on
+    /// `0.325`) and the mutant one, which ranks them BACKWARDS.
+    /// Re-derived rather than widened
+    /// (`memories/output-stability-as-justification.md`): the
+    /// classification moves onto the quantity that carries the signal,
+    /// and the refinement half stays as the consistency claim it can
+    /// support — which is not nothing, since the outer-four-short
+    /// mutant reds on it as well as on the answer.
     #[test]
-    fn q9_the_outer_rules_order_is_pinned_by_refinement() {
+    fn q9_the_inner_rules_order_is_pinned_at_two_short_and_the_outer_at_four() {
         let (ku, kvv, control, w) = curved_chart(2, 2);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
@@ -6733,24 +6805,34 @@ mod tests {
             )
         };
         let (r0, r2) = (read(0), read(2));
-        // The exactness claim is not "the two enclosures happen to
-        // meet" — both are ring-rounding wide, so overlap is a weak
-        // test that a slightly-too-low order can pass. It is that the
-        // two ANSWER THE SAME NUMBER: an exact rule integrates each
-        // sub-chord exactly, so cutting the chord into four times as
-        // many pieces cannot move the sum at all.
-        // Measured on this fixture: the shipped order answers round 0
-        // and round 2 BIT FOR BIT (difference exactly 0, against
-        // enclosure widths of 2.5e-13 and 1.0e-12), and a rule two
-        // counts short answers them one ulp apart (5.55e-17 on 0.325).
-        // A quarter-ulp gate separates those two and leaves room for a
-        // sub-ulp summation-order wobble the head does not produce.
+        // **The classification.** The shipped order's answer, pinned
+        // at a window seven orders above the arithmetic's own width
+        // and six below the two-counts-short mutant's error (the doc
+        // above carries both measurements): a rule short of the degree
+        // integrates a DIFFERENT number, and that is the difference
+        // this row exists to see.
+        const EXACT: f64 = 3.254_262_600_197_975e-1;
+        const WINDOW: f64 = 1e-12;
         let (m0, m2) = (mid(r0.flux), mid(r2.flux));
+        for (round, m) in [(0, m0), (2, m2)] {
+            assert!(
+                (m - EXACT).abs() <= WINDOW,
+                "Q9: round {round} integrates {m:e}, which is {:e} from the exact rule's \
+                 {EXACT:e} — past the {WINDOW:e} window, so the rule is short of the \
+                 degree rather than exact",
+                (m - EXACT).abs()
+            );
+        }
+        // Refinement invariance, at the width the arithmetic supports:
+        // an enclosure is padded only where an operation was inexact,
+        // so the two rounds' midpoints sit inside each other's bracket
+        // rather than on top of each other.
+        let widths = r0.flux.width().max(r2.flux.width());
         assert!(
-            (m0 - m2).abs() <= 0.25 * f64::EPSILON * m0.abs(),
+            (m0 - m2).abs() <= widths,
             "Q9: an EXACT rule answers the same integral at every chord count — round 0 \
-             {m0:e} and round 2 {m2:e} differ by {:e}, so the rule is CONVERGING rather \
-             than exact",
+             {m0:e} and round 2 {m2:e} differ by {:e}, past the wider enclosure's own \
+             {widths:e}",
             (m0 - m2).abs()
         );
         assert!(
@@ -6763,10 +6845,12 @@ mod tests {
         // composite short of the degree would agree only to its own
         // error. **Short of the degree, not short of the order**: a
         // closed Newton–Cotes rule on an EVEN interval count is exact
-        // one degree past its order, so `mu − 1` (even here) still
-        // integrates this integrand exactly and reds nothing — `mu − 2`
-        // is the mutant this row kills, and the spec's `mu` is the
-        // first count that is exact for every parity.
+        // one degree past its order, so a single count off either rule
+        // still integrates this integrand exactly and reds nothing.
+        // `mv − 2` is the mutant this row kills outright; `mu` has to
+        // lose four before this fixture sees it at all (the doc's
+        // table). The spec's counts are the first that are exact for
+        // every parity.
         assert!(
             r0.flux.width() < 1e-9 * r0.flux.mag().max(1.0),
             "Q9: the exact lane's width is the nodes' and weights' ring rounding, got {:e}",

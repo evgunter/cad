@@ -11,11 +11,11 @@ use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
-use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing};
+use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName};
 use crate::widgets::{
-    FieldShowing, FieldVocabulary, GestureVocabulary, UNIT_PICKER_WIDTH, angle_picker,
-    delete_button, length_picker, number_field, pick_unit, unit_field, value_field_ops,
-    vec3_row_ops,
+    FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker, delete_button,
+    free_move_gesture, length_picker, number_field, pick_unit, unit_field, value_field_ops,
+    value_gesture, vec3_row_ops,
 };
 
 impl ViewerBehavior<'_> {
@@ -100,15 +100,7 @@ impl ViewerBehavior<'_> {
                                 number: field.shown(row.value.as_f64()),
                                 text: None,
                             },
-                            GestureVocabulary {
-                                begin: SessionOp::BeginParamGesture { name: name.clone() },
-                                preview: |value| SessionOp::PreviewParamGesture {
-                                    name: name.clone(),
-                                    value,
-                                },
-                                commit: SessionOp::CommitParamGesture { name: name.clone() },
-                                cancel: SessionOp::CancelGesture,
-                            },
+                            value_gesture(ValueGestureName::Param(name.clone())),
                             FieldVocabulary {
                                 number: |value| SessionOp::SetParam {
                                     name: name.clone(),
@@ -305,16 +297,18 @@ impl ViewerBehavior<'_> {
         } else {
             create
         };
+        // The draft value is asked whether the dimension can carry it
+        // before a declaration is minted from it: a `Count` parameter
+        // declared from a field holding `NaN` would otherwise be
+        // created holding zero, which is a value nobody authored.
+        // `SlotValue::of` is the one door that decides this.
         if create.clicked()
             && let Some(dimension) = self.drafts.new_param_dimension
+            && let Ok(value) = SlotValue::of(dimension, self.drafts.new_param_value)
         {
             self.ops.push(SessionOp::CreateParam {
                 name: ParamName::new(name),
-                value: crate::props::doc_param(
-                    dimension,
-                    SlotValue::of(dimension, self.drafts.new_param_value),
-                    self.new_param_unit(),
-                ),
+                value: crate::props::doc_param(dimension, value, self.new_param_unit()),
             });
             self.drafts.new_param_name.clear();
             self.drafts.new_param_dimension = None;
@@ -362,7 +356,7 @@ impl ViewerBehavior<'_> {
             Standing::Empty => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
-                    ui.label(format!("feature {}", node.0));
+                    ui.label(crate::tree::node_number(*node));
                     if *present {
                         if delete_button(ui, self.session, *node) {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
@@ -420,7 +414,7 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             // The feature that MADE the entity, so the button deletes
             // what the label names.
-            ui.label(format!("{noun} of feature {}", feature.0));
+            ui.label(format!("{noun} of {}", crate::tree::node_number(feature)));
             if live && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
@@ -521,32 +515,9 @@ impl ViewerBehavior<'_> {
                 // zero y and z. The chrome offers the translation
                 // components; the op vocabulary takes any rigid frame.
                 let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
+                let ProbeOps { gesture, typed } = free_move_gesture(node, frame_of);
                 ui.horizontal(|ui| {
-                    vec3_row_ops(
-                        ui,
-                        field.tick,
-                        &mut mm,
-                        GestureVocabulary {
-                            begin: SessionOp::BeginFreeMove { instance: node },
-                            preview: |mm| SessionOp::PreviewFreeMove {
-                                instance: node,
-                                frame: frame_of(mm),
-                            },
-                            commit: SessionOp::CommitFreeMove { instance: node },
-                            cancel: SessionOp::CancelFreeMove,
-                        },
-                        |mm| {
-                            vec![
-                                SessionOp::BeginFreeMove { instance: node },
-                                SessionOp::PreviewFreeMove {
-                                    instance: node,
-                                    frame: frame_of(mm),
-                                },
-                                SessionOp::CommitFreeMove { instance: node },
-                            ]
-                        },
-                        self.ops,
-                    );
+                    vec3_row_ops(ui, field.tick, &mut mm, gesture, typed, self.ops);
                 });
             }
         }
@@ -688,22 +659,10 @@ impl ViewerBehavior<'_> {
                 number,
                 text: fixed,
             },
-            GestureVocabulary {
-                begin: SessionOp::BeginGesture {
-                    node,
-                    slot: row.slot,
-                },
-                preview: |value| SessionOp::PreviewGesture {
-                    node,
-                    slot: row.slot,
-                    value,
-                },
-                commit: SessionOp::CommitGesture {
-                    node,
-                    slot: row.slot,
-                },
-                cancel: SessionOp::CancelGesture,
-            },
+            value_gesture(ValueGestureName::Slot {
+                node,
+                slot: row.slot,
+            }),
             FieldVocabulary {
                 number: |value| SessionOp::SetSlot {
                     node,

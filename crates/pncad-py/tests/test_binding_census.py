@@ -1612,7 +1612,7 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `PropsQuadLane`,
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
@@ -2405,7 +2405,7 @@ NOT_BOUND = {
     "Relation": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
-    # The `PropsQuadLane` shape, one registry over: a trait naming
+    # A lane trait, one registry over: a trait naming
     # WHICH decision lanes carry a chart-coherence examination, written
     # as a bound on the two registry doors. Python's `run_checks` is
     # monomorphic at the `f64` lane, so a Python caller never chooses
@@ -2584,7 +2584,6 @@ NOT_BOUND = {
     "ProgramArcData": INTERIOR,
     "ProgramStep": INTERIOR,
     "ProgramTarget": INTERIOR,
-    "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
     # `Revolved::kind` — the ratified case split, curated at the
