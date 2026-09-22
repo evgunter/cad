@@ -239,6 +239,14 @@ const fn decimals_reaching(cap: f64) -> usize {
 /// A box narrower than this clips, and a clipped render reads as a
 /// different value — that is the box's number to meet, not this one's
 /// to lower.
+///
+/// **A value is bounded by characters; a sentence is not.** A sentence
+/// broken between words still reads, so it is bounded by the region it
+/// is drawn in and wraps there instead — `crate::widgets::message`'s
+/// doc states the rule that decides which answer a text gets
+/// (*Characters or width*). The two meet here: a region a sentence
+/// wraps in owes it at least this width, and
+/// `crate::widgets::message_floor` is this number, in points.
 pub const MAX_CHARS: usize = 22;
 
 /// `value` as text a person reads.
