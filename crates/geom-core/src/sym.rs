@@ -1734,6 +1734,12 @@ impl SymRules {
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
+            // Read as a conjunction with `canonical_root`, so they say the
+            // same thing either way; spelled false here so that two
+            // constructors of one tier are one VALUE and a row may
+            // compare them.
+            abs_square: false,
+            root_magnitude: false,
             decision_read: false,
             ..Self::shipped()
         }
@@ -1776,6 +1782,12 @@ impl SymRules {
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
+            // Read as a conjunction with `canonical_root`, so they say the
+            // same thing either way; spelled false here so that two
+            // constructors of one tier are one VALUE and a row may
+            // compare them.
+            abs_square: false,
+            root_magnitude: false,
             decision_read: false,
             ..Self::shipped()
         }
@@ -1792,6 +1804,12 @@ impl SymRules {
     pub const fn without_canonical_root() -> Self {
         Self {
             canonical_root: false,
+            // Read as a conjunction with `canonical_root`, so they say the
+            // same thing either way; spelled false here so that two
+            // constructors of one tier are one VALUE and a row may
+            // compare them.
+            abs_square: false,
+            root_magnitude: false,
             ..Self::shipped()
         }
     }
@@ -1822,6 +1840,12 @@ impl SymRules {
         Self {
             manifest_sign: false,
             canonical_root: false,
+            // Read as a conjunction with `canonical_root`, so they say the
+            // same thing either way; spelled false here so that two
+            // constructors of one tier are one VALUE and a row may
+            // compare them.
+            abs_square: false,
+            root_magnitude: false,
             decision_read: false,
             ..Self::shipped()
         }
