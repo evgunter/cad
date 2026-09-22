@@ -236,7 +236,9 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     assert_eq!(topo::validate_closed(&rev), Ok(()));
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
-        Err(vec![topo::ValidationError::NegativeVolume])
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: rev.solids().next().expect("one solid").0
+        }])
     );
     assert_eq!(
         topo::mass_properties(&rev, Tol::witness())

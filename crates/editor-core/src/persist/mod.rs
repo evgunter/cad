@@ -33,8 +33,8 @@
 //! is that instance;
 //! `work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
 //! is the class, and holds the question of what would detect the next
-//! one — a tracker path deleted at its program's close resolves through
-//! `docs/DOC-LEDGER.md`),
+//! one — a tracker path deleted at its program's close is recoverable
+//! in git history),
 //! so the rule above is what this format means by a stale reader and
 //! not a property its types enforce everywhere it is asserted. Where a
 //! declaration has no named field ANYWHERE the attribute is inert: a

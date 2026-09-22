@@ -669,7 +669,8 @@
 //! plain forms and 3.18 M of 3.35 M early forms, 43 s of 162 s in
 //! the walks. On the plate at its nominal the assertion freezes 488 of
 //! 1,312 (360 of the plain walk's 1,044 `frozen`), the decision path
-//! 824. `SymCounts::frozen` counts the plain walk whoever asked it.
+//! 824. The plain walk's freezes are the drive's frozen SET whoever
+//! asked for them ([`SymCounts::frozen`]).
 //!
 //! **The tier's instructions are TERM STORAGE, then the walk itself;
 //! arithmetic is second on the plate and degree is nowhere on the
@@ -1156,6 +1157,14 @@ struct SymNode {
 }
 
 impl SymNode {
+    /// **The children this node actually has** — `kids` is a fixed pair
+    /// and the arity says how much of it is the expression; every walk
+    /// over the DAG wants this slice and none of them wants the
+    /// padding.
+    fn kids(&self) -> &[SymId] {
+        &self.kids[..self.op.arity()]
+    }
+
     fn id(&self) -> SymId {
         SymId(
             Hash128::new()
@@ -1349,33 +1358,59 @@ pub struct SymCounts {
     pub theorems_disputed: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
-    /// **Nodes this session's plain walk froze** into indeterminates (a
-    /// budget or an overflow) — a count of THIS leaf's work, unlike the
-    /// decision columns beside it, which are claims about this leaf's
-    /// predicates.
+    /// **The nodes this receipt's subject could not resolve to a form**
+    /// — frozen into indeterminates by a budget or an overflow, or, on
+    /// a leaf, absent from its own table. A SET and not a count of
+    /// work: a claim about the subject, like the decision columns
+    /// beside it, and the same under every schedule but for one reading
+    /// named below. [`memo`]'s header is where the one argument for
+    /// that lives; here is what the number means on each receipt that
+    /// carries it.
     ///
-    /// **The column has two meanings and they are different numbers.**
-    /// Here it is the freezes one session computed. On a DRIVE's receipt
-    /// it is the DISTINCT nodes frozen over the whole drive
-    /// ([`DriveMemo::frozen`]) — a set, so it is the same under every
-    /// schedule, which a sum of the leaves' counts is not once a leaf
-    /// can inherit a form another leaf froze from the drive's plain
-    /// memo. [`SymCounts::absorb`] therefore does not sum this column;
-    /// the driver writes the drive's own.
+    /// - **On a LEAF of a drive: that leaf's NEED** — the frozen nodes
+    ///   its own reasoning rested on, which is what a reader of a
+    ///   refused leaf wants to know first: the drive's frozen set
+    ///   inside the closure of what this leaf asked, the ids its own
+    ///   table does not hold, and the freezes it could not publish.
+    ///   Not the freezes it happened to compute: with the drive's memo
+    ///   on, a leaf inherits forms another leaf froze, and counting the
+    ///   work would report which leaf got to a node first.
+    /// - **On a DRIVE: the distinct nodes frozen over it**
+    ///   ([`DriveMemo::frozen`]) — every freeze any leaf published,
+    ///   and the set a leaf's NEED is read against. It neither sums
+    ///   the leaves' columns nor bounds them: the leaves' sets overlap,
+    ///   so [`SymCounts::absorb`] does not add this one up, and a
+    ///   leaf's own side carries ids this set never holds — a node its
+    ///   table does not hold, or a freeze it could not publish — so a
+    ///   leaf's column can EXCEED the drive's (a leaf reading 1 under a
+    ///   drive that froze nothing at all is a row: `geom-core`'s
+    ///   `sym_drive_memo::a_foreign_id_no_one_freezes_is_still_a_need`).
+    ///   The driver writes the drive's own when the drive is done.
+    /// - **Outside a drive** ([`with_session`], [`with_session_rules`]):
+    ///   the session's own distinct freezes. The leaf is the whole
+    ///   drive there, so this is the same quantity.
+    /// - **Mid-replay, through [`session_counts`]: the WORK so far** —
+    ///   the freezes this leaf has computed, not a NEED. That door
+    ///   exists to price a leaf while it runs, where what has been paid
+    ///   is the question; a NEED is a property of the finished leaf and
+    ///   is written over this count at the leaf's end.
     ///
-    /// Under a drive memo a leaf's count is what that leaf happened to
-    /// compute rather than what its decisions needed, so it is a work
-    /// measure and not a receipt column: which leaf pays for a node
-    /// depends on the schedule. The drive's column is the one that does
-    /// not.
+    /// **One reading is still the schedule's**, and it is inside the
+    /// branch [`memo`]'s header has named since the memo landed: a
+    /// freeze the TAINT caused, under a hit, is counted where the walk
+    /// made it (`work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`,
+    /// pinned by `geom-core`'s
+    /// `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`).
+    /// No leaf of a drive reaches it — a drive mints every node inside
+    /// its own session — and `editor-core`'s
+    /// `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
+    /// pins that over five drives.
     ///
-    /// `CertifiedLeaf`/`RefusedLeaf` derive `PartialEq` over their
-    /// `decisions`, so a row that compares whole leaf lists across
-    /// schedules compares this column too. Those rows are green because
-    /// a drive's level-0 root publishes the whole DAG before anything
-    /// splits, so no later leaf freezes at all —
-    /// `work/sym/leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
-    /// carries that dependence and the options for closing it.
+    /// **The dial does not move it.** With the drive's memo off a leaf
+    /// freezes every node of its closure that freezes at all, so its
+    /// NEED is what it computed — measured, not only argued, by
+    /// `editor-core`'s `the_plain_memo_moves_no_decision`, which
+    /// compares the leaf receipts across the dial with no mask.
     pub frozen: u64,
 }
 
@@ -1388,8 +1423,9 @@ impl SymCounts {
 
     /// Adds another session's DECISION counts into this one.
     ///
-    /// **`frozen` is not summed** — [`SymCounts::frozen`] argues the
-    /// column; the driver writes the drive's own once the drive is
+    /// **`frozen` is not summed** — it is a set on both receipts and
+    /// the leaves' sets overlap ([`SymCounts::frozen`] argues the
+    /// column); the driver writes the drive's own once the drive is
     /// done.
     pub fn absorb(&mut self, other: Self) {
         self.symbolic_zero += other.symbolic_zero;
@@ -1852,6 +1888,50 @@ struct Session {
     plain_built: Vec<SymId>,
     plain_atoms: Vec<u128>,
     plain_frozen: Vec<SymId>,
+    /// **The roots the PLAIN walk was asked for** — the leaf's NEED is
+    /// counted over their closure ([`leaf_need`]). A SET and not a
+    /// list: one decision asks for one root many times over a leaf
+    /// (1,413 asks over ~120 distinct roots on the plate), and the
+    /// closure walk wants each once. Kept only while a drive memo is
+    /// installed, where the column is a NEED; empty otherwise.
+    plain_roots: IdSet,
+    /// **The ids this leaf's table did not hold when a node named them
+    /// as a child** — a node minted before the session was installed,
+    /// or outside one.
+    ///
+    /// A CANDIDATE set, reconciled against the table at the leaf's end
+    /// ([`leaf_need`]): a node named before the session minted it and
+    /// minted inside it afterwards is one the leaf holds by the time it
+    /// reasons, and it needs nothing for it.
+    ///
+    /// The plain walk freezes such a node when it reaches it, and that
+    /// freeze never leaves the leaf (`memo`'s unrecorded paragraph) —
+    /// but whether the walk REACHES it is the drive memo's business: a
+    /// hit at a recorded ancestor skips the subtree under it. So the
+    /// leaf's own side of its NEED is counted from HERE, which its box
+    /// decides, and not from the freezes it happened to make, which the
+    /// schedule can take away ([`leaf_need`]). Collected at [`intern`],
+    /// once per distinct node, and only while a drive memo is
+    /// installed.
+    ///
+    /// **It is the one part of the column that is not free**, because
+    /// it is paid on the DAG build rather than at the leaf's end: two
+    /// table lookups per node minted under a memo. Measured in release
+    /// against the same binary with the collection skipped, over
+    /// 48-leaf drives, it is **+34 ms on the M10-3 slab (458 → 492 ms,
+    /// ~7 %, 95 sessions of 18,833 nodes each)** and **+0.45 s on the
+    /// two-hole plate (35.6 → 36.0 s, ~1.3 %)** — 0.4 ms on a slab leaf
+    /// against the tier's own affordability line of 1.6 s a leaf. A
+    /// session with no drive memo pays nothing.
+    foreign: IdSet,
+    /// **The freezes this leaf made and could NOT publish**: a node it
+    /// never RECORDED, or one whose form it built out of such a node
+    /// (`plain_tainted`). They are this leaf's own answer and no other
+    /// leaf may take them (`memo`'s unrecorded paragraph), so they are
+    /// in no drive's frozen set — and they are still what this leaf's
+    /// reasoning rested on, which is why [`leaf_need`] counts them
+    /// beside the set. Kept only while a drive memo is installed.
+    plain_unpublished: IdSet,
     /// **The nodes whose plain form this leaf built out of an
     /// UNRECORDED one**, and which it therefore may not publish.
     ///
@@ -1889,6 +1969,9 @@ impl Session {
             plain_built: Vec::new(),
             plain_atoms: Vec::new(),
             plain_frozen: Vec::new(),
+            plain_roots: IdSet::default(),
+            foreign: IdSet::default(),
+            plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
         }
     }
@@ -1915,6 +1998,13 @@ impl Session {
     /// Whether `target` occurs in the expression `from` denotes, with
     /// the registry already applied — the cycle test
     /// [`Sym::register_equal`] runs before it records anything.
+    ///
+    /// Not [`Session::closure`] with a membership test after it, though
+    /// the two walk the same DAG: this one follows the registry ALIAS
+    /// (a cycle can close through a registration, which is the whole
+    /// question here) and stops at the first hit, where the closure is
+    /// unaliased and always complete. Sharing a walk between them would
+    /// mean a visitor and a flag that changes what the walk means.
     fn reaches(&self, from: SymId, target: SymId) -> bool {
         let mut seen: IdMap<()> = IdMap::default();
         let mut stack = vec![from];
@@ -1927,10 +2017,38 @@ impl Session {
                 continue;
             }
             if let Some(node) = self.nodes.get(&id) {
-                stack.extend(node.kids[..node.op.arity()].iter().copied());
+                stack.extend(node.kids().iter().copied());
             }
         }
         false
+    }
+
+    /// **Every node under `roots` in this leaf's own DAG**, the roots
+    /// included — what the plain walk would visit from them with no
+    /// memo installed, which is why [`leaf_need`] counts over it.
+    ///
+    /// **It is MATERIALISED**, and the set is the walk's own seen-set
+    /// rather than an extra: one `SymId` per distinct node under the
+    /// roots, which on the two-hole plate is 17,624 ids — about half a
+    /// megabyte with the map's slack — allocated at a leaf's end and
+    /// freed with the leaf. The alternative is to re-walk the DAG once
+    /// per frozen id, which is the same allocation in time.
+    ///
+    /// A node absent from the table has no children HERE, which is
+    /// exactly what the plain walk does with an unrecorded one: it
+    /// freezes it and stops.
+    fn closure(&self, roots: impl Iterator<Item = SymId>) -> IdSet {
+        let mut seen: IdSet = IdSet::default();
+        let mut stack: Vec<SymId> = roots.collect();
+        while let Some(id) = stack.pop() {
+            if seen.insert(id, ()).is_some() {
+                continue;
+            }
+            if let Some(node) = self.nodes.get(&id) {
+                stack.extend(node.kids().iter().copied());
+            }
+        }
+        seen
     }
 }
 
@@ -2015,9 +2133,11 @@ pub fn with_session_rules<R>(
 ///
 /// Everything else about the session is unchanged — the hash-consing
 /// table, the early and door memos, the registry and the parameter
-/// brackets are this leaf's and are dropped with it. The counts the
-/// call answers are this leaf's own, so its [`SymCounts::frozen`] is
-/// what THIS leaf refused; the drive's column is [`DriveMemo::frozen`].
+/// brackets are this leaf's and are dropped with it. The decision
+/// counts the call answers are this leaf's own; its
+/// [`SymCounts::frozen`] is this leaf's NEED, counted at the leaf's end
+/// against the drive's frozen set, and the drive's own column is
+/// [`DriveMemo::frozen`].
 ///
 /// **The memo is valid for one `(budget, rules)` pair** and refuses a
 /// leaf that does not match it: a plain form is a function of the node
@@ -2069,13 +2189,21 @@ fn with_session_in<R>(
     #[cfg(feature = "sym-profile-testing")]
     profile::session_start();
     let out = f();
-    let sess = SESSION.with(|s| s.borrow_mut().take());
+    let mut sess = SESSION.with(|s| s.borrow_mut().take());
     #[cfg(feature = "sym-profile-testing")]
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
     }
-    if let Some(s) = &sess {
+    if let Some(s) = &mut sess {
         publish_to_memo(s);
+        // **The leaf's `frozen` column is its NEED**, and this is where
+        // it is written — after the leaf has published, so that the
+        // freezes it paid for itself are in the set it is counted
+        // against ([`SymCounts::frozen`] argues the column).
+        if let Some(memo) = &s.memo {
+            let need = leaf_need(&*s, memo);
+            s.counts.frozen = need;
+        }
     }
     let counts = sess.map_or_else(SymCounts::default, |s| s.counts);
     (out, counts)
@@ -2116,8 +2244,77 @@ fn publish_to_memo(sess: &Session) {
     );
 }
 
+/// **The leaf's `frozen` column**: the distinct nodes its reasoning
+/// rested on as indeterminates — inside the closure of this leaf's own
+/// plain-walk roots, the drive's frozen set, the ids this leaf's table
+/// does not hold, and the freezes it made and could not publish.
+/// `memo`'s header argues why that is the same number under every
+/// schedule and names the one reading that is not, and
+/// [`SymCounts::frozen`] says what the column means.
+///
+/// The three sets are UNIONED and not summed: an id the leaf's table
+/// does not hold is one the leaf also froze if its walk got there, and
+/// a leaf that RECORDED the same id may have published a freeze of it,
+/// so a node can be in all three and is needed once.
+fn leaf_need(sess: &Session, memo: &DriveMemo) -> u64 {
+    // Nothing froze anywhere — not over the drive, not in this leaf's
+    // own unpublishable corner — so the answer is 0 without walking
+    // anything. A document that freezes nothing pays one read lock per
+    // leaf for its column (the M10-3 slab is that document).
+    // Nothing this leaf's reasoning can rest on as an indeterminate:
+    // no node of the drive froze, none of its own freezes stayed in the
+    // leaf, and every id its DAG names is one it holds. The answer is 0
+    // without walking anything — a document that freezes nothing pays
+    // one read lock per leaf for its column (the M10-3 slab is that
+    // document).
+    if sess.foreign.is_empty() && sess.plain_unpublished.is_empty() && memo.frozen_is_empty() {
+        return 0;
+    }
+    let reached = sess.closure(sess.plain_roots.keys().copied());
+    // Every freeze this leaf made was made inside its own walk, so it
+    // is under a root: the union below never counts a node outside the
+    // closure, and a push from anywhere but the walk would break that.
+    debug_assert!(
+        sess.plain_unpublished
+            .keys()
+            .all(|id| reached.contains_key(id)),
+        "a freeze was recorded outside the plain walk's own closure"
+    );
+    // **The leaf's own side**: the ids under its roots that it cannot
+    // resolve to a form of its own — the ones its table does not hold,
+    // whether or not its walk ever reached them — together with the
+    // freezes it made and could not publish. Both restricted to the
+    // closure, because a node the leaf built outside its own reasoning
+    // is not part of it.
+    let mut own: IdSet = IdSet::default();
+    // `foreign` is collected as the DAG is built and is reconciled
+    // HERE: a node named by a parent before the session minted it, and
+    // minted inside it afterwards, is one this leaf's table holds by
+    // the time it reasons — so the leaf resolved it and needs nothing
+    // for it. The reconciliation is one lookup per candidate, and the
+    // candidates are none on every drive measured.
+    for id in sess.foreign.keys() {
+        if reached.contains_key(id) && !sess.nodes.contains_key(id) {
+            own.insert(*id, ());
+        }
+    }
+    for id in sess.plain_unpublished.keys() {
+        if reached.contains_key(id) {
+            own.insert(*id, ());
+        }
+    }
+    memo.need(&reached, &own)
+}
+
 /// The counts so far in the installed session (`None` outside one) — the
 /// door a driver reads mid-replay when it prices a leaf.
+///
+/// **`frozen` here is the WORK so far, not the leaf's NEED**: the
+/// freezes this replay has computed. A NEED is a property of the
+/// finished leaf — it is read against the drive's set once the leaf has
+/// published, and [`SymCounts::frozen`] carries both meanings — while
+/// what a pricer asks mid-replay is what this leaf has already paid.
+/// Every other column is the same one the leaf's receipt will carry.
 #[must_use]
 pub fn session_counts() -> Option<SymCounts> {
     SESSION.with(|s| s.borrow().as_ref().map(|s| s.counts))
@@ -2130,7 +2327,23 @@ fn intern(node: SymNode) -> SymId {
     let id = node.id();
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
-            sess.nodes.entry(id).or_insert(node);
+            // The kids are looked at ONCE per distinct node — on the
+            // vacant arm, where this node is new to the table — and
+            // only under a drive memo, where the leaf's `frozen` column
+            // is a NEED and `Session::foreign` is what its own side is
+            // counted from. Hash-consing means a node is interned many
+            // times and minted once, so this is a walk of the DAG and
+            // not of the build.
+            if let std::collections::hash_map::Entry::Vacant(e) = sess.nodes.entry(id) {
+                e.insert(node);
+                if sess.memo.is_some() {
+                    for kid in node.kids() {
+                        if !sess.nodes.contains_key(kid) {
+                            sess.foreign.insert(*kid, ());
+                        }
+                    }
+                }
+            }
         }
     });
     id
@@ -2472,9 +2685,10 @@ fn form_in(
     early: bool,
     registry: bool,
 ) -> Arc<Form> {
-    // The freeze this WALK made, counted into the leaf's own
-    // [`SymCounts::frozen`] — which is the leaf's work, not the drive's
-    // column (that doc carries both meanings).
+    // The freeze this WALK made. The running count is the leaf's WORK,
+    // and it is what the column says only outside a drive: a leaf of a
+    // drive has its column rewritten as its NEED at the leaf's end
+    // ([`leaf_need`], which [`SymCounts::frozen`] argues).
     let frozen = |sess: &mut Session, id: SymId| -> Arc<Form> {
         if !early {
             sess.counts.frozen += 1;
@@ -2487,6 +2701,12 @@ fn form_in(
     // which a value-dependent refusal can make differ between leaves.
     let plain = !early && !registry;
     let drive = plain.then(|| sess.memo.clone()).flatten();
+    // **The walk root, noted for the leaf's NEED** ([`leaf_need`]): the
+    // column counts the drive's freezes inside the closure of what this
+    // leaf ASKED, and the asking is here.
+    if drive.is_some() {
+        sess.plain_roots.insert(root, ());
+    }
     // **One place that notes what this walk computed** — the profile's
     // distinct-id counter, and the drive memo's publication list.
     //
@@ -2505,10 +2725,17 @@ fn form_in(
         if plain {
             profile::record_plain_id(id.bits());
         }
-        if publish && drive.is_some() {
-            sess.plain_built.push(id);
-            if froze {
-                sess.plain_frozen.push(id);
+        if drive.is_some() {
+            if publish {
+                sess.plain_built.push(id);
+                if froze {
+                    sess.plain_frozen.push(id);
+                }
+            } else if froze {
+                // A freeze this leaf may not hand to the drive. It is
+                // still a node this leaf's reasoning rested on, and
+                // [`leaf_need`] counts it beside the drive's set.
+                sess.plain_unpublished.insert(id, ());
             }
         }
     };
@@ -2568,7 +2795,8 @@ fn form_in(
             continue;
         }
         if !expanded {
-            let pending: Vec<SymId> = node.kids[..arity]
+            let pending: Vec<SymId> = node
+                .kids()
                 .iter()
                 .copied()
                 .filter(|k| !memo.contains_key(k))
@@ -2595,7 +2823,8 @@ fn form_in(
         // `id` is this leaf's alone, and the atoms this node mints are
         // keyed by its tainted argument digests.
         let taint = drive.is_some()
-            && node.kids[..arity]
+            && node
+                .kids()
                 .iter()
                 .any(|k| sess.plain_tainted.contains_key(k));
         let atoms_before = sess.plain_atoms.len();

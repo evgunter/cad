@@ -1228,6 +1228,45 @@ below — the poison is not the two-link chain's alone),
 `the-drivers-symbolic-dials-have-no-name-on-the-facade`.
 
 
+## SYM-13 merged (2026-09-22): the leaf's NEED — block SYM-B3 slot 2; the block concludes
+
+PR #3054 (polished head `dc88037b3`, run 35715970767 green on the full
+matrix; the state-sync commit on top). A leaf receipt's `frozen` column
+is the leaf's NEED: the closure of its plain-walk roots over its table,
+intersected with the drive's frozen set and unioned with the leaf's own
+side read from its TABLE (`Session::foreign`, reconciled at leaf end;
+the freezes it could not publish) — the same under every schedule but
+for one reading, a taint-induced freeze under a hit, pinned by name and
+filed at P2. The race built (the slab at eight leaves with the budget
+cut: leaves' own column `0:1613 6:369 7:1061` sequential against a
+different draw in parallel, every decision column and the drive's 4,847
+agreeing) and gated as
+`every_leaf_reports_one_column_under_every_schedule_and_both_dials`
+(three drives, one of them certifying nine leaves); the column today
+measured EMPTY on the plate with the memo on (the root leaf paid for
+every freeze) and 50,112 with it off — 50,112 on and off now; the
+consumers censused (none read a leaf's `decisions` outside `drive.rs`
+and the memo suite; the serialized receipt writes the drive's column
+only); NEED's cost 2.3 ms a leaf against the 1.6 s line, 0.6 % of a
+48-leaf plate drive; the `decisions_of` mask deleted and the rows
+comparing receipts whole; the unrecorded census five drives, 0
+unrecorded; `Session::closure` and `SymNode::kids()` the one spelling
+of the DAG walk (six sites).
+
+Review: the dual on `47ae64a4e` (R1 OPUS MERGEABLE-AFTER-FIXES 0/4/5;
+R2 FABLE MERGEABLE-AFTER-FIXES 0/3/5 — both found the orphaned mask doc
+and the unrecorded branch's order-dependence, each by its own row).
+Fix pass A–S. Delta by R1: NOT MERGEABLE — the fix pass had argued the
+inherit branch away ("the decisions move first") and R1 falsified it
+by execution; fix pass 2 traced the cause to the walk-side count and
+read the leaf's side from its table instead (`Session::foreign`),
+leaving the taint-induced reading filed. Delta 2 by R1: MERGEABLE with
+two demonstrated MINORs (a foreign id the leaf later mints itself; the
+drive bullet), polished at `dc88037b3`. Spec deleted with its ledger
+entry; the item and the unit closed. Block SYM-B3 concludes (SYM-11,
+SYM-12, SYM-13); its record reaches `main` with the A/B row. SYM-14
+(the chain demo) runs beside.
+
 ## SYM-14 review + fix pass (2026-09-22): the code held, three causal stories did not
 
 One OPUS style review with a correctness arm, on `1380c803b`:
