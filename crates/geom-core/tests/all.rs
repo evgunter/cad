@@ -77,6 +77,12 @@ mod coeffs_pair_identity;
 mod d290_r2_probes;
 #[path = "d8_knot_queries_adversarial.rs"]
 mod d8_knot_queries_adversarial;
+#[path = "decide3_r1_root_probes.rs"]
+mod decide3_r1_root_probes;
+#[path = "decide3_r1_root_probes2.rs"]
+mod decide3_r1_root_probes2;
+#[path = "decide3_r1_root_probes3.rs"]
+mod decide3_r1_root_probes3;
 #[path = "decoration_seam.rs"]
 mod decoration_seam;
 #[path = "eps_provenance.rs"]
