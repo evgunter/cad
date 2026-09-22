@@ -4,6 +4,9 @@ kind: issue
 title: expect("one solid") on solids().next() has twenty homes and no door
 status: open
 opened: 2026-09-22
+priority: P3
+cost: D
+refs: [the-face-to-solid-walk-is-spelled-per-test-file, 2977]
 ---
 
 
@@ -62,3 +65,32 @@ or several, the way `faces_of_solid` refuses a key that does not
 resolve — and if so, sweep the 56 onto it. Filed rather than fixed in
 #2977 because twenty-plus call-site rewrites in a unit about check 7's
 subject would bury the change that unit is for.
+
+## Re-homed to HELPER, 2026-09-22 (ATREST orchestrator)
+
+Filed on `work/atrest/` by ATREST-1's fix pass, which found it while
+making check 7's subject the solid. Moved here by `git mv` with the id
+and body unchanged: the class is HELPER's — *one test helper, oracle
+or walk with several private homes* — and ATREST's charter is what the
+at-rest validator DECIDES, not how a suite spells its topology
+helpers.
+
+**Not a duplicate of `the-face-to-solid-walk-is-spelled-per-test-file`,
+and both should be read together.** That row is the `face → Face::shell
+→ Shell::solid` walk, which now has a door (`Body::solid_of_face`).
+This one is `body.solids().next().expect("one solid")` — solid
+ENUMERATION under an assumption, not a walk, and no door exists for it
+because the thing missing is not a function but a checked premise.
+
+**Why it is more than tidiness, and the part HELPER should not file
+under duplication alone.** `.next()` cannot check "one solid". Several
+of the twenty bodies come from split and boolean products — exactly
+the family that can be multi-solid — and ATREST-1 has just made
+multi-solid bodies matter more at rest: tier 3's check 7 now has one
+verdict per solid, so a test that silently reads the FIRST solid of a
+body it assumed was single now asserts about a subject the validator
+distinguishes. Nothing is broken today; the vector-length assertions
+in those rows catch it. The point is that the idiom cannot, and it has
+twenty homes.
+
+Cross-filed reference, not a claim on HELPER's ordering.
