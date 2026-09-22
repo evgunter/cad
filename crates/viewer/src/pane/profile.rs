@@ -437,12 +437,36 @@ mod tests {
         .doc;
         let plane = *doc.order().last().expect("the frame");
         let n = MAX_CIRCLE_SPLIT + 1;
+        // **The figure's scale is the run's ε times a constant, and
+        // that is forced.** A circle split n ways is conditioned
+        // purely relatively: the validator reads the sagitta
+        // s = r·(1 − cos(π/n)) to call each piece an arc rather than a
+        // chord, and reads the carrier-identity margin — nought in the
+        // reals, in floating point the residue of rebuilding each
+        // arc's centre from a chord of length 2r·sin(π/n) — to call two
+        // pieces one circle. Both are proportional to r and both are
+        // read against the band (ε, K·ε), so the radii that never
+        // escalate are an interval in ε:
+        //
+        //   r > K·ε/(1 − cos(π/n)) = 2.13e6·ε — below it the sagitta
+        //     is in band; below ε it reads as a chord, and then the
+        //     chord ladder escalates instead, because the nearest
+        //     rung of it is 8s and 8 < K.
+        //   r < 1.3e12·ε — above it the identity residue reaches ε and
+        //     "same carrier" stops being decidable.
+        //
+        // The interval is six decades wide and NO CONSTANT radius sits
+        // in it at every gated ε: ε = 1e-6 wants r > 2.13 m and
+        // ε = 1e-12 wants r < 1.5 m. Tying r to ε is the fix, and
+        // 1.5e9 stands ~700× clear of both walls at every ε, since
+        // both walls are walls in r/ε.
+        let radius = 1.5e9 * Tol::witness().get().eps;
         let loops = vec![
             sketch::loop_program(
                 &crate::session::ProfileShape::Path {
                     steps: vec![Step::CircleSplit {
                         centre: Point2::origin(),
-                        radius: 0.01,
+                        radius,
                         n,
                         phase: 0.0,
                     }],
