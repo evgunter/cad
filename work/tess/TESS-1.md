@@ -2,9 +2,11 @@
 id: TESS-1
 kind: unit
 title: a meridian-free curved face refuses typed, where today it meshes as a hole
-status: spec
+status: review
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census]
+pr: 2852
+branch: tess/1-meridian-free-refusal
 priority: P0
 cost: D
 ---
