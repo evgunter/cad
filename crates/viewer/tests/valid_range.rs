@@ -166,7 +166,7 @@ fn a_bound_with_no_millimetre_value_is_not_worded_as_infinity() {
         "and the sentence has to say which notation could not name it: {words}"
     );
     assert!(
-        words.contains("1.000e307 mm"),
+        words.contains("9.999999999999999e306 mm"),
         "the bound a decade below the overflow is an ordinary number: {words}"
     );
 }

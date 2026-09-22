@@ -278,8 +278,8 @@ fn reads_back_as_a_delta(d: DisplayTolerance) {
         "δ {mm} mm renders as {text}, which is not a δ this door accepts"
     );
     assert!(
-        (read - mm).abs() <= readout::REL_TOLERANCE * mm,
-        "δ {mm} mm renders as {text}, further from it than the render's own accuracy"
+        readout::reads_back(&text, mm),
+        "δ {mm} mm renders as {text}, further from it than the render's own grid"
     );
 }
 
@@ -432,25 +432,32 @@ fn the_two_deltas_the_fixed_three_decimal_render_lied_about() {
 }
 
 /// **What the render does to a budget δ's seventeen significant
-/// figures: it shows four.** `fit_delta` solves `constant / budget`, so
-/// a δ the budget chose is a quotient with no short spelling at all —
-/// and no field is wide enough for one. Four figures is what the
-/// character bound buys, which is why this text is a render and never a
-/// commit path.
+/// figures: it shows the ones the grid asks for.** `fit_delta` solves
+/// `constant / budget`, so a δ the budget chose is a quotient with no
+/// short spelling at all. The render's grid is capped a decade below ε,
+/// so the figures it keeps here are the ones that tell this δ from the
+/// next one the kernel could distinguish — seven, not four and not
+/// seventeen — and this text is still a render and never a commit path.
 #[test]
-fn a_budget_delta_renders_as_four_significant_figures() {
+fn a_budget_delta_renders_to_the_grid_rather_than_to_its_figures() {
     // A constant in triangle·metres, exactly as `fit_delta` forms it.
     let constant = 0.374_612_345_678_901_2_f64;
     #[allow(clippy::cast_precision_loss)]
     let solved = constant / TRIANGLE_BUDGET as f64;
     let d = delta(solved);
-    let exact = format!("{}", d.get() * 1.0e3);
+    let mm = d.get() * 1.0e3;
+    let exact = format!("{mm}");
     assert_eq!(exact, "0.0003746123456789012", "seventeen figures");
+    let rendered = d.render_mm();
+    assert_eq!(rendered, "0.0003746123", "and the render keeps seven");
     assert!(
-        exact.chars().count() > readout::MAX_CHARS,
-        "and no field this crate has is that wide"
+        readout::reads_back(&rendered, mm),
+        "which is the whole claim: {rendered} names {mm} on the render's grid"
     );
-    assert_eq!(d.render_mm(), "0.0003746", "four of them");
+    assert!(
+        exact.chars().count() > rendered.chars().count(),
+        "a δ the budget chose has no spelling this short that is exact"
+    );
 }
 
 /// Every document the budget is asked about, in one place: every

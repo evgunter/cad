@@ -49,3 +49,18 @@ open this file does not re-derive it.
 ## Fence
 
 `crates/viewer/src/app.rs` — chrome's, and also view's and vseam's.
+
+## Evidence: the shape recurred and was caught in review (2026-09-22)
+
+`chrome/rowstatus-exhaustive` (PR 3055) added
+`tree_badges::a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on`
+with a second assertion —
+`rows.iter().all(|row| row.status.tone() == Tone::Advisory)` — that
+was character-for-character the expression already inside
+`only_the_row_whose_own_operation_refused_is_actionable`, seven
+hundred lines up the same file, which pins every `RowStatus`→`Tone`
+pair over rows a real evaluation produced rather than hand-built ones.
+No runtime value makes the new one false while the neighbour holds.
+Deleted on that branch rather than filed, so this row gains a data
+point and not a sibling: the subsumed-conjunct shape is not confined
+to `app.rs`, and a hand-built fixture is where it turns up.

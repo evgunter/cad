@@ -1315,6 +1315,52 @@ infinite aspect and scale, and `BoundsProbe::new`'s `seed · 2^11`
 ladder. What is still blind is a guard and its product in two
 different crates, which no pass here crossed.
 
+## 2026-09-22 — `vgeom/render-grid` (#3068): what accuracy a render owes
+
+P0 `a-fields-text-commits-within-the-renders-own-tolerance` **closes**.
+Its COMMIT half closed in #3007; this is the RENDER half, and it is a
+user-visible GUI change made on Ev's question.
+
+`readout::REL_TOLERANCE` was the whole rule and its derivation was a
+FIELD WIDTH — ten characters buy four significant figures — so
+`number(1000.001)` returned `"1000"`. The module now renders on
+`crates/profile/src/path.rs`'s `num` grid: an absolute cap one decade
+below the compile-time `DEFAULT_EPS`, met with the existing relative
+arm, `min`, the finer winning. The cap is what makes a difference the
+kernel can DECIDE a difference the chrome SPELLS.
+
+**The relative arm stayed at 5·10⁻⁴ rather than taking `num`'s
+`1e-9`,** and that is the unit's one real judgement call: below the
+arms' crossing the relative arm is finer than the cap by construction,
+so it never decides ε-separation and is a pure figures choice — and
+four figures below 2·10⁻⁷ of a display unit is what ε justifies, where
+ten would be the false-precision defect the module exists to cut.
+
+`MAX_CHARS` 10 → 22 and `FIELD_WIDTH` 88 → 176 pt: the widths gave
+way, the grid did not. The band at the top of `f64` that used to
+exceed `MAX_CHARS` now fits it, so the module has no excepted band
+left.
+
+**Filed**: `the-render-grids-cap-is-a-length-and-angles-go-through-it`
+(the unit's own residue — ε is a length and the chrome renders angles
+through the same door) and
+`the-camera-hud-spells-its-angles-at-a-fixed-tenth-of-a-degree` (the
+sweep's one production hit, waiting on the first).
+
+**Handed to PROPS**: `patherror-display-renders-float-noise` has been
+waiting for a second CRATE consumer of `num` to force its home
+question. `readout` is it. Evidence appended there: the rule adopted,
+and a table of the three deliberate differences — notation policy, the
+relative arm, the character bound — with the note that a consolidation
+must take the arm as a parameter or take one knowingly.
+
+**For `vgeom/field-product`, which rebases onto this**: `widgets.rs`
+was crossed for doc links and moved fixtures only — `number_text`'s
+code is untouched. `nothing_at_or_above_one_display_unit_renders_differently`
+is gone, replaced by
+`a_drag_steps_through_a_text_that_names_what_it_commits`; its old
+claim was a statement about 5·10⁻⁴ and stopped being true.
+
 ## `vgeom/seam-refusals` — the third disposition of the display seam (#3065, 2026-09-22)
 
 Closes `the-display-seams-refusal-is-drawn-and-never-said` (P2/D) and

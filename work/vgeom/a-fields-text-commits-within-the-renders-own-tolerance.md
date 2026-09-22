@@ -2,12 +2,14 @@
 id: a-fields-text-commits-within-the-renders-own-tolerance
 kind: issue
 title: a field's text is accepted within the render's relative tolerance and committing it moves the value by that much
-status: open
+status: closed
 opened: 2026-09-12
-refs: [parameter-row-field-has-no-text-door]
+closed: 2026-09-22
+refs: [parameter-row-field-has-no-text-door, the-render-grids-cap-is-a-length-and-angles-go-through-it]
 priority: P0
 cost: D
-branch: vgeom/p0-fields
+pr: 3068
+branch: vgeom/render-grid
 ---
 
 
@@ -190,3 +192,64 @@ and U+2212 spellings THERE, which the properties panel has never
 accepted. Consistent rather than poorer in one half, and put to Ev in
 chat rather than absorbed silently. If Ev wants both spellings kept,
 that is a new row against the shared parser and not a revert of this.
+
+
+## The RENDER half is answered, and the row closes (2026-09-22, `vgeom/render-grid`, #3068)
+
+The question this row said a fix would have to answer — **what bound
+does a RENDER owe** — is answered: *the accuracy the kernel can
+decide*, not the accuracy a box can hold.
+
+**`crate::readout`'s grid is now two-armed.** `tolerance(value)` is
+`EPS_CAP.min(value.abs() * REL_TOLERANCE)`, where `EPS_CAP` is
+`DEFAULT_EPS * 0.1` — one decade below ε, compile-time and never the
+run's live `Tolerance::eps()`. The shape, the `min`, the cap's decade
+and the refusal to put a FLOOR under it are all
+`crates/profile/src/path.rs`'s `num`'s, and the reason is ε being a
+LENGTH (`docs/DESIGN.md` D4 ¶1): a purely relative rule crosses ε and
+is coarser above the crossing, so two lengths the kernel certifies as
+different rendered as one number.
+
+**`REL_TOLERANCE` stayed at 5·10⁻⁴ and that is the arm's decision,
+argued rather than inherited.** It was never wrong; it was
+incomplete. The arms cross at 2·10⁻⁷ of a display unit, and below the
+crossing the relative arm is finer than the cap by construction — so
+it never decides whether the render can separate two values the kernel
+separates, and four figures there is what ε justifies. Taking `num`'s
+`1e-9` would have moved the crossing to a tenth of a display unit and
+sent most sub-millimetre values into scientific notation for figures
+no probe established.
+
+**The row's own worked example, both directions**: a field holding
+1000.001 mm rendered `1000.0` and now renders `1000.001`.
+`readout::tests::a_millimetre_value_keeps_the_micrometre_it_holds` is
+that row, and
+`two_values_the_kernel_decides_between_render_as_two_numbers` is the
+general claim — two lengths one ε apart, at magnitudes where a
+relative rule spelled them the same.
+
+**`MAX_CHARS` gave way, not the grid**: 10 → 22, re-derived by the
+rule it always had (the decimal arm is held to the scientific arm's
+worst case), which is now the exact spelling at the top of `f64`. The
+band that used to exceed the bound no longer does, so the module has
+no excepted band. `pane::view`'s `FIELD_WIDTH` doubled to meet it.
+
+**What did NOT close here, and each has its own file:**
+
+- `the-render-grids-cap-is-a-length-and-angles-go-through-it` — the
+  cap is ε-derived and ε is a length; the chrome renders angles and
+  scalars through the same door, where the cap is never too coarse
+  and never argued.
+- `the-camera-hud-spells-its-angles-at-a-fixed-tenth-of-a-degree` —
+  the sweep's one production hit, waiting on the row above.
+- `a-bare-field-still-commits-its-own-render` and
+  `a-typed-field-hands-its-text-over-on-two-frames` — unchanged, and
+  neither is this question.
+
+**Disclosed and judged an improvement**: a drag's text is no longer
+byte-identical to `egui`'s. `format_with_decimals_in_range` accepts a
+spelling its own `f32` `almost_equal` passes (~1.9·10⁻⁶ relative),
+which is coarser than the grid, so where they disagree the field shows
+the finer spelling mid-drag. The property that survives is the one
+worth having and is asserted over ~9000 magnitudes: a drag's text
+names the value the drag commits, exactly.
