@@ -395,3 +395,78 @@ invalid. The retraction was then argued from a test's NAME without
 checking what its assertion said. Both times the error was reading a
 row's headline instead of its evidence, and both times the fix came
 from someone reading the actual assertion.
+
+## 2026-09-22 — ATREST-1 reviewed: MERGEABLE-AFTER-FIXES, one MAJOR
+
+The review confirmed the unit's headline equivalence and found that
+what is wrong is a set of **claim sentences the change falsified** —
+one of them a second crate's public contract on the production import
+path.
+
+**The MAJOR.** Making check 7's subject the solid means the mixed
+passes now run a SEPARATE arena-wide reporting quadrature for the body
+certificate on a multi-solid body. Four places still assert the
+opposite, none of them touched by the diff: `validate.rs`'s module
+header, `reporting_certificate`'s doc, `PlusVCheck`'s doc (whose
+signature IS in the diff), `validate_pseudomanifold_certificate`, and
+— the serious one — **`crates/step-import/src/lib.rs`'s `gate3`**,
+which says *"the value is the one check 7 decided on rather than a
+second quadrature over the same body"* and whose own doc calls itself
+the door the import path pays. That door's subject is multi-solid by
+definition.
+
+**This is ATREST-2's class, minted by ATREST-1.** The program spent a
+unit establishing *prose that justifies itself by a check which does
+not reach the population it describes*, filed it in three crates —
+and then shipped a fourth instance of the same shape in the next unit.
+The reviewer's brief warns about exactly this (*"check whether the fix
+mints a fresh instance of the defect it closes"*), and so did the fix
+brief. **Naming the trap did not prevent it, twice.** That is the
+finding, not the four sentences.
+
+**A second instance in the same diff, smaller and more literal
+(S2).** The unit's sweep pattern is *reads the body where it means a
+solid*. The diff DELETES the whole-arena face collection from
+`sign_certified` and ADDS it inside `tier3_local_checks_marked` — the
+function whose check is now per solid — and the PR's own sweep table
+does not list the hit.
+
+**A real guard hole, not just prose.** `SignCertificate::assembled`
+claims it panics when the parts do not cover the face arena exactly
+once. Duplicates and foreign faces are caught; **under-coverage is
+invisible** — a part set missing a solid's faces passes both arms and
+the certificate silently covers a subset. That is precisely the
+composition bug the guard was written for.
+
+**Two corrections to me.**
+
+1. **My dispatch had the cost disclosure backwards.** I told the
+   reviewer the extra quadrature was disclosed in the code and the PR
+   body; it is at one comment only — no PR-body line, no log line, no
+   `work/` row, no guard. It is a narrowing disclosed and unscheduled,
+   which is the Q6 shape, and it now owes a row.
+2. **My evidence error goes deeper than I logged yesterday.** The
+   retracted row has **zero** `Outer` shells, so it was never evidence
+   about "several `Outer` is legitimate" — only ever about the
+   "exactly one" clause. And the OTHER shell door I leaned on,
+   `shell8_r1_probes::r1_the_roles_read_is_per_hollow_solid`, counts
+   `chk_shell_volume_sign` verdicts through `topo::shell` and never
+   calls `validate_geometric`, so it is not a demonstration either. Of
+   six rows named in the done-state record, **four** carry the claim —
+   and the file's own arithmetic said six under a title saying five.
+   The record and `validate.rs`'s sentence both still cite the
+   retracted row as a door producing the shape ON PURPOSE, in the same
+   PR that makes tier 3 refuse it. Being fixed, with the reason
+   written down so the next reader does not re-add it.
+
+**Worth keeping from the Q8 read** (the whole of `validate.rs`, 9654
+lines): ~320 lines of module header before the first `use`;
+`ValidationError` is one 62-variant enum of ~700 lines, several
+variants carrying 40–55 line essays; `tier3_local_checks_marked` is a
+single ~1000-line function holding nine checks, two of whose banners
+are more than twice the length of the code they introduce; check 7's
+Zero-exempt posture is restated in five to seven places, none citing
+the others. And the decay this unit incidentally repaired: **`main`
+had silently lost rustdoc list items 6–9** from the numbered tier-3
+check list while eight variant docs and four sibling doors cited those
+numbers. First read to notice, in a file every unit edits.
