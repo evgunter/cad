@@ -146,13 +146,22 @@ and the registry mint through, so uniformity is structural. Dialed like
 every rule, shipped on. With it the two reads (the `Select` read and
 the same read at `min`/`max`, behind every value-free fold); fold 1
 only as the theorem upgrade it measured; fold 2 dropped (its premise
-is false — the candidates are not unit). Acceptance: no decision LOST
-on the six measured documents once everything mints through the one
-door — the plate's eight registered decisions in particular meet again
-by construction, and if they do not that is a defect the unit finds
-and fixes, or stops on and says why; every ledger digest, freeze
-count, ceiling and split that moves is re-baselined with what moved
-said. Taken by unit `DECIDE-3` (`docs/DECIDE-3-SPEC.md`), cut from
+is false — the candidates are not unit). Every ledger digest, freeze count, ceiling
+and split that moves is re-baselined with what moved said — and Ev's
+principle with it: *"never skip out on a change that would make the
+code better because it would require rebaselining"*.
+
+**The acceptance sentence that used to stand here — "no decision LOST
+on the six measured documents … the plate's eight registered decisions
+in particular meet again by construction, and if they do not that is a
+defect the unit finds and fixes, or stops on and says why" — was the
+ORCHESTRATOR's spec text** (`docs/DECIDE-3-SPEC.md`'s acceptance 2),
+written into this section as though it were the ruling. Ev corrected
+the attribution on #3039 (02:03Z): it was never Ev's. It stood as a
+clause the unit was measured against and it did its work — the plate's
+seventy-two do meet again, and the one predicate that trades is
+measured, filed and pinned rather than passed over — but the ruling it
+was attached to is the two sentences above it and no more. Taken by unit `DECIDE-3` (`docs/DECIDE-3-SPEC.md`), cut from
 `sym/10-decision-door`'s head; this row stays open until DECIDE-3
 lands or stops.
 
@@ -249,7 +258,7 @@ on the pin suites' wall time and is filed as
 
 This row closes with DECIDE-3's merge.
 
-## The fix pass STOPPED at the link's `carrier_on_surface_2` (2026-09-22)
+## The fix pass's finding, re-baselined per Ev's principle (2026-09-22)
 
 The dual's union fix pass closed the soundness defect the reviews
 found (the side condition's atom-table source: a root on a dead
@@ -272,7 +281,12 @@ are the same atom and the restriction narrows by traversal order
 rather than by provenance. The full measurement is on
 `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
 
-So the unit stops here rather than re-baseline a lost decision: the
-per-predicate row asserts the clause whole and is RED on that one
-predicate. Everything else the fix pass owed is done and green. The
-spec's shape-3 fallback is Ev's call.
+**Ev ruled on the point, 02:03Z on #3039**: the "no decision LOST"
+sentence in this row's `## Ruled` section was the orchestrator's SPEC
+text and was misattributed to the ruling. Ev's ruling was shape 1 plus
+*"never skip out on a change that would make the code better because
+it would require rebaselining"*. So the unit LANDS with this trade
+re-baselined and said: the per-predicate row keeps the clause on every
+other predicate and pins this one at its numbers on both sides, and
+the filed row stays open at P1 for SYM-9. Everything else the fix pass
+owed is done and green.

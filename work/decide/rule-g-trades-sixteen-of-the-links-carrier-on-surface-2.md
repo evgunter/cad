@@ -11,10 +11,9 @@ cost: H
 
 ## What was measured (DECIDE-3's fix pass, 2026-09-21)
 
-The acceptance clause DECIDE-3 is held to is "no decision LOST", per
-PREDICATE. On R2's link at the nominal it fails on exactly one
-predicate, and this row is the whole of that failure with its cause
-measured apart.
+On R2's link at the nominal, rule G costs one predicate sixteen
+theorems while the document's totals rise. This row is the whole of
+that trade with its cause measured apart.
 
 | tier | `carrier_on_surface_2` | document total |
 | --- | --- | --- |
@@ -85,11 +84,22 @@ The other shapes, untried:
    of the magnitude key (`|c·R| = c·|R|`) was tried and does not move
    them.
 
-**DECIDE-3 STOPPED at this item** rather than re-baseline a lost
-decision: the per-predicate row
-(`editor-core/tests/decide_3_split_rows_interval`) asserts the clause
-whole and is RED on this predicate, which is the state the unit hands
-to Ev. The spec's shape-3 fallback is Ev's call, not the lane's.
+**RE-BASELINED, and pinned** (Ev, 02:03Z on #3039). The "no decision
+LOST" acceptance was the orchestrator's spec text, not Ev's ruling;
+Ev's ruling was shape 1 plus *"never skip out on a change that would
+make the code better because it would require rebaselining"*. So
+DECIDE-3 lands with this loss said against the line:
+`editor-core/tests/decide_3_split_rows_interval::decide_3_no_predicate_loses_a_decision`
+keeps the clause on every other predicate and pins THIS one at its
+measured numbers on both sides — `[98, 0, 0, 10]` with rule G shut
+against `[82, 0, 6, 20]` shipped — with the reason and this row's name
+in the comment, so any further drift reds and says which.
+
+This row stays **open at P1 for SYM-9** (block DECIDE-B1 slot 1). The
+remedy record above is what that unit starts from: the provenance shape
+is measured and rejected with its numbers, the size guard is recorded
+and not taken, and the six the registrant closes still want a render of
+the residual under both dial sets with the two atom keys read off.
 
 ## Home
 
