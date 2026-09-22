@@ -245,11 +245,11 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   is how a finding reaches its owner. `work/code-quality/` used to be
   where one waited for a claim; it left the tracker on 2026-09-11
   (`docs/doc-ledger/code-quality-leaves-the-tracker.md`) once all 110 of
-  its live rows had
-  gone to the eleven programs opened for them, so **a finding now goes
-  straight onto the slate of the program whose ground it lands on**, and
-  `work/issues/` is the last resort it always was. A `keep_out` clause
-  saying a claimed row stays where it was is the thing to delete.
+  its live rows had gone to the eleven programs opened for them, so **a
+  finding now goes straight onto the slate of the program whose ground
+  it lands on**, and `work/issues/` is the last resort it always was. A
+  `keep_out` clause saying a claimed row stays where it was is the thing
+  to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
   its directory for as long as it is open. The rows migrated from the
   2026-08 findings register keep the ids they were cited by (`D102`,

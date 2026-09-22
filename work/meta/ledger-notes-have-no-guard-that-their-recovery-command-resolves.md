@@ -43,7 +43,9 @@ without the file. PR 3063 repoints them at `387600f79`, `72555a2fb` and
 
 They were found by an audit run by hand on the branch, not by any
 check. That is the defect this row is about: a second reader happened to
-look. The same audit found the other 117 resolvable commands sound.
+look. The same audit ran all 139 recovery commands in the directory:
+the other 135 resolve, and one is unverifiable here for the clone reason
+below.
 
 ## The check, which is cheap
 
