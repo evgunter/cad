@@ -350,3 +350,42 @@ neither reads the block branch.
 - **TESS-2 is held** until the reviews return: three concurrent
   targets do not fit in 16 G, and the protocol prefers less concurrency
   to a narrowed method.
+
+## TESS-1: dual adjudicated, fix pass green; merge blocked on the box (2026-09-21)
+
+- **Dual (ordinal 5100)**: both APPROVE-WITH-FIXES, no behavioural
+  claim falsified, mutant reproduced by both. No tally candidate — every
+  MAJOR was mentioned by the other reviewer and none was shown by
+  execution. Record, rubric and method notes: `tess/b1-block`,
+  `work/tess/logs/tess-1-adjudication.md`.
+- **My spec's error, surfaced by both**: it filed the refusal under D2
+  row 2 (valid, unbuilt). Under (N) it is row 1; the fix pass re-filed
+  the prose and kept the name and python tag.
+- **Fix pass** (implementer-inherited, union A–L): head `02c589569`,
+  hosted run 35582378069 green at the full matrix, read at step level.
+  NO local build ran — disk was under the 8 G floor — so every fix-pass
+  edit was compiled and tested by CI only. Main moved under it three
+  times; PROPS' `props_rim_side` unanimity now ESCALATES a rim-only cap
+  whose levels sit a band apart at the shape door, so the topo row pins
+  Δv = 0 → `MeridianFreeCurvedFace` and 1.5ε → `UnsupportedCurvedShape
+  {Escalated}`; the 0.5ε point was dropped rather than guessed.
+  New: `walk::LoopKinds`; `walk_anchor`'s dead arm is `unreachable!`;
+  the zero-height witness restored; reviewer probes lifted
+  (`loops_the_meridian_guard_admits.rs`); filed
+  `geom-brep-readme-c12-misstates-the-mesh-lanes`.
+- **Correction to my own brief**: I told the lane a short meridian spur
+  is caught "δ-dependently". The lifted rows refuse `CertificateExceeded`
+  at δ = 0.01 AND 0.1, so δ-dependence is not shown; the lane corrected
+  its prose to claim only what the rows pin.
+- **Not merged yet**: from 2026-09-20 evening the box sat at ~5 G free,
+  load ~45, and GitHub unreachable for minutes at a time (`gh`, `curl`
+  and `git fetch` all hang; processes in D state). Main moved once more
+  after the lane's last merge, so mergeability on the green head is
+  UNVERIFIED. Next act: confirm `MERGEABLE/CLEAN` and that no check is
+  in flight on `02c589569`, merge, record the row (sample number at
+  merge), close TESS-1 and the cap row, delete `docs/TESS-1-SPEC.md`.
+- Class for the record: **the pre-push fmt hook takes >9 minutes under
+  load and GitHub drops the idle ssh before the pack is sent** — the
+  lane worked around it with `ServerAliveInterval` and a detached push.
+  Whoever owns `local-scripts/hooks` wants a row; filed when the box
+  can run `work.py`.
