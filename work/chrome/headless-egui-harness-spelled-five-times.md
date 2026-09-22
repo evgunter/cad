@@ -39,3 +39,18 @@ shape is most of the work.
 
 `pane::headless` is `#[cfg(test)]` in a `pane` submodule, which is the
 wrong home for a harness `widgets.rs` would also use.
+
+## A second READ, and the wrong home showing (2026-09-22)
+
+The layout half of `error-and-check-text-overflows-its-region` needed
+to read WHERE a frame painted its text, not only what it said, so
+`pane::headless` grew `landed` beside `painted` — the galley's rows,
+each rect translated into the caller's own coordinates. That is a read,
+not a seventh drive, so the count above is unchanged.
+
+What it does do is make this row's last paragraph concrete rather than
+predicted. `widgets::message_tests` — in `widgets.rs`, which this row
+already names as a module the harness's home is wrong for — now says
+`crate::pane::headless::landed` to measure a widget that has nothing to
+do with any pane. A `painted`/`drive` pair is still the shape; `landed`
+is a second read for whichever home takes them.

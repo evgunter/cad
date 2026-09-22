@@ -37,3 +37,40 @@ common case" before saying that this case is a torus×plane pair,
 which points the reader at the wrong recourse. The full text is in
 this session's chat; a fixture that fails the same way (a torus face
 against a plane face in a union) reproduces it.
+
+## The layout half, measured and answered (2026-09-22)
+
+**Both symptoms are one cause with two faces**, and neither is a
+per-label flag: egui decides a label's wrap mode from the LAYOUT it is
+in (`egui::Ui::wrap_mode`), and a sentence is not what either answer is
+for.
+
+- *Runs off the page.* In a non-wrapping `ui.horizontal` the mode is
+  `TextWrapMode::Extend`, which lays the galley out at infinite width.
+  Measured: the 90-character fixture in a 220-point region paints one
+  row 538 points wide — 318 points past the right-hand edge.
+- *Returns to the window's left edge.* In `ui.horizontal_wrapped` the
+  mode is `Wrap`, and `egui::Label::layout_in_ui` takes its branch that
+  places the whole galley at `ui.max_rect().left()` and indents only
+  the first row to the cursor. Measured: rows at x = 46, 0, 0. The
+  toolbar is this crate's only wrapping row, and the status line — where
+  every refusal goes (`frame::apply`) — is drawn in it.
+
+The repair is `crates/viewer/src/widgets.rs`'s `message` /
+`message_link`: lay the sentence out into a galley at
+`egui::Ui::available_width` and hand it over already laid out, which is
+the one path `layout_in_ui` neither extends nor re-places. Converted:
+the checks window's findings and the toolbar's status line
+(`app.rs`), the feature tree's failure line and standing note
+(`pane/features.rs`), the profile editor's preview verdicts
+(`pane/profile.rs`), the view pane's status line (`pane/view.rs`).
+`widgets::message_tests` holds the two measurements; both go red if
+`message` degrades to `ui.label`.
+
+Not converted, and scheduled by
+`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`:
+eleven sites in `pane/create.rs` and `pane/properties.rs`, which were
+live in other lanes' open PRs that wave.
+
+**The concision half is untouched** and the worked example above
+stands.
