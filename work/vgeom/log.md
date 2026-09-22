@@ -1124,3 +1124,52 @@ merged PR body.
 entry**: it was cut over an open lane, because the board cannot show a
 claim that has not merged. The remote check is one command and it is
 now written down.
+
+## The camera's zoom band has a top — 2026-09-22 (#3062)
+
+`camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite`
+closed. `Camera::new` asked `is_finite` of its `scene_radius` and
+nothing of the `×100` band it derives, so every radius above
+`f64::MAX / MAX_DISTANCE_FACTOR` gave `max_distance() == inf` and a
+`distance` clamped into `..=inf`. The guard is at the door, beside the
+`finite` call it already made, in `DisplayTolerance::new`'s shape.
+
+**Three decisions worth keeping.**
+
+**The arm is its own.** `CameraError::SceneRadiusOverflowsZoomBand`
+rather than `NotFinite { what: "scene radius band" }`: the input IS
+finite and strictly positive and every other guard in the constructor
+takes it, so a message calling it a non-number would be false. That is
+the distinction `SceneError` already draws between
+`InvalidDisplayTolerance` and `DisplayToleranceOverflowsMillimetres`,
+and the new arm follows its naming, its doc shape and its scientific
+`Display` — a plain `{}` of a value three decades under `f64::MAX` is
+three hundred digits.
+
+**`MIN_DISTANCE_FACTOR` was asked and owes no guard.** It multiplies
+DOWN, so it cannot overflow; the live question was whether it flushes
+a small radius to zero and puts the band's floor on a non-distance. It
+does not: `f64::MIN_POSITIVE * 0.05` is about `2.25e14` smallest
+subnormals, and the factor would have to fall below about `2.22e-16`
+to spend that. Because that is a property of two constants rather than
+of any input, the answer is a measuring row rather than a sentence —
+`the_bands_floor_is_a_length_at_the_smallest_radius_the_door_admits`
+reds if either constant moves into the flushing range.
+
+**The fix did not mint a fresh copy of what it closed.** The guard
+would have been a fifth spelling of `radius * MAX_DISTANCE_FACTOR`, so
+`band_floor`/`band_ceiling` took the band's two ends and
+`min_distance`, `max_distance`, `clamp_distance` and `fitted` now read
+them. `camera.rs` also gained its first `#[cfg(test)] mod tests`; the
+suite rows stay in `tests/camera_ops.rs`, which is other programs'
+ground.
+
+**The sweep's own lesson.** The first pattern — a `is_finite()` guard
+with a scaled derivation in the same function — is blind to exactly
+the shape that produced this row, a product formed in a different
+function from the guard. Three further passes shaped at that gap
+(field × named constant; `<<`/`powi`/`powf` ladders; division by the
+guarded input) found two more members, both filed: `datum_view`'s
+infinite aspect and scale, and `BoundsProbe::new`'s `seed · 2^11`
+ladder. What is still blind is a guard and its product in two
+different crates, which no pass here crossed.
