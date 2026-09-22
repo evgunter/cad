@@ -1224,3 +1224,24 @@ TCOST/TINT (`pncad/tests/all.rs`, the shell test files the pins
 touch); GUARD (`evalscalar-allowlist.sh` header, naming-only). Not
 `demos/` beyond `cargo check`, not `pncad-py`. RING-2's fix pass is
 still building on the other lane.
+
+## RING-2 state-synced; LANE-3's PR opened (2026-09-22)
+
+RING-2's fix pass handed back green (run 35671520745 on `4cb762495d`,
+first try): fifteen of sixteen items taken, the member-free
+`crossing_bracket` route declined by the bounds gate's ratification
+rule (it compiles; 24 new compound bounds in two unallowlisted files),
+the tess-budget attribution measured both ways (main's drift 55 looser
+lily cells ≤ 6.4e-13; RING-2's share all tighter), the Q9 row renamed to
+what it pins, the subnormal corner pinned executable, four rows filed.
+The state-synced head `6d9370b948` is pushed and its run watched;
+block SCALAR-B5 closes on its merge. LANE-3 opened PR 3049 at 01:09Z
+(head `1df70b9ec8`): the door in `props.rs` beside `QuadLane`, the
+policy method with the five arms' reasons moved, the verb's second
+`impl` block gone, the witness `pub(crate)` (the workspace's
+`unreachable_pub` — deviation 1), `EvalScalar` ten terms, the
+`bounds-allowlist.sh` counts moved (deviation 2, outside the fence,
+stopped at the count), `real.rs`'s SEAT-9 paragraph filed rather than
+reached, a third copy of the wiring pattern left for LANE-4; 453 dump
+lines byte-identical at `f64`. Its lane died on an API overload while
+polling CI and was resumed to finish. The fence comment is posted.
