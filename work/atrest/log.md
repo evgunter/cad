@@ -208,3 +208,43 @@ same measurement it demands of the lane — the row said "two material
 components filed under one solid" and I read that as a defect instead
 of asking who mints it. The system worked because the lane was told to
 stop rather than work around a decision, and did.
+
+## 2026-09-21 — both lanes lost to the box, both recovered; two corrections
+
+The machine went bad for a stretch: **4.7G free of 251G**, memory
+tight enough that a `du` was killed for it, `gh` timing out at 90s
+while raw git over SSH still worked, and repeated
+`EAI_AGAIN` / `ConnectionRefused` model-API failures that killed both
+lanes twice. Ev freed it (27G free, `gh` responding). Nothing was
+lost, for one reason worth keeping: **the dispatch told both lanes to
+commit and push before anything else on resume, and ATREST-1 did** —
+its whole application of the check-10 ruling was pushed at `b6e41b2d3`
+before the second kill, so the recovery was a message rather than a
+reconstruction. The reviewer lane had read nothing both times and was
+restarted fresh rather than resumed; ATREST-1 was resumed, because
+what survived on its disk was the ruling being carried out and its
+authority was in a merged PR rather than in a lost inbox.
+
+**Correction to ATREST-1: the shell-roles row goes back to P0.** The
+lane re-banded `tier-3-does-not-check-shell-roles-per-solid` P0 → P1
+when it re-stated the row as a containment claim. That collapses the
+two things `work/README.md` insists stay apart: *"a band is not a
+forecast of effort — `cost` carries that, separately, because the two
+are independent and collapsing them hides both."* A solid holding a
+second `Outer` nested in its own void is produced by the hollow-operand
+subtraction and blessed by tier 3 — a live wrong answer from a normal
+verb, which is the P0 definition. What the measurement changed is the
+row's SHAPE and COST, and `cost: H` already carries that.
+
+**The observation worth more than the unit.** The lane's re-statement
+ends on a question nobody on this slate had asked: tier 3 has no
+at-rest containment walk at all, and **three** of ATREST's rows are
+the same missing walk wearing different clothes —
+`check-9-nesting-is-line-bounded-only` (a ring inside its face's outer
+loop), `tier-3-does-not-check-shell-roles-per-solid` (an island inside
+its solid's void) and `validate-tier3-curved-boundary-containment` (a
+loop bounding a region of its surface). Whether they want ONE walk
+between them is a design question that should be answered before any
+of the three is specced, not after two of them have grown separate
+walks. It is recorded in the row that raised it; the order in
+`plan.md` will answer it when those rows come up.
