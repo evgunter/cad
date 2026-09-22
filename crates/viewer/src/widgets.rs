@@ -315,7 +315,10 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
 /// **What this does not reach is the twelfth site** — see
 /// [`install_number_formatter`], which can carry the render as a
 /// context default and cannot carry this, because `egui::Style` has a
-/// `number_formatter` and no parser.
+/// `number_formatter` and no parser. There is no such site:
+/// `scripts/gates/viewer-numeric-field-door.sh` refuses one, and this
+/// file is its one home because the constructor and the rows that
+/// hold what it adds are both here.
 pub(crate) fn number_field<Num: egui::emath::Numeric>(
     value: &mut Num,
     speed: f64,
@@ -379,10 +382,17 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
 /// `number_formatter` and no counterpart for parsing. So a bare
 /// `egui::DragValue` on a context this has run on shows the right text
 /// and still commits that text back when a click leaves it, which
-/// moves the value wherever the render is not exact. That gap is
-/// `work/vgeom/a-bare-field-still-commits-its-own-render.md`, and
+/// moves the value wherever the render is not exact.
 /// `field_tests::a_bare_field_commits_a_render_the_door_would_refuse`
-/// is the row that pins it.
+/// is the row that pins what the difference IS.
+///
+/// **So the twelfth site is refused rather than relied on**:
+/// `scripts/gates/viewer-numeric-field-door.sh` reds on a bare
+/// `egui::DragValue` anywhere under `crates/viewer/src` outside this
+/// file. The floor stays — it is what makes a site that slips past a
+/// gate revision show the right text anyway — but *every numeric
+/// field in this crate goes through the door* is a standing fact now
+/// rather than a census somebody took once.
 pub(crate) fn install_number_formatter(ctx: &egui::Context) {
     ctx.all_styles_mut(|style| {
         style.number_formatter = egui::style::NumberFormatter::new(number_text);
@@ -642,14 +652,30 @@ pub(crate) struct FieldShowing {
     /// What the value IS — [`crate::props::SlotValue::of`]'s argument,
     /// so a count field holds a count.
     pub(crate) dimension: Dimension,
-    /// The number it holds, in `writing`'s notation.
-    pub(crate) number: f64,
+    /// The number it holds, in `writing`'s notation — or the unit
+    /// whose notation cannot name the value at all
+    /// ([`crate::props::shown_value`]). `Err` is not a fault in the
+    /// document: the value is a number and the unit is a unit, and
+    /// the value written in that unit is neither.
+    pub(crate) number: Result<f64, UnitDef>,
     /// A text it shows INSTEAD of that number — a slot's source, for
     /// a row that has source rather than a number to show. `None` is
     /// a field showing its number, which is every parameter row and
     /// every literal slot that evaluated.
     pub(crate) text: Option<String>,
 }
+
+/// **The text a field last turned into an operation**, remembered
+/// under that field's own widget id.
+///
+/// A named type rather than a bare `String`, and that is load-bearing:
+/// `egui::Memory`'s store is keyed by id AND type, and `egui` keeps
+/// the OPEN keyboard edit's buffer under the same id as a `String`
+/// (`egui-0.36.1/src/widgets/drag_value.rs`). A `String` written here
+/// would not sit beside that buffer — it would BE it, and the field
+/// would edit the text the user is typing.
+#[derive(Clone, PartialEq)]
+struct HandedOver(String);
 
 /// **A panel value field: one number, two doors and a gesture** — the
 /// whole of what `pane::properties`' slot row and parameter row draw,
@@ -686,6 +712,49 @@ pub(crate) struct FieldShowing {
 /// who re-types a number the document already holds has still typed
 /// it, and what the document does with an edit that writes what
 /// stands is the document's answer, at the door that applies it.
+///
+/// # One keyboard edit is one operation
+///
+/// `egui` parses the text it buffered on TWO consecutive frames — once
+/// where the text box reports `lost_focus`, and again at the top of
+/// the next frame, where `Memory::lost_focus` is still true and the
+/// buffered text is removed and parsed a second time
+/// (`egui-0.36.1/src/widgets/drag_value.rs`). `Response::lost_focus`
+/// spans both frames by design, so it cannot tell them apart. So this
+/// field remembers, under the widget's own id, the text it last turned
+/// into an operation, and the second hand-over of that text emits
+/// nothing.
+///
+/// **Cleared on `gained_focus`**, which is what keeps a re-type an
+/// act: the same characters typed into the same field a second time
+/// are a second edit, and the only thing this suppresses is one
+/// keyboard edit handed over twice.
+///
+/// **The id comes off the `Response`, never re-derived.** A
+/// `DragValue`'s id is `ui.next_auto_id()` read before the widget is
+/// added, so a caller that re-derived it inside the parser closure
+/// would be betting that the widget consumes exactly one auto-id —
+/// an implementation detail the toolkit does not promise. The
+/// `Response` carries the id it actually used.
+///
+/// **`crate::session::DocSession::writes_nothing` is a DIFFERENT
+/// rule and stays where it is.** This one answers *did the widget
+/// hand one text over twice*; that one answers *does this edit write
+/// what the document already holds*, which is what a person re-typing
+/// `50 mm` over a parameter declared `50 mm` reaches. A reader who
+/// collapses them re-opens both.
+///
+/// # A field is not drawn for a value its notation cannot name
+///
+/// `showing.number` is a conversion ([`crate::props::shown_value`]),
+/// and a notation is a change of exponent that can leave the type: a
+/// length above `f64::MAX * MILLI` has no millimetre value at all. A
+/// `DragValue` cannot spell that — it is handed the `f64` it holds,
+/// with no unit in scope — so where the conversion has no answer and
+/// the field would be showing its own number, the row draws
+/// [`crate::props::no_reading`] and no field. A field showing FIXED
+/// TEXT is not showing its number and keeps its text door, which is
+/// how a driven slot and a slot mid-expression stay editable.
 pub(crate) fn value_field_ops(
     ui: &mut egui::Ui,
     showing: FieldShowing,
@@ -696,17 +765,34 @@ pub(crate) fn value_field_ops(
     let FieldShowing {
         writing,
         dimension,
-        mut number,
+        number,
         text: fixed,
     } = showing;
+    let mut number = match number {
+        Ok(number) => number,
+        // No number for the field to hold, so no field is built. It
+        // makes no difference whether the field would have SHOWN that
+        // number or a fixed text over it: an `egui::DragValue` is
+        // handed an `f64` whichever it renders, a drag carries that
+        // `f64` through the gesture's doors, and the plausible
+        // stand-in — `0.0` — is a small literal landing over an
+        // expression nobody typed.
+        Err(unit) => {
+            ui.weak(props::no_reading(unit));
+            return;
+        }
+    };
     // The text this frame's field rendered, taken from the formatter
     // that rendered it rather than re-derived: `egui` chooses the
     // decimal range from the drag speed and the display scaling, so a
     // second call here could disagree with the one the field used.
     let rendered = core::cell::RefCell::new(String::new());
     // The parser runs inside `ui.add`, so what it read comes back out
-    // through a cell rather than a return value.
-    let typed: core::cell::RefCell<Option<props::FieldEdit>> = core::cell::RefCell::new(None);
+    // through a cell rather than a return value — the text as well as
+    // its reading, because the text is what the two-frame hand-over
+    // below is recognised by.
+    let typed: core::cell::RefCell<Option<(String, props::FieldEdit)>> =
+        core::cell::RefCell::new(None);
     let widget = ui.add(
         number_field(&mut number, writing.tick)
             .update_while_editing(false)
@@ -738,7 +824,7 @@ pub(crate) fn value_field_ops(
                     _ => None,
                 };
                 if !props::echoed(text, &rendered.borrow()) {
-                    typed.replace(Some(edit));
+                    typed.replace(Some((text.trim().to_owned(), edit)));
                 }
                 number
             }),
@@ -749,7 +835,30 @@ pub(crate) fn value_field_ops(
     // match ran and for every text the widget marked changed,
     // including the echo this field is built to swallow.
     drag_gesture_ops(&widget, writing.authored(number), gesture, ops);
-    match typed.into_inner() {
+    if widget.gained_focus() {
+        // A fresh keyboard edit: what the last one handed over is not
+        // this one's repeat, so the same characters typed again are an
+        // act.
+        ui.data_mut(|data| data.remove::<HandedOver>(widget.id));
+    }
+    let handed = match typed.into_inner() {
+        None => None,
+        Some((text, edit)) => {
+            let repeat = ui.data(|data| data.get_temp::<HandedOver>(widget.id))
+                == Some(HandedOver(text.clone()));
+            if repeat {
+                // The second of the two frames `egui` parses one
+                // buffered text on. Nothing is emitted and nothing is
+                // forgotten: the text stands remembered until this
+                // field takes focus again.
+                None
+            } else {
+                ui.data_mut(|data| data.insert_temp(widget.id, HandedOver(text)));
+                Some(edit)
+            }
+        }
+    };
+    match handed {
         // **A number the dimension cannot carry is not an edit.** A
         // `Count` field takes `inf` and `NaN` from its parser like any
         // other (`props::field_edit`), and `props::SlotValue::of` is
@@ -871,6 +980,23 @@ pub(crate) fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical
 /// The name is the QUANTITY, never the unit: the picker beside the
 /// form says the unit, and a second statement of it here would be
 /// free to disagree ([`length_picker`]'s own rule).
+///
+/// # A field is not drawn for a value its notation cannot name
+///
+/// The number this draws is a CONVERSION — `canonical / factor` — and
+/// a notation is a change of exponent that can leave the type: a
+/// length above `f64::MAX * MILLI` has no millimetre value at all
+/// ([`crate::props::written`]). Forming it anyway puts `inf` in a
+/// `DragValue`, and that text is what an edit would start from.
+///
+/// So the refusal is asked AT the conversion and the row draws
+/// [`crate::props::no_reading`] where the field would be. A disabled
+/// field is not the alternative it sounds like: a `DragValue` is
+/// handed the `f64` it holds and the only `f64` here is the `inf`
+/// this door exists to keep off the screen, so a greyed field would
+/// show exactly the wrong number it is greyed for. The marker names
+/// the unit because the unit is half of what failed and the picker
+/// beside the form is the repair.
 pub(crate) fn named_field(
     ui: &mut egui::Ui,
     name: &str,
@@ -878,7 +1004,15 @@ pub(crate) fn named_field(
     speed: f64,
     canonical: &mut f64,
 ) {
-    let mut written = props::in_written(*canonical, unit);
+    let Some(mut written) = props::written(*canonical, unit) else {
+        let marker = props::no_reading(unit);
+        ui.weak(if name.is_empty() {
+            marker
+        } else {
+            format!("{name} {marker}")
+        });
+        return;
+    };
     let mut field = number_field(&mut written, props::in_written(speed, unit));
     if !name.is_empty() {
         field = field.prefix(format!("{name} "));
@@ -2273,6 +2407,34 @@ mod field_tests {
     use super::{install_number_formatter, number_field, number_text};
     use eframe::egui;
 
+    /// **Every text a frame painted** — what a person actually reads
+    /// off the row.
+    ///
+    /// A rule about what a field SHOWS is answered by the shapes and
+    /// by nothing else: a row that read the value back out of the
+    /// harness would pass unchanged over a field rendering `inf`
+    /// beside it, which is the whole of what
+    /// [`a_form_field_is_not_drawn_for_a_value_its_notation_cannot_name`]
+    /// is about.
+    pub(super) fn painted_texts(shapes: &[egui::epaint::ClippedShape]) -> Vec<String> {
+        fn walk(shape: &egui::epaint::Shape, out: &mut Vec<String>) {
+            match shape {
+                egui::epaint::Shape::Text(text) => out.push(text.galley.text().to_owned()),
+                egui::epaint::Shape::Vec(nested) => {
+                    for shape in nested {
+                        walk(shape, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for clipped in shapes {
+            walk(&clipped.shape, &mut out);
+        }
+        out
+    }
+
     /// The decimal range a length field shown in millimetres is handed:
     /// `FIELD_DRAG_SPEED` written in millimetres is 0.5, one point per
     /// pixel makes `auto_decimals` `ceil(log10(1.0 / 0.5))`, and egui
@@ -2520,6 +2682,11 @@ mod field_tests {
         /// through one more conversion than the panel does, and is the
         /// half of the chrome whose write-back is `response.changed()`.
         Named,
+        /// A bare field whose parser COUNTS. Not a rule under test —
+        /// the subject is `egui` itself, and what it holds is the
+        /// toolkit fact every hand-over row rests on: one keyboard
+        /// edit is parsed on two consecutive frames.
+        Counting,
     }
 
     /// One field, laid out and driven by events, so the rule below is
@@ -2529,6 +2696,11 @@ mod field_tests {
         value: f64,
         rect: egui::Rect,
         built: Built,
+        /// Every text the last frame painted ([`painted_texts`]).
+        texts: Vec<String>,
+        /// How many times this field's parser has been handed a text
+        /// ([`Built::Counting`] only).
+        parses: std::rc::Rc<core::cell::Cell<usize>>,
     }
 
     impl Field {
@@ -2557,12 +2729,20 @@ mod field_tests {
             Self::with(canonical, Built::Named)
         }
 
+        /// A bare field that counts its parses — the toolkit's own
+        /// behaviour, with nothing of this crate's on the parse path.
+        fn counting(value: f64) -> Self {
+            Self::with(value, Built::Counting)
+        }
+
         fn with(value: f64, built: Built) -> Self {
             Self {
                 ctx: egui::Context::default(),
                 value,
                 rect: egui::Rect::NOTHING,
                 built,
+                texts: Vec::new(),
+                parses: std::rc::Rc::new(core::cell::Cell::new(0)),
             }
         }
 
@@ -2579,6 +2759,7 @@ mod field_tests {
             let value = &mut self.value;
             let rect = &mut self.rect;
             let built = self.built;
+            let parses = std::rc::Rc::clone(&self.parses);
             let mut output = ctx.run_ui(input, |ui| {
                 *rect = match built {
                     Built::Door => ui.add(number_field(value, 0.5)).rect,
@@ -2596,8 +2777,28 @@ mod field_tests {
                         .response
                         .rect
                     }
+                    Built::Counting => {
+                        ui.add(
+                            egui::DragValue::new(value)
+                                .speed(0.5)
+                                // The panel field's own setting: with
+                                // it left on, `egui` parses once per
+                                // KEYSTROKE as well, and the count
+                                // below would be about typing speed.
+                                .update_while_editing(false)
+                                .custom_parser({
+                                    let parses = std::rc::Rc::clone(&parses);
+                                    move |text| {
+                                        parses.set(parses.get() + 1);
+                                        text.trim().parse().ok()
+                                    }
+                                }),
+                        )
+                        .rect
+                    }
                 };
             });
+            self.texts = painted_texts(&output.shapes);
             output.textures_delta.clear();
         }
 
@@ -2793,6 +2994,96 @@ mod field_tests {
         }
     }
 
+    /// **A creation form's field is not drawn at all for a value its
+    /// notation cannot name**, and the row says so where the field
+    /// would have been.
+    ///
+    /// The number a form field shows is `canonical / factor`, and a
+    /// notation is a change of exponent that can leave the type: at
+    /// `1e306` m the millimetre quotient is `inf`
+    /// ([`crate::props::written`] answers `None`), and before this
+    /// door the field showed that — as the text an edit would start
+    /// from. Read off the SHAPES rather than off the value, because
+    /// the defect is what the row says, not what it commits.
+    ///
+    /// The second half is what makes the first falsifiable: the same
+    /// assertions over a value the notation names must find a field
+    /// and no marker, so a door that refused everything would red
+    /// here.
+    #[test]
+    fn a_form_field_is_not_drawn_for_a_value_its_notation_cannot_name() {
+        let mm = pncad::quantity::MM.def();
+        let marker = crate::props::no_reading(mm);
+        let unnameable = 1.0e306_f64;
+        assert!(
+            crate::props::written(unnameable, mm).is_none(),
+            "{unnameable} m is only a row here because it has no millimetre value"
+        );
+        let mut field = Field::named(unnameable);
+        field.click_in_and_away();
+        let said = field.texts.join(" ");
+        assert!(
+            said.contains(&marker),
+            "the row says which notation could not name the value: {said:?}"
+        );
+        assert!(
+            !said.contains("inf"),
+            "and nowhere says the quotient it refused to form: {said:?}"
+        );
+        assert_eq!(
+            field.value, unnameable,
+            "and the value the document holds is untouched by the gesture"
+        );
+
+        let nameable = 1.0_f64;
+        let mut field = Field::named(nameable);
+        field.click_in_and_away();
+        let said = field.texts.join(" ");
+        assert!(
+            !said.contains(&marker),
+            "a value the notation names is drawn as a field, not as the marker: {said:?}"
+        );
+        assert_eq!(field.value, nameable);
+    }
+
+    /// **`egui` hands one typed text to the parser on TWO consecutive
+    /// frames** — the toolkit fact every hand-over rule in this module
+    /// rests on, held here over the toolkit alone.
+    ///
+    /// A `DragValue` buffers the open keyboard edit's text under its
+    /// own id and parses it twice: once where the text box reports
+    /// `lost_focus`, and again at the top of the next frame, where
+    /// `Memory::lost_focus` is still true and the buffered text is
+    /// removed and parsed a second time. Nothing of this crate's is on
+    /// the parse path here, so when the toolkit stops doing it this row
+    /// is what says so — and `value_field_ops`' memory of the text it
+    /// last handed over is then a guard against something that no
+    /// longer happens.
+    #[test]
+    fn the_toolkit_hands_one_typed_text_over_on_two_frames() {
+        let mut field = Field::counting(1000.0);
+        field.frame(Vec::new());
+        field.frame(Vec::new());
+        let target = field.rect.center();
+        field.click(target);
+        field.frame(Vec::new());
+        assert_eq!(
+            field.parses.get(),
+            0,
+            "opening a keyboard edit parses nothing"
+        );
+        field.frame(vec![egui::Event::Text("1002".to_owned())]);
+        field.click(egui::pos2(700.0, 500.0));
+        field.frame(Vec::new());
+        field.frame(Vec::new());
+        assert_eq!(
+            field.parses.get(),
+            2,
+            "one typed text, parsed on the frame the edit ends and again on              the next"
+        );
+        assert_eq!(field.value, 1002.0);
+    }
+
     /// **`all_styles_mut` rather than `style_mut`.**
     ///
     /// `egui` keeps one `Style` per theme and `crate::app`'s
@@ -2853,7 +3144,7 @@ mod value_field_tests {
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
-    use pncad::quantity::WrittenLength;
+    use pncad::quantity::{UnitDef, WrittenLength};
 
     /// **Which of the panel's two rows the field under test is drawn
     /// for.**
@@ -2886,6 +3177,9 @@ mod value_field_tests {
         /// The subset of those that CHANGED the document — what the
         /// user would undo.
         landed: Vec<SessionOp>,
+        /// Every text the last frame painted
+        /// (`super::field_tests::painted_texts`).
+        texts: Vec<String>,
     }
 
     /// Apply one edit to a fixture document, answering the document
@@ -2941,6 +3235,7 @@ mod value_field_tests {
                 rect: egui::Rect::NOTHING,
                 emitted: Vec::new(),
                 landed: Vec::new(),
+                texts: Vec::new(),
             }
         }
 
@@ -3001,6 +3296,7 @@ mod value_field_tests {
                 rect: egui::Rect::NOTHING,
                 emitted: Vec::new(),
                 landed: Vec::new(),
+                texts: Vec::new(),
             }
         }
 
@@ -3009,7 +3305,14 @@ mod value_field_tests {
         /// the fixed text, which is where the two rows differ: a
         /// parameter row never has one, and a slot row has one exactly
         /// when it shows SOURCE rather than a number.
-        fn field(&self) -> (FieldWriting, Dimension, f64, Option<String>) {
+        fn field(
+            &self,
+        ) -> (
+            FieldWriting,
+            Dimension,
+            Result<f64, UnitDef>,
+            Option<String>,
+        ) {
             match &self.subject {
                 Subject::Param(_) => {
                     let row = self.row();
@@ -3017,7 +3320,7 @@ mod value_field_tests {
                     (
                         writing,
                         row.dimension,
-                        writing.shown(row.value.as_f64()),
+                        props::shown_value(writing.unit, row.value.as_f64()),
                         None,
                     )
                 }
@@ -3032,10 +3335,13 @@ mod value_field_tests {
                     // formats.
                     let fixed = (row.driver.is_driven() || row.value.is_err())
                         .then(|| props::field_text(&row));
-                    let number = writing.shown(match row.value {
-                        Ok(value) => value.as_f64(),
-                        Err(_) => 0.0,
-                    });
+                    let number = props::shown_value(
+                        writing.unit,
+                        match row.value {
+                            Ok(value) => value.as_f64(),
+                            Err(_) => 0.0,
+                        },
+                    );
                     (writing, row.dimension, number, fixed)
                 }
             }
@@ -3044,8 +3350,15 @@ mod value_field_tests {
         /// What the row's field is showing, in the notation it is
         /// written in — the number, and the text the field renders for
         /// it (its fixed text where it has one, else the formatter's).
+        ///
+        /// Panics where the notation cannot name the value: a row that
+        /// reads what a field shows is asking about a field, and
+        /// [`super::value_field_ops`] draws no field there
+        /// ([`a_field_is_not_drawn_for_a_value_its_notation_cannot_name`]
+        /// is what holds that case).
         fn showing(&self) -> (f64, String) {
             let (_, _, number, fixed) = self.field();
+            let number = number.expect("this row's notation names its value");
             (number, fixed.unwrap_or_else(|| number_text(number, 1..=3)))
         }
 
@@ -3133,6 +3446,7 @@ mod value_field_tests {
                 }
                 *rect = ui.min_rect();
             });
+            self.texts = super::field_tests::painted_texts(&output.shapes);
             output.textures_delta.clear();
             for op in ops {
                 self.emitted.push(op.clone());
@@ -3269,56 +3583,111 @@ mod value_field_tests {
         );
     }
 
-    /// **`egui` hands one typed text over on TWO frames**, and this
-    /// row is what says the second costs nothing.
+    /// **`egui` hands one typed text over on TWO frames, and the
+    /// field emits ONE operation for it.**
     ///
-    /// `DragValue` parses the text it buffered both on the frame the
-    /// keyboard edit ends and again on the next, so a field that
-    /// turned every parse into an undo step would charge two for one
-    /// number.
+    /// The toolkit half is not asserted here — it is the subject of
+    /// `field_tests::the_toolkit_hands_one_typed_text_over_on_two_frames`,
+    /// which counts the parses with nothing of this crate's on the
+    /// path. What this row holds is the chrome's answer to it: the
+    /// field remembers, under its own widget id, the text it last
+    /// turned into an operation, so the second hand-over of that text
+    /// emits nothing at all.
     ///
-    /// **Why the field's own guard does not stop THIS one**, and the
-    /// reason is narrower than "the document has moved": the
-    /// formatter runs before both parse sites, so the render the echo
-    /// compares against is populated both times. What lets the second
-    /// through is that the render is not the text the user typed —
-    /// [`number_text`] spells at least one decimal, so `1002` is
-    /// judged against `1002.0`. Where the round trip IS exact the
-    /// field's guard swallows the second hand-over by itself
-    /// ([`the_field_swallows_the_second_hand_over_when_its_render_round_trips`]),
-    /// and what is left over for `DocSession::writes_nothing`, the
-    /// document's own rule, is this case. This row is where the two
-    /// are held together.
+    /// **The value is chosen so no OTHER rule could be the one
+    /// answering.** [`number_text`] spells at least one decimal, so a
+    /// user who typed `1002` is judged by [`props::echoed`] against
+    /// `1002.0` — the echo guard cannot see this repeat, which is why
+    /// the second hand-over used to reach the document and be absorbed
+    /// there. `crate::session::DocSession::writes_nothing` still
+    /// absorbs what reaches it and is a different rule about a
+    /// different question ([`a_re_typed_text_after_focusing_again_is_a_second_act`]
+    /// is where it is still the only answer); this row is about what
+    /// the field EMITS.
     #[test]
     fn the_second_hand_over_of_one_typed_text_changes_nothing() {
         let mut row = Row::millimetres("auth2-twice", 1.0);
+        let before = row.session.history().len();
+        row.click_in();
+        row.frame(vec![egui::Event::Text("1002".to_owned())]);
+        row.click_away();
+        let emitted = row.taken();
+        // **The second parse is compared against the render of the
+        // value the FIRST one landed**, so that render is what decides
+        // whether the echo guard could have answered here. It cannot:
+        // `number_text` spells at least one decimal. Read off the
+        // field after the gesture rather than pinned as a spelling —
+        // the grid `crate::readout` renders on is not this row's to
+        // fix, and a row that named the text would red when it moves.
+        let (_, rendered) = row.showing();
+        assert!(
+            !props::echoed("1002", &rendered),
+            "the field renders the typed value back as the typed TEXT, so \
+             the echo guard would answer this repeat and this row is no \
+             longer reading the hand-over memory: {rendered:?}"
+        );
+        assert_eq!(
+            emitted.len(),
+            1,
+            "one keyboard edit, one operation: {emitted:?}"
+        );
+        assert_eq!(row.landed().len(), 1, "and it moves the document");
+        assert_eq!(
+            row.session.history().len(),
+            before + 1,
+            "one number typed, one undo step"
+        );
+        assert_eq!(row.showing().0, 1002.0);
+    }
+
+    /// **Typing the same characters again, after clicking back in, is
+    /// a second act** — which is what the memory being cleared on
+    /// `gained_focus` buys, and the row that goes red if it is not.
+    ///
+    /// The field emits the edit a second time; what makes it cost
+    /// nothing is `crate::session::DocSession::writes_nothing`, the
+    /// document's own rule, and this is the case where that rule is
+    /// the only answer there is. The two rules are genuinely two.
+    #[test]
+    fn a_re_typed_text_after_focusing_again_is_a_second_act() {
+        let mut row = Row::millimetres("auth2-retype", 1.0);
+        row.click_in();
+        row.frame(vec![egui::Event::Text("1002".to_owned())]);
+        row.click_away();
+        assert_eq!(row.taken().len(), 1);
+        assert_eq!(row.landed().len(), 1);
+        let before = row.session.history().len();
         row.click_in();
         row.frame(vec![egui::Event::Text("1002".to_owned())]);
         row.click_away();
         let emitted = row.taken();
         assert_eq!(
             emitted.len(),
-            2,
-            "the widget hands the text over twice; if it stops, this row              and the guard behind it are answering a question nobody asks:              {emitted:?}"
+            1,
+            "the field took focus again, so the text it remembered is not \
+             this edit's repeat: {emitted:?}"
         );
-        assert_eq!(
-            format!("{:?}", emitted[0]),
-            format!("{:?}", emitted[1]),
-            "and the same operation both times"
+        assert!(
+            row.landed().is_empty(),
+            "and what makes a re-type of what stands cost nothing is the \
+             document's rule, not the field's"
         );
-        assert_eq!(row.landed().len(), 1, "one of them moves the document");
+        assert_eq!(row.session.history().len(), before);
     }
 
-    /// **The other half of the two-frame reading: where the render
-    /// round-trips, the FIELD stops the second hand-over.**
+    /// **A typed text the render spells back exactly is still one
+    /// edit**, and the field's own echo guard is what answers its
+    /// second hand-over.
     ///
-    /// `1000.4` is spelled `1000.4` by the formatter, so on the
-    /// second frame the buffered text and the field's render are the
-    /// same string and [`props::echoed`] answers the question without
-    /// the document being consulted at all. It is the row that keeps
-    /// the sibling above honest about which rule does what: the two
-    /// guards are two because they answer two questions, not because
-    /// one of them is blind on the second frame.
+    /// `1000.4` is spelled `1000.4` by the formatter, so on the second
+    /// frame the buffered text and the field's render are the same
+    /// string and [`props::echoed`] answers without anything else
+    /// being consulted. Since this branch the memory of the text last
+    /// handed over would also answer it, so the row no longer
+    /// SEPARATES the two guards — what it holds is the render property
+    /// the original argument rested on, asserted as a round trip
+    /// rather than as a spelling, and that a text the field renders
+    /// back exactly is not thereby swallowed.
     #[test]
     fn the_field_swallows_the_second_hand_over_when_its_render_round_trips() {
         let mut row = Row::millimetres("auth2-twice-exact", 1.0);
@@ -3326,17 +3695,152 @@ mod value_field_tests {
         row.frame(vec![egui::Event::Text("1000.4".to_owned())]);
         row.click_away();
         let emitted = row.taken();
+        let (shown, text) = row.showing();
         assert_eq!(
-            row.showing().1,
-            "1000.4",
-            "the formatter spells the typed value back exactly"
+            text.trim().parse::<f64>().ok(),
+            Some(shown),
+            "the formatter spells the typed value back exactly: {text:?}"
         );
         assert_eq!(
             emitted.len(),
             1,
-            "so the second parse IS an echo, and the field's own guard \
-             is what stops it: {emitted:?}"
+            "one keyboard edit, one operation: {emitted:?}"
         );
+        assert_eq!(row.landed().len(), 1, "and the edit lands");
+    }
+
+    /// **A panel field is not drawn for a value its notation cannot
+    /// name**, and the row says which notation could not name it.
+    ///
+    /// A parameter declared in millimetres and standing at `1e306` m
+    /// has no millimetre value at all — the quotient leaves the type
+    /// ([`crate::props::written`]) — so before this door the panel put
+    /// `inf` in a `DragValue`, which is the text an edit starts from.
+    /// Read off the SHAPES, because the claim is about what the row
+    /// shows.
+    ///
+    /// The second half is what makes the first falsifiable: the same
+    /// reading over a value the notation names must find no marker.
+    #[test]
+    fn a_field_is_not_drawn_for_a_value_its_notation_cannot_name() {
+        let marker = props::no_reading(MM.def());
+        let mut row = Row::millimetres("vgeom-no-reading", 1.0e306);
+        assert!(
+            props::shown_value(Some(MM.def()), 1.0e306).is_err(),
+            "the fixture is a value millimetres cannot name"
+        );
+        row.frame(Vec::new());
+        row.frame(Vec::new());
+        let said = row.texts.join(" ");
+        assert!(
+            said.contains(&marker),
+            "the row says which notation could not name the value: {said:?}"
+        );
+        assert!(
+            !said.contains("inf"),
+            "and nowhere says the quotient it refused to form: {said:?}"
+        );
+        row.click_in();
+        row.click_away();
+        let emitted = row.taken();
+        assert!(
+            emitted.is_empty(),
+            "and there is no field for a click to commit: {emitted:?}"
+        );
+
+        let mut row = Row::millimetres("vgeom-nameable", 1.0);
+        row.frame(Vec::new());
+        row.frame(Vec::new());
+        let said = row.texts.join(" ");
+        assert!(
+            !said.contains(&marker),
+            "a value the notation names is drawn as a field: {said:?}"
+        );
+    }
+
+    /// **A DRIVEN slot cannot reach that refusal at all, and that is
+    /// what makes the rule above have no sub-case.**
+    ///
+    /// The refusal is a fact about a PAIR — a value and a notation —
+    /// so a field showing fixed text rather than its number looks
+    /// like it might need an exception: it has a text door to keep
+    /// open, and no number on the screen to be wrong. It does not,
+    /// because the only rows that show fixed text are a DRIVEN slot
+    /// and a slot that did not evaluate, and neither can fail the
+    /// conversion:
+    ///
+    /// - a driven slot's expression remembers no notation
+    ///   (`Expr::display_unit` answers `None` for every kind that is
+    ///   not a literal), so [`crate::props::rendering_unit`] writes
+    ///   it in the CANONICAL one, whose factor is exactly one;
+    /// - a slot that did not evaluate has no number, and the zero
+    ///   drawn under its source is a zero in every notation
+    ///   ([`crate::props::written`]).
+    ///
+    /// Both halves are asserted, the first through the session's own
+    /// text door rather than by hand-assembling a `SlotRow` — a
+    /// combination no caller constructs proves nothing, which is what
+    /// `work/vgeom/field-texts-literal-arm-is-unreachable-from-both-call-sites.md`
+    /// is filed about. If either half ever stops holding — a driven
+    /// slot that remembers a unit, a canonical factor that is not one
+    /// — this row reds and the exception has to be designed rather
+    /// than discovered.
+    #[test]
+    fn a_driven_slot_is_written_canonically_so_its_conversion_cannot_fail() {
+        let mut row = Row::extrude_distance("vgeom-driven-canonical", 0.008);
+        let Subject::Slot { node, slot } = row.subject.clone() else {
+            panic!("the fixture is a slot row");
+        };
+        // A product far past `f64::MAX * MILLI`: were this row written
+        // in millimetres, its conversion would leave the type.
+        let source = "base_r * 1e308".to_owned();
+        let outcome = row.session.perform(SessionOp::SetSlotExpression {
+            node,
+            slot,
+            text: source.clone(),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let (writing, _, number, fixed) = row.field();
+        assert_eq!(
+            fixed.as_deref(),
+            Some(source.as_str()),
+            "a driven slot shows its SOURCE, which is the case this row is about"
+        );
+        assert_eq!(
+            writing.unit,
+            Some(pncad::quantity::M.def()),
+            "and it is written in the canonical notation, because its \
+             expression remembers none"
+        );
+        assert!(
+            number.is_ok(),
+            "so its conversion answers a number even this far up: {number:?}"
+        );
+
+        // The canonical notation of every dimension, which is what the
+        // arm above rests on rather than on the one this fixture has.
+        for dimension in Dimension::ALL {
+            let Some(unit) = props::rendering_unit(dimension, None) else {
+                // `Count` names no notation at all, so there is no
+                // conversion to fail (`props::shown_value`'s own
+                // `None` arm).
+                continue;
+            };
+            assert_eq!(
+                unit.factor(),
+                1.0,
+                "{dimension}'s canonical notation scales, so a value written \
+                 in it can leave the type and a driven row of that dimension \
+                 CAN reach the refusal"
+            );
+            for canonical in [0.0, 1.0e306, -1.0e306, f64::MAX] {
+                assert_eq!(
+                    props::shown_value(Some(unit), canonical),
+                    Ok(canonical),
+                    "{canonical} is nameable in {dimension}'s canonical notation"
+                );
+            }
+        }
     }
 
     /// **A number the render cannot distinguish from what the field

@@ -339,6 +339,31 @@ pub fn shown_in(unit: Option<UnitDef>, canonical: f64) -> f64 {
     unit.map_or(canonical, |unit| in_written(canonical, unit))
 }
 
+/// [`written`] over a field that may name NO unit — the number such a
+/// field SHOWS, or the unit that cannot name it.
+///
+/// [`shown_in`]'s total twin, and the question a FIELD has to ask
+/// where a sentence asks [`written_text`]: a sentence composes a
+/// `String` and can put [`no_reading`] in it, and a field is an
+/// `egui::DragValue` handed the `f64` it holds, with no unit in scope
+/// and no way to say *this notation cannot name my value* other than
+/// not being drawn. So the refusal has to be answered ABOVE the
+/// widget, which means the conversion answers it rather than
+/// producing `inf` for the formatter to spell.
+///
+/// `Err` carries the unit rather than nothing, because the caller's
+/// next move is [`no_reading`] and the unit is half of what failed —
+/// an `Option` here would make every caller reach back for a unit it
+/// had just established was the problem, and the arm where it has
+/// none is not reachable: a field with no notation cannot fail to
+/// name its value in one, which is the `None => Ok` arm below.
+pub fn shown_value(unit: Option<UnitDef>, canonical: f64) -> Result<f64, UnitDef> {
+    match unit {
+        None => Ok(canonical),
+        Some(unit) => written(canonical, unit).ok_or(unit),
+    }
+}
+
 /// [`written_text`] over a field that may name NO unit — one canonical
 /// value as text a person reads, in the notation such a field shows.
 ///
@@ -1211,6 +1236,35 @@ mod written_tests {
         // The ordinary case is a number and its symbol, unchanged.
         assert_eq!(written_text(0.025, mm), "25 mm");
         assert_eq!(written_text(1.5, M.def()), "1.5 m");
+    }
+
+    /// **A FIELD's conversion answers the same question, and its
+    /// no-notation arm cannot fail.**
+    ///
+    /// [`super::shown_value`] is the door a panel field's number comes
+    /// through, and the two arms are different in kind: a field
+    /// written in a unit can meet a value that unit cannot name, and a
+    /// field written in no unit at all shows its canonical number and
+    /// has nothing to fail at. Held over the value the class is about
+    /// and over the count/scalar arm, because collapsing the second
+    /// into the first is how a count acquires a refusal it can never
+    /// reach.
+    #[test]
+    fn a_fields_conversion_refuses_what_its_notation_cannot_name() {
+        let mm = MM.def();
+        assert_eq!(super::shown_value(Some(mm), 0.025), Ok(25.0));
+        assert_eq!(
+            super::shown_value(Some(mm), 1.0e306),
+            Err(mm),
+            "and it hands back the unit, which is what the marker names"
+        );
+        for canonical in [0.0, 1.0e306, -3.5, f64::MIN_POSITIVE] {
+            assert_eq!(
+                super::shown_value(None, canonical),
+                Ok(canonical),
+                "a field that names no notation shows its number"
+            );
+        }
     }
 
     /// **A field's text is what an edit starts from**, so the one
