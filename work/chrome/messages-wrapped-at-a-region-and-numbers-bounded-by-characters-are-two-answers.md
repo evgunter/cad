@@ -4,6 +4,8 @@ kind: issue
 title: viewer: widgets.rs answers 'text too wide for its box' twice, forty lines apart, and neither answer references the other
 status: open
 opened: 2026-09-22
+priority: P1
+cost: D
 ---
 
 

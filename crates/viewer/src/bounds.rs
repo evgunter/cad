@@ -111,7 +111,7 @@
 //!
 //! Nothing in `crates/viewer` asks for one on a user's behalf yet —
 //! the affordance is
-//! `work/chrome/certify-affordance-on-the-bounds-panel.md`, and
+//! `work/offer/certify-affordance-on-the-bounds-panel.md`, and
 //! `crates/viewer/tests/docm9_range_vs_probe.rs` (the `interval`
 //! feature) is where the two answers are measured against each other.
 //!

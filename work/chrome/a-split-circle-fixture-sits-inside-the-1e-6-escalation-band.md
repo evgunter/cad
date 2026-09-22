@@ -119,7 +119,7 @@ absolutely-scaled one drifting — running the population at
 neighbouring ε. Its own `expect` is the guard; the sweep is not.
 
 The sibling found while sweeping is
-`work/chrome/the-circle-split-cap-offers-counts-the-document-refuses.md`:
+`work/forms/the-circle-split-cap-offers-counts-the-document-refuses.md`:
 the same two walls, on the product surface rather than a fixture. The
 `tests/profile_edit.rs` split circle (`r = 0.01`, `n = 3`) is **not**
 in danger but its margin is smaller than first reported: sagitta
@@ -131,4 +131,4 @@ lands in band at ε = 1e-3, two decades past the sweep's edge; nothing
 is live there, since 1e-3 is neither gated nor swept.
 
 Also filed from this pass:
-`work/chrome/the-kernel-takes-any-count-has-four-homes-in-the-viewer.md`.
+`work/forms/the-kernel-takes-any-count-has-four-homes-in-the-viewer.md`.

@@ -4,6 +4,9 @@ kind: issue
 title: viewer: in a window with no default_width, available_width is last frame's content, so a wrap at it never fires
 status: open
 opened: 2026-09-22
+priority: P1
+cost: E
+refs: [messages-in-the-creation-and-properties-panes-still-draw-past-their-row]
 ---
 
 

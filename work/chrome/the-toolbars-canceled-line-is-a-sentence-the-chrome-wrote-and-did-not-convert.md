@@ -4,6 +4,9 @@ kind: issue
 title: viewer: the toolbar's 'canceled' line is a sentence in the same wrapping row as the converted status line, unconverted
 status: open
 opened: 2026-09-22
+priority: P0
+cost: E
+refs: [error-and-check-text-overflows-its-region]
 ---
 
 

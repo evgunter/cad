@@ -2039,3 +2039,61 @@ flight. That count is the cheapest check there is, and it is the one
 that found it.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-22 — the track picked up again, and cut along its priority seam
+
+A new orchestrator sitting (Ev, at hand-over: *"no AB protocol"* — the
+posture this program has always had). Nothing was in flight: the
+board's `dispatched` column was empty and no `chrome/` branch is open,
+which is the check the previous entry says to make, made.
+
+**The slate measured 88 points against the 30-point ceiling**, and the
+previous sitting named the split as this one's work. Seven rows filed
+by Wave 2's wrap unit carried no band and no cost, so they were charged
+the 2.5-point default; they were priced first, because where they land
+decides the seam. All seven are residue of Ev's P0 overflow report:
+the fifty unconverted sentences and the toolbar's canceled line are
+the defect Ev reported, still live, so **P0**; the width-versus-
+characters fork, the ribbon floor, the auto-sized window and the
+unbounded row label are **P1**; the text-style divergence is latent
+and **P3**.
+
+**P0 and P1 alone then came to 55**, so a pure priority cut would have
+left CHROME over budget on its own spine, and the seam had to run
+inside P1. It ran where the slate already divided:
+
+- **CHROME keeps 28 points** — the text the viewer lays out and the
+  badges it draws, and the subset-policy class behind the badges
+  (`work/chrome/plan.md`, *The slate after the 2026-09-22 cut*).
+- **FORMS** (new, 23 points, band 10000-10099) — the creation forms'
+  vocabulary and the seats they gate: eleven rows.
+- **OFFER** (new, 18.5 points, band 10100-10199) — what the viewer
+  offers a person to do about what it shows, and what it asks of the
+  platform: seven rows.
+- **By the re-homing rule**, to live programs whose charter names
+  them: VGEOM four (the substituted-value class, `Camera::project`'s
+  overflow, the finiteness predicate's homes, `metres_per_pixel`'s
+  hand-rolled norm), FIT two (the flat-rung row's absolute epsilon, and
+  `mispaired-ids-exempts-the-empty-window`), VACUITY two, HELPER one,
+  BLIND two. Every receiving program's log carries a note.
+
+**One call was corrected against the receiver's own words.** The first
+draft sent seven rows to VGEOM. VGEOM's log had already declined
+`mispaired-ids-exempts-the-empty-window` on 2026-09-21 on a stated
+charter test — *a row belongs here only if a wrong number, or no
+number, reaches the screen* — and two more of the seven failed the same
+test (a missing pixel test, a missing adapter preference). They went to
+FIT, BLIND and OFFER instead. A receiving program's charter test is the
+thing to read before a `git mv`, not after.
+
+**Twenty-six files cited the moved rows by path**, six of them code
+comments (`crates/viewer` and two in `crates/editor-core`, EDIT's —
+comment-only repoints, announced in the PR). All repointed; the
+append-only logs were left as written.
+
+**The one live edit on a moved row**: AUTH-4 (#3052) appends evidence
+to `body-seat-reads-through-the-placer-chain` at its old path. Rename
+detection should carry it; AUTHOR's log says what to do if it does
+not.
+
+Signed (CHROME orchestrator).

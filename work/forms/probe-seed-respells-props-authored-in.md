@@ -41,7 +41,7 @@ the `1.0` here agree.
 
 ## Distinct from the residue already disclosed
 
-`work/chrome/probe-rows-assert-in-one-direction-only.md` discloses a
+`work/vacuity/probe-rows-assert-in-one-direction-only.md` discloses a
 residue about `probe_seed`: the reach ROW restates one written
 millimetre rather than importing the seed, which that row argues is
 deliberate. This finding is about `probe_seed`'s own BODY, not about
