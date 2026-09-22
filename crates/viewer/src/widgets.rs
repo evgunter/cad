@@ -1,4 +1,8 @@
-//! **The free helpers over `egui::Ui` that the panes share.**
+//! **The free helpers over `egui::Ui` that the chrome shares.**
+//!
+//! Mostly the panes; [`message`] is also the toolbar's and the checks
+//! window's, because where a sentence wraps is a question about the
+//! region it is drawn in rather than about which pane drew it.
 //!
 //! This module is part of the `app` driver rather than a vocabulary —
 //! it names `egui`, and [`delete_button`] reads a
@@ -11,7 +15,11 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are eight: [`number_text`] and
+//! `ui: &mut egui::Ui`*, and there are nine — re-derived from this
+//! file's own text by
+//! `roster_tests::the_helpers_that_take_no_ui_are_the_nine_named_here`,
+//! so the list below goes red rather than stale: `wrapped_in_region`,
+//! which lays a sentence out without drawing it; [`number_text`] and
 //! [`number_field`], which render and build rather than draw;
 //! [`install_number_formatter`], which writes a style; [`new_row_step`],
 //! which mints a value; [`value_gesture`] and [`free_move_gesture`],
@@ -42,6 +50,108 @@ use crate::props;
 use crate::readout;
 use crate::session::{DocSession, FreeMoveName, GestureName, SessionOp, ValueGestureName};
 use crate::sketch;
+use crate::theme::Theme;
+
+/// **A sentence drawn so that it WRAPS INSIDE THE REGION it is drawn
+/// in** — a refusal, a fault, a check finding, the status line.
+///
+/// The chrome's other texts are names and numbers, a few characters
+/// each, and where they go is not interesting. A message is a whole
+/// sentence, it can be a paragraph long, and egui decides how to lay
+/// one out from its SURROUNDINGS rather than from what it is.
+/// `egui::Ui::wrap_mode` answers in three steps: the `Ui`'s own
+/// `egui::Style::wrap_mode` if something set one, else `Extend` inside
+/// a grid, else the layout's. **Nothing in this chrome sets a style
+/// wrap mode**, so today the layout is what answers — and both of the
+/// answers a layout gives are wrong for a sentence, each being one of
+/// the two things a reader sees:
+///
+/// - In an ordinary horizontal row — which is how every field row in
+///   this chrome is built — the mode is `Extend`, which lays the text
+///   out at infinite width. A sentence wider than the pane is not
+///   wrapped and not shortened: it is drawn past the right-hand edge,
+///   under whatever is there.
+/// - In a WRAPPING horizontal row — the toolbar — the mode is `Wrap`,
+///   and `egui::Label::layout_in_ui` takes its "start after the previous
+///   widget, continue on the line below" branch, which places the whole
+///   galley at `ui.max_rect().left()` and indents only the first row to
+///   the cursor. The sentence begins beside the badge that raised it and
+///   every line after the first begins at the left edge of the PANEL —
+///   for the toolbar, the left edge of the window.
+///
+/// So the wrap is taken HERE and not left to the layout. The text is
+/// laid out into a galley at [`egui::Ui::available_width`] and handed
+/// over already laid out, which is the one path `layout_in_ui` neither
+/// extends nor re-places: it allocates the galley's own size at the
+/// cursor, so every line of the sentence begins under the first one.
+///
+/// **Which region that width names is egui's answer, not a choice made
+/// here** (`egui::Layout::available_size`): from the cursor to the
+/// right-hand edge in an ordinary row, and the whole row's width in a
+/// wrapping one. In the second case the galley is wider than what is
+/// left on the line, so the placer moves the message whole to the next
+/// line rather than splitting it across the two — which is the same
+/// rule the toolbar's controls already wrap by.
+///
+/// **And the wrap is asked for, not inherited**: [`wrapped_in_region`]
+/// passes `Some(egui::TextWrapMode::Wrap)`, which is the argument
+/// `egui::WidgetText::into_galley` takes ahead of `Ui::wrap_mode`
+/// entirely. So a future context-wide `Style::wrap_mode` — this crate
+/// already writes context-wide style ([`install_number_formatter`]) —
+/// would move every other label in the chrome and leave a message
+/// where it is. That is the intent: a message's wrap is a decision
+/// about messages.
+///
+/// The caller still chooses the voice, and [`message_toned`] is the
+/// door that makes that choice the chrome's one tone rule rather than
+/// a hand-spelled `weak()` at the call site.
+pub(crate) fn message(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
+    let galley = wrapped_in_region(ui, text);
+    ui.add(egui::Label::new(galley))
+}
+
+/// [`message`], as a link — the same wrap, and a click.
+///
+/// A message that points at the row to fix is one gesture from it
+/// rather than an id to hunt for, and a pointer long enough to need
+/// wrapping is exactly the one worth clicking.
+pub(crate) fn message_link(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
+    let galley = wrapped_in_region(ui, text);
+    ui.add(egui::Link::new(galley))
+}
+
+/// [`message`] in the voice its [`frame::Tone`] asks for — the one
+/// line a call site needs for both halves of how a message is drawn.
+///
+/// The wrap stays [`message`]'s and the voice stays
+/// [`crate::app::toned`]'s, which is the chrome's one tone-to-colour
+/// mapping and the same one the toolbar's badges and the feature
+/// tree's row badges read. A call site that spelled `.weak()` itself
+/// would be a third answer to what `Advisory` looks like.
+///
+/// [`frame::Tone`]: crate::frame::Tone
+pub(crate) fn message_toned(
+    ui: &mut egui::Ui,
+    text: impl Into<String>,
+    theme: &Theme,
+    tone: crate::frame::Tone,
+) -> egui::Response {
+    message(ui, crate::app::toned(text, theme, tone))
+}
+
+/// The one place the wrap rule [`message`]'s doc states is spelled,
+/// so its three doors cannot drift apart.
+fn wrapped_in_region(
+    ui: &egui::Ui,
+    text: impl Into<egui::WidgetText>,
+) -> std::sync::Arc<egui::Galley> {
+    text.into().into_galley(
+        ui,
+        Some(egui::TextWrapMode::Wrap),
+        ui.available_width(),
+        egui::TextStyle::Body,
+    )
+}
 
 /// **The text a numeric field shows**, and the one rule every field in
 /// this chrome obeys: *the text reads back as the value the field
@@ -1405,6 +1515,426 @@ pub(crate) fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: Recip
     match affordance.hover {
         Some(text) => button.on_hover_text(text).clicked(),
         None => button.clicked(),
+    }
+}
+
+/// **The two hand-written censuses about this module, re-derived.**
+///
+/// A count or a roster in prose is a measurement, and a measurement
+/// owes something that goes red when it stops being true. Both rows
+/// here read source text rather than behaviour, which is the point:
+/// the subject IS the text.
+#[cfg(test)]
+mod roster_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used, clippy::panic)]
+
+    /// **The module doc's "there are nine".**
+    ///
+    /// The rule it states — *a function that takes no
+    /// `ui: &mut egui::Ui`* — is decidable from the file's own text,
+    /// so the list is derived here and compared by NAME rather than
+    /// by count: a helper added and a helper renamed are different
+    /// edits to the doc, and a count cannot tell them apart.
+    #[test]
+    fn the_helpers_that_take_no_ui_are_the_nine_named_here() {
+        let source = test_utils::source::code_only(include_str!("widgets.rs"));
+        let mut found: Vec<&str> = Vec::new();
+        let mut lines = source.lines().peekable();
+        while let Some(line) = lines.next() {
+            // Top-level items only: a `fn` inside a test module or a
+            // nested walker is indented, and the doc's rule is about
+            // the module's own surface.
+            let Some(name) = line
+                .strip_prefix("pub(crate) fn ")
+                .or_else(|| line.strip_prefix("pub fn "))
+                .or_else(|| line.strip_prefix("fn "))
+                .map(|rest| rest.split(['(', '<']).next().unwrap_or(rest))
+            else {
+                continue;
+            };
+            let mut signature = line.to_owned();
+            while !signature.trim_end().ends_with('{') {
+                let Some(next) = lines.next() else { break };
+                signature.push_str(next);
+            }
+            if !signature.contains("ui: &mut egui::Ui") {
+                found.push(name);
+            }
+        }
+        // The module doc's list, in its own order.
+        let named = [
+            "wrapped_in_region",
+            "number_text",
+            "number_field",
+            "install_number_formatter",
+            "new_row_step",
+            "value_gesture",
+            "free_move_gesture",
+            "drag_ops",
+            "drag_gesture_ops",
+        ];
+        found.sort_unstable();
+        let mut named_sorted = named;
+        named_sorted.sort_unstable();
+        assert_eq!(
+            found,
+            named_sorted,
+            "the module doc names {} helpers that take no `ui`; the file has {}. \
+             Update the doc's list (and its count) to what is here.",
+            named.len(),
+            found.len()
+        );
+    }
+
+    /// **The roster of message call sites**, which
+    /// `crates/viewer/README.md` states twice — once in the module
+    /// table's `widgets` row and once in the *Where a MESSAGE wraps*
+    /// paragraph, which enumerates them.
+    ///
+    /// Derived from the crate's own source, by the one spelling every
+    /// call site uses: the qualified path. That spelling is what
+    /// makes this mechanical, so a site that imported the name
+    /// instead would be invisible here — which is why there is no
+    /// such site and why this row's failure message says so.
+    #[test]
+    fn the_message_roster_is_what_the_crate_actually_calls() {
+        let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut callers: Vec<String> = Vec::new();
+        let mut stack = vec![src.clone()];
+        while let Some(dir) = stack.pop() {
+            for entry in std::fs::read_dir(&dir).expect("the crate's own source tree") {
+                let path = entry.expect("a directory entry").path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().is_none_or(|ext| ext != "rs") || path == src.join("widgets.rs")
+                {
+                    continue;
+                }
+                let text = test_utils::source::code_only(
+                    &std::fs::read_to_string(&path).expect("a source file"),
+                );
+                if text.contains("widgets::message") {
+                    callers.push(
+                        path.strip_prefix(&src)
+                            .expect("a path under src")
+                            .to_string_lossy()
+                            .into_owned(),
+                    );
+                }
+            }
+        }
+        callers.sort();
+        assert_eq!(
+            callers,
+            [
+                "app.rs",
+                "pane/features.rs",
+                "pane/profile.rs",
+                "pane/view.rs"
+            ],
+            "the README's `widgets` table row and its *Where a MESSAGE wraps* \
+             paragraph name these files; a call site that is not here, or one \
+             that reached the name through a `use` rather than the qualified \
+             path, makes both stale"
+        );
+    }
+}
+
+/// **Where a message LANDS**, which is the whole of what [`message`]
+/// changes: the same sentence, drawn in the same row, in a different
+/// place.
+///
+/// Every row here measures one drive of a real `egui::Context` through
+/// `crate::pane::headless::landed` — the region the caller laid out and
+/// the rows the galley landed in, read off one frame, so an assertion
+/// compares two numbers from the same layout rather than one number
+/// against a remembered constant.
+///
+/// Each row measures what egui does WITHOUT this widget too. That
+/// reading is not decoration: it is what says the assertion above it
+/// can fail, and it is the one thing that would tell a reader the
+/// widget had stopped being needed rather than stopped working.
+///
+/// **One row carries the weight**, and it is worth saying which:
+/// `a_message_fills_the_region_it_is_given_rather_than_a_fixed_width`
+/// is the only assertion here that a sentence laid out at a CONSTANT
+/// width cannot satisfy. The others are all monotone the wrong way —
+/// narrower is easier — so they hold the symptom and that one holds
+/// the claim. The toolbar's own reading is in `app`, against the real
+/// `toolbar_ui`.
+#[cfg(test)]
+mod message_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::message;
+    use eframe::egui;
+
+    /// A refusal-length sentence: longer than [`REGION`] at the
+    /// default text style, so a row that does not wrap it has to put
+    /// it somewhere.
+    const SENTENCE: &str =
+        "the chain does not close yet — its last step has to target the start of the loop it began";
+
+    /// What stands where a badge, a jump button or a control would —
+    /// so the message starts part-way along its row, which is the
+    /// state both defects need.
+    const PRECEDING: &str = "checks";
+
+    /// Three region widths, all narrow on purpose: a pane docked
+    /// beside a viewport is narrow, and the defect is about a sentence
+    /// that does not fit. Three rather than one because
+    /// [`a_message_fills_the_region_it_is_given_rather_than_a_fixed_width`]
+    /// needs a region that VARIES — one width cannot tell a wrap at
+    /// the region from a wrap at a constant.
+    const REGIONS: [f32; 3] = [150.0, 220.0, 320.0];
+
+    /// The region the single-width rows use.
+    const REGION: f32 = REGIONS[1];
+
+    /// Rows are placed at whole pixels, so two readings of one edge
+    /// can differ by less than one.
+    const SLACK: f32 = 1.0;
+
+    /// The widest row of a laid-out galley — what the sentence
+    /// actually asked the layout for.
+    fn widest(rows: &[egui::Rect]) -> f32 {
+        rows.iter()
+            .map(egui::Rect::width)
+            .fold(f32::NEG_INFINITY, f32::max)
+    }
+
+    /// [`drawn_in`] at [`REGION`].
+    fn drawn(wrapping: bool, draw: impl FnOnce(&mut egui::Ui)) -> (egui::Rect, Vec<egui::Rect>) {
+        drawn_in(REGION, wrapping, draw)
+    }
+
+    /// One headless frame: a region `width` points wide, a widget
+    /// already in the row, then `draw`. Answers with the region and
+    /// with the rows [`SENTENCE`]'s galley landed in.
+    fn drawn_in(
+        width: f32,
+        wrapping: bool,
+        draw: impl FnOnce(&mut egui::Ui),
+    ) -> (egui::Rect, Vec<egui::Rect>) {
+        let region = core::cell::Cell::new(egui::Rect::NOTHING);
+        let painted = crate::pane::headless::landed(|ui| {
+            ui.allocate_ui(egui::vec2(width, 400.0), |ui| {
+                region.set(ui.max_rect());
+                let row = |ui: &mut egui::Ui| {
+                    ui.label(PRECEDING);
+                    draw(ui);
+                };
+                if wrapping {
+                    ui.horizontal_wrapped(row);
+                } else {
+                    ui.horizontal(row);
+                }
+            });
+        });
+        let rows = painted
+            .into_iter()
+            .find(|landed| landed.text == SENTENCE)
+            .expect("the sentence was painted")
+            .rows;
+        (region.get(), rows)
+    }
+
+    /// **The region it wraps at is the region it is IN**, and not a
+    /// width of its own.
+    ///
+    /// The other rows here are all satisfied by a sentence laid out
+    /// NARROWER than its region — "inside the region", "more than one
+    /// line", "every line under the first" each get easier as the
+    /// galley shrinks, so a `wrapped_in_region` that passed a literal
+    /// would keep every one of them green. This is the row that
+    /// cannot be answered by a constant: the widest line has to GROW
+    /// with the region, across three regions, so no single number
+    /// satisfies all three.
+    ///
+    /// It closes the other degradation too. A plain `ui.label` in a
+    /// non-wrapping row is laid out at infinite width, which is also
+    /// the same widest line in all three — the reading below, which
+    /// is what says this row can fail.
+    #[test]
+    fn a_message_fills_the_region_it_is_given_rather_than_a_fixed_width() {
+        let measured: Vec<(f32, f32)> = REGIONS
+            .iter()
+            .map(|&width| {
+                let (region, rows) = drawn_in(width, false, |ui| {
+                    message(ui, SENTENCE);
+                });
+                let past = rows
+                    .iter()
+                    .map(|row| row.right() - region.right())
+                    .fold(f32::NEG_INFINITY, f32::max);
+                assert!(
+                    past <= SLACK,
+                    "a {width}-point region still holds the sentence \
+                     ({past} points past, rows {rows:?})"
+                );
+                (width, widest(&rows))
+            })
+            .collect();
+        for pair in measured.windows(2) {
+            let ((narrow, at_narrow), (wide, at_wide)) = (pair[0], pair[1]);
+            assert!(
+                at_wide > at_narrow + SLACK,
+                "the sentence's widest line grows with the region it is \
+                 laid out in: {at_narrow} points at {narrow}, {at_wide} at \
+                 {wide} — a wrap at a fixed width reads the same number twice"
+            );
+        }
+
+        let plain: Vec<f32> = REGIONS
+            .iter()
+            .map(|&width| {
+                let (_, rows) = drawn_in(width, false, |ui| {
+                    ui.label(SENTENCE);
+                });
+                widest(&rows)
+            })
+            .collect();
+        assert!(
+            plain.windows(2).all(|pair| pair[0] == pair[1]),
+            "and a plain label's widest line does NOT move with the region \
+             — it is laid out at infinite width in all three, which is the \
+             reading that says the assertion above can fail ({plain:?})"
+        );
+    }
+
+    /// **And it wraps at the width a reader can SEE**, inside the
+    /// scroll container every chrome pane is drawn in.
+    ///
+    /// `app::ViewerBehavior::pane` wraps each chrome pane in
+    /// `egui::ScrollArea::both()` with `auto_shrink` off on both axes,
+    /// so a pane's rows are horizontally scrollable — and a widget
+    /// that laid a sentence out at the CONTENT width would wrap at a
+    /// width nobody is looking at, or not at all, and answer this
+    /// unit's symptom with a scrollbar. egui hands its inner `Ui` the
+    /// visible size rather than an infinite one, on the stated ground
+    /// that wrapping text beats a horizontal scrollbar; this is the
+    /// reading that says so, because it is egui's choice and not this
+    /// crate's.
+    #[test]
+    fn a_message_in_a_scrolled_pane_wraps_at_the_width_the_reader_can_see() {
+        let region = core::cell::Cell::new(egui::Rect::NOTHING);
+        let painted = crate::pane::headless::landed(|ui| {
+            ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
+                egui::ScrollArea::both()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        region.set(ui.clip_rect());
+                        ui.horizontal(|ui| {
+                            ui.label(PRECEDING);
+                            message(ui, SENTENCE);
+                        });
+                    });
+            });
+        });
+        let rows = painted
+            .into_iter()
+            .find(|landed| landed.text == SENTENCE)
+            .expect("the sentence was painted")
+            .rows;
+        let region = region.get();
+        let past = rows
+            .iter()
+            .map(|row| row.right() - region.right())
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            past <= SLACK,
+            "no line of the message reaches past what the scroll area \
+             shows ({past} points past, visible {region:?}, rows {rows:?})"
+        );
+        assert!(
+            rows.len() > 1,
+            "and it did have to wrap to manage it: {rows:?}"
+        );
+    }
+
+    /// **A message in an ordinary row stays inside it.**
+    ///
+    /// The first of the two things a reader sees: egui lays a label out
+    /// at infinite width in a non-wrapping horizontal layout, so a
+    /// sentence longer than the pane is drawn past its right-hand edge.
+    #[test]
+    fn a_message_in_a_row_wraps_inside_the_row_rather_than_running_past_it() {
+        let (region, rows) = drawn(false, |ui| {
+            message(ui, SENTENCE);
+        });
+        let past = rows
+            .iter()
+            .map(|row| row.right() - region.right())
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            past <= SLACK,
+            "no line of the message reaches past the region's right edge \
+             ({past} points past, region {region:?}, rows {rows:?})"
+        );
+        assert!(
+            rows.len() > 1,
+            "the fixture has to be longer than the region, or this row is \
+             not about wrapping: {rows:?}"
+        );
+
+        let (region, plain) = drawn(false, |ui| {
+            ui.label(SENTENCE);
+        });
+        assert!(
+            plain[0].right() > region.right() + SLACK,
+            "and a plain label in the same row does run past it — the \
+             reading that says the row above can fail (plain {:?}, region \
+             {region:?})",
+            plain[0]
+        );
+    }
+
+    /// **A message in a WRAPPING row begins every line in the same
+    /// place.**
+    ///
+    /// The second thing a reader sees, and the toolbar's own: egui
+    /// starts a wrapped label beside the widget before it and puts
+    /// every line after the first at the left edge of the containing
+    /// region — for a top panel, the left edge of the window.
+    #[test]
+    fn a_message_in_a_wrapping_row_begins_every_line_in_the_same_place() {
+        let (_, rows) = drawn(true, |ui| {
+            message(ui, SENTENCE);
+        });
+        assert!(
+            rows.len() > 1,
+            "the fixture has to be longer than the region, or this row is \
+             not about wrapping: {rows:?}"
+        );
+        let first = rows[0].left();
+        let stray = rows
+            .iter()
+            .map(|row| (row.left() - first).abs())
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            stray <= SLACK,
+            "every line of the message begins under the first \
+             ({stray} points of drift across {rows:?})"
+        );
+
+        let (region, plain) = drawn(true, |ui| {
+            ui.label(SENTENCE);
+        });
+        assert!(
+            plain[0].left() > plain[1].left() + SLACK,
+            "and a plain label in the same row does not — its second line \
+             begins left of its first ({plain:?})"
+        );
+        assert!(
+            (plain[1].left() - region.left()).abs() <= SLACK,
+            "all the way back at the region's own left edge, which for the \
+             toolbar is the window's ({:?} vs {region:?})",
+            plain[1]
+        );
     }
 }
 

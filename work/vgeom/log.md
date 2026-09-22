@@ -1361,6 +1361,48 @@ is gone, replaced by
 `a_drag_steps_through_a_text_that_names_what_it_commits`; its old
 claim was a statement about 5·10⁻⁴ and stopped being true.
 
+## `vgeom/seam-refusals` — the third disposition of the display seam (#3065, 2026-09-22)
+
+Closes `the-display-seams-refusal-is-drawn-and-never-said` (P2/D) and
+`the-overlay-lanes-drop-the-leg-disposition-has-no-row` (P3/D) as one
+unit, the assertion half deciding the badge half.
+
+**The rule has one home and a headless door.** `marks::LegLane` is the
+seam's per-leg disposition — a leg with an end whose narrowing is not
+a finite `f32` is not drawn, the rest of the lane is, and the drop is
+counted. It replaces `marks::segments_of` and the pair-narrowing
+inside `pane::viewport::push_segment`, which were one rule written
+twice, and absorbs the datum lane's inline `filter_map`.
+`marks::edge_id_lane` is the public door that keeps the count;
+`edge_id_segments` keeps its signature.
+
+**The mutation the second row measured at zero now reds six rows.**
+Re-measured on this branch's own base rather than quoted: planting
+*keep a leg whose end does not narrow* at `segments_of` and
+`push_segment` reds nothing on `main`, and at `LegLane::leg` reds four
+`marks::tests` rows and two `pane::viewport::tests` rows.
+
+**The badge question, decided rather than deferred, and split.** An
+overlay LEG is worth a badge and the VNEWS half is filed
+(`an-overlay-leg-past-the-display-seam-is-not-badged`): the seam
+refuses per leg, not per lane, so an authored profile with one corner
+at `7e307` — a number the add-profile form takes — draws as its
+ordinary legs and a gap, in a picture a person is looking at. That is
+the refutation of the argument the row recorded against a badge, which
+assumed the whole picture was nowhere. The pane's OWN extent refusing
+is the opposite case and gets no badge: `aspect()` has already
+declined anything but a window above `3.4e38` physical pixels, so a
+badge would name a state nobody can reach. That reason is now written
+at the site rather than left to a PR body.
+
+**Two findings filed off the sweep** for *a typed refusal computed and
+dropped on the floor*: `work/vnews/a-swallowed-ray-refusal-is-announced-as-a-picking-disagreement`
+(a dropped `faces_under_cursor` refusal publishes a disagreement
+neither picking path claimed) and
+`work/author/blend-swallows-the-edge-name-fault-the-index-calls-loud`
+(two sites collapsing three faults the index's header says are not the
+same news).
+
 ## `vgeom/field-product` — the numeric field door's three residues (2026-09-22, #3067)
 
 Three residues of `crate::widgets::number_field`, closed together

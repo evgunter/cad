@@ -73,7 +73,10 @@ impl ViewerBehavior<'_> {
         };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
-            ui.label(status.text());
+            // A sentence, so `widgets::message` — here in a layout
+            // egui would have wrapped it in anyway, which is a fact
+            // about the column and not about the message.
+            crate::widgets::message(ui, status.text());
         }
     }
 

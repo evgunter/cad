@@ -133,6 +133,10 @@ impl ViewerBehavior<'_> {
 /// door's own ladder and a refusal here is the refusal the button
 /// would get. `None` is "no preview was taken" (the first frame a
 /// form is on screen, or a form at rest), and holds nothing.
+///
+/// Every verdict that is a SENTENCE goes through
+/// [`crate::widgets::message_toned`]; the loop count is a number and
+/// stays a plain label.
 pub(crate) fn preview_verdict(
     ui: &mut egui::Ui,
     theme: Theme,
@@ -152,14 +156,21 @@ pub(crate) fn preview_verdict(
             // and the commit door refuses a program that does not
             // close. Saying which of the two this is beats a
             // disabled button with a lattice refusal beside it.
-            ui.weak("the chain does not close yet — its last step has to target the start");
+            crate::widgets::message_toned(
+                ui,
+                "the chain does not close yet — its last step has to target the start",
+                &theme,
+                frame::Tone::Advisory,
+            );
             true
         }
         Some(Ok(drawn)) => {
             if let Some(invalid) = &drawn.invalid {
-                ui.colored_label(
-                    chrome(theme.unresolved),
+                crate::widgets::message_toned(
+                    ui,
                     format!("does not validate: {invalid}"),
+                    &theme,
+                    frame::Tone::Actionable,
                 );
                 true
             } else {
@@ -180,9 +191,14 @@ pub(crate) fn preview_verdict(
             // refusal blames a step somebody actually wrote, and
             // keeps the colour that says so.
             if matches!(error, PreviewError::Transition { verb: None, .. }) {
-                ui.weak(error.to_string());
+                crate::widgets::message_toned(ui, error.to_string(), &theme, frame::Tone::Advisory);
             } else {
-                ui.colored_label(chrome(theme.unresolved), error.to_string());
+                crate::widgets::message_toned(
+                    ui,
+                    error.to_string(),
+                    &theme,
+                    frame::Tone::Actionable,
+                );
             }
             true
         }
