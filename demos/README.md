@@ -860,10 +860,11 @@ the draws moved.
   to a 5 px floor to be visible at all; the true number is in the
   legend.
 * **The teal is drawn only at the ε it was measured at.** `0.111` is a
-  default-ε measurement and the wall that sets it is an enclosure
-  compared against the run's own band, so at another ε it is a
-  different box — and `chaintol` declares that frontier on the same
-  walk. The sheet asks the run's ε and, away from the default, prints
+  default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
+  measured); why it moves is not established — the wall's refusal is
+  a poisoned margin, not a quantity a band classifies — so at another
+  ε it is a different box, and `chaintol` declares that frontier on
+  the same walk. The sheet asks the run's ε and, away from the default, prints
   the frontier where the legend would have gone and draws no band. A
   run at another ε where the box happens to certify anyway is
   under-claimed, which is the direction to be wrong in.
