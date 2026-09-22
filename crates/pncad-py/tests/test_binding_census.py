@@ -3433,6 +3433,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
+    "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
     "TessellateError::Band": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",
