@@ -6071,3 +6071,6 @@ mod unit_vector_witness_through_the_facade {
         );
     }
 }
+
+#[path = "r2_e2e_shell.rs"]
+mod r2_e2e_shell;

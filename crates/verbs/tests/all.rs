@@ -28,3 +28,6 @@ mod param_flow;
 mod run_door;
 
 test_utils::every_suite_file_is_aggregated!();
+
+#[path = "r2_head_probe.rs"]
+mod r2_head_probe;
