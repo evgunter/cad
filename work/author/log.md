@@ -1043,3 +1043,44 @@ and evidence onto CIW's prose-counts row — the CI job-name prefix that
 makes a prefix match read six `test (…)` jobs on a fully green run,
 which is `[ev]` PR 3036 and the first time one of those eight prose
 counts has actually misled anyone.
+
+## 2026-09-22 — AUTH-4 dispatched: AddPart and duplicate, as one unit
+
+Ev ruled on the duplicate row's open design choice: **a `Pattern` of
+count 2**, no new document node, no EDIT half.
+
+**The investigation that made the question worth asking.** Ev's
+recorded premise was that transform consumes the original and
+duplicate is "transform, with the original kept". The row's own first
+look doubted it, noting the input stays in the DAG. Both were partly
+right: `roots::on_insert` removes a new node's inputs from
+`Doc::roots`, the root set IS the DAG's sink set, and the viewer draws
+roots — so the original does stop being drawn, and the mechanism is
+the roots invariant rather than anything in `Node::Transform`. Which
+means "duplicate as a subtype of transform" would have fought ratified
+design, while a pattern of two needs nothing new. **Checking the
+premise turned a design question into a ruling in one exchange.**
+
+Ev's larger idea — one edited `placement` arg unifying normal
+placement, transform and pattern — is filed at his direction as
+`work/edit/placement-is-spelled-three-ways-node-registry-and-rule`
+(P0, H, `needs_ev`). I told him plainly I do not think it is easier
+than he fears: `Node::Transform` holds `Expr` components while the
+A11 registry holds a concrete `Frame`, so the three spellings disagree
+on whether a placement is PARAMETRIC, and that decides whether this is
+a unification at all. The row proposes one `[ev]` PR answering just
+that before anyone commits a lane. AUTHOR is not taking it and is not
+waiting on it.
+
+**A premise of mine is in the spec flagged for the lane to falsify.**
+I read the roots invariant as meaning a `Part` of a pattern consumes
+the pattern from `roots`, which would stop the other copy being drawn
+— making duplicate-then-move-one broken, and the real gesture
+`Pattern` plus two `Part`s. The spec asks the lane to settle it by
+RUNNING and says plainly that my being wrong is the more useful
+answer. That is now the standing shape of these specs: state the
+premise, name it as mine, ask for it to be checked.
+
+Both P0 rows go out together because `AddPart` is what makes a
+duplicate usable and both halves live in `session/op.rs` and the
+create pane.
