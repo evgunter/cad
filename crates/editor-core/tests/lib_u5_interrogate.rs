@@ -537,9 +537,8 @@ fn sweep_the_corpus_for_body_index_rungs() -> BodyIndexSweep {
 /// unpinned.** ONE of its arms is driven below — `NoCanonicalFrame`,
 /// twice, carrying a different carrier word each time, because two
 /// values that render differently are what this file exists to keep
-/// apart. Its other arms are `topo::readback`'s to account for and
-/// nothing here welds them, nor does anything here check that two is
-/// all the arms there are. The weld below covers
+/// apart. Its other arms are `topo::readback`'s to account for; nothing
+/// here welds them, and nothing here counts them. The weld below covers
 /// [`InterrogateError`]'s roster and stops at the `Readback` rung: the
 /// rung is welded, the enum inside it is not.
 ///

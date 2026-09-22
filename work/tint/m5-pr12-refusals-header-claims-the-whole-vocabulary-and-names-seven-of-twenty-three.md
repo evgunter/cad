@@ -12,7 +12,7 @@ opened: 2026-09-15
 
 Found by TINT-6's class sweep while closing
 `interrogate-ladder-header-claims-every-rung-and-pins-five`. Same
-shape, one crate over. Accurate at `f8f8e648e`.
+shape, one crate over. Re-derived at `c211ceaf3`.
 
 `crates/sweep/tests/m5_pr12_refusals.rs`'s module header opens
 *"**The OQ6 refusal vocabulary, pinned variant by variant** (M5
@@ -65,7 +65,7 @@ crates/*/tests/ | wc -l`:
 | `UnsupportedChain` | 14 |
 | `UnsupportedRunOut` | 11 |
 | `UnsupportedGeometry` | 4 |
-| `BodyNotIntact` | 2 |
+| `BodyNotIntact` | 3 |
 | `SurgeryInvariant` | 1 |
 | `Certify` | 3 |
 | `Op` | 3 |
