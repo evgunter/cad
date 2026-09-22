@@ -1,7 +1,7 @@
 ---
 id: the-circle-split-cap-offers-counts-the-document-refuses
 kind: issue
-title: The circle_split count cap offers, at any radius under a few millimetres, counts whose figure the document escalates on
+title: The circle_split count cap offers counts the document escalates on, at every radius below K*eps/(1-cos(pi/n)) - 2.12 mm at the cap, and falling as n squared
 status: open
 opened: 2026-09-22
 priority: P3
@@ -13,9 +13,13 @@ cost: D
 
 `crates/viewer/src/forms.rs`, `MAX_CIRCLE_SPLIT`. The cap's doc
 comment says the count is "a product cap and not the kernel's: the
-kernel takes any count", and that is true of the COUNT. It is not
-true of the figure the count builds, and the form offers the pairs
-where it is false.
+kernel takes any count". **That sentence is precisely true**: the
+cap's rationale really is preview cost, it scopes itself to authoring
+explicitly, and `circle_split_kernel` really does reject only
+`n < 2`. A performance cap and a validity limit share a shape here;
+they have not drifted apart. What is missing is a **third** bound
+nobody wrote — the form has no radius-aware limit at all, and it is
+the (r, n) pairs below that limit that the document escalates on.
 
 A circle of radius `r` split `n` ways is judged by two margins that
 are both proportional to `r` and both read against the run's band
@@ -44,12 +48,48 @@ n=64   r=1e-3  OK
 ```
 
 A person who drags the split count to the cap on a circle smaller
-than about 3 mm gets a document refusal at the shipping tolerance.
+than **2.12 mm** gets a document refusal at the shipping tolerance.
 The form has no radius-aware bound and nothing warns.
 
-The lower wall is `r > K·ε/(1 − cos(π/n))`, which at `n = 1024` and
-K = 10 is `2.12e6·ε`. It is a wall in `r/ε`, so it moves with the
-run's tolerance: at ε = 1e-6 the cap needs a radius above 2.1 m.
+The sample above only brackets that number between 2 and 3 mm. The
+closed form pins it: the lower wall is `r > K·ε/(1 − cos(π/n))`, which
+at `n = 1024` and K = 10 is `2.1249e6·ε` — **2.1249e-3 m** at the
+default ε. Rounding it to "about 3 mm" overstates the safe radius by
+40% in the permissive direction, which is the wrong way to be wrong
+for the number a person will quote. It is a wall in `r/ε`, so it also
+moves with the run's tolerance: at ε = 1e-6 the cap needs a radius
+above 2.12 m.
+
+## The boundary is a curve in (r, n), not a radius — and that is the finding
+
+`1 − cos(π/n) ≈ π²/2n²`, so `r_min ∝ n²`: **each halving of the count
+buys a factor of four in radius.** Read the other way round,
+`n_max(r) ≈ π·√(r/2Kε)` ∝ √r — **quartering a circle's radius halves
+the count at which the document starts refusing it**, and no circle is
+exempt, however large.
+
+| n | `r_min = K·ε/(1 − cos(π/n))` at the default ε |
+|---|---|
+| 1024 (the cap) | 2.12 mm |
+| 512 | 0.53 mm |
+| 256 | 0.133 mm |
+| 64 | 0.0083 mm |
+| 16 | 0.00052 mm |
+
+The sample above already shows `n=256 r=1e-3 OK` and `n=64 r=1e-3 OK`,
+so the data was in the row before the law was, and a title that leads
+with a radius invites a reader to bound the problem to small circles.
+It is not bounded: a 1 m circle is refused from n ≈ 22,000, a 100 m
+one from n ≈ 222,000. The cap is what keeps the product's exposure to
+sub-3-mm circles, not the geometry. Measured identically at ε = 1e-9,
+1e-6 and 1e-12 by bisecting the radius through `apply`: the wall is
+the closed form to five digits at every one.
+
+There is a second wall above — the `carrier_circles_identity` residue
+reaches ε at `r ≈ 1.5e12·ε` at n = 1025, falling as ~1/n — but at the
+default ε that is 1.5 km against a lower wall of 2.12 mm, six decades
+away and outside anything the form offers. It matters only to the
+fixture row below.
 
 ## What a fix would have to decide
 

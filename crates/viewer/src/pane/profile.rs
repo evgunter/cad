@@ -446,21 +446,86 @@ mod tests {
         // arc's centre from a chord of length 2r·sin(π/n) — to call two
         // pieces one circle. Both are proportional to r and both are
         // read against the band (ε, K·ε), so the radii that never
-        // escalate are an interval in ε:
+        // escalate are an interval in ε, and both its walls are walls
+        // in r/ε:
         //
-        //   r > K·ε/(1 − cos(π/n)) = 2.13e6·ε — below it the sagitta
-        //     is in band; below ε it reads as a chord, and then the
-        //     chord ladder escalates instead, because the nearest
-        //     rung of it is 8s and 8 < K.
-        //   r < 1.3e12·ε — above it the identity residue reaches ε and
-        //     "same carrier" stops being decidable.
+        //   r > K·ε/(1 − cos(π/n)) — closed form; at n = 1025, K = 10
+        //     that is 2.129e6·ε. Below it the sagitta is in band;
+        //     below ε it reads as a chord, and the chord ladder
+        //     escalates instead (the ladder paragraph below).
+        //   r < ~1.5e12·ε at n = 1025 — MEASURED, not closed form:
+        //     the f64 identity residue reaches ε there and "same
+        //     carrier" stops being decidable. **This wall carries n
+        //     even though its spelling does not**, and it falls as
+        //     ~1/n: measured at ε = 1e-9, centre origin, n = 256 →
+        //     1.08e13·ε, 512 → 5.07e12, 1024 → 2.57e12, 2048 →
+        //     1.24e12, 4096 → 6.17e11, with odd counts paying about
+        //     another 1.7× (n = 1025 reads 1.49e12, not 2.6e12).
+        //     Raising MAX_CIRCLE_SPLIT moves BOTH walls — the lower
+        //     up as n², this one down as 1/n.
         //
-        // The interval is six decades wide and NO CONSTANT radius sits
-        // in it at every gated ε: ε = 1e-6 wants r > 2.13 m and
-        // ε = 1e-12 wants r < 1.5 m. Tying r to ε is the fix, and
-        // 1.5e9 stands ~700× clear of both walls at every ε, since
-        // both walls are walls in r/ε.
-        let radius = 1.5e9 * Tol::witness().get().eps;
+        // **No constant radius sits in that window, and only just
+        // not.** At its narrowest it is 5.84 decades wide at n = 1025
+        // (2.129e6·ε to 1.467e12·ε, the lowest upper wall measured
+        // over ε ∈ [1e-13, 1e-5]); a constant across the gated
+        // ε = 1e-6 … 1e-12 needs 6.00. ε = 1e-6 wants r > 2.129 m and ε = 1e-12 wants
+        // r < 1.467 m: disjoint by a factor of 1.45. The miss hangs
+        // entirely on the SOFTER wall — the lower one is exact and
+        // ε-independent (measured = closed form to five digits at five
+        // ε), the upper is an empirical residue that moves a few per
+        // cent with ε and 1.7× with the parity of n. Had it come out
+        // at 3.2e12·ε instead, a constant radius would have worked.
+        //
+        // **1e8 is chosen for the model envelope, not for numeric
+        // symmetry**, and the trade is worth naming. The window's
+        // geometric centre is 1.77e9, which stands ~700× clear of both
+        // walls but makes this fixture a 1.5 km circle at ε = 1e-6 and
+        // a 15 km one at the 1e-5 the sweep reaches — outside D4 ¶1's
+        // ratified micron-to-kilometre coverage. 1e8·ε holds the
+        // figure inside that envelope at every ε the suite runs at —
+        // 1 km at 1e-5, the envelope's very top, down to 10 µm at
+        // 1e-13, and 0.1 m at the default — and it
+        // spends margin on the EXACT wall — 47× clear — to buy ~1.5e4×
+        // on the empirical one, which is the wall the paragraph above
+        // rests on. An ε-scaled fixture literal of this MAGNITUDE is
+        // ordinary house style — `crates/sweep/tests` spells figure
+        // scales `1.0e9 * eps` and `1.0e12 * eps` — but in those the
+        // multiplier is the figure's size in metres at the default ε
+        // and reads off the line, and in the small multiples (0.5,
+        // 3.0, 100.0) the multiplier IS the margin. Here it is a
+        // window placement, which reads off nothing, and that is why
+        // the derivation above it is this long.
+        //
+        // **The chord ladder closes the "pick another rung" escape,
+        // for any regular polygon and not just this one.** Where the
+        // sagitta falls below ε the pieces read as chords, and the
+        // `chord_side` ladder over the polygon's own vertices is
+        // dⱼ = r(cos(π/n) − cos((2j+1)π/n)): it starts at d₁ = 8s
+        // (exactly 8 in the small-angle limit, 7.99994 at n = 1025),
+        // climbs with consecutive ratio (j + 2)/j ≤ 3, and tops out
+        // near 2r. A bottom under the band and a top over it therefore
+        // force some rung INTO (ε, K·ε), because no ≤3× step clears a
+        // factor-K window. Two of those inequalities are facts about
+        // the ratified K = 10 and not about the structure —
+        // `CAD_AMBIGUITY_K` admits any finite K > 1, and at K ≤ 8 the
+        // "nearest rung is 8s, still under K·ε" step fails outright
+        // while at K ≤ 3 the ladder can step over the band. Below
+        // r ≈ 1.6e3·ε the chord 2r·sin(π/n) is itself in band or under
+        // ε and `vertex_separation` answers before the ladder does.
+        //
+        // **What guards this.** The claim the literal makes — that the
+        // radius clears both walls — is guarded by the row itself: a
+        // multiplier under the lower wall or over the upper one reds
+        // this test at every ε it runs. Nothing computes with the
+        // clearance FIGURES above, and no register re-measures them;
+        // they are unguardable in that narrow sense and that is the
+        // whole of the debt. One consequence to carry: this is the
+        // viewer's only ε-relative fixture literal, so it is invisible
+        // to the instrument that catches an absolutely-scaled fixture
+        // drifting towards a wall — running the population at
+        // neighbouring ε — and its own expect is what catches it
+        // instead.
+        let radius = 1e8 * Tol::witness().get().eps;
         let loops = vec![
             sketch::loop_program(
                 &crate::session::ProfileShape::Path {
