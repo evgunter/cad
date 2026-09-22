@@ -27,16 +27,19 @@ Re-scoped 2026-09-20 by SYM's priority-seam cut
 | None | `the-span-identity-is-not-a-theorem-of-the-floats` | None | the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness |
 | None | `the-witness-slack-is-eps-independent` | None | the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose |
 
-## SYM-14 — requested by Ev (2026-09-22, P1)
+## SYM-14 — requested by Ev (2026-09-22, P1), MERGED
 
-`SYM-14` (`docs/SYM-14-SPEC.md`, branch `sym/14-chain-demo`): the chain
-demo — four links joined with an angular error at each joint, its
-dispersion drawn like the plate's, and the certified lane measured on
-it. Taken on at Ev's request the day it was asked; outside the blocks
-(v7 OUT: a demo and a measurement, no kernel change). Its certified
-half is `a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
-(P1, requested), answered by the unit's Phase 2 table or left with the
-walls named.
+`SYM-14` merged 2026-09-22 (#3073): the chain demo — four links joined
+with an angular error at each joint, its dispersion drawn like the
+plate's, and the certified lane measured on it: the symbolic tier
+certifies the four-link chain whole at 0.111 of the study and the
+enclosure per joint is drawn beside the cloud (half the pin radius at
+the tip, whatever the link count); the plain interval lane refuses at
+every link count. Rows it left at P1 with Ev's request: the wedge wall
+(and why the box moves with ε), the arm straddle, the plain-interval
+refusal, the façade row (on LIB), and
+`the-chain-demo-detects-no-self-intersection` (Ev, on #3073; its
+certified half blocked on CLEAR's `symbolic-tier-and-clearance-engine`).
 
 ## Order
 

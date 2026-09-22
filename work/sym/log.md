@@ -1309,3 +1309,40 @@ guarded in the direction that was silent.
 The class, not the instance: a causal sentence in a row, a header or a
 PR body is a claim, and the fix pass' rule is that each one names the
 execution that shows it or is re-worded as the question it actually is.
+
+## SYM-14 merged (2026-09-22): the chain demo Ev asked for
+
+PR #3073 (head `aea96608e`, run 35741468541 green on the full matrix and the
+render lanes; the state-sync commit on top). Four 12 mm links, a pin at
+every joint and a fixed target pin at the nominal tip, σ = 0.01 rad at
+every joint, 512 draws: the cloud widens joint by joint (lateral σ
+0.12 / 0.28 / 0.47 / 0.70 mm at pins 2–5, against the quadrature law
+1 : 2.24 : 3.74 : 5.48), 68 of 512 break a 1 mm true-position tolerance
+at the tip; the sheet `demos/renders-mc/chain-density.svg` beside the
+plate's, the plate's byte-identical. The certified lane: the plain
+interval scalar refuses at every link count (`transform_rigid_col0_unit`
+— `cos² + sin²` of a widened angle is a bracket around 1); the symbolic
+tier certifies one link whole, refuses two and more at `dihedral_wedge`'s
+poisoned margin, and certifies the four-link chain whole at 0.111 of the
+study — the enclosure per joint drawn beside the cloud (0.04 / 0.12 /
+0.24 / 0.40 mm, the lever sum 1 : 3 : 6 : 10), the certified tip box HALF
+THE PIN RADIUS at every link count (a property of this document; the
+radius doubled doubles the swing). The row
+`a-widened-rotation-angle-is-unmeasured-on-the-certified-lane` CLOSED on
+its condition. Rows filed at P1 with Ev's request: the wedge wall (now
+also home to why the box moves with ε, 0.1110 → 0.1083, unestablished),
+the arm straddle, the plain-interval refusal, the façade row (on LIB);
+and, from Ev on #3073, `the-chain-demo-detects-no-self-intersection`.
+
+Review (v7 OUT, one OPUS style review with a correctness arm, no row):
+MERGEABLE-AFTER-FIXES 3/4/5 — the picture reproduced to the byte; three
+causal claims enshrined without execution. Fix pass A–O; delta NOT
+MERGEABLE (four copies of the retracted sentence survived — grep the
+claim, not the sentence); fix pass 2 (seven sites; the monotonicity
+assumption with its ladder check; the ε question left open); delta 2 NOT MERGEABLE on the last copy in `demos/README.md`, taken
+in the state-sync commit with its source's wording. The box restarted mid fix pass 2 with the edits uncommitted;
+the lane resumed from its transcript and re-ran every check. Seams:
+`demos/render-mc.sh` (CIW, a `SHEETS` list with a glob guard),
+`pncad::analysis` and the binding census (LIB, `summarize` re-exported
+and registered behind a door), `editor-core/src/mc.rs` (PROPS, one
+`fn` → `pub fn`). Spec deleted with its note; the unit closed.
