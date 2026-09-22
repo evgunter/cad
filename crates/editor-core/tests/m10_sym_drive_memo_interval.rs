@@ -1112,3 +1112,89 @@ fn the_leaf_column_across_schedules_probe() {
     let off = run(false, false);
     report("seq off", &off, Some(&seq));
 }
+
+/// **SYM-13 reviewer r2's own racing drive** — not the unit's slab at
+/// `8 / 8 / 4`: the same slab at TWELVE leaves under a budget of 16
+/// terms and degree 6, which freezes 4,740 distinct nodes and hands the
+/// twelve leaves nine distinct NEEDs. Sequential, two and four workers
+/// with the memo on, then sequential and four workers with it off: one
+/// column, the leaf lists whole, the serialization and the key.
+///
+/// The measured column is printed; the assertions are the relations
+/// the unit's own row asserts, plus that the vector has at least three
+/// distinct values (so a constant-per-leaf or all-zero column cannot
+/// pass).
+#[test]
+fn r2_my_own_racing_drive_reports_one_leaf_column_under_every_schedule() {
+    const LEAVES: usize = 12;
+    const TERMS: usize = 16;
+    const DEGREE: u32 = 6;
+    let tol = Tol::witness();
+    let doc = slab();
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let run = |parallel, plain_memo| {
+        drive(
+            &doc,
+            &analyzed,
+            &DriveConfig {
+                max_leaves: LEAVES,
+                parallel,
+                plain_memo,
+                symbolic: editor_core::drive::SymbolicDials {
+                    max_terms: TERMS,
+                    max_degree: DEGREE,
+                    ..editor_core::drive::SymbolicDials::default()
+                },
+                ..DriveConfig::default()
+            },
+            tol,
+        )
+        .unwrap()
+    };
+    let column = |v: &ParamBoxVerdict| -> Vec<u64> {
+        v.certified()
+            .iter()
+            .map(|l| l.decisions.frozen)
+            .chain(v.refused().iter().map(|l| l.decisions.frozen))
+            .collect()
+    };
+    let seq_on = run(false, true);
+    let base = column(&seq_on);
+    println!(
+        "r2 racing slab at {LEAVES} leaves, budget {TERMS}/{DEGREE}: receipt {:?} | drive frozen {} \
+         | leaves' NEED {:?}",
+        seq_on.receipt(),
+        seq_on.decisions().frozen,
+        base
+    );
+    assert!(seq_on.decisions().frozen > 0, "{:?}", seq_on.decisions());
+    assert!(
+        base.iter().collect::<BTreeSet<_>>().len() >= 3,
+        "the leaves must need visibly different amounts: {base:?}"
+    );
+    for (label, v) in [
+        ("par@2 on", on_pool(2, || run(true, true))),
+        ("par@4 on", on_pool(4, || run(true, true))),
+        ("seq off", run(false, false)),
+        ("par@4 off", on_pool(4, || run(true, false))),
+    ] {
+        assert_eq!(column(&v), base, "{label}: the leaves' column moved");
+        assert_eq!(
+            v.decisions().frozen,
+            seq_on.decisions().frozen,
+            "{label}: the drive's column"
+        );
+        assert_eq!(
+            v.certified(),
+            seq_on.certified(),
+            "{label}: certified leaves"
+        );
+        assert_eq!(v.refused(), seq_on.refused(), "{label}: refused leaves");
+        assert_eq!(v.serialize(), seq_on.serialize(), "{label}: serialization");
+        assert_eq!(
+            v.content_key(),
+            seq_on.content_key(),
+            "{label}: content key"
+        );
+    }
+}
