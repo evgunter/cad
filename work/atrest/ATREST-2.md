@@ -2,11 +2,13 @@
 id: ATREST-2
 kind: unit
 title: measure what the sense bit means on an arc-capped loft: why LoopRoleInverted is silent there
-status: spec
+status: closed
 opened: 2026-09-20
 priority: P0
 cost: D
 branch: atrest/2-sense-measure
+closed: 2026-09-21
+pr: 2969
 ---
 
 

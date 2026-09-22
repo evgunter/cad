@@ -121,7 +121,7 @@ use crate::sketch;
 /// bound anyway substitutes the render's answer for the widget's: a
 /// count of `-1000000000` was rendered `-1.000e9`, and a count of
 /// `12345678901` renders as whatever reads back within
-/// [`crate::readout::REL_TOLERANCE`] — **a different count**. For a
+/// [`crate::readout::reads_back`]'s grid — **a different count**. For a
 /// continuous quantity that band is the ratified render accuracy; for
 /// an integer, every value inside it is a different value, so the
 /// substitution is the wrong-number-on-screen defect this door exists
@@ -131,8 +131,12 @@ use crate::sketch;
 /// `Numeric`, which it also `range`s to that type's own bounds — so
 /// the exemption is bounded by the integer type and not open-ended:
 /// twenty characters for an `i64`, where the band this section is
-/// about was three hundred and eleven. A caller that spells
-/// `max_decimals(0)` over an `f64` has told this door the same thing.
+/// about was three hundred and eleven. An `i64` spells inside
+/// [`crate::readout::MAX_CHARS`] at every value it has, so the band
+/// where the bound would substitute a DIFFERENT integer is now reached
+/// only through the other door: a caller that spells
+/// `max_decimals(0)` over an `f64`, which has told this door the same
+/// thing and has magnitudes an `i64` does not.
 pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>) -> String {
     let integral = *decimals.start() == 0 && *decimals.end() == 0;
     let spelling = egui::emath::format_with_decimals_in_range(value, decimals);
@@ -166,10 +170,9 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
 /// seeds its keyboard edit with the text it last showed and writes the
 /// parse back when focus leaves, so clicking into a field and clicking
 /// away again hands the chrome's own render straight back at it. The
-/// render names its value only to [`crate::readout::REL_TOLERANCE`],
-/// so that round trip MOVES the value — a field holding 1000.001 mm
-/// shows `1000.0`, and the click that touched nothing commits the
-/// micrometre away.
+/// render names its value only to [`crate::readout::reads_back`]'s
+/// grid, so that round trip can MOVE the value — by less than the
+/// grid, which is capped a decade below ε, and by more than nothing.
 ///
 /// **The echo is identifiable as text, exactly**, which is why the
 /// rule is a comparison rather than a tolerance: the formatter below
@@ -582,8 +585,8 @@ struct HandedOver(String);
 /// into a field and clicking away again hands the chrome's own render
 /// straight back at it — a value nobody typed, committed as an edit
 /// and charged an undo step. The render is not exact
-/// ([`crate::readout::REL_TOLERANCE`] bounds it), so that round trip
-/// can also MOVE the value.
+/// ([`crate::readout::reads_back`]'s grid bounds it), so that round
+/// trip can also MOVE the value.
 ///
 /// **The echo is identifiable as text, exactly**, which is why this
 /// is where the rule lives. The formatter below is the one that
@@ -1942,37 +1945,69 @@ mod field_tests {
     /// either**, up to the width bound, which is the bound on how much
     /// of the chrome this rule can reach at all.
     ///
-    /// Derived rather than chosen at both ends. The widest spelling the
-    /// millimetre range offers is `{:.3}`, whose error is at most
-    /// 5·10⁻⁴ in ABSOLUTE terms, so it clears
-    /// `crate::readout::REL_TOLERANCE` — which is 5·10⁻⁴ RELATIVE —
-    /// for every value of magnitude at least one, and the band that
-    /// leaves is the sub-millimetre one the item was filed about. The
-    /// CEILING is `crate::readout::MAX_CHARS`: the range's narrowest
-    /// spelling is `{:.1}`, so a magnitude of 10⁷ spends eight integer
-    /// digits, a point and a decimal, and a sign takes it past ten
-    /// characters. [`a_field_spells_no_more_than_the_render_bound_covers`]
-    /// is the band above.
+    /// **A DRAG's text names the value the drag commits**, which is the
+    /// property the rule is for and the one this row measures. A drag
+    /// commits `round_to_decimals(value, auto_decimals)`
+    /// (`egui::DragValue::ui`), so every value a drag produces sits on
+    /// the range's own decimal grid and something in the range spells
+    /// it exactly.
+    ///
+    /// **What it is no longer is byte-identical to `egui`'s choice, and
+    /// that is a disclosure rather than a caveat.**
+    /// `format_with_decimals_in_range` accepts the SHORTEST spelling
+    /// its own `almost_equal` passes, and that test is `f32` at
+    /// 16·`f32::EPSILON` — about 1.9·10⁻⁶ relative, far coarser than
+    /// the render's grid. So a dragged value whose two-decimal
+    /// rounding `egui` accepts is now spelled to three: the field shows
+    /// what it holds, mid-drag as everywhere else.
+    ///
+    /// **Off the range's grid the widget's rounding no longer passes at
+    /// all**, and the second half of the row is that: a millimetre
+    /// value used to keep `egui`'s rounded spelling wherever it landed
+    /// within 5·10⁻⁴ of the value, and now falls to
+    /// `crate::readout::number`. That is the item this unit closes,
+    /// measured from the field's own door.
     #[test]
-    fn nothing_at_or_above_one_display_unit_renders_differently() {
+    fn a_drag_steps_through_a_text_that_names_what_it_commits() {
+        let mut steps = 0_u32;
         let mut value = 1.0_f64;
         while value < 1.0e7 {
-            for signed in [value, -value] {
+            // What a drag commits at this magnitude: the range's own
+            // decimal grid, which is what makes the spelling exact.
+            let dragged = (value * 1.0e3).round() / 1.0e3;
+            for signed in [dragged, -dragged] {
                 let text = number_text(signed, MM);
                 assert_eq!(
-                    text,
-                    egui::emath::format_with_decimals_in_range(signed, MM),
-                    "{signed} is at or above one millimetre and inside the \
-                     width bound, where the widest spelling in the range \
-                     already reads back"
+                    text.parse::<f64>(),
+                    Ok(signed),
+                    "{signed} is a value a drag commits and the field spells \
+                     it {text}, which is a different number"
                 );
                 assert!(
                     text.chars().count() <= crate::readout::MAX_CHARS,
-                    "{signed} renders as {text}, past the bound this band is \
-                     defined as being inside"
+                    "{signed} renders as {text}, past the bound"
                 );
             }
+            steps += 1;
             value *= 1.000_7;
+        }
+        assert!(steps > 9_000, "the sweep covered only {steps} magnitudes");
+
+        // Off that grid the widget's rounding does not read back, so
+        // the field shows the render instead.
+        for off_grid in [1_000.000_1_f64, -1_000.000_1, 1.000_7] {
+            assert_eq!(
+                number_text(off_grid, MM),
+                crate::readout::number(off_grid),
+                "{off_grid} is not on the range's grid, so the widget's \
+                 rounded spelling does not read back"
+            );
+            assert_ne!(
+                number_text(off_grid, MM),
+                egui::emath::format_with_decimals_in_range(off_grid, MM),
+                "{off_grid} is only a row here because egui's own spelling \
+                 of it is not the value"
+            );
         }
     }
 
@@ -1990,7 +2025,7 @@ mod field_tests {
     /// second width policy.
     #[test]
     fn a_field_spells_no_more_than_the_render_bound_covers() {
-        for value in [1.0e8_f64, -1.0e7, 1.0e12, -1.0e12, 1.0e300] {
+        for value in [1.0e22_f64, -1.0e22, 1.0e50, -1.0e50, 1.0e300] {
             let widget = egui::emath::format_with_decimals_in_range(value, MM);
             assert!(
                 widget.chars().count() > crate::readout::MAX_CHARS,
@@ -2012,18 +2047,18 @@ mod field_tests {
         }
     }
 
-    /// **The one band the bound gives way in is the render's own**, and
-    /// it is the band `crate::readout::number`'s doc argues: four
-    /// figures round out of `f64` there, so the value is spelled
-    /// exactly instead. Twenty-two characters, not three hundred and
-    /// eleven.
+    /// **The top of the type is what the bound is the width of**, and
+    /// it is no longer an exception to it: four figures round out of
+    /// `f64` there, so the value is spelled exactly, and that exact
+    /// spelling is `crate::readout::MAX_CHARS` characters. Twenty-two,
+    /// not three hundred and eleven.
     #[test]
-    fn the_top_of_the_type_is_the_render_bounds_own_exception() {
+    fn the_top_of_the_type_is_the_render_bounds_own_width() {
         let text = number_text(f64::MAX, MM);
         assert_eq!(text, crate::readout::number(f64::MAX));
         assert_eq!(
             text.chars().count(),
-            22,
+            crate::readout::MAX_CHARS,
             "the top of the type is spelled exactly, as {text}"
         );
         assert_eq!(
@@ -2046,7 +2081,8 @@ mod field_tests {
             (4.0e-5, "0.00004"),
             (-4.0e-5, "-0.00004"),
             (0.0625, "0.0625"),
-            (1.0e-9, "1.000e-9"),
+            (1.0e-9, "0.000000001"),
+            (1.0e-11, "1e-11"),
         ] {
             assert_eq!(number_text(value, MM), text, "the field's text for {value}");
             assert_ne!(
@@ -2069,19 +2105,20 @@ mod field_tests {
     /// so the range is `0..=0` and the only spelling is the exact one.
     ///
     /// **The construction is now the exemption and not an accident of
-    /// width.** Every fixture below used to fit
-    /// `crate::readout::MAX_CHARS` and so passed whatever the door
-    /// did with the ones that do not; the second half is the band
+    /// width.** The first half is inside `crate::readout::MAX_CHARS`
+    /// and so would pass whatever the door did; the second is the band
     /// where the width bound would substitute
     /// `crate::readout::number`'s answer, which for an integer is a
     /// DIFFERENT integer. Each of those is asserted to be past the
-    /// bound, so the row is a row for a reason it states.
+    /// bound, so the row is a row for a reason it states — and they
+    /// are `f64` magnitudes because an `i64` no longer reaches past
+    /// the bound at all.
     #[test]
     fn an_integer_field_is_spelled_the_way_it_always_was() {
-        for value in [3.0_f64, -12.0, 0.0, 1.0e9] {
+        for value in [3.0_f64, -12.0, 0.0, 1.0e9, i64::MAX as f64] {
             assert_eq!(number_text(value, 0..=0), format!("{value:.0}"));
         }
-        for value in [-1.0e9_f64, 1.0e10, -1.0e10, 1.0e15, i64::MAX as f64] {
+        for value in [1.0e23_f64, -1.0e23, 1.0e30, -1.0e30, 1.0e40] {
             let exact = format!("{value:.0}");
             assert!(
                 exact.chars().count() > crate::readout::MAX_CHARS,
@@ -2297,15 +2334,15 @@ mod field_tests {
     /// above cannot reach, because every value in them is spelled
     /// exactly by something.
     ///
-    /// `1000.001` is the item's own worked example: `egui` spells it
-    /// `1000.0` (its acceptance test is `f32` at 16·`f32::EPSILON`,
-    /// about 1.9·10⁻⁶ relative, which 10⁻⁶ passes) and
-    /// `crate::readout::reads_back` passes it too at 5·10⁻⁴.
-    /// `123456789.5` is the band the WIDTH bound opened: the widget
-    /// spells it exactly in eleven characters, so before that bound a
-    /// click through it committed the value it held, and after it the
-    /// field shows `crate::readout::number`'s nine.
-    const RENDERED_INEXACTLY: [f64; 3] = [1000.001, -1000.001, 123_456_789.5];
+    /// Each is a value no spelling inside `crate::readout::MAX_CHARS`
+    /// names exactly: the render's grid is capped a decade below ε, so
+    /// an inexact render now needs more significant figures than the
+    /// bound can spend rather than merely more than four.
+    const RENDERED_INEXACTLY: [f64; 3] = [
+        1_234.567_890_123_456_7,
+        -1_234.567_890_123_456_7,
+        1.234_567_890_123_456_7e12,
+    ];
 
     /// **A click through a field commits nothing, including where the
     /// render is not the value.**
@@ -2372,13 +2409,13 @@ mod field_tests {
     /// difference IS.
     #[test]
     fn a_bare_field_commits_a_render_the_door_would_refuse() {
-        let start = 1000.001_f64;
+        let start = 1_234.567_890_123_456_7_f64;
         let mut bare = Field::bare(start);
         bare.click_in_and_away();
         assert_eq!(
-            bare.value, 1000.0,
+            bare.value, 1_234.567_890_123_5,
             "the context carries the render, so the bare field showed \
-             `1000.0` — and committed it"
+             `1234.5678901235` — and committed it"
         );
         let mut door = Field::new(start);
         door.click_in_and_away();
@@ -2951,15 +2988,18 @@ mod value_field_tests {
     /// nothing** — C5 at the panel, over the case the claim is
     /// actually about.
     ///
-    /// The value is chosen so the field's render is NOT exact: 40.000019
-    /// millimetres renders `40`, and `40` read back is a different
-    /// number. A row over a value that renders exactly would pass on any
-    /// guard at all, including none.
+    /// The value is chosen so the field's render is NOT exact:
+    /// 1234.5678901234567 millimetres renders `1234.5678901235`, which
+    /// read back is a different number. A row over a value that renders
+    /// exactly would pass on any guard at all, including none.
     #[test]
     fn clicking_into_a_parameter_field_and_away_emits_no_operation() {
-        let mut row = Row::millimetres("auth2-echo", 0.040_000_019);
+        let mut row = Row::millimetres("auth2-echo", 1.234_567_890_123_456_7);
         let (shown, text) = row.showing();
-        assert_eq!(text, "40.0", "the fixture is a value whose render is short");
+        assert_eq!(
+            text, "1234.5678901235",
+            "the fixture is a value whose render is not exact"
+        );
         assert_ne!(
             text.parse::<f64>().expect("a number"),
             shown,
@@ -3268,24 +3308,27 @@ mod value_field_tests {
     /// **A number the render cannot distinguish from what the field
     /// shows is still an edit.**
     ///
-    /// A field showing `1000` millimetres and a user typing `1000.4`:
-    /// four tenths of a millimetre is inside the render's own relative
-    /// accuracy at this magnitude, and a guard that judged the two
-    /// numbers rather than the two TEXTS would discard it — silently,
-    /// with the field reverting and no refusal to read.
+    /// A field showing `1000.0` millimetres and a user typing
+    /// `1000.00000000001`: the typed number is inside the render's own
+    /// grid at this magnitude, so a guard that judged the two numbers
+    /// rather than the two TEXTS would discard it — silently, with the
+    /// field reverting and no refusal to read. The band is narrower
+    /// than it was (the grid is capped a decade below ε) and the
+    /// argument is unchanged: a band of any width has edits inside it.
     #[test]
     fn a_number_inside_the_renders_accuracy_is_still_an_edit() {
+        const TYPED: f64 = 1_000.000_000_000_01;
         let mut row = Row::millimetres("auth2-near", 1.0);
-        let (shown, text) = row.showing();
+        let (_, text) = row.showing();
         assert_eq!(text, "1000.0");
         assert!(
-            (1000.4 - shown).abs() <= crate::readout::REL_TOLERANCE * shown.abs(),
-            "the fixture must sit INSIDE the render's accuracy, or this row \
+            crate::readout::reads_back(&text, TYPED),
+            "the fixture must sit INSIDE the render's grid, or this row \
              is not about the guard"
         );
         let before = row.session.history().len();
         row.click_in();
-        row.frame(vec![egui::Event::Text("1000.4".to_owned())]);
+        row.frame(vec![egui::Event::Text(format!("{TYPED}"))]);
         row.click_away();
         let landed = row.landed();
         assert!(
@@ -3293,11 +3336,7 @@ mod value_field_tests {
             "the edit the user typed: {landed:?}"
         );
         assert_eq!(row.session.history().len(), before + 1);
-        assert_eq!(
-            row.showing().0,
-            1000.4,
-            "and the field says what they typed"
-        );
+        assert_eq!(row.showing().0, TYPED, "and the field says what they typed");
     }
 
     /// **A unit-bearing text takes the OTHER door**, from the same

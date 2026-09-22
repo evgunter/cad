@@ -265,7 +265,7 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// row's factor is above one — `pi rad`, at π — so a canonical angle
 /// of exactly `5e-324` rad divides to `0.0`, and a text reading zero
 /// is a hundred percent away from the value it claims to be, which is
-/// the first thing [`crate::readout::REL_TOLERANCE`] refuses. It is
+/// the first thing [`crate::readout::number`] refuses. It is
 /// one value rather than a band because π is barely above one: two
 /// subnormals up, the quotient is a subnormal again. Measured, not
 /// reasoned: `5e-324 / π == 0.0` and `1e-323 / π == 5e-324`.
@@ -679,7 +679,7 @@ pub fn field_edit(text: &str) -> FieldEdit {
 /// rendered and writes the parse back when focus leaves, so clicking
 /// into a field and clicking away again hands the chrome's own render
 /// straight back at it. That text is accepted within the render's own
-/// accuracy ([`crate::readout::REL_TOLERANCE`], through
+/// accuracy ([`crate::readout::reads_back`], through
 /// `crate::widgets::number_text`), so writing it back can move the
 /// value by up to that much AND cost an undo step for a click nobody
 /// meant as one. `readout`'s own words: the number a value moves to on
