@@ -1414,6 +1414,56 @@ mod message_tests {
         (region.get(), rows)
     }
 
+    /// **And it wraps at the width a reader can SEE**, inside the
+    /// scroll container every chrome pane is drawn in.
+    ///
+    /// `app::ViewerBehavior::pane` wraps each chrome pane in
+    /// `egui::ScrollArea::both()` with `auto_shrink` off on both axes,
+    /// so a pane's rows are horizontally scrollable — and a widget
+    /// that laid a sentence out at the CONTENT width would wrap at a
+    /// width nobody is looking at, or not at all, and answer this
+    /// unit's symptom with a scrollbar. egui hands its inner `Ui` the
+    /// visible size rather than an infinite one, on the stated ground
+    /// that wrapping text beats a horizontal scrollbar; this is the
+    /// reading that says so, because it is egui's choice and not this
+    /// crate's.
+    #[test]
+    fn a_message_in_a_scrolled_pane_wraps_at_the_width_the_reader_can_see() {
+        let region = core::cell::Cell::new(egui::Rect::NOTHING);
+        let painted = crate::pane::headless::landed(|ui| {
+            ui.allocate_ui(egui::vec2(REGION, 400.0), |ui| {
+                egui::ScrollArea::both()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        region.set(ui.clip_rect());
+                        ui.horizontal(|ui| {
+                            ui.label(PRECEDING);
+                            message(ui, SENTENCE);
+                        });
+                    });
+            });
+        });
+        let rows = painted
+            .into_iter()
+            .find(|landed| landed.text == SENTENCE)
+            .expect("the sentence was painted")
+            .rows;
+        let region = region.get();
+        let past = rows
+            .iter()
+            .map(|row| row.right() - region.right())
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            past <= SLACK,
+            "no line of the message reaches past what the scroll area \
+             shows ({past} points past, visible {region:?}, rows {rows:?})"
+        );
+        assert!(
+            rows.len() > 1,
+            "and it did have to wrap to manage it: {rows:?}"
+        );
+    }
+
     /// **A message in an ordinary row stays inside it.**
     ///
     /// The first of the two things a reader sees: egui lays a label out

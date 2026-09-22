@@ -339,7 +339,7 @@ above as well, and neither is a header edit alone.
 | `pane::properties` | the property pane |
 | `pane::view` | the view pane |
 | `pane::viewport` | the viewport pane |
-| `widgets` | the free helpers over `egui::Ui` the panes share |
+| `widgets` | the free helpers over `egui::Ui` the chrome shares — mostly the panes; `widgets::message` is also the toolbar's and the checks window's |
 | `gpu` | the wgpu viewport renderer |
 
 `session` is a driver **and** the parent of six vocabularies, so
@@ -1072,7 +1072,8 @@ sites it has been run against.
 `initial_layout` and the entry points; `pane::{viewport, features,
 properties, create, view}` hold the `*_ui` functions that draw each
 pane, one module per pane; `widgets` holds the free helpers over
-`egui::Ui` that those panes share; and `gpu` holds the wgpu viewport
+`egui::Ui` that those panes share, and the one `app.rs` shares with them
+(`widgets::message`, below); and `gpu` holds the wgpu viewport
 renderer, which names `eframe::wgpu` and could not be a vocabulary
 under any reading. The table above is where that roster is kept.
 
@@ -1086,6 +1087,26 @@ not merely whether it is a vocabulary.
 
 `app.rs`'s header claim — *toolkit adaptation, and nothing else* — is
 true of the file rather than a claim it has outgrown.
+
+**Where a MESSAGE wraps is a question about the region, so it has one
+home**: `widgets::message` (and `widgets::message_link`). egui reads a
+label's wrap mode off the LAYOUT it is in, and a sentence somebody else
+wrote — a refusal, a fault, a check finding, the status line — is not
+what either of egui's two answers is for: in an ordinary horizontal row
+it is laid out at infinite width and drawn past the region's right-hand
+edge, and in the toolbar's wrapping row every line after the first is
+placed at the panel's left edge, which for a top panel is the window's.
+`widgets::message` lays the sentence out at the region's own width and
+hands it over already laid out, which is the one path egui neither
+extends nor re-places. It is the toolbar's status line, the checks
+window's findings, the feature tree's failure line and standing note,
+the profile editor's preview verdicts and the view pane's status line.
+It is **not yet** the creation and properties panes'
+(`work/chrome/messages-in-the-creation-and-properties-panes-still-draw-past-their-row.md`).
+`widgets::message_tests` holds the measurements, including the one that
+says egui's own scroll container hands its content the visible width
+rather than an infinite one — so a pane that scrolls both ways still
+wraps its sentences instead of answering with a scrollbar.
 
 **Startup is split by what it needs, and the two context-wide styles
 are on the deviceless side.** `ViewerApp::new` takes an
