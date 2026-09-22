@@ -1599,6 +1599,89 @@ cost anything. Neither encounter here had.
 
 Signed (CHROME orchestrator).
 
+## 2026-09-22 — Wave 2 unit 1 landed: the exhaustive guard, and the Band variant priced
+
+PR 3055. Closes `has-faults-cannot-red-on-a-new-rowstatus`; leaves
+`band-refusal-still-badges-every-row` **open** with its cost measured
+rather than estimated. Four rows filed.
+
+**What shipped.** `tree::has_faults` is an exhaustive `match`, with
+`Unevaluated` and `Ok` each stated as the policy they are rather than
+left to the complement of a pattern. One test added — the only place in
+the tree where a `Poisoned` row stands alone, so that arm had never been
+exercised.
+
+**The unit's real deliverable turned out to be the measurement, not the
+guard.** Closing the Band symptom needs a fifth `RowStatus`; the lane
+added a scratch one and found it reds in exactly three files, two
+mechanical and one not. `frame.rs`'s
+`the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
+asserts `left_to_the_tree == states`, and a fifth state breaks
+`badge_site`'s **one-for-one pairing** claim by arithmetic rather than
+by a missing arm. Whether a run-refusal state pairs with a
+`ProductErrorKind` or is deliberately unpaired is a design decision, so
+the lane declined it rather than making it in passing. The Band row now
+carries that, and the `has_faults` prerequisite is off its bill.
+
+**Three corrections worth keeping, in ascending order of how much they
+cost to learn.**
+
+1. **The row and the doc both claimed a role nothing plays.**
+   `has_faults` has **no `src/` caller** — 22 call sites, all in
+   `tests/` and `examples/r1_e2e.rs`, 15 of them the `!has_faults(…)`
+   clean gate. The chrome's actual "is this building" answer is
+   `pane::features`'s badge draw and `frame::product_badge`. So the
+   defect was never "the GUI would lie to a user"; it was a silently
+   wrong **test oracle**, which would have let fifteen gates keep
+   passing on documents broken in the new way. Smaller claim, true one.
+2. **The measurement the unit shipped was itself incomplete, and the
+   gap it disclosed is where the miss was.** `pane/features.rs` has
+   TWO `RowStatus` matches: the exhaustive badge draw, and thirteen
+   lines below it a `_ => None` wildcard that does not red. The unit
+   declared gaps (c) and (d) unsearched on the ground that the
+   instrument was a clippy lint and therefore a unit of its own —
+   but `grep -rn '^\s*_ =>' crates/viewer/src` is 41 hits and one
+   second, and it is what found the wildcard **inside the set the
+   unit had just measured**. `work/meta/a-stated-sweep-blind-spot-is-
+   never-swept` records two prior lanes where the stated gap was
+   exactly where the finding was. This is the third.
+3. **The criterion was the defect, twice, and the second time was
+   ours.** The originating row says an earlier sweep's criterion said
+   *external* enum and the word was doing no work. This unit's own
+   criterion said *multi-arm*, and that word was doing no work either:
+   `tools.rs`'s `ToolKind::commits` is six arms and `refuse::admits`
+   is five, both excluded by a filter that was looking at the wrong
+   property. Re-taken, the population is **21 sites in eight modules**,
+   not six in four.
+
+**A lane overturned an adjudication of mine with measurement, and was
+right — the fourth time in two waves.** The review found the new
+fixture violates `Poisoned::through`'s documented invariant by pointing
+at an `Ok` row, and I told the fix pass to point it at a `Failed` one.
+That is self-defeating: a `Failed` row in the tree makes `has_faults`
+answer true through *that* row, so the `Poisoned => false` mutation
+stops reddening and the test stops pinning what it exists to pin. The
+lane measured it (the mutated policy passes) and used
+`Poisoned { message: None }` instead — the one shape the module has for
+*"poisoned with no failed cause in this tree"*, which `poisoned_through`'s
+absence arm mints and `Poisoned::message`'s doc names in as many words.
+Better than my instruction and better than the original: the fixture is
+now a state the module renders rather than one it declares broken, and
+the hand-written third spelling of `downstream_wording`'s sentence
+disappears entirely rather than being replaced by a call.
+
+**Rows filed**:
+`a-wildcard-match-decides-viewer-policy-in-five-places` (the 41-hit
+sweep, its exclusion criterion, and gap (d) — given its own file rather
+than a section, because closing the sweep row would otherwise close it
+with the gap unswept),
+`two-is-this-broken-readings-argue-opposite-on-poisoned` (sharpened by
+the lane from the review's framing: the two docs are reconcilable and
+diverge on exactly one state — `Poisoned { message: None }`, which is
+the state this unit's fixture now builds),
+`downstream-wording-spells-node-where-node-number-forbids-it`, and
+`the-exhaustive-on-purpose-argument-is-restated-twenty-times`.
+
 ## 2026-09-22 — Wave 2 unit 2 landed: a message wraps inside its region (Ev's P0)
 
 PR 3058, the layout half of
