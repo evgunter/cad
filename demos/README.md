@@ -355,11 +355,11 @@ and local CI emulator.
 per scene plus `montage.png`); `demos/renders-freecad/*.png` (tracked —
 the montage cells plus `montage-freecad.png`);
 `demos/renders-wild/*.png` (tracked); `demos/renders-uv/montage-uv.svg`
-and `demos/renders-mc/plate-density.svg` (both tracked, both text); and
+and `demos/renders-mc/*.svg` (both tracked, both text); and
 — only under `render.sh --matplotlib` —
 `demos/renders-preview/renders/*.png` (gitignored). The MC lane's own
-input is `demos/out/mc/plate-density.svg` (untracked), written by the
-tour itself.
+inputs are `demos/out/mc/*.svg` (untracked), written by the tour
+itself.
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
 published to the lane directory only once it is complete. The staging
@@ -761,10 +761,13 @@ and genuinely on screen, but it is a COUNT, not a distance.
 
 ## The MC density lane (`render-mc.sh`)
 
-**`renders-mc/plate-density.svg` — the population an advisory number is
-a summary of.** The fourth lane, and the second renderer-free one: the
-tour writes the sheet and `render-mc.sh` only publishes it. No compose
-step, because the cell is one sheet with two panels rather than a grid.
+**Two sheets, each the population an advisory number is a summary of.**
+The fourth lane, and the second renderer-free one: the tour writes the
+sheets and `render-mc.sh` only publishes them, one line of `SHEETS` per
+cell. Still no compose step — two sheets at two aspect ratios, each laid
+out where its own numbers are measured, is not a grid.
+
+### `renders-mc/plate-density.svg` — the two-hole plate
 
 The subject is the same two-hole plate the tolerance cell narrates
 (`demos/tour/src/plate.rs` holds the document; `tolerance.rs` runs the
@@ -814,6 +817,38 @@ carries its own scale bar — rather than only stated in the caption.
   does for uv; `ci-local.sh`'s `sheet drift (demos: uv + mc)` row fails
   on a developer box, where being told is the point. One tour run gates
   both sheets.
+
+### `renders-mc/chain-density.svg` — the four-link chain
+
+**Error propagation with a lever on it.** Four bars joined end to end,
+each joint carrying an independent normal angular error at σ = 0.01 rad;
+joint `j` rotates every link below it, so the last link has the longest
+lever and the fan gets wider all the way down. The document is
+`demos/tour/src/chain.rs` (read by both of its cells, as `plate.rs` is),
+the sheet is `mcchain.rs`, and the certified half is `chaintol.rs`
+behind the `interval` feature.
+
+Everything the plate's sheet does, this does with a longer document:
+512 replays from `mc::sample_offsets`, the four numbers checked BIT FOR
+BIT against `monte_carlo`'s own, the seed on the sheet, a diff meaning
+the draws moved.
+
+* **Every polygon is a link the kernel built**, walked off that body's
+  own cap face — `face.outer`, the loop's cycle, each half-edge's start
+  vertex through `readback::vertex_point` — and every pin is a
+  `Surface::Cylinder` read off the same body. A link drawn where the
+  parameters say it should be rather than where the transform stack put
+  it would make the sheet a picture of the arithmetic instead of of the
+  kernel.
+* **The growth is checked, not admired.** With one law at every joint
+  the lateral spread at pin `k` is `L·σ·sqrt(Σ (k−j)²)` over the joints
+  above it — `1 : 2.24 : 3.74 : 5.48` across four links — and the sheet
+  prints the measured ratio beside the predicted one.
+* **Two panels, two centres.** The plate's two panels share a centre;
+  these do not, because the chain is 48 mm long and its tip is at one
+  end of it. The wide panel carries the whole chain at 19 px/mm with
+  each joint's measured lateral range dimensioned on it; the tip panel
+  is 48 px/mm on the target pin and the asserted 1 mm position band.
 
 ## Renderers
 
