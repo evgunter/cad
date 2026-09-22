@@ -323,6 +323,31 @@ amended:
      by a recorded byte, the stopping rule and the adjudication
      instrument are unchanged.
 
+- **Instrument note (Ev, in-chat, 2026-09-22): OPUS 5.5 RELEASE
+  BOUNDARY.** Opus 5.5 released 2026-09-22. The fable 5.1 note below,
+  applied to the opus axis: the exact identity (5 vs 5.5) of
+  opus-armed sessions dispatched near the mark is NOT KNOWN; opus rows
+  clearly after the mark must be ANALYZED SEPARATELY from those
+  before, and any readout spanning 2026-09-22 must say so and report
+  the eras separately. The boundary reaches every place an OPUS label
+  appears, not only the implementer arm: **the opus reviewing arm of a
+  v6 dual, the orchestrator field** (the 2026-09-19 amendment — an
+  `orch OPUS` after the mark is a different model from one before it,
+  and a unit whose orchestrator sat across the mark SPANS it), and the
+  opus-only units v7 runs outside the protocol (which log no row here,
+  so only their programs' logs carry the caveat). Affected rows near
+  the boundary, as on main when this note was written: every row with
+  an OPUS implementer, reviewer or orchestrator phase dated 2026-09-22
+  — SYM-13 (OPUS implementer dispatched ~03:30Z; ordinal 4707),
+  SYM-12 (R1 OPUS) and DECIDE-3 (OPUS implementer, R1 OPUS), whose
+  opus phases ran across 2026-09-21→22,
+  TESS-1 (R1 OPUS; ordinal 5100), LANE-3 (R2 OPUS; ordinal 4116) —
+  are NEAR/SPANNING; rows whose opus phases all closed by 2026-09-21
+  are before; later opus rows are after. Other programs' opus rows in
+  the window, and any block record still branch-side, carry the same
+  caveat. Fable rows are unaffected by this mark (the fable 5.1 era
+  continues).
+
 - **Protocol v7 (Ev, in-chat, 2026-09-19): UNIT TRIAGE — the protocol
   runs on the HARD units only, and every other unit runs
   opus-implemented and opus-reviewed OUTSIDE it. THIS IS A POPULATION
@@ -8119,6 +8144,8 @@ time — partial wall-clock concurrency, applied to both arms equally.
 Sample number at merge.
 
 ## TESS program rows (work/tess/; band 5100–5199; blocks named TESS-B<n>)
+
+TESS-2 review ordinal fixed at dispatch (2026-09-22, PR #3080 open, frozen head `445257159`, hosted run 35745584307 green on the full matrix): **ordinal 5101** (TESS band). Unit: `patch_bound`'s cells enclose the DESCRIBED patch — knot refinement inside the ring, one insertion schedule with two arithmetics (`CurvePlan::apply_ring`). Pre-draw fields, logged in `work/tess/log.md` before the slot was read: difficulty **L**, task-class **NUMERIC**; implementer arm per block TESS-B1 slot 1 (record branch-side on `tess/b1-block`). Protocol v6 dual: R1/R2 byte and assignment recorded branch-side with the block. Method, recorded before either review runs: CONCURRENT same-head, both briefs generated from one template and STORED with sha256 on `tess/b1-block` before either dispatches, neither reviewer sees the other's report, v6 item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` and scratch per reviewer. Method note applying to BOTH arms equally: ~28 G free, `CARGO_INCREMENTAL=0`, per-package builds, release only for a census, 8 G stop-building floor, stated identically in both briefs. An announced territory crossing (ENCL's `patch_bound.rs`, PROPS' `geom-core`), stated in the PR body. Sample number assigned at merge.
 
 TESS-1 RECORDED AT MERGE (2026-09-22, PR #2852 merged at `5a83b580b`; sample #236 — prior highest #235 on main at merge; block TESS-B1 slot 0 concluded; the block record, draw bytes and stored briefs stay on `tess/b1-block`). Ordinal 5100. Pre-draw M / STRUCTURAL. Implementer arm FABLE (block TESS-B1, byte 87 → fable position 0). Dual: byte 82, parity 0 ⇒ R1 OPUS, R2 FABLE, concurrent same-head on `7a5fe831e`, briefs identical modulo the lane label (sha256 on the block branch). R1 APPROVE-WITH-FIXES 2/6/7, rubric 4/4/3, devs 4 reported / 3 silent by its count (two DESIGN-adjacent, one an understated disclosure); R2 APPROVE-WITH-FIXES 1/5/5, rubric 4/4/3, devs 5 / 0. MAJORs (prose): R1 — the walk doc's "enforced, not assumed" over-claims (the guard covers the no-meridian half only), and the deleted executed witness that `require_swept_rectangle` admits a zero-height box; R2 — the variant filed under D2 row 2 while the naming rule makes row 2 `Unsupported*` (the spec's error, under ruling (N) it is row 1). **No tally candidate**: every MAJOR was mentioned by the other reviewer, none demonstrated by execution. Both reproduced the guard-removed mutant; R2 also ran assertions-off. Method: both briefs carried the same disk note (per-package builds, 8 G floor); R1 skipped the assertions-off rebuild by its own economy at 13 G, R2 did not — no relaxation granted, pair FAIR; one names-only glimpse (R1 saw the other lane's directory name in a listing; no content). Fix pass implementer-inherited, union A–L, three hosted rounds, no local build (disk under the floor) — every fix-pass edit compiled by CI only; then one merge-forward round on 541 commits of main. Tokens: impl ~274k, fix ~426k (includes the merge round ~408k harness figure at report — the two figures overlap in the harness's accounting; the lane's own estimate is ~2 h editing), reviews ~258k (R1) + ~234k (R2). Wall-clock: impl ~3.5–4 h active across a usage-limit outage (2026-09-19 → 20); reviews ~50 min (R1) / ~2 h 20 m (R2), both mostly build-slot waits; fix pass ~6–7 h elapsed, mostly CI rounds and a wedged box (5 G free, load 45; annotated). Orchestrator FABLE for every phase.
 

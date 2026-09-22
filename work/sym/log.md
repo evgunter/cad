@@ -1173,6 +1173,61 @@ branch `sym/14-chain-demo`, cut from the spec commit; the seams
 announced to CIW (`demos/render-mc.sh`) and PROPS (the analysis lane,
 read only) in the PR. Runs beside SYM-13's fix pass.
 
+
+## SYM-14 implemented (2026-09-22): the chain disperses, and the certified lane reaches its tip
+
+**Phase 1.** `demos/tour/src/chain.rs` authors the document once (four
+12 mm bars, a joint pin at each end, a fixed target pin at the nominal
+tip); `mcchain.rs` replays 512 draws and draws the fan;
+`demos/renders-mc/chain-density.svg` is published and `render-mc.sh`
+now takes a list of sheets. The placement door is `Node::Transform`
+nested over the downstream sub-chain — joint `k`'s node BELOW joint
+`k−1`'s, so "joint `j` moves links `j..4`" is a property of the graph
+and not of four hand-written partial sums; the `Datum::Frame`
+alternative was declined because a frame's axes are orthonormalised at
+evaluation and on intervals `cos² + sin²` is not 1, which is a `sqrt`
+and two divides per link on top of the study. Straight nominal, one
+Normal law at σ = 0.01 rad at every joint. Measured lateral σ at the
+four pins: 0.1209, 0.2760, 0.4731, 0.6954 mm — `1 : 2.28 : 3.91 : 5.75`
+against the accumulation law's `1 : 2.24 : 3.74 : 5.48`. The plate's
+sheet is byte-identical.
+
+**Phase 2, and the row it answers.** A widened rotation angle is now
+measured. The plain `Interval` lane does not carry one AT ALL, at any
+link count: `transform_rigid_col0_unit` refuses at the first transform
+because `cos² + sin²` is a bracket around 1. `Sym<Interval>` discharges
+exactly that and CERTIFIES the one-link chain whole over the study
+(0.16 s); at 2–4 links the wall MOVES, to a transversality margin
+during a mapped edge's re-certification (over the WHOLE study the first
+refusal is `dihedral_wedge`, poisoned, at 2 and `dihedral_arm` with
+`[0, 7.34e-3]` at 3 and 4 — but see the fix-pass entry below: what
+bounds the BOX is the wedge at every link count).
+Costs are 0.16–0.73 s per leaf, not the derived-frame family's minutes
+— the chain never touches a `FaceFrame`.
+
+**The certified picture exists.** The widest box that certifies whole
+is `1.000`, `0.370`, `0.185`, `0.111` of the study at 1–4 links — one
+number in four spellings, since the tip's certified lateral half-width
+is `3.998e-4` m at every one of them — which is half the PIN RADIUS,
+not a property of the tier (see the fix-pass entry below).
+At the four-link box (`CERTIFIABLE_FRACTION`) the drive certifies and
+the tip assertion HOLDS on every certified leaf. So the enclosure per joint is drawn on the sheet
+beside the cloud: `0.0400, 0.1199, 0.2398, 0.3996` mm across the chain,
+growing `1 : 3 : 6 : 10` — the worst-case lever sum — against the
+advisory σ's quadrature `1 : 2.24 : 3.74 : 5.48`. E11's trade in one
+picture, which the plate's sheet could not draw (`7.81e-7` of its
+study). `a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
+CLOSES on that.
+
+**Filed** (all P1, Ev's request carried):
+`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`,
+`a-two-joint-chain-poisons-its-transversality-margin` (re-filed at the
+review as `a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
+below — the poison is not the two-link chain's alone),
+`a-chain-of-three-joints-straddles-dihedral-arm`,
+`the-drivers-symbolic-dials-have-no-name-on-the-facade`.
+
+
 ## SYM-13 merged (2026-09-22): the leaf's NEED — block SYM-B3 slot 2; the block concludes
 
 PR #3054 (polished head `dc88037b3`, run 35715970767 green on the full
@@ -1211,3 +1266,83 @@ drive bullet), polished at `dc88037b3`. Spec deleted with its ledger
 entry; the item and the unit closed. Block SYM-B3 concludes (SYM-11,
 SYM-12, SYM-13); its record reaches `main` with the A/B row. SYM-14
 (the chain demo) runs beside.
+
+## SYM-14 review + fix pass (2026-09-22): the code held, three causal stories did not
+
+One OPUS style review with a correctness arm, on `1380c803b`:
+MERGEABLE-AFTER-FIXES, 3 MAJOR / 4 MINOR / 5 NOTE / 8 style; correctness
+of the shipped code 5, design 4, **evidence discipline 2**. It
+reproduced every number, both sheets byte-identical, the certified
+table and the enclosures, and it found that three HEADLINE CAUSAL
+CLAIMS had been enshrined in P1 rows and module headers without being
+executed. Each is now measured, and each measurement is a CI row:
+
+- **What bounds the certifiable box is `dihedral_wedge`, not
+  `dihedral_arm`.** The arm's straddle is the first refusal over the
+  WHOLE study at 3 and 4 links — evaluation order. Just above the wall
+  (`1.02×`, `1.10×`, default ε and `1e-6`) the first refusal is the
+  wedge's poisoned margin, `EdgeKey(1v1)` sample 4, at 2, 3 and 4 links.
+  The bounding claim moved to the (re-titled) wedge row; the arm row
+  keeps its own finding, which is that its bracket is ε-INDEPENDENT.
+- **The "one number" is the PIN RADIUS, not the tier.** The certified
+  tip half-width is `0.500 × PIN_RADIUS` at every link count the wall
+  sets; doubling the radius moves the fractions to
+  `1.0000/0.73841/0.36921/0.22192` and the swing to `3.81°`. "1.9° of
+  accumulated swing, however many joints" was the shipped radius in
+  disguise. `chain::CERTIFIED_TIP_OVER_PIN_RADIUS` pins it.
+- **The three-link chain carries the same poison**, same edge and
+  sample, just not reported first. "The shorter chain is the poisoned
+  one" was evaluation order read as a fact about the chain.
+
+Also fixed: the self-check absorbed ±10 ulp and read none of the
+10,752 DRAWN coordinates — the sheet is now parsed back and every
+polygon and pin dot un-mapped and compared to the replay
+(`check_drawn`, run against the review's own planted 1 mm
+displacements, both red); `summarize` was a third transcription of
+`editor_core`'s private reduction with its guards dropped, and is now a
+door on the façade used by both cells with both sheets byte-identical;
+the façade row moved to **`work/lib/`**, where `crates/pncad` is; the
+sheet no longer claims a certified box at an ε where the cell on the
+same walk declares a frontier; `render-mc.sh`'s `SHEETS` census is
+guarded in the direction that was silent.
+
+The class, not the instance: a causal sentence in a row, a header or a
+PR body is a claim, and the fix pass' rule is that each one names the
+execution that shows it or is re-worded as the question it actually is.
+
+## SYM-14 merged (2026-09-22): the chain demo Ev asked for
+
+PR #3073 (head `aea96608e`, run 35741468541 green on the full matrix and the
+render lanes; the state-sync commit on top). Four 12 mm links, a pin at
+every joint and a fixed target pin at the nominal tip, σ = 0.01 rad at
+every joint, 512 draws: the cloud widens joint by joint (lateral σ
+0.12 / 0.28 / 0.47 / 0.70 mm at pins 2–5, against the quadrature law
+1 : 2.24 : 3.74 : 5.48), 68 of 512 break a 1 mm true-position tolerance
+at the tip; the sheet `demos/renders-mc/chain-density.svg` beside the
+plate's, the plate's byte-identical. The certified lane: the plain
+interval scalar refuses at every link count (`transform_rigid_col0_unit`
+— `cos² + sin²` of a widened angle is a bracket around 1); the symbolic
+tier certifies one link whole, refuses two and more at `dihedral_wedge`'s
+poisoned margin, and certifies the four-link chain whole at 0.111 of the
+study — the enclosure per joint drawn beside the cloud (0.04 / 0.12 /
+0.24 / 0.40 mm, the lever sum 1 : 3 : 6 : 10), the certified tip box HALF
+THE PIN RADIUS at every link count (a property of this document; the
+radius doubled doubles the swing). The row
+`a-widened-rotation-angle-is-unmeasured-on-the-certified-lane` CLOSED on
+its condition. Rows filed at P1 with Ev's request: the wedge wall (now
+also home to why the box moves with ε, 0.1110 → 0.1083, unestablished),
+the arm straddle, the plain-interval refusal, the façade row (on LIB);
+and, from Ev on #3073, `the-chain-demo-detects-no-self-intersection`.
+
+Review (v7 OUT, one OPUS style review with a correctness arm, no row):
+MERGEABLE-AFTER-FIXES 3/4/5 — the picture reproduced to the byte; three
+causal claims enshrined without execution. Fix pass A–O; delta NOT
+MERGEABLE (four copies of the retracted sentence survived — grep the
+claim, not the sentence); fix pass 2 (seven sites; the monotonicity
+assumption with its ladder check; the ε question left open); delta 2 NOT MERGEABLE on the last copy in `demos/README.md`, taken
+in the state-sync commit with its source's wording. The box restarted mid fix pass 2 with the edits uncommitted;
+the lane resumed from its transcript and re-ran every check. Seams:
+`demos/render-mc.sh` (CIW, a `SHEETS` list with a glob guard),
+`pncad::analysis` and the binding census (LIB, `summarize` re-exported
+and registered behind a door), `editor-core/src/mc.rs` (PROPS, one
+`fn` → `pub fn`). Spec deleted with its note; the unit closed.
