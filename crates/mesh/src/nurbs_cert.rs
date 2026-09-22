@@ -2600,7 +2600,10 @@ pub(crate) mod tests {
                 "certified",
                 &[("uu", true_uu, bound.muu)],
             );
-            println!("bilinear {name}: true uu {true_uu:.17e} vs certified {:.17e}", bound.muu);
+            println!(
+                "bilinear {name}: true uu {true_uu:.17e} vs certified {:.17e}",
+                bound.muu
+            );
             if !d.holds() {
                 escaped.push(format!("fixture {name}: {d}"));
             }
