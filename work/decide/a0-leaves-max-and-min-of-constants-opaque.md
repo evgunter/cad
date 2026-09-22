@@ -2,10 +2,11 @@
 id: a0-leaves-max-and-min-of-constants-opaque
 kind: issue
 title: rule A0 folds sqrt and abs of a constant but not max or min of two constants, so an axis-aligned sign-hull frame stays an atom chain under A0 and its gate residual freezes
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
+closed: 2026-09-22
 ---
 
 
@@ -111,3 +112,5 @@ which names A0 as the dial that decides it.
 what stays open elsewhere: `max(A, B)` for two distinct non-constant
 forms is still the decision read's, and that is right — it is a fact
 about the box, not about the form.
+
+Closed at DECIDE-3's merge (#3039, 2026-09-22).

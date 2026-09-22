@@ -1,3 +1,37 @@
+## Per-merge deletion — RING-2's spec (2026-09-22)
+
+Recoverable at `git show 4cb762495d:docs/RING-2-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "ANY row that comes out
+LOOSER is a finding: stop, characterise, file" against the committed
+tess-budget baseline — the baseline's diff shows fifty-five looser
+certified cells on lily faces (≤ 6.4e-13 rel), every one main's own
+drift between the 09-15 cut and the merge base (the gate reads only
+sizing), RING-2's share measured with only `ring_interval.rs` swapped
+back being all tighter; characterised in the PR body and filed on
+INSTR; the "zero looser" claim is true of every corpus in the tree
+(16,995 rows, 2,294 tighter) and false of the arithmetic at the
+subnormal and overflow corners, where the newtype gives one subnormal
+step back — pinned executable; the register's "31 hazards" — 30
+(`ssi/certify.rs:692`'s read is the evaluation scalar's), the census
+made executable and its population rule (files naming the type)
+stated as a blind spot with a fixed extra roster; the Q9 gate's
+"outer rule two counts short" mutant — the outer rule two short is
+exact on the fixture (its image is degree 1) and the `1.96e-6` figure
+is the inner order's, the row renamed to what it pins; the spec's
+red-row table premise "the dry run's 22 rows" — two hosted heads
+after the PR opened went red on six more rows (two meter rows on an
+exactly-zero curvature bound, the reader-census ledger, two interval
+eps-1e-12 rows, the `step-export` sidecars), each dispositioned;
+"`from_certified` returns the DECORATED bracket" needed a way to read
+a scalar's endpoints beside its verdict — `CertifiedEnclosure` gained
+`crossing_bracket` (DL1 unchanged on both reviewing arms; the
+member-free route through `Enclosure` compiles and is refused by the
+bounds gate's ratification rule, so the member stays with the trait's
+doc made true). Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `RING-2-SPEC.md` — RING-2, `RingInterval` is a newtype over `DInterval`; poison is `dec < Def`; every certificate re-pinned with its cause (#3032)
+
 # docs ledger — deleted historical documents
 
 This file is the permanent record of documents deleted from `docs/`
@@ -4640,3 +4674,151 @@ unit's "Closed on Phase 1" section.
 
 - `SYM-10-SPEC.md` — SYM-10, the decision door and the floor (#2970)
 
+## Per-merge deletion — LANE-1's spec (2026-09-21)
+
+Recoverable at `git show 97d8ffe54d:docs/LANE-1-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the public Python doors …
+call the `topo::` doors monomorphically at `f64` — the certified names,
+unchanged in behaviour" — `value.rs` called the lane-keeping
+`validate_pseudomanifold` at the base, so the fold (the table's own
+choice) changes its verdict on an M7-8 body from `VolumeUncomputable`
+to the edge-by-edge `EdgeCertification` findings, both reviews' MAJOR,
+ruled to stand and pinned by an in-crate row (no public door can build
+such a body — filed on EXCH); "`run_checks<T: AtRestPolicy>`, which
+runs at `Dual`" — it carried `CertifiedBounds` at the base, so
+`connectedness` takes the certified name; "`AtRestPolicy`'s supertrait
+list becomes `Decide + geom_core::Bounds + PcurveFittedLane +
+ChartRegionLane`" — `Bounds` is deliberately not a supertrait (the
+allowlist gate would have needed a licensing entry; every
+bracket-reading door spells `Bounds` at the door instead); "the tour's
+~60 sites stay type-correct under the certified bound" — they did not
+(eleven red sites), the tour's `Scalar` gaining `CertifiedBounds`;
+"`mass_properties_structural<T: Decide + Bounds>`" — `T: Decide`, the
+term unearned; the plan's ground column named "demos" (zero
+occurrences) and the survey re-drew it (ATREST, SHELL, REACH, CHART,
+LIB/BIND, WIRE, PROPS, GUARD, PCERT, TCOST/TINT, the unowned
+`props.rs`); the fold's rename reached six files the fence did not
+name (`demos/tour/src/main.rs`, `step-import`, three test files, the
+in-src probe table). Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `LANE-1-SPEC.md` — LANE-1, `PropsQuadLane` deleted: the quadrature door is a parameter, the certified name keeps its quadrature, a `_structural` twin carries the `None` (#3010)
+
+## Per-merge deletion — SYM-11's spec (2026-09-21)
+
+Recoverable at `git show c6addfa56:docs/SYM-11-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "the six measured
+documents" (no roster of six exists — `measured_studies` is five, the
+bulge three make eight; the unit measured the five, both far-placement
+bodies and both rule-F residuals at the certified lift); "on `Decide`
+(the door's trait) or on `Real`" left open — the marker's home is
+`Real`, beside `register_equal`, as `Real::WITNESS: Witness` with no
+default, so the two contracts read one marker and `predicate.rs` is
+untouched; "a schema bump is NOT this unit's — if the column cannot be
+added without one" (the serialized receipt has no reader, only
+`content_key` and byte comparisons, so the column ships in the wire
+format with no bump); "`SymCounts::theorems_disputed` … not a discharge
+kind" is kept, with the correction that the column counts BOTH theorem
+kinds (`Theorem` and `SignGated`) contradicted by an inexact channel —
+a gated dispute is producible (`sqrt(((r + d) − d)²) − r` at
+`d = 1e9`) and has its row. Recorded in the PR body and the unit's log
+entry.
+
+- `SYM-11-SPEC.md` — SYM-11, the point channel is not a proof (#3028)
+
+## Per-merge deletion — LANE-2's spec (2026-09-21)
+
+Recoverable at `git show 6f8f7132ab:docs/LANE-2-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "What must not change:
+every certificate, verdict, refusal and `Display` at every scalar" —
+overridden by the spec's own §1 ("the `_structural` twin `None`") and
+by ruling 3: the `_structural` doors at `f64` on a declared straddle
+seat answer `Ok(())` at the base and, at the head, a
+`CensusLaneUnsupported` refusal plus the two crossings the declaration
+backed as `UndeclaredContact`, both reviews' MAJOR, ruled to stand
+(the base's `f64` reach of Door 2 through the supertrait was the
+lane-keeping hybrid the cut removes) and disclosed in the door docs,
+the PR body and the extended ATREST row; "with the certified door's
+`Some` replaced by `None` … the census rows that assert an overlap
+verdict go red (`census_g2_carrier`, `mate5_cyl_eps_rung`,
+`r1_mate5_probe`, `r2_probes`, `m9_2_chart_region_loft`)" — those
+call the two doors directly and cannot red; the set that notices is
+seventeen topo+sweep rows (twenty-four reach; thirty-five more in
+`editor-core`), measured; "a row that `pair_region_verified` with
+`None` answers `false` where `Some` answers `true` on the mate9
+crossing rung's isolator body" — the isolator's `Some` answers `false`
+too; the pin is on the straddle seat's declared pair; the survey's
+"the `_structural` twin is the dual's door" — it is a public door with
+`f64` callers in the tree; the citations were taken at the branch
+point `5b74236e03` and the merge base was `ff1e982788` (the counts
+agree); `real.rs`'s M9-2 entry was called naming-only and its
+selector moved from scalar-keyed to door-keyed (an agent-written
+sentence; no ratification owed). Recorded in the PR body and the
+unit's `## Closed` section.
+
+- `LANE-2-SPEC.md` — LANE-2, `ChartRegionLane` deleted: the chart-region doors are one `Option<RegionLane<T>>` parameter through the census, `None` keeping today's typed refusal (#3038)
+
+## Per-merge deletion — SYM-12's spec (2026-09-22)
+
+Recoverable at `git show 47e5a0a64:docs/SYM-12-SPEC.md` (the fix-pass
+head). What it decided: rule F's NEGATIVE arm taken —
+`manifest::negative` as `positive` of the negated numerator, both folds
+under `SymRules::manifest_sign` (one rule, two arms, one dial); the
+reach is the tilt-`u` family, either cap, either sign (the start cap
+and `FlipZ` read the end cap's state by name and by count; `FlipV`, a
+negative `n.z` on a tilt about `v`, folds and moves nothing); `tiltUV`:
+the fold never fires — the DAG's `n.z` is a 21-over-23-term quotient
+in the parameter's offset with odd powers of `t` beside three `sqrt`
+atoms, not the budget's; the `copysign` census: no atom from any mint
+site reaches a decision on the seven takeable documents or the
+revolved cap, and the tree's ten mint sites are registered by a
+source-census row (the spec's "five other sites" was SYM-8's list);
+`magnitude`'s two spellings of `|Y|` meet (R2's demonstrated row); the
+release leaf cost measured (cheaper than rule-F-shut on five of six
+leaves, the link +4.8 %); the DECIDE-3 seam filed
+(`work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Its sentences that did not survive: "five other `copysign` mint sites"
+(ten, counted); "the eight documents' splits" (seven takeable — the
+pad's nominal replay with the report is not); the walk stays
+recoverable at the merge SHA. Recorded in the PR body and the unit's
+`## Closed` section.
+
+- `SYM-12-SPEC.md` — SYM-12, the derived-frame freeze's next shape (#3046)
+
+## Per-merge deletion — DECIDE-3's spec (2026-09-22)
+
+Recoverable at `git show 5d3bc7e8b:docs/DECIDE-3-SPEC.md` (the landing
+head of #3039, merged into `props/sign-hull`). Its sentences that did
+not survive: acceptance 2, **"no decision LOST on the six measured
+documents"** — that sentence was the ORCHESTRATOR's spec text and was
+carried into the ruled row's `## Ruled` section as if it were Ev's;
+Ev corrected the attribution on #3039 (02:03Z): the ruling was shape
+1 plus *"never skip out on a change that would make the code better
+because it would require rebaselining"*, so the one predicate rule G
+costs (R2's link, `carrier_on_surface_2`, sixteen theorems while the
+document's totals rise) is re-baselined and PINNED on both sides
+rather than held against the unit, and the row that measures it
+(`rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`) stays
+open at P1 for SYM-9; the clause holds per predicate everywhere else
+and the per-predicate row reds on a planted drift. Its "STOPS ... shape
+3 of #2970 is the fallback" — the unit did stop on that clause, and
+the stop was lifted by the correction above, not by shape 3. The side
+condition's third source, "the session's atom table" — UNSOUND (R2's
+dead-arm adversary: a `sqrt(x)` on a dead `Select` arm licensed a
+split at `x < 0` and rule F then proved a false theorem), removed and
+replaced by two sources the form itself proves (`manifest::nonneg`
+with a definite quadratic in one indeterminate, and a manifestly
+non-positive denominator over the negated pair), gated by
+`sym_root_rows::a_dead_arm_root_licenses_no_split`. "The decision read
+declines nothing it can decide" was kept the hard way: the first fix
+pass made the read decline a comparison of two rational constants so
+a byte-identity pin could stand, and Ev's second word (02:05Z, "no
+concession towards skipping a rebaseline") reversed it into A0
+deciding `min`/`max` of two rational constants and of one form as
+theorems, with the slab, the plate's `line_span`, the D-tabs, the
+boss, the ledgers and the derived-frame row's A0 rung re-baselined and
+said. The tilted row green with its assertion untouched; the tilt-`u`
+wall answered. Recorded in the PR body and the unit's `## Closed`
+section.
+
+- `DECIDE-3-SPEC.md` — DECIDE-3, the canonical root at the mint site (#3039)

@@ -2,10 +2,11 @@
 id: the-tilt-u-newell-residual-is-the-next-wall
 kind: issue
 title: after rule F takes the tilt-u carrier wall the derived boss refuses on a newell_plane_residual straddle the tier does not prove
-status: open
+status: closed
 opened: 2026-09-15
 priority: P2
 cost: H
+closed: 2026-09-22
 ---
 
 
@@ -89,3 +90,5 @@ frame's conditioning floors, which no form settles and the read
 certifies over the box.
 
 This row closes with DECIDE-3's merge.
+
+Closed at DECIDE-3's merge (#3039, 2026-09-22).

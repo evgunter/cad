@@ -2,10 +2,11 @@
 id: the-candidate-norm-needs-a-canonical-square-root
 kind: issue
 title: the sign-hull candidate's norm is a sqrt over a quotient the tier cannot meet with the normal's own sqrt atom: the fourth piece SYM-10's Phase 1 found, hand-planted green, and what it costs the plate
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: H
+closed: 2026-09-22
 ---
 
 
@@ -290,3 +291,9 @@ re-baselined and said: the per-predicate row keeps the clause on every
 other predicate and pins this one at its numbers on both sides, and
 the filed row stays open at P1 for SYM-9. Everything else the fix pass
 owed is done and green.
+
+## Closed (2026-09-22)
+
+DECIDE-3 merged (#3039). The canonical root is at the mint site and the
+tilted row is green with its assertion untouched. The one trade stays
+on `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` for SYM-9.
