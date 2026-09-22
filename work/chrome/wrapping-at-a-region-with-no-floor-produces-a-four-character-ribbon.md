@@ -2,8 +2,10 @@
 id: wrapping-at-a-region-with-no-floor-produces-a-four-character-ribbon
 kind: issue
 title: viewer: a message wrapped at a deeply indented narrow pane lays out four characters to a line, and MAX_CHARS's ratified rule says a box owes a number to meet
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-09-22
+pr: 3089
 priority: P1
 cost: D
 refs: [messages-wrapped-at-a-region-and-numbers-bounded-by-characters-are-two-answers]
@@ -70,3 +72,30 @@ So: **wrap down to a floor, and below it stop narrowing and let the
 enclosing scroll area scroll.** And a site that reaches the floor is a
 finding about the layout that put a sentence there, not only a case for
 the floor to absorb.
+
+## Closed
+
+Closed by PR 3089 (`chrome/message-floor`), per Ev's ruling above.
+`widgets::wrapped_in_region` lays a message out at
+`max(available_width, message_floor, widest word)`:
+
+- **The floor**: `readout::MAX_CHARS` characters plus a sign at the
+  widest glyph in `0123456789.-e`, measured in the font
+  `FontSelection::Default` resolves to. That is 168.6 points at egui's
+  default body font. Below it the message stops narrowing and the
+  pane's `ScrollArea::both()` scrolls.
+- **The widest word**: epaint breaks at a space while one fits and
+  anywhere once none does. So the width is never less than the text's
+  widest whitespace-free run, and no line breaks inside a word — a
+  `readout` number (which the floor alone already holds:
+  `the_floor_holds_every_number_readout_renders`) or a kernel `num`
+  with no character bound (`no_line_breaks_inside_a_word`, a 50-digit
+  number).
+
+The ruling's second half was taken at the measured site as well.
+`pane/features.rs`'s lines under a row now indent at `message_indent`,
+which is the row's indent plus one step for as long as that leaves the
+floor. After that the indent gives way first, so a deep row in a narrow
+pane draws its failure line further left rather than scrolling it
+(`a_deep_rows_line_gives_up_its_indent_before_its_width`,
+`a_line_under_a_row_in_a_wide_pane_keeps_its_whole_indent`).

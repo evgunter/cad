@@ -2,8 +2,10 @@
 id: the-toolbars-canceled-line-is-a-sentence-the-chrome-wrote-and-did-not-convert
 kind: issue
 title: viewer: the toolbar's 'canceled' line is a sentence in the same wrapping row as the converted status line, unconverted
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-09-22
+pr: 3089
 priority: P0
 cost: E
 refs: [error-and-check-text-overflows-its-region]
@@ -48,3 +50,16 @@ One of two things, and not silence:
 The second is the weaker answer here: the literal is fixed, but the
 window is not, and this row is drawn beside a spinner and a button
 whose widths move with it.
+
+## Closed
+
+Closed by PR 3089 (`chrome/message-floor`): converted. `toolbar_ui`'s
+`Progress::Canceled` arm draws `crate::widgets::message(ui,
+CANCELED_LINE)`. The literal is named in `app.rs` so that the row can
+find it. `app::tests::the_toolbars_canceled_line_begins_every_line_in_the_same_place`
+drives the real toolbar over an inline session left `Outstanding::Canceled`
+(submit, cancel, pump) across seventeen window widths from 200 to 600
+points. At every width it asserts that each line of the canceled
+sentence begins under the first. Reverted to `ui.label`, it goes red at
+a 200-point window with 95 points of drift (first line at x = 103,
+second at x = 8), which is the defect this row described.
