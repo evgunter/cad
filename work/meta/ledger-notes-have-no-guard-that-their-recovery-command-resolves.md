@@ -65,6 +65,16 @@ The sweep notes' template lines (`git show <sweep-sha>:work/<program>/<FILE>`)
 carry placeholders and are not resolvable commands; the check keys on a
 literal hex SHA.
 
+**It must not key on the backticks.** A sweep note's concrete pointers
+sit in an indented block with no backticks around them, and eighteen of
+the directory's 139 runnable commands are of that shape — the exit-walk
+and design-doc recoveries in `blend-`, `cite-`, `docm-`, `door-`,
+`eval-`, `fillet-`, `fix-`, `gates-`, `m10-`, `meter-`, `s-bool-`,
+`s-cert-`, `s-mate-`, `s-mesh-`, `seat-` and `verbs-leaves-the-tracker`.
+A pattern requiring a closing backtick reads 121 of the 139 and reports
+a clean sweep over the rest, which is the failure mode this row exists
+to prevent: a check that passes because it did not look.
+
 ## Disposition
 
 This row proposes the check; it does not write it. `docs/doc-ledger/`
