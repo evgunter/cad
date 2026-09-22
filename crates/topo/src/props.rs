@@ -2071,7 +2071,9 @@ impl<T: Decide> QuadLane<T> {
 #[allow(clippy::type_complexity)]
 pub struct ShellDoor<T: Decide> {
     /// [`ShellDoor::open`]'s body — `crate::shell_open`, and nothing
-    /// else can be written here (`wiring_rows` pins the pointer).
+    /// else can be written here: the pointer is pinned by
+    /// `at_rest_policy_tests::certifying_arms_are_the_doors`, which
+    /// `fn_addr_eq`s each certifying arm's door against that function.
     open: fn(&Body<T>, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
 }
 
@@ -2492,6 +2494,9 @@ mod at_rest_policy_tests {
     //! grant stays invisible to it. Each certifying (scalar, method)
     //! pair is asserted equal to its door on a body the door refuses,
     //! so `Ok(Validated)`-without-validating cannot survive these rows.
+    //! The shell door is the one arm that is not a gate on that
+    //! subject: it is a VALUE, so its row is a pointer comparison
+    //! against `shell_open` rather than an output on a refusal.
 
     use super::{AtRestOutcome, AtRestPolicy};
     use crate::body::Body;
