@@ -72,7 +72,7 @@ is scheduled at the `props/sign-hull` merge, whoever merges it owing
 the ladder and the eight with both units in);
 `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
 (SYM-13, D / STRUCTURAL, slot 2, Opus by the block's draw) is IN as a
-receipt-contract decision — DISPATCHED 2026-09-22, spec `docs/SYM-13-SPEC.md`,
+receipt-contract decision — MERGED 2026-09-22 (#3054; the spec deleted with its ledger entry; block SYM-B3 concluded),
 branch `sym/13-leaf-need`;
 the ring item and the pcurve row are triaged when spec'd (the latter
 is not certainly SYM's). The block's pre-draw fields and draw are on

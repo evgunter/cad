@@ -2,10 +2,11 @@
 id: leaf-frozen-column-is-schedule-dependent-under-the-drive-memo
 kind: issue
 title: A leaf receipt's frozen column is schedule-dependent under the drive-scoped plain memo
-status: open
+status: closed
 opened: 2026-09-14
 priority: P0
 cost: D
+closed: 2026-09-22
 ---
 
 
@@ -140,3 +141,5 @@ pins that reading, and
 the three adversaries) and pins the branch at zero on all of them: a
 drive mints every node inside its own session, so no leaf of one holds
 a foreign id at all.
+
+Closed at SYM-13's merge (#3054, 2026-09-22).
