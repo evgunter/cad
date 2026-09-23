@@ -38,6 +38,7 @@ fn dump_loop(body: &topo::Body<f64>, face: topo::FaceKey, tag: &str) {
             Curve3::Line { .. } => "Line",
             Curve3::Circle { .. } => "Circle",
             Curve3::Ellipse { .. } => "Ellipse",
+            Curve3::Spiric { .. } => "Spiric",
             Curve3::Nurbs(_) => "Nurbs",
         };
         let desc = match curve.description() {
@@ -100,8 +101,12 @@ fn dump_doors(body: &topo::Body<f64>, tag: &str) {
         Err(e) => println!("[{tag}] mass_properties = Err({e:?})\n[{tag}]   display: {e}"),
     }
     match topo::validate(body) {
-        Ok(()) => println!("[{tag}] tier 3 = Ok"),
-        Err(e) => println!("[{tag}] tier 3 = Err({e:?})"),
+        Ok(()) => println!("[{tag}] validate (structural) = Ok"),
+        Err(e) => println!("[{tag}] validate (structural) = Err({e:?})"),
+    }
+    match topo::validate_geometric(body, Tol::witness()) {
+        Ok(()) => println!("[{tag}] validate_geometric (check 7) = Ok"),
+        Err(e) => println!("[{tag}] validate_geometric (check 7) = Err({e:?})"),
     }
 }
 
@@ -119,6 +124,27 @@ fn survey_approx_capped_box() {
     if mint.is_ok() {
         dump_loop(&body, face, "box/after");
         dump_doors(&body, "box/after");
+    }
+}
+
+/// **The three-eps sweep of the same class**: does the seam-class mint
+/// over a straight carrier hold at every tolerance the tree runs, and
+/// at both signs of `d`?
+#[test]
+fn survey_approx_cap_three_eps() {
+    for d in [0.05_f64, -0.05] {
+        for target in [1e-6_f64, 1e-9, 1e-12] {
+            let (mut body, face) = box_with_approx_cap(d, target);
+            let mint = topo::mint_pcurves(&mut body, Tol::witness());
+            let tess = mesh::tessellate(&body, 0.05, Tol::witness())
+                .map(|m| (m.patches.len(), m.positions.len()));
+            let props = topo::mass_properties(&body, Tol::witness()).map(|p| p.volume);
+            let tier = topo::validate_geometric(&body, Tol::witness()).is_ok();
+            println!(
+                "[sweep] d = {d}, target = {target:e}: mint = {mint:?}, tess = {tess:?}, \
+                 volume = {props:?}, check7 = {tier}, face = {face:?}"
+            );
+        }
     }
 }
 
