@@ -9,10 +9,8 @@ client over the API), functional style, fail-loud.
   open questions). Do not re-litigate settled decisions; propose changes
   as revisions to the doc, discussed with Ev first.
 - `work/` — the tracker. `work/STATUS.md` is the board (generated on
-  main); each program is `work/<program>/` with `program.md`,
-  `plan.md`, `log.md` and one file per open item. `work/README.md` is
-  the contract; orchestrators read it in full, and it says how a
-  program closes (exit walk, `docs/doc-ledger/` note).
+  main, never hand-edited); `work/README.md` is the contract, and
+  orchestrators read it in full.
 - Design docs for finished work live as README pages beside the code
   they govern (`crates/<crate>/README.md`), present tense only, with
   their clause ids kept; DESIGN.md's companion table lists them.
@@ -46,7 +44,7 @@ Issues are files, not GitHub issues. Run
 (add `--program <p>` when the owner is obvious), write the finding in
 the body with its `file:line` citations, and commit it on your branch;
 `python3 scripts/work.py lint` must pass. Anything for Ev goes in a PR
-titled `[ev] ...`.
+titled `[ev] ...`; "Ev's channel" in `work/README.md` says how.
 
 ## The GitHub surface
 

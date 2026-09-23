@@ -3,15 +3,6 @@
 Read the files as relevance dictates; this index says what each is for,
 not what it says.
 
-**Finding the work.** `work/` is the tracker and `work/README.md` its
-contract: `work/STATUS.md` is the board, `work/<program>/` holds a
-program's `program.md`, `plan.md`, `log.md` and one file per open
-item; **live state is there and never here.** How a program closes
-(exit walk, `docs/doc-ledger/` note) is in `work/README.md`. Ratified
-design is `docs/DESIGN.md` plus its companion table, whose
-closed-program rows are README pages beside the code. Merge gate =
-hosted Actions.
-
 ## Working with Ev
 
 - [CAD working style](cad-working-style.md) — discuss → ratify into

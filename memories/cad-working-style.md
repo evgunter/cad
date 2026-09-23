@@ -48,7 +48,8 @@ Then, for what survives:
   re-derived from first principles" is not a reason to keep it in a
   file everyone reads every day.
 - **No live counters.** Ordinals, schema versions, block/slot state,
-  in-flight status: point at the one authoritative place instead. A
+  in-flight status: point at the one authoritative place instead
+  (for the state of work, `work/`). A
   second copy is stale the moment it is written, and it is the copy
   people read first because it is shorter.
 - **No specific measurements.** A memory states a durable rule; the

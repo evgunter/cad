@@ -375,19 +375,28 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 Ev does not edit files. Anything that needs Ev — a design fork, a
 ruling, a plan ratification, a question — is a PR whose title starts
 with **`[ev]`**, and the item that asked sets `needs_ev: true`. The PR
-is not named in the item: which PR carries the question is one
-`git log` away, and the item usually exists before the PR does. Ev
-answers in the PR's comments; the agent edits the item and the docs,
-merges, and clears the flag. Whoever opens an `[ev]` PR arranges to be
-woken by comments on it — the away-channel monitor locally, a PR
+states the question by editing the doc it concerns, and is updated in
+place with the answer. The PR is not named in the item: which PR
+carries the question is one `git log` away, and the item usually
+exists before the PR does. Ev answers in the PR's comments; the agent
+edits the item and the docs, merges, and clears the flag. Never ask on
+a merged PR: Ev does not scan them. Whoever opens an `[ev]` PR arranges
+to be woken by comments on it — the away-channel monitor locally, a PR
 subscription on a remote box — because the answer arrives as a comment
 and a question nobody is listening to has not been asked.
 `STATUS.md` lists every open `needs_ev` oldest first, so the two views
 (the PR list filtered on `[ev]`, and the tracker) always name the same
 set.
 
-State-sync rides the unit's PR as before (item header updates, log
-entries); conversations for Ev get their own `[ev]` PR.
+**No status scaffolding in the diff** (Ev, 2026-09-21): phrasing like
+"proposed", "pending sign-off" or "awaits ratification" only has to be
+taken out again before merging. The `[ev]` title, the PR body and
+`needs_ev:` carry that status; the text carries its content.
+
+**A reshuffle is not a question.** A file move or other reshuffle with
+no design implication is not an `[ev]` PR — Ev (PR 1916, 2026-09-05):
+"you don't need to ask me about moving things around, unless it has
+design implications"; do it and log it.
 
 ## The script
 
