@@ -307,9 +307,6 @@ impl ViewerBehavior<'_> {
             self.session.doc().params().get(&ParamName::new(name))
         };
         if let Some(existing) = existing {
-            // The same sentence the session's refusal would show, and
-            // the edit door it offers instead — refuse-then-offer,
-            // ahead of the click.
             let name = ParamName::new(name);
             if exists_notice(ui, &self.theme, &name, existing.dim()) {
                 self.ops.push(SessionOp::Select(Selection::Param(name)));
@@ -468,12 +465,11 @@ impl ViewerBehavior<'_> {
                     Tone::Actionable,
                 );
                 if !failure.offers.is_empty() {
-                    crate::widgets::message_toned(
-                        ui,
-                        format!("{} rebind candidate(s) offered", failure.offers.len()),
-                        &self.theme,
-                        Tone::Advisory,
-                    );
+                    // A count and a fixed literal, so a name.
+                    ui.weak(format!(
+                        "{} rebind candidate(s) offered",
+                        failure.offers.len()
+                    ));
                 }
             }
             Some(pncad::select::Resolution::Indeterminate(cause)) => {
@@ -628,10 +624,9 @@ impl ViewerBehavior<'_> {
                 });
                 // The notes stay PER COMPONENT: an affordance names the
                 // parameters driving one component, and a range is one
-                // field's. Each names its axis.
-                for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                // field's. Each names its component's slot.
+                for row in rows.iter() {
                     self.slot_notes_ui(ui, node, row);
-                    let _ = axis;
                 }
                 ui.horizontal(|ui| {
                     ui.weak("range");
@@ -835,18 +830,24 @@ impl ViewerBehavior<'_> {
             node,
             slot: row.slot,
         };
-        // Written in the unit the SEARCH used, which the reading
-        // carries — not re-derived from the row beside it. One sentence
-        // for a slot's range and a parameter's alike
-        // (`BoundsReading::wording`).
-        let reading = self
-            .session
-            .bounds()
-            .filter(|reading| reading.target == target)
-            .map(|reading| reading.wording());
+        let reading = self.bounds_wording(&target);
         if let Some(name) = slot_notes(ui, &self.theme, row, reading.as_deref()) {
             self.ops.push(SessionOp::Select(Selection::Param(name)));
         }
+    }
+
+    /// **The session's range reading for `target`, as its sentence** —
+    /// `None` while no reading has been taken for that field.
+    ///
+    /// Written in the unit the SEARCH used, which the reading carries,
+    /// not re-derived from the row it is drawn under: one sentence for
+    /// a slot's range and a parameter's alike
+    /// (`BoundsReading::wording`).
+    fn bounds_wording(&self, target: &BoundsTarget) -> Option<String> {
+        self.session
+            .bounds()
+            .filter(|reading| reading.target == *target)
+            .map(|reading| reading.wording())
     }
 
     /// The button that asks for one slot's locally-valid range.
@@ -866,9 +867,7 @@ impl ViewerBehavior<'_> {
         let offered = !row.driver.is_driven() && row.value.is_ok();
         let button = ui.add_enabled(offered, egui::Button::new(label).small());
         let button = if offered {
-            button.on_hover_text(
-                "probe how far this can move before something new fails (tens of evaluations)",
-            )
+            button.on_hover_text(PROBE_HOVER)
         } else {
             button.on_disabled_hover_text("a computed slot has no range of its own to probe")
         };
@@ -895,11 +894,7 @@ impl ViewerBehavior<'_> {
         let target = BoundsTarget::Param {
             name: row.name.clone(),
         };
-        let reading = self
-            .session
-            .bounds()
-            .filter(|reading| reading.target == target)
-            .map(|reading| reading.wording());
+        let reading = self.bounds_wording(&target);
         if bounds_notes(ui, &self.theme, reading.as_deref()) {
             self.ops.push(SessionOp::ProbeBounds { target });
         }
@@ -934,9 +929,9 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: 
 ///
 /// Every one of them is drawn under the row rather than in it. The
 /// row holds the slot's fields — three, for a vector — and a sentence
-/// in it would be laid out from the last field's right-hand edge. The
-/// fault and the reading name the slot they are about, because a
-/// vector says them once per component.
+/// in it would be laid out from the last field's right-hand edge. Each
+/// note names the slot it is about, because a vector says them once per
+/// component.
 ///
 /// The affordance is attached to the row rather than raised on
 /// refusal alone so the user can see WHY the number will not move
@@ -966,7 +961,11 @@ fn slot_notes(
     if let SlotDriver::Expression { params } = &row.driver {
         crate::widgets::message_toned(
             ui,
-            Refusal::affordance(params, row.value.as_ref().ok().copied()),
+            format!(
+                "{}: {}",
+                row.slot.label(),
+                Refusal::affordance(params, row.value.as_ref().ok().copied())
+            ),
             theme,
             Tone::Advisory,
         );
@@ -1006,12 +1005,14 @@ fn bounds_notes(ui: &mut egui::Ui, theme: &Theme, reading: Option<&str>) -> bool
         crate::widgets::message_toned(ui, reading, theme, Tone::Advisory);
     }
     ui.small_button("range?")
-        .on_hover_text(
-            "probe how far this can move before something new fails \
-             (tens of evaluations)",
-        )
+        .on_hover_text(PROBE_HOVER)
         .clicked()
 }
+
+/// What a range button says on hover, for a slot's and a parameter's
+/// alike.
+const PROBE_HOVER: &str =
+    "probe how far this can move before something new fails (tens of evaluations)";
 
 /// **Where this pane's sentences LAND** — each measured in a pane
 /// narrower than the sentence, through `crate::pane::headless::landed`,
@@ -1067,6 +1068,12 @@ mod layout_tests {
         let painted = landed(|ui| {
             ui.allocate_ui(egui::vec2(REGION, 800.0), |ui| {
                 region.set(ui.max_rect());
+                let floor = crate::widgets::message_floor(ui);
+                assert!(
+                    REGION > floor,
+                    "a {REGION}-point pane is at or under the {floor}-point floor, \
+                     so these rows would read the floor rather than the region"
+                );
                 draw(ui);
             });
         });
@@ -1077,7 +1084,7 @@ mod layout_tests {
         painted
             .iter()
             .find(|landed| landed.text == text)
-            .unwrap_or_else(|| panic!("`{text}` was painted"))
+            .unwrap_or_else(|| panic!("`{text}` was never painted"))
     }
 
     /// Every row of `landed` inside the pane's right-hand edge.
@@ -1123,7 +1130,8 @@ mod layout_tests {
             .fold(f32::INFINITY, f32::min);
         assert!(
             top >= bottom - SLACK,
-            "`{}` is drawn under `{}` rather than beside it ({top} against {bottom})",
+            "`{}` starts above the bottom of `{}` — beside it, not under it \
+             ({top} against {bottom})",
             below.text,
             above.text
         );
@@ -1166,7 +1174,14 @@ mod layout_tests {
         let (region, painted) = drawn(|ui| {
             slot_notes(ui, &Theme::DEFAULT, &row, None);
         });
-        let affordance = find(&painted, &Refusal::affordance(&params, Some(value)));
+        let affordance = find(
+            &painted,
+            &format!(
+                "{}: {}",
+                SlotId::Distance.label(),
+                Refusal::affordance(&params, Some(value))
+            ),
+        );
         assert_own_lines(region, affordance);
         for name in &params {
             let door = find(&painted, &format!("edit {}", name.0));

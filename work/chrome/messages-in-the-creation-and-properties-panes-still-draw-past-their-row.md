@@ -216,13 +216,17 @@ above rather than the list.
   already-declared wording, then its `edit` door under it),
   `slot_notes` (the slot's fault — moved out of the field's row and
   named by its slot, as the range reading already was — then the
-  affordance, then its `edit` doors in a wrapping row, then the
+  affordance, named by its slot too, then its `edit` doors in a wrapping row, then the
   reading) and `bounds_notes` (a parameter's reading, then its
   `range?` button under it). `properties.rs`'s `layout_tests` holds
   one row per function, each red against the old layout.
-- **Top-down: fourteen**, the fifteen above less `slot_value_ui`'s.
-  All converted.
-- **Names, left as labels**: `"select a feature"`, `"document
+- **Top-down: thirteen**, the fifteen above less `slot_value_ui`'s
+  and less `entity_standing_ui`'s `"{n} rebind candidate(s) offered"`.
+  All thirteen converted.
+- **Names, left as labels**: `"{n} rebind candidate(s) offered"` (a
+  count and a fixed literal, the shape `pane/profile.rs`'s
+  `preview_verdict` already argues is a name for `"{n} loop(s), drawn
+  in the viewport"`), `"select a feature"`, `"document
   parameters"`, `"add"`, the node-number and `"{noun} of {node}"`
   headers, `"deleted"`, `"instance {id}"`, `"free-move probe (mm,
   display only):"`, and every slot, family, axis, dimension and unit
