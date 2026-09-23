@@ -8,6 +8,7 @@ priority: P0
 cost: H
 branch: emit/loft-correspondence
 refs: [loft-anchors-every-section-with-section-zeros-map, loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body, 3102]
+needs_ev: true
 ---
 
 
@@ -74,4 +75,7 @@ authored start. Today it counts from the lex-min start. Consequences:
   corpus show this: only lofts whose lex-min starts disagreed move.
 - DM8 (`crates/editor-core/REFERENCES.md`) and `loft_geometry`'s
   contract doc state the authored correspondence.
-- It lands as an `[ev]` PR, because it changes what the loft builds.
+- It lands as an ordinary PR. Ev (3102's thread): an `[ev]` PR is owed
+  only if the change meaningfully deviates from what was ratified above.
+  Moving published names for non-loft verbs, or a name-bit migration,
+  would be such a deviation.
