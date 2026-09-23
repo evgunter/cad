@@ -95,6 +95,11 @@ Ev's standing instructions for implementation work:
   their OWN PR — burying those in a unit's merge hides exactly what
   other orchestrators should see. Keep PUSHING branches continuously;
   only the PR is batched.
+- **Run `python3 scripts/work.py incoming` at every check-in and before
+  bringing main into your branch** (fetch first). `log.md` merges by
+  union (`work/README.md`), so a note another program leaves on your
+  log lands without a conflict; `incoming` lists what main carries into
+  `work/<program>/` that your branch lacks, until it arrives.
 - **Every implementer dispatch** points the lane at
   `docs/prompts/implementer-discipline.md` BY PATH (read it once
   yourself; do not paste it). Briefs carry BOTH halves of the

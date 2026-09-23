@@ -382,6 +382,25 @@ merges, and clears the flag. `STATUS.md` lists every open `needs_ev`
 oldest first, so the two views (the PR list filtered on `[ev]`, and the
 tracker) always name the same set.
 
+## The log merges by union
+
+Every lane appends its entry at the end of its program's `log.md`, so
+two branches that each add one collide at the same line, and neither
+is wrong. `.gitattributes` gives `work/*/log.md` git's `union` merge
+driver: a merge keeps both sides' lines, in order, with no conflict.
+That is only sound because the log is append-only; an edit to an
+earlier entry on one side would come out duplicated rather than
+flagged.
+
+The conflict used to be the one place another program's note on a log
+surfaced, and it was a poor one: it fired only when the owner had
+appended too, among its own lanes' collisions. The read is explicit
+instead. `work.py incoming` lists every commit on `origin/main` that
+touches `work/<program>/` and is not yet in the current branch; an
+orchestrator runs it at each check-in and before bringing main into its
+branch. It is keyed to what main carries, not to a merge, so a note
+stays listed until it reaches the branch by any route.
+
 ## The script
 
 ```
@@ -391,6 +410,7 @@ python3 scripts/work.py render                the render, to work/STATUS.md
 python3 scripts/work.py new <id> --kind K --title T [--program P] [--set k=v]
 python3 scripts/work.py set <id> key=value [key=value ...]
 python3 scripts/work.py territory --base <ref> [--branch <name>]
+python3 scripts/work.py incoming [--program P] [--base <ref>]
 python3 scripts/work.py --selftest
 ```
 
