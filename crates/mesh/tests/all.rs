@@ -89,8 +89,6 @@ mod k_funnel_composition;
 mod loops_the_meridian_guard_admits;
 #[path = "loops_with_no_rim.rs"]
 mod loops_with_no_rim;
-#[path = "tess5_probe.rs"]
-mod tess5_probe;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
@@ -171,6 +169,8 @@ mod review_m2_pr6_walk_shapes;
 mod review_m3_pr1_mesh;
 #[path = "revolves.rs"]
 mod revolves;
+#[path = "tess5_probe.rs"]
+mod tess5_probe;
 #[path = "wedge.rs"]
 mod wedge;
 
