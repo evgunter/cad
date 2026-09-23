@@ -432,6 +432,81 @@ pub enum Diagnosis {
     /// branch selection refused (W3's payload verbatim; M6 constructs
     /// this arm).
     WitnessBifurcation(Box<WitnessBifurcation>),
+    /// Evidence UPSTREAM of the vanished name's minting node that is
+    /// NOT on its derivation path: nothing on the path flipped or was
+    /// edited, and a recorded flip, a structural-parameter change or a
+    /// recipe edit at a node the minting node depends on was found.
+    ///
+    /// A candidate cause, stated no more strongly than the evidence
+    /// allows: the node is an ancestor (so its change can reach the
+    /// name's geometry) and is not in the name (so it did not decide
+    /// the name). Ancestry is read off the recipe's input edges in
+    /// either run's document, so a node the edit deleted or re-pointed
+    /// counts as upstream where it was upstream in the last-good run.
+    /// A node that is not an ancestor at all is never reported.
+    Upstream {
+        /// The vanished name's minting node, which `cause` is upstream
+        /// of.
+        node: RecipeNodeId,
+        /// What was found there.
+        cause: UpstreamCause,
+    },
+}
+
+/// What [`Diagnosis::Upstream`] found upstream of the minting node —
+/// the three with-history lanes, each carrying the node it is AT,
+/// since that node is by construction not one the name mentions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpstreamCause {
+    /// A recorded verdict flip (read out of both runs' logs).
+    PredicateFlip {
+        /// The flipped predicate's k_stats name.
+        predicate: &'static str,
+        /// The node whose log recorded the flip.
+        at: RecipeNodeId,
+        /// Its sign in the last-good run.
+        from: Sign,
+        /// Its sign now.
+        to: Sign,
+    },
+    /// A structural parameter changed.
+    StructuralParam {
+        /// The node whose structural parameter changed.
+        node: RecipeNodeId,
+        /// The structural slot.
+        param: SlotId,
+    },
+    /// A recipe edit.
+    RecipeEdit {
+        /// The edit, by its structural effect.
+        edit: RecipeEditRef,
+    },
+}
+
+// The CAUSE clause of [`Diagnosis::Upstream`]'s sentence; the arm adds
+// where it sits relative to the name.
+impl core::fmt::Display for UpstreamCause {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PredicateFlip {
+                predicate,
+                at,
+                from,
+                to,
+            } => write!(
+                f,
+                "predicate {predicate} flipped from {from} to {to} at node {}",
+                at.0
+            ),
+            Self::StructuralParam { node, param } => write!(
+                f,
+                "a structural parameter changed at node {} (slot {})",
+                node.0,
+                param.label()
+            ),
+            Self::RecipeEdit { edit } => write!(f, "the recipe changed ({edit})"),
+        }
+    }
 }
 
 impl Diagnosis {
@@ -486,13 +561,13 @@ impl core::fmt::Display for Diagnosis {
             } => write!(
                 f,
                 "predicate {predicate} flipped from {from} to {to} against the {partner} \
-                 — recovered by re-running the pair at diagnosis time, because neither \
-                 run recorded a verdict for it"
+                 — recovered by re-running the pair at diagnosis time, because one of the \
+                 two runs recorded no side verdict at the name's minting node"
             ),
             Self::ShadowExecDeclined { node, reason } => write!(
                 f,
-                "a run recorded no verdict for the vanished pair at node {}, and \
-                 re-running it was refused: {reason}",
+                "a run recorded no side verdict at node {}, the vanished name's minting \
+                 node, and re-running its pair was refused: {reason}",
                 node.0
             ),
             Self::GroupResized { node, was, now } => write!(
@@ -525,6 +600,12 @@ impl core::fmt::Display for Diagnosis {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
+            Self::Upstream { node, cause } => write!(
+                f,
+                "{cause}, upstream of node {}, the name's minting node, but not on its \
+                 derivation path",
+                node.0
+            ),
         }
     }
 }
@@ -901,9 +982,17 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     /// The with-history diagnosis ladder (deterministic; first honest
     /// evidence wins): path-restricted verdict flips, then structural
     /// parameters on the path, then recipe edits on the path, then
-    /// the same three globally (geometry-mediated effects still land
-    /// their flips at the deciding node, so the global lanes are the
-    /// honesty fallback, not the common case).
+    /// the same three UPSTREAM — at the minting node's ancestors that
+    /// the name does not mention ([`Diagnosis::Upstream`]).
+    ///
+    /// Two scopes, each true by construction of the set it reads: the
+    /// path arms are found only on [`derivation_nodes`], and the
+    /// upstream arm only on the ancestors outside it. A node that is
+    /// neither — anywhere else in the document — is never read: an
+    /// edit there cannot reach this name, so its flip is not a cause
+    /// of this vanish, whatever else the same document change did.
+    /// Upstream ranks below the path because a path node decided the
+    /// name and an upstream one only fed it.
     ///
     /// Attribution among several path flips, in order:
     ///
@@ -965,16 +1054,36 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         if let Some(edit) = recipe_edit_change(self.doc(), new.doc, &ddiff, Some(path)) {
             return Some(Diagnosis::RecipeEdit { edit });
         }
-        // Global fallbacks (off-path evidence, in the same order).
-        let global = flips.report();
-        if let Some(d) = recorded(&global, true).or_else(|| recorded(&global, false)) {
-            return Some(d);
+        // The upstream lanes: the same three, scoped to the minting
+        // node's ancestors that are NOT on the path — a node the name
+        // does not depend on is never a cause of its vanish.
+        let upstream: BTreeSet<RecipeNodeId> = ancestors(self.doc(), new.doc, name.node)
+            .difference(path)
+            .copied()
+            .collect();
+        let at = |cause| Diagnosis::Upstream {
+            node: name.node,
+            cause,
+        };
+        // The first upstream flip in deterministic order. No family
+        // preference here: a `name_frag_*` flip at an upstream node
+        // re-qualified some OTHER name, so it is not this name's own
+        // vocabulary.
+        if let Some((node, f)) = flips.flips_on_nodes(&upstream).first() {
+            return Some(at(UpstreamCause::PredicateFlip {
+                predicate: f.predicate,
+                at: *node,
+                from: f.from,
+                to: f.to,
+            }));
         }
-        if let Some((node, param)) = structural_param_change(self.doc(), new.doc, &ddiff, None) {
-            return Some(Diagnosis::StructuralParam { node, param });
+        if let Some((node, param)) =
+            structural_param_change(self.doc(), new.doc, &ddiff, Some(&upstream))
+        {
+            return Some(at(UpstreamCause::StructuralParam { node, param }));
         }
-        recipe_edit_change(self.doc(), new.doc, &ddiff, None)
-            .map(|edit| Diagnosis::RecipeEdit { edit })
+        recipe_edit_change(self.doc(), new.doc, &ddiff, Some(&upstream))
+            .map(|edit| at(UpstreamCause::RecipeEdit { edit }))
     }
 
     fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis> {
@@ -1889,6 +1998,30 @@ pub fn derivation_nodes(name: &StableName) -> BTreeSet<RecipeNodeId> {
         nodes.extend(inner.path.iter().filter_map(crate::names::member_edge));
     });
     nodes
+}
+
+/// Every node `node` depends on transitively through recipe input
+/// edges, in either document (itself excluded) — so a node the edit
+/// deleted or re-pointed away still counts where it fed the last-good
+/// run.
+fn ancestors(
+    old: &Doc<ProfileProgram>,
+    new: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> BTreeSet<RecipeNodeId> {
+    let mut seen = BTreeSet::new();
+    let mut stack = vec![node];
+    while let Some(n) = stack.pop() {
+        for doc in [old, new] {
+            for input in doc.node(n).map(|x| x.inputs()).unwrap_or_default() {
+                if seen.insert(input) {
+                    stack.push(input);
+                }
+            }
+        }
+    }
+    seen.remove(&node);
+    seen
 }
 
 /// Whether a name walk visits `SideOf` discriminator PARTNERS.

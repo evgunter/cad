@@ -144,11 +144,19 @@ last_good: Option<Tombstone> }`, `Ambiguous { name, candidates, tie: TieWitness 
 or `NodeGone { name, edit }`. `Diagnosis` is `PredicateFlip { predicate, from,
 to }`, `StructuralParam { node, param }`, `RecipeEdit { edit }`, `Cascade
 { through }` (an embedded operand name vanished first), `GroupResized { node,
-was, now }` (the rows spelling the fragment's group changed in number) or `WitnessBifurcation`
-(SOLVER-DESIGN W3). Diagnosis is computable because every node evaluation
-records its verdict log (`k_stats`); `resolve/vdiff.rs` diffs two runs per
-predicate by sign population (permutation-invariant) and is shared with
-`SetTolerance`'s ε-audit. When the diff is silent the ladder is `Cascade`, then
+was, now }` (the rows spelling the fragment's group changed in number), `Upstream
+{ node, cause }` (evidence upstream of the minting node, off the derivation
+path) or `WitnessBifurcation` (SOLVER-DESIGN W3). Diagnosis is computable
+because every node evaluation records its verdict log (`k_stats`);
+`resolve/vdiff.rs` diffs two runs per predicate by sign population
+(permutation-invariant) and is shared with `SetTolerance`'s ε-audit. The
+with-history lanes — recorded flips, structural parameters, recipe edits — read
+two scopes in order. First the name's derivation path (N1: the nodes the name
+mentions), answering `PredicateFlip`, `StructuralParam` or `RecipeEdit`. Then
+the minting node's ancestors outside that path, answering `Upstream { node,
+cause }`: a candidate cause that fed the name without deciding it. A node the
+minting node does not depend on is never read, since no edit there can reach
+the name. When the diff is silent the ladder is `Cascade`, then
 the qualifier-delta rung (a `PredicateFlip` recovered from `SideOf` verdicts
 stored in the names), then the GROUP-SIZE rung, then
 `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
