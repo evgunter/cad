@@ -257,11 +257,15 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   shape.
 - **A closed program's directory is deleted.** `work/` tracks work
   still to be done, not work that has been done, so once a program
-  closes — its exit walk ratified, or Ev's ruling that it needs none —
-  `program.md`, `plan.md` and `log.md` go, and so does the ratified
-  exit walk; the deletion is recorded in a note under `docs/doc-ledger/`
-  with the SHA they are recoverable at, and that note is the program's
-  done-state of record. Residue is re-homed before the sweep, never
+  closes, `program.md`, `plan.md` and `log.md` go, and so does its
+  exit walk if it had one. **A walk is owed when the plan set
+  acceptance criteria** (its `## Exit criteria`): the walk is what
+  checks the finished program against them, so such a program closes
+  when its walk is ratified, or on Ev's ruling that it needs none. A
+  plan that set no criteria leaves a walk nothing to check, and its
+  program closes without one. The deletion is recorded in a note
+  under `docs/doc-ledger/` with the SHA they are recoverable at, and
+  that note is the program's done-state of record. Residue is re-homed before the sweep, never
   left behind in the closed directory: to a live program whose charter
   it fits, or to a new program opened for it when the residue coheres
   into a track of its own (a dozen items on one territory are a
@@ -368,22 +372,34 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 ## Ev's channel
 
-Ev does not edit files. Anything that needs Ev — a design fork, a
-ruling, a plan ratification, a question — is a PR whose title starts
-with **`[ev]`**, and the item that asked sets `needs_ev: true`. The PR
-is not named in the item: which PR carries the question is one
-`git log` away, and the item usually exists before the PR does. Ev
-answers in the PR's comments; the agent edits the item and the docs,
-merges, and clears the flag. Whoever opens an `[ev]` PR arranges to be
-woken by comments on it — the away-channel monitor locally, a PR
-subscription on a remote box — because the answer arrives as a comment
-and a question nobody is listening to has not been asked.
-`STATUS.md` lists every open `needs_ev` oldest first, so the two views
-(the PR list filtered on `[ev]`, and the tracker) always name the same
-set.
+Ev does not edit files. Anything that needs Ev is a PR whose title
+starts with **`[ev]`**; how to write one is "Asking Ev" in
+`CLAUDE.md`. The tracker's half: the item that asked sets
+`needs_ev: true`. The PR is not named in the item: which PR carries the
+question is one `git log` away, and the item usually exists before the
+PR does. Once Ev answers, the agent edits the item and the docs,
+merges, and clears the flag. `STATUS.md` lists every open `needs_ev`
+oldest first, so the two views (the PR list filtered on `[ev]`, and the
+tracker) always name the same set.
 
-State-sync rides the unit's PR as before (item header updates, log
-entries); conversations for Ev get their own `[ev]` PR.
+## The log merges by union
+
+Every lane appends its entry at the end of its program's `log.md`, so
+two branches that each add one collide at the same line, and neither
+is wrong. `.gitattributes` gives `work/*/log.md` git's `union` merge
+driver: a merge keeps both sides' lines, in order, with no conflict.
+That is only sound because the log is append-only; an edit to an
+earlier entry on one side would come out duplicated rather than
+flagged.
+
+The conflict used to be the one place another program's note on a log
+surfaced, and it was a poor one: it fired only when the owner had
+appended too, among its own lanes' collisions. The read is explicit
+instead. `work.py incoming` lists every commit on `origin/main` that
+touches `work/<program>/` and is not yet in the current branch; an
+orchestrator runs it at each check-in and before bringing main into its
+branch. It is keyed to what main carries, not to a merge, so a note
+stays listed until it reaches the branch by any route.
 
 ## The script
 
@@ -394,6 +410,7 @@ python3 scripts/work.py render                the render, to work/STATUS.md
 python3 scripts/work.py new <id> --kind K --title T [--program P] [--set k=v]
 python3 scripts/work.py set <id> key=value [key=value ...]
 python3 scripts/work.py territory --base <ref> [--branch <name>]
+python3 scripts/work.py incoming [--program P] [--base <ref>]
 python3 scripts/work.py --selftest
 ```
 
