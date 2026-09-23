@@ -2,10 +2,11 @@
 id: feature-tree-row-labels-draw-an-unbounded-pose-in-an-extend-row
 kind: issue
 title: viewer: row_label draws '{kind} - {pose}' with pose unbounded, in a non-wrapping row
-status: open
+status: closed
 opened: 2026-09-22
 priority: P1
 cost: D
+closed: 2026-09-23
 ---
 
 
@@ -73,3 +74,12 @@ question about how the tree looks:
 
 The question for Ev: is a long pose in the tree fine to reach by
 scrolling, or which of these does the tree want?
+
+## Ev's ruling (in chat, 2026-09-23) — closed
+
+Asked whether a long pose should stay reachable by scrolling or the
+tree should (a) wrap the label, (b) put the pose on its own line, or
+(c) show it on hover only, Ev answered: *"keeping them scrolling is
+good!"*. The row's corrected premise stands (a pose is bounded, at
+most about 90 characters), and the `ScrollArea::both()` every chrome
+pane sits in already reaches it. No change.

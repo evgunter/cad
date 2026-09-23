@@ -431,3 +431,79 @@ spec deleted (ledger); A/B row recorded, sample #236, no tally
 candidate. Lane clone and target reclaimed. What the unit leaves: a
 meridian-free curved face refuses typed in every profile; the rest of
 ruling (N) is EXCH's and ATREST's. Next TESS unit is TESS-2, in flight.
+
+## TESS-2 frozen and in dual review (2026-09-22)
+
+PR 3080 at `445257159`, hosted full matrix green (run 35745584307).
+One schedule, two arithmetics: `CurvePlan::apply_ring` replays
+`apply_points`' Step list with outward-rounded ring ratios; the convex
+form `β·x + α·y` chosen over lerp on a measurement (126× narrower
+structural-zero channel). Phase 1 rows red on main, green on the head
+(exact truth, bare comparison). Ordinal **5101** claimed on main
+(PR 3081); the R1/R2 draw and the stored briefs' hashes on
+`tess/b1-block`. Both reviewers dispatched concurrently from neutral
+paths.
+
+Two of the lane's findings change what the row said: the pre-fix
+red rate under RING-2's ring is 2 in 6,000 bilinear and 1 in 1,500
+general — the defect was never confined to the bilinear stratum;
+and the sampler's own error measures ≤ 1.63 ulps (p99 ~1.4), so
+`SAMPLER_ULPS = 64` is ~39× it (the number is on CHORD's and PROPS'
+rows; the constant is theirs to re-size). Widening's top 1 % exceeds
+the spec's ~1e-12 (max 5.4e-12) and is reported, cause named (a fold
+of 16 single insertions), filed as a follow-on rather than shipped
+silently. Five more f64-inside-an-enclosure sites filed on PROPS.
+
+## TESS-2 dual adjudicated; fix pass sent (2026-09-22)
+
+Both APPROVE-WITH-FIXES, no escape produced by either (R1 33,750
+exact containment checks; R2 704,835 on the head and 12,615 on the
+reverted tree — the bulk on the INTEGRAL refined arm, which the row
+had not named). No tally candidate: R1's one MAJOR (the deterministic
+stratum row passes bit-identically with the fix reverted — it compares
+through the 64-ulp allowance and its worst patch is unit-weight) is
+R2's MINOR-1. Record on `tess/b1-block`.
+
+- **CLASS, both reviewers, recorded here so it outlives the report**:
+  every row this PR added or re-pinned on the rational arm is
+  monotone in the safe direction (allowance-widened comparisons,
+  ceilings above both worlds, a hull claim against a hull wider than
+  the step's) — the one row that reds when the guarantee degrades is
+  the structural-zero row. The fix pass makes the stratum coverage red
+  pre-fix (exact literals, bare), floors the dust re-pin, and pins the
+  convex form's bulge instead of claiming it cannot.
+- Also converged: the PR body's post-fix digits were not taken on the
+  head; the referee's round-down argument is not what `Decimal.sqrt`
+  does (the literals are right — both certified them exactly); the
+  sampler-error method was deleted and its figures sit on two rows.
+- Ordinal 5101 on main (PR 3081). Fix pass sent, union A–K; two review
+  targets reclaimed; 26 G free.
+
+## TESS-2 merged (2026-09-22)
+
+PR 3080 at `2aaf73402` merged as `9bd61de7e` on a green full matrix
+with main not moved under it. TESS-2, the rational-cells row and the
+NURBS-face-bound row closed; spec deleted (ledger); A/B row recorded,
+sample #239, no tally candidate. The fix pass found and fixed a second
+defect (`apply_ring` on a longer line than its plan). Lane reclaimed.
+What TESS leaves here: the patch bound encloses the described patch on
+both arms; the sweep's own allowance is CHORD's row with the measured
+numbers. Slate next: `tessellate-refuses-approx-face-without-caches`,
+`lofted-circle-sections-…`, the two rows TESS-1 filed, and
+`check-mesh-passes-the-empty-mesh`.
+
+## TESS-3 and TESS-4 dispatched (2026-09-22)
+
+Two cheap rows, middle tier (style review with a correctness arm, no
+A/B row), on disjoint files, concurrently:
+- **TESS-3** — the exact-zero row. RING-2 made the ring's `add` the
+  backend's with exactness witnesses, so `0 + 0` may now be `[0, 0]`
+  and the row's mechanism closed by someone else's change; measure
+  first, then pin the exact zero (an `== 0.0` row, not `< 1e-100`) and
+  the `split_steps` degenerate arm it decides. `nurbs_cert.rs` is
+  shared with CHORD — announced in the PR.
+- **TESS-4** — `check_mesh` on zero triangles: what the validator
+  claims (closed 2-manifold, vacuously true of nothing) against what
+  its callers read it as (the mesh of a solid), decided from a survey
+  of which producers can legitimately hand it an empty mesh.
+The three rows TESS-1 filed priced (P0/D, P1/D, P4/E).
