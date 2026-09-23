@@ -147,3 +147,25 @@ Filed:
   order-dependent `SharedRim` refusal on a legal union. It is the next
   P0 on this slate.
 - `contact-partner-lookup-takes-the-first-of-several-vv-rows` (P3).
+
+## 2026-09-23 — seam-junction closes (PR 3112)
+
+`emit_union::collapse` now reads a seam junction's run of `Seam` lines
+as one head. The run is admitted only as the whole path of a
+Vertex-kind name, and every other shape still refuses FOREIGN. Each
+line collapses to member space through the head-`Seam` rule, and the
+run is re-sorted. Two lines that collapse to one refuse loudly. No
+stored name bit moves: review diffed whole tables across 308
+(document, order) cells, and the only transitions were refusals
+becoming names.
+
+Filed from the unit and its review:
+- `seam-edge-between-two-merged-faces-refusal-a-legal-declared-union-reaches`
+  (P0, re-banded at adjudication): an `Emission` refusal on legal
+  unions of ordinary blocks.
+- `declared-flush-union-edge-and-vertex-names-follow-member-order`
+  (P1): measured with 0 names rebinding, so a reorder makes names
+  vanish typed rather than silently rebind.
+- `name-ordered-positions-in-a-path-have-no-single-home` (P1, class):
+  the sort rule lives in four partial lists. `collapse` does not
+  re-sort `SideOf`, contrary to `role.rs`.
