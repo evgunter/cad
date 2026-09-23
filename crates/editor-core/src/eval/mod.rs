@@ -5979,7 +5979,7 @@ mod alignment_key {
 /// text that IS the report.
 ///
 /// It lives HERE, beside [`KeyHasher`], rather than in
-/// [`crate::report`] where its callers are, because
+/// `report` where its callers are, because
 /// [`crate::mc`] needs it and that lane is pure `f64`: a helper in an
 /// `interval`-gated module was the only thing keeping the advisory
 /// estimator out of a default build (M10-6, R2's MINOR-9).

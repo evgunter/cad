@@ -5,11 +5,11 @@
 //! `serde::de::Error::custom`, which takes prose. That is why an
 //! ill-dimensioned expression in a save file used to reach a caller as
 //! a sentence inside [`super::PersistError::Unreadable`] — the
-//! [`DimensionError`] itself had nowhere to go.
+//! [`crate::expr::DimensionError`] itself had nowhere to go.
 //!
-//! A [`Parse`] guard is where it goes. [`Parse::open`] pushes a frame
-//! for one body parse; a refusing impl [`record`]s the typed value
-//! into the innermost open frame on its way out; [`Parse::finish`]
+//! A [`Parse`](crate::persist::refusal::Parse) guard is where it goes. [`Parse::open`](crate::persist::refusal::Parse::open) pushes a frame
+//! for one body parse; a refusing impl [`record`](crate::persist::refusal::record)s the typed value
+//! into the innermost open frame on its way out; [`Parse::finish`](crate::persist::refusal::Parse::finish)
 //! pops the frame and answers what it holds, so the door can raise
 //! [`super::PersistError::Dimension`] carrying the refusal rather than
 //! a description of it.
@@ -19,13 +19,13 @@
 //! The coupling is a side channel and therefore says at both ends what
 //! it is doing, because no signature between them does:
 //!
-//! - **Recorders** — every site that turns a [`DimensionError`] into
-//!   `Error::custom` prose: [`super::wire`]'s `Deserialize` impls for
+//! - **Recorders** — every site that turns a [`crate::expr::DimensionError`] into
+//!   `Error::custom` prose: [`crate::persist::wire`]'s `Deserialize` impls for
 //!   `Expr` and `MeasureExpr`, and [`crate::expr::UnitSym`]'s, which
 //!   refuses an off-table display-unit symbol at the token. Each calls
-//!   [`record`] beside its `custom`, and says so there.
-//! - **The harvester** — [`super::parse_body`], the ONE holder of a
-//!   [`Parse`], which hands what it finds to `parse_err` as an
+//!   [`record`](crate::persist::refusal::record) beside its `custom`, and says so there.
+//! - **The harvester** — [`crate::persist::parse_body`], the ONE holder of a
+//!   [`Parse`](crate::persist::refusal::Parse), which hands what it finds to `parse_err` as an
 //!   argument. From there the channel is an ordinary parameter.
 //!
 //! # Why reading it back is sound
@@ -38,8 +38,8 @@
 //! `k_stats::Bracket` (PR 1969, `work/scalar/D283.md`) is the in-tree
 //! shape this copies, one frame deep instead of many.
 //!
-//! - **A frame cannot leak or be forgotten.** [`Parse`] pops its frame
-//!   in `Drop` as well as in [`Parse::finish`], so a parse that panics
+//! - **A frame cannot leak or be forgotten.** [`Parse`](crate::persist::refusal::Parse) pops its frame
+//!   in `Drop` as well as in [`Parse::finish`](crate::persist::refusal::Parse::finish), so a parse that panics
 //!   or returns early leaves nothing armed for the next one on this
 //!   thread — the property `topo`'s `ArmedTear` disarms for. The value
 //!   comes back only from `finish`, which consumes the guard, so a
@@ -49,14 +49,14 @@
 //!   it; the outer frame is untouched and still holds the outer
 //!   parse's first refusal. Nothing is discarded to make room.
 //! - **The guard is thread-confined by the type.** A
-//!   `PhantomData<*const ()>` makes [`Parse`] `!Send`, so the compiler
+//!   `PhantomData<*const ()>` makes [`Parse`](crate::persist::refusal::Parse) `!Send`, so the compiler
 //!   refuses to move one to a thread that would pop another thread's
 //!   frame. (`Bracket` pins that with a `compile_fail` doctest;
 //!   rustdoc runs no doctest on a private item, so what stands here is
 //!   the bound itself and the type's single construction site.)
-//! - **[`record`] outside a parse is a no-op**, because there is no
+//! - **[`record`](crate::persist::refusal::record) outside a parse is a no-op**, because there is no
 //!   frame to write to. A `Deserialize` impl driven by something other
-//!   than [`super::parse_body`] — a test reading one wire type, a
+//!   than [`crate::persist::parse_body`] — a test reading one wire type, a
 //!   caller of `serde_json::from_str` — cannot leave a value behind
 //!   for a later parse to adopt.
 //!
@@ -72,7 +72,7 @@
 //! retries, and a `serde_json::Value` intermediate — and
 //! `scripts/gates/persist-no-backtracking.sh` refuses all five across
 //! `editor-core`, so the premise is a gate rather than a reading. (The
-//! crate's one `deserialize_with`, [`super::wire`]'s `plane_ref`, is a
+//! crate's one `deserialize_with`, [`crate::persist::wire`]'s `plane_ref`, is a
 //! single `deserialize_u64` with one visit method and no fallback; the
 //! gate allows it by name and reds if a second appears.)
 //!
