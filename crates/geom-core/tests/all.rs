@@ -125,6 +125,10 @@ mod review_m5_pr7b_tensor;
 mod review_margin_probe;
 #[path = "ring0_review_probes.rs"]
 mod ring0_review_probes;
+#[path = "ring2_r2_probes.rs"]
+mod ring2_r2_probes;
+#[path = "ring_endpoint_census.rs"]
+mod ring_endpoint_census;
 #[path = "ring_interval_differential.rs"]
 mod ring_interval_differential;
 #[path = "ring_interval_fuzz.rs"]
@@ -137,6 +141,10 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym11_witness_kind_interval_rows.rs"]
+mod sym11_witness_kind_interval_rows;
+#[path = "sym11_witness_kind_rows.rs"]
+mod sym11_witness_kind_rows;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
 #[path = "sym_rule_e_rows.rs"]

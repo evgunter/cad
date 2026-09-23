@@ -345,8 +345,7 @@ fn the_two_fillet_forms() {
 /// the door was a wider coefficient ring: the plate's rim residual needs
 /// ~640 bits and up, and the shipped bound is 256
 /// (`geom_core::sym::COEFF_BITS`,
-/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`,
-/// `docs/DOC-LEDGER.md` sweep 13).
+/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`).
 ///
 /// `COEFF_BITS` is a compile-time constant, so this row is run three
 /// times against three edited values (256, 1024, 4096) and the numbers

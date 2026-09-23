@@ -69,7 +69,7 @@ in `docs/MODEL-AB-LOG.md`), `paths` (territory globs), `keep_out`
 allocates from). **No open program carries `blocks`, and none should**:
 an item's id comes from its name, not from a per-track number block.
 The block scheme belonged to the 2026-08 findings register and left the
-tree with it (`docs/DOC-LEDGER.md`, sweep 11).
+tree with it (`docs/doc-ledger/code-quality-leaves-the-tracker.md`).
 
 Unknown keys are lint errors. Add a key by adding it to the script's
 schema in the same PR that first uses it.
@@ -244,11 +244,12 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   keeping the id, and sets `parent:` to the unit that carries it. This
   is how a finding reaches its owner. `work/code-quality/` used to be
   where one waited for a claim; it left the tracker on 2026-09-11
-  (`docs/DOC-LEDGER.md`, sweep 11) once all 110 of its live rows had
-  gone to the eleven programs opened for them, so **a finding now goes
-  straight onto the slate of the program whose ground it lands on**, and
-  `work/issues/` is the last resort it always was. A `keep_out` clause
-  saying a claimed row stays where it was is the thing to delete.
+  (`docs/doc-ledger/code-quality-leaves-the-tracker.md`) once all 110 of
+  its live rows had gone to the eleven programs opened for them, so **a
+  finding now goes straight onto the slate of the program whose ground
+  it lands on**, and `work/issues/` is the last resort it always was. A
+  `keep_out` clause saying a claimed row stays where it was is the thing
+  to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
   its directory for as long as it is open. The rows migrated from the
   2026-08 findings register keep the ids they were cited by (`D102`,
@@ -258,8 +259,8 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   still to be done, not work that has been done, so once a program
   closes — its exit walk ratified, or Ev's ruling that it needs none —
   `program.md`, `plan.md` and `log.md` go, and so does the ratified
-  exit walk; the deletion is recorded in `docs/DOC-LEDGER.md` with the
-  SHA they are recoverable at, and that ledger entry is the program's
+  exit walk; the deletion is recorded in a note under `docs/doc-ledger/`
+  with the SHA they are recoverable at, and that note is the program's
   done-state of record. Residue is re-homed before the sweep, never
   left behind in the closed directory: to a live program whose charter
   it fits, or to a new program opened for it when the residue coheres
@@ -358,8 +359,8 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   a program's, and is the one named exemption; it leaves `docs/` when
   the experiment concludes.)
 - **Specs keep their lifecycle.** `docs/<ID>-SPEC.md` binds an
-  implementer for one unit and is deleted at merge per
-  `docs/DOC-LEDGER.md`; the item file is the record that survives.
+  implementer for one unit and is deleted at merge, with a note under
+  `docs/doc-ledger/`; the item file is the record that survives.
 - **`STATUS.md` is written by CI only.** A workflow regenerates it on
   every push to main and commits it from the Actions token. Nothing
   else writes it, so no branch conflicts on it; if you want the view

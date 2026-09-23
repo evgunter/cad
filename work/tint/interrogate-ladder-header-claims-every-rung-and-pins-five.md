@@ -2,10 +2,12 @@
 id: interrogate-ladder-header-claims-every-rung-and-pins-five
 kind: issue
 title: lib_u5_interrogate's header claims every rung of InterrogateError is pinned; five of ten have no row
-status: open
+status: closed
 opened: 2026-09-12
 priority: P3
 cost: E
+closed: 2026-09-22
+pr: 2707
 ---
 
 
@@ -163,3 +165,48 @@ exists.** It is not blocked and it is not part of the roster unit; it
 wants a small lane of its own applying a landed pattern. Whether the
 five unpinned rungs should be pinned, or the header's claim narrowed to
 the five that are, is the row's own open question and is unchanged.
+
+## Closed by TINT-6 (PR #2707, `ccf32a73d` on main, 2026-09-22)
+
+The header claimed every rung of `InterrogateError` and the suite reached
+five of ten. It now **drives eight through a door** and **excludes two by
+name with the measurement that excludes them**, and the accounted set is
+welded to the enum by `display_contract.rs`'s existing `f6_variants!`
+census — no second roster was minted for one enum in one binary.
+
+**The reachability answer, which is the unit.** Each is a door that was
+run and a payload that was read, not a call-graph argument
+(`memories/refusal-text-is-not-cause.md`):
+
+| rung | reachable | what the door returned |
+| --- | --- | --- |
+| `NodeFailed` | yes | `NodeFailed { node: RecipeNodeId(5) }` after a zero-distance extrude |
+| `NodePoisoned` | yes | `NodePoisoned { node, through }` via a union over that failed node |
+| `Readback` | yes | `Readback(NoCanonicalFrame { carrier: "nurbs surface" })` at `loft_prism` |
+| `NoSuchBody` | **no** | 13324 name-table rows driven, zero occurrences; `clearance` answers `SelectionRefusal::NoSuchBody`, a different enum |
+| `NoBodies` | **no** | zero corpus nodes carry a no-body payload AND a non-empty name table |
+
+**Structural, not a gap in the corpus**: a read door reaches
+`output_body` only through `entity_of`, which indexes with the name
+table's own body index — emission's, never a caller's. The one
+caller-authored index is `clearance`'s, destroyed a frame up by a
+`map_err(|_| ..)`. That is
+`work/shell/clearance-reports-a-no-bodies-payload-as-a-bad-body-index`,
+still open; a row for either rung today would pin that defect.
+
+**The zero is guarded, not asserted in prose.**
+`sweep_the_corpus_for_body_index_rungs` re-takes the measurement every
+run — every name of every corpus node through every read door — so the
+exclusion reds the day a corpus node makes one reachable. It guards the
+zero and non-vacuity (`off_first_body > 0`) and pins neither count, so
+it does not rot as the corpus grows. ~1.0s for 13324 rows. Both arms
+shown red: a planted kernel condition names the node, the name and the
+door; a shrunken corpus reds the vacuity arm.
+
+**What it does NOT enforce.** The header's narrowed sentence is prose
+and nothing checks it — said at the site rather than left for review.
+Also unenforced: that a driven rung is driven once (the comparison is a
+set), and the `carrier: "nurbs surface"` string, which asserts geom's
+answer rather than welding anything. `ReadbackError`'s own vocabulary is
+declared out of scope; the row pins two of its payloads and not the
+enum.

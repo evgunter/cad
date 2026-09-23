@@ -58,6 +58,7 @@ use pncad::geom_core::Point3;
 use pncad::prelude::{NameOrigin, attribute};
 
 use crate::display::DisplayView;
+use crate::narrowing::Narrow;
 use crate::pickindex::{EdgeId, IdMap, PickIndex};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection};
 use crate::vocab::vocabulary;
@@ -130,8 +131,12 @@ pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovere
 /// neither is asserted here.
 ///
 /// The buffers are `f32` because that is what a GPU consumes and this
-/// is the display seam — the same cast, at the same boundary, that
-/// [`crate::scene::SceneMesh`] makes.
+/// is the display seam. **The narrowing itself is not spelled here**
+/// — [`crate::narrowing::Narrow`] is the one door every lane crosses,
+/// so this doc no longer holds sites in correspondence by naming
+/// them, which is a job a sentence cannot keep: the one it replaced
+/// said *the same cast that `SceneMesh` makes* and there were three
+/// such casts, not two.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct EdgeOverlay {
     /// The selected edge's segments, two positions per segment.
@@ -371,16 +376,109 @@ pub fn edge_segments(
 /// part is hidden: [`PickIndex::edge_polyline_for`]'s rule unaltered,
 /// so the two doors cannot disagree about what is in the picture.
 pub fn edge_id_segments(index: &PickIndex, display: &DisplayView, id: EdgeId) -> Vec<[f32; 3]> {
-    segments_of(&index.edge_polyline_for(id, display))
+    edge_id_lane(index, display, id).into_segments()
 }
 
-/// A polyline as the line-list pairs a GPU draws.
-fn segments_of(polyline: &[Point3<f64>]) -> Vec<[f32; 3]> {
-    let corner = |point: &Point3<f64>| [point.x as f32, point.y as f32, point.z as f32];
-    polyline
-        .windows(2)
-        .flat_map(|pair| [corner(&pair[0]), corner(&pair[1])])
-        .collect()
+/// [`edge_id_segments`] with the display seam's own answer kept: the
+/// same legs, and how many this edge lost to the narrowing.
+///
+/// The door [`edge_id_segments`] is written in terms of, public
+/// because the drop is otherwise unobservable — an edge every leg of
+/// which is past `f32::MAX` and an edge this index never drew both
+/// answer the empty `Vec`.
+#[must_use]
+pub fn edge_id_lane(index: &PickIndex, display: &DisplayView, id: EdgeId) -> LegLane {
+    LegLane::of_polyline(&index.edge_polyline_for(id, display))
+}
+
+/// **An overlay lane at the display seam**: the legs a GPU can hold,
+/// as the line-list pairs it draws, and a COUNT of the legs it cannot.
+///
+/// # The rule, in one place
+///
+/// **A leg with an end the display seam refuses is not drawn, it is
+/// not half drawn, and the rest of the lane is.** An overlay lane is
+/// a list of independent pairs, so a leg the GPU cannot hold is the
+/// one thing at this seam with an answer short of refusing the whole
+/// mark: what [`crate::narrowing::Narrow`] declines is a coordinate
+/// past `f32::MAX`, where the leg's two ends are not places on the
+/// screen in the first place, and the alternative is a pair of
+/// infinities the rasterizer smears across the pane.
+///
+/// Both of the crate's leg producers reach the rule here — the drawn
+/// edges of an indexed body ([`edge_id_segments`]) and the
+/// sketch-plane lanes the viewport composes — because a rule spelled
+/// at two sites is two rules that agree today.
+///
+/// # Why the count is part of the value
+///
+/// A lane that dropped a leg and a lane that had none to draw are the
+/// same `Vec`, and they are not the same picture: a leg refused
+/// between two legs that were drawn leaves an outline with a gap in
+/// it, and a gap in an outline reads to a person as an authoring
+/// mistake rather than as a number too large to show. [`undrawn`] is
+/// the only thing that can tell them apart, so it is held beside the
+/// segments rather than recomputed by whoever wants to say so.
+///
+/// [`undrawn`]: LegLane::undrawn
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LegLane {
+    segments: Vec<[f32; 3]>,
+    undrawn: usize,
+}
+
+impl LegLane {
+    /// The lane a polyline draws as: one leg per adjacent pair.
+    #[must_use]
+    pub fn of_polyline(polyline: &[Point3<f64>]) -> Self {
+        let mut lane = Self::default();
+        lane.polyline(polyline);
+        lane
+    }
+
+    /// Append one leg, or refuse it and count it.
+    ///
+    /// Generic over the shape an end is written in, because the
+    /// crate's producers hold their positions differently — an
+    /// indexed edge's polyline is [`Point3<f64>`] and a datum mark's
+    /// segment list is `[f64; 3]` — and which of those a lane was fed
+    /// is not a difference the seam's rule has ever had.
+    pub fn leg<T>(&mut self, from: T, to: T)
+    where
+        T: Narrow<Narrowed = [f32; 3]> + Copy,
+    {
+        match [from, to].narrow() {
+            Some(pair) => self.segments.extend(pair),
+            None => self.undrawn += 1,
+        }
+    }
+
+    /// Append every leg of a polyline, in order.
+    pub fn polyline(&mut self, polyline: &[Point3<f64>]) {
+        for pair in polyline.windows(2) {
+            self.leg(pair[0], pair[1]);
+        }
+    }
+
+    /// The drawn legs, two positions per leg.
+    #[must_use]
+    pub fn segments(&self) -> &[[f32; 3]] {
+        &self.segments
+    }
+
+    /// The drawn legs, taken.
+    #[must_use]
+    pub fn into_segments(self) -> Vec<[f32; 3]> {
+        self.segments
+    }
+
+    /// **How many legs the display seam refused** — the state a
+    /// reader would need to be told that an outline is missing a leg
+    /// rather than ending where it looks like it ends.
+    #[must_use]
+    pub fn undrawn(&self) -> usize {
+        self.undrawn
+    }
 }
 
 /// **What the picture marks because it is what the side panel is
@@ -536,4 +634,179 @@ fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bo
             refs.iter().any(|(referenced, _)| referenced == name)
         })
     })
+}
+
+/// **What the display seam does to a drawn mark**, through the doors a
+/// frame actually calls.
+///
+/// The rule under test is [`LegLane`]'s: a leg with an end the seam
+/// refuses is dropped, the rest of the lane is drawn, and the drop is
+/// counted. It is asserted here rather than at the arithmetic because
+/// the question is REACHABILITY — whether the legs a frame asks for
+/// come back short — and a row against a private helper answers a
+/// different question.
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::collections::BTreeMap;
+
+    use pncad::document::{CancelToken, EvalOptions, Frame, RecipeNodeId, evaluate};
+    use pncad::geom_core::{Point3, Tol};
+
+    use super::{LegLane, edge_id_lane, edge_id_segments};
+    use crate::display::DisplayView;
+    use crate::generation::Generation;
+    use crate::pickindex::{EdgeId, PickIndex, PictureKey};
+    use crate::scene;
+
+    /// Coarse enough to keep the row cheap, fine enough that the
+    /// plate's hole is a ring of facets — `tests/edge_pick.rs`'s
+    /// reading, for the same reason.
+    fn delta() -> scene::DisplayTolerance {
+        scene::DisplayTolerance::new(2.0e-4).expect("a positive delta")
+    }
+
+    /// The spike plate, evaluated, indexed — the picture a frame marks
+    /// in.
+    ///
+    /// Evaluated through the kernel door rather than through a
+    /// session: this module is a vocabulary and a session is a driver
+    /// (`crates/viewer/README.md`, Module boundaries), and the index
+    /// only ever wanted the evaluation.
+    fn plate() -> (PickIndex, RecipeNodeId) {
+        let tol = Tol::witness();
+        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let eval = evaluate(
+            &doc,
+            None,
+            &CancelToken::default(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let index = PickIndex::build(&doc, &eval, PictureKey::of(Generation::FIRST, delta()), tol)
+            .expect("the plate indexes");
+        (index, extrude)
+    }
+
+    /// The view that puts `node`'s drawn geometry `shift` metres out.
+    fn moved(node: RecipeNodeId, shift: f64) -> DisplayView {
+        DisplayView {
+            moved_roots: BTreeMap::from([(node, Frame::translation([shift, 0.0, 0.0]))]),
+            ..DisplayView::none()
+        }
+    }
+
+    fn some_edge(index: &PickIndex, node: RecipeNodeId) -> EdgeId {
+        *index
+            .edges_in(node, 0)
+            .first()
+            .expect("the plate draws edges")
+    }
+
+    /// **The public door comes back short, and only the seam can have
+    /// shortened it.**
+    ///
+    /// The same index and the same edge id, asked twice: once where
+    /// the body is drawn and once where a probe frame has put it past
+    /// `f32::MAX`. The first answer is the edge's legs; the second is
+    /// no legs at all, with every one of them counted as refused. A
+    /// caller that kept a leg whose end does not narrow would answer
+    /// the same list both times.
+    #[test]
+    fn an_edge_placed_past_the_display_seam_is_not_drawn_at_all() {
+        let (index, extrude) = plate();
+        let id = some_edge(&index, extrude);
+        let here = edge_id_lane(&index, &DisplayView::none(), id);
+        assert!(
+            !here.segments().is_empty(),
+            "the plate's first drawn edge has legs to lose"
+        );
+        assert_eq!(here.undrawn(), 0, "nothing about the plate is past 3.4e38");
+        assert!(
+            here.segments().iter().flatten().all(|c| c.is_finite()),
+            "a drawn leg is made of numbers"
+        );
+
+        let far = moved(extrude, 1.0e300);
+        let out_there = edge_id_lane(&index, &far, id);
+        assert!(
+            out_there.segments().is_empty(),
+            "every leg of this edge has both ends past f32::MAX"
+        );
+        assert_eq!(
+            out_there.undrawn(),
+            here.segments().len() / 2,
+            "the legs that were dropped are the legs that were drawn"
+        );
+        assert!(
+            edge_id_segments(&index, &far, id).is_empty(),
+            "the door the frame calls answers the same"
+        );
+    }
+
+    /// **The case a person can author and can see**: an outline most
+    /// of which is ordinary and one corner of which is past the seam.
+    ///
+    /// `7e307` is a number the add-profile form takes, because it is a
+    /// number. The lane draws the legs between the ordinary corners
+    /// and drops the two that reach the far one, so what is on screen
+    /// is a chain with a gap in it at a camera framed on the ordinary
+    /// corners — which is why the count is part of the value rather
+    /// than the emptiness of the `Vec` being the whole answer.
+    #[test]
+    fn a_lane_draws_the_legs_it_can_and_counts_the_ones_it_cannot() {
+        let corner = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let authored = [
+            corner(0.0, 0.0),
+            corner(1.0, 0.0),
+            corner(7.0e307, 0.0),
+            corner(0.0, 1.0),
+            corner(0.0, 0.0),
+        ];
+        let lane = LegLane::of_polyline(&authored);
+        assert_eq!(
+            lane.segments(),
+            &[
+                [0.0_f32, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [0.0, 0.0, 0.0]
+            ],
+            "the two legs clear of the seam are drawn, in order, and nothing else is"
+        );
+        assert_eq!(lane.undrawn(), 2, "the two legs reaching the far corner");
+        assert!(
+            lane.segments().iter().flatten().all(|c| c.is_finite()),
+            "no infinity reaches the vertex buffer"
+        );
+    }
+
+    /// **A lane that lost every leg is not a lane that had none**, and
+    /// the segments alone cannot tell them apart.
+    #[test]
+    fn an_empty_lane_and_a_refused_one_differ_only_in_the_count() {
+        let far = Point3::new(7.0e307, 0.0, 0.0);
+        let refused = LegLane::of_polyline(&[far, far]);
+        let nothing = LegLane::of_polyline(&[Point3::new(0.0, 0.0, 0.0)]);
+        assert_eq!(refused.segments(), nothing.segments());
+        assert_eq!(nothing.undrawn(), 0);
+        assert_eq!(refused.undrawn(), 1);
+        assert_ne!(refused, nothing);
+    }
+
+    /// A single leg is offered and refused one at a time, which is the
+    /// door the viewport's sketch lanes use.
+    #[test]
+    fn a_single_leg_is_refused_on_its_own() {
+        let mut lane = LegLane::default();
+        lane.leg(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 2.0, 3.0));
+        lane.leg(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 7.0e307));
+        assert_eq!(
+            lane.clone().into_segments(),
+            vec![[0.0_f32, 0.0, 0.0], [1.0, 2.0, 3.0]]
+        );
+        assert_eq!(lane.undrawn(), 1);
+    }
 }

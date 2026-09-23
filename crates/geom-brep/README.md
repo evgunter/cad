@@ -249,16 +249,21 @@ implemented.
 
 ### Arithmetic substrate and the BVH
 
-**C9 — Enclosures run on an in-house interval ring.** Every enclosure
+**C9 — Enclosures run on the in-repo interval backend.** Every enclosure
 certification needs is transcendental-free (implicit residuals are
 polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
-so `geom_core::RingInterval` provides `±`, `×`, `÷` and integer powers
-with unconditional outward ulp-widening, always compiled, MIT-clean, not
-a `Real`. It is certification substrate; the evaluation scalar
-`geom_core::Interval` (behind the `interval` feature, backend the in-repo
-`interval-transcendentals` crate) is a `Real` instantiation for replay.
-No copyleft dependency exists in any build configuration. Certification
-code reads brackets through the `Bounds`/`Enclosure` traits.
+so `geom_core::RingInterval` provides `±`, `×`, `÷` and integer powers —
+a newtype over `interval-transcendentals`' `DInterval`, outward-rounded
+where the operation is inexact, always compiled, MIT-clean, not a
+`Real`. Its refusal is the backend's decoration (`dec < Def`), read as
+`is_poison()`, so a bracket that may not certify carries ordinary
+endpoints and a consumer asks the refusal by name. It is certification
+substrate; the evaluation scalar `geom_core::Interval` is the other
+role — the same backend, `Real`-instantiated for replay, with the
+`interval` feature gating the lane impls above `geom-core` and the
+interval test files rather than the type. No copyleft dependency exists
+in any build configuration. Certification code reads brackets through
+the `Bounds`/`Enclosure` traits.
 
 **C10 — One deterministic AABB tree, conservative-superset contract.**
 `crates/bvh`: arena-order build, median split on the longest centroid

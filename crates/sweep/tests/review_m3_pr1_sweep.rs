@@ -212,7 +212,9 @@ fn revert_extruded_prism_posture() {
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
         validate_geometric(&reverted, Tol::witness()),
-        Err(vec![ValidationError::NegativeVolume]),
+        Err(vec![ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
     let rvol = topo::mass_properties(&reverted, Tol::witness())
@@ -273,7 +275,9 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
         validate_geometric(&reverted, Tol::witness()),
-        Err(vec![ValidationError::NegativeVolume]),
+        Err(vec![ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
     let rvol = topo::mass_properties(&reverted, Tol::witness())

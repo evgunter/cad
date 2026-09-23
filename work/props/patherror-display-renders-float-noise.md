@@ -267,3 +267,62 @@ heading is what makes it not read as current.
 ## Reference note (FIX's sweep, 2026-09-21)
 
 `num-relative-tolerance-collides-above-a-decimetre` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/num-relative-tolerance-collides-above-a-decimetre.md`.
+
+## The second CRATE consumer has landed (2026-09-22, VGEOM, `vgeom/render-grid`)
+
+**This row's trigger has fired.** Its question is *"where the `num`
+helper lives once a second CRATE consumes it"*, and the 2026-09-21
+entry above records that the `validate.rs` consumer did not count
+because it is inside `crates/profile`. This one is outside it:
+`crates/viewer/src/readout.rs` now computes `num`'s grid.
+
+**What was adopted, exactly.** `readout`'s private `tolerance(value)`
+is `EPS_CAP.min(value.abs() * REL_TOLERANCE)` with
+`EPS_CAP = DEFAULT_EPS * 0.1` — the same two-armed shape as
+`path::num`'s `(DEFAULT_EPS * 0.1).min(x.abs() * 1e-9)`, the same
+`min`, the same compile-time `DEFAULT_EPS` rather than the run's live
+`Tolerance::eps()`, and the same refusal to put a FLOOR under it. The
+reason is the one `num`'s doc gives and this row's body preserves: ε
+is a length, a purely relative rule crosses it and is coarser above
+the crossing, and the cap is what makes a difference the kernel can
+decide a difference the render spells.
+
+**Nothing was unified, deliberately.** `num` is `pub(crate)` in
+PATHS's ground and its named home is `crates/geom-core/src/real.rs`,
+which is this program's. The viewer lane was fenced out of both. It
+put the grid in ONE private function, called from one predicate, so
+a consolidation is a deletion rather than a rewrite, and it marked the
+three differences at that function's own doc so a later lane can tell
+a decision from drift.
+
+**The three differences, and which are decisions:**
+
+| | `profile::path::num` | `viewer::readout` | decision? |
+|---|---|---|---|
+| notation | follows the `Debug` form's own choice; only shortens the mantissa Rust already picked | chooses: shortest decimal that reads back, scientific when none does | **decision** — a refusal sentence quotes a magnitude nobody chose; a chrome value is in a notation the person chose, and a length written in millimetres wants to read back in millimetres |
+| relative arm | `1e-9` | `5e-4` (`readout::REL_TOLERANCE`, the four-figure scientific form's own worst case) | **decision** — see below |
+| character bound | none | `readout::MAX_CHARS`, 22 | **decision** — `readout`'s texts go in boxes and a clipped render reads as a different value; a refusal sentence is as wide as it needs to be |
+
+**The relative arm is the one a consolidation must not resolve by
+accident.** Neither site derives it from ε, and they cannot: the arms
+cross at `EPS_CAP / relative`, and below that crossing the relative
+arm is finer than the cap by construction, so the cap has already
+guaranteed ε-separation and the relative arm decides only how many
+figures a sub-crossing value is spelled to. `num` can afford ten
+because it has no width bound; `readout` keeps four because below its
+crossing (2·10⁻⁷ of a display unit) a length is below ε in every
+notation the chrome writes one in, and a fifth figure there is
+precision no probe established — the false-precision defect
+`readout::number` exists to cut, arriving by the other door. **So a
+shared helper takes the arm as a parameter, or takes one of the two
+knowingly and says which.** Taking `1e-9` silently would put nine
+figures into every GUI label below a tenth of a display unit.
+
+**One thing this evidence adds to the sweep the row's second half
+asks for.** `readout`'s grid is a LENGTH grid (ε is a length) and the
+chrome renders angles and scalars through the same door; that is
+filed as VGEOM's
+`the-render-grids-cap-is-a-length-and-angles-go-through-it`. A shared
+kernel-side helper inherits the same question the day a non-length
+payload reaches it, and `ProfileError` and the other doors' error
+types — this row's remaining half — carry angles.

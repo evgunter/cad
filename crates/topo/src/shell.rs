@@ -322,7 +322,7 @@ use crate::entity::{
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
-use crate::props::{PropsQuadLane, ShellRole};
+use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
 use crate::validate::{ValidationError, validate_geometric};
 
@@ -941,9 +941,7 @@ pub struct ShellRetired {
 /// rights cannot form the call — there is no arm and no refusal — and
 /// the recourse is not a weaker shell but the ordinary one, built at a
 /// certifying scalar.
-pub fn shell<
-    T: Decide + PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
->(
+pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     thickness: T,
     tol: Tol,
@@ -966,9 +964,7 @@ pub fn shell<
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
 /// The certification bound is [`shell`]'s, for [`shell`]'s reason.
-pub fn shell_open<
-    T: Decide + PropsQuadLane + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
->(
+pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     thickness: T,
     open_faces: &[FaceKey],

@@ -158,8 +158,8 @@ mod mesh12_rim_row_reach;
 mod mesh8_coherence;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
-#[path = "quad_lane_is_the_certified_lane.rs"]
-mod quad_lane_is_the_certified_lane;
+#[path = "r1_lane1_bracket_read_census.rs"]
+mod r1_lane1_bracket_read_census;
 #[path = "r1_mate4a_probes.rs"]
 mod r1_mate4a_probes;
 #[path = "r1_mate5_interval_probe.rs"]
@@ -274,3 +274,8 @@ mod r2_rim_probes;
 
 #[path = "lane0_r2_probes.rs"]
 mod lane0_r2_probes;
+#[path = "lane2_r2_probes.rs"]
+mod lane2_r2_probes;
+
+#[path = "certified_enclosure_impl_census.rs"]
+mod certified_enclosure_impl_census;

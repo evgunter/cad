@@ -1612,7 +1612,7 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `PropsQuadLane`,
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
@@ -2405,7 +2405,7 @@ NOT_BOUND = {
     "Relation": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
-    # The `PropsQuadLane` shape, one registry over: a trait naming
+    # A lane trait, one registry over: a trait naming
     # WHICH decision lanes carry a chart-coherence examination, written
     # as a bound on the two registry doors. Python's `run_checks` is
     # monomorphic at the `f64` lane, so a Python caller never chooses
@@ -2584,7 +2584,6 @@ NOT_BOUND = {
     "ProgramArcData": INTERIOR,
     "ProgramStep": INTERIOR,
     "ProgramTarget": INTERIOR,
-    "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
     # `Revolved::kind` — the ratified case split, curated at the
@@ -2626,6 +2625,21 @@ NOT_BOUND = {
     # second door.
     "table_gap": INTERIOR,
     "validated": INTERIOR,
+    # **The MC lane's reduction, which `monte_carlo` has already
+    # applied by the time anything crosses.** `summarize` is public so
+    # that a Rust consumer holding its OWN replay of the lane's draws
+    # can reduce it with the function the report was reduced with — the
+    # tour's two density cells check their replay against a `McReport`
+    # bit for bit, and a transcription of the reduction would make that
+    # a comparison of two spellings. Python cannot pose that question:
+    # producing a replay needs `sample_offsets`, which is itself
+    # `gap: B-MC-DRAWS` below, and the four numbers a Python caller
+    # wants are already fields of the `McMeasure` rows `monte_carlo`
+    # hands back. So there is nothing here a Python caller cannot say —
+    # not a debt, a door they arrive behind. If B-MC-DRAWS is ever
+    # answered this moves with it, because a caller replaying draws in
+    # Python would then need exactly this reduction to compare.
+    "summarize": INTERIOR,
     # **The gathered-product doors, one family, and they are what the
     # binding CALLS.** `Product` is the document's product with
     # everything the gather knows about it, `product_recorded` is the
@@ -3434,6 +3448,7 @@ MEMBERS_BOUND_AS = {
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
+    "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
     "TessellateError::Band": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",

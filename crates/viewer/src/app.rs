@@ -73,7 +73,7 @@ use crate::pickindex::{PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, Refusal, Selection, SessionOp};
+use crate::session::{DocSession, ProfilePlane, Refusal, Selection, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -175,10 +175,6 @@ const FEATURES_SHARE_CAP: f32 = 0.5;
 /// what sizes the tile.
 const FEATURES_SLACK: f32 = 8.0;
 
-/// The starting display tolerance: 0.1 mm, fine enough that a 24 mm
-/// hole reads as a circle and coarse enough to redraw instantly.
-const INITIAL_DELTA: f64 = 1.0e-4;
-
 /// The document file extension the dialog filters on.
 ///
 /// `cfg`-ed with the dialogs it filters for: the browser build links
@@ -186,6 +182,10 @@ const INITIAL_DELTA: f64 = 1.0e-4;
 /// unconditional one would be dead code under CI's `-D warnings`.
 #[cfg(not(target_family = "wasm"))]
 const DOC_EXTENSION: &str = "pncad";
+
+/// What the toolbar says while a canceled run leaves an older picture
+/// on screen (`frame::Progress::Canceled`).
+const CANCELED_LINE: &str = "canceled — showing an older result";
 
 /// `color` as the toolkit's own colour type.
 ///
@@ -732,7 +732,7 @@ impl ViewerApp {
     /// Every arm of [`StartupError`] except
     /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
     fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
-        let delta = DisplayTolerance::new(INITIAL_DELTA).map_err(StartupError::Scene)?;
+        let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
         // A provisional camera at a square aspect, because no pane has
@@ -1122,7 +1122,7 @@ impl ViewerApp {
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
-            let outcome = self.session.perform(op);
+            let mut outcome = self.session.perform(op);
             // **Where a withdrawal reaches the user**: everything
             // this operation's document transition took out of the
             // display state, onto the frame's notices like every other
@@ -1138,6 +1138,10 @@ impl ViewerApp {
             notices.extend(
                 frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
             );
+            // Read before the match below moves the refusal out: a
+            // form that just committed a node it will go on referring
+            // to learns its id here and nowhere else.
+            let minted = core::mem::take(&mut outcome.minted);
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -1160,11 +1164,11 @@ impl ViewerApp {
                 // op came from which panel.
                 None if tool_edit => {
                     self.tools.close();
-                    self.drafts.accepted(&accepted_op);
+                    self.drafts.accepted(&accepted_op, &minted);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
-                None => self.drafts.accepted(&accepted_op),
+                None => self.drafts.accepted(&accepted_op, &minted),
             }
         }
         let update = frame::frame_status(&notices, &performed, refusal.as_ref());
@@ -1382,26 +1386,34 @@ impl ViewerApp {
                     for finding in &report.findings {
                         ui.horizontal_top(|ui| {
                             if ui
-                                .button(format!("feature {}", finding.root.0))
+                                .button(crate::tree::node_number(finding.root))
                                 .on_hover_text("select the root this finding is about")
                                 .clicked()
                             {
                                 ops.push(SessionOp::Select(Selection::Node(finding.root)));
                             }
-                            ui.label(finding.to_string());
+                            // A sentence, so `widgets::message`.
+                            crate::widgets::message(ui, finding.to_string());
                         });
                     }
                     if !report.skipped.is_empty() {
                         ui.separator();
-                        ui.weak(format!(
-                            "not run (severity Off): {}",
-                            report
-                                .skipped
-                                .iter()
-                                .map(ToString::to_string)
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        ));
+                        // A sentence too, and one whose length grows
+                        // with the number of checks turned off.
+                        crate::widgets::message_toned(
+                            ui,
+                            format!(
+                                "not run (severity Off): {}",
+                                report
+                                    .skipped
+                                    .iter()
+                                    .map(ToString::to_string)
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            ),
+                            &self.theme,
+                            frame::Tone::Advisory,
+                        );
                     }
                 }
             });
@@ -1591,7 +1603,9 @@ impl ViewerApp {
                     if indexing {
                         ui.spinner();
                     }
-                    ui.label("canceled — showing an older result");
+                    // Two clauses in a wrapping row, so a sentence:
+                    // `widgets::message`, like the status line.
+                    crate::widgets::message(ui, CANCELED_LINE);
                     if ui.button("Re-evaluate").clicked() {
                         ops.push(SessionOp::Reevaluate);
                     }
@@ -1722,7 +1736,9 @@ impl ViewerApp {
             }
             if let Some(status) = &self.status {
                 ui.separator();
-                ui.label(status.text());
+                // A sentence, in this chrome's one WRAPPING row —
+                // the case `widgets::message`'s doc calls the second.
+                crate::widgets::message(ui, status.text());
             }
         });
     }
@@ -1770,22 +1786,30 @@ impl eframe::App for ViewerApp {
             self.session.selection().node(),
         );
         let held = self.drafts.door_loops();
-        // **No frame picked, no preview.** The form draws on a frame
-        // the document holds, so with none picked there is no plane to
-        // place the loops on and nothing honest to show — the form
-        // says what it is waiting for instead, exactly as it does for
-        // a shape nobody chose. The edit door's frame is the
-        // committed profile's own.
+        // **No frame picked, no preview.** The form draws on a frame,
+        // so with none picked there is no plane to place the loops on
+        // and nothing honest to show — the form says what it is
+        // waiting for instead, exactly as it does for a shape nobody
+        // chose. The edit door's frame is the committed profile's own.
         let (tol, delta) = (self.session.tol(), self.delta.get());
         let profile_previews = held.as_ref().zip(self.profile_drawn).map(|(held, drawn)| {
-            held.as_ref()
-                .filter(|_| drawn)
-                .and_then(|held| held.frame.zip(self.session.landed_pair()))
-                .and_then(|(frame, (doc, evaluation))| {
-                    sketch::frame_placement(doc, evaluation, frame)
-                })
-                .zip(held.as_ref())
-                .map(|(plane, held)| sketch::preview(plane, &held.loops, tol, delta))
+            held.as_ref().filter(|_| drawn).and_then(|held| {
+                let placement = match held.plane? {
+                    // **The frame that is not there yet.** Its
+                    // node does not exist until the submit, so
+                    // there is no landed value to read and the
+                    // placement comes from the choice's own
+                    // constant — the plane `ProfilePlane::NewXy`'s
+                    // numbers evaluate to, which a row in the
+                    // creation suite holds the two ends of.
+                    ProfilePlane::NewXy => ProfilePlane::xy_placement(),
+                    ProfilePlane::Existing(frame) => {
+                        let (doc, evaluation) = self.session.landed_pair()?;
+                        sketch::frame_placement(doc, evaluation, frame)?
+                    }
+                };
+                Some(sketch::preview(placement, &held.loops, tol, delta))
+            })
         });
         // The committed node the edit door is previewing in its place,
         // which the committed-profile pass leaves out.
@@ -2222,16 +2246,6 @@ pub fn initial_layout() -> Tree<Pane> {
     Tree::new("viewer_tree", root, tiles)
 }
 
-/// Column-major `f64` matrix to the `f32` the GPU consumes.
-///
-/// Written as a `map` rather than an indexed loop on purpose: the
-/// earlier shape wrote through `get_mut` at statically-in-range
-/// indices, so a wrong index would have produced a *partly converted*
-/// matrix and no error at all. `map` cannot miss a slot.
-pub(crate) fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
-    matrix.map(|column| column.map(|value| value as f32))
-}
-
 /// Run the application, optionally opening `open` at startup.
 ///
 /// The path goes through [`SessionOp::Open`] — the same typed door
@@ -2414,7 +2428,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
+    use super::{CANCELED_LINE, FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
     use crate::session::SessionOp;
     use eframe::egui;
 
@@ -2523,7 +2537,23 @@ mod tests {
         occupied: f32,
         /// The width the panel offered it.
         available: f32,
+        /// The panel's own rectangle — the region a status line has to
+        /// stay inside, and whose left edge is where egui would put a
+        /// wrapped label's second line.
+        panel: egui::Rect,
+        /// Where the sentence [`toolbar_drawn`] looked for landed, one
+        /// rect per line, empty when it was given none.
+        status: Vec<egui::Rect>,
     }
+
+    /// A status line longer than a narrow window's toolbar row, in the
+    /// shape the chrome actually shows: a refusal's own words.
+    const STATUS: &str =
+        "the chain does not close yet — its last step has to target the start of the loop it began";
+
+    /// Lines are placed at whole pixels, so two readings of one edge
+    /// can differ by less than one.
+    const SLACK: f32 = 1.0;
 
     /// Lay the real toolbar out in a headless context whose window is
     /// `width` points wide.
@@ -2531,12 +2561,40 @@ mod tests {
     /// Two frames: the first is the one egui sizes from defaults, the
     /// second is the one a user looks at.
     fn toolbar_row(width: f32) -> Row {
+        toolbar_with(width, None)
+    }
+
+    /// [`toolbar_row`], with `status` on the line if there is one —
+    /// the state Ev's second symptom is about, which the statusless
+    /// frame never reaches.
+    fn toolbar_with(width: f32, status: Option<&str>) -> Row {
+        toolbar_drawn(
+            width,
+            |app| {
+                app.status = status
+                    .map(|text| crate::frame::Message::new(crate::frame::Subject::Document, text));
+            },
+            status,
+        )
+    }
+
+    /// The toolbar in a window `width` points wide, over an app
+    /// `prepare` put in the state a row is about, with the lines
+    /// `sentence` landed in read off the second frame.
+    fn toolbar_drawn(
+        width: f32,
+        prepare: impl FnOnce(&mut ViewerApp),
+        sentence: Option<&str>,
+    ) -> Row {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
+        prepare(&mut app);
         let mut row = Row {
             occupied: f32::NAN,
             available: f32::NAN,
+            panel: egui::Rect::NOTHING,
+            status: Vec::new(),
         };
         for _ in 0..2 {
             let input = egui::RawInput {
@@ -2553,6 +2611,7 @@ mod tests {
                     let mut ops: Vec<SessionOp> = Vec::new();
                     let mut chosen = Theme::ALL[0];
                     row.available = ui.available_width();
+                    row.panel = ui.max_rect();
                     // The row's OWN rect, through a scope: a panel's
                     // `Ui` is expanded to the panel's width whatever
                     // it holds, so its `min_rect` answers the window
@@ -2563,12 +2622,80 @@ mod tests {
                     row.occupied = laid_out.response.rect.width();
                 });
             });
+            row.status = sentence
+                .and_then(|text| {
+                    crate::pane::headless::landed_in(&output.shapes)
+                        .into_iter()
+                        .find(|landed| landed.text == text)
+                })
+                .map(|landed| landed.rows)
+                .unwrap_or_default();
             // Nothing here paints, so the frame's texture delta is
             // dropped rather than uploaded, and epaint refuses a drop
             // it did not see taken.
             output.textures_delta.clear();
         }
         row
+    }
+
+    /// Where the toolbar's canceled line landed in a window `width`
+    /// points wide, over a session a cancel left showing an older
+    /// result.
+    fn canceled_line(width: f32) -> Row {
+        toolbar_drawn(
+            width,
+            |app| {
+                let tol = pncad::tolerance::witness();
+                let (document, _) =
+                    crate::scene::plate_with_hole(tol).expect("the startup document");
+                let mut session = crate::session::DocSession::inline(document, tol);
+                session.pump();
+                session.perform(SessionOp::Reevaluate);
+                session.perform(SessionOp::CancelEvaluation);
+                session.pump();
+                assert_eq!(
+                    session.outstanding(),
+                    crate::session::Outstanding::Canceled,
+                    "the fixture is the state the canceled line is drawn in"
+                );
+                app.session = session;
+            },
+            Some(CANCELED_LINE),
+        )
+    }
+
+    /// **The canceled line wraps as the status line does**: whole, at
+    /// the row's own left edge, and never split between the end of one
+    /// line of the toolbar and the start of the next.
+    ///
+    /// It sits in the same wrapping row as the status line, where
+    /// `egui::Label::layout_in_ui` starts a label beside the widget
+    /// before it and puts its second line at the panel's left edge.
+    /// Where the line falls on the row moves with the window, so the
+    /// row sweeps the width across the range a phone and a half-tiled
+    /// desktop window give, rather than guessing one width where the
+    /// cursor happens to sit near the end of a line.
+    #[test]
+    fn the_toolbars_canceled_line_begins_every_line_in_the_same_place() {
+        for width in (0..=16).map(|step| NARROW / 2.0 + 25.0 * step as f32) {
+            let row = canceled_line(width);
+            assert!(
+                !row.status.is_empty(),
+                "the canceled line was painted at a {width}-point window"
+            );
+            let first = row.status[0].left();
+            let drift = row
+                .status
+                .iter()
+                .map(|line| (line.left() - first).abs())
+                .fold(f32::NEG_INFINITY, f32::max);
+            assert!(
+                drift <= SLACK,
+                "at a {width}-point window every line of the canceled line \
+                 begins under the first ({drift} points of drift across {:?})",
+                row.status
+            );
+        }
     }
 
     /// **The row does not fit a narrow window.** This is the
@@ -2598,6 +2725,76 @@ mod tests {
             row.occupied,
             row.available,
             row.occupied - row.available
+        );
+    }
+
+    /// **And the STATUS LINE wraps under itself**, in the real
+    /// toolbar, which is Ev's second symptom measured where he saw it.
+    ///
+    /// Every refusal this chrome raises reaches the line
+    /// (`frame::apply`), and the toolbar is this crate's one wrapping
+    /// row: egui starts a wrapped label beside the widget before it
+    /// and puts every line after the first at the left edge of the
+    /// PANEL, which for a top panel is the window's. So the reading
+    /// that answers the symptom is not "it fits" — it is that the
+    /// lines begin under EACH OTHER, well right of the window's edge,
+    /// where the reader's eye is.
+    #[test]
+    fn the_toolbars_status_line_wraps_under_itself_rather_than_at_the_windows_edge() {
+        let row = toolbar_with(NARROW, Some(STATUS));
+        assert!(
+            row.status.len() > 1,
+            "the fixture has to be longer than what is left of a {NARROW}-point \
+             toolbar row, or this row is not about wrapping: {:?}",
+            row.status
+        );
+        let first = row.status[0].left();
+        let drift = row
+            .status
+            .iter()
+            .map(|line| (line.left() - first).abs())
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            drift <= SLACK,
+            "every line of the status begins under the first ({drift} points \
+             of drift across {:?})",
+            row.status
+        );
+        // Measured, and it is what `widgets::message`'s doc predicts:
+        // at this width the galley is wider than what is left on the
+        // line, so the placer moves the MESSAGE WHOLE to the next
+        // line. Every line then begins at the row's own left edge —
+        // together, which is the difference from the defect, where
+        // only the first line is indented to the cursor.
+        assert!(
+            (first - row.panel.left()).abs() <= SLACK,
+            "the whole message moved to its own line rather than splitting \
+             across two ({first} vs panel {:?})",
+            row.panel
+        );
+        // **And the width it wrapped at is the WINDOW's**, which is
+        // the reading that says the rows above can fail: a wrap at a
+        // constant, or at anything but the row it is in, would read
+        // the same line count at both widths.
+        let wide = toolbar_with(UNBOUNDED, Some(STATUS));
+        assert_eq!(
+            wide.status.len(),
+            1,
+            "a window nothing constrains lays the same status out on one line \
+             ({:?})",
+            wide.status
+        );
+        let past = row
+            .status
+            .iter()
+            .map(|line| line.right() - row.panel.right())
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            past <= SLACK,
+            "and no line reaches past the window ({past} points past, panel {:?}, \
+             lines {:?})",
+            row.panel,
+            row.status
         );
     }
     /// The context startup installed onto, and the app it assembled.

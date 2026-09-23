@@ -145,6 +145,58 @@ none of the three is it.
 lane plus one correctness claim — that the measurements say what the
 report says they say, and that each pinned row can go red.
 
+## 2026-09-20 — ATREST-1 implemented (branch `atrest/1-per-solid`)
+
+Check 7's subject is the SOLID, and check 10 is new. Both reads are at
+SIGN level: `props::sign_certified` took the faces it reads as an
+argument, and its two callers hand it one solid's faces (check 7) and
+one shell's faces (check 10). `classify_shells_of` is not called from
+`validate.rs` — D-D held.
+
+Three things the spec did not settle, decided in the lane and
+disclosed:
+
+- **The whole-body wrapper went rather than staying dead.** D-D asked
+  for a pair (`sign_certified` over every face, `sign_certified_of`
+  over some), but with check 7's subject moved to the solid nothing
+  calls the whole-body door, and a `pub(crate)` fn with no caller is
+  dead code the gate refuses. There is one door, taking its faces;
+  handing it the face arena in arena order is the whole-body walk,
+  which is what `Body::faces_of_solid` gives a one-solid body.
+- **Check 10 makes the DEFINITE half of D-C's claim only.** The full
+  claim reds the coplanar pillow and five other zero-volume fixtures,
+  because check 7's ratified `Zero`-exempt posture says an orientation
+  probe is not a thinness gate. Filed as
+  `check-10-refuses-two-outer-shells-and-is-exempt-on-the-rest-of-the-role-claim`.
+- **Check 10 is gated on that solid's own check 7**, so an inverted
+  solid still reports `NegativeVolume` alone and not a second name for
+  the same defect.
+
+Residues filed:
+`check-10-states-one-outer-and-the-rest-void-but-not-that-a-void-lies-inside-it`
+(the `and inside it` half the spec required be filed),
+`check-10-refuses-two-outer-shells-and-is-exempt-on-the-rest-of-the-role-claim`,
+and `check-10-is-not-made-by-the-mixed-tier-3-passes`, which rides with
+`tier3-prime-still-couples-plus-v-to-the-reporting-target`.
+
+## 2026-09-20 — check 10 as specced does not hold on this tree
+
+CI run 35565008331 on `464244c93`: check 7's per-solid subject is
+green everywhere, and check 10 as D-C states it reds **36 distinct
+pinned rows**, every one of them a body a kernel verb produces on
+purpose — `graft onto` ("fuses into one solid"), the boolean coplanar
+split, `subtract`'s two-shell complement, the editor's placed union,
+and two shell doors, one of which deliberately mints a solid with no
+outer shell at all. The tree already answers "how many material
+components" one layer up, as `editor-core`'s `CheckId::Connectedness`
+finding against a per-document expectation, and pins a deliberate
+disjoint union as VALID.
+
+Reported to the orchestrator rather than worked around: D-C and the
+ratified behaviour of five doors cannot both stand, and which one moves
+is not a lane's call. Measured, filed and reproducible on PR #2977:
+`one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
+
 ## 2026-09-21 — ATREST-1's measurement refuted my own spec; check 10 dropped
 
 The lane stopped on check 10 rather than working around it, which is
@@ -208,3 +260,324 @@ same measurement it demands of the lane — the row said "two material
 components filed under one solid" and I read that as a defect instead
 of asking who mints it. The system worked because the lane was told to
 stop rather than work around a decision, and did.
+
+## 2026-09-21 — both lanes lost to the box, both recovered; two corrections
+
+The machine went bad for a stretch: **4.7G free of 251G**, memory
+tight enough that a `du` was killed for it, `gh` timing out at 90s
+while raw git over SSH still worked, and repeated
+`EAI_AGAIN` / `ConnectionRefused` model-API failures that killed both
+lanes twice. Ev freed it (27G free, `gh` responding). Nothing was
+lost, for one reason worth keeping: **the dispatch told both lanes to
+commit and push before anything else on resume, and ATREST-1 did** —
+its whole application of the check-10 ruling was pushed at `b6e41b2d3`
+before the second kill, so the recovery was a message rather than a
+reconstruction. The reviewer lane had read nothing both times and was
+restarted fresh rather than resumed; ATREST-1 was resumed, because
+what survived on its disk was the ruling being carried out and its
+authority was in a merged PR rather than in a lost inbox.
+
+**Correction to ATREST-1: the shell-roles row goes back to P0.** The
+lane re-banded `tier-3-does-not-check-shell-roles-per-solid` P0 → P1
+when it re-stated the row as a containment claim. That collapses the
+two things `work/README.md` insists stay apart: *"a band is not a
+forecast of effort — `cost` carries that, separately, because the two
+are independent and collapsing them hides both."* A solid holding a
+second `Outer` nested in its own void is produced by the hollow-operand
+subtraction and blessed by tier 3 — a live wrong answer from a normal
+verb, which is the P0 definition. What the measurement changed is the
+row's SHAPE and COST, and `cost: H` already carries that.
+
+**The observation worth more than the unit.** The lane's re-statement
+ends on a question nobody on this slate had asked: tier 3 has no
+at-rest containment walk at all, and **three** of ATREST's rows are
+the same missing walk wearing different clothes —
+`check-9-nesting-is-line-bounded-only` (a ring inside its face's outer
+loop), `tier-3-does-not-check-shell-roles-per-solid` (an island inside
+its solid's void) and `validate-tier3-curved-boundary-containment` (a
+loop bounding a region of its surface). Whether they want ONE walk
+between them is a design question that should be answered before any
+of the three is specced, not after two of them have grown separate
+walks. It is recorded in the row that raised it; the order in
+`plan.md` will answer it when those rows come up.
+
+## 2026-09-21 — ATREST-2 reviewed: MERGEABLE, and a class worth more than the unit
+
+The review came back **MERGEABLE, no MAJOR**, having exercised all
+eight of the style brief's questions including Q8 on the whole
+704-line suite. Two things in it are worth recording beyond the fix
+list.
+
+**The reviewer isolated a cause the author had not.** ATREST-2's
+control differed from its fixture in THREE ways at once — bulge,
+station count and degree — so its perturbation established that
+something in that bundle mattered, not which. The reviewer ran the
+2×2: square/3-station/deg-2 refuses two `LoopRoleInverted`, and
+arc/2-station/deg-1 stays `Ok(())`. Station count and degree are
+irrelevant; **the `Circle` carrier is the whole difference.** This is
+what a review is for, and it is a standing lesson for how this program
+specs measurement units: *a perturbation that moves several things at
+once is not an isolation*, and the spec asked for a guard without
+asking for that.
+
+**My Claim 3 was confirmed and improved.** The `set_face_sense`
+rustdoc's *"tier 3's check 6 falsifies planar disagreement at rest"*
+is false for every planar loop with a conic carrier. I had it as
+possibly a latent defect in a documentation costume; the reviewer
+established it is a **doc over-claim from birth, not code drift** —
+the `all_lines` skip is banner-documented as deliberate and residual 4
+of `work/verdict/m6-sense-gate-recorded-residuals.md` has recorded the
+exemption since 2026-08-07. That matters: narrowing the sentence
+erases no intended invariant, so it is a repair rather than a
+deletion, and it needs nobody's sign-off.
+
+**THE CLASS, recorded here because an instance list is not a class.**
+*Prose that justifies itself by a check which does not reach the
+population it is talking about.* Three instances are now known and
+they sit in three different crates:
+
+1. `crates/step-import/src/lib.rs`'s crate-level contract — filed by
+   ATREST-2 on EXCH's slate;
+2. `crates/topo/src/attach.rs`'s `set_face_sense` — TOPO's ground,
+   being narrowed in the fix pass with the seam announced;
+3. `crates/mesh/src/planar.rs` — **the load-bearing one.** A whole
+   crate's assume-don't-certify posture rests on *"`topo`'s tier-3
+   validator refuses such a body by name (check 6,
+   `LoopRoleInverted`)"*, which for arc-bounded planar faces it does
+   not. TESS's ground and TESS's design call — what the posture
+   becomes when the upstream refusal is absent is not ATREST's to
+   decide — so it is filed on their slate with the measurement as
+   evidence, not fixed in passing.
+
+The instructive part is HOW it was missed: ATREST-2 read
+`mesh/planar.rs`, named it in its own sweep's blind-spot list, and
+dismissed it as out of class because the crate does not run check 6 —
+without noticing that the sentence it had just falsified was that
+file's stated premise. A sweep that names a file and asks the wrong
+question of it reads exactly like a sweep that covered it.
+
+## 2026-09-21 — the one-walk question, answered from the tree
+
+I logged earlier that three of ATREST's rows look like one missing
+containment walk, and said the fork would go to Ev before any of them
+was specced. **It is not a fork. The walk largely exists**, and reading
+it settles the question and re-orders the slate.
+
+What is in the tree today, in layers:
+
+- `splitting::containment::point_in_loop` — the 2-D loop walk. It takes
+  a `normal` and walks the polygon through the loop's vertices, which
+  is exactly why check 9's nesting arm reaches the `Polygon` class and
+  nothing else.
+- `boolean::solid_contain` — **point-in-solid, already built as the 3-D
+  promotion of that same walk**: its own header says so, it reads the
+  same 16-member golden-angle `SCHEDULE` const rather than a copy, and
+  it calls `point_in_loop` for the per-face test. It is public
+  (`point_in_solid`, `point_in_solid_faces`, `point_in_solid_of`) and
+  `census.rs` consumes it.
+- `boolean::contain::disc_side` — the exact decide for the one-circle
+  loop class, one radial margin.
+
+So the three gaps are not one question wanting one answer. They are
+**three consumers that do not reach existing machinery, for two
+distinct reasons**:
+
+1. `check-9-nesting-is-line-bounded-only` and
+   `validate-tier3-curved-boundary-containment` are both blocked on the
+   SAME thing: `point_in_loop` cannot express an arc-bearing or curved
+   loop's region. That is `work/tang/arc-aware-point-in-loop` (#1076),
+   on TANG's slate, and it is the **keystone of two of my P0/P1 rows**.
+2. `tier-3-does-not-check-shell-roles-per-solid` is blocked on nothing
+   of the sort — `solid_contain` can already answer "is this shell
+   inside that one" in principle. What is missing is an at-rest
+   CONSUMER: no tier calls it. That is a cheaper row than its `H`
+   suggests once someone looks, and it is independent of #1076.
+
+**What this changes.** The order in `plan.md` had check 9 fourth and
+treated the three as siblings. They are not siblings: two wait on
+another program's row and one does not. Nothing here is a design
+question for Ev — it is a reading of what is already built, and the
+dominant argument is the code's own layering.
+
+A note goes on TANG's board: #1076 is load-bearing for two ATREST rows,
+which its own slate has no way to know.
+
+## 2026-09-22 — a correction to my own check-10 ruling's evidence
+
+ATREST-1 came back green, and its report surfaced something that
+corrects the ruling I wrote on 2026-09-21 and published in merged PR
+#3005.
+
+**One of my five evidence lines was misread.** I wrote that *"a door
+that deliberately mints a solid with no outer shell settles it twice
+over"*, citing
+`crates/sweep/tests/shell5_r2_probes.rs::r2_the_new_door_mints_a_solid_with_no_outer_shell`.
+Read properly, that row moves a hollowed box's VOID shell into a new
+solid, and its assertion carried the prefix `MEASURED:` — which in
+this codebase marks a RECORDED DEFECT, not a blessed design. The body
+is genuinely invalid: the minted solid's only shell encloses negative
+volume. Check 7 per solid now refuses it,
+`NegativeVolume { solid: minted }`, and that refusal is **correct** —
+it is the unit finding a second instance of the very admit-hole it
+was built to close, on a row that had already written the hole down
+as measured-and-wrong.
+
+So that row is evidence FOR this unit, not against check 10. The lane
+read it the way I did, and I repeated it without checking; a
+`MEASURED:` prefix is the tell and neither of us looked at it.
+
+**The ruling's conclusion is unchanged.** Check 10's count-level claim
+was still wrong, on the four remaining and independent lines:
+`graft_disjoint`'s onto door fusing into one solid without changing
+the census, the boolean coplanar split's three outer shells under one
+solid, the two-shell complement of a through hole, and `editor-core`'s
+placed union under `CheckId::Connectedness` — the last of which is the
+ratified posture that actually settles it. A body with several `Outer`
+shells is legitimate; a body whose only shell is a cavity is not, and
+conflating the two is what my sentence did.
+
+The reviewer has been asked to audit the other four lines the same
+way, because a reader who misreads one may have misread more. If any
+of them also turns out to be a pinned defect rather than a blessing,
+the ruling gets re-examined rather than patched.
+
+**The lesson, which is the same one twice.** D-C was settled from a
+row's summary sentence without checking who mints the shape it called
+invalid. The retraction was then argued from a test's NAME without
+checking what its assertion said. Both times the error was reading a
+row's headline instead of its evidence, and both times the fix came
+from someone reading the actual assertion.
+
+## 2026-09-22 — ATREST-1 reviewed: MERGEABLE-AFTER-FIXES, one MAJOR
+
+The review confirmed the unit's headline equivalence and found that
+what is wrong is a set of **claim sentences the change falsified** —
+one of them a second crate's public contract on the production import
+path.
+
+**The MAJOR.** Making check 7's subject the solid means the mixed
+passes now run a SEPARATE arena-wide reporting quadrature for the body
+certificate on a multi-solid body. Four places still assert the
+opposite, none of them touched by the diff: `validate.rs`'s module
+header, `reporting_certificate`'s doc, `PlusVCheck`'s doc (whose
+signature IS in the diff), `validate_pseudomanifold_certificate`, and
+— the serious one — **`crates/step-import/src/lib.rs`'s `gate3`**,
+which says *"the value is the one check 7 decided on rather than a
+second quadrature over the same body"* and whose own doc calls itself
+the door the import path pays. That door's subject is multi-solid by
+definition.
+
+**This is ATREST-2's class, minted by ATREST-1.** The program spent a
+unit establishing *prose that justifies itself by a check which does
+not reach the population it describes*, filed it in three crates —
+and then shipped a fourth instance of the same shape in the next unit.
+The reviewer's brief warns about exactly this (*"check whether the fix
+mints a fresh instance of the defect it closes"*), and so did the fix
+brief. **Naming the trap did not prevent it, twice.** That is the
+finding, not the four sentences.
+
+**A second instance in the same diff, smaller and more literal
+(S2).** The unit's sweep pattern is *reads the body where it means a
+solid*. The diff DELETES the whole-arena face collection from
+`sign_certified` and ADDS it inside `tier3_local_checks_marked` — the
+function whose check is now per solid — and the PR's own sweep table
+does not list the hit.
+
+**A real guard hole, not just prose.** `SignCertificate::assembled`
+claims it panics when the parts do not cover the face arena exactly
+once. Duplicates and foreign faces are caught; **under-coverage is
+invisible** — a part set missing a solid's faces passes both arms and
+the certificate silently covers a subset. That is precisely the
+composition bug the guard was written for.
+
+**Two corrections to me.**
+
+1. **My dispatch had the cost disclosure backwards.** I told the
+   reviewer the extra quadrature was disclosed in the code and the PR
+   body; it is at one comment only — no PR-body line, no log line, no
+   `work/` row, no guard. It is a narrowing disclosed and unscheduled,
+   which is the Q6 shape, and it now owes a row.
+2. **My evidence error goes deeper than I logged yesterday.** The
+   retracted row has **zero** `Outer` shells, so it was never evidence
+   about "several `Outer` is legitimate" — only ever about the
+   "exactly one" clause. And the OTHER shell door I leaned on,
+   `shell8_r1_probes::r1_the_roles_read_is_per_hollow_solid`, counts
+   `chk_shell_volume_sign` verdicts through `topo::shell` and never
+   calls `validate_geometric`, so it is not a demonstration either. Of
+   six rows named in the done-state record, **four** carry the claim —
+   and the file's own arithmetic said six under a title saying five.
+   The record and `validate.rs`'s sentence both still cite the
+   retracted row as a door producing the shape ON PURPOSE, in the same
+   PR that makes tier 3 refuse it. Being fixed, with the reason
+   written down so the next reader does not re-add it.
+
+**Worth keeping from the Q8 read** (the whole of `validate.rs`, 9654
+lines): ~320 lines of module header before the first `use`;
+`ValidationError` is one 62-variant enum of ~700 lines, several
+variants carrying 40–55 line essays; `tier3_local_checks_marked` is a
+single ~1000-line function holding nine checks, two of whose banners
+are more than twice the length of the code they introduce; check 7's
+Zero-exempt posture is restated in five to seven places, none citing
+the others. And the decay this unit incidentally repaired: **`main`
+had silently lost rustdoc list items 6–9** from the numbered tier-3
+check list while eight variant docs and four sibling doors cited those
+numbers. First read to notice, in a file every unit edits.
+
+## 2026-09-22 — ATREST-1 merged; the slate is over budget and will NOT split
+
+**ATREST-1 merged** (PR #2977, `fe65559e5` + state-sync, CI run
+35705847283 green at twelve `test (…)` and five `k-lint (gate, …)`
+read at step level). Check 7's subject is the solid, and
+`an-inside-out-part-passes-tier-3-because-only-the-body-total-volume-is-pinned`
+is CLOSED — the first of the program's opening P0 admit-holes shut.
+`ATREST-2` closed earlier the same way. Four rows closed this sitting.
+
+**The board reads 34.5/30 and stays there, deliberately.** Rows
+arrived faster than they closed: three from other programs' sweeps
+onto `validate.rs` (`census-lane-unsupported-display-names-the-scalar-not-the-door`,
+`structural-suffix-means-two-things-across-the-six-doors`,
+`validate-rs-exports-sixteen-doors-on-an-irregular-matrix`) plus two
+of ATREST-1's own.
+
+`work/README.md` says a track that grows past its ceiling splits, and
+the seam is visible — *what tier 3 DECIDES* against *how `validate.rs`
+is SPELLED*. **But the spelled-side residue is 6 points** (one `E`,
+two `D`), and the same section warns that cutting a slate into tracks
+too thin to charter is the failure mode, not the remedy. There is no
+sibling program to re-home them to either: `door` closed, and the rows
+are about `validate.rs`'s own public matrix, which is ATREST's
+territory by the cut. So the answer is to work the slate down rather
+than to mint a track nobody could charter, and the 34.5 is recorded
+here as the report the README says it is.
+
+**Two housekeeping corrections to what ATREST-1's fix pass filed**,
+both mine to make:
+
+- `expect-one-solid-on-solids-next-has-twenty-homes` **re-homed to
+  HELPER** by `git mv`, id and body unchanged. The class is HELPER's
+  — one test helper with several private homes — and ATREST's charter
+  is what the validator decides, not how a suite spells its topology
+  helpers. It is NOT a duplicate of
+  `the-face-to-solid-walk-is-spelled-per-test-file`, which is the
+  `face → shell → solid` walk and now has a door; this one is solid
+  ENUMERATION under an unchecked premise, and the re-homing note says
+  why HELPER should not file it under duplication alone: `.next()`
+  cannot check "one solid", several of the twenty bodies are boolean
+  or split products, and ATREST-1 has just made multi-solid bodies
+  matter more at rest.
+- `the-multi-solid-reporting-quadrature-is-unscheduled` **banded P1,
+  priced D, and set to RIDE WITH
+  `tier3-prime-still-couples-plus-v-to-the-reporting-target`.** Both
+  rows are one question asked twice — *what does a tier-3 door promise
+  to return, and at what derivation level does it owe the answer* —
+  and both live in `tier3_local_checks_marked`, `PlusVCheck` and the
+  certificate types ATREST-1 just restructured. Specced apart they
+  would restructure the same hook twice, which is exactly the mistake
+  the per-solid pair was merged to avoid. P1 rather than P4 because
+  `gate3` is a shipped consumer on the production import path: this is
+  what a door promises, not what the suite costs.
+
+Both rows arrived with **no `priority` and no `cost`**. Lint does not
+require either, and the unpriced default of 2.5 means a slate can
+drift over budget on rows nobody banded. Worth watching rather than
+filing: the fix-pass brief did not ask for a band, and it should have.

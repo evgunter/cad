@@ -2581,12 +2581,12 @@ mod tests {
         let BooleanError::NurbsExtentUnsupported { .. } = err else {
             panic!("expected the NURBS re-gate, got {err:?}");
         };
-        // The refusal names the lift blocker, so the recourse is
-        // discoverable from the error alone.
+        // The refusal names the face kind that stopped it and ends on
+        // what the person can do; the lift blocker is the variant's
+        // rustdoc, not the sentence.
         let msg = err.to_string();
-        assert!(msg.contains("NurbsSurface::project"), "{msg}");
-        assert!(msg.contains("implicit_residual"), "{msg}");
-        assert!(msg.contains("re-gated"), "{msg}");
+        assert!(msg.contains("spline (NURBS) face"), "{msg}");
+        assert!(msg.contains("Recourse: "), "{msg}");
     }
 
     /// The D5 descendant chase, pinned at the mechanism level (M3

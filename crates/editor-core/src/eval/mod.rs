@@ -1942,12 +1942,9 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
-            Self::Boolean(e) => write!(
-                f,
-                "the Boolean op refused its operands (undeclared coincidence is the \
-                 common case: the kernel never infers that touching faces are the \
-                 same face): {e}"
-            ),
+            // No cause is guessed here: the kernel's refusal names its
+            // own, and a coincidence refusal carries its own recourse.
+            Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
             Self::Transform(e) => write!(f, "the transform op refused: {e}"),
             Self::Skin(e) => write!(f, "the skin construction refused: {e}"),
             Self::Loft(e) => write!(f, "the loft assembly refused: {e}"),
@@ -2314,7 +2311,7 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which carries `topo::PropsQuadLane` as its supertrait — the part
+/// which carries the fitted-pcurve lane trait as its supertrait — the part
 /// seam gathers a referenced document's product, so evaluation owns a
 /// gate policy per scalar), the two per-scalar analysis capabilities
 /// (`crate::analysis::AxisScalar` for the parameter box,

@@ -32,16 +32,17 @@
 //! import-door reach is nil by construction rather than by absence of
 //! a file.
 //!
-//! **Through the Euler doors the shape is a rim-only cap**, which both
-//! doors and the flux lane now answer on the same undecidable gap (the
-//! shape door on `props_rim_side`, the flux lane on
-//! `props_rim_only_extent`), and `mesh::tessellate` does not mesh: the walk emits no
-//! triangles for a loop with no meridian and the issue-897 cross-face
-//! census panics (orchestrator-filed issue 1615, on every ε row and at
-//! `Δv = 0` too — the panic is the rim-only loop's, not the gap's). So
-//! the finding these rows pin is real and is consumed by nothing that
-//! meshes or measures; the body below is the fixture issue 1615 can
-//! lift.
+//! **Through the Euler doors the shape is a rim-only cap**: a sphere
+//! face whose one loop is two rim arcs and no meridian. With the gap
+//! inside the band, the shape door and the flux lane answer on the same
+//! undecidable gap (the shape door on `props_rim_side`, the flux lane
+//! on `props_rim_only_extent`); at `Δv = 0` the door admits the face
+//! and the flux lane measures it — the two caps sum to the sphere's
+//! closed forms. `mesh::tessellate` refuses it typed either way: in the
+//! band on the shape door's escalation (`UnsupportedCurvedShape`), and
+//! at `Δv = 0` as `MeridianFreeCurvedFace`, the walk's own refusal of a
+//! loop with no meridian. So the finding these rows pin is real and is
+//! consumed by a measure at `Δv = 0` and by no mesh.
 //!
 //! Offsets are derived from the run's own ε: this file is on CI's
 //! `eps ∈ {default, 1e-6, 1e-12}` matrix.
@@ -267,7 +268,8 @@ fn the_remint_admits_no_gap_the_examination_reports() {
 ///   being `props_face_extent`, which would have read it one step
 ///   later still.
 ///
-/// What the walk does with a face the door admits is issue 1615's.
+/// What `mesh::tessellate` answers for the same two bodies is the next
+/// row.
 #[test]
 fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     let tol = Tol::witness();
@@ -319,5 +321,47 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     assert!(
         (flux - 2.0 * tau * RS.powi(3)).abs() < 1e-12 * flux,
         "and their fluxes to 3V = 4πR³: {flux}"
+    );
+}
+
+/// **The mesh lane refuses the rim-only cap typed, at zero gap and in
+/// the band, by two different doors.** Both faces of the body are
+/// rim-only sphere caps, so `tessellate` answers for the first in arena
+/// order.
+///
+/// * **`Δv = 0`** — both doors in front of the walk admit the face, and
+///   the walk refuses it on its traversal kinds:
+///   `MeridianFreeCurvedFace`.
+/// * **`R·Δv = 1.5ε`** — the shape door escalates `props_rim_side`
+///   (the row above), and that escalation is what `tessellate` answers,
+///   as `UnsupportedCurvedShape`; the walk is never reached.
+#[test]
+fn the_mesh_lane_refuses_the_rim_only_cap_typed_at_zero_gap_and_in_the_band() {
+    let tol = Tol::witness();
+    let first_face = |body: &Body<f64>| {
+        let (first, _) = body.faces().next().expect("the body has two faces");
+        first
+    };
+
+    let one_rim = two_level_rim_cap(0.0).unwrap();
+    assert_eq!(
+        mesh::tessellate(&one_rim, 1e-4, tol).map(|_| ()),
+        Err(mesh::TessellateError::MeridianFreeCurvedFace {
+            face: first_face(&one_rim),
+            surface: geom_brep::SurfaceKind::Sphere,
+        }),
+    );
+
+    let in_band = two_level_rim_cap(1.5 * tol.eps() / RS).unwrap();
+    let answered = mesh::tessellate(&in_band, 1e-4, tol).map(|_| ());
+    assert!(
+        matches!(
+            &answered,
+            Err(mesh::TessellateError::UnsupportedCurvedShape {
+                face,
+                source: PropsError::Escalated { cause },
+            }) if *face == first_face(&in_band) && cause.predicate == Some("props_rim_side")
+        ),
+        "{answered:?}"
     );
 }

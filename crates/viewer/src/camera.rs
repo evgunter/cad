@@ -32,13 +32,30 @@
 //! clamped and never silently dropped: a caller folding user input
 //! gets a [`CameraOpError`] it can show, and the camera it already had.
 //!
-//! # The one free transform
+//! # The one free transform, and the one door that does not refuse
 //!
 //! [`cursor_projection`] is about no camera state at all — a matrix, a
-//! cursor and a viewport in, a matrix out. It is here because
-//! projection algebra is this module's subject, not because the doors
-//! meet at the type: it takes `f32` and every matrix here is `f64`
-//! (`work/view/cursor-projection-is-f32-in-a-module-whose-matrices-are-f64`).
+//! cursor and a viewport in, a matrix out — and it is here because
+//! projection algebra is this module's subject.
+//!
+//! **It takes `f32` where the rest of this module is `f64`, and that
+//! is deliberate rather than a gap.** The matrix it transforms has to
+//! be the one the GPU is actually rasterizing with, which is the
+//! narrowed one ([`Camera::view_projection_f32`]): handing it the
+//! `f64` original would have the id pass compute with a matrix the
+//! shaded pass does not have, which is precisely the divergence
+//! `crate::idpass::disagreement` exists to report. The narrowing
+//! itself is `crate::narrowing`'s and is spelled nowhere here.
+//!
+//! **It is also the one door here that answers for every input**, and
+//! the refusal discipline above is not weakened by it: everything it
+//! takes has already been refused or vouched for one step out. A
+//! component that is not a finite `f32` cannot reach it, because
+//! `crate::narrowing::Narrow` is what produced every one of them; a
+//! viewport with no area cannot, because `ViewportSize::ndc_of`
+//! answers `None` first and no query is built. What is left for a
+//! `Result` to carry is nothing, and allocating one per hovered frame
+//! to carry nothing is the cost this declines.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -46,6 +63,8 @@
 use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Vec3};
 use pncad::select::Ray;
+
+use crate::narrowing::Narrow;
 
 /// Elevation is held strictly inside `±(π/2 − POLE_MARGIN)`.
 ///
@@ -175,6 +194,32 @@ pub enum CameraError {
         /// The radius derived from the caller's bounds.
         radius: f64,
     },
+    /// The scene radius was a length, but so large that the top of
+    /// the zoom band it derives is not an `f64` — so this camera has
+    /// no furthest distance to dolly to.
+    ///
+    /// **Reachable through [`Camera::new`] only.** [`Camera::framing`]
+    /// and [`Camera::fitted`] take their radius from `sphere`, which
+    /// sums three squared half-extents and refuses a non-finite sum,
+    /// so the largest radius they can carry is about `1.3e154` and its
+    /// band is an ordinary number. `Camera::new` takes a radius
+    /// directly, and is public: a caller holding its own scene bound
+    /// reaches this in one call.
+    ///
+    /// Its own arm because it is a different fact from
+    /// [`CameraError::NotFinite`] and from
+    /// [`CameraError::DegenerateScene`]: this radius IS finite and
+    /// strictly positive, and every other guard in the constructor
+    /// takes it. What refuses it is the band rather than the radius —
+    /// [`Camera::max_distance`] is the radius times
+    /// [`MAX_DISTANCE_FACTOR`], and past `f64::MAX` divided by that
+    /// factor there is no furthest distance, so
+    /// [`clamp_distance`] would bound the camera's distance
+    /// above by nothing and a dolly out would have no stop.
+    SceneRadiusOverflowsZoomBand {
+        /// The offending value, in world units.
+        scene_radius: f64,
+    },
     /// The field of view was not strictly inside `(0, π)`.
     FieldOfViewOutOfRange {
         /// The offending value, in radians.
@@ -194,6 +239,16 @@ pub enum CameraError {
     /// buy that one bit at the cost of a promoted review suite that
     /// pins this arm by name.
     UnusableBounds,
+    /// The view-projection this camera and viewport give does not
+    /// narrow to the `f32` a GPU matrix holds
+    /// ([`crate::narrowing::Narrow`]).
+    ///
+    /// **Every entry of it is an ordinary finite `f64`**, which is why
+    /// it is not [`CameraError::NotFinite`]: the algebra succeeded and
+    /// the seam is what refuses. `f32::MAX` is about `3.40e38`, so a
+    /// scene framed a few dozen orders of magnitude out gives a matrix
+    /// this module is happy with and a GPU cannot be handed.
+    UndrawableProjection,
     /// The distance needed to fit the scene at this aspect lies beyond
     /// the scene-derived zoom band, so no camera in the band contains
     /// the scene.
@@ -228,9 +283,23 @@ impl core::fmt::Display for CameraError {
                 "the scene bounds give a radius of {radius}, which is not a positive \
                  extent to frame against"
             ),
+            // Scientific, and not the plain `Display` the arms above
+            // use: every value that reaches this arm is within three
+            // decades of `f64::MAX`, so `{scene_radius}` is three
+            // hundred digits of decimal expansion — a sentence nobody
+            // can read, about a number nobody can read.
+            Self::SceneRadiusOverflowsZoomBand { scene_radius } => write!(
+                f,
+                "a scene radius of {scene_radius:e} is past the largest this viewer can \
+                 frame: the furthest distance its zoom band allows is not a finite number"
+            ),
             Self::FieldOfViewOutOfRange { fov_y } => write!(
                 f,
                 "a vertical field of view of {fov_y} rad is not strictly inside (0, pi)"
+            ),
+            Self::UndrawableProjection => f.write_str(
+                "the view projection is past the largest number a GPU matrix can hold \
+                 (about 3.4e38), so there is nothing to draw the picture with",
             ),
             Self::UnusableBounds => f.write_str(
                 "the framing request names no view — the bounds are empty or carry a \
@@ -391,8 +460,18 @@ impl Camera {
     ///
     /// [`CameraError::NotFinite`] for any non-finite argument,
     /// [`CameraError::DegenerateScene`] for a non-positive scene
-    /// radius, [`CameraError::FieldOfViewOutOfRange`] for a field of
-    /// view outside `(0, π)`.
+    /// radius, [`CameraError::SceneRadiusOverflowsZoomBand`] for one
+    /// that is a length but has no furthest distance, and
+    /// [`CameraError::FieldOfViewOutOfRange`] for a field of view
+    /// outside `(0, π)`.
+    ///
+    /// **The scene radius is asked two questions and they are
+    /// different ones.** `is_finite` is about the caller's number; the
+    /// band is about the product this camera derives from it, and a
+    /// radius above `f64::MAX` divided by [`MAX_DISTANCE_FACTOR`]
+    /// passes the first and fails the second. Asking only the first
+    /// left `distance` clamped into `..=inf` — a dolly out with no
+    /// stop, from a door whose own guard was finiteness.
     pub fn new(
         target: Point3<f64>,
         distance: f64,
@@ -413,6 +492,9 @@ impl Camera {
             return Err(CameraError::DegenerateScene {
                 radius: scene_radius,
             });
+        }
+        if !band_ceiling(scene_radius).is_finite() {
+            return Err(CameraError::SceneRadiusOverflowsZoomBand { scene_radius });
         }
         if fov_y <= 0.0 || fov_y >= std::f64::consts::PI {
             return Err(CameraError::FieldOfViewOutOfRange { fov_y });
@@ -482,7 +564,7 @@ impl Camera {
         // `radius * MIN_DISTANCE_FACTOR` for every scene. Only the
         // ceiling is reachable, and reaching it means no camera in the
         // band contains the scene.
-        let max_distance = radius * MAX_DISTANCE_FACTOR;
+        let max_distance = band_ceiling(radius);
         if distance > max_distance {
             return Err(CameraError::Unfittable {
                 required: distance,
@@ -536,12 +618,13 @@ impl Camera {
 
     /// The closest this camera may dolly.
     pub fn min_distance(&self) -> f64 {
-        self.scene_radius * MIN_DISTANCE_FACTOR
+        band_floor(self.scene_radius)
     }
 
-    /// The furthest this camera may dolly.
+    /// The furthest this camera may dolly, always a finite distance
+    /// ([`CameraError::SceneRadiusOverflowsZoomBand`]).
     pub fn max_distance(&self) -> f64 {
-        self.scene_radius * MAX_DISTANCE_FACTOR
+        band_ceiling(self.scene_radius)
     }
 
     /// The eye position.
@@ -647,6 +730,28 @@ impl Camera {
     /// As [`Camera::projection_matrix`].
     pub fn view_projection(&self, aspect: f64) -> Result<[[f64; 4]; 4], CameraError> {
         Ok(mul(&self.projection_matrix(aspect)?, &self.view_matrix()))
+    }
+
+    /// **The same matrix, at the display seam**:
+    /// [`Camera::view_projection`] narrowed to the `f32` a GPU holds.
+    ///
+    /// Here rather than at the caller because the caller is a driver
+    /// and this is the algebra's own output type meeting the
+    /// renderer's — and because [`cursor_projection`] takes exactly
+    /// this value, so the module that owns the transform also
+    /// produces the thing it transforms. The narrowing is
+    /// [`crate::narrowing::Narrow`]'s single test and is not
+    /// re-decided here.
+    ///
+    /// # Errors
+    ///
+    /// As [`Camera::view_projection`], plus
+    /// [`CameraError::UndrawableProjection`] when the matrix is a
+    /// projection this module can form and a GPU cannot hold.
+    pub fn view_projection_f32(&self, aspect: f64) -> Result<[[f32; 4]; 4], CameraError> {
+        self.view_projection(aspect)?
+            .narrow()
+            .ok_or(CameraError::UndrawableProjection)
     }
 
     /// Where a world point lands in normalized device coordinates,
@@ -992,11 +1097,37 @@ fn clamp_pitch(pitch: f64) -> f64 {
     pitch.clamp(-limit, limit)
 }
 
+/// The closest a camera framed against `scene_radius` may dolly.
+///
+/// **Strictly positive for every radius the door admits, and that is a
+/// property of the two constants rather than of a guard.** The factor
+/// multiplies DOWN, so it cannot overflow; what it could do is flush a
+/// small radius to zero, which would put the band's floor on a
+/// distance that is not one and let a dolly in land on the target. It
+/// does not, because the smallest admissible radius is
+/// [`MIN_SCENE_RADIUS`] — `f64::MIN_POSITIVE` — and
+/// [`MIN_DISTANCE_FACTOR`] leaves its product about fourteen decades
+/// above the smallest subnormal. `the_bands_floor_is_a_length_at_the_smallest_radius_the_door_admits`
+/// measures that margin rather than restating it, so a change to
+/// either constant that spends it reds there.
+fn band_floor(scene_radius: f64) -> f64 {
+    scene_radius * MIN_DISTANCE_FACTOR
+}
+
+/// The furthest a camera framed against `scene_radius` may dolly.
+///
+/// **One home for the band's ceiling**, because four sites read it —
+/// [`Camera::max_distance`], [`clamp_distance`], [`Camera::fitted`]'s
+/// refusal, and [`Camera::new`]'s guard — and the guard's whole
+/// subject is whether this product is a number. A second spelling at
+/// any of them would be a bound on one number admitting a dolly limit
+/// computed by another.
+fn band_ceiling(scene_radius: f64) -> f64 {
+    scene_radius * MAX_DISTANCE_FACTOR
+}
+
 fn clamp_distance(distance: f64, scene_radius: f64) -> f64 {
-    distance.clamp(
-        scene_radius * MIN_DISTANCE_FACTOR,
-        scene_radius * MAX_DISTANCE_FACTOR,
-    )
+    distance.clamp(band_floor(scene_radius), band_ceiling(scene_radius))
 }
 
 /// Fold an angle into `[−π, π)` so orbit composition has one
@@ -1025,4 +1156,211 @@ fn mul(a: &[[f64; 4]; 4], b: &[[f64; 4]; 4]) -> [[f64; 4]; 4] {
         }
     }
     out
+}
+
+/// The zoom band's two ends, measured against the door that admits a
+/// scene radius.
+///
+/// The rows over real scenes, operations and viewports are
+/// `tests/camera_ops.rs`; what is here is the arithmetic the door
+/// itself has to be right about, which needs no scene at all.
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::{
+        Camera, CameraError, CameraOp, MAX_DISTANCE_FACTOR, MIN_DISTANCE_FACTOR, MIN_SCENE_RADIUS,
+        apply, band_ceiling, band_floor,
+    };
+    use pncad::geom_core::Point3;
+
+    fn camera_at(scene_radius: f64) -> Result<Camera, CameraError> {
+        Camera::new(
+            Point3::new(0.0, 0.0, 0.0),
+            scene_radius,
+            0.0,
+            0.0,
+            std::f64::consts::FRAC_PI_4,
+            scene_radius,
+        )
+    }
+
+    /// A radius past `f64::MAX / MAX_DISTANCE_FACTOR` is finite and
+    /// strictly positive and every other guard in the constructor took
+    /// it — and the band it derives has no top, so `max_distance`
+    /// answered `inf` and `clamp_distance` bounded the camera's
+    /// distance above by nothing.
+    ///
+    /// **The bound is measured here rather than asserted from a
+    /// constant.** It is where `radius * MAX_DISTANCE_FACTOR` stops
+    /// being finite, and the row walks one `f64` across it in both
+    /// directions, so a change to [`MAX_DISTANCE_FACTOR`] that moved
+    /// the door and not this arithmetic (or the reverse) reds here.
+    #[test]
+    fn the_door_refuses_a_scene_radius_whose_zoom_band_has_no_top() {
+        let largest = f64::MAX / MAX_DISTANCE_FACTOR;
+        assert!(
+            band_ceiling(largest).is_finite(),
+            "the largest framable scene still has a furthest distance"
+        );
+        assert!(
+            camera_at(largest).is_ok(),
+            "so the door takes every radius whose band names one"
+        );
+        let past = f64::from_bits(largest.to_bits() + 1);
+        assert!(
+            band_ceiling(past).is_infinite(),
+            "and one `f64` further there is none — {past:e} is the bound's other side"
+        );
+        for refused in [past, 1.0e307, f64::MAX] {
+            assert!(
+                refused.is_finite() && refused >= MIN_SCENE_RADIUS,
+                "{refused:e} is a radius the old predicate accepted"
+            );
+            assert_eq!(
+                camera_at(refused),
+                Err(CameraError::SceneRadiusOverflowsZoomBand {
+                    scene_radius: refused
+                }),
+                "a scene radius with no furthest distance owes a refusal rather than a \
+                 camera whose dolly has no stop"
+            );
+        }
+    }
+
+    /// The refusal is its own fact, and says which one it is: the
+    /// radius IS a finite positive length, so a message calling it a
+    /// non-number would be false, and a plain `Display` of a value
+    /// three decades under `f64::MAX` is three hundred digits.
+    #[test]
+    fn the_band_refusal_reads_as_a_sentence_about_a_number_that_is_one() {
+        let text = CameraError::SceneRadiusOverflowsZoomBand {
+            scene_radius: 1.0e307,
+        }
+        .to_string();
+        assert!(
+            text.contains("1e307"),
+            "the value is named in the spelling it can be read in: {text}"
+        );
+        let expansion = format!("{:.0}", 1.0e307_f64);
+        assert!(
+            expansion.len() > 300,
+            "the plain spelling of a value this size is its decimal expansion"
+        );
+        assert!(
+            text.len() < expansion.len(),
+            "and the message is not that: {text}"
+        );
+        assert!(
+            !text.contains("not a finite number to frame")
+                && !text.contains("is not a positive extent"),
+            "the radius is neither non-finite nor degenerate: {text}"
+        );
+    }
+
+    /// Every camera the door admits has a furthest distance, and its
+    /// own distance is inside the band — including a camera asked for
+    /// a distance far past it, which [`Camera::new`] clamps.
+    #[test]
+    fn every_admitted_scene_radius_has_a_zoom_band_that_is_two_distances() {
+        for radius in [
+            MIN_SCENE_RADIUS,
+            1.0e-12,
+            1.0,
+            1.0e153,
+            f64::MAX / MAX_DISTANCE_FACTOR,
+        ] {
+            let camera = camera_at(radius).expect("a radius the door admits");
+            let (floor, ceiling) = (camera.min_distance(), camera.max_distance());
+            assert!(
+                floor.is_finite() && ceiling.is_finite(),
+                "the band at radius {radius:e} is {floor:e}..={ceiling:e}"
+            );
+            assert!(
+                floor > 0.0 && floor < ceiling,
+                "and it is a band rather than a point or an inversion: \
+                 {floor:e}..={ceiling:e}"
+            );
+            assert!(
+                camera.distance() >= floor && camera.distance() <= ceiling,
+                "the camera's own distance {:e} is inside it",
+                camera.distance()
+            );
+        }
+    }
+
+    /// [`MIN_DISTANCE_FACTOR`]'s direction, asked and answered: it
+    /// multiplies DOWN, so it cannot overflow, and what it could do
+    /// instead is flush a small radius to zero — a floor that is not a
+    /// distance, and a dolly in that lands on the target.
+    ///
+    /// It cannot, and the margin is what says so: at
+    /// [`MIN_SCENE_RADIUS`] the floor is about `2.2e14` times the
+    /// smallest subnormal, so the factor would have to fall below
+    /// about `2.2e-16` before the product reached zero. That is a
+    /// property of the two constants and needs no guard at the door —
+    /// which is why this row measures it, so a change to either that
+    /// spends the margin reds here rather than at a viewport.
+    #[test]
+    fn the_bands_floor_is_a_length_at_the_smallest_radius_the_door_admits() {
+        let floor = band_floor(MIN_SCENE_RADIUS);
+        assert!(
+            floor > 0.0,
+            "the smallest framable scene still has a closest distance"
+        );
+        let smallest_subnormal = f64::from_bits(1);
+        assert!(
+            floor / smallest_subnormal > 1.0e14,
+            "with decades of margin before the product flushes: {floor:e} is only {} \
+             subnormals above zero",
+            floor / smallest_subnormal
+        );
+        assert!(
+            MIN_DISTANCE_FACTOR > smallest_subnormal / MIN_SCENE_RADIUS,
+            "which is exactly the condition on the factor itself"
+        );
+        let camera = camera_at(MIN_SCENE_RADIUS).expect("the smallest framable scene");
+        assert!(
+            camera.distance() > 0.0,
+            "so a camera framed against it stands somewhere rather than on its target"
+        );
+    }
+
+    /// The band's top is what stops a dolly out, so a factor that
+    /// overflows the distance lands on the furthest distance rather
+    /// than on an infinity.
+    #[test]
+    fn a_dolly_out_past_the_band_lands_on_the_furthest_distance() {
+        let camera = camera_at(1.0e300).expect("a radius the door admits");
+        let dollied = apply(&camera, &CameraOp::Dolly { factor: 1.0e300 })
+            .expect("a positive finite factor is a move");
+        assert_eq!(
+            dollied.distance(),
+            camera.max_distance(),
+            "a dolly whose product overflows stops at the band's top"
+        );
+        assert!(
+            dollied.distance().is_finite(),
+            "which is a distance: {:e}",
+            dollied.distance()
+        );
+    }
+
+    /// The framing doors cannot reach the new refusal, so it costs
+    /// them nothing: `sphere` sums three squared half-extents and
+    /// refuses a non-finite sum, which caps the radius they can carry
+    /// at `sqrt(f64::MAX)`.
+    #[test]
+    fn the_largest_radius_a_framing_can_carry_still_has_a_band() {
+        let largest_framable = f64::MAX.sqrt();
+        assert!(
+            band_ceiling(largest_framable).is_finite(),
+            "the largest radius a bounding sphere can answer has a furthest distance"
+        );
+        assert!(
+            camera_at(largest_framable).is_ok(),
+            "so no framing is refused by the band guard"
+        );
+    }
 }

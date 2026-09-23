@@ -85,10 +85,7 @@ fn turned<T: Real>() -> Affine3<T> {
 
 /// The public doors at one scalar. `lane` is the name the transform
 /// door reports for it, or `None` where the scalar answers the seam.
-fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
-    label: &str,
-    lane: Option<&str>,
-) {
+fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option<&str>) {
     let (body, face) = approx_seed::<T>();
 
     // The two validators never reach the offset-fit door on this
@@ -102,8 +99,8 @@ fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
             topo::validate_geometric_structural(&body, tol()),
         ),
         (
-            "validate_pseudomanifold",
-            topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
+            "validate_pseudomanifold_structural",
+            topo::validate_pseudomanifold_structural(&body, &ContactRecords::default(), tol()),
         ),
     ] {
         let Err(errors) = r else {
@@ -160,15 +157,13 @@ fn doors_at<T: topo::PropsQuadLane + geom_core::Bounds + topo::AtRestPolicy>(
 }
 
 /// The certified doors, for the scalars that may form them at all.
-fn certified_doors_at<T: topo::PropsQuadLane + geom_core::CertifiedBounds + topo::AtRestPolicy>(
-    label: &str,
-) {
+fn certified_doors_at<T: geom_core::CertifiedBounds + topo::AtRestPolicy>(label: &str) {
     let (body, _) = approx_seed::<T>();
     for (door, r) in [
         ("validate_geometric", topo::validate_geometric(&body, tol())),
         (
-            "validate_pseudomanifold_certified",
-            topo::validate_pseudomanifold_certified(&body, &ContactRecords::default(), tol()),
+            "validate_pseudomanifold",
+            topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol()),
         ),
     ] {
         let Err(errors) = r else {

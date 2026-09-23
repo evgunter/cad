@@ -159,11 +159,12 @@ pub struct DriveConfig {
     /// form every other leaf of this drive would build; the memo hands
     /// it back instead of rebuilding it, which on the M10-3 slab is a
     /// walk the tier otherwise repeats once per leaf. Every verdict and
-    /// every decision count is the same either way, and the receipt's
-    /// `frozen` column means the same thing either way — the DISTINCT
+    /// every decision count is the same either way, and so is the
+    /// `frozen` column on both receipts — the drive's is the DISTINCT
     /// nodes frozen over the drive, which the memo counts whether or
-    /// not it is serving forms (`geom_core::SymCounts::frozen` argues
-    /// the column).
+    /// not it is serving forms, and a leaf's is its NEED against that
+    /// same set, which is what it reached and not what it computed
+    /// (`geom_core::SymCounts::frozen` argues the column).
     ///
     /// Off is the differential lane the pins compare against, in
     /// `parallel`'s own mould: a dial whose effect on a document is a
@@ -244,19 +245,19 @@ pub struct DriveConfig {
 /// tier the FASTER lane — the work it saves is the subdivision it makes
 /// unnecessary. Where it cannot certify, it is pure overhead, and the
 /// worst measured case is curved geometry: 17x for nothing, because the
-/// arc family it cannot discharge (M10-8, `docs/DOC-LEDGER.md`
-/// sweep 13) means the box
+/// arc family it cannot discharge (M10-8) means the box
 /// refuses either way.
 ///
 /// Two things keep that bill down and both are measured rather than
 /// argued. A margin the numeric channel has already proved NON-ZERO
 /// is never DECIDED by its form (`geom_core::sym`'s `Decide` impl —
-/// a certified enclosure excluding zero is a proof no normal form can
-/// contradict), which is most margins on most documents; the form is
-/// still BUILT for it wherever debug assertions are on (dev, test and
-/// this workspace's release profile), by the contradiction assertion
-/// at that site — a tenth of the slab's plain forms, measured
-/// (`geom_core::sym`'s `# Cost`). And
+/// at this lane's EXACT witness a certified enclosure excluding zero
+/// is a proof no normal form can contradict), which is most margins on
+/// most documents; the form is still BUILT for it by the contradiction
+/// check at that site, which at an exact witness is a `debug_assert!`
+/// and so runs wherever debug assertions are on (dev, test and this
+/// workspace's release profile) — a tenth of the slab's plain forms,
+/// measured (`geom_core::sym`'s `# Cost`). And
 /// `Poly::mul` refuses on pre-bounds instead of building a product and
 /// discarding it, so an over-budget multiplication costs its two
 /// operands' sizes rather than their product.
@@ -635,8 +636,10 @@ pub struct CertifiedLeaf {
     /// What its replay produced.
     pub results: LeafResults,
     /// How this leaf's decisions were answered — the E12 receipt
-    /// ([`SymbolicDials`]). All zero when the tier is off, because no
-    /// session exists to count in.
+    /// ([`SymbolicDials`]), `frozen` being this leaf's NEED of the
+    /// drive's frozen set rather than the work it happened to do
+    /// (`geom_core::SymCounts::frozen`). All zero when the tier is off,
+    /// because no session exists to count in.
     pub decisions: SymCounts,
 }
 
@@ -648,7 +651,8 @@ pub struct RefusedLeaf {
     /// The typed reason.
     pub reason: RefusalReason,
     /// How this leaf's decisions were answered before it refused — the
-    /// E12 receipt ([`SymbolicDials`]).
+    /// E12 receipt ([`SymbolicDials`]), `frozen` being this leaf's NEED
+    /// of the drive's frozen set (`geom_core::SymCounts::frozen`).
     pub decisions: SymCounts,
 }
 
@@ -736,9 +740,11 @@ impl ParamBoxVerdict {
     /// `numeric`, with `frozen` beside them.
     ///
     /// **`frozen` is the odd one out**: the decision columns are sums
-    /// over the leaves, and `frozen` is the DISTINCT nodes frozen over
-    /// the drive (`geom_core::sym::DriveMemo::frozen`). `SymCounts::frozen`
-    /// is where the column's two meanings are argued.
+    /// over the leaves, and `frozen` is a SET — the DISTINCT nodes
+    /// frozen over the drive (`geom_core::sym::DriveMemo::frozen`),
+    /// which is not the sum of the leaves' own columns because those
+    /// are sets over the same nodes and they overlap.
+    /// `SymCounts::frozen` argues both receipts' column.
     ///
     /// All zero when the symbolic tier is off ([`SymbolicDials::off`]),
     /// which is not a claim that nothing decided: with no session
@@ -861,6 +867,22 @@ impl ParamBoxVerdict {
                     self.decisions.registrations_contradicted
                 );
             }
+            // The theorem channels' refusal column, by the same rule
+            // again. **It costs no schema bump because there is no
+            // schema to bump**: this text is written and never parsed.
+            // Its two consumers are `content_key`, which hashes it
+            // (derived on demand, never persisted — E10), and the rows
+            // that compare two renderings byte for byte. Neither reads
+            // a FIELD, so a key added here cannot break a reader; what
+            // the present-only-when-nonzero rule buys is that the hash
+            // and those comparisons do not move — and here the column
+            // cannot be non-zero at all, because a drive replays at
+            // `Sym<Interval>`, whose witness is EXACT, so the
+            // contradiction is asserted rather than counted
+            // (`geom_core::SymCounts::theorems_disputed`).
+            if self.decisions.theorems_disputed != 0 {
+                let _ = write!(s, " theorems_disputed={}", self.decisions.theorems_disputed);
+            }
             let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
@@ -940,6 +962,13 @@ impl ParamBoxVerdict {
                     s,
                     "; {} registered identity/identities CONTRADICTED by a definite enclosure",
                     d.registrations_contradicted
+                );
+            }
+            if d.theorems_disputed != 0 {
+                let _ = write!(
+                    s,
+                    "; {} theorem(s) DISPUTED by an inexact value channel",
+                    d.theorems_disputed
                 );
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);

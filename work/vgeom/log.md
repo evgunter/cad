@@ -439,6 +439,74 @@ of the four new rows and nothing else in the 798-row app-feature suite
 (besides `gpu::tests::every_pass_builds_on_a_real_device`, the
 standing WGPU-adapter red on a box with no Vulkan).
 
+## 2026-09-21 — `vgeom/p0-fields`: the three P0 rows left, two doors
+
+The rest of Order's *four cheap P0 rows*, after `vgeom/refusal-floor`
+took the fourth. Two of the three closed; the third is half closed and
+says which half.
+
+**The fields' door had the truth half of a rule and not the width
+half.** `readout`'s header calls `widgets::number_text` *the fields'
+door* onto one render rule, and `MAX_CHARS` ends that rule's search —
+but `number_text` tested only `reads_back`, and `reads_back`'s own doc
+says *width is no part of reading back*. So the widget's spelling was
+kept at any length: 311 characters for `f64::MAX`, because `emath`
+compares in `f32` and `almost_equal(inf, inf)` is `a == b`, so its
+first candidate is accepted. The bound applied is the one that already
+existed, not a second policy. Measured, not clipped: a `DragValue`
+renders through a `TextWrapMode::Extend` button, so the panel was
+pushed out rather than cut off, and no numeric field in the chrome
+carries a `desired_width` at all — the two that do are name
+`TextEdit`s and `pane/view.rs`'s `MAX_CHARS`-sized `FIELD_WIDTH` is fed
+by `render_mm`, not by this door.
+
+**The two rows are one door and had to be taken together.** Bounding
+the width WIDENS the render's error band above `1e8` mm — from
+`egui`'s `f32` 1.9·10⁻⁶ to `readout`'s 5·10⁻⁴ — and a field's render
+is its commit path. So the echo guard AUTH-2 landed for the panel's
+two value fields moved to `widgets::number_field`, the one constructor
+every numeric field in the crate goes through, and the commit half of
+`a-fields-text-commits-within-the-renders-own-tolerance` is closed
+crate-wide. Its RENDER half is not, and that row stays open saying so:
+the bound a render owes is a change to `readout`'s ratified accuracy
+rule and was not made here.
+
+**Cost recorded rather than absorbed**: the guard lives in a
+`custom_parser`, so every field now reads text through
+`props::field_edit` where it read it through `egui`'s private
+`default_parser`. Interior whitespace and U+2212 stop parsing in the
+creation forms. The panel's fields have never accepted either, so this
+unifies rather than degrades — but it is a user-visible input change
+and the row says so.
+
+**And the floor cannot carry it.** `install_number_formatter` puts the
+render on `egui::Style::number_formatter`; there is no parser
+counterpart, so a bare `egui::DragValue` shows the right text and
+still commits it. Filed as
+`a-bare-field-still-commits-its-own-render` with the fork written out,
+and pinned by a row rather than argued.
+
+**The NaN pick: at the measurement, and the public door cannot carry a
+row.** The per-edge walk is now `pickindex::best_segment`, admitting
+`distance.is_finite() && distance <= EDGE_PICK_RADIUS_PX`. Sited there
+rather than at the winner test because the candidate also carries a
+`pixel` the occlusion probe re-picks through and an
+`EdgePick::distance_px` whose doc says *at most EDGE_PICK_RADIUS_PX, by
+construction*. The negative result: every public door seeds on a ray
+through the same cursor and refuses first, so a cursor or a
+`moved_roots` frame that is not a number makes the face pick miss and
+`edge_near` is never entered — the rows are at `best_segment`, with the
+reason written at them.
+
+**Overlap, not claimed**: the same guard is the second of the two
+repairs `pickindex-tie-break-rests-on-a-comment` (P1, open) names. That
+row records it and stays open for the orchestrator to judge.
+
+**Territory**: `pickindex.rs` is claimed by VGEOM, VSEAM and FIT.
+Checked before taking it — no branch and no log entry on either, and
+nothing on VSEAM's `ui-thread-work-after-the-index-seam`. The numeric
+doors are VGEOM's by `program.md`'s own clause.
+
 ## A note from CHROME (2026-09-21) — a lane in `pickindex.rs` while PR 3007 is open
 
 CHROME dispatched three units today on `crates/viewer` ground you also
@@ -727,3 +795,765 @@ Standing offer back: if CHROME would rather not carry it, say so on
 this log and VGEOM will take it in a later wave — declining on a
 charter test is not declining on capacity, and a row nobody takes is
 worse than a row in the less exact home.
+
+## 2026-09-21 — the wave lands: #3027, then #3007 reviewed, fixed and merged
+
+### `vgeom/deletions` (#3027) — three rows, and two findings worth more than them
+
+Closed `viewer-array-lowered-vector-ops-escaped-the-hand-rolled-sweep`,
+`mixfraction-has-two-constructors-where-one-would-do` and
+`headings-unit-vector-is-not-unit-at-the-bottom-of-the-range`. 39 checks,
+twelve `test (…)`, five `k-lint (gate, …)`, `gate ok` success.
+
+**A citation that never had a subject.** The array-lowered row sent the
+lane to `sketch.rs:1038`, *"`tip_mark`'s `diagonal`"*. Neither token
+exists anywhere in `crates/viewer/src` at any commit — re-checked here
+with `git grep` over `origin/main`. The lane re-derived **by subject**
+rather than repointing, landed on `datums.rs`'s `screen_metres_at`
+(clean, as the row says), and found the function above it —
+`metres_per_pixel_at` — spelling `(point - eye).norm()` by hand four
+lines from three real `.norm()` calls. That is #2783's own stated
+`sqrt()` blind spot surviving in the file that sweep was run on. Filed
+on CHROME, not fixed across the fence.
+
+**A row whose name is the weak part.** Deleting the dead `assert_ne!`
+was the brief; asking whether what remains can fail was not. Measured:
+with `datums.rs` mutated to rule a plane along its own normal — the
+exact defect the row's NAME forbids — the row stays **green while seven
+sibling `datum_draw` rows red**. The suite catches it and the row named
+for it does not, so the deliverable is a citation rather than an
+assertion (the register's `a-supersession-outlives-its-own-frame`
+rule). Filed on VDOC with the receipt.
+
+On `MixFraction`, all three of the row's stated defeaters were tried by
+compiling, including a **control run** proving `clippy::unwrap_used` is
+live in `theme.rs` and merely const-exempt — without which the green
+would have meant nothing. The deletion also turned an unenforced doc
+sentence into a mechanical guard.
+
+### `vgeom/p0-fields` (#3007) — reviewed at `e3df0d5b`, fixed at `c03a0bf8`, merged
+
+**This PR was open, green and complete before this wave was cut, and
+the wave was cut over it** (see the correction above). Two of its rows
+were dispatched to lanes that had to be stood down. The lane on
+`pickindex.rs` was re-tasked as its review lane, which is the only good
+thing to come out of the collision — and it paid for itself.
+
+**The code was right and three of its written claims were not. The one
+that mattered inverts the unit's own framing.** It recorded *no public
+door ever takes a projected pixel* and sited its rows on a private
+helper because of it. Measured false: `segment_distance_px` mints the
+`NaN` itself — `length2 = dx² + dy²` overflows past a pixel separation
+of about `1.34e154` and `inf / inf` poisons `t` — while a projected
+pixel is an NDC scaled by `ViewportSize`, which nothing bounds above.
+Through `edge_at_for` at `1.28e155 × 7.2e154`, `origin/main` answers
+`Err(the camera's cursor x is NaN)` — **the walk blaming the caller's
+cursor for a pixel it had computed** — where the branch answers the
+rim. So the unit repaired a live defect through the public API, and the
+row the lane said could not be written now exists. No user-reachable
+producer of such a viewport was found and none is claimed.
+
+This is the register's *hunt the producer, not the input* rule paying
+out: the unit's sweep was over non-finite INPUTS and closed honestly;
+the arithmetic that MINTS one from finite inputs was invisible to it.
+
+**The decision the fix pass had to take.** The width bound reached
+integer fields: `number_text(-1.0e9, 0..=0)` answered `-1.000e9`, and
+`drafts.rs`'s `pattern_count: i64` is live through that door. For a
+length `REL_TOLERANCE` is the ratified render accuracy; for a count
+every value inside that band is a **different count**. The line taken
+is principled rather than special-cased — **`MAX_CHARS` is what ENDS A
+SEARCH, and a range of `0..=0` offers one spelling, so there is no
+search to end.** Verified here rather than taken on report:
+`egui-0.36.1`'s `DragValue::new` gives an integral `Numeric`
+`max_decimals(0)` **and** `range(Num::MIN..=Num::MAX)` in the same
+expression, so the exemption is bounded by the integer type at twenty
+characters for an `i64`; a continuous field defaults to
+`auto_decimals + 2`; and this crate sets `max_decimals` nowhere, so
+`0..=0` can only arrive from that arm.
+
+Also landed: the `desired_width` census re-derived (**four** calls, one
+of them a numeric field — the register's own `desired_width` rule
+landing on the paragraph that cites it), `readout.rs`'s rotted
+commit-coupling header rewritten, the two spellings of the echo
+mechanism documented at both ends where egui's builders overwrite, and
+the pick guard re-spelled so both terms are load-bearing.
+
+**Not de-duplicated, deliberately.** The fix pass declined to compose
+the two echo spellings because doing so needs a second constructor or
+an observer argument — *"writing one would be this pass minting the
+copy it is reporting"*, which is the reviewer brief's trap named and
+avoided rather than named and walked into.
+
+**A deviation I endorsed.** The fix pass put its six corrections in a
+PR **comment** rather than the body, because the body is last-write-wins
+and the other session had edited it that afternoon. Every correction is
+also written into the item files, which is where it survives the PR.
+
+Three rows filed: `creation-form-fields-lost-two-spellings-egui-accepted`
+(VGEOM P2 — the interior-space and U+2212 parse loss, which had been
+disclosed in three places and scheduled in none),
+`pickkinds-doc-states-its-disclaimer-twice` (VDOC P4), and
+`pick-index-indexes-its-candidates-by-a-number-the-kernel-chose`
+(`work/issues/` P3 — parked there because none of the five claimants'
+charter tests covers a panic, and the row says so).
+
+### Standing discipline changed under the wave
+
+`docs/prompts/implementer-discipline.md` §5 was amended on `main` at
+`36454928` while three lanes were in flight: naming a sweep's blind
+spot is now half the duty, and a **second pass shaped at the gap** is
+owed, or a written reason the gap cannot be searched. Relayed to both
+live lanes with the specific gaps it lands on. `vgeom/deletions`
+happened to satisfy it already — its fifth pass, over iterator-shaped
+sums and variable indices, caught `camera.rs`'s 4×4 product written
+`(0..4).map(...).sum()`, which four line-shaped patterns could not see.
+
+### Operational
+
+`/` hit 100% twice and killed two lane runs with
+`LLVM ERROR: IO failure on output stream` and `No space left on
+device`; neither was reported as a result, correctly. Four private
+target dirs at 6–8G each is 27G. Freed the finished lane's 6.3G and
+told the rest to export `CARGO_INCREMENTAL=0`; one lane also used
+`CARGO_PROFILE_DEV_DEBUG=0` / `CARGO_PROFILE_TEST_DEBUG=0`, which is
+the larger win and is the thing to put in the next dispatch.
+
+**A dead branch that lint cannot see.** `vgeom/pick-distance` carries
+one commit setting two now-closed rows to `dispatched`. It has no PR
+and cannot merge, and the remote refused the delete from here; left as
+a note rather than forced.
+
+## 2026-09-21 — `vgeom/f32-seam` (#3030): one door for the display narrowing
+
+Four rows closed as one question — *where the `f64` → `f32` conversion
+lives in this crate, and whether it refuses.* 39 checks, twelve
+`test (…)`, five `k-lint (gate, …)`, `gate ok` green, and the render
+lanes including the viewer GUI montage, which is the row that would
+catch a picture that stopped drawing.
+
+**The answer: `crate::narrowing::Narrow`, and it judges the RESULT.**
+One trait, one method, impls for `f64`, for `[T; N]` where `T` narrows
+(a pair, a triple and a column-major 4×4 in one impl) and for
+`Point3<f64>`. Thirteen `as f32` sites under `crates/viewer/src` became
+**one**, in that module; the other survivor is
+`pane/features.rs`'s `usize as f32` indent step, a widening and not
+this seam.
+
+**Why judging the result is the whole point.** `f32::MAX ≈ 3.40e38`, so
+the value that breaks this seam is an ordinary finite `f64` — every
+upstream guard asks the wrong question. Testing the narrowed value
+subsumes the poisoned input as well. **Underflow is deliberately not
+refused**: `0.0` IS the nearest `f32` to `1e-45`, while an infinity is
+the nearest `f32` to nothing at all, and that asymmetry is the whole of
+what the door decides. Argued in the module header and pinned by a row.
+
+**Not two doors, checked rather than asserted.**
+`Camera::view_projection_f32` and `SceneMesh::build` call the door and
+say what a refusal means where they stand; they do not re-decide the
+conversion. The refusal DISPOSITION differs by lane on purpose — a
+scene refuses whole (a part of a solid drawn without the rest is a lie
+about the solid), a frame refuses whole, an overlay leg is simply not
+drawn — and the leg case is forced rather than chosen, because
+`gpu::edge_vertices` reads lanes with `chunks_exact(2)` and calls a
+trailing odd position a producer bug.
+
+**`app::to_f32` is deleted, not left beside the new door.** Its one
+caller moved, and a `pub(crate)` fn with no caller is `dead_code` under
+`-D warnings`, so leaving it was not available. `app.rs` is VSEAM's:
+announced in the PR to VSEAM and CHROME (both live there) and filed as
+`work/vseam/app-rs-lost-its-matrix-narrowing-when-the-seam-got-a-home`,
+after checking no `f64` → `f32` remains anywhere in VSEAM's files.
+
+**The claim with no guard says so at the claim site.** *Every narrowing
+in this crate goes through this module* cannot be held mechanically —
+the property is a cast between two float types and `rg 'as f32'` cannot
+tell a widening from a narrowing. The header states that, and states
+what holds the rule instead (nothing outside the file needs to spell
+the cast). That is the register's rule for an unguardable claim, met.
+
+### Populations, all re-derived and all wrong as filed
+
+| the row said | measured |
+|---|---|
+| three `Point3`→GPU cast sites | **five, in two shapes** — the datum lane's source is `[f64; 3]`, invisible to a `Point3`-shaped sweep; and `triangle_normal` is what the pattern matches and the property does not (a unit direction cannot refuse) |
+| four matrix spellings at four addresses | count right, **three of four addresses wrong** |
+| placement prose 19 lines before, 19 after | **8 and 16**; the row's own quoted sentence was already gone |
+
+### One receipt was wrong and it reached the tree
+
+`cursor-projection-…`'s closing prose read *"`rg -n 'as f32'
+crates/viewer/tests` returns nothing."* It returns **one**:
+`camera_ops.rs`'s `the_narrowed_view_projection_refuses_what_a_gpu_cannot_hold`
+computes `let expected = from as f32` and asserts the door's output
+equals it. **That cast is correct and must be raw** — deriving the
+expectation through `Narrow` would assert the door against itself — so
+the substance holds and only the receipt was false. Corrected in the
+row at merge. It is the register's *a rule stated as a description of
+the output rather than as the command that produces the answer*, landing
+on a unit whose own PR corrected a job-count proxy of the same family
+(the lane counted six `test (…)` rows because it matched the prefix
+`test (` and the property is *a test row*; the interval half is named
+`interval / test (interval, …)`).
+
+### Filed, and one of them is large
+
+- `the-display-seams-refusal-is-drawn-and-never-said` (P2/D) — the new
+  refusals reach no reader; the channel is a badge, VNEWS's ground.
+  **This is the real cost of the unit**: a scene that refuses now
+  vanishes silently where it previously drew nonsense. At these
+  magnitudes the picture was already nowhere, so refusing is the honest
+  half — but the word is owed and is now scheduled rather than assumed.
+- `the-overlay-lanes-drop-the-leg-disposition-has-no-row` (P3/D) —
+  carries a mutation that reds **nothing**, so the disposition is held
+  by no row.
+- `work/vseam/app-rs-lost-its-matrix-narrowing-when-the-seam-got-a-home`
+  (P4/E).
+- `work/vdoc/the-f32-seam-diff-shifted-84-cited-lines-in-seven-programs`
+  (P4/D) — 283 citations examined, 26 already past EOF at base, 113 on
+  a line this diff moved, **84 substantive across 39 rows in seven
+  programs**. Published, **not applied**: the audit by subject is the
+  one real deferral and is filed rather than left in prose. That is the
+  correct half to defer — the register's hazard is a table APPLIED
+  without a subject check, and none was.
+
+### Territory, corrected against what the tool says
+
+The lane ran `territory` rather than trusting the dispatch, and two of
+my statements were wrong: `camera.rs` is claimed by **chrome, fit and
+view** as well, not the two I named; and `crates/viewer/src/narrowing.rs`
+read as *"owned by chrome, view"* because VGEOM's `paths` lists files
+rather than a glob. **Added to `program.md` here.**
+
+## 2026-09-21 — `vgeom/render-spelling` (#3031): the conversion a render performs owns its bound
+
+The wave's last lane, and the one whose unit halved mid-flight when
+#3007 turned out to have closed its other row. It reverted the work it
+had already done there — including a `number_text` doc arguing *leave
+it alone and state it*, which would have contradicted #3007's landed
+bound — and its header edit, so the row's `closed` / `branch` fields
+are #3007's and untouched. No duplicate fix, no duplicate row.
+
+**The decision: none of the three members takes the bound, and that is
+the answer.** Each renders a value another type owns, so the row is
+right that a render cannot narrow what it is handed. What a render CAN
+own is **the conversion it performs itself** — and all three perform
+one, `canonical / unit.factor()`, a multiplication UP for six of the
+unit table's eight rows. So the bound went to the conversion:
+`props::written` asks whether the converted value is a number, with
+`no_reading` as the one spelling of the refusal.
+
+`pane/view.rs` gained a named `camera_mm` reading the factor from the
+unit table, which also discharges the AUTH-2 third-spelling half;
+`bounds.rs::wording` goes through `shown_text`, deleting its
+hand-written divide; `props::field_text` uses `written`.
+
+**Two findings the row did not have.**
+
+- **The other direction.** `pi rad`'s factor is π > 1, so `5e-324` rad
+  written in `pi rad` divides to `0.0` — a text reading zero for a
+  value that is not. Both edges pinned; `written` refuses both ways.
+  The row was about overflow and the class is *the conversion can
+  leave the type*, which has two ends.
+- **`readout::number`'s doc asserted a false universal** — *"Nothing
+  in the chrome hands this one"* a non-finite value. Replaced with its
+  three callers and what each guarantees, with the sweep rule at the
+  sentence.
+
+**The new §5 second pass, run in both directions, found no fourth
+member** — backwards from every multiplication UP in the crate, and
+forwards from all 98 production sites that write a value into a text,
+of which exactly one has an arithmetic argument and it is already
+guarded. The remaining gap is stated rather than closed: *a product
+formed in another crate and handed here as an ordinary value*, which
+is other programs' ground.
+
+**The CHROME collision fired exactly where it was predicted to.**
+`chrome/one-number-one-home` merged while this lane was open and
+conflicted on the `bounds.rs` line the addendum named. Resolved to
+this lane's side because it is the SUPERSET — `props::shown_text` IS
+CHROME's `shown_in` plus the render plus the symbol, plus the refusal
+— so CHROME's finding stays discharged and nothing was reverted.
+CHROME had also appended evidence to this row file; both halves kept,
+theirs before the `## Closed`.
+
+**Stopped at the fence rather than crossing it.** The camera member's
+other half — `Camera::new` admits every finite radius, so
+`max_distance = radius * 100` arrives already `inf` above
+`f64::MAX/100` — belongs at `Camera::new`, in a file another lane held.
+Filed as `camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite`
+(P1/E) rather than taken.
+
+### Adjudication: one filed row deleted, and why
+
+The lane filed `work/props/props-log-carries-a-committed-conflict-block-on-main`
+after a tree-wide marker grep found a live conflict block in
+`work/props/log.md` on `main`. The finding was **true when made** and
+is now moot twice over: CHROME found it the same afternoon, filed
+`work/props/committed-conflict-block-in-the-props-log`, and repaired
+it at `97217090`; the markers are gone and CHROME's row is closed.
+
+So the lane's row was an open duplicate, of a closed row, about a
+repaired defect. **Deleted at merge** — one file, one item. And its
+central argument was wrong in a way worth naming: it read the gate as
+*filed for track J and never built*, therefore still owed. The gate
+was **decided against** — `work/ciw/committed-conflict-markers-reach-main`
+carries Ev's call of 2026-09-04 (*close it — the failure is rare and
+not worth the special effort*) two lines below the orphaning sentence
+the lane quoted. Reading `:30` and not `:32` is *check that Ev ever
+agreed* run in the opposite direction, and it costs the same.
+
+What survived is the datum, and it is recorded on the CIW row where
+the ruling lives: **four instances in about three weeks**, the newest
+costing two lanes a detour on one afternoon, both finding it by
+accident while checking their own merges. `lint` does not read
+`log.md`, so `main` was green over it. **The ruling stands and nothing
+here reopens it** — a standing gate is Ev's to decide.
+
+## Wave closed — 2026-09-21
+
+Four units dispatched, one stood down and re-tasked as a reviewer,
+four PRs merged (#3027, #3007, #3030, #3031) plus two orchestrator
+state-syncs. **Twelve rows closed; the slate went 15 open / 10 closed
+to 9 open / 22 closed, load 22.5 → 18 of 30.** Eleven rows filed
+across six programs (VGEOM, VSEAM, VDOC, CHROME, WIRE, LINALG, and one
+to `work/issues/`), every one a file rather than a sentence in a
+merged PR body.
+
+**The wave's own lesson is the correction near the top of this
+entry**: it was cut over an open lane, because the board cannot show a
+claim that has not merged. The remote check is one command and it is
+now written down.
+
+## 2026-09-22 — hand-over, and the whole rest of the slate dispatched
+
+A new orchestrator took VGEOM at the resting state the 2026-09-21 wave
+left: 9 open rows, load 18 of 30, nothing in flight. Ev's instruction
+at the hand-over was to take **the whole remaining slate**, parallelised
+as far as the machine's disk allows, and *"no AB protocol"* — which is
+this program's standing posture (plan.md §Review posture) reaffirmed a
+second time and not a new decision.
+
+### The resting state audited, and one stale branch
+
+`vgeom/pick-distance` is on the remote and is not an ancestor of main.
+It is **not unmerged work**: its one commit sets `status: dispatched`
+and `branch:` on the two `pickindex.rs` rows, and both rows are
+`closed` on main — that lane was stood down and its work absorbed into
+`vgeom/p0-fields` (#3007, `c316be7e`). The branch is superseded and
+nothing is owed to it. Every other `vgeom/*` branch is an ancestor of
+main; `work.py lint` is green; no open vgeom PR and no open `needs_ev`.
+
+Recorded because a claim-only branch left behind by a stood-down lane
+reads exactly like lost work to the next reader, and cost this sitting
+a check. A lane that stands down should push its claim commit's
+reversal or say in the log that the branch is dead.
+
+### A ratification checked, and it was not there
+
+`a-fields-text-commits-within-the-renders-own-tolerance`'s disposition
+said its remaining half *"changes `readout`'s own **ratified** accuracy
+rule, so it is a design question and not a lane's to answer."* Run
+against the tree per CLAUDE.md's *check that Ev ever agreed*:
+`REL_TOLERANCE` appears in `crates/viewer/src/readout.rs` and nowhere
+else — not in `docs/DESIGN.md`, not in `crates/viewer/GUI-DESIGN.md`
+(the ratified GUI page, whose only tolerance clause is the chordal one),
+not in `crates/viewer/README.md`. It is the module's own doc argument,
+landed inside an ordinary unit PR. **The row's block was weaker than
+the row claimed**, and the word is corrected by the unit that takes it.
+
+### Two questions put to Ev at the hand-over, both answered in chat
+
+**The creation-form parser** (`creation-form-fields-lost-two-spellings-egui-accepted`)
+— ruled option 1, leave it; the ruling and its reading are on the row,
+which is **closed**. #3007's disclosed cost is now a decision rather
+than an outstanding debt.
+
+**The render grid** — Ev asked why the bound is `5e-4` rather than
+something that scales with ε, recalling a rounding *"like eps/10 for
+display"*. The recollection is exact and the rule is in the tree:
+`crates/profile/src/path.rs`'s `num` reads
+`(DEFAULT_EPS * 0.1).min(x.abs() * 1e-9)` — a cap one decade below ε
+met with a relative arm, finer winning — behind 38 refusal-sentence
+call sites, landed by FIX #2399. Its doc argues the point directly: ε
+is a LENGTH, so a purely relative rule crosses it at one metre and is
+coarser above, and the cap is what guarantees that a difference the
+kernel can decide is a difference the sentence spells.
+
+`readout`'s `5e-4` is derived from no such thing. Its own doc derives
+it from a **field width** — `MAX_CHARS = 10`, ten characters buy four
+significant figures, four figures' worst case is half a unit in the
+fourth. ε is `1e-9` m = `1e-6` mm, so the viewer's grid is about 500×
+coarser than the kernel's at millimetre scale, and `number(1000.001)`
+returns `"1000"`. **Nobody chose that against the model; it fell out of
+a box.** The unit takes `num`'s grid, and `readout`'s own sentence is
+the warrant — *"a box narrower than this clips … that is the box's
+number to meet, not this one's to lower"* — applied to the tolerance
+rather than only to the width.
+
+### The wave — four lanes, seven rows, dispatched together
+
+Sized on the machine rather than on taste: a `viewer --features app`
+target dir measures **3.6 G** and the session has ~28 G, so four
+concurrent lanes with their own worktrees and their own
+`CARGO_TARGET_DIR`s is the ceiling, not a preference.
+
+| unit | rows | the one question |
+|---|---|---|
+| `vgeom/render-grid` | `a-fields-text-commits-within-the-renders-own-tolerance` (P0) | `readout.rs`: what accuracy a render owes, answered from ε rather than from a box |
+| `vgeom/field-product` | `a-field-bound-to-a-written-value-shows-a-product-that-overflowed` (P1), `a-bare-field-still-commits-its-own-render` (P2), `a-typed-field-hands-its-text-over-on-two-frames` | `widgets.rs`, `props.rs`, `pane/properties.rs`: three residues of the `number_field` door |
+| `vgeom/camera-band` | `camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite` (P1) | `camera.rs`: a door that guards its input and not the product it derives |
+| `vgeom/seam-refusals` | `the-display-seams-refusal-is-drawn-and-never-said` (P2), `the-overlay-lanes-drop-the-leg-disposition-has-no-row` (P3) | `marks.rs`, `pane/viewport.rs`, `narrowing.rs`: the one f32-seam disposition asserted by nothing and said to nobody |
+
+**The one seam inside the wave is declared rather than fenced.**
+`render-grid` changes what `readout::number` spells and `field-product`
+holds `widgets.rs`, whose `number_text` calls it. Both briefs carry it:
+`readout.rs` is out of `field-product`'s fence, `widgets.rs` is out of
+`render-grid`'s, `field-product` may assert no literal spelling that
+the grid moves, and `render-grid` merges first.
+
+**Why `field-product` carries three rows and not two.** The unbanded
+`a-typed-field-hands-its-text-over-on-two-frames` is the same file and
+the same door — its fix extends `number_field`'s parse closure, which
+is where the echo guard already lives. Split off, it would be a second
+lane editing one function. Banded P2/D by the lane.
+
+### Parked, and why it is not a lane
+
+`a-count-slots-cast-still-saturates-for-a-finite-value-too-large` is
+**parked on `work/wire/need-count-spells-every-failure-as-a-pattern-count`**.
+The 2026-09-21 re-derivation had already settled the fork's answer — a
+door in `editor-core`, not a viewer-side refusal — and what this
+sitting adds is that VGEOM may not write it and has no half that lands
+alone: refusing instead of saturating needs a word, and there is none
+the viewer may raise. Announced on WIRE's log rather than left to be
+found. That is the one row of the nine this program cannot take, and
+it is parked on a trigger that can fire rather than deferred.
+
+**Slate after this sitting: 9 open → 7 dispatched, 1 closed, 1 parked.**
+
+### The disk ceiling, measured wrong and corrected mid-wave
+
+The wave was sized at four lanes on a measurement of **3.6 G** — a
+plain `cargo build -p viewer --features app` into a fresh target dir.
+That number is right and was the wrong number to size on. With test
+artifacts and `debug/incremental`, the four target dirs reached
+**0.8 / 4.7 / 5.6 / 6.0 G after cleanup and 27 G of 28 G before it**,
+and the session hit 100% disk with 348 M free while all four lanes
+were live.
+
+**Roughly 11 G of the 27 G was `debug/incremental` alone.** Deleting
+the four incremental directories recovered all of it and cost nothing
+but a rebuild. `CARGO_INCREMENTAL=0` is now set in every lane for the
+rest of the wave: incremental buys a tight edit-compile loop, and with
+hosted CI as the verification of record and four lanes sharing one
+disk, that is the wrong trade.
+
+`memories/agent-lane-operations.md` says *"each lane grows a multi-GB
+`target/`"* and prescribes the remedy for the aftermath — *"after a
+disk-full crash, purge torn binaries (ELF-magic scan) and treat
+pressure-window test results as suspect."* Both were followed. The
+ELF-magic scan over all four target dirs found **zero** torn
+binaries, so no lane's artifacts were corrupted; the lanes were told
+to re-run anything that failed during the window rather than read an
+ENOSPC as a finding about their code.
+
+**The rule this wave learned, stated so the next sizing does not
+repeat it**: size a parallel wave on a target dir that has RUN THE
+TESTS, not one that has built the crate. The two differ by about 2.5×
+here, and the difference is what decides how many lanes fit. Offered
+to Ev as a refinement to `agent-lane-operations.md`'s disk paragraph,
+which today says only *multi-GB*; it is not written there yet, because
+`memories/` is Ev's call.
+
+## The camera's zoom band has a top — 2026-09-22 (#3062)
+
+`camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite`
+closed. `Camera::new` asked `is_finite` of its `scene_radius` and
+nothing of the `×100` band it derives, so every radius above
+`f64::MAX / MAX_DISTANCE_FACTOR` gave `max_distance() == inf` and a
+`distance` clamped into `..=inf`. The guard is at the door, beside the
+`finite` call it already made, in `DisplayTolerance::new`'s shape.
+
+**Three decisions worth keeping.**
+
+**The arm is its own.** `CameraError::SceneRadiusOverflowsZoomBand`
+rather than `NotFinite { what: "scene radius band" }`: the input IS
+finite and strictly positive and every other guard in the constructor
+takes it, so a message calling it a non-number would be false. That is
+the distinction `SceneError` already draws between
+`InvalidDisplayTolerance` and `DisplayToleranceOverflowsMillimetres`,
+and the new arm follows its naming, its doc shape and its scientific
+`Display` — a plain `{}` of a value three decades under `f64::MAX` is
+three hundred digits.
+
+**`MIN_DISTANCE_FACTOR` was asked and owes no guard.** It multiplies
+DOWN, so it cannot overflow; the live question was whether it flushes
+a small radius to zero and puts the band's floor on a non-distance. It
+does not: `f64::MIN_POSITIVE * 0.05` is about `2.25e14` smallest
+subnormals, and the factor would have to fall below about `2.22e-16`
+to spend that. Because that is a property of two constants rather than
+of any input, the answer is a measuring row rather than a sentence —
+`the_bands_floor_is_a_length_at_the_smallest_radius_the_door_admits`
+reds if either constant moves into the flushing range.
+
+**The fix did not mint a fresh copy of what it closed.** The guard
+would have been a fifth spelling of `radius * MAX_DISTANCE_FACTOR`, so
+`band_floor`/`band_ceiling` took the band's two ends and
+`min_distance`, `max_distance`, `clamp_distance` and `fitted` now read
+them. `camera.rs` also gained its first `#[cfg(test)] mod tests`; the
+suite rows stay in `tests/camera_ops.rs`, which is other programs'
+ground.
+
+**The sweep's own lesson.** The first pattern — a `is_finite()` guard
+with a scaled derivation in the same function — is blind to exactly
+the shape that produced this row, a product formed in a different
+function from the guard. Three further passes shaped at that gap
+(field × named constant; `<<`/`powi`/`powf` ladders; division by the
+guarded input) found two more members, both filed: `datum_view`'s
+infinite aspect and scale, and `BoundsProbe::new`'s `seed · 2^11`
+ladder. What is still blind is a guard and its product in two
+different crates, which no pass here crossed.
+
+## 2026-09-22 — `vgeom/render-grid` (#3068): what accuracy a render owes
+
+P0 `a-fields-text-commits-within-the-renders-own-tolerance` **closes**.
+Its COMMIT half closed in #3007; this is the RENDER half, and it is a
+user-visible GUI change made on Ev's question.
+
+`readout::REL_TOLERANCE` was the whole rule and its derivation was a
+FIELD WIDTH — ten characters buy four significant figures — so
+`number(1000.001)` returned `"1000"`. The module now renders on
+`crates/profile/src/path.rs`'s `num` grid: an absolute cap one decade
+below the compile-time `DEFAULT_EPS`, met with the existing relative
+arm, `min`, the finer winning. The cap is what makes a difference the
+kernel can DECIDE a difference the chrome SPELLS.
+
+**The relative arm stayed at 5·10⁻⁴ rather than taking `num`'s
+`1e-9`,** and that is the unit's one real judgement call: below the
+arms' crossing the relative arm is finer than the cap by construction,
+so it never decides ε-separation and is a pure figures choice — and
+four figures below 2·10⁻⁷ of a display unit is what ε justifies, where
+ten would be the false-precision defect the module exists to cut.
+
+`MAX_CHARS` 10 → 22 and `FIELD_WIDTH` 88 → 176 pt: the widths gave
+way, the grid did not. The band at the top of `f64` that used to
+exceed `MAX_CHARS` now fits it, so the module has no excepted band
+left.
+
+**Filed**: `the-render-grids-cap-is-a-length-and-angles-go-through-it`
+(the unit's own residue — ε is a length and the chrome renders angles
+through the same door) and
+`the-camera-hud-spells-its-angles-at-a-fixed-tenth-of-a-degree` (the
+sweep's one production hit, waiting on the first).
+
+**Handed to PROPS**: `patherror-display-renders-float-noise` has been
+waiting for a second CRATE consumer of `num` to force its home
+question. `readout` is it. Evidence appended there: the rule adopted,
+and a table of the three deliberate differences — notation policy, the
+relative arm, the character bound — with the note that a consolidation
+must take the arm as a parameter or take one knowingly.
+
+**For `vgeom/field-product`, which rebases onto this**: `widgets.rs`
+was crossed for doc links and moved fixtures only — `number_text`'s
+code is untouched. `nothing_at_or_above_one_display_unit_renders_differently`
+is gone, replaced by
+`a_drag_steps_through_a_text_that_names_what_it_commits`; its old
+claim was a statement about 5·10⁻⁴ and stopped being true.
+
+## `vgeom/seam-refusals` — the third disposition of the display seam (#3065, 2026-09-22)
+
+Closes `the-display-seams-refusal-is-drawn-and-never-said` (P2/D) and
+`the-overlay-lanes-drop-the-leg-disposition-has-no-row` (P3/D) as one
+unit, the assertion half deciding the badge half.
+
+**The rule has one home and a headless door.** `marks::LegLane` is the
+seam's per-leg disposition — a leg with an end whose narrowing is not
+a finite `f32` is not drawn, the rest of the lane is, and the drop is
+counted. It replaces `marks::segments_of` and the pair-narrowing
+inside `pane::viewport::push_segment`, which were one rule written
+twice, and absorbs the datum lane's inline `filter_map`.
+`marks::edge_id_lane` is the public door that keeps the count;
+`edge_id_segments` keeps its signature.
+
+**The mutation the second row measured at zero now reds six rows.**
+Re-measured on this branch's own base rather than quoted: planting
+*keep a leg whose end does not narrow* at `segments_of` and
+`push_segment` reds nothing on `main`, and at `LegLane::leg` reds four
+`marks::tests` rows and two `pane::viewport::tests` rows.
+
+**The badge question, decided rather than deferred, and split.** An
+overlay LEG is worth a badge and the VNEWS half is filed
+(`an-overlay-leg-past-the-display-seam-is-not-badged`): the seam
+refuses per leg, not per lane, so an authored profile with one corner
+at `7e307` — a number the add-profile form takes — draws as its
+ordinary legs and a gap, in a picture a person is looking at. That is
+the refutation of the argument the row recorded against a badge, which
+assumed the whole picture was nowhere. The pane's OWN extent refusing
+is the opposite case and gets no badge: `aspect()` has already
+declined anything but a window above `3.4e38` physical pixels, so a
+badge would name a state nobody can reach. That reason is now written
+at the site rather than left to a PR body.
+
+**Two findings filed off the sweep** for *a typed refusal computed and
+dropped on the floor*: `work/vnews/a-swallowed-ray-refusal-is-announced-as-a-picking-disagreement`
+(a dropped `faces_under_cursor` refusal publishes a disagreement
+neither picking path claimed) and
+`work/author/blend-swallows-the-edge-name-fault-the-index-calls-loud`
+(two sites collapsing three faults the index's header says are not the
+same news).
+
+## `vgeom/field-product` — the numeric field door's three residues (2026-09-22, #3067)
+
+Three residues of `crate::widgets::number_field`, closed together
+because they are one door:
+`a-field-bound-to-a-written-value-shows-a-product-that-overflowed`
+(P1/D), `a-bare-field-still-commits-its-own-render` (P2/D) and
+`a-typed-field-hands-its-text-over-on-two-frames`, which arrived
+unbanded and is banded P2/D here.
+
+**What a field SHOWS.** The refusal moved above the widget, because an
+`egui::DragValue` cannot spell it: the formatter is handed the `f64`
+the widget holds, with no unit in scope. `props::shown_value` is the
+new conversion door — `shown_in`'s total twin, `Ok(number)` or
+`Err(unit)` — and `widgets::named_field` and `widgets::value_field_ops`
+now draw `props::no_reading` where the field would be rather than a
+field reading `inf`. **The marker stands alone**: a disabled field
+still has to be handed the `inf`, and a canonical number beside a
+picker naming a different notation is a number to misattribute. No
+third refusal vocabulary.
+
+**A gate under the door.** `scripts/gates/viewer-numeric-field-door.sh`
+refuses a bare `egui::DragValue` under `crates/viewer/src` outside
+`widgets.rs`, which holds both the constructor and the rows that prove
+what it adds. The bare-field row's census — *every numeric field in
+the crate goes through the door* — was a measurement taken once and is
+a standing fact now.
+
+**One keyboard edit, one operation.** `value_field_ops` remembers,
+under the widget's own id, the text it last turned into an operation,
+and clears it on `gained_focus`. The id comes off the `Response`
+rather than being re-derived, which is what the row's argument against
+`had_focus_last_frame` asked for. `DocSession::writes_nothing` was not
+touched: the two rules are two, and
+`a_re_typed_text_after_focusing_again_is_a_second_act` is the case
+where the document's rule is the only answer there is.
+
+**The sweep and its blind spot.** Thirteen `number_field(` call sites,
+eleven in production, two of them conversions — the row's count, held
+at this merge base. The rule reads the CALL SITE, so it is blind to a
+product formed one frame up, and the second pass found one:
+`pane::properties`' free-move probe converts to millimetres before
+handing the triple to `vec3_row_ops`. Not fixed, and the reason is
+written at the site: the translation there is never a document value,
+only one the probe itself authored.
+
+**Filed**:
+`field-texts-literal-arm-is-unreachable-from-both-call-sites` —
+`props::field_text`'s literal arm is reachable from neither caller,
+and its prose is the only statement in the crate of what a literal
+field shows.
+
+## Wave closed — 2026-09-22
+
+Four lanes dispatched together, **four merged**: #3062 `camera-band`,
+#3068 `render-grid`, #3065 `seam-refusals`, #3067 `field-product`,
+plus two orchestrator state-syncs (#3060 and this one). Every lane's
+CI was read off the `change filter` log rather than off job names, and
+every one was un-narrowed: `LANE=both EPS=all KLINT_ROW=all`.
+
+**Seven rows closed, one closed by ruling, one parked.** The slate
+went 9 open / 22 closed at load 18 to **5 open / 30 closed at load 8**,
+and the band profile went from one P0 and two P1 to **none of either**.
+
+**Four of the five open rows are NEW** — filed by these lanes out of
+their own sweeps, not inherited: the `datum_view` aspect row, the
+`BoundsProbe` ladder row, the camera-HUD angle row, and the render
+grid's own ε-is-a-length residue. Plus `field_text`'s unreachable
+literal arm. That is the wave finding work rather than finishing it,
+which is the healthy direction for a slate this size.
+
+Rows filed outside this program: two on VNEWS (the overlay-leg badge
+half, the swallowed ray refusal), one on AUTHOR (blend swallowing the
+edge-name fault), one on S-TINT (the hand-written `CameraError`
+roster), one on META (below), and evidence appended to PROPS'
+`patherror-display-renders-float-noise` — which was the point of the
+render-grid unit's filing obligation and is now holding the second
+consumer it had been waiting for.
+
+### The wave's own lesson: the dispatch is a hypothesis, and it was wrong four times
+
+`docs/prompts/reviewer-style-lane.md` §1 says a reviewer should treat
+the dispatch as the dispatcher's belief rather than a finding. **This
+wave says the same of an implementer brief, and the evidence is that
+every lane that went and looked found its brief's premise wrong in
+some respect.**
+
+- **`field-product`** was told to choose between a disabled field and
+  canonical-notation-beside-the-marker. It rejected both: a disabled
+  `DragValue` still has to be handed an `f64`, and the only one in
+  scope is the `inf` the door exists to suppress. Drawing the marker
+  alone is what the orchestrator's real constraint implied and the
+  instruction's letter did not.
+- **`render-grid`** was told to adopt `num`'s grid and argue a
+  relative arm. It argued the arm is **the wrong knob**: above the
+  crossing the ε-cap governs, below it the value is beneath ε in every
+  notation the chrome writes a length in, so the arm never decides
+  whether the render separates what the kernel separates. It kept
+  `5e-4` and added the cap. `REL_TOLERANCE` was never wrong; it was
+  incomplete.
+- **`seam-refusals`** falsified the argument recorded in its **own
+  row** — *at these magnitudes the picture is already nowhere* — by
+  observing the seam refuses per LEG, not per lane. A four-corner
+  profile with one corner at `7e307` draws two legs and leaves a gap,
+  at a camera framed on the ordinary corners. Executed, not argued.
+- **`field-product` again**, on the orchestrator's review finding: told
+  to write a row holding the `f64::NAN` sentinel, it found the arm
+  unreachable through the public door and **deleted the arm** instead,
+  holding the reachability claim with a row over `Dimension::ALL`.
+  Removing the code beat testing it.
+
+The orchestrator half of that: in three of the four, the brief's error
+was a **false dichotomy** — two options named where the right answer
+was a third or none. A brief that names options should say they are
+the ones the dispatcher could see, which this program's next one will.
+
+### Two costs of parallelism, both measured
+
+**Disk** — recorded in full above. Sized on a build, should have been
+sized on a test run; 2.5× apart.
+
+**The log** — every lane's every base merge conflicted on
+`work/vgeom/log.md`, eight resolutions across the wave, all unions and
+none a real disagreement. Filed as
+`work/meta/parallel-lanes-pay-a-quadratic-conflict-tax-on-one-log`
+with the per-branch numbers. It reopens no ruling; it puts a number
+under one that was made against an impression. The mitigation used
+here needs no ruling: the orchestrator resolved every lane's log
+conflict itself, being the one reader who had seen all four entries.
+
+### What is left
+
+Five open rows, all P2/P3, none blocked on a decision. One parked on
+WIRE's `need_count` siting. The program is in a state a successor can
+pick up cold.
+
+## A note from CHROME (2026-09-22) — 4 rows re-homed here
+
+CHROME measured 88 budget points against its 30-point ceiling and was
+cut along its priority seam (`work/chrome/log.md`, same date), opening
+FORMS and OFFER. Per `work/README.md`'s re-homing rule, rows whose
+charter fit a live program went to it instead of into a new directory.
+Moved here by `git mv`, ids, bodies and history unchanged:
+
+- `viewer-substituted-value-class-is-crate-wide`
+- `camera-project-answers-with-a-screen-position-for-a-projection-that-overflowed`
+- `positive-finite-predicate-has-six-homes-outside-datums-rs`
+- `metres-per-pixel-at-hand-rolls-a-norm-the-file-already-calls`
+
+Each passes this program's charter test — a wrong number, or no number, reaches the screen. The substituted-value row names this program's non-finite class crate-wide; `Camera::project` answers a screen position for a projection that overflowed. `mispaired-ids-exempts-the-empty-window` was NOT sent here: this log declined it on 2026-09-21 on the same test, and it went to FIT beside its id-readback row. Nor were `culling-is-load-bearing-with-no-pixel-test` (BLIND) or `viewer-expresses-no-gpu-adapter-preference` (OFFER), for the same reason.
+
+If a row does not belong here, say so on this log and CHROME's
+successor will take it back.
+
+Signed (CHROME orchestrator).

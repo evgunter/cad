@@ -339,7 +339,7 @@ above as well, and neither is a header edit alone.
 | `pane::properties` | the property pane |
 | `pane::view` | the view pane |
 | `pane::viewport` | the viewport pane |
-| `widgets` | the free helpers over `egui::Ui` the panes share |
+| `widgets` | the free helpers over `egui::Ui` the chrome shares — mostly the panes; `widgets::message` is also `app.rs`'s (Where a MESSAGE wraps, below, and the row that holds that roster) |
 | `gpu` | the wgpu viewport renderer |
 
 `session` is a driver **and** the parent of six vocabularies, so
@@ -393,21 +393,38 @@ population of adjacent same-typed `bool` parameters in this crate;
 `work/view/adjacent-same-typed-arguments-are-the-same-swap.md` carries
 the wider class, where the types are not `bool`.
 
-**Every "is work outstanding" answer consults the seam it asked.**
-There are three seams — evaluation, the pick index and the display fit
-— and each has a consumer that reports whether work is owed.
-`DocSession::running` is `EvalService::busy`; `PickCache::indexing` is
-`IndexService::busy` beside the cache's own record of which picture was
-asked for, so a build already destined to be discarded
-(`IndexLanding::Stale`) does not light the indicator and a build nobody
-is answering stops lighting it; and the fit's two reads in `app` are
-`FitService::busy` directly, with no second record to consult. What the
-rule is for is a build already destined to be discarded: the cache's
-own record says which picture was asked for, and asking the seam is
-what keeps a consumer from promising an answer out of its own
-bookkeeping — a spinner for the life of the window, a repaint every
-frame to collect a result nobody will send, and every click refused
-with *the picture is still being indexed*.
+**Every "is work outstanding" answer comes from whichever of the two
+records can be wrong about it, and there are only two.** There are
+three seams — evaluation, the pick index and the display fit — and
+each has a consumer that reports whether work is owed. The seam knows
+that it is busy; a consumer that keeps its own record knows WHAT it is
+busy with, and where they can disagree the consumer's record is the
+one that decides.
+
+- `DocSession::running` is `EvalService::busy` directly. The session's
+  own record (`DocSession::busy`, its two generations) answers a
+  different question — is the picture older than the document — and
+  the two differ after a cancel, which is the whole of
+  `Outstanding::Canceled`.
+- `PickCache::indexing` is the cache's own record alone. The seam
+  cannot tell an orphan from a live build: `PickCache::forget` drops
+  the attempt when the picture stops existing, and a build already
+  destined to be discarded (`IndexLanding::Stale`) must not go on
+  lighting the indicator while the seam finishes it. In the other
+  direction they cannot disagree — an attempt is recorded in the step
+  that submits it and the seam holds the request until the answer
+  `pump` takes straight to `land`.
+- The fit's two reads in `app` are `FitService::busy` directly; there
+  is no second record to consult.
+
+**A seam that has stopped answering is no longer one of the states any
+of this covers.** It used to be: reporting the cache's record alone
+left the toolbar spinning on `indexing…` for the life of the window,
+repainting every frame to collect a result nobody would send, and
+refusing every click with *the picture is still being indexed*, of a
+picture nobody was indexing. What closed that is the panic below and
+not a second read — a seam whose worker has gone ends the process
+where it finds out, so no consumer has to describe one.
 
 **A worker that CRASHED is no longer one of the states this rule
 covers, and the change is deliberate** (Ev, in-chat, 2026-09-17:
@@ -1055,7 +1072,8 @@ sites it has been run against.
 `initial_layout` and the entry points; `pane::{viewport, features,
 properties, create, view}` hold the `*_ui` functions that draw each
 pane, one module per pane; `widgets` holds the free helpers over
-`egui::Ui` that those panes share; and `gpu` holds the wgpu viewport
+`egui::Ui` that those panes share, and the one `app.rs` shares with them
+(`widgets::message`, below); and `gpu` holds the wgpu viewport
 renderer, which names `eframe::wgpu` and could not be a vocabulary
 under any reading. The table above is where that roster is kept.
 
@@ -1069,6 +1087,52 @@ not merely whether it is a vocabulary.
 
 `app.rs`'s header claim — *toolkit adaptation, and nothing else* — is
 true of the file rather than a claim it has outgrown.
+
+**Where a MESSAGE wraps is a question about the region, so it has one
+home**: `widgets::message`, with `widgets::message_link` and
+`widgets::message_toned` beside it. `egui::Ui::wrap_mode` answers from
+the `Ui`'s own `egui::Style::wrap_mode` if something set one, else
+`Extend` inside a grid, else the layout's — and nothing in this chrome
+sets a style wrap mode, so a label's wrap is decided by the layout it
+happens to be in. A whole sentence — a refusal, a fault, a check
+finding, the status line — is not what either of the layout's two
+answers is for: in an ordinary horizontal row it is laid out at
+infinite width and drawn past the region's right-hand edge, and in the
+toolbar's wrapping row every line after the first is placed at the
+panel's left edge, which for a top panel is the window's.
+`widgets::message` lays the sentence out at the region's own width and
+hands it over already laid out, which is the one path egui neither
+extends nor re-places; it asks for the wrap explicitly, so a future
+context-wide `Style::wrap_mode` would move every other label in the
+chrome and leave a message where it is. `widgets::message_toned` adds
+the voice, through `app::toned`, so what `Advisory` looks like stays
+decided in one place.
+
+The region is taken down to a floor and no further:
+`widgets::message_floor` is the widest number `readout::number`
+returns (`widgets::widest_number`, over `readout::widest_render`) and
+one space after it. Below the floor a message stops narrowing and the
+pane's `ScrollArea::both()` scrolls, and a line never breaks inside a
+number `readout` renders. `widgets::message`'s doc says why the space
+is there and what the floor does not cover, and states the rule for
+which texts are bounded by characters and which by their region.
+
+Its call sites are `app.rs`, `pane/features.rs`, `pane/profile.rs` and
+`pane/view.rs` — a roster this page states twice (here and in the
+module table above) and therefore does not keep by hand:
+`widgets::roster_tests::the_message_roster_is_what_the_crate_actually_calls`
+re-derives it from the crate's own source. It is **not yet** the
+creation and properties panes'
+(`work/chrome/messages-in-the-creation-and-properties-panes-still-draw-past-their-row.md`).
+`widgets::message_tests` holds the measurements — that the sentence
+fills the region it is in rather than a width of its own, across three
+region widths; that below the floor it stops narrowing and never breaks
+inside a rendered number; that egui's own scroll container hands its content the
+visible width rather than an infinite one, so a pane that scrolls both
+ways still wraps its sentences instead of answering with a scrollbar —
+and `app`'s `the_toolbars_status_line_wraps_under_itself_rather_than_at_the_windows_edge`
+measures the status line in the real toolbar, which is where the
+second symptom was reported.
 
 **Startup is split by what it needs, and the two context-wide styles
 are on the deviceless side.** `ViewerApp::new` takes an

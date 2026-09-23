@@ -234,3 +234,97 @@ ledger entry; the item and the unit are closed. The slate drops 6
 points (17.5 remain); what is left waits on Ev (SYM-10, #2970), on
 SYM-10 (SYM-9, `rule-d-reaches-the-unit-bulge-only`), on BLEND
 (`declared-tangency`) or on a document (`revolve-carriers`, E6).
+
+## Ev's ruling on the fourth piece; SYM-10 closed on Phase 1; DECIDE-3 cut; block DECIDE-B1 opens (2026-09-21)
+
+Ev on #2970: "(a) sounds great" — the full canonical root, at the mint
+site, after the orchestrator withdrew its narrow-form recommendation
+(re-baseline avoidance dressed as caution; Ev: "having to re-baseline
+is never a reason to skip a code change for the better"). Recorded on
+`the-candidate-norm-needs-a-canonical-square-root` (`needs_ev` off,
+"Ruled"). SYM-10 CLOSES on its Phase 1 measurement — no rule written,
+#2970 the record, merged to `props/sign-hull` per its spec, the spec
+deleted with its ledger entry; block SYM-B2 slot 2 concludes with no
+dual run (the unit stopped at its stop clause before a frozen head
+existed). The three rows SYM-10 filed on this branch and FRAME's
+evidence row are carried to main here byte-identical to the lane's.
+Phase 2 is **DECIDE-3** (`docs/DECIDE-3-SPEC.md`; branch
+`decide/3-canonical-root`, cut from `sym/10-decision-door`'s head with
+main merged in; PR against `props/sign-hull` while #2468 is open): the
+canonicaliser in `mint_atom`'s `Sqrt` arm, the `D ≥ 0` side condition
+argued once, the two reads behind every value-free fold, acceptance
+"no decision lost on the six documents" with everything that moves
+said. **Triaged IN under v7** (a canonical-form decision over every
+atom the tier keys; H / NUMERIC, pre-draw). **Block DECIDE-B1 opens**
+on `decide/b1-block`: slot 0 = DECIDE-3, slot 1 = SYM-9 (its spec on
+main since #2602; H / NUMERIC), slot 2 = `rule-d-reaches-the-unit-bulge-only`
+(D / NUMERIC, spec at dispatch); the draw is recorded there. The
+slate drops SYM-10 (12.5 points remain).
+
+## DECIDE-3 merged (2026-09-22): the canonical root at the mint site — block DECIDE-B1 slot 0
+
+PR #3039 into `props/sign-hull` (landing head `5d3bc7e8b`, run
+35687782592 green on the full matrix). Rule G: every `sqrt` atom keyed
+on its argument's value class at the one mint site — content
+rationalised `(n·d)/d²` and split off, `sqrt(N/D) = sqrt(N)/sqrt(D)`
+under `D > 0` proved from the form (a non-negative constant,
+`manifest::nonneg` with a definite quadratic in one indeterminate, a
+manifestly non-positive denominator over the negated pair, the
+certified bracket), `sqrt(R²) = |R|` through the magnitude door, `|Y|`,
+`|−Y|`, `|c·Y|` and `c·|Y|` one atom; the two certified reads (at
+`Select`, at `min`/`max`) behind every value-free fold; A0 deciding a
+`min`/`max` of two rational constants and of one form as theorems;
+rule A's `|X|² = X²` dialled with G. The tilted row green with its
+assertion untouched; the tilt-`u` wall answered
+(`work/sym/the-tilt-u-newell-residual-is-the-next-wall` closed); the
+plate 811/0/140/462, the link 541/0/96/465, the bracket
+1104/7/144/766, the pad 890/6/150/907, the slab 490/255 with nothing
+gated.
+
+Review: the dual on `a200f768d` against `decide/3-review-base`
+(R1 OPUS MERGEABLE-AFTER-FIXES 1/5/6 — two plate re-baselines
+misattributed; R2 FABLE NOT MERGEABLE 3/6/6 — the side condition's
+atom-table source UNSOUND by a dead-arm adversary, the link's trade,
+the un-dialled `Abs` rewrite). Fix pass A–S. The unit STOPPED at C on
+the link's `carrier_on_surface_2` (sixteen theorems lost per predicate
+while the document's totals rise; the remedy tried recovers ten and
+costs forty) against the spec's "no decision LOST" acceptance, which
+the ruled row had carried as Ev's ruling. **Ev corrected the
+attribution on #3039 (02:03Z)** — the sentence was the orchestrator's
+spec text; the ruling is shape 1 plus "never skip out on a change that
+would make the code better because it would require rebaselining" —
+and added (02:05Z) "make sure that the code that goes in is clean, and
+doesn't have any concession towards skipping a rebaseline". So: the
+link re-baselined and pinned on both sides, the row open at P1 for
+SYM-9; item H's concession (the read declining constant comparisons to
+keep the slab pin) reversed into the A0 fold, with the slab, the
+plate's `line_span`, the D-tabs, the boss, the ledgers and the
+derived-frame A0 rung re-baselined and said
+(`a0-leaves-max-and-min-of-constants-opaque` closed). Delta by R1 on
+`9399ddaf7`: MERGEABLE, both rulings applied, five non-blocking
+findings taken as a polish pass (`5d3bc7e8b`). Spec deleted with its
+ledger entry; the ruled row and the unit closed. Two rows stay open
+from the unit: `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
+(P1, SYM-9's) and `decision-read-triples-the-plate-pin-suites-wall-time`
+(P2). The A/B row is recorded on main at the merge. Next: SYM-9 (block
+DECIDE-B1 slot 1). The SYM-12/DECIDE-3 seam
+(`work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`)
+is the `props/sign-hull` merge's.
+
+## SYM-9 dispatched (2026-09-22): the retry ladder — block DECIDE-B1 slot 1
+
+SYM-9's spec (on `main` since #2602, 2026-09-14) gains its A1
+amendment at dispatch: DECIDE-3 landed on `props/sign-hull` and the
+retry is over the atoms rule G re-keys, so the branch
+`sym/9-retry-ladder` is cut from that branch's head (`cd14d4fd9`) with
+no further `main` merged (the SYM-12/DECIDE-3 seam is the
+`props/sign-hull` merge's own measurement); the PR targets
+`props/sign-hull`; the six documents' base numbers are DECIDE-3's; the
+link row `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` is
+Phase 1's first table and the kept-atom retry's measured instance
+(the provenance remedy rejected with its numbers; the residual render
+still owed); the read-cost row rides as far as Phase 1's cost table.
+Arm OPUS per the block's draw (byte 248 ⇒ fable at slot 2); v7 IN, the
+full v6 dual, the review ordinal claimed on `main` at the dual's
+dispatch (DECIDE's band, 8601 expected). Brief
+`/home/user/sym-briefs/unit-9-brief.md`, sha256 in its sidecar.

@@ -1809,7 +1809,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/boolean/mod.rs",
         "BooleanError",
         POSITIONAL,
-        8,
+        3,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (

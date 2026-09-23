@@ -445,12 +445,17 @@ macro_rules! nurbs_curve {
                         Some(m) => m.min(v),
                     });
                     // `w′`'s SIGNED hull, from the ring-rounded
-                    // coefficients (`!(a >= b)` so a poisoned
-                    // coefficient poisons the hull rather than being
-                    // skipped by a false comparison).
+                    // coefficients. The refusal is asked by name: the
+                    // ring keeps it in the decoration, so a
+                    // coefficient that may not certify carries
+                    // ordinary endpoints and would widen the hull by a
+                    // number instead of collapsing the whole bound.
                     let Some(q) = dw.get(i) else {
                         return poison;
                     };
+                    if q.is_poison() {
+                        return poison;
+                    }
                     #[allow(clippy::neg_cmp_op_on_partial_ord)]
                     if !(q.lo() >= wp_lo) {
                         wp_lo = q.lo();
