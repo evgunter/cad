@@ -2,10 +2,11 @@
 id: names-emit-keeps-an-unguarded-two-refusal-walk
 kind: issue
 title: names/emit keeps a two-refusal half-edge to face walk that no test distinguishes
-status: open
+status: dispatched
 opened: 2026-09-19
 priority: P3
 cost: E
+branch: emit/emit-rs-drivebys
 ---
 
 
