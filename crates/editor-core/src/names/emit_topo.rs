@@ -924,7 +924,7 @@ fn name_boolean_edges<T: Decide>(
     // WITHIN the rim. [`chord_on_rim`] checks both before the name is
     // given, and a chord that fails it — or one with no key side, a
     // zip-listed edge — refuses as the missing rule it is
-    // (`NamingError::MergedChord`).
+    // (`NamingError::MergedChordOffRim`, `NamingError::MergedChord`).
     let chord_kind = |e: EdgeKey, own: Option<OpSide<()>>| -> Result<ChordKind, NamingError> {
         let faces = inc
             .edge_faces
@@ -947,7 +947,7 @@ fn name_boolean_edges<T: Decide>(
             }
             (true, true) => {
                 let Some(side) = own else {
-                    return Err(NamingError::MergedChord { edge: e, rim: None });
+                    return Err(NamingError::MergedChord { edge: e });
                 };
                 let (d0, d1) = (
                     chord_descent(faces[0], side)?,
@@ -960,9 +960,10 @@ fn name_boolean_edges<T: Decide>(
                         OpSide::A(()) => ChordKind::SameA(rim),
                         OpSide::B(()) => ChordKind::SameB(rim),
                     }),
-                    Rim::One(rim) => Err(NamingError::MergedChord {
+                    Rim::One(rim) => Err(NamingError::MergedChordOffRim {
                         edge: e,
-                        rim: Some((op.node, rim)),
+                        node: op.node,
+                        rim,
                     }),
                     Rim::NotOne(found) => Err(NamingError::SharedRim {
                         node: op.node,
