@@ -14,7 +14,7 @@
 //! - a vertex minted on one operand's edge where the other's vertex
 //!   touches it, in a result that is one operand's clone and in an
 //!   assembly, each in both orders, pinned by name;
-//! - the operand-swap row: five fixtures, union and intersection, both
+//! - the operand-swap row: six fixtures, union and intersection, both
 //!   orders; every face, edge and vertex name of `x op y`, with `FromA` and
 //!   `FromB` exchanged and each `Seam{a, b}` read as `Seam{b, a}`, is the
 //!   name the same geometry gets in `y op x`. It guards SYMMETRY only —

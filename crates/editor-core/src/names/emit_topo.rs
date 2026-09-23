@@ -538,15 +538,6 @@ impl<K: Copy> OpSide<K> {
         }
     }
 
-    /// How this side's operand keys map into the result (its column of
-    /// the layout `operand_key` reads).
-    fn keys(self, naming: &topo::BooleanNaming) -> topo::OperandKeys {
-        match self {
-            OpSide::A(_) => naming.a_keys,
-            OpSide::B(_) => naming.b_keys,
-        }
-    }
-
     /// The `FromA` / `FromB` segment wrapping a name read on this side.
     fn wrap(self, inner: NameRef) -> RoleSeg {
         match self {
@@ -556,25 +547,38 @@ impl<K: Copy> OpSide<K> {
     }
 }
 
+/// Where an operand-space key returned by [`operand_key`] lives.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum KeySpace {
+    /// The operand's clone IS the result arena: the key is an arena
+    /// key, and its lineage is the arena's own provenance.
+    Arena,
+    /// The operand was grafted in: the key is the graft's SOURCE key,
+    /// read back through the graft rows.
+    Graft,
+}
+
 /// **The one read of a boolean result's key layout**: which operand a
-/// result-arena key belongs to, and its key in that operand's space.
-/// A result key is an A key only where A's clone is the arena, and a B
-/// key either through the graft rows (`inv`, destination → source) or
-/// because B's clone is the arena itself — so "not grafted" means "A"
-/// only in the grafted layout. Every pass reads keys through here.
+/// result-arena key belongs to, its key in that operand's space, and
+/// where that key lives. A result key is an A key only where A's clone
+/// is the arena, and a B key either through the graft rows (`inv`,
+/// destination → source) or because B's clone is the arena itself — so
+/// "not grafted" means "A" only in the grafted layout. Every pass reads
+/// keys through here, and the side and its key space come out of one
+/// match rather than being re-derived from the layout.
 fn operand_key<K: Copy + Ord>(
     naming: &topo::BooleanNaming,
     inv: &BTreeMap<K, K>,
     k: K,
-) -> Result<OpSide<K>, NamingError> {
+) -> Result<(OpSide<K>, KeySpace), NamingError> {
     use topo::OperandKeys;
     match (naming.a_keys, naming.b_keys) {
         (OperandKeys::Direct, OperandKeys::Grafted) => Ok(match inv.get(&k) {
-            Some(&kb) => OpSide::B(kb),
-            None => OpSide::A(k),
+            Some(&kb) => (OpSide::B(kb), KeySpace::Graft),
+            None => (OpSide::A(k), KeySpace::Arena),
         }),
-        (OperandKeys::Direct, OperandKeys::Absent) => Ok(OpSide::A(k)),
-        (OperandKeys::Absent, OperandKeys::Direct) => Ok(OpSide::B(k)),
+        (OperandKeys::Direct, OperandKeys::Absent) => Ok((OpSide::A(k), KeySpace::Arena)),
+        (OperandKeys::Absent, OperandKeys::Direct) => Ok((OpSide::B(k), KeySpace::Arena)),
         _ => Err(NamingError::Emission {
             what: "unsupported operand-key layout",
         }),
@@ -617,7 +621,7 @@ pub(crate) fn name_boolean<T: Decide>(
     // clone was grafted. A reader comparing the rendered key against
     // the result body will not find it.
     let descend_face = |f: FaceKey| -> Result<OpSide<FaceKey>, NamingError> {
-        Ok(match operand_key(naming, &inv_faces, f)? {
+        Ok(match operand_key(naming, &inv_faces, f)?.0 {
             OpSide::A(fa) => OpSide::A(chase(&a_rows, fa)?),
             OpSide::B(fb) => OpSide::B(chase(&b_rows, fb)?),
         })
@@ -1026,7 +1030,7 @@ fn name_boolean_edges<T: Decide>(
     // `chase_edge_to_table`, this walk reads `fwd_edges` — built from
     // `BooleanNaming::graft_edges`, which the caller supplies —
     // between provenance reads, so one honest `split_edge` record and
-    // two synthetic graft rows close the loop from outside `topo`.
+    // one synthetic graft row close the loop from outside `topo`.
     let chase_b = |e_b0: EdgeKey| -> Result<EdgeKey, NamingError> {
         let mut e_b = e_b0;
         for _ in 0..=fwd_edges.len() {
@@ -1053,14 +1057,11 @@ fn name_boolean_edges<T: Decide>(
         // arena has its lineage in the arena's own provenance, so its
         // edge chases there — A in an A-clone or grafted result, B in a
         // B-clone one. Only a grafted side needs `chase_b`'s bridge.
-        let side = operand_key(naming, inv_edges, e)?;
+        let (side, space) = operand_key(naming, inv_edges, e)?;
         let (op, k) = side.of(a, b);
-        let root_key = match side.keys(naming) {
-            topo::OperandKeys::Direct => chase_edge_to_table(body, op.table, k)?,
-            topo::OperandKeys::Grafted => chase_b(k)?,
-            topo::OperandKeys::Absent => {
-                return Err(bug("an edge key read on an absent operand's side"));
-            }
+        let root_key = match space {
+            KeySpace::Arena => chase_edge_to_table(body, op.table, k)?,
+            KeySpace::Graft => chase_b(k)?,
         };
         let root = side.with(root_key);
         // A root that resolves in no operand table is a join-minted
@@ -1186,7 +1187,7 @@ fn name_boolean_vertices<T: Decide>(
     // The operand identity of one result-arena vertex key, if its
     // operand's table names it.
     let operand_identity = |k: VertexKey| -> Result<Option<(StableName, bool)>, NamingError> {
-        let side = operand_key(naming, inv_vertices, k)?;
+        let (side, _) = operand_key(naming, inv_vertices, k)?;
         Ok(named_in(side)?.map(|u| (name1(EntityKind::Vertex, node, side.wrap(u.name)), u.tied)))
     };
     // Candidate seam-vertex names, grouped for multiplicity: the key
@@ -1272,7 +1273,7 @@ fn name_boolean_vertices<T: Decide>(
         // read on whichever side the vertex's key belongs to.
         let rc = &naming.reduction_contacts;
         let (partner_a, partner_b): (Option<Upstream>, Option<Upstream>) =
-            match operand_key(naming, inv_vertices, v)? {
+            match operand_key(naming, inv_vertices, v)?.0 {
                 OpSide::A(ka) => match rc.vv.iter().find(|r| r.a == ka) {
                     Some(r) => (None, named_in(OpSide::B(r.b))?),
                     None => (None, None),
@@ -1803,14 +1804,14 @@ mod tests {
     /// built from the caller's `BooleanNaming::graft_edges`, and then
     /// a read of `Body::edge_provenance`. The second is `topo`'s and
     /// writes only strictly-older parents; the FIRST is the caller's,
-    /// and two rows through it close a loop that `split_edge`'s
+    /// and one row through it closes a loop that `split_edge`'s
     /// records alone cannot. So the refusal `chase_edge_to_table`
     /// shares is exercised here, on the lane where a real graft can
     /// alias the same way.
     ///
     /// The chain is honest: `split_edge` twice off one lateral gives
-    /// `e2 → e1 → e0` as genuine birth records, and only the two graft
-    /// rows are synthetic.
+    /// `e2 → e1 → e0` as genuine birth records, and only the one graft
+    /// row is synthetic.
     #[test]
     fn a_cycling_graft_map_refuses_in_the_b_lane() {
         let built = unit_cube();
