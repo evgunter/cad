@@ -578,3 +578,37 @@ legs 2–3 lift. **CLASS, the third instance this sitting**: a row's
 prose about another program's door goes stale the day that program
 lands (the cap row's "import dead", the exact-zero row's mechanism,
 this one). Measure-first before every dispatch stays the rule.
+
+## TESS-5 green, in review (2026-09-22)
+
+PR 3116 at `05063dc76`, full matrix green. The fact was not the row's
+guess ("no rim and no pole" leaves the one-seam sphere and the cone
+generator): the rim-free arm's u-extent is the spread of the loop's
+iso-side OPENINGS, a column belongs to an edge, and only an opening
+adds a column — so the guard asks for openings on two DISTINCT EDGES.
+`TessellateError::SingleColumnCurvedFace { face, surface }`, raised by
+`walk::require_two_columns`; four members closed (torus, cylinder
+generator, one-seam sphere, cone generator); the hemisphere pair is
+props' branch door's and pinned as such. One reviewer dispatched with
+the over-fire hunt as the first claim: a native producer's rim-free
+loop that uses ONE edge twice (the seam-form wall) would refuse under
+this fact if any mints one.
+
+Two of the lane's "looked off" go to the tracker after the review:
+the cylinder member used to answer `MissingEntity { "degenerate curved
+boundary" }` — kernel-defect vocabulary for a body statement — from
+`curved`'s `polygon.len() < 3` count guard; and the build-slot registry
+carries two dead exclusive/express holders that make every `-n` grab
+exit 75 (the lanes fall back to blocking waits).
+
+## TESS-5 merged (2026-09-23)
+
+PR 3116 at `3d91c2b6d` → `5bc576ce6` after the fix pass. TESS-5 and
+the rim-free-loop row closed; the residue the reviewer reached (two
+coincident edges, sphere/cone) is its own P1 row. Five TESS units
+merged this sitting. Lane reclaimed. P0 remainder is the three H rows:
+`lofted-circle-sections-…` (remedies mostly outside `crates/mesh` —
+survey first for the owner and the cheapest correct remedy),
+`one-element-grid-axes-drop-schedule` (policy-shaped: S29's
+sizing-policy conversation), `rim-chords-…` (MESH-9 parked on its
+typed trigger).

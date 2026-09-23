@@ -2,11 +2,12 @@
 id: rim-free-loop-on-a-poleless-chart-meshes-as-a-hole
 kind: issue
 title: mesh: a curved face whose loop is meridians only on a chart with no pole walks to zero width and meshes as a hole
-status: open
+status: closed
 opened: 2026-09-18
 priority: P0
 cost: D
 parent: TESS-5
+closed: 2026-09-23
 ---
 
 
@@ -195,3 +196,9 @@ door and is kept only as that. It has no committed apparatus and cannot
 have one: the polygon is `pub(crate)` and no seam exposes it, so the
 measurement is a three-line `eprintln` at the rim-free arm plus
 `cargo test -p mesh --test all -- --nocapture`, re-taken by hand.
+
+## Closed (2026-09-23)
+
+With TESS-5 (PR 3116): the four members refuse typed. The one that does
+not — two coincident edges on one great circle — is
+`two-coincident-edges-open-two-columns-that-are-one`.
