@@ -5343,6 +5343,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "resolution_overflow",
             "ring_on_curved_face",
             "self_touching_trim_loop",
+            "single_column_curved_face",
             "tolerance_band_unformable",
             "triangulation",
             "unsupported_curve",

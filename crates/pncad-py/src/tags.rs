@@ -2098,6 +2098,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
         TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
+        TessellateError::SingleColumnCurvedFace { .. } => "single_column_curved_face",
         TessellateError::Band { .. } => "tolerance_band_unformable",
     }
 }

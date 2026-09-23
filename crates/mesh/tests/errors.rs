@@ -107,6 +107,7 @@ test_utils::f6_variants! {
         UnsupportedCurvedDomain,
         UnsupportedCurvedShape,
         MeridianFreeCurvedFace,
+        SingleColumnCurvedFace,
         Band,
     ];
 }
@@ -240,6 +241,13 @@ fn tessellate_error_display_names_its_content_not_its_struct() {
             vec!["sphere", "rims only", "is a meridian", "seamed"],
         ),
         (
+            TessellateError::SingleColumnCurvedFace {
+                face,
+                surface: geom_brep::SurfaceKind::Torus,
+            },
+            vec!["torus", "no rim", "single column", "needs a rim"],
+        ),
+        (
             TessellateError::Band {
                 error: geom_core::BandError::Empty {
                     zero: 1.0,
@@ -283,6 +291,44 @@ fn the_meridian_free_refusal_prescribes_a_seam_only_where_one_exists() {
         !cylinder.contains("seamed") && !cylinder.contains("restate it"),
         "a one-rim cylinder face has no seamed restatement: {cylinder}"
     );
+}
+
+/// **The single-column refusal prescribes a second column only where one
+/// can exist.** A sphere or cone chart has a singularity a meridian can
+/// end on, so its faces restate as a band on two columns; a cylinder or
+/// torus chart has none, so no meridian pair bounds anything there and
+/// its sentence must send the caller to a rim instead of to a second
+/// meridian.
+#[test]
+fn the_single_column_refusal_prescribes_a_second_column_only_where_one_can_exist() {
+    use geom_brep::SurfaceKind;
+    let shown = |surface| {
+        TessellateError::SingleColumnCurvedFace {
+            face: topo::FaceKey::default(),
+            surface,
+        }
+        .to_string()
+    };
+    for kind in [SurfaceKind::Sphere, SurfaceKind::Cone] {
+        let text = shown(kind);
+        assert!(
+            text.contains(kind.name())
+                && text.contains("two meridians on DIFFERENT")
+                && text.contains("pole or apex"),
+            "{text}"
+        );
+    }
+    for kind in [SurfaceKind::Cylinder, SurfaceKind::Torus] {
+        let text = shown(kind);
+        assert!(
+            text.contains(kind.name()) && text.contains("needs a rim"),
+            "{text}"
+        );
+        assert!(
+            !text.contains("DIFFERENT"),
+            "a chart with no singularity has no two-column restatement: {text}"
+        );
+    }
 }
 
 /// **The failure path's order is ARENA order, not the map's.**
