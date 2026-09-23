@@ -8,6 +8,7 @@ priority: P0
 cost: D
 closed: 2026-09-23
 pr: 3114
+branch: emit/b-arena-edges
 ---
 
 ## What

@@ -162,3 +162,57 @@ Review measured the filed seam-chain row and found it a live silent
 rename under `Node::Union`: member order rebinds `OrderAlong` edge
 names. It is re-banded P0 and dispatched to the same lane on
 `emit/seam-chain-ranks`.
+## 2026-09-23 — seam-junction closes (PR 3112)
+
+`emit_union::collapse` now reads a seam junction's run of `Seam` lines
+as one head. The run is admitted only as the whole path of a
+Vertex-kind name, and every other shape still refuses FOREIGN. Each
+line collapses to member space through the head-`Seam` rule, and the
+run is re-sorted. Two lines that collapse to one refuse loudly. No
+stored name bit moves: review diffed whole tables across 308
+(document, order) cells, and the only transitions were refusals
+becoming names.
+
+Filed from the unit and its review:
+- `seam-edge-between-two-merged-faces-refusal-a-legal-declared-union-reaches`
+  (P0, re-banded at adjudication): an `Emission` refusal on legal
+  unions of ordinary blocks.
+- `declared-flush-union-edge-and-vertex-names-follow-member-order`
+  (P1): measured with 0 names rebinding, so a reorder makes names
+  vanish typed rather than silently rebind.
+- `name-ordered-positions-in-a-path-have-no-single-home` (P1, class):
+  the sort rule lives in four partial lists. `collapse` does not
+  re-sort `SideOf`, contrary to `role.rs`.
+
+## 2026-09-23 — Ev on the loft anchors: a deeper design issue
+
+Ev, on PR 3102: the split between "program numbering" and "published
+numbering" for a later loft section points at a deeper design issue.
+The orchestrator's reading, posted on the PR: a loft's section
+correspondence is the kernel's lex-min canonical guess, not the
+author's order. Three open rows share that root:
+
+- this unit;
+- carve's twisted-loft P0 (`loft-pairs-sections-by-canonical-start-not-authored-order`,
+  which reaches main with 3102);
+- carve's first-strip v-parameterization row.
+
+Proposed: make the correspondence authored (step k of every section →
+wall k). A mismatched-orientation section is refused typed, option
+(a), or normalized with its start kept, option (b); the orchestrator
+leans to (a). 3102 is held rather than merged. Its loft machinery
+would be deleted by the redesign, and the wrong answer it fixes has no
+production caller today. Waiting on Ev's answer.
+
+## 2026-09-23 — Ev ratifies authored loft correspondence
+
+On PR 3102's thread, Ev accepted option (1): orientation is
+canonicalized per loop, and each loop's start vertex and the hole
+order are as authored. He ruled out an explicit per-section offset as
+redundant. The new unit is `loft-section-correspondence-is-authored`
+(P0, H). It is given to the lane that did 3102, which has the context.
+
+3102 will close unmerged once the unit's PR opens, and its red rows
+carry over. `loft-anchors-every-section-with-section-zeros-map` closes
+with the unit. Carve's first-strip row stays open on carve: authored
+correspondence does not remove its sensitivity.
