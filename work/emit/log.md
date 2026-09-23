@@ -57,3 +57,16 @@ answer with a dominant argument over the other two, so it did not go to
 Ev. The lane files the twisted-loft pairing question (canonical lex-min
 start versus the author's intended correspondence) on the sweep
 program's slate.
+
+## 2026-09-23 — loft anchors goes to Ev
+
+PR 3102, reviewed and fix-passed, CI green. The reviewer's S1 finding
+decided the shape: the door's anchoring can only be read off the node
+whose table is being read. Before, a caller holding a later section's
+own naming reproduced the bug silently. That changes what DM8
+(`crates/editor-core/REFERENCES.md`, ratified at `1fd5e16eb`) says
+twice. For a later loft section, the answer is in the loft table's
+numbering, not in the section program's own. And the clause now binds
+where the caller's anchoring comes from. Because the clause is a
+ratified one, the PR is retitled `[ev]` and the row carries `needs_ev`.
+The other two first-wave PRs do not wait on it.
