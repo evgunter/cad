@@ -263,3 +263,22 @@ Filed from the review:
 - P1 `group-size-re-derives-group-membership-from-name-shape`.
 - P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
 - P4 `name-counts-saturate-silently-at-u32-max`.
+
+## 2026-09-23 — union seam-chain ranks close (PR 3121)
+
+A union's `Seam` canonicalization swapped the pair into name order
+but kept an `OrderAlong` tail ranked along n_a×n_b, A side first. So
+reordering members rebound seam-edge names silently: a P0 found by
+3114's review. Now a swapped pair reads a seam EDGE's rank as
+of−1−rank, which is exact because negating the direction reverses a
+certified strict order and keeps ties. A ranked seam vertex keeps its
+rank, and a unit row guards that exemption. Its unreachable two-edge
+case refuses typed. Pair-boolean names are untouched, and no union in
+the tree today collapses a ranked seam edge.
+
+Review found the sibling: a three-member union can rank one seam once
+as a two-edge chain along n_a×n_b and once as a descent sub-edge
+chain along the edge's own direction. `collapse` flattens both to one
+spelling. Filed P0 as `union-seam-edge-ranks-follow-which-step-split-the-seam`.
+It goes to the same lane next, aimed at one orientation rule for both
+rankers.
