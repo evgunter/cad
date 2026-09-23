@@ -274,6 +274,39 @@ pub(crate) fn name_split<T: Decide>(
     Ok(Arc::new(t))
 }
 
+/// Chord edges: every boundary edge of `body`'s live section faces,
+/// with the operand face across it.
+///
+/// The walk is half-edge → mate → mate's loop → face, by hand, because
+/// each hop refuses in its own words; `Body::face_of_half_edge` answers
+/// the last two hops as one `None`. `walk_tests` in [`super::emit`]
+/// drives each refusal through a body with that hop's entity removed.
+pub(super) fn chord_faces<T: geom_core::Real>(
+    body: &Body<T>,
+    sections: &[(FaceKey, PlaneSide)],
+    section_keys: &BTreeSet<FaceKey>,
+) -> Result<BTreeMap<EdgeKey, FaceKey>, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let mut chord_faces: BTreeMap<EdgeKey, FaceKey> = BTreeMap::new();
+    for &(sf, _) in sections {
+        if body.get_face(sf).is_none() || !section_keys.contains(&sf) {
+            continue;
+        }
+        for he in face_half_edges(body, sf)? {
+            let mate = body.mate(he).ok_or_else(|| bug("chord mate missing"))?;
+            let mate_he = body
+                .get_half_edge(mate)
+                .ok_or_else(|| bug("chord mate dangling"))?;
+            let other = body
+                .get_loop(mate_he.parent_loop)
+                .ok_or_else(|| bug("chord loop dangling"))?
+                .face;
+            chord_faces.insert(mate_he.edge, other);
+        }
+    }
+    Ok(chord_faces)
+}
+
 /// Split edges + vertices: pass-through, `SectionEdge` (chords),
 /// `SplitFragment` (crossing-cut operand edges), `CrossingVertex`.
 #[allow(clippy::too_many_arguments)]
@@ -293,25 +326,7 @@ fn name_split_edges_vertices<T: Decide>(
         naming.vertex_pairs.iter().copied().collect();
     for s in sides {
         let body = s.body;
-        // Chord edges: every boundary edge of this side's section
-        // faces.
-        let mut chord_faces: BTreeMap<EdgeKey, FaceKey> = BTreeMap::new();
-        for &(sf, _) in &naming.sections {
-            if body.get_face(sf).is_none() || !section_keys.contains(&sf) {
-                continue;
-            }
-            for he in face_half_edges(body, sf)? {
-                let mate = body.mate(he).ok_or_else(|| bug("chord mate missing"))?;
-                let mate_he = body
-                    .get_half_edge(mate)
-                    .ok_or_else(|| bug("chord mate dangling"))?;
-                let other = body
-                    .get_loop(mate_he.parent_loop)
-                    .ok_or_else(|| bug("chord loop dangling"))?
-                    .face;
-                chord_faces.insert(mate_he.edge, other);
-            }
-        }
+        let chord_faces = chord_faces(body, &naming.sections, section_keys)?;
         // Chord edges named by the operand face their section boundary
         // runs across. `SectionEdge{side, face}` carries only that
         // face's name, so a section line that re-enters ONE operand
