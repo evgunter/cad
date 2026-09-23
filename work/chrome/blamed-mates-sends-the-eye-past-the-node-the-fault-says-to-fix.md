@@ -5,7 +5,7 @@ title: blamed_mates sends the eye to the mate where three fault arms name the no
 status: open
 opened: 2026-09-15
 priority: P1
-cost: D
+cost: E
 ---
 
 
@@ -161,3 +161,20 @@ loud. Related, filed on MSOLVE's slate: `check_reference` sites a
 `Part`'s non-evaluating index at the pattern below it, so on that path
 the named placer can be the wrong node
 (`work/msolve/placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate.md`).
+
+## Ev's ruling on Q2 (in chat, 2026-09-23) — option (c)
+
+Shown the concrete case (a mate onto a pattern copy whose direction
+slot does not evaluate: the mate row carries FAILED and the message
+naming the pattern; the pattern row is poisoned and points at the
+mate) and three options — (a) leave it, (b) draw the placer `Failed`,
+(c) keep the blame on the mate and make its message LINK to the node
+it names — Ev answered: *"(c) makes sense!"*.
+
+So the work this row owes is now small and written: blame stays where
+`tree::blamed_mates` puts it; a `Failed` mate row whose fault names a
+placer (`MateFault::PlacerRefused`'s `placer`) gets a link to that
+node's row, the way a `Poisoned` row's pointer already links to
+`through`. The row's other arms need no link: D1 of PR 3090 showed the
+nodes `DanglingHead` and `PartSelectsAnotherCopy` name are not what an
+author fixes.
