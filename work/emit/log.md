@@ -189,3 +189,16 @@ wall k). A mismatched-orientation section is refused typed, option
 leans to (a). 3102 is held rather than merged. Its loft machinery
 would be deleted by the redesign, and the wrong answer it fixes has no
 production caller today. Waiting on Ev's answer.
+
+## 2026-09-23 — Ev ratifies authored loft correspondence
+
+On PR 3102's thread, Ev accepted option (1): orientation is
+canonicalized per loop, and each loop's start vertex and the hole
+order are as authored. He ruled out an explicit per-section offset as
+redundant. The new unit is `loft-section-correspondence-is-authored`
+(P0, H). It is given to the lane that did 3102, which has the context.
+
+3102 will close unmerged once the unit's PR opens, and its red rows
+carry over. `loft-anchors-every-section-with-section-zeros-map` closes
+with the unit. Carve's first-strip row stays open on carve: authored
+correspondence does not remove its sensitivity.
