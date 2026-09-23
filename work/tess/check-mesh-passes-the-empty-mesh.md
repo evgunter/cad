@@ -2,11 +2,12 @@
 id: check-mesh-passes-the-empty-mesh
 kind: issue
 title: validate::check_mesh answers Ok on a mesh with zero triangles
-status: open
+status: closed
 opened: 2026-09-18
 priority: P0
 cost: E
 parent: TESS-4
+closed: 2026-09-22
 ---
 
 
@@ -91,3 +92,8 @@ the empty-body producer row above. The existing `check_mesh` rows stay
 green.
 
 Closing with TESS-4's PR.
+
+## Closed (2026-09-22)
+
+With TESS-4 (PR 3094): the validator refuses zero triangles and an
+empty patch by name.

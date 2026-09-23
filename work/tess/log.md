@@ -534,3 +534,32 @@ of the assertions — the bottom tier, not the middle one it was
 dispatched at. Filed: `chords-m-bound-zero-arm-is-dead-…` (the same
 collapse open-coded twice in `chords.rs` with no exact-zero case).
 Lane reclaimed. TESS-4's review is in flight.
+
+## TESS-4 merged (2026-09-22)
+
+PR 3094 at `f2ca19bf0` → `9d3b4183e` after the fix pass (the review's
+class: vacuity sentences outside the sweep — the Python cross-checks
+and the compiled guide page; the guide sentence re-worded here as the
+clause this change rotted, the Python siblings filed on LIB). TESS-4
+and its row closed. Lane reclaimed. Four TESS units merged this
+sitting; the slate's P0 remainder: `rim-free-loop-on-a-poleless-chart-
+meshes-as-a-hole` (D), `tessellate-refuses-approx-face-without-caches`
+(D), `lofted-circle-sections-…` (H), `one-element-grid-axes-drop-
+schedule` (H), `rim-chords-…` (H, MESH-9 parked on it).
+
+## TESS-5 dispatched; a survey on the Approx-face row (2026-09-22)
+
+- **TESS-5** — the zero-WIDTH twin of TESS-1: a loop of meridians only
+  on a chart with no pole (cylinder, torus; the cone's generators end
+  at the apex, measured by the lane) walks to a zero-width polygon and
+  meshes as a hole. The row says TESS-1's fact does not transfer and
+  the unit has to find the statement; the brief asks for the structural
+  fact first, measured across the chart kinds, and refuses on it —
+  never on a width or a count. Middle tier unless the fact turns out
+  to be a door PROPS owns, in which case it is announced. Reviewer
+  probes from TESS-1's dual (`loops_the_meridian_guard_admits.rs`) are
+  the starting fixtures.
+- **Survey lane on `tessellate-refuses-approx-face-without-caches`**
+  (P0/D): the fork is a pcurve-cache mint for straight carriers on an
+  `Approx` chart versus a tessellation arm that reads the description;
+  measure what each costs and who else reads the cache before a spec.
