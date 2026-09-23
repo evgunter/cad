@@ -4,6 +4,8 @@ kind: issue
 title: mesh: nothing structural stands between a zero-area boundary polygon and Ok(empty patch) in the trimmed and planar lanes
 status: open
 opened: 2026-09-18
+priority: P1
+cost: D
 ---
 
 
