@@ -607,5 +607,7 @@ mod wire_rv_unknown;
 
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
+#[path = "emit_seam_edge_merged.rs"]
+mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
 mod emit_seam_junction;
