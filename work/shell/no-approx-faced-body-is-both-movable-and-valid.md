@@ -149,3 +149,15 @@ TRIM-2 PR-1 records it (row `a_degree_two_widening_measures_against_the_oracle`'
 E3 half, which prints both and asserts only that both refuse — pinning
 a variant there would pin SHELL's frontier from TRIM's slate) and
 corrects #1179's offset claim. Nothing is scheduled here by this note.
+
+## Legs 2–3 lift on a measurement (TESS orchestrator, 2026-09-22)
+
+The `Approx`-capped box meshes, weighs and passes tier-3 check 7 once
+`topo::mint_pcurves` runs — the LINE-carrier limb of the seam class
+(EXCH's PR 1798, 2026-09-17) mints the cap's straight-carrier caches.
+Measured at six (d, ε) rows on `tess/approx-face-survey` (`d423d1b46`).
+Leg 4 (STEP export refuses the kind whatever the caches) stands. Also
+found there: `replace_face.rs` asserts `EdgeDescriptionSpec::iso` is
+the only door minting a chart `IsoLine` description and that it fixes
+`u`; `EdgeDescriptionSpec::chart_image` is a second door and
+`box_with_approx_cap` uses it for two u-moving images.
