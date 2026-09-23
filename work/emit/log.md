@@ -169,3 +169,23 @@ Filed from the unit and its review:
 - `name-ordered-positions-in-a-path-have-no-single-home` (P1, class):
   the sort rule lives in four partial lists. `collapse` does not
   re-sort `SideOf`, contrary to `role.rs`.
+
+## 2026-09-23 — Ev on the loft anchors: a deeper design issue
+
+Ev, on PR 3102: the split between "program numbering" and "published
+numbering" for a later loft section points at a deeper design issue.
+The orchestrator's reading, posted on the PR: a loft's section
+correspondence is the kernel's lex-min canonical guess, not the
+author's order. Three open rows share that root:
+
+- this unit;
+- carve's twisted-loft P0 (`loft-pairs-sections-by-canonical-start-not-authored-order`,
+  which reaches main with 3102);
+- carve's first-strip v-parameterization row.
+
+Proposed: make the correspondence authored (step k of every section →
+wall k). A mismatched-orientation section is refused typed, option
+(a), or normalized with its start kept, option (b); the orchestrator
+leans to (a). 3102 is held rather than merged. Its loft machinery
+would be deleted by the redesign, and the wrong answer it fixes has no
+production caller today. Waiting on Ev's answer.
