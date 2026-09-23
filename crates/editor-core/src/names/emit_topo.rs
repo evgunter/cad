@@ -530,6 +530,23 @@ impl<K: Copy> OpSide<K> {
         }
     }
 
+    /// The same side, carrying another key.
+    fn with<J>(self, j: J) -> OpSide<J> {
+        match self {
+            OpSide::A(_) => OpSide::A(j),
+            OpSide::B(_) => OpSide::B(j),
+        }
+    }
+
+    /// How this side's operand keys map into the result (its column of
+    /// the layout `operand_key` reads).
+    fn keys(self, naming: &topo::BooleanNaming) -> topo::OperandKeys {
+        match self {
+            OpSide::A(_) => naming.a_keys,
+            OpSide::B(_) => naming.b_keys,
+        }
+    }
+
     /// The `FromA` / `FromB` segment wrapping a name read on this side.
     fn wrap(self, inner: NameRef) -> RoleSeg {
         match self {
@@ -982,7 +999,7 @@ fn name_boolean_edges<T: Decide>(
     }
 
     // ---- Operand-descended edges, grouped by (side, root). ----
-    // Best-effort B-space descent: stops at the first key B's table
+    // Best-effort descent for a GRAFTED B side: stops at the first key B's table
     // names. A broken chain (a middle fragment of a doubly-pierced
     // edge dies PRE-graft, so its key is unnamed AND ungrafted)
     // returns the non-resolving key instead of refusing — the
@@ -1031,10 +1048,21 @@ fn name_boolean_edges<T: Decide>(
         if seam_set.contains(&e) {
             continue;
         }
-        let root: OpSide<EdgeKey> = match operand_key(naming, inv_edges, e)? {
-            OpSide::A(ea) => OpSide::A(chase_edge_to_table(body, a.table, ea)?),
-            OpSide::B(eb) => OpSide::B(chase_b(eb)?),
+        // The split-lineage chase is decided by where the side's keys
+        // live, not by which side it is: an operand whose clone IS the
+        // arena has its lineage in the arena's own provenance, so its
+        // edge chases there — A in an A-clone or grafted result, B in a
+        // B-clone one. Only a grafted side needs `chase_b`'s bridge.
+        let side = operand_key(naming, inv_edges, e)?;
+        let (op, k) = side.of(a, b);
+        let root_key = match side.keys(naming) {
+            topo::OperandKeys::Direct => chase_edge_to_table(body, op.table, k)?,
+            topo::OperandKeys::Grafted => chase_b(k)?,
+            topo::OperandKeys::Absent => {
+                return Err(bug("an edge key read on an absent operand's side"));
+            }
         };
+        let root = side.with(root_key);
         // A root that resolves in no operand table is a join-minted
         // crossing chord that survived OUTSIDE the zip's list (channel
         // cuts: chords on the operand's own faces) — a DERIVED seam
@@ -1803,18 +1831,20 @@ mod tests {
                 && b_table.name_of(&ent(0, EntityKey::Edge(e1))).is_none(),
             "the parent is named and the children are not, or the walk stops early"
         );
+        // The grafted layout — the only one `chase_b` serves. ONE
+        // synthetic graft row is enough: result edge e2 reads as B's
+        // e1, e1 forwards to e2, and e2's birth record points back at
+        // e1. A is the same named cube, so every other key resolves on
+        // the A side and the walk reaches e2.
         let naming = topo::BooleanNaming {
-            a_keys: topo::OperandKeys::Absent,
-            b_keys: topo::OperandKeys::Direct,
-            // ONE synthetic graft row is enough: e1 forwards to e2,
-            // whose birth record points back at e1.
+            a_keys: topo::OperandKeys::Direct,
+            b_keys: topo::OperandKeys::Grafted,
             graft_edges: vec![(e1, e2)],
             ..topo::BooleanNaming::default()
         };
-        let empty = NameTable::new();
         let a = OperandCtx {
             node: RecipeNodeId(2),
-            table: &empty,
+            table: &b_table,
             body: &body,
         };
         let b = OperandCtx {
