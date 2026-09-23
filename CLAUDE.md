@@ -43,8 +43,28 @@ Issues are files, not GitHub issues. Run
 `python3 scripts/work.py new <semantic-name> --kind issue --title "..."`
 (add `--program <p>` when the owner is obvious), write the finding in
 the body with its `file:line` citations, and commit it on your branch;
-`python3 scripts/work.py lint` must pass. Anything for Ev goes in a PR
-titled `[ev] ...`; "Ev's channel" in `work/README.md` says how.
+`python3 scripts/work.py lint` must pass.
+
+## Asking Ev (every agent)
+
+Anything that needs Ev — a design fork, a ruling, a ratification, a
+question — is a PR titled `[ev] ...`, and the `work/` item that asked
+sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
+
+- The PR states the question by editing the doc it concerns, and is
+  updated in place with the answer. Its body is a decision document
+  (`memories/ev-profile.md`).
+- Ev answers in the PR's comments, so arrange to be woken by them (a PR
+  subscription on a remote box, the away-channel monitor locally).
+  Never ask on a merged PR: Ev does not scan them.
+- **No status scaffolding in the diff** (Ev, 2026-09-21): "proposed",
+  "pending sign-off" or "awaits ratification" only has to come out
+  again before merging. The title, the PR body and `needs_ev:` carry
+  the status; the text carries its content.
+- A file move or other reshuffle with no design implication is not a
+  question (Ev, PR 1916, 2026-09-05: "you don't need to ask me about
+  moving things around, unless it has design implications"); do it and
+  log it.
 
 ## The GitHub surface
 

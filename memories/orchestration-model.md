@@ -79,8 +79,8 @@ Ev's standing instructions for implementation work:
   both the thread subscription and the self-suppression key); to watch a
   thread your filter misses, post "(<ROLE> orchestrator) subscribing.";
   SIGN issue bodies you file.
-- **Channel to Ev**: "Ev's channel" in `work/README.md`. Watch 👍
-  reactions only on comments you explicitly requested sign-off on.
+- **Channel to Ev**: "Asking Ev" in `CLAUDE.md`. Watch 👍 reactions
+  only on comments you explicitly requested sign-off on.
 - **A commit that touches only docs or comments on an already-green
   head merges immediately, without a fresh CI run** (Ev, 2026-08-27;
   scope corrected 2026-09-21) — including a merge commit whose conflict
