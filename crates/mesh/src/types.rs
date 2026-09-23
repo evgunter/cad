@@ -11,13 +11,20 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 /// faces' patches across rebuilds); back-references complete the
 /// picking chain triangle→face, segment→edge, endpoint→vertex.
 ///
-/// Watertightness contract: patches of adjacent faces share the same
-/// position indices along their common boundary polylines, so the
-/// triangle set is a closed 2-manifold for closed input bodies.
-/// [`crate::validate::check_mesh`] re-derives that over a `Mesh` and
-/// is what would catch a violation — but **[`fn@crate::tessellate`]
-/// does not run it**, so a consumer that needs the contract checked
-/// rather than argued has to call it.
+/// Contract for a closed input body: the value is **the mesh of a
+/// solid** — it carries triangles, every [`FacePatch`] carries some,
+/// and the triangle set is a closed, consistently wound 2-manifold.
+/// Closure comes by construction: patches of adjacent faces share the
+/// same position indices along their common boundary polylines.
+/// Emptiness is part of the contract rather than a consequence of it —
+/// every closure condition is universal over edges, so a mesh of
+/// nothing satisfies all of them by having none.
+/// [`crate::validate::check_mesh`] re-derives the whole of it and is
+/// what would catch a violation — but **[`fn@crate::tessellate`] does
+/// not run it**, so a consumer that needs the contract checked rather
+/// than argued has to call it. The fields here are public and hold any
+/// triangle set at all, so this is a contract on the value, not a
+/// guarantee of the type.
 ///
 /// No `PartialEq`: positions are floats; D9 comparisons are bitwise
 /// (compare `f64::to_bits` of positions plus the index/key structure —
