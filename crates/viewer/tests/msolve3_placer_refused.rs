@@ -143,6 +143,21 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         "the pattern is poisoned through the mate: {:?}",
         placer.status
     );
+
+    // So the mate's row LINKS to the pattern its words name: the node
+    // an author goes and fixes is one click from the words, and it is
+    // the only link any row draws beside a `Poisoned` pointer.
+    assert_eq!(
+        row.repair_at,
+        Some(pattern),
+        "the mate's row links to the placer"
+    );
+    let linking: Vec<RecipeNodeId> = rows
+        .iter()
+        .filter(|r| r.repair_at.is_some())
+        .map(|r| r.id)
+        .collect();
+    assert_eq!(linking, vec![mate], "no other row links anywhere");
 }
 
 // ---- A fault that names a node beside its mate ----
@@ -255,6 +270,17 @@ fn mate_fault(ev: &Evaluation<f64>, mate: RecipeNodeId) -> MateFault {
     (**fault).clone()
 }
 
+/// **No row links to a node to repair** — the named node of these two
+/// arms is not what an author fixes (`viewer::tree`'s module header),
+/// so the mate's words are the whole of what its row says.
+fn assert_no_row_links(rows: &[tree::TreeRow]) {
+    let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
+        .iter()
+        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .collect();
+    assert_eq!(linking, Vec::new(), "no row links to a node to repair");
+}
+
 /// **The mate's row is the cause, and the named node's row is not
 /// pointed at** — the three assertions both rows below make.
 ///
@@ -281,6 +307,7 @@ fn assert_the_mate_is_blamed(
         "the mate's row is the cause and carries the payload's own words"
     );
     assert_eq!(mate_row.tone(), Tone::Actionable);
+    assert_no_row_links(&rows);
     assert_eq!(
         common::status_of(&rows, named),
         RowStatus::Ok,
@@ -378,6 +405,7 @@ fn assert_both_loud(
             "{id:?} carries its own words"
         );
     }
+    assert_no_row_links(&rows);
     let pointed: Vec<RecipeNodeId> = rows
         .iter()
         .filter(|row| matches!(row.status, RowStatus::Poisoned { through, .. } if through == mate || through == named))
@@ -437,4 +465,49 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
         "the fixture reaches the arm, naming the pattern: {fault:?}"
     );
     assert_both_loud(&ev, &doc, s.mate, s.pattern);
+}
+
+/// **The link on the OTHER path**: a pattern whose count does not
+/// evaluate refuses where the solve reads the mate's references, not in
+/// the fold. The fault reaches the mate alone and the pattern fails in
+/// its own right, so both rows are loud — and the mate's row still
+/// links to the pattern, the node its words name.
+#[test]
+fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
+    let tol = Tol::witness();
+    let s = copies("msolve3-view-count-overflow", 1, None, tol);
+    let overflowing =
+        Expr::mul(Expr::count(i64::MAX), Expr::count(2)).expect("a count times a count is a count");
+    let (doc, _) = common::edited(
+        &s.doc,
+        DocEdit::SetStructuralParam {
+            node: s.pattern,
+            slot: SlotId::Count,
+            expr: overflowing,
+        },
+        tol,
+    );
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
+    let fault = mate_fault(&ev, s.mate);
+    assert!(
+        matches!(fault, MateFault::PlacerRefused { placer, .. } if placer == s.pattern),
+        "the fixture reaches the arm, naming the pattern: {fault:?}"
+    );
+    let rows = tree::rows(&doc, Some(&ev));
+    assert!(
+        matches!(
+            common::status_of(&rows, s.pattern),
+            RowStatus::Failed { .. }
+        ),
+        "the pattern fails in its own right on this path"
+    );
+    let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
+        .iter()
+        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .collect();
+    assert_eq!(
+        linking,
+        vec![(s.mate, s.pattern)],
+        "the mate's row, and only it, links to the pattern"
+    );
 }

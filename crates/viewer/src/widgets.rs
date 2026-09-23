@@ -1689,6 +1689,7 @@ mod roster_tests {
                 "app.rs",
                 "pane/features.rs",
                 "pane/profile.rs",
+                "pane/properties.rs",
                 "pane/view.rs"
             ],
             "the README's `widgets` table row and its *Where a MESSAGE wraps* \

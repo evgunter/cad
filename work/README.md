@@ -28,8 +28,8 @@ work/
 ```
 
 A program's directory name is its id. An item's file name is its id.
-`scripts/work.py lint` enforces every rule on this page and runs on
-every CI tier; an item that lint rejects does not merge.
+`scripts/work.py lint` enforces every checkable rule on this page and
+runs on every CI tier; an item that lint rejects does not merge.
 
 ## The header
 
@@ -391,6 +391,12 @@ driver: a merge keeps both sides' lines, in order, with no conflict.
 That is only sound because the log is append-only; an edit to an
 earlier entry on one side would come out duplicated rather than
 flagged.
+
+GitHub's own merge ignores the attribute (measured on PR 3109, with it
+on both sides). A PR whose log has diverged from main's therefore
+shows as conflicting on GitHub, and a conflicting PR gets no CI run,
+until a local base merge, which the attribute does cover, brings main
+in.
 
 The conflict used to be the one place another program's note on a log
 surfaced, and it was a poor one: it fired only when the owner had
