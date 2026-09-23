@@ -549,10 +549,6 @@ fn operand_key<K: Copy + Ord>(
     }
 }
 
-/// A face's descent: its operand side, its key chased to the operand's
-/// root face.
-type Descent = OpSide<FaceKey>;
-
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
@@ -588,24 +584,23 @@ pub(crate) fn name_boolean<T: Decide>(
     // result arena: the rows are `face_fragments_b`, minted before the
     // clone was grafted. A reader comparing the rendered key against
     // the result body will not find it.
-    let descend_face = |f: FaceKey| -> Result<Descent, NamingError> {
+    let descend_face = |f: FaceKey| -> Result<OpSide<FaceKey>, NamingError> {
         Ok(match operand_key(naming, &inv_faces, f)? {
             OpSide::A(fa) => OpSide::A(chase(&a_rows, fa)?),
             OpSide::B(fb) => OpSide::B(chase(&b_rows, fb)?),
         })
     };
-    let operand_face_name = |d: Descent| -> Result<Upstream, NamingError> {
+    let operand_face_name = |d: OpSide<FaceKey>| -> Result<Upstream, NamingError> {
         let (op, f) = d.of(a, b);
         upstream_name(op.table, op.node, ent(0, EntityKey::Face(f)))
     };
-    let wrap = |d: Descent, inner: NameRef, kind: EntityKind| name1(kind, node, d.wrap(inner));
 
     // ---- Faces: merges first (N3), then descent groups. ----
     let mut tie = TieRows::default();
     let mut handled: BTreeSet<FaceKey> = BTreeSet::new();
     // Kept face → constituent descents (M4 PR 5: the seam-edge walk
     // reads THROUGH a merged face to its mint-time operand identity).
-    let mut merged_descents: BTreeMap<FaceKey, Vec<Descent>> = BTreeMap::new();
+    let mut merged_descents: BTreeMap<FaceKey, Vec<OpSide<FaceKey>>> = BTreeMap::new();
     for (kept, absorbed) in &naming.merge_groups {
         if body.get_face(*kept).is_none() {
             return Err(bug("merge kept face not live"));
@@ -627,9 +622,9 @@ pub(crate) fn name_boolean<T: Decide>(
             match merged::constituents_through_wrappers(&up.name) {
                 Some(cs) => constituents.extend(
                     cs.into_iter()
-                        .map(|inner| wrap(d, NameRef::new(inner), EntityKind::Face)),
+                        .map(|inner| name1(EntityKind::Face, node, d.wrap(NameRef::new(inner)))),
                 ),
-                None => constituents.push(wrap(d, up.name, EntityKind::Face)),
+                None => constituents.push(name1(EntityKind::Face, node, d.wrap(up.name))),
             }
         }
         // The kernel's guarantee that the set is flat, held here for
@@ -665,7 +660,7 @@ pub(crate) fn name_boolean<T: Decide>(
         )?;
         handled.insert(*kept);
     }
-    let mut groups: BTreeMap<Descent, Vec<FaceKey>> = BTreeMap::new();
+    let mut groups: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
     for (f, _) in body.faces() {
         if !handled.contains(&f) {
             groups.entry(descend_face(f)?).or_default().push(f);
@@ -674,7 +669,7 @@ pub(crate) fn name_boolean<T: Decide>(
     for (d, members) in groups {
         let root_name = operand_face_name(d)?;
         let from_tie = root_name.tied;
-        let base = wrap(d, root_name.name, EntityKind::Face);
+        let base = name1(EntityKind::Face, node, d.wrap(root_name.name));
         if members.len() == 1 {
             put(
                 &mut t,
@@ -750,8 +745,8 @@ fn name_fragment_group<T: Decide>(
     members: &[FaceKey],
     seam_set: &BTreeSet<EdgeKey>,
     inc: &Incidence,
-    descend_face: &impl Fn(FaceKey) -> Result<Descent, NamingError>,
-    operand_face_name: &impl Fn(Descent) -> Result<Upstream, NamingError>,
+    descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
+    operand_face_name: &impl Fn(OpSide<FaceKey>) -> Result<Upstream, NamingError>,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -827,9 +822,9 @@ fn name_boolean_edges<T: Decide>(
     fwd_edges: &BTreeMap<EdgeKey, EdgeKey>,
     seam_set: &BTreeSet<EdgeKey>,
     inc: &Incidence,
-    descend_face: &impl Fn(FaceKey) -> Result<Descent, NamingError>,
-    operand_face_name: &impl Fn(Descent) -> Result<Upstream, NamingError>,
-    merged_descents: &BTreeMap<FaceKey, Vec<Descent>>,
+    descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
+    operand_face_name: &impl Fn(OpSide<FaceKey>) -> Result<Upstream, NamingError>,
+    merged_descents: &BTreeMap<FaceKey, Vec<OpSide<FaceKey>>>,
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -853,35 +848,36 @@ fn name_boolean_edges<T: Decide>(
     // unique constituent on the side the partner needs — the seam's
     // mint-time operand identity survives the glue. Ambiguity (both
     // faces merged, or several same-side constituents) refuses typed.
-    let chord_descent =
-        |f: FaceKey, want_opposite_of: Option<Descent>| -> Result<Descent, NamingError> {
-            let Some(ds) = merged_descents.get(&f) else {
-                return descend_face(f);
-            };
-            let pick = |want_a: bool| -> Result<Descent, NamingError> {
-                // Constituent fragments of ONE operand face share a
-                // descent — dedup before the uniqueness demand.
-                let mut hits: Vec<Descent> = ds
-                    .iter()
-                    .filter(|d| matches!(d, OpSide::A(_)) == want_a)
-                    .copied()
-                    .collect();
-                hits.sort_unstable();
-                hits.dedup();
-                match hits.as_slice() {
-                    [] => Err(bug("merged face lacks the needed operand-side constituent")),
-                    [one] => Ok(*one),
-                    _ => Err(bug(
-                        "merged face has several same-side constituents at a seam edge",
-                    )),
-                }
-            };
-            match want_opposite_of {
-                Some(OpSide::A(_)) => pick(false),
-                Some(OpSide::B(_)) => pick(true),
-                None => Err(bug("seam edge between two merged faces (unsupported)")),
+    let chord_descent = |f: FaceKey,
+                         want_opposite_of: Option<OpSide<FaceKey>>|
+     -> Result<OpSide<FaceKey>, NamingError> {
+        let Some(ds) = merged_descents.get(&f) else {
+            return descend_face(f);
+        };
+        let pick = |want_a: bool| -> Result<OpSide<FaceKey>, NamingError> {
+            // Constituent fragments of ONE operand face share a
+            // descent — dedup before the uniqueness demand.
+            let mut hits: Vec<OpSide<FaceKey>> = ds
+                .iter()
+                .filter(|d| matches!(d, OpSide::A(_)) == want_a)
+                .copied()
+                .collect();
+            hits.sort_unstable();
+            hits.dedup();
+            match hits.as_slice() {
+                [] => Err(bug("merged face lacks the needed operand-side constituent")),
+                [one] => Ok(*one),
+                _ => Err(bug(
+                    "merged face has several same-side constituents at a seam edge",
+                )),
             }
         };
+        match want_opposite_of {
+            Some(OpSide::A(_)) => pick(false),
+            Some(OpSide::B(_)) => pick(true),
+            None => Err(bug("seam edge between two merged faces (unsupported)")),
+        }
+    };
     let chord_kind = |e: EdgeKey| -> Result<ChordKind, NamingError> {
         let faces = inc
             .edge_faces
@@ -1314,12 +1310,15 @@ fn name_boolean_vertices<T: Decide>(
             // lone edge surviving where A's structure was consumed, which
             // that lumping does not produce. A vertex nothing zipped
             // (a touch) is not covered by this argument; its parent comes
-            // from the contact-record partner on either side, and
-            // `swapping_the_operands_swaps_the_sides_of_every_name` (in
-            // `emit_boolean_vertex_keys`) is what holds the two sides
-            // to one rule. A shape nobody has reached is
-            // not a shape known to be legal, so the mirror stays in the
-            // residue below.
+            // from the contact-record partner on either side. Two kinds
+            // of row hold that: `swapping_the_operands_swaps_the_sides_of_every_name`
+            // (in `emit_boolean_vertex_keys`) holds the two sides
+            // SYMMETRIC — the same geometry named alike with A and B
+            // exchanged — which a consistent A/B relabel would pass; the
+            // absolute rows beside it (the nested corners, the split
+            // reflex edge, the assembly touch) pin WHICH side each name
+            // belongs to. A shape nobody has reached is not a shape known
+            // to be legal, so the mirror stays in the residue below.
             ([_], [], _, _) => return Err(NamingError::SeamVertexParentage { vertex: v }),
             // The unenumerated residue, which stays an emission bug. A
             // catch-all is the preimage of every case nobody has named

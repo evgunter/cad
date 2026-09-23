@@ -15,17 +15,20 @@
 //!   touches it, in a result that is one operand's clone and in an
 //!   assembly, each in both orders, pinned by name;
 //! - the operand-swap row: five fixtures, union and intersection, both
-//!   orders; every vertex and edge name of `x op y`, with `FromA` and
+//!   orders; every face, edge and vertex name of `x op y`, with `FromA` and
 //!   `FromB` exchanged and each `Seam{a, b}` read as `Seam{b, a}`, is the
-//!   name the same geometry gets in `y op x`. It is the guard on the
-//!   emitter's claim that its A and B sides follow one rule.
+//!   name the same geometry gets in `y op x`. It guards SYMMETRY only —
+//!   a consistent A/B relabel would pass it — so the rows above are what
+//!   pin which side each name belongs to.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
-use crate::fixture::{ename, ends, insert, len, on_frame, point, table, vertex_of, vname};
+use crate::fixture::{
+    ename, ends, face_vertices, insert, len, on_frame, point, table, vertex_of, vname,
+};
 
 use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKey, EntityKind, Entry, Evaluation, NameRef, Node,
@@ -422,9 +425,9 @@ fn micro(x: f64) -> i64 {
     (x * 1e6).round() as i64
 }
 
-/// Every vertex and edge name of `id`'s table, beside the geometry it
-/// names (a vertex's point, an edge's two end points), or `None` when
-/// the result is the empty value.
+/// Every name of `id`'s table, beside the geometry it names (a
+/// vertex's point, an edge's two end points, a face's boundary vertex
+/// points, the body), or `None` when the result is the empty value.
 fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId, swap: bool) -> Option<BTreeSet<String>> {
     if let Some(e) = failure(ev, id) {
         panic!("the boolean refused: {e}");
@@ -453,7 +456,14 @@ fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId, swap: bool) -> Option<
                     s.sort_unstable();
                     format!("{s:?}")
                 }
-                _ => continue,
+                // A face by the points of its boundary vertices — its
+                // extent, which no other face of a sound body shares.
+                EntityKey::Face(f) => {
+                    let mut s: Vec<_> = face_vertices(body, f).into_iter().map(at).collect();
+                    s.sort_unstable();
+                    format!("face {s:?}")
+                }
+                EntityKey::Body => "body".to_string(),
             };
             out.insert(format!("{} @ {geo}", spelled(n, swap)));
         }
@@ -467,7 +477,7 @@ fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId, swap: bool) -> Option<
 /// Union and intersection are symmetric in their operands, so `y op x`
 /// is the same body as `x op y` with A and B exchanged. Each fixture is
 /// built once and combined in both orders; the result kinds must mirror
-/// (`OperandA` ↔ `OperandB`), and every vertex and edge name of one
+/// (`OperandA` ↔ `OperandB`), and every face, edge and vertex name of one
 /// order, sides exchanged, must name the same geometry in the other.
 /// The fixtures cover a zip, a nest, and a vertex touching an edge or a
 /// face from inside, from outside and beside a zip — the layouts where
