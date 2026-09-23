@@ -563,3 +563,18 @@ schedule` (H), `rim-chords-…` (H, MESH-9 parked on it).
   (P0/D): the fork is a pcurve-cache mint for straight carriers on an
   `Approx` chart versus a tessellation arm that reads the description;
   measure what each costs and who else reads the cache before a spec.
+
+## The Approx-face row closed on a measurement (2026-09-22)
+
+The survey found the wall gone: EXCH's LINE-carrier limb (PR 1798,
+2026-09-17) mints the cap's straight-carrier caches, and the box
+meshes, weighs and validates once `mint_pcurves` runs — the row (filed
+09-04) and the fixture that skips the mint were what remained. The
+fork it named needed no choosing; the mesh-side arm would have moved
+the refusal from typed to silent. Closed with four filings: the fixture
+pin (TINT), the refusal's five spellings and wrong noun (TESS, P3/E),
+the LINE limb's unmeasured corners (PCERT), and SHELL's row told its
+legs 2–3 lift. **CLASS, the third instance this sitting**: a row's
+prose about another program's door goes stale the day that program
+lands (the cap row's "import dead", the exact-zero row's mechanism,
+this one). Measure-first before every dispatch stays the rule.
