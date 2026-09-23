@@ -2992,9 +2992,9 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
              rather than raising: {text}"
         );
         assert!(
-            text.contains("escalated at the "),
-            "the site names itself after the preposition the sentence supplies: \
-             {text}"
+            text.starts_with("escalated at ") && !text.contains("Key("),
+            "the site names itself after the preposition the sentence supplies, \
+             and no arena key: {text}"
         );
     }
 }

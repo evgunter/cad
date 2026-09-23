@@ -123,10 +123,12 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         message,
         format!(
             "node {} failed: the mate solve refused: mate {}'s a reference has no derived pose: \
-             node {} refuses — the pattern direction has no finite length — its components \
-             overflow the norm, or one of them is not a number; scale the geometry into the \
-             session's range",
-            mate.0, mate.0, pattern.0
+             node {} refuses — the pattern direction has no finite length (a component \
+             overflows the norm or is not a number). Recourse: {}",
+            mate.0,
+            mate.0,
+            pattern.0,
+            geom_core::RANGE_RECOURSE
         ),
         "the row states the cause the evaluation typed"
     );

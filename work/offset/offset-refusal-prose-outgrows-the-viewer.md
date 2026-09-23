@@ -2,7 +2,8 @@
 id: offset-refusal-prose-outgrows-the-viewer
 kind: issue
 title: topo: TransformError::NurbsPlaceholder is over 50 words (Ev's concision request)
-status: open
+status: closed
+closed: 2026-09-23
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 ---
@@ -38,3 +39,19 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## Closed (2026-09-23)
+
+`TransformError::NurbsPlaceholder` was rewritten at the source by the
+CHROME concision pass (63 rendered words before, 23 after); the
+variant's rustdoc keeps why the refusal is by variant. The rest of
+`TransformError` lost its `transform:` prefix in the same pass.
+
+`editor-core/tests/refusal_concision_chains.rs`
+`every_node_refusal_renders_within_the_budget` now renders every arm
+listed above the way the feature tree draws it and holds it to the
+75-word budget, with no stage prefix and no arena key outside the
+kernel-bug arms it names. The rewrite and its census are in the
+`chrome/concision-chains` PR and in
+`work/chrome/error-and-check-text-overflows-its-region.md`,
+section "The remaining chains".

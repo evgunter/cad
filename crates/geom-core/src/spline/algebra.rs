@@ -95,27 +95,24 @@ pub enum KnotAlgebraError {
 impl core::fmt::Display for KnotAlgebraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            KnotAlgebraError::Structure(e) => write!(f, "knot algebra: {e}"),
+            KnotAlgebraError::Structure(e) => write!(f, "the knot edit refused: {e}"),
             KnotAlgebraError::ParameterOutsideDomain { u } => {
-                write!(
-                    f,
-                    "knot algebra: parameter {u} is not strictly inside the domain"
-                )
+                write!(f, "knot parameter {u} is not strictly inside the domain")
             }
             KnotAlgebraError::MultiplicityOverflow { u, have, budget } => write!(
                 f,
-                "knot algebra: inserting {u} (multiplicity {have}) exceeds the interior budget {budget}"
+                "inserting knot {u} (multiplicity {have}) exceeds the interior budget {budget}"
             ),
             KnotAlgebraError::KnotNotPresent { u } => {
-                write!(f, "knot algebra: {u} is not an interior knot")
+                write!(f, "{u} is not an interior knot")
             }
             KnotAlgebraError::RemovalExceedsMultiplicity { u, have, requested } => write!(
                 f,
-                "knot algebra: removing {u} {requested} times exceeds its multiplicity {have}"
+                "removing knot {u} {requested} times exceeds its multiplicity {have}"
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
                 f,
-                "knot algebra: removal collapsed weight {index} out of the positive regime"
+                "removing a knot collapsed weight {index} out of the positive regime"
             ),
         }
     }

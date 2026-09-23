@@ -1354,7 +1354,7 @@ impl core::fmt::Display for EditError {
         match self {
             Self::UnknownNode { id } => write!(f, "node {} is not live", id.0),
             Self::ProfileProgramRefused { node, refusal } => {
-                write!(f, "node {}'s profile program refused: {refusal}", node.0)
+                write!(f, "node {}'s sketch refused: {refusal}", node.0)
             }
             Self::UnresolvedInput { input } => {
                 write!(f, "input {} does not resolve to a live node", input.0)
@@ -1516,7 +1516,8 @@ impl core::fmt::Display for EditError {
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "parameter {name}: a continuous parameter cannot be a count — use a count parameter"
+                "parameter {name} is continuous, and a continuous parameter cannot be a count — \
+                 use a count parameter"
             ),
             // The closing clause is `UNDECLARED_PARAM_RECOURSE`, which
             // the viewer's `Refusal::NoSuchParam` renders too; the
@@ -1555,7 +1556,14 @@ impl core::fmt::Display for EditError {
                  {offered} — changing a parameter's kind is a redeclaration"
             ),
             Self::PathOffTree { path } => {
-                write!(f, "expression path {path:?} runs off the tree")
+                let steps: Vec<String> = path.path.iter().map(u8::to_string).collect();
+                write!(
+                    f,
+                    "the expression path [{}] in node {}'s {} slot runs off the tree",
+                    steps.join(", "),
+                    path.node.0,
+                    path.slot.label()
+                )
             }
             Self::Dimension(e) => write!(f, "{e}"),
             Self::DeclareNamesMissingNode { name } => {
@@ -1568,11 +1576,11 @@ impl core::fmt::Display for EditError {
             ),
             Self::NonFiniteDocParam { name, field } => write!(
                 f,
-                "parameter {name}: {field} is not finite — the value and every distribution \
+                "parameter {name}'s {field} is not finite — the value and every distribution \
                  offset must be a number"
             ),
             Self::InvalidDistribution { name, fault } => {
-                write!(f, "parameter {name}: {fault}")
+                write!(f, "parameter {name} has an invalid distribution: {fault}")
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,

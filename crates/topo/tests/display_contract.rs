@@ -132,13 +132,13 @@ fn readback_error_display_names_its_content_not_its_struct() {
             ReadbackError::Dangling {
                 what: DanglingRef::Entity(EntityId::Face(FaceKey::default())),
             },
-            vec!["read-back", "face", "stale", "lineage"],
+            vec!["face", "does not resolve", "stale", "lineage"],
         ),
         (
             ReadbackError::Dangling {
                 what: DanglingRef::Geometry(GeomRef::Surface(SurfaceKey::default())),
             },
-            vec!["read-back", "surface", "live entity"],
+            vec!["surface", "does not resolve", "live entity"],
         ),
         (
             ReadbackError::NoCanonicalFrame { carrier: "NURBS" },

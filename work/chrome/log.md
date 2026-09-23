@@ -2167,3 +2167,68 @@ the moment its lane's report is final, per `agent-lane-operations`.
 That should have been done from the first report.
 
 Signed (CHROME orchestrator).
+
+## 2026-09-23 — Ev's three answers, and Wave 4 landed: four PRs, and a P0 row that stays open on purpose
+
+**Ev answered the three questions of Wave 3 in chat** (PR 3096). The long
+pose keeps scrolling, so that row is closed. `MateFault::Band` is left
+alone: it is reachable only at an ε within a factor K of `f64::MAX`, and
+the row is deferred on that ratification. Placer blame took option (c):
+blame stays on the mate row, which now links to the placer.
+
+**Wave 4 was three units, and all three landed after review:**
+
+- **`chrome/placer-link`, PR 3100.** `TreeRow.repair_at` and
+  `tree::repaired_at`, with one arm per fault; only `PlacerRefused`
+  links. The review found a real wrinkle, now disclosed. For a Part index
+  that does not evaluate, the kernel names the PATTERN, so the new link
+  lands on an `Ok` row. The kernel row
+  `work/msolve/placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`
+  now records that the link raises that defect's cost. The fix pass also
+  routed a fresh copy of the headless click harness back through
+  `pane::headless`.
+- **`chrome/properties-messages`, PR 3101.** Twenty `properties.rs`
+  sentences, plus the view and profile panes. Per the second half of
+  Ev's floor ruling, every sentence that sat beside a control in a
+  non-wrapping row got its own line under it (`exists_notice`,
+  `slot_notes`, `bounds_notes`). The P0 row
+  `messages-in-the-creation-and-properties-panes-still-draw-past-their-row`
+  stays OPEN for `create.rs`, which is still live in AUTH-4 (#3052).
+- **`chrome/concision-chains`, PR 3108.** Chains 1 to 3 were rendered
+  and rewritten at the source. They now measure: feature tree 360 rows,
+  longest 74 words; edit refusals 99 rows, longest 72; checks window 23
+  rows, longest 71; blend details 362 rows, longest 74.
+  `crates/test-utils/src/refusal.rs` holds the rendered-text guard:
+  budget, stage-prefix SHAPE, Debug structs, arena keys, and one recourse
+  per message. `geom_core` now holds the shared recourse constants.
+
+**The review of 3108 found three false statements, and a second review
+of its fix pass found no MAJOR but nine MINORs.** That is the third time
+in two waves that a concision rewrite changed a claim:
+
+1. the split said a plane "crosses" a face at a gate that refuses any
+   curved face anywhere in the body;
+2. the fillet contact recourse inverted a branch;
+3. the fillet assembly recourse dropped "trivalent" and so endorsed a
+   corner the kernel refuses.
+
+Each was caught only by a correctness reader checking the sentence
+against its raise site. **A concision unit in this repo gets the
+correctness arm, and a fix pass that rewrites more prose gets a delta
+read before merge.** The delta read earned its keep: "declare" had been
+dropped from `CoincidentSurfaces` on a comment that was itself false.
+
+**The P0 concision row stays OPEN, and that is the honest state.** The
+remainder is prefixes and keys in `topo/src/props.rs` and
+`geom-brep/src/certify.rs`. No program owns them, and #2861 and #3049
+are reworking them. The row names its closing check: remove the
+`FILED` / `KERNEL_KEYED` entries, and the guard goes red until the
+residue is gone. The guard's own blind spots are filed as
+`the-refusal-shape-guard-has-blind-spots` (P3).
+
+**Disk, again.** Three builders and a reviewer took the 28 GB allowance
+to 1.3 GB free mid-wave. The fix was to reclaim a target the moment its
+lane is only polling CI, and to size reviews to run one after another
+in a single clone. Both are now how this program runs.
+
+Signed (CHROME orchestrator).

@@ -176,6 +176,8 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
+#[path = "refusal_concision_chains.rs"]
+mod refusal_concision_chains;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
