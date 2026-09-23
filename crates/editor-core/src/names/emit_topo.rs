@@ -860,40 +860,50 @@ fn name_boolean_edges<T: Decide>(
     }
     // A face's descent for CHORD purposes: a plain face descends as
     // itself; a MERGED face (M4 PR 5, N3 live) reads through to its
-    // unique constituent on the side the partner needs — the seam's
-    // mint-time operand identity survives the glue. Ambiguity (both
-    // faces merged, or several same-side constituents) refuses typed.
-    let chord_descent = |f: FaceKey,
-                         want_opposite_of: Option<OpSide<FaceKey>>|
-     -> Result<OpSide<FaceKey>, NamingError> {
-        let Some(ds) = merged_descents.get(&f) else {
-            return descend_face(f);
-        };
-        let pick = |want_a: bool| -> Result<OpSide<FaceKey>, NamingError> {
-            // Constituent fragments of ONE operand face share a
-            // descent — dedup before the uniqueness demand.
-            let mut hits: Vec<OpSide<FaceKey>> = ds
-                .iter()
-                .filter(|d| matches!(d, OpSide::A(_)) == want_a)
-                .copied()
-                .collect();
-            hits.sort_unstable();
-            hits.dedup();
-            match hits.as_slice() {
-                [] => Err(bug("merged face lacks the needed operand-side constituent")),
-                [one] => Ok(*one),
-                _ => Err(bug(
-                    "merged face has several same-side constituents at a seam edge",
-                )),
+    // unique constituent on the side `want_a` names — the seam's
+    // mint-time operand identity survives the glue. Several same-side
+    // constituents refuse; so does `None`, the both-merged chord whose
+    // key names no operand to read through to (`chord_kind`).
+    let chord_descent =
+        |f: FaceKey, want_a: Option<bool>| -> Result<OpSide<FaceKey>, NamingError> {
+            let Some(ds) = merged_descents.get(&f) else {
+                return descend_face(f);
+            };
+            let pick = |want_a: bool| -> Result<OpSide<FaceKey>, NamingError> {
+                // Constituent fragments of ONE operand face share a
+                // descent — dedup before the uniqueness demand.
+                let mut hits: Vec<OpSide<FaceKey>> = ds
+                    .iter()
+                    .filter(|d| matches!(d, OpSide::A(_)) == want_a)
+                    .copied()
+                    .collect();
+                hits.sort_unstable();
+                hits.dedup();
+                match hits.as_slice() {
+                    [] => Err(bug("merged face lacks the needed operand-side constituent")),
+                    [one] => Ok(*one),
+                    _ => Err(bug(
+                        "merged face has several same-side constituents at a seam edge",
+                    )),
+                }
+            };
+            match want_a {
+                Some(want_a) => pick(want_a),
+                None => Err(bug("seam edge between two merged faces (unsupported)")),
             }
         };
-        match want_opposite_of {
-            Some(OpSide::A(_)) => pick(false),
-            Some(OpSide::B(_)) => pick(true),
-            None => Err(bug("seam edge between two merged faces (unsupported)")),
-        }
-    };
-    let chord_kind = |e: EdgeKey| -> Result<ChordKind, NamingError> {
+    // `own` is the operand whose OWN edge `e` is, when its key says so
+    // (`Some(true)` for A, `Some(false)` for B), and `None` when the
+    // key cannot tell a sub-edge of an operand edge from a join-minted
+    // chord.
+    //
+    // It decides the one case the faces cannot: a chord between two
+    // MERGED faces. Each has a constituent on both sides, so the
+    // partner does not say which side to read through to — but an
+    // edge that is one operand's own lies on that operand's faces, so
+    // both read through to THAT side's constituents, and the chord is
+    // the rim they share, like any same-operand chord below.
+    let chord_kind = |e: EdgeKey, own: Option<bool>| -> Result<ChordKind, NamingError> {
         let faces = inc
             .edge_faces
             .get(&e)
@@ -907,16 +917,15 @@ fn name_boolean_edges<T: Decide>(
             (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
             (true, false) => {
                 let d1 = descend_face(faces[1])?;
-                (chord_descent(faces[0], Some(d1))?, d1)
+                let want_a = matches!(d1, OpSide::B(_));
+                (chord_descent(faces[0], Some(want_a))?, d1)
             }
             (false, true) => {
                 let d0 = descend_face(faces[0])?;
-                (d0, chord_descent(faces[1], Some(d0))?)
+                let want_a = matches!(d0, OpSide::B(_));
+                (d0, chord_descent(faces[1], Some(want_a))?)
             }
-            (true, true) => (
-                chord_descent(faces[0], None)?,
-                chord_descent(faces[1], None)?,
-            ),
+            (true, true) => (chord_descent(faces[0], own)?, chord_descent(faces[1], own)?),
         };
         Ok(match (d0, d1) {
             (OpSide::A(_), OpSide::B(_)) => {
@@ -956,7 +965,9 @@ fn name_boolean_edges<T: Decide>(
         })
     };
     let seam_pair = |e: EdgeKey| -> Result<(Upstream, Upstream), NamingError> {
-        match chord_kind(e)? {
+        // A zip-listed seam edge is minted by the join, so it is no
+        // operand's own edge.
+        match chord_kind(e, None)? {
             ChordKind::Cross(fa, fb) => Ok((fa, fb)),
             _ => Err(bug("seam edge between same-operand faces")),
         }
@@ -1044,7 +1055,12 @@ fn name_boolean_edges<T: Decide>(
         if resolves {
             groups.entry(root).or_default().push(e);
         } else {
-            match chord_kind(e)? {
+            // A B-rooted key is a key of B's own body (grafted, or the
+            // result is B's clone) whose split lineage the chase lost,
+            // so the edge is B's. An A-rooted key cannot say: the join
+            // mints its chords with A-space keys too.
+            let own = matches!(root, OpSide::B(_)).then_some(false);
+            match chord_kind(e, own)? {
                 ChordKind::Cross(fa, fb) => {
                     add_seam(fa, fb, e);
                 }
