@@ -600,3 +600,15 @@ boundary" }` — kernel-defect vocabulary for a body statement — from
 `curved`'s `polygon.len() < 3` count guard; and the build-slot registry
 carries two dead exclusive/express holders that make every `-n` grab
 exit 75 (the lanes fall back to blocking waits).
+
+## TESS-5 merged (2026-09-23)
+
+PR 3116 at `3d91c2b6d` → `5bc576ce6` after the fix pass. TESS-5 and
+the rim-free-loop row closed; the residue the reviewer reached (two
+coincident edges, sphere/cone) is its own P1 row. Five TESS units
+merged this sitting. Lane reclaimed. P0 remainder is the three H rows:
+`lofted-circle-sections-…` (remedies mostly outside `crates/mesh` —
+survey first for the owner and the cheapest correct remedy),
+`one-element-grid-axes-drop-schedule` (policy-shaped: S29's
+sizing-policy conversation), `rim-chords-…` (MESH-9 parked on its
+typed trigger).
