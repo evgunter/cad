@@ -6,10 +6,11 @@ not what it says.
 **Finding the work.** `work/` is the tracker and `work/README.md` its
 contract: `work/STATUS.md` is the board, `work/<program>/` holds a
 program's `program.md`, `plan.md`, `log.md` and one file per open
-item; **live state is there and never here.** A program is closed when
-its `docs/<NAME>-EXIT-WALK.md` is ratified; the walk is then deleted
-and a note added to `docs/doc-ledger/`, which is the done-state of
-record. Ratified design is `docs/DESIGN.md` plus its companion table,
+item; **live state is there and never here.** A program whose plan set
+acceptance criteria (`## Exit criteria`) is closed when its
+`docs/<NAME>-EXIT-WALK.md` is ratified; one that set none closes
+without a walk. Either way a note is added to `docs/doc-ledger/`,
+which is the done-state of record. Ratified design is `docs/DESIGN.md` plus its companion table,
 whose closed-program rows are README pages beside the code. Merge
 gate = hosted Actions.
 

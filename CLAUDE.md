@@ -11,10 +11,12 @@ client over the API), functional style, fail-loud.
 - `work/` — the tracker. `work/STATUS.md` is the board (generated on
   main); each program is `work/<program>/` with `program.md`,
   `plan.md`, `log.md` and one file per open item. `work/README.md` is
-  the contract; orchestrators read it in full. A program is closed when
-  its `docs/<NAME>-EXIT-WALK.md` is ratified; the walk is then
-  deleted with the program's tracker directory and a note added to
-  `docs/doc-ledger/`, which is its done-state of record (the walk
+  the contract; orchestrators read it in full. A program whose plan
+  set acceptance criteria (`## Exit criteria`) is closed when its
+  `docs/<NAME>-EXIT-WALK.md` is ratified; one that set none closes
+  without a walk. The program's tracker directory is then deleted,
+  with the walk if there was one, and a note added to
+  `docs/doc-ledger/`, which is its done-state of record (a walk
   stays recoverable at the SHA the note names).
 - Design docs for finished work live as README pages beside the code
   they govern (`crates/<crate>/README.md`), present tense only, with

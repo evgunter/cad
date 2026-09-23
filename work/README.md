@@ -257,9 +257,13 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   shape.
 - **A closed program's directory is deleted.** `work/` tracks work
   still to be done, not work that has been done, so once a program
-  closes — its exit walk ratified, or Ev's ruling that it needs none —
-  `program.md`, `plan.md` and `log.md` go, and so does the ratified
-  exit walk; the deletion is recorded in a note under `docs/doc-ledger/`
+  closes, `program.md`, `plan.md` and `log.md` go, and so does its
+  exit walk if it had one. **A walk is owed when the plan set
+  acceptance criteria** (its `## Exit criteria`): the walk is what
+  checks the finished program against them, so such a program closes
+  when its walk is ratified, or on Ev's ruling that it needs none. A
+  plan that set no criteria leaves a walk nothing to check, and its
+  program closes without one. The deletion is recorded in a note under `docs/doc-ledger/`
   with the SHA they are recoverable at, and that note is the program's
   done-state of record. Residue is re-homed before the sweep, never
   left behind in the closed directory: to a live program whose charter
