@@ -534,4 +534,3 @@ of the assertions — the bottom tier, not the middle one it was
 dispatched at. Filed: `chords-m-bound-zero-arm-is-dead-…` (the same
 collapse open-coded twice in `chords.rs` with no exact-zero case).
 Lane reclaimed. TESS-4's review is in flight.
-PROBE: merge=union test line, reverted before merge
