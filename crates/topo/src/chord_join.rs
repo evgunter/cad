@@ -373,13 +373,13 @@ impl core::fmt::Display for SplitJoinError {
             }
             Self::Band(e) => write!(f, "{e}"),
             Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
-            Self::Section { face, source } => {
-                write!(f, "the section chord in face {face:?} refused: {source}")
+            Self::Section { source, .. } => {
+                write!(f, "the section through a curved face refused: {source}")
             }
-            Self::SectionArcWindow { face, case, band } => {
+            Self::SectionArcWindow { case, band, .. } => {
                 write!(
                     f,
-                    "the section chord in face {face:?} has no arc to take: {case}"
+                    "the section through a curved face has no arc to take: {case}"
                 )?;
                 if case.is_containment_verdict() {
                     write!(

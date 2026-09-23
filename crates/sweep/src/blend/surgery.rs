@@ -2502,8 +2502,8 @@ pub(super) fn seam_split_param<T: Decide + Bounds>(
     if matches!(sc.carrier(), Curve3::Circle { .. }) && (T::tau() - (st1 - st0)).lo() <= 0.0 {
         return Err(unbuilt_geometry(
             EntityId::Edge(seam),
-            "a split edge's stored window is not under one period; the split parameter would \
-             alias by a turn and still land inside the window",
+            "a split edge's stored window is not under one period, so the split parameter \
+             would alias by a turn",
         ));
     }
     // Anchored at the CARRIER'S SEAM, not at the stored window — the

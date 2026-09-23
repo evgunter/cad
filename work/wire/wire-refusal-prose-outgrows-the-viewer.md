@@ -2,7 +2,8 @@
 id: wire-refusal-prose-outgrows-the-viewer
 kind: issue
 title: editor-core: NodeErrorKind::DerivedFrameSection is over 50 words (Ev's concision request)
-status: open
+status: closed
+closed: 2026-09-23
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 ---
@@ -42,3 +43,19 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## Closed (2026-09-23)
+
+`NodeErrorKind::DerivedFrameSection` was rewritten at the source by
+the CHROME concision pass (58 rendered words before, 40 after), and
+every other `NodeErrorKind` arm is now rendered and held to the budget
+along with the payloads it forwards.
+
+`editor-core/tests/refusal_concision_chains.rs`
+`every_node_refusal_renders_within_the_budget` now renders every arm
+listed above the way the feature tree draws it and holds it to the
+75-word budget, with no stage prefix and no arena key outside the
+kernel-bug arms it names. The rewrite and its census are in the
+`chrome/concision-chains` PR and in
+`work/chrome/error-and-check-text-overflows-its-region.md`,
+section "The remaining chains".

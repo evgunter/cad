@@ -8,11 +8,11 @@
 //! `editor-core/tests/refusal_concision.rs` states (the one statement
 //! of the number; this is the same number for the edit chain).
 //!
-//! A payload two levels down — the `MateFault` inside `MateRefused`,
-//! the path refusal inside `ProfileProgramRefused` — is rendered on one
-//! representative arm; the feature tree's rows in
-//! `editor-core/tests/refusal_concision_chains.rs` render those enums
-//! arm by arm.
+//! The forwarding arms are rendered over what they forward: every
+//! `MateFault` arm inside `MaintenanceRefused` and `MateRefused`, and
+//! the longest path refusals inside `ProfileProgramRefused` (the
+//! feature tree's rows in `editor-core/tests/refusal_concision_chains.rs`
+//! render every `PathError` arm).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -713,19 +713,11 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     rows
 }
 
-/// **Every edit refusal the status line draws, measured.** Each
-/// `EditError` arm on a representative payload, rendered through
-/// [`Refusal::Edit`] and counted.
-///
-/// This row MEASURES and reports: the arms over the budget are listed
-/// on the edit program's slate
-/// (`work/edit/edit-refusal-prose-outgrows-the-viewer.md`) with the
-/// census this prints, and the row holds the rest to the budget by
-/// naming the known-over set exactly — an arm that newly outgrows the
-/// budget reds here, and so does one that is brought under it without
-/// the set being trimmed.
+/// **Every edit refusal the status line draws fits the budget.** Each
+/// `EditError` arm, and each forwarding arm over what it forwards,
+/// rendered through [`Refusal::Edit`] and counted.
 #[test]
-fn every_edit_refusal_is_measured_against_the_budget() {
+fn every_edit_refusal_renders_within_the_budget() {
     let mut over = Vec::new();
     let rows = edit_refusals()
         .into_iter()
@@ -739,8 +731,8 @@ fn every_edit_refusal_is_measured_against_the_budget() {
             over.push(arm);
         }
     }
-    assert_eq!(over, KNOWN_OVER, "the edit arms over {BUDGET} words");
+    assert!(
+        over.is_empty(),
+        "the edit arms over {BUDGET} words: {over:?}"
+    );
 }
-
-/// The arms the edit program's row carries, over the budget as measured.
-const KNOWN_OVER: &[&str] = &[];

@@ -934,7 +934,7 @@ impl fmt::Display for ProfileError {
             Self::TangentialContact { first, second } => write!(
                 f,
                 "tangential contact between {first} and {second}: touching without \
-                 crossing is semantically indeterminate — {COINCIDENCE_RECOURSE} (D4)"
+                 crossing is semantically indeterminate — {COINCIDENCE_RECOURSE}"
             ),
             Self::TangentJointOutOfRange {
                 loop_index,

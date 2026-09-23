@@ -15,12 +15,26 @@ and that run past 50 words (literal words, before payload):
 
 | words | site | arm |
 |---|---|---|
-| 89 | `topo/src/pcurves.rs` `PcurveMintError::SingularChartJoint` | |
-| 75 | `PcurveMintError::LoopDiscontinuity` | |
-| 70 | `PcurveMintError::OuterSpansPeriod` | |
-| 56 | `PcurveMintError::LoopNotClosed` | |
-| 50 | `PcurveMintError::LoopWraps` | |
 | 54 | `geom-brep/src/certify.rs` `CertifyError::NotSecondOrderSeparated` | plus `COINCIDENCE_RECOURSE` |
+
+The five `PcurveMintError` arms this row first listed
+(`SingularChartJoint` 89, `LoopDiscontinuity` 75, `OuterSpansPeriod`
+70, `LoopNotClosed` 56, `LoopWraps` 50) were rewritten at the source by
+the CHROME `concision-chains` pass, with the whole enum: no arm now
+opens with "pcurve minting:", and every arm is under 50 literal words.
+The row stays open on the certify arm and on the key dumps below.
+
+**Arena keys in two forwarded refusals (CHROME concision-chains,
+2026-09-23).** `topo::ShellClassifyError` and `topo::MassPropsError`
+(`topo/src/props.rs`, no owner) still name a shell or face by arena
+key ("shell ShellKey(3v1)'s signed volume is definitely zero …"). They
+reach the viewer through `NodeErrorKind::Shell(ShellError::Roles)` and
+through the checks window's `CheckEvidence::Unsupported`, where the
+key names nothing the person holding the mouse can find. The file sat
+inside hunks two open PRs were reworking (#3049, #2861), so the pass
+left them; `editor-core/tests/refusal_concision_chains.rs` lists the
+two rows in `KERNEL_KEYED` with a comment pointing here, and taking
+them out of that list is the check that this is done.
 
 `work.py territory` names no owner for `topo/src/pcurves.rs` or
 `geom-brep/src/certify.rs`. `topo::BooleanError` (also unowned) was

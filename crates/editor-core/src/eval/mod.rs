@@ -2186,9 +2186,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DerivedFrameSection { profile, frame } => write!(
                 f,
                 "section profile node {} is drawn on derived frame node {}, and a loft's or a \
-                 sweep's section stays f64 in every lane — a derived frame is placed at the \
-                 lane's own scalar, so this node refuses off the f64 lane rather than place \
-                 the section on a fabricated point of the frame's bracket",
+                 sweep's section is placed only in the plain (f64) evaluation, so this \
+                 evaluation refuses rather than guess where the frame lies",
                 profile.0, frame.0
             ),
             Self::MeasureRefResolve { error } => {

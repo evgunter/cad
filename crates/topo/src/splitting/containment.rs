@@ -108,16 +108,17 @@ pub enum PointInLoopError {
 impl core::fmt::Display for PointInLoopError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Escalated { r#loop, diag } => {
+            Self::Escalated { diag, .. } => {
                 write!(
                     f,
-                    "whether a point lies in loop {loop:?} is too close to call: {diag}"
+                    "whether a point lies in a loop is too close to call: {diag}"
                 )
             }
-            Self::RayExhausted { r#loop } => write!(
+            Self::RayExhausted { .. } => write!(
                 f,
-                "every schedule ray grazed loop {loop:?} — \
-                 ill-conditioned containment query at this tolerance"
+                "every test ray grazed the loop, so containment is ill-conditioned at \
+                 this tolerance. Recourse: {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::CorruptLoop { r#loop } => {
                 write!(f, "loop {loop:?} is not walkable")

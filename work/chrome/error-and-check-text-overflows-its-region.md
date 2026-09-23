@@ -2,7 +2,8 @@
 id: error-and-check-text-overflows-its-region
 kind: issue
 title: viewer: the CONCISION half — error messages should be shorter, and most of the text is the kernel's typed refusals (Ev's request; the layout half landed in 3058)
-status: open
+status: closed
+closed: 2026-09-23
 opened: 2026-09-17
 pr: 3088
 priority: P0
@@ -216,3 +217,103 @@ chains the viewer shows: `NodeErrorKind`'s other kernel arms (`Extrude`,
 `Transform`), `EditError`, and the checks window's findings. Each chain
 is rendered on a representative payload and held to the budget, and
 what is over is filed on its owner.
+
+## The remaining chains (2026-09-23)
+
+All three chains the row left open are now rendered the way the viewer
+draws them and held to the 75-word budget, with each rewrite made at
+the source (prose only; no type, variant or payload changed).
+
+**What is rendered.** Every arm, on a representative payload, as the
+viewer draws it:
+
+- **The feature tree** —
+  `editor-core/tests/refusal_concision_chains.rs`
+  `every_node_refusal_renders_within_the_budget`: every
+  `NodeErrorKind` arm, and every arm of each refusal a forwarding arm
+  carries (`ExtrudeError`, `RevolveError`, `TubeError`, the three
+  split stages, `BlendError`, `TransformError`, `SkinError`,
+  `LoftError`, `ProfileError`, every `PathError` arm through
+  `ProfileReplay` with each routed escalation, `StructureRefusal`,
+  `EvalError`, the seed, box, placement, naming and name-ladder
+  payloads, `ShellError`, `MateFault`, `PartFault`,
+  `InterrogateError`, `ReadbackError`, `UnitVec3Error`) — 357 rows.
+  The four arms whose `Found` only the entity door can mint are raised
+  through a real document. The `Boolean` arm stays with
+  `every_rewritten_boolean_refusal_renders_within_the_budget`.
+- **The status line's edit refusals** —
+  `viewer/tests/refusal_concision_edits.rs`
+  `every_edit_refusal_renders_within_the_budget`: every `EditError`
+  arm through the viewer's own `Refusal::Edit` wrapper, plus
+  `MaintenanceRefused` and `MateRefused` over every `MateFault` arm and
+  `ProfileProgramRefused` over the longest path refusals — 99 rows.
+- **The checks window** — `every_check_finding_renders_within_the_budget`
+  in the chain file: every `CheckEvidence` arm, with the separation
+  arm over every containment refusal it can forward — 23 rows.
+
+The feature-tree row also refuses a stage prefix from a named list
+(`split_reduce`, `tube door`, `pcurve minting`, `(D4)`, …) and an arena
+key outside the kernel-bug arms it names (`KERNEL_KEYED`).
+
+**Census, before and after** (the same rows run over main's text and
+over this branch's):
+
+| chain | rows | over 75, before | longest, before | over 75, after | longest, after |
+|---|---|---|---|---|---|
+| feature tree | 357 | 41 | 173 (`Blend/UnsupportedChain`) | 0 | 75 |
+| edit refusals | 99 | 5 | 140 (`ProfileProgramRefused` over `SeamArrivalOffDirection`) | 0 | 75 |
+| checks window | 23 | 8 | 99 (`ChartCoherence`) | 0 | 71 |
+
+**The shared tail that moved most rows.** `geom_core::Indeterminate`'s
+own `Display` ends most escalations in the tree; it lost "(D4)" and its
+explanatory clause ("coincident at any precision you could care about,
+too close to build sound geometry from" is now "a near-coincidence"),
+which took about eight words off every escalation that forwards it.
+`MissingRecourse` lost its explanatory tail the same way.
+
+**Where the prose moved.** `editor-core` (`NodeErrorKind`,
+`CheckFinding`, `InterrogateError`, `ProgramRefusal`'s wrapper in
+`EditError`), `sweep` (extrude, revolve, tube, skin, loft, blend and its
+long raise-site details), `profile` (`PathError`, the fillet recourses,
+`StructureRefusal`), `topo` (the split stages, `TransformError`,
+`ShellError`, `PcurveMintError`, the Boolean containment wrapper,
+read-back, point-in-loop, void insertion), `geom-brep` (`NewellError`)
+and `geom-core` (`Indeterminate`, `MissingRecourse`). The routed blend
+escalations now render the payload view with their own recourse,
+which is the shape `work/band/every-escalation-carries-the-coincidence-recourse-first.md`
+asks for (noted there).
+
+**No refusal needed a viewer-side summary.** The tightest case was
+`BlendError::UnsupportedChain`: a raise-site detail plus the assembly
+recourse, which names both terminations, the closed-rim clause and the
+rings' clearance. It fits at 75 once the sixteen raise-site details
+over 19 words are shortened where they are raised, which this pass
+did.
+
+**Rows closed and filed.** Five of the literal-census rows are closed
+by this pass: `carve-`, `offset-`, `paths-`, `reach-` and
+`wire-refusal-prose-outgrows-the-viewer`. The unowned row keeps the
+certify arm and gains the one residue this pass left:
+`topo::ShellClassifyError` and `topo::MassPropsError` still name a
+shell or face by arena key, in `topo/src/props.rs`, which two open PRs
+were reworking; the chain test lists the two rows it reaches them
+through in `KERNEL_KEYED`, pointing there.
+
+**What the rows do not see.** A refusal forwarded two levels below
+`NodeErrorKind` (an `EulerOpError` inside `ExtrudeError::Op`, a
+`CertifyError`, an `OffsetFitError`) is rendered on one representative
+arm; those enums' long arms are held by the literal-census rows still
+open on their owners (`unowned-`, `encl-`, `atrest-`, `chart-` and the
+others this row's first pass filed).
+
+**The one case a rewrite at one site cannot hold.** A part's
+product-root failure forwards the part's own node refusal inside an
+eleven-word wrapper, so its line is the inner refusal plus eleven
+words: up to 83 on today's longest. That is the case Ev's ruling keeps
+the summary fallback for, and it is filed with its measurement on the
+edit program's slate as
+`work/edit/part-root-failure-nests-a-whole-refusal-past-the-budget.md`.
+
+**The row closes.** Every chain the viewer draws is now held to the
+budget by a test, and what is not is filed on its owner with its
+measured list.

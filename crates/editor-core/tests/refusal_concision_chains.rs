@@ -39,7 +39,83 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
     .to_string()
 }
 
-/// The rows over budget, or carrying a stage prefix, among `rows`.
+/// The stage prefixes the concision pass removed from these chains: a
+/// pipeline stage's name in front of a sentence is developer detail.
+const STAGE_PREFIXES: &[&str] = &[
+    "split_reduce",
+    "split join:",
+    "split finish:",
+    "split: ",
+    "tube door",
+    "tube_along_arc_hollow:",
+    "transform: ",
+    "newell:",
+    "pcurve minting",
+    "read-back:",
+    "interrogate:",
+    "void insertion:",
+    "point_in_loop:",
+    "shell: ",
+    "skin: ",
+    "loft: ",
+    "parameter box:",
+    "parameter seed:",
+    "param-source attachment:",
+    "(D4)",
+];
+
+/// The rows that may name an arena key: each reports a corrupt body, a
+/// kernel invariant or a kernel finding, where the key is what the bug
+/// report needs. Every other row names what it is about in words.
+const KERNEL_KEYED: &[&str] = &[
+    "Extrude/Op",
+    "Revolve/VoidInsertion",
+    "Revolve/Op",
+    "Revolve/Pcurve",
+    "Split/Reduce/ScaffoldingOperand",
+    "Split/Reduce/ConsecutiveOnSectors",
+    "Split/Reduce/CorruptOperand",
+    "Split/Reduce/CrossingInsertion",
+    "Split/Reduce/Euler",
+    "Split/Join/SectionLoopMixed",
+    "Split/Join/CutInvariant",
+    "Split/Join/Corrupt",
+    "Split/Join/Euler",
+    "Split/Join/SectionInvariant",
+    "Split/Finish/TornComponent",
+    "Split/Finish/UnclassifiableComponent",
+    "Split/Finish/Euler",
+    "Split/Pcurves",
+    "Transform/Pcurve",
+    "Transform/Certify",
+    "Transform/NullScaffold",
+    "Loft/Euler",
+    "Loft/Pcurve",
+    "Blend/BodyNotIntact",
+    "Blend/SurgeryInvariant",
+    "Blend/Certify",
+    "Blend/Op",
+    "Naming/SplitLineage",
+    "Naming/FragmentLineage",
+    "Naming/SeamVertexParentage",
+    "Naming/SharedRim",
+    "FaceFrameReadback/Dangling",
+    "Shell/Partition",
+    "Shell/Face",
+    "Shell/Lift",
+    "Shell/Insert",
+    "Shell/Rim",
+    "Shell/Corrupt",
+    "Shell/Pcurve",
+    // `topo::ShellClassifyError` and `topo::MassPropsError` still name
+    // their shell and face by key; both sit in `topo/src/props.rs`,
+    // which open PRs are reworking, and are filed rather than edited.
+    "Shell/Roles",
+    "Unsupported",
+];
+
+/// The rows over budget, carrying a stage prefix, or naming an arena
+/// key outside [`KERNEL_KEYED`], among `rows`.
 pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
     let mut problems = Vec::new();
     for (name, text) in rows {
@@ -49,6 +125,16 @@ pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
             problems.push(format!(
                 "{name} renders {words} words, over {BUDGET}: {text}"
             ));
+        }
+        for prefix in STAGE_PREFIXES {
+            if text.contains(prefix) {
+                problems.push(format!(
+                    "{name} carries the stage prefix {prefix:?}: {text}"
+                ));
+            }
+        }
+        if text.contains("Key(") && !KERNEL_KEYED.contains(&name.as_str()) {
+            problems.push(format!("{name} dumps an arena key: {text}"));
         }
     }
     problems
@@ -989,21 +1075,24 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedChain",
             E::UnsupportedChain {
                 edge,
-                detail: "a multi-link open chain",
+                detail: "a curved support does not carry exactly its own rim arc (the half-cap discipline \
+                         the band replacement needs)",
             },
         ),
         (
             "UnsupportedRunOut",
             E::UnsupportedRunOut {
                 at: EntityId::Vertex(vertex),
-                detail: "the chain runs out at a vertex the request does not cover",
+                detail: "a chain terminates at a trivalent vertex whose three edges are not all \
+                         requested; run-outs at such corners are not implemented",
             },
         ),
         (
             "UnsupportedGeometry",
             E::UnsupportedGeometry {
                 at: EntityId::Face(face),
-                detail: "a support face that is not planar",
+                detail: "a split edge's stored window is not under one period, so the split \
+                         parameter would alias by a turn",
             },
         ),
         (
