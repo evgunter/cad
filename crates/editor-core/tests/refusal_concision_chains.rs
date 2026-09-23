@@ -46,7 +46,9 @@ pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
         let words = text.split_whitespace().count();
         eprintln!("MEASURE {words} {name}: {text}");
         if words > BUDGET {
-            problems.push(format!("{name} renders {words} words, over {BUDGET}: {text}"));
+            problems.push(format!(
+                "{name} renders {words} words, over {BUDGET}: {text}"
+            ));
         }
     }
     problems
@@ -270,7 +272,10 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "DeclareUnsupportedPair",
             NodeErrorKind::DeclareUnsupportedPair {
-                kinds: (editor_core::EntityKind::Edge, editor_core::EntityKind::Vertex),
+                kinds: (
+                    editor_core::EntityKind::Edge,
+                    editor_core::EntityKind::Vertex,
+                ),
                 cross_operand: true,
             },
         ),
@@ -337,7 +342,10 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
         ("Band", E::Band(band_error())),
         ("DegenerateExtrusion", E::DegenerateExtrusion),
         ("ObliqueExtrusion", E::ObliqueExtrusion),
-        ("ExtrusionEscalated", E::ExtrusionEscalated { source: diag() }),
+        (
+            "ExtrusionEscalated",
+            E::ExtrusionEscalated { source: diag() },
+        ),
         (
             "CosurfaceEscalated",
             E::CosurfaceEscalated {
@@ -527,10 +535,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("CurvedEdgeUnsupported", R::CurvedEdgeUnsupported { edge }),
-        ("CrossingEscalated", R::CrossingEscalated { edge, diag: diag() }),
-        ("TangencyUnsupported", R::TangencyUnsupported { face, vertex }),
+        (
+            "CrossingEscalated",
+            R::CrossingEscalated { edge, diag: diag() },
+        ),
+        (
+            "TangencyUnsupported",
+            R::TangencyUnsupported { face, vertex },
+        ),
         ("ScaffoldingOperand", R::ScaffoldingOperand { edge }),
-        ("SliverVertex", R::SliverVertex { vertex, diag: diag() }),
+        (
+            "SliverVertex",
+            R::SliverVertex {
+                vertex,
+                diag: diag(),
+            },
+        ),
         (
             "SliverSector",
             R::SliverSector {
@@ -539,8 +559,14 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 diag: diag(),
             },
         ),
-        ("NonFiniteSectorChord", R::NonFiniteSectorChord { vertex, face }),
-        ("UnderflowedSectorChord", R::UnderflowedSectorChord { vertex, face }),
+        (
+            "NonFiniteSectorChord",
+            R::NonFiniteSectorChord { vertex, face },
+        ),
+        (
+            "UnderflowedSectorChord",
+            R::UnderflowedSectorChord { vertex, face },
+        ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
         ("CorruptOperand", R::CorruptOperand { vertex }),
         (
@@ -616,11 +642,17 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("TornComponent", F::TornComponent { shell }),
-        ("UnclassifiableComponent", F::UnclassifiableComponent { shell }),
+        (
+            "UnclassifiableComponent",
+            F::UnclassifiableComponent { shell },
+        ),
         ("Corrupt", F::Corrupt),
         ("Euler", F::Euler(euler())),
         ("Band", F::Band(band_error())),
-        ("DescribeEscalated", F::DescribeEscalated { edge, diag: diag() }),
+        (
+            "DescribeEscalated",
+            F::DescribeEscalated { edge, diag: diag() },
+        ),
     ]
     .map(|(n, e)| (format!("Finish/{n}"), SplitError::Finish(e)));
     reduce
@@ -664,7 +696,10 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("NurbsPlaceholder", E::NurbsPlaceholder),
-        ("ApproxLaneUnsupported", E::ApproxLaneUnsupported { lane: "interval" }),
+        (
+            "ApproxLaneUnsupported",
+            E::ApproxLaneUnsupported { lane: "interval" },
+        ),
         (
             "ApproxRecertify",
             E::ApproxRecertify {
@@ -1160,14 +1195,32 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
     use profile::path::{PathError as P, PathNoCornerReason};
     use profile::{FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
-        ("JunctionTangent", P::JunctionTangent { margin: 1e-12, arm: 0.5 }),
-        ("JunctionCusp", P::JunctionCusp { margin: 1e-12, arm: 0.5 }),
+        (
+            "JunctionTangent",
+            P::JunctionTangent {
+                margin: 1e-12,
+                arm: 0.5,
+            },
+        ),
+        (
+            "JunctionCusp",
+            P::JunctionCusp {
+                margin: 1e-12,
+                arm: 0.5,
+            },
+        ),
         ("SeamTangent", P::SeamTangent { margin: 1e-12 }),
         (
             "SeamArrivalOffDirection",
-            P::SeamArrivalOffDirection { margin: 1e-3, arm: 0.5 },
+            P::SeamArrivalOffDirection {
+                margin: 1e-3,
+                arm: 0.5,
+            },
         ),
-        ("SeamArrivalLeverTooShort", P::SeamArrivalLeverTooShort { arm: 1e-12 }),
+        (
+            "SeamArrivalLeverTooShort",
+            P::SeamArrivalLeverTooShort { arm: 1e-12 },
+        ),
         (
             "ContinuationTargetOffRay",
             P::ContinuationTargetOffRay {
@@ -1220,14 +1273,26 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 margin: 1e-12,
             },
         ),
-        ("ArcLegOnOpenFillet", P::ArcLegOnOpenFillet { site: "line_to" }),
+        (
+            "ArcLegOnOpenFillet",
+            P::ArcLegOnOpenFillet { site: "line_to" },
+        ),
         ("SeamRetrimsArcFirstSide", P::SeamRetrimsArcFirstSide),
         ("NonpositiveLeg", P::NonpositiveLeg { length: -0.1 }),
-        ("NonpositiveFilletRadius", P::NonpositiveFilletRadius { radius: -0.1 }),
-        ("NonpositiveCircleRadius", P::NonpositiveCircleRadius { radius: -0.1 }),
+        (
+            "NonpositiveFilletRadius",
+            P::NonpositiveFilletRadius { radius: -0.1 },
+        ),
+        (
+            "NonpositiveCircleRadius",
+            P::NonpositiveCircleRadius { radius: -0.1 },
+        ),
         ("DegenerateArcSpec", P::DegenerateArcSpec { value: 0.0 }),
         ("CircleSplitCount", P::CircleSplitCount { n: 1 }),
-        ("PolygonTooFewVertices", P::PolygonTooFewVertices { given: 2 }),
+        (
+            "PolygonTooFewVertices",
+            P::PolygonTooFewVertices { given: 2 },
+        ),
         ("ZeroDirection", P::ZeroDirection { dx: 0.0, dy: 0.0 }),
         (
             "NonFiniteDirection",
@@ -1252,12 +1317,20 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                 end_radius: 0.6,
             },
         ),
-        ("DegenerateArcCenter", P::DegenerateArcCenter { radius: 1e-12 }),
+        (
+            "DegenerateArcCenter",
+            P::DegenerateArcCenter { radius: 1e-12 },
+        ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),
         ("Escalated", P::Escalated { source: diag() }),
         ("Band", P::Band(band_error())),
         ("Structure", P::Structure(structure_refusal())),
-        ("UnderdeterminedLeg", P::UnderdeterminedLeg { site: "line_at_angle" }),
+        (
+            "UnderdeterminedLeg",
+            P::UnderdeterminedLeg {
+                site: "line_at_angle",
+            },
+        ),
         (
             "OverdeterminedJunction",
             P::OverdeterminedJunction { site: "arc_to" },
@@ -1319,7 +1392,10 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         path: Vec::new(),
     };
     let eval: Vec<(&str, EvalError)> = vec![
-        ("UnknownParam", EvalError::UnknownParam(ParamName::new("width"))),
+        (
+            "UnknownParam",
+            EvalError::UnknownParam(ParamName::new("width")),
+        ),
         (
             "ParamDimensionMismatch",
             EvalError::ParamDimensionMismatch {
@@ -1328,7 +1404,10 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 found: Dimension::Angle,
             },
         ),
-        ("CountExprInContinuousEval", EvalError::CountExprInContinuousEval),
+        (
+            "CountExprInContinuousEval",
+            EvalError::CountExprInContinuousEval,
+        ),
         (
             "ContinuousExprInCountEval",
             EvalError::ContinuousExprInCountEval {
@@ -1336,7 +1415,10 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("CountOverflow", EvalError::CountOverflow),
-        ("CountToScalarOutOfRange", EvalError::CountToScalarOutOfRange(1 << 60)),
+        (
+            "CountToScalarOutOfRange",
+            EvalError::CountToScalarOutOfRange(1 << 60),
+        ),
         ("NonFiniteResult", EvalError::NonFiniteResult),
     ];
     let param_box = [
@@ -1378,7 +1460,10 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     let placement = [
         ("CountSpelling", PlacementRuleFault::CountSpelling),
         ("NoPlacements", PlacementRuleFault::NoPlacements),
-        ("NonFiniteFrame", PlacementRuleFault::NonFiniteFrame { index: 2 }),
+        (
+            "NonFiniteFrame",
+            PlacementRuleFault::NonFiniteFrame { index: 2 },
+        ),
         (
             "ImproperFrame",
             PlacementRuleFault::ImproperFrame {
@@ -1498,13 +1583,19 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         ));
     }
     for (n, source) in param_box {
-        rows.push(row(&format!("ParamBox/{n}"), NodeErrorKind::ParamBox { source }));
+        rows.push(row(
+            &format!("ParamBox/{n}"),
+            NodeErrorKind::ParamBox { source },
+        ));
     }
     for (n, source) in seed {
         rows.push(row(&format!("Seed/{n}"), NodeErrorKind::Seed { source }));
     }
     for (n, e) in placement {
-        rows.push(row(&format!("PlacementRule/{n}"), NodeErrorKind::PlacementRule(e)));
+        rows.push(row(
+            &format!("PlacementRule/{n}"),
+            NodeErrorKind::PlacementRule(e),
+        ));
     }
     for (n, e) in naming {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
@@ -1518,20 +1609,31 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
     ] {
-        rows.push(row(&format!("ParamSourceAttach/{n}"), NodeErrorKind::ParamSourceAttach(e)));
+        rows.push(row(
+            &format!("ParamSourceAttach/{n}"),
+            NodeErrorKind::ParamSourceAttach(e),
+        ));
     }
     type Wrap = fn(Box<ResolveError>) -> NodeErrorKind;
     let wraps: [(&str, Wrap); 5] = [
-        ("DeclareResolve", |error| NodeErrorKind::DeclareResolve { error }),
+        ("DeclareResolve", |error| NodeErrorKind::DeclareResolve {
+            error,
+        }),
         ("BlendSelectionResolve", |error| {
             NodeErrorKind::BlendSelectionResolve {
                 verb: sweep::blend::BlendKind::Chamfer,
                 error,
             }
         }),
-        ("ShellOpenResolve", |error| NodeErrorKind::ShellOpenResolve { error }),
-        ("FaceFrameResolve", |error| NodeErrorKind::FaceFrameResolve { error }),
-        ("MeasureRefResolve", |error| NodeErrorKind::MeasureRefResolve { error }),
+        ("ShellOpenResolve", |error| {
+            NodeErrorKind::ShellOpenResolve { error }
+        }),
+        ("FaceFrameResolve", |error| {
+            NodeErrorKind::FaceFrameResolve { error }
+        }),
+        ("MeasureRefResolve", |error| {
+            NodeErrorKind::MeasureRefResolve { error }
+        }),
     ];
     for (wrap, build) in wraps {
         for (n, e) in resolve() {
@@ -1718,9 +1820,15 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("WholeBody", InterrogateError::WholeBody),
-        ("NoBodies", InterrogateError::NoBodies { payload: "profile" }),
+        (
+            "NoBodies",
+            InterrogateError::NoBodies { payload: "profile" },
+        ),
         ("NoSuchBody", InterrogateError::NoSuchBody { index: 2 }),
-        ("Readback", InterrogateError::Readback(ReadbackError::NoCarrier)),
+        (
+            "Readback",
+            InterrogateError::Readback(ReadbackError::NoCarrier),
+        ),
     ];
     for (n, error) in interrogate {
         rows.push(row(
@@ -1840,7 +1948,12 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 diag: Box::new(diag()),
             },
         ),
-        ("Band", M::Band { error: band_error() }),
+        (
+            "Band",
+            M::Band {
+                error: band_error(),
+            },
+        ),
         (
             "Contradictory",
             M::Contradictory {
@@ -1905,7 +2018,12 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
         ),
     ]
     .into_iter()
-    .map(|(name, fault)| row(&format!("Mate/{name}"), NodeErrorKind::Mate(Box::new(fault))))
+    .map(|(name, fault)| {
+        row(
+            &format!("Mate/{name}"),
+            NodeErrorKind::Mate(Box::new(fault)),
+        )
+    })
     .collect()
 }
 
@@ -1915,7 +2033,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
     let replace = || Box::new(ReplaceFaceError::<f64>::StaleFace { face });
     [
-        ("Band", S::Band { error: band_error() }),
+        (
+            "Band",
+            S::Band {
+                error: band_error(),
+            },
+        ),
         ("Thickness", S::Thickness { thickness: -0.1 }),
         ("NoSolid", S::NoSolid),
         (
@@ -1973,7 +2096,10 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 kind: geom_brep::SurfaceKind::Torus,
             },
         ),
-        ("OpenFaceChartPartial", S::OpenFaceChartPartial { face, other }),
+        (
+            "OpenFaceChartPartial",
+            S::OpenFaceChartPartial { face, other },
+        ),
         (
             "Lift",
             S::Lift {
