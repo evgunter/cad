@@ -172,7 +172,11 @@ nothing else patched. Every site that reds, and only these:
   `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`.
 - *(Since PR 3090)* `crates/viewer/src/pane/features.rs` — the link
   decision described next is exhaustive too, so it reds as well: four
-  places, the count `tree::has_faults`'s doc now carries.
+  places, the count `tree::has_faults`'s doc carried until PR 3100.
+- *(Since PR 3100)* `crates/viewer/src/tree.rs` — `rows`' decision of
+  which rows carry a `TreeRow::repair_at` is exhaustive over
+  `RowStatus`, so it reds as well: five places, the count
+  `tree::has_faults`'s doc now carries.
 
 **`features.rs` is not one mechanical arm, and the compiler is why
 this reads as though it were.** Twelve lines below the exhaustive
