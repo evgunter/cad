@@ -78,11 +78,17 @@ All six member orders fuse. Against `[slab, rib, s2]`:
 - `[slab, s2, rib]` and `[s2, slab, rib]` differ in 16 rows;
 - `[rib, s2, slab]` and `[s2, rib, slab]` differ in 20 rows.
 
-The differences are fold history, not side orientation. When `s2`
-reaches the rib first, the rib's caps and its seam-partner faces carry
-a `Fragment(SideOf(..))` naming `s2`'s caps. The later seam with the
-slab then embeds that fragmented face name. When the slab reaches the
-rib first, the same faces are named without it.
+In THIS document the differences are fold history, not side
+orientation. When `s2` reaches the rib first, the rib's caps and its
+seam-partner faces carry a `Fragment(SideOf(..))` naming `s2`'s caps.
+The later seam with the slab then embeds that fragmented face name. When
+the slab reaches the rib first, the same faces are named without it.
+
+That attribution is for this document only; it is not a claim about the
+class. A cutter that crosses the seam edges makes the same name bind
+different pieces across member orders, because the seam's pieces are
+ranked by two different rankers. That case is its own row:
+`work/emit/union-seam-edge-ranks-follow-which-step-split-the-seam.md` (P0).
 
 The union of three disjoint-ish overlapping blocks
 (`[0,1]³`, `[0.5,1.5]×[0.2,0.8]×[0.2,0.8]`, `[1.2,2.2]×[0.1,0.9]×[0.1,0.9]`)
