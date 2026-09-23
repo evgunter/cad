@@ -264,6 +264,25 @@ Filed from the review:
 - P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
 - P4 `name-counts-saturate-silently-at-u32-max`.
 
+## 2026-09-23 — the global flip lanes are scoped to ancestors
+
+The lane stopped on a definitional fork: what the global lanes may
+report as a vanish's cause. The two candidates:
+
+- (a) N1's derivation path, under which the global lanes disappear;
+- (b) the transitive ancestors of the minting node, with sentences
+  saying "upstream of", not "on the path".
+
+The measurement: the digest corpus and the whole suite are identical
+under both. The two differ in a cutter-union scene, where a recorded
+flip sits upstream of the cut but not in the vanished name.
+
+The orchestrator chose (b) without asking Ev. It applies the
+cause-before-effect principle Ev approved on 3115. An upstream flip is
+a candidate cause and outranks the `GroupResized` effect, as long as
+its sentence claims only what is known. Under (a), GroupResized's "no
+flip was found" would be false. A flip on a non-ancestor node is never
+reported, which closes the live wrong answer.
 ## 2026-09-23 — union seam-chain ranks close (PR 3121)
 
 A union's `Seam` canonicalization swapped the pair into name order
