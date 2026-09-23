@@ -69,7 +69,7 @@ total) or **a typed refusal**, which changes the signature and every
 caller. The substitution reads as the smaller change and matches what
 the door already does with a non-finite seed; a lane taking this row
 should say which and why, because a silent substitution is the thing
-`work/chrome/viewer-substituted-value-class-is-crate-wide` is about.
+`work/vgeom/viewer-substituted-value-class-is-crate-wide` is about.
 
 ## Fence
 

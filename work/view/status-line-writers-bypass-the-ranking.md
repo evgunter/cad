@@ -115,7 +115,7 @@ this item's own module being one of its subjects:
 ## Why it was not swept with the fold
 
 `crates/viewer/src/pane/` is CHROME-adjacent: CHROME's items cite
-`crates/viewer/src/app.rs` (e.g. `work/chrome/drag-tick-has-three-homes.md`),
+`crates/viewer/src/app.rs` (e.g. `work/forms/drag-tick-has-three-homes.md`),
 and the 1c split moved that code into `pane/*`, so CHROME owns items
 over code now living in these files even though its citations still
 name the old path (`stale-file-citations-after-the-split`). A

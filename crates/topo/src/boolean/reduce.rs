@@ -230,7 +230,7 @@ pub(super) struct UnsupportedPair {
 ///   this scan still finds pairs that exact geometry would separate.
 ///   That is conservative in the correct direction — it never admits
 ///   a pair the crossing pipeline cannot handle — and the refusals
-///   built from it say "may intersect" rather than claiming a
+///   built from it say the faces "may meet" rather than claiming a
 ///   meeting the kernel has not computed.
 ///
 /// The pad is the sweep's own ([`super::boxes::sweep_pad`]), so the

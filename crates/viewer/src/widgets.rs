@@ -15,11 +15,13 @@
 //! **Most of what is here draws one row or one field** from values the
 //! caller already holds, and returns what the user did with it. The
 //! rule that produces the exceptions is *a function that takes no
-//! `ui: &mut egui::Ui`*, and there are nine — re-derived from this
+//! `ui: &mut egui::Ui`*, and there are eleven — re-derived from this
 //! file's own text by
-//! `roster_tests::the_helpers_that_take_no_ui_are_the_nine_named_here`,
+//! `roster_tests::the_helpers_that_take_no_ui_are_the_ones_named_here`,
 //! so the list below goes red rather than stale: `wrapped_in_region`,
-//! which lays a sentence out without drawing it; [`number_text`] and
+//! which lays a sentence out without drawing it; [`message_floor`] and
+//! [`widest_number`], which measure the width it is laid out at;
+//! [`number_text`] and
 //! [`number_field`], which render and build rather than draw;
 //! [`install_number_formatter`], which writes a style; [`new_row_step`],
 //! which mints a value; [`value_gesture`] and [`free_move_gesture`],
@@ -55,56 +57,62 @@ use crate::theme::Theme;
 /// **A sentence drawn so that it WRAPS INSIDE THE REGION it is drawn
 /// in** — a refusal, a fault, a check finding, the status line.
 ///
-/// The chrome's other texts are names and numbers, a few characters
-/// each, and where they go is not interesting. A message is a whole
-/// sentence, it can be a paragraph long, and egui decides how to lay
-/// one out from its SURROUNDINGS rather than from what it is.
-/// `egui::Ui::wrap_mode` answers in three steps: the `Ui`'s own
-/// `egui::Style::wrap_mode` if something set one, else `Extend` inside
-/// a grid, else the layout's. **Nothing in this chrome sets a style
-/// wrap mode**, so today the layout is what answers — and both of the
-/// answers a layout gives are wrong for a sentence, each being one of
-/// the two things a reader sees:
+/// egui wraps a label by its LAYOUT (`egui::Ui::wrap_mode`; nothing in
+/// this chrome sets a style wrap mode), and both answers a layout gives
+/// are wrong for a sentence:
 ///
-/// - In an ordinary horizontal row — which is how every field row in
-///   this chrome is built — the mode is `Extend`, which lays the text
-///   out at infinite width. A sentence wider than the pane is not
-///   wrapped and not shortened: it is drawn past the right-hand edge,
-///   under whatever is there.
-/// - In a WRAPPING horizontal row — the toolbar — the mode is `Wrap`,
-///   and `egui::Label::layout_in_ui` takes its "start after the previous
-///   widget, continue on the line below" branch, which places the whole
-///   galley at `ui.max_rect().left()` and indents only the first row to
-///   the cursor. The sentence begins beside the badge that raised it and
-///   every line after the first begins at the left edge of the PANEL —
-///   for the toolbar, the left edge of the window.
+/// - in an ordinary horizontal row the mode is `Extend`, so a sentence
+///   wider than the pane is drawn past its right-hand edge;
+/// - in a WRAPPING row — the toolbar — `egui::Label::layout_in_ui`
+///   starts the text beside the widget before it and puts every later
+///   line at the left edge of the panel, which for the toolbar is the
+///   window's.
 ///
-/// So the wrap is taken HERE and not left to the layout. The text is
-/// laid out into a galley at [`egui::Ui::available_width`] and handed
-/// over already laid out, which is the one path `layout_in_ui` neither
-/// extends nor re-places: it allocates the galley's own size at the
-/// cursor, so every line of the sentence begins under the first one.
+/// So the text is handed over as a galley already laid out
+/// ([`wrapped_in_region`]), the one path `layout_in_ui` neither extends
+/// nor re-places, and the wrap mode is asked for rather than inherited,
+/// so a future context-wide `Style::wrap_mode` would leave a message
+/// where it is.
 ///
-/// **Which region that width names is egui's answer, not a choice made
-/// here** (`egui::Layout::available_size`): from the cursor to the
-/// right-hand edge in an ordinary row, and the whole row's width in a
-/// wrapping one. In the second case the galley is wider than what is
-/// left on the line, so the placer moves the message whole to the next
-/// line rather than splitting it across the two — which is the same
-/// rule the toolbar's controls already wrap by.
+/// **The width is the region's** (`egui::Ui::available_width`), which
+/// egui answers three ways: from the cursor to the right-hand edge in an
+/// ordinary row; the whole row in a wrapping one, where the galley is
+/// then too wide for what is left and moves whole to the next line; and
+/// **last frame's content in an auto-sized container** —
+/// `egui::Resize::begin` ratchets to it, so the wrap never fires and the
+/// container grows instead. A caller in one gives it a width, as the
+/// Checks window (`crate::app`'s `checks_window`) does with
+/// `default_width`.
 ///
-/// **And the wrap is asked for, not inherited**: [`wrapped_in_region`]
-/// passes `Some(egui::TextWrapMode::Wrap)`, which is the argument
-/// `egui::WidgetText::into_galley` takes ahead of `Ui::wrap_mode`
-/// entirely. So a future context-wide `Style::wrap_mode` — this crate
-/// already writes context-wide style ([`install_number_formatter`]) —
-/// would move every other label in the chrome and leave a message
-/// where it is. That is the intent: a message's wrap is a decision
-/// about messages.
+/// # A floor, and then the pane scrolls
 ///
-/// The caller still chooses the voice, and [`message_toned`] is the
-/// door that makes that choice the chrome's one tone rule rather than
-/// a hand-spelled `weak()` at the call site.
+/// Below [`message_floor`] a message stops narrowing: it is laid out at
+/// the floor, wider than its region, and the scroll area each chrome
+/// pane is drawn in (`crate::app`'s `ViewerBehavior::pane_ui`) scrolls
+/// to the rest. Wrapping on down gives four characters a line. The
+/// floor also keeps a number whole: epaint breaks a line at a space
+/// while there is one to break at, and the floor leaves room for the
+/// widest number [`crate::readout::number`] returns and the space after
+/// it. A longer word — a path, or a number glued to punctuation — can
+/// still be broken where epaint's own rule breaks it.
+///
+/// A message that reaches the floor is a finding about the layout that
+/// put it there; `crate::pane::features`'s `message_indent` is the one
+/// this chrome answered. The toolbar is not in a scroll area, so a
+/// window narrower than the floor draws its status line past the panel
+/// (`work/chrome/the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window.md`).
+///
+/// # Characters or width: the rule
+///
+/// **A VALUE is bounded by its characters, at its source; a SENTENCE is
+/// bounded by its region, here.** What decides is what a line break does
+/// to the text: a number broken or clipped reads as a different number
+/// ([`crate::readout::MAX_CHARS`], and [`number_text`], the fields' door
+/// onto it), while a sentence broken between words still says what it
+/// said. The two meet at the floor, which is the width of the widest
+/// value a sentence can quote.
+///
+/// The voice is the caller's, through [`message_toned`].
 pub(crate) fn message(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
     let galley = wrapped_in_region(ui, text);
     ui.add(egui::Label::new(galley))
@@ -141,6 +149,17 @@ pub(crate) fn message_toned(
 
 /// The one place the wrap rule [`message`]'s doc states is spelled,
 /// so its three doors cannot drift apart.
+///
+/// **The text style is the chrome's, not one of its own.** The
+/// fallback font is `egui::FontSelection::Default`, the one
+/// `egui::Label::layout_in_ui` passes, so a message and a `ui.label`
+/// are the same call on this argument rather than two calls that
+/// happen to agree. They would agree either way today: egui consults
+/// `egui::Style::override_font_id` and
+/// `egui::Style::override_text_style` ahead of any fallback, for a
+/// plain string and a `RichText` alike, so a context-wide style
+/// override moves both. The wrap MODE is a decision about messages
+/// ([`message`] says why); the font is not.
 fn wrapped_in_region(
     ui: &egui::Ui,
     text: impl Into<egui::WidgetText>,
@@ -148,9 +167,41 @@ fn wrapped_in_region(
     text.into().into_galley(
         ui,
         Some(egui::TextWrapMode::Wrap),
-        ui.available_width(),
-        egui::TextStyle::Body,
+        ui.available_width().max(message_floor(ui)),
+        egui::FontSelection::Default,
     )
+}
+
+/// **The narrowest width a [`message`] is laid out at**: the widest
+/// number [`crate::readout::number`] returns ([`widest_number`]) and
+/// one space after it, in the font a message resolves to.
+///
+/// The space is what keeps that number whole. epaint tests a glyph for
+/// overflow BEFORE it records the glyph as a place to break
+/// (`epaint::text::text_layout`'s `line_break`), so when a number
+/// starts a line, the overflow that ends the line fires on the space
+/// after it — and with no space yet recorded on that line, the break
+/// falls back to a `-`, a `.`, or any character, inside the number. A
+/// line wide enough for the number and its space never overflows
+/// there.
+pub(crate) fn message_floor(ui: &egui::Ui) -> f32 {
+    let font = egui::FontSelection::Default.resolve(ui.style());
+    widest_number(ui, &font) + ui.fonts_mut(|fonts| fonts.glyph_width(&font, ' '))
+}
+
+/// **How wide the widest text [`crate::readout::number`] returns lays
+/// out in `font`**, in points: `readout`'s own bound over the glyphs it
+/// writes ([`crate::readout::widest_render`]), and one pixel.
+///
+/// The pixel is epaint's: it snaps each glyph's position to the pixel
+/// grid, which can move a line's last glyph right of what the advances
+/// sum to by up to half a pixel. Measured: `-1.7976931348623157e308` in
+/// monospace, where it fills all twenty-three widest glyphs, ends 0.09
+/// points past them at a scale of 1.01.
+pub(crate) fn widest_number(ui: &egui::Ui, font: &egui::FontId) -> f32 {
+    let render =
+        ui.fonts_mut(|fonts| crate::readout::widest_render(|glyph| fonts.glyph_width(font, glyph)));
+    render + 1.0 / ui.ctx().pixels_per_point()
 }
 
 /// **The text a numeric field shows**, and the one rule every field in
@@ -202,6 +253,9 @@ fn wrapped_in_region(
 /// reads back, so it was returned, and a `DragValue` renders its text
 /// through a `TextWrapMode::Extend` button — the field does not clip,
 /// it pushes the panel out.
+///
+/// A value, so bounded by characters — [`message`]'s *Characters or
+/// width* states the rule.
 ///
 /// The bound is [`crate::readout::MAX_CHARS`] because that is the
 /// bound this crate already has and this door is the one place it was
@@ -1529,7 +1583,7 @@ mod roster_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used, clippy::panic)]
 
-    /// **The module doc's "there are nine".**
+    /// **The module doc's "there are eleven".**
     ///
     /// The rule it states — *a function that takes no
     /// `ui: &mut egui::Ui`* — is decidable from the file's own text,
@@ -1537,7 +1591,7 @@ mod roster_tests {
     /// by count: a helper added and a helper renamed are different
     /// edits to the doc, and a count cannot tell them apart.
     #[test]
-    fn the_helpers_that_take_no_ui_are_the_nine_named_here() {
+    fn the_helpers_that_take_no_ui_are_the_ones_named_here() {
         let source = test_utils::source::code_only(include_str!("widgets.rs"));
         let mut found: Vec<&str> = Vec::new();
         let mut lines = source.lines().peekable();
@@ -1565,6 +1619,8 @@ mod roster_tests {
         // The module doc's list, in its own order.
         let named = [
             "wrapped_in_region",
+            "message_floor",
+            "widest_number",
             "number_text",
             "number_field",
             "install_number_formatter",
@@ -1666,11 +1722,11 @@ mod roster_tests {
 /// the claim. The toolbar's own reading is in `app`, against the real
 /// `toolbar_ui`.
 #[cfg(test)]
-mod message_tests {
+pub(crate) mod message_tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::message;
+    use super::{message, wrapped_in_region};
     use eframe::egui;
 
     /// A refusal-length sentence: longer than [`REGION`] at the
@@ -1686,18 +1742,21 @@ mod message_tests {
 
     /// Three region widths, all narrow on purpose: a pane docked
     /// beside a viewport is narrow, and the defect is about a sentence
-    /// that does not fit. Three rather than one because
+    /// that does not fit. Each leaves the sentence more than
+    /// [`super::message_floor`] after [`PRECEDING`], so these rows read the
+    /// region and not the floor — [`BELOW_THE_FLOOR`] is the floor's.
+    /// Three rather than one because
     /// [`a_message_fills_the_region_it_is_given_rather_than_a_fixed_width`]
     /// needs a region that VARIES — one width cannot tell a wrap at
     /// the region from a wrap at a constant.
-    const REGIONS: [f32; 3] = [150.0, 220.0, 320.0];
+    const REGIONS: [f32; 3] = [260.0, 330.0, 420.0];
 
     /// The region the single-width rows use.
     const REGION: f32 = REGIONS[1];
 
     /// Rows are placed at whole pixels, so two readings of one edge
     /// can differ by less than one.
-    const SLACK: f32 = 1.0;
+    pub(crate) const SLACK: f32 = 1.0;
 
     /// The widest row of a laid-out galley — what the sentence
     /// actually asked the layout for.
@@ -1818,7 +1877,9 @@ mod message_tests {
     /// visible size rather than an infinite one, on the stated ground
     /// that wrapping text beats a horizontal scrollbar; this is the
     /// reading that says so, because it is egui's choice and not this
-    /// crate's.
+    /// crate's. That holds above [`super::message_floor`], which [`REGION`]
+    /// is; below it the scrollbar IS the answer, and
+    /// [`below_the_floor_a_message_stops_narrowing`] is that row.
     #[test]
     fn a_message_in_a_scrolled_pane_wraps_at_the_width_the_reader_can_see() {
         let region = core::cell::Cell::new(egui::Rect::NOTHING);
@@ -1935,6 +1996,151 @@ mod message_tests {
              toolbar is the window's ({:?} vs {region:?})",
             plain[1]
         );
+    }
+
+    /// Two regions narrower than any floor a readable body font
+    /// gives: a pane squeezed beside the viewport, and the ribbon
+    /// row's own measurement.
+    const BELOW_THE_FLOOR: [f32; 2] = [40.0, 90.0];
+
+    /// **Below the floor a message stops narrowing**, and the scroll
+    /// area it is drawn in offers the rest.
+    ///
+    /// Two regions under the floor lay the sentence out alike — the
+    /// same rows, as wide as each other and wider than either region —
+    /// and it still wraps, because the floor is a width and not an
+    /// `Extend`. Without the floor the two regions give two different
+    /// ribbons, which is the reading that says the first assertion can
+    /// fail.
+    #[test]
+    fn below_the_floor_a_message_stops_narrowing() {
+        let [narrow, wide] = BELOW_THE_FLOOR.map(|width| {
+            drawn_in(width, false, |ui| {
+                message(ui, SENTENCE);
+            })
+        });
+        assert_eq!(
+            narrow.1, wide.1,
+            "the sentence lands in the same rows at {} and {} points",
+            BELOW_THE_FLOOR[0], BELOW_THE_FLOOR[1]
+        );
+        assert!(
+            widest(&wide.1) > wide.0.width() + SLACK,
+            "and wider than the region, which is what the pane scrolls to \
+             ({:?} in {:?})",
+            wide.1,
+            wide.0
+        );
+        assert!(
+            wide.1.len() > 1,
+            "and it still wraps, at the floor: {:?}",
+            wide.1
+        );
+    }
+
+    /// Every number [`crate::readout::number`] can return at its widest:
+    /// the top of the type both ways, the widest decimal spellings (22
+    /// characters, a sign counted among them), the small end's
+    /// three-digit exponents, and the non-finite fallbacks.
+    const WIDEST_NUMBERS: [f64; 10] = [
+        f64::MAX,
+        -f64::MAX,
+        1e21,
+        -1e20,
+        -1.2345678901234567e-300,
+        -f64::MIN_POSITIVE,
+        -5e-324,
+        f64::NAN,
+        f64::NEG_INFINITY,
+        -8888888888888888.0,
+    ];
+
+    /// The fonts a message can be drawn in here: the body font, and a
+    /// monospace one through a context-wide style override — where every
+    /// glyph is one width, so the widest spelling is the twenty-three
+    /// characters at the top of the type rather than twenty-two digits.
+    const STYLES: [Option<egui::TextStyle>; 2] = [None, Some(egui::TextStyle::Monospace)];
+
+    /// Display scales a glyph's position is snapped at: each moves where
+    /// the pixel grid falls under a line, so a line that ends past its
+    /// advances at one scale may not at another. `1.01` and `1.19` are
+    /// two where the monospace top-of-type spelling ends past its
+    /// twenty-three advances (by 0.09 and 0.08 points, measured).
+    const SCALES: [f32; 6] = [1.0, 1.01, 1.19, 1.5, 2.0, 3.0];
+
+    /// **[`super::widest_number`] holds every number `readout` renders**,
+    /// on one line, in both fonts and at every scale — read off where
+    /// epaint put the last glyph, which is the edge a line break is
+    /// decided against.
+    #[test]
+    fn the_widest_number_holds_every_number_readout_renders() {
+        for scale in SCALES {
+            for style in STYLES {
+                let ctx = egui::Context::default();
+                ctx.set_pixels_per_point(scale);
+                let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                    ui.style_mut().override_text_style = style.clone();
+                    let font = egui::FontSelection::Default.resolve(ui.style());
+                    let bound = super::widest_number(ui, &font);
+                    for value in WIDEST_NUMBERS {
+                        let spelling = crate::readout::number(value);
+                        let galley = egui::WidgetText::from(spelling.as_str()).into_galley(
+                            ui,
+                            Some(egui::TextWrapMode::Extend),
+                            f32::INFINITY,
+                            egui::FontSelection::Default,
+                        );
+                        let end = galley.rows[0]
+                            .glyphs
+                            .last()
+                            .map_or(0.0, egui::epaint::text::Glyph::max_x);
+                        assert!(
+                            end <= bound,
+                            "{spelling} ends at {end} points in {style:?} at scale \
+                             {scale}, past the {bound}-point bound"
+                        );
+                    }
+                });
+                output.textures_delta.clear();
+            }
+        }
+    }
+
+    /// **A line never breaks inside a number `readout` renders**, in a
+    /// region below the floor, in either font.
+    ///
+    /// The number is the widest there is and carries a sign, a point
+    /// and an `e` — each a place epaint breaks a word at when it has no
+    /// space to break at. It starts a line (the sentence before it is
+    /// too long to share one with it), which is the case where the
+    /// overflow ending that line fires on the space AFTER the number.
+    #[test]
+    fn a_line_never_breaks_inside_a_number_readout_renders() {
+        let number = crate::readout::number(-f64::MAX);
+        assert!(
+            ['-', '.', 'e'].iter().all(|glyph| number.contains(*glyph)),
+            "the fixture carries every glyph epaint could break at: {number}"
+        );
+        let text = format!("the offset the solver was handed was {number} mm and it refused");
+        for style in STYLES {
+            let rows = core::cell::RefCell::new(Vec::new());
+            crate::pane::headless::landed(|ui| {
+                ui.style_mut().override_text_style = style.clone();
+                ui.allocate_ui(egui::vec2(BELOW_THE_FLOOR[0], 400.0), |ui| {
+                    let galley = wrapped_in_region(ui, text.as_str());
+                    rows.borrow_mut().extend(
+                        galley.rows.iter().map(|row| {
+                            row.glyphs.iter().map(|glyph| glyph.chr).collect::<String>()
+                        }),
+                    );
+                });
+            });
+            let rows = rows.into_inner();
+            assert!(
+                rows.iter().any(|row| row.contains(&number)),
+                "one line holds the whole number in {style:?}: {rows:?}"
+            );
+        }
     }
 }
 

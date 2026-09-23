@@ -115,7 +115,7 @@ is about a TEST fixture that sat in a band; its fix ties that
 fixture's radius to ε. This row is about the PRODUCT surface that
 offers the same figure to a person, and no change to a test fixture
 touches it. It is also not
-`work/chrome/a-flat-rung-row-uses-an-absolute-epsilon-on-a-scaled-value.md`,
+`work/fit/a-flat-rung-row-uses-an-absolute-epsilon-on-a-scaled-value.md`,
 which is about `f64::EPSILON` standing in for a tolerance in a
 `scene.rs` row and says nothing about the run's ε.
 

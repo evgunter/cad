@@ -123,26 +123,27 @@ fn camera_mm(metres: f64) -> String {
     crate::props::written_text(metres, MM.def())
 }
 
-/// How wide the δ field is, in points.
+/// The δ field's inner margin, set rather than inherited so
+/// [`delta_text_edit`]'s width is a sum of two numbers this file names.
+const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(4, 2);
+
+/// **The δ field, as wide as the widest render it can be handed.**
 ///
-/// Wide enough for [`crate::readout::MAX_CHARS`] characters, the bound
-/// the crate's render searches under — because a render the field
-/// cannot show is clipped, and a clipped render reads as a different δ,
-/// which is the defect the render's own bound exists to prevent.
-/// `the_field_shows_every_render_the_bound_covers` measures it against
-/// egui's own font metrics rather than asserting it in prose.
-///
-/// **The bound now covers every render, the top of `f64` included**,
-/// so this box has no excepted band left to argue about: it is the
-/// width of the widest text the render can hand it, and the render's
-/// own grid decides that rather than a field width deciding the grid.
-/// The box roughly doubled when the grid did — a render owes the
-/// accuracy the kernel can distinguish, and the characters that takes
-/// are the box's to find.
+/// A render the field cannot show is clipped, and a clipped render
+/// reads as a different δ — the defect [`crate::readout::MAX_CHARS`]
+/// exists to prevent — so the text area is
+/// [`crate::widgets::widest_number`] in the field's own font, and the
+/// field is that plus [`FIELD_MARGIN`].
+/// `the_field_shows_every_render_the_bound_covers` measures it.
 ///
 /// A pane narrower than this clips anyway; that is every field in the
-/// chrome and is not this number's to fix.
-const FIELD_WIDTH: f32 = 176.0;
+/// chrome and is not this width's to fix.
+fn delta_text_edit<'text>(ui: &egui::Ui, text: &'text mut String) -> egui::TextEdit<'text> {
+    let font = egui::FontSelection::Default.resolve(ui.style());
+    egui::TextEdit::singleline(text)
+        .margin(FIELD_MARGIN)
+        .desired_width(crate::widgets::widest_number(ui, &font) + FIELD_MARGIN.sum().x)
+}
 
 /// The δ field: the display tolerance as a number the user types, in
 /// millimetres, writing a committed δ into `delta_request` and a
@@ -197,7 +198,7 @@ fn delta_field(
     let mut text = draft.take().unwrap_or_else(|| render.clone());
     let field = ui
         .horizontal(|ui| {
-            let field = ui.add(egui::TextEdit::singleline(&mut text).desired_width(FIELD_WIDTH));
+            let field = ui.add(delta_text_edit(ui, &mut text));
             ui.label("mm display δ");
             field
         })
@@ -504,15 +505,11 @@ mod tests {
 
     /// **The field can show every render the character bound covers.** A
     /// render wider than the box is clipped, and a clipped render reads
-    /// as a different δ — so the width is measured against egui's own
-    /// font metrics for the widest text `crate::readout::MAX_CHARS`
-    /// characters can spell out of the alphabet a render uses, rather
-    /// than asserted in prose.
-    ///
-    /// **The bound IS the render's worst case now**, so the two are
-    /// one thing: the exact spelling at the top of `f64` is what
-    /// `crate::readout::MAX_CHARS` is the width of, and this row
-    /// therefore covers every text the render can hand the field.
+    /// as a different δ — so the field [`super::delta_text_edit`] builds is
+    /// measured against egui's own font metrics for every text
+    /// `crate::readout::widest_render` bounds: its character count of
+    /// each of `crate::readout::GLYPHS`, which covers the two widest
+    /// spellings `number` returns whichever glyph is the font's widest.
     ///
     /// The chrome sets no text styles of its own, so the headless
     /// context's metrics are the application's.
@@ -527,20 +524,16 @@ mod tests {
             ..Default::default()
         };
         let mut output = ctx.run_ui(input, |ui| {
-            for character in "0123456789.e-".chars() {
+            for character in crate::readout::GLYPHS.chars() {
                 let mut text: String =
-                    std::iter::repeat_n(character, crate::readout::MAX_CHARS).collect();
-                let shown = egui::TextEdit::singleline(&mut text)
-                    .desired_width(super::FIELD_WIDTH)
-                    .show(ui);
-                // `TextEdit`'s own horizontal margin, which its text
-                // area does not get: `Margin::symmetric(4, 2)`.
-                let room = shown.response.rect.width() - 8.0;
+                    std::iter::repeat_n(character, crate::readout::MAX_CHARS + 1).collect();
+                let shown = super::delta_text_edit(ui, &mut text).show(ui);
+                let room = shown.response.rect.width() - super::FIELD_MARGIN.sum().x;
                 let wanted = shown.galley.size().x;
                 assert!(
                     wanted <= room,
                     "{} '{character}' need {wanted} points and the field offers {room}",
-                    crate::readout::MAX_CHARS
+                    crate::readout::MAX_CHARS + 1
                 );
             }
         });

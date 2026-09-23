@@ -47,7 +47,7 @@ pub(crate) const MIN_PATTERN_COUNT: i64 = 1;
 /// beside it, because the closed combo has to name a pick the list no
 /// longer offers: a held pick outlives the frame it names (the
 /// document swap row,
-/// `work/chrome/a-creation-forms-held-pick-survives-a-document-swap`),
+/// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`),
 /// and a picker that fell silent there would read as no pick while the
 /// commit still carried one.
 fn frame_picker<T: Copy + PartialEq>(

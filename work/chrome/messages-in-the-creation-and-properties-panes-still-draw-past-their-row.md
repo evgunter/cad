@@ -1,9 +1,12 @@
 ---
 id: messages-in-the-creation-and-properties-panes-still-draw-past-their-row
 kind: issue
-title: "viewer: fifty refusal, fault and prompt sentences in the creation and properties panes are still drawn by the layout's rule, not the message's"
+title: viewer: fifty refusal, fault and prompt sentences in the creation and properties panes are still drawn by the layout's rule, not the message's
 status: open
 opened: 2026-09-22
+priority: P0
+cost: D
+refs: [error-and-check-text-overflows-its-region]
 ---
 
 
@@ -173,3 +176,24 @@ these sites at all, or whether some of them want the character bound
 half of `error-and-check-text-overflows-its-region`. Converting fifty
 sites to the width answer before that question is settled is fifty
 sites to revisit.
+
+## Two things a conversion here now owes (`chrome/message-floor`)
+
+- **`add_part_ui`'s window needs a `default_width`.** The "Add part"
+  window (`pane/create.rs`, `add_part_ui`) is `.collapsible(false)
+  .resizable(false)` with no default width, and in an auto-sized
+  container `egui::Ui::available_width` is last frame's content — the
+  third case `crate::widgets::message`'s doc now lists. So its three
+  sentences above (the directory line, the empty-directory sentence and
+  the store's refusal) converted there would ask for exactly the width
+  they already had and never wrap. The conversion gives the window a
+  width, as `crate::app`'s `checks_window` does. (Carried here from
+  `an-auto-sized-window-makes-available-width-last-frames-content`,
+  closed with the doc half.)
+- **The two lists above now wrap by two rules.** A converted site is
+  laid out down to `crate::widgets::message_floor` and never inside a
+  word; an unconverted one in a top-down layout wraps with no floor, so
+  in a narrow pane it becomes a few characters a line and breaks a
+  path or a number where no space fits. "Correct today, by the caller"
+  above is about where a line STARTS; it is no longer the whole of how
+  the sentence reads.

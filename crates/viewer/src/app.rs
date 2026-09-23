@@ -183,6 +183,10 @@ const FEATURES_SLACK: f32 = 8.0;
 #[cfg(not(target_family = "wasm"))]
 const DOC_EXTENSION: &str = "pncad";
 
+/// What the toolbar says while a canceled run leaves an older picture
+/// on screen (`frame::Progress::Canceled`).
+const CANCELED_LINE: &str = "canceled — showing an older result";
+
 /// `color` as the toolkit's own colour type.
 ///
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
@@ -1599,7 +1603,9 @@ impl ViewerApp {
                     if indexing {
                         ui.spinner();
                     }
-                    ui.label("canceled — showing an older result");
+                    // Two clauses in a wrapping row, so a sentence:
+                    // `widgets::message`, like the status line.
+                    crate::widgets::message(ui, CANCELED_LINE);
                     if ui.button("Re-evaluate").clicked() {
                         ops.push(SessionOp::Reevaluate);
                     }
@@ -2422,7 +2428,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
 
-    use super::{FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
+    use super::{CANCELED_LINE, FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
     use crate::session::SessionOp;
     use eframe::egui;
 
@@ -2535,8 +2541,8 @@ mod tests {
         /// stay inside, and whose left edge is where egui would put a
         /// wrapped label's second line.
         panel: egui::Rect,
-        /// Where the status sentence's lines landed, one rect per
-        /// line, empty when [`toolbar_with`] was given no status.
+        /// Where the sentence [`toolbar_drawn`] looked for landed, one
+        /// rect per line, empty when it was given none.
         status: Vec<egui::Rect>,
     }
 
@@ -2562,11 +2568,28 @@ mod tests {
     /// the state Ev's second symptom is about, which the statusless
     /// frame never reaches.
     fn toolbar_with(width: f32, status: Option<&str>) -> Row {
+        toolbar_drawn(
+            width,
+            |app| {
+                app.status = status
+                    .map(|text| crate::frame::Message::new(crate::frame::Subject::Document, text));
+            },
+            status,
+        )
+    }
+
+    /// The toolbar in a window `width` points wide, over an app
+    /// `prepare` put in the state a row is about, with the lines
+    /// `sentence` landed in read off the second frame.
+    fn toolbar_drawn(
+        width: f32,
+        prepare: impl FnOnce(&mut ViewerApp),
+        sentence: Option<&str>,
+    ) -> Row {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
-        app.status =
-            status.map(|text| crate::frame::Message::new(crate::frame::Subject::Document, text));
+        prepare(&mut app);
         let mut row = Row {
             occupied: f32::NAN,
             available: f32::NAN,
@@ -2599,7 +2622,7 @@ mod tests {
                     row.occupied = laid_out.response.rect.width();
                 });
             });
-            row.status = status
+            row.status = sentence
                 .and_then(|text| {
                     crate::pane::headless::landed_in(&output.shapes)
                         .into_iter()
@@ -2613,6 +2636,66 @@ mod tests {
             output.textures_delta.clear();
         }
         row
+    }
+
+    /// Where the toolbar's canceled line landed in a window `width`
+    /// points wide, over a session a cancel left showing an older
+    /// result.
+    fn canceled_line(width: f32) -> Row {
+        toolbar_drawn(
+            width,
+            |app| {
+                let tol = pncad::tolerance::witness();
+                let (document, _) =
+                    crate::scene::plate_with_hole(tol).expect("the startup document");
+                let mut session = crate::session::DocSession::inline(document, tol);
+                session.pump();
+                session.perform(SessionOp::Reevaluate);
+                session.perform(SessionOp::CancelEvaluation);
+                session.pump();
+                assert_eq!(
+                    session.outstanding(),
+                    crate::session::Outstanding::Canceled,
+                    "the fixture is the state the canceled line is drawn in"
+                );
+                app.session = session;
+            },
+            Some(CANCELED_LINE),
+        )
+    }
+
+    /// **The canceled line wraps as the status line does**: whole, at
+    /// the row's own left edge, and never split between the end of one
+    /// line of the toolbar and the start of the next.
+    ///
+    /// It sits in the same wrapping row as the status line, where
+    /// `egui::Label::layout_in_ui` starts a label beside the widget
+    /// before it and puts its second line at the panel's left edge.
+    /// Where the line falls on the row moves with the window, so the
+    /// row sweeps the width across the range a phone and a half-tiled
+    /// desktop window give, rather than guessing one width where the
+    /// cursor happens to sit near the end of a line.
+    #[test]
+    fn the_toolbars_canceled_line_begins_every_line_in_the_same_place() {
+        for width in (0..=16).map(|step| NARROW / 2.0 + 25.0 * step as f32) {
+            let row = canceled_line(width);
+            assert!(
+                !row.status.is_empty(),
+                "the canceled line was painted at a {width}-point window"
+            );
+            let first = row.status[0].left();
+            let drift = row
+                .status
+                .iter()
+                .map(|line| (line.left() - first).abs())
+                .fold(f32::NEG_INFINITY, f32::max);
+            assert!(
+                drift <= SLACK,
+                "at a {width}-point window every line of the canceled line \
+                 begins under the first ({drift} points of drift across {:?})",
+                row.status
+            );
+        }
     }
 
     /// **The row does not fit a narrow window.** This is the

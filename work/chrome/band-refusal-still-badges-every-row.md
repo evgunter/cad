@@ -170,6 +170,9 @@ nothing else patched. Every site that reds, and only these:
   since `work/README.md`'s 2026-09-20 ruling.
 - `crates/viewer/src/frame.rs` — `badge_site`'s guard test
   `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`.
+- *(Since PR 3090)* `crates/viewer/src/pane/features.rs` — the link
+  decision described next is exhaustive too, so it reds as well: four
+  places, the count `tree::has_faults`'s doc now carries.
 
 **`features.rs` is not one mechanical arm, and the compiler is why
 this reads as though it were.** Twelve lines below the exhaustive
@@ -216,3 +219,59 @@ already expected — it is the same sentence the row has carried since
 2026-09-15. `features.rs` stays on it not for the badge arm, which is
 mechanical, but for the link decision twelve lines below it. The
 `has_faults` half is done and no longer part of the cost.
+
+## Taken 2026-09-22 (`chrome/badge-attribution`, PR 3090) — the mechanical half landed; the design call is a question
+
+**Landed.** `pane/features.rs`'s link decision in `feature_row` is an
+exhaustive `match` over `RowStatus` (`Failed` → its own cause, nowhere
+further; `Ok`/`Unevaluated` → no line). A fifth status now fails to
+compile at the link decision as well as at the badge match, so the
+silent "links nowhere" answer this row named cannot be minted by
+adding the variant.
+
+**Not built, because it has several defensible answers with a
+user-visible consequence: what does a row reached by
+`MateFault::Band` badge?** What exists today, read off the tree
+(corrected in the fix pass; the first draft of this section said no
+document-level mark existed, which was wrong):
+
+- A loud document mark already exists. `crates/viewer/src/session.rs`
+  raises `AtRestBadge::Refused` (`Tone::Actionable`) for ANY gather
+  fault on an assembly-shaped document, and every document a Band
+  refusal reaches is one — the fault is recorded against instances.
+- What that badge lacks is the band's WORDS: its message is
+  `AssemblyError::product_refusal` over `ProductError::RootFailed
+  { node }`, which reads *"product: root N failed to evaluate (ask
+  `Evaluation::node_error` for the typed cause)"* — the gather error
+  carries no cause, and `frame::badge_site` leaves `RootFailed` to the
+  tree.
+
+The options:
+
+- **(a) Status quo.** Every reached row `FAILED`, `Actionable`, the
+  payload's own words, beside a document badge that names a root and
+  no cause. N+1 loud marks. `child_band_refusal_rows` pins the rows.
+- **(b) Put the cause in the badge that already exists, then quiet the
+  rows.** Render the root's `Evaluation::node_error` into the
+  at-rest refusal (following `through` for a poisoned root, which
+  `node_error` already does in one hop), so the one document mark
+  says *"the mate solve could not build a band: …"*; and give the
+  reached rows a run-refusal `RowStatus` (e.g. `RunRefused`) toned
+  `Advisory`. One loud mark for one cause, at document level — which
+  is where the cause lives (the document's tolerance). The badge half
+  helps every `RootFailed`, not only Band. `badge_site`'s one-for-one
+  pairing is restated (the new state pairs with no gather class) and
+  its guard test with it; the link decision answers `None` for the
+  new state.
+- **(c) The same variant, toned `Actionable` on every row.** Honest
+  scope wording ("the run refused, not this node"), no badge change,
+  still N+1 loud marks.
+
+Under (b) or (c): `tree::has_faults` must answer `true` (its match is
+exhaustive, so it will ask), and `crates/viewer/GUI-DESIGN.md`'s GQ2
+sentence ("those rows draw as downstream of the mate the fault names")
+gains its Band half.
+
+The lane's recommendation is (b). Its badge half touches
+`session.rs`, which is live ground this wave (#3052, #2960, #2961),
+which is one more reason it is asked rather than built.

@@ -351,13 +351,13 @@ pub struct CellNormal {
 
 /// Meter 1, per cell: the three-assembly join (module docs).
 ///
-/// **Reads the cell's signed enclosures inf-side**, so it inherits
-/// their provenance: on the rational arm they enclose the refined-`f64`
-/// patch ([`PatchCell`], "What the enclosure encloses"). The gap is
-/// insertion dust, and every claim here is a MAGNITUDE claim at ε
-/// scale rather than a structural one (no `contains(0)`, no exact
-/// sign), so the dust is far below anything this meter decides — which
-/// is the reason it is sound to read them here, not an accident.
+/// **Reads the cell's signed enclosures inf-side**, and they enclose
+/// the DESCRIBED patch on both arms ([`PatchCell`], "What the enclosure
+/// encloses"), so an inf-side read needs no caveat about which patch it
+/// is about. What it still inherits is the refinement's WIDTH: the
+/// enclosures carry the insertion's outward rounding, which subtracts
+/// from a floor rather than being ignored by it. Every claim here is a
+/// magnitude claim at ε scale, decades above that width.
 pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     let m = cross(&cell.s_u, &cell.s_v);
     // Assembly A: componentwise mignitude.
