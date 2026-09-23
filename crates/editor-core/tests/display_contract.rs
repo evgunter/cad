@@ -1258,6 +1258,31 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
     );
 }
 
+/// The group-size diagnosis states the table fact and nothing more —
+/// the same sentence at every count, since a count of one or zero
+/// says nothing about where the parent went (N3 merges and undivided
+/// pass-throughs are rows the group's spellings do not match). Exact
+/// sentences, so a clause that claims more cannot slip in.
+#[test]
+fn a_resized_group_states_the_table_fact_and_claims_no_flip() {
+    for (was, now) in [(2, 1), (3, 0), (2, 3)] {
+        let d = Diagnosis::GroupResized {
+            node: RecipeNodeId(8),
+            was,
+            now,
+        };
+        assert_eq!(
+            d.to_string(),
+            format!(
+                "at node 8, the rows spelled by this fragment's base name, bare or \
+                 with one fragment qualifier, held {was} entities in the last-good run \
+                 and hold {now} now, and no verdict flip was found that explains the change"
+            )
+        );
+        assert_f6(&d, &[], &["GroupResized"]);
+    }
+}
+
 /// Refusals that name a stable name FORWARD its `Display` rather than
 /// re-spelling the kind-plus-minting-node phrase. The expectation is
 /// built from the impl, so a copy that stops tracking it fails here —

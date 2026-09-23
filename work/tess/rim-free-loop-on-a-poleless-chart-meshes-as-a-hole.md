@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-18
 priority: P0
 cost: D
+parent: TESS-5
 ---
 
 
@@ -96,3 +97,21 @@ what answers instead.
 The title's "on a chart with no pole" is therefore too narrow — the
 sphere member has poles. Left as filed (the id is the file name);
 read it as "a rim-free loop whose meridians share one column".
+
+## Correction to the two `check_mesh = Ok(())` readings (TESS-4, 2026-09-22)
+
+The two measurements above — the two-face torus (`patches = [0, 0]`)
+and the one-seam sphere (`patches = [0]`), both with debug assertions
+off — record `check_mesh = Ok(())`. As of TESS-4 both are
+`Err(MeshError::NoTriangles)`: every patch is empty, so the whole-mesh
+arm answers first. `EmptyPatch { face }` is the verdict for a mixed
+mesh, which neither of these is. Nothing else in either reading moves —
+the `Ok` from `tessellate`, the patch counts and the census panic with
+assertions on are unchanged, and the hole is still a hole.
+
+Not re-executed. The assertions-off run the originals needed is not
+needed for this: `check_mesh`'s first act is a `triangle_count == 0`
+compare, so the verdict follows from the recorded patch counts alone.
+The same mesh shape is pinned hand-built by
+`survives_checkmesh_refuses_the_empty_mesh`'s all-patches-empty arm, so
+the claim has a row that goes red if it stops holding.

@@ -2,7 +2,7 @@
 id: band-refusal-still-badges-every-row
 kind: issue
 title: MateFault::Band still badges every row in the cluster — the filed defect, surviving in one arm
-status: open
+status: deferred
 opened: 2026-09-04
 refs: [1769, 1463]
 priority: P1
@@ -172,7 +172,11 @@ nothing else patched. Every site that reds, and only these:
   `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`.
 - *(Since PR 3090)* `crates/viewer/src/pane/features.rs` — the link
   decision described next is exhaustive too, so it reds as well: four
-  places, the count `tree::has_faults`'s doc now carries.
+  places, the count `tree::has_faults`'s doc carried until PR 3100.
+- *(Since PR 3100)* `crates/viewer/src/tree.rs` — `rows`' decision of
+  which rows carry a `TreeRow::repair_at` is exhaustive over
+  `RowStatus`, so it reds as well: five places, the count
+  `tree::has_faults`'s doc now carries.
 
 **`features.rs` is not one mechanical arm, and the compiler is why
 this reads as though it were.** Twelve lines below the exhaustive
@@ -275,3 +279,16 @@ gains its Band half.
 The lane's recommendation is (b). Its badge half touches
 `session.rs`, which is live ground this wave (#3052, #2960, #2961),
 which is one more reason it is asked rather than built.
+
+## Ev's ruling (in chat, 2026-09-23) — deferred
+
+Shown that `MateFault::Band` is reachable only at a tolerance where
+`geom-core`'s `Band::linear` refuses — ε within a factor K of
+`f64::MAX`, or a subnormal ε with K near 1, which its doc calls
+*"unreachable for any physically meaningful tolerance"*, and which this
+crate's own row builds at `f64::MAX / 2` — Ev answered: *"if it's
+essentially unreachable then leave it alone"*. The badging stays as it
+is. What this row found and what landed stands: the link decision in
+`pane/features.rs` is exhaustive (PR 3090), so a new `RowStatus` still
+cannot link nowhere silently. Deferred on that ratification, not parked:
+nothing it waits for is expected to fire.

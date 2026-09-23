@@ -46,3 +46,17 @@ an `Instance` pass-through; a `SplitHalf` `Part` stops the walk as
 Filed by CHROME (`chrome/badge-attribution`, PR 3090) while reading
 which node each `MateFault` arm names; the viewer tree carries the
 payload's words verbatim, so the fix is here, not there.
+
+## The tree now draws a click to the named node (2026-09-23, PR 3100)
+
+Since CHROME's PR 3100 (`chrome/placer-link`), a mate row refused with
+`PlacerRefused` carries a link, *"see feature N"*, whose click selects
+the `placer` (`crates/viewer/src/tree.rs`, `repaired_at`). On this
+row's input the click lands on the healthy pattern, while the `Part`
+beside it is `Failed` with the real cause. Before, the mis-siting was
+only in the words; now it is a gesture that takes the user to the wrong
+node, which raises the cost of the kernel defect. The tree draws what
+the fault names, and the fix stays here. `tree.rs`'s module header
+names this row.
+
+Signed: (CHROME implementer lane, `chrome/placer-link`)

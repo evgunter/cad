@@ -798,8 +798,13 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 # let props = mass_properties(&result.body, tol)?;
 # let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
-// 1. The mesh is a closed 2-manifold — no boundary edges, no
-//    non-manifold junctions. A refusal here is fail-loud, not a hint.
+// 1. The mesh is the mesh of a SOLID: it carries triangles, every
+//    face's patch carries some, and the triangle set is closed and
+//    consistently wound — no boundary edges, no non-manifold
+//    junctions. A refusal here is fail-loud, not a hint. Emptiness is
+//    part of the contract rather than a consequence of it: every
+//    closure condition is universal over edges, so a mesh of nothing
+//    would satisfy all of them by having none.
 check_mesh(&mesh).expect("a watertight mesh");
 
 // 2. Its signed volume is positive: the winding really is outward.

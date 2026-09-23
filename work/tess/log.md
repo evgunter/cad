@@ -507,3 +507,74 @@ A/B row), on disjoint files, concurrently:
   its callers read it as (the mesh of a solid), decided from a survey
   of which producers can legitimately hand it an empty mesh.
 The three rows TESS-1 filed priced (P0/D, P1/D, P4/E).
+
+## TESS-4 green, in review (2026-09-22)
+
+PR 3094 at `e10e8e6b`, full matrix green. `check_mesh`'s contract is
+the mesh of a SOLID: `MeshError::NoTriangles` and `EmptyPatch { face }`,
+decided before the edge census, D2 row 1 — because `Body::new()` is
+tier-1/2 valid ("validates vacuously") and `tessellate` on it
+legitimately produces the empty mesh. `tessellate` stays count-blind
+(TESS-1's rule is about refusals; a validator re-deriving from the
+emitted mesh is the other thing). No caller wanted `Ok` on nothing;
+`MeshError` has no exhaustive consumer. Filed on EXCH: the STL writers
+turn a zero-triangle mesh into a valid `solid` file and no shipped
+caller validates first. One style reviewer with a correctness arm
+dispatched. Undecided and named in prose only: whether
+`tessellate(&Body::new())` should answer at all — the reviewer is
+asked whether that is a deviation owing a row.
+
+## TESS-3 merged (2026-09-22)
+
+PR 3098 at `45077d84d` → `cd0019ec2`. The row was already closed by
+RING-2 and nobody had measured it; TESS-3 measured and pinned it
+(`== 0.0`, the affine arm's observable, the rational dust bracket).
+Diff was docs and four test rows, so it merged on green CI and my read
+of the assertions — the bottom tier, not the middle one it was
+dispatched at. Filed: `chords-m-bound-zero-arm-is-dead-…` (the same
+collapse open-coded twice in `chords.rs` with no exact-zero case).
+Lane reclaimed. TESS-4's review is in flight.
+
+## TESS-4 merged (2026-09-22)
+
+PR 3094 at `f2ca19bf0` → `9d3b4183e` after the fix pass (the review's
+class: vacuity sentences outside the sweep — the Python cross-checks
+and the compiled guide page; the guide sentence re-worded here as the
+clause this change rotted, the Python siblings filed on LIB). TESS-4
+and its row closed. Lane reclaimed. Four TESS units merged this
+sitting; the slate's P0 remainder: `rim-free-loop-on-a-poleless-chart-
+meshes-as-a-hole` (D), `tessellate-refuses-approx-face-without-caches`
+(D), `lofted-circle-sections-…` (H), `one-element-grid-axes-drop-
+schedule` (H), `rim-chords-…` (H, MESH-9 parked on it).
+
+## TESS-5 dispatched; a survey on the Approx-face row (2026-09-22)
+
+- **TESS-5** — the zero-WIDTH twin of TESS-1: a loop of meridians only
+  on a chart with no pole (cylinder, torus; the cone's generators end
+  at the apex, measured by the lane) walks to a zero-width polygon and
+  meshes as a hole. The row says TESS-1's fact does not transfer and
+  the unit has to find the statement; the brief asks for the structural
+  fact first, measured across the chart kinds, and refuses on it —
+  never on a width or a count. Middle tier unless the fact turns out
+  to be a door PROPS owns, in which case it is announced. Reviewer
+  probes from TESS-1's dual (`loops_the_meridian_guard_admits.rs`) are
+  the starting fixtures.
+- **Survey lane on `tessellate-refuses-approx-face-without-caches`**
+  (P0/D): the fork is a pcurve-cache mint for straight carriers on an
+  `Approx` chart versus a tessellation arm that reads the description;
+  measure what each costs and who else reads the cache before a spec.
+
+## The Approx-face row closed on a measurement (2026-09-22)
+
+The survey found the wall gone: EXCH's LINE-carrier limb (PR 1798,
+2026-09-17) mints the cap's straight-carrier caches, and the box
+meshes, weighs and validates once `mint_pcurves` runs — the row (filed
+09-04) and the fixture that skips the mint were what remained. The
+fork it named needed no choosing; the mesh-side arm would have moved
+the refusal from typed to silent. Closed with four filings: the fixture
+pin (TINT), the refusal's five spellings and wrong noun (TESS, P3/E),
+the LINE limb's unmeasured corners (PCERT), and SHELL's row told its
+legs 2–3 lift. **CLASS, the third instance this sitting**: a row's
+prose about another program's door goes stale the day that program
+lands (the cap row's "import dead", the exact-zero row's mechanism,
+this one). Measure-first before every dispatch stays the rule.

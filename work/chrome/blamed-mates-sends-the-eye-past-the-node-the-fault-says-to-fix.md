@@ -2,10 +2,13 @@
 id: blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix
 kind: issue
 title: blamed_mates sends the eye to the mate where three fault arms name the node an author actually fixes
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-23
+pr: 3100
+branch: chrome/placer-link
 priority: P1
-cost: D
+cost: E
 ---
 
 
@@ -161,3 +164,41 @@ loud. Related, filed on MSOLVE's slate: `check_reference` sites a
 `Part`'s non-evaluating index at the pattern below it, so on that path
 the named placer can be the wrong node
 (`work/msolve/placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate.md`).
+
+## Ev's ruling on Q2 (in chat, 2026-09-23) — option (c)
+
+Shown the concrete case (a mate onto a pattern copy whose direction
+slot does not evaluate: the mate row carries FAILED and the message
+naming the pattern; the pattern row is poisoned and points at the
+mate) and three options — (a) leave it, (b) draw the placer `Failed`,
+(c) keep the blame on the mate and make its message LINK to the node
+it names — Ev answered: *"(c) makes sense!"*.
+
+So the work this row owes is now small and written: blame stays where
+`tree::blamed_mates` puts it; a `Failed` mate row whose fault names a
+placer (`MateFault::PlacerRefused`'s `placer`) gets a link to that
+node's row, the way a `Poisoned` row's pointer already links to
+`through`. The row's other arms need no link: D1 of PR 3090 showed the
+nodes `DanglingHead` and `PartSelectsAnotherCopy` name are not what an
+author fixes.
+
+## Closed
+
+By `chrome/placer-link`, option (c) as ruled. Blame is unchanged:
+`tree::blamed_mates` still puts the fault on the mate, whose row stays
+`Failed` with the fault's words. A mate row whose fault is
+`MateFault::PlacerRefused` now also carries `TreeRow::repair_at =
+Some(placer)`, decided on the tree side by `tree::repaired_at` (one
+arm per `MateFault`, no wildcard) and drawn by the Features pane's
+`failure_lines` as a second line, `see feature N`
+(`tree::repair_wording`, over `node_number`), whose click selects the
+placer. `DanglingHead` and `PartSelectsAnotherCopy` answer `None`, as
+does every other arm. The module header's second section says it once.
+
+Pinned in `crates/viewer/tests/msolve3_placer_refused.rs` (the mate row
+links to the pattern in the direction-`1e200` case, and no row links in
+the four `DanglingHead` / `PartSelectsAnotherCopy` fixtures) and in
+`pane::features`' tests (the click selects the placer). The residue of
+the sweep, other `NodeErrorKind` arms whose words name a node, is filed
+as `failed-rows-naming-another-node-outside-mate-faults-draw-no-link`.
+

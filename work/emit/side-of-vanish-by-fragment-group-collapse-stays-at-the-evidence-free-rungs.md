@@ -2,11 +2,15 @@
 id: side-of-vanish-by-fragment-group-collapse-stays-at-the-evidence-free-rungs
 kind: issue
 title: A SideOf fragment name that vanishes because its fragment GROUP collapsed (the partners unmoved) is not recovered by the shadow-exec rung and falls to the evidence-free RecipeEdit fallback
-status: open
+status: closed
 opened: 2026-09-16
 refs: [2755, 134]
 priority: P1
-cost: H
+cost: E
+rides_with: order-along-qualifier-records-no-partner-so-its-pruned-pair-vanish-cannot-be-recovered
+branch: emit/group-resized
+pr: 3115
+closed: 2026-09-23
 ---
 
 Found by BOOL-7's R1 review (PR 2755) and filed by the S-BOOL
