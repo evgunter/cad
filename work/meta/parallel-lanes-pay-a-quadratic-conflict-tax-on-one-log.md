@@ -2,10 +2,11 @@
 id: parallel-lanes-pay-a-quadratic-conflict-tax-on-one-log
 kind: issue
 title: N parallel lanes on one program each conflict on log.md at every base merge, and the cost grows with the wave
-status: open
+status: closed
 opened: 2026-09-22
 priority: P3
 cost: D
+closed: 2026-09-23
 ---
 
 
@@ -67,3 +68,25 @@ The cheap mitigation that needs no ruling and was used here: the
 orchestrator resolves every lane's log conflict itself at merge time,
 which is one reader who has seen all N entries rather than N lanes
 each seeing two.
+
+## Closed (2026-09-23): the log merges by union
+
+`.gitattributes` gives `work/*/log.md` git's `union` driver, so the
+base merges this row measured go through without a conflict: both
+entries kept, in order, which is the resolution all eight were given
+by hand. The alert the conflict used to give by accident, for a note
+another program leaves on a log, is now an explicit read:
+`work.py incoming` at every check-in (`work/README.md`, "The log
+merges by union"). Rejected: keeping every entry on the orchestrator's
+branch and merging that branch into unit PRs. It avoids the conflict
+through shared commits, but it carries the branch's other contents
+into self-merged unit PRs, and lets a unit's A/B entry reach main
+before that unit's reviews are done.
+
+GitHub's own merge (the PR's mergeability check and the merge button)
+is a separate question. A probe on the PR that made this change showed
+a conflict, but `.gitattributes` was then on the head only, and
+`git --attr-source=<main> merge-tree` reproduces that conflict locally,
+so it does not settle whether GitHub reads the attribute. Where it
+does not, a PR with a diverged log shows as conflicting and is brought
+up to date by a local base merge, which the attribute does cover.
