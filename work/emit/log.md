@@ -241,3 +241,44 @@ Options went to Ev on 3102:
 3. refuse opposite-sense sections.
 
 The orchestrator recommends option 1. The unit carries `needs_ev`.
+
+## 2026-09-23 — GroupResized lands (PR 3115, Ev approved)
+
+The two vanish rows close together. Their premises were refuted
+rather than fixed. `OrderAlong` never needed a partner, because
+`name_frag_order_along` ranks siblings against each other. Both rows
+are one event: a fragment group that changed size while every verdict
+held.
+
+N5 gains `Diagnosis::GroupResized`, placed after every cause-naming
+rung and before the evidence-free fallback. Ev accepted the
+justification that the ladder orders cause before effect. On whether
+it needed his sign-off, Ev said an additive rung that contradicts no
+principle he asked for is fine. The Display sentence states only the
+two-table fact.
+
+Filed from the review:
+- P0 `global-flip-lanes-present-an-unrelated-flip-as-a-vanished-names-cause`,
+  measured. This predates the PR.
+- P1 `group-size-re-derives-group-membership-from-name-shape`.
+- P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
+- P4 `name-counts-saturate-silently-at-u32-max`.
+
+## 2026-09-23 — union seam-chain ranks close (PR 3121)
+
+A union's `Seam` canonicalization swapped the pair into name order
+but kept an `OrderAlong` tail ranked along n_a×n_b, A side first. So
+reordering members rebound seam-edge names silently: a P0 found by
+3114's review. Now a swapped pair reads a seam EDGE's rank as
+of−1−rank, which is exact because negating the direction reverses a
+certified strict order and keeps ties. A ranked seam vertex keeps its
+rank, and a unit row guards that exemption. Its unreachable two-edge
+case refuses typed. Pair-boolean names are untouched, and no union in
+the tree today collapses a ranked seam edge.
+
+Review found the sibling: a three-member union can rank one seam once
+as a two-edge chain along n_a×n_b and once as a descent sub-edge
+chain along the edge's own direction. `collapse` flattens both to one
+spelling. Filed P0 as `union-seam-edge-ranks-follow-which-step-split-the-seam`.
+It goes to the same lane next, aimed at one orientation rule for both
+rankers.
