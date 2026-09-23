@@ -4,6 +4,8 @@ kind: issue
 title: mesh: a curved face whose loop is meridians only on a chart with no pole walks to zero width and meshes as a hole
 status: open
 opened: 2026-09-18
+priority: P0
+cost: D
 ---
 
 

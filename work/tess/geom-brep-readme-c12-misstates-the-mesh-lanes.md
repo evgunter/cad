@@ -4,6 +4,8 @@ kind: issue
 title: crates/geom-brep/README.md C12 (6) says pcurve-trimmed faces are not implemented and cites UnsupportedCurvedShape for it
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 
