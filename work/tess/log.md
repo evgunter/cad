@@ -478,3 +478,16 @@ R2's MINOR-1. Record on `tess/b1-block`.
   sampler-error method was deleted and its figures sit on two rows.
 - Ordinal 5101 on main (PR 3081). Fix pass sent, union A–K; two review
   targets reclaimed; 26 G free.
+
+## TESS-2 merged (2026-09-22)
+
+PR 3080 at `2aaf73402` merged as `9bd61de7e` on a green full matrix
+with main not moved under it. TESS-2, the rational-cells row and the
+NURBS-face-bound row closed; spec deleted (ledger); A/B row recorded,
+sample #239, no tally candidate. The fix pass found and fixed a second
+defect (`apply_ring` on a longer line than its plan). Lane reclaimed.
+What TESS leaves here: the patch bound encloses the described patch on
+both arms; the sweep's own allowance is CHORD's row with the measured
+numbers. Slate next: `tessellate-refuses-approx-face-without-caches`,
+`lofted-circle-sections-…`, the two rows TESS-1 filed, and
+`check-mesh-passes-the-empty-mesh`.

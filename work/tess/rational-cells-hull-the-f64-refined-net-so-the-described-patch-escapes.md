@@ -2,12 +2,13 @@
 id: rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes
 kind: issue
 title: patch_bound's rational arm hulls the f64-refined net: the described patch's true second partial exceeds the certified sup by ULPs, measured exactly
-status: open
+status: closed
 opened: 2026-09-18
 refs: [nurbs-face-bound-unsound-on-a-random-rational]
 priority: P0
 cost: H
 parent: TESS-2
+closed: 2026-09-22
 ---
 
 
