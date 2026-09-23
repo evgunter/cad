@@ -147,3 +147,138 @@ Filed:
   order-dependent `SharedRim` refusal on a legal union. It is the next
   P0 on this slate.
 - `contact-partner-lookup-takes-the-first-of-several-vv-rows` (P3).
+
+## 2026-09-23 — the B-arena edge chase closes (PR 3114)
+
+`union(tip, bar)` refused `SharedRim` where `union(bar, tip)` named the
+edges. The cause, measured: in a B-clone result, `chase_b` stepped
+through an always-empty `fwd_edges`. Now the edge-root chase is chosen
+by where a side's keys live (`operand_key` returns the side with its
+key space): `Direct` chases in the arena for either side, and
+`Grafted` goes through `chase_b`. Whole-table diffs changed only the
+two cells that had refused.
+
+Review measured the filed seam-chain row and found it a live silent
+rename under `Node::Union`: member order rebinds `OrderAlong` edge
+names. It is re-banded P0 and dispatched to the same lane on
+`emit/seam-chain-ranks`.
+## 2026-09-23 — seam-junction closes (PR 3112)
+
+`emit_union::collapse` now reads a seam junction's run of `Seam` lines
+as one head. The run is admitted only as the whole path of a
+Vertex-kind name, and every other shape still refuses FOREIGN. Each
+line collapses to member space through the head-`Seam` rule, and the
+run is re-sorted. Two lines that collapse to one refuse loudly. No
+stored name bit moves: review diffed whole tables across 308
+(document, order) cells, and the only transitions were refusals
+becoming names.
+
+Filed from the unit and its review:
+- `seam-edge-between-two-merged-faces-refusal-a-legal-declared-union-reaches`
+  (P0, re-banded at adjudication): an `Emission` refusal on legal
+  unions of ordinary blocks.
+- `declared-flush-union-edge-and-vertex-names-follow-member-order`
+  (P1): measured with 0 names rebinding, so a reorder makes names
+  vanish typed rather than silently rebind.
+- `name-ordered-positions-in-a-path-have-no-single-home` (P1, class):
+  the sort rule lives in four partial lists. `collapse` does not
+  re-sort `SideOf`, contrary to `role.rs`.
+
+## 2026-09-23 — Ev on the loft anchors: a deeper design issue
+
+Ev, on PR 3102: the split between "program numbering" and "published
+numbering" for a later loft section points at a deeper design issue.
+The orchestrator's reading, posted on the PR: a loft's section
+correspondence is the kernel's lex-min canonical guess, not the
+author's order. Three open rows share that root:
+
+- this unit;
+- carve's twisted-loft P0 (`loft-pairs-sections-by-canonical-start-not-authored-order`,
+  which reaches main with 3102);
+- carve's first-strip v-parameterization row.
+
+Proposed: make the correspondence authored (step k of every section →
+wall k). A mismatched-orientation section is refused typed, option
+(a), or normalized with its start kept, option (b); the orchestrator
+leans to (a). 3102 is held rather than merged. Its loft machinery
+would be deleted by the redesign, and the wrong answer it fixes has no
+production caller today. Waiting on Ev's answer.
+
+## 2026-09-23 — Ev ratifies authored loft correspondence
+
+On PR 3102's thread, Ev accepted option (1): orientation is
+canonicalized per loop, and each loop's start vertex and the hole
+order are as authored. He ruled out an explicit per-section offset as
+redundant. The new unit is `loft-section-correspondence-is-authored`
+(P0, H). It is given to the lane that did 3102, which has the context.
+
+3102 will close unmerged once the unit's PR opens, and its red rows
+carry over. `loft-anchors-every-section-with-section-zeros-map` closes
+with the unit. Carve's first-strip row stays open on carve: authored
+correspondence does not remove its sensitivity.
+
+## 2026-09-23 — the loft unit stops on the opposite-sense section
+
+The lane measured both scopes before committing.
+
+- **The global canonical-start change.** It sets `start = 0` in
+  `profile::validate`. It moves no published name for any verb, and
+  body point sets are identical. It does move arena order in 4 corpus
+  documents and an extrude volume by 1 ulp, and about 30 goldens and
+  verdict counts. It would also retire the ratified V3 clause ("lex-min
+  start"). It is outside the agreement, so it was not taken.
+- **The loft-only change.** Inside the agreement, but it leaves one
+  point open. A section authored in the opposite sense to section 0
+  pairs program step n−1−k with section 0's step k. A loft publishes
+  one ref per wall, so the ordinary door, asked with that section's
+  own naming, would name the reflected wall. The door needs the
+  published sense.
+
+Options went to Ev on 3102:
+1. one derived orientation bit per section on the loft value;
+2. canonical numbering for every verb's refs, a migration for
+   clockwise-authored profiles;
+3. refuse opposite-sense sections.
+
+The orchestrator recommends option 1. The unit carries `needs_ev`.
+
+## 2026-09-23 — GroupResized lands (PR 3115, Ev approved)
+
+The two vanish rows close together. Their premises were refuted
+rather than fixed. `OrderAlong` never needed a partner, because
+`name_frag_order_along` ranks siblings against each other. Both rows
+are one event: a fragment group that changed size while every verdict
+held.
+
+N5 gains `Diagnosis::GroupResized`, placed after every cause-naming
+rung and before the evidence-free fallback. Ev accepted the
+justification that the ladder orders cause before effect. On whether
+it needed his sign-off, Ev said an additive rung that contradicts no
+principle he asked for is fine. The Display sentence states only the
+two-table fact.
+
+Filed from the review:
+- P0 `global-flip-lanes-present-an-unrelated-flip-as-a-vanished-names-cause`,
+  measured. This predates the PR.
+- P1 `group-size-re-derives-group-membership-from-name-shape`.
+- P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
+- P4 `name-counts-saturate-silently-at-u32-max`.
+
+## 2026-09-23 — union seam-chain ranks close (PR 3121)
+
+A union's `Seam` canonicalization swapped the pair into name order
+but kept an `OrderAlong` tail ranked along n_a×n_b, A side first. So
+reordering members rebound seam-edge names silently: a P0 found by
+3114's review. Now a swapped pair reads a seam EDGE's rank as
+of−1−rank, which is exact because negating the direction reverses a
+certified strict order and keeps ties. A ranked seam vertex keeps its
+rank, and a unit row guards that exemption. Its unreachable two-edge
+case refuses typed. Pair-boolean names are untouched, and no union in
+the tree today collapses a ranked seam edge.
+
+Review found the sibling: a three-member union can rank one seam once
+as a two-edge chain along n_a×n_b and once as a descent sub-edge
+chain along the edge's own direction. `collapse` flattens both to one
+spelling. Filed P0 as `union-seam-edge-ranks-follow-which-step-split-the-seam`.
+It goes to the same lane next, aimed at one orientation rule for both
+rankers.

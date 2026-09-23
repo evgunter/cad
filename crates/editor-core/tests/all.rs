@@ -158,6 +158,8 @@ mod edit_ruled_carve;
 mod edit_step_segments;
 #[path = "emit_boolean_vertex_keys.rs"]
 mod emit_boolean_vertex_keys;
+#[path = "emit_union_member_order.rs"]
+mod emit_union_member_order;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
@@ -603,3 +605,5 @@ mod wire_rv_unknown;
 
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
+#[path = "emit_seam_junction.rs"]
+mod emit_seam_junction;

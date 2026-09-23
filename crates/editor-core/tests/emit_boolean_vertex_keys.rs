@@ -14,7 +14,7 @@
 //! - a vertex minted on one operand's edge where the other's vertex
 //!   touches it, in a result that is one operand's clone and in an
 //!   assembly, each in both orders, pinned by name;
-//! - the operand-swap row: five fixtures, union and intersection, both
+//! - the operand-swap row: six fixtures, union and intersection, both
 //!   orders; every face, edge and vertex name of `x op y`, with `FromA` and
 //!   `FromB` exchanged and each `Seam{a, b}` read as `Seam{b, a}`, is the
 //!   name the same geometry gets in `y op x`. It guards SYMMETRY only —
@@ -25,9 +25,9 @@
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, failure, run};
+use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{
-    ename, ends, face_vertices, insert, len, on_frame, point, table, vertex_of, vname,
+    ang, ename, ends, face_vertices, insert, len, on_frame, point, scl, table, vertex_of, vname,
 };
 
 use editor_core::{
@@ -96,7 +96,7 @@ fn assert_at(ev: &Evaluation<f64>, id: RecipeNodeId, n: &StableName, at: [f64; 3
     assert!(d < 1e-9, "{n:?} names a vertex at {p:?}, not at {at:?}");
 }
 
-fn nested(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn nested(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, big) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, small) = block(doc, (0.5, 1.0), (0.5, 1.0), 0.5, 0.5);
     (doc, big, small)
@@ -192,7 +192,7 @@ fn the_surviving_operand_names_the_corners_in_every_order() {
 /// An L-shaped block with a reflex vertical edge at (1, 1), and a
 /// triangular prism inside it whose apex touches that edge at
 /// (1, 1, 0.5) and nowhere else.
-fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let r = std::f64::consts::FRAC_1_SQRT_2;
     let (doc, lp) = on_frame(
         doc,
@@ -309,7 +309,7 @@ fn an_assembly_names_the_touch_vertex_by_its_partner_in_either_order() {
 
 /// A tip whose apex touches the top face of a block at an interior
 /// point, hanging down into the block.
-fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, bl) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, tp) = on_frame(
         doc,
@@ -329,7 +329,7 @@ fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 /// A tip whose apex touches a block's vertical edge from outside.
-fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let r = std::f64::consts::FRAC_1_SQRT_2;
     let (doc, bl) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, tp) = on_frame(
@@ -355,7 +355,7 @@ fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 /// whose convex corner (1, 1, 0) is touched by a tilted wedge's ridge,
 /// the wedge crossing the L's long arm elsewhere — a zip in the body,
 /// none at the touch.
-fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, lp) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
@@ -405,6 +405,127 @@ fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, ell, wedge)
 }
 
+/// A bar — the declared union of two flush, x-offset placements of one
+/// unit block, whose merged front and top faces keep two collinear
+/// top-front edges, so the two faces share more than one rim — and a
+/// small prism inside it whose apex touches that line at (0.6, 0, 1).
+fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let place = |doc: ProfileDoc, dx: f64| {
+        insert(
+            doc,
+            Node::Transform {
+                input: proto,
+                translation: [len(dx), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        )
+    };
+    let (doc, m1) = place(doc, 0.0);
+    let (doc, m2) = place(doc, 0.5);
+    let (doc, bar, _) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
+    // The tip's frame: normal (1, 1, -1)/sqrt3 pointing into the bar.
+    let s3 = 3f64.sqrt();
+    let n = [1.0 / s3, 1.0 / s3, -1.0 / s3];
+    let l = 1.5f64.sqrt();
+    let e1 = [-1.0 / l, 0.5 / l, -0.5 / l];
+    let e2 = [
+        n[1] * e1[2] - n[2] * e1[1],
+        n[2] * e1[0] - n[0] * e1[2],
+        n[0] * e1[1] - n[1] * e1[0],
+    ];
+    let (doc, tp) = on_frame(
+        doc,
+        [0.6, 0.0, 1.0],
+        e1,
+        e2,
+        vec![vec![(0.0, 0.0), (0.3, -0.1), (0.3, 0.1)]],
+    );
+    let (doc, tip) = insert(
+        doc,
+        Node::Extrude {
+            profile: tp,
+            distance: len(0.3),
+        },
+    );
+    (doc, bar, tip)
+}
+
+/// **An edge split in a result that is B's clone descends to B's edge,
+/// even where its two faces share a second rim.**
+///
+/// The tip lies inside the bar, so `tip ∪ bar` is the bar — B's clone —
+/// with its top-front line split at the apex. Each half is named `FromB`
+/// of the bar edge it lies on, exactly as each half of `bar ∪ tip` (A's
+/// clone) is named `FromA` of it. The root is read off the split
+/// lineage, not re-derived from the adjacent faces: the bar's merged
+/// front and top faces share two collinear edges, so "the one rim the
+/// two faces share" has no answer here.
+#[test]
+fn a_b_edge_split_in_a_b_clone_descends_to_its_b_edge() {
+    let doc = ProfileDoc::empty_derived("emit_vertex_keys_bar", Tol::witness());
+    let (doc, bar, tip) = bar_and_tip(doc);
+    let (doc, tip_first) = union(doc, tip, bar);
+    let (doc, bar_first) = union(doc, bar, tip);
+    let ev = run(&doc);
+
+    // The bar's own name for the top-front edge through x = 0.6.
+    let on_line = |body: &topo::Body<f64>, e| {
+        let [p, q] = ends(body, e).map(|v| point(body, v));
+        let on = |p: geom_core::Point3<f64>| p.y.abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9;
+        on(p) && on(q) && p.x.min(q.x) < 0.6 + 1e-9 && p.x.max(q.x) > 0.6 - 1e-9
+    };
+    let bar_body = body_of(&ev, bar);
+    let roots: Vec<StableName> = table(&ev, bar)
+        .iter()
+        .filter_map(|(n, e)| match e {
+            Entry::Unique(r) => match r.key {
+                EntityKey::Edge(k) if on_line(bar_body, k) => Some(n.clone()),
+                _ => None,
+            },
+            Entry::Tied(_) => None,
+        })
+        .collect();
+    let [root] = roots.as_slice() else {
+        panic!("the bar has no one edge through (0.6, 0, 1): {roots:?}");
+    };
+
+    for (id, kind, side) in [
+        (tip_first, BooleanResultKind::OperandB, false),
+        (bar_first, BooleanResultKind::OperandA, true),
+    ] {
+        assert_eq!(kind_of(&ev, id), kind);
+        let body = body_of(&ev, id);
+        let halves: Vec<StableName> = table(&ev, id)
+            .iter()
+            .flat_map(|(n, e)| {
+                let keys: Vec<EntityKey> = match e {
+                    Entry::Unique(r) => vec![r.key],
+                    Entry::Tied(rs) => rs.iter().map(|r| r.key).collect(),
+                };
+                keys.into_iter().filter_map(move |k| match k {
+                    EntityKey::Edge(k) if on_line(body, k) => Some(n.clone()),
+                    _ => None,
+                })
+            })
+            .collect();
+        assert_eq!(
+            halves.len(),
+            2,
+            "{kind:?}: the line is not split once at the apex: {halves:?}"
+        );
+        let want = if side {
+            RoleSeg::FromA(NameRef::new(root.clone()))
+        } else {
+            RoleSeg::FromB(NameRef::new(root.clone()))
+        };
+        for h in &halves {
+            assert_eq!(h.path.first(), Some(&want), "{kind:?}: {h:?}");
+        }
+    }
+}
+
 /// A name with its node erased, optionally with its sides exchanged:
 /// `FromA` ↔ `FromB` and `Seam{a, b}` → `Seam{b, a}` at the head.
 fn spelled(n: &StableName, swap: bool) -> String {
@@ -428,12 +549,16 @@ fn micro(x: f64) -> i64 {
 /// Every name of `id`'s table, beside the geometry it names (a
 /// vertex's point, an edge's two end points, a face's boundary vertex
 /// points, the body), or `None` when the result is the empty value.
-fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId, swap: bool) -> Option<BTreeSet<String>> {
+pub(crate) fn named_geometry(
+    ev: &Evaluation<f64>,
+    id: RecipeNodeId,
+    swap: bool,
+) -> Option<BTreeSet<String>> {
     if let Some(e) = failure(ev, id) {
         panic!("the boolean refused: {e}");
     }
     match &ev.value(id).expect("the boolean evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { .. }) => {}
+        ValuePayload::Boolean(BooleanValue::Body { .. }) | ValuePayload::Body(_) => {}
         ValuePayload::Boolean(BooleanValue::Empty) => return None,
         other => panic!("expected a boolean value, got {}", other.kind_name()),
     }
@@ -480,13 +605,15 @@ fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId, swap: bool) -> Option<
 /// (`OperandA` ↔ `OperandB`), and every face, edge and vertex name of one
 /// order, sides exchanged, must name the same geometry in the other.
 /// The fixtures cover a zip, a nest, and a vertex touching an edge or a
-/// face from inside, from outside and beside a zip — the layouts where
-/// the emitter's A and B sides take different key reads.
+/// face from inside, from outside and beside a zip, and an edge split
+/// where its two faces share a second rim — the layouts where the
+/// emitter's A and B sides take different key reads.
 #[test]
 fn swapping_the_operands_swaps_the_sides_of_every_name() {
     type Fixture = fn(ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId);
-    let fixtures: [(&str, Fixture); 5] = [
+    let fixtures: [(&str, Fixture); 6] = [
         ("seamed_touch", seamed_touch),
+        ("bar_and_tip", bar_and_tip),
         ("nested", nested),
         ("ell_and_tip", ell_and_tip),
         ("face_touch", face_touch),
