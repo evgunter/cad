@@ -2,10 +2,13 @@
 id: b-arena-edges-skip-the-split-lineage-chase
 kind: issue
 title: In a result that is B's clone, the boolean edge pass does not chase a split sub-edge's lineage, so `union(tip, bar)` refuses SharedRim where `union(bar, tip)` names the edges
-status: open
+status: closed
 opened: 2026-09-23
 priority: P0
 cost: D
+closed: 2026-09-23
+pr: 3114
+branch: emit/b-arena-edges
 ---
 
 ## What
