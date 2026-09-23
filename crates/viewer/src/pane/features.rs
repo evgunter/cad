@@ -217,7 +217,7 @@ mod tests {
 
     use super::{INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, indent, message_indent, row_label};
     use crate::app::GLYPH_ROOT;
-    use crate::pane::headless::{landed, landed_in, painted_text};
+    use crate::pane::headless::{landed, painted_after_clicking, painted_text};
     use crate::theme::Theme;
     use crate::tree;
     use crate::tree::{RowStatus, TreeRow};
@@ -404,34 +404,15 @@ mod tests {
     }
 
     /// **What [`failure_lines`] answers when the text `target` is
-    /// clicked** — two passes on one context, one to find where
-    /// `target` landed and one that presses and releases there.
+    /// clicked**, through `pane::headless`'s one click drive.
     fn clicking(row: &TreeRow, target: &str) -> Option<RecipeNodeId> {
-        let ctx = egui::Context::default();
-        let theme = Theme::DEFAULT;
-        let pass = |input: egui::RawInput| {
-            let mut answer = None;
-            let mut output = ctx.run_ui(input, |ui| answer = failure_lines(ui, row, &theme));
-            let at = landed_in(&output.shapes)
-                .into_iter()
-                .find(|landed| landed.text == target)
-                .map(|landed| landed.allocated.center());
-            output.textures_delta.clear();
-            (answer, at)
-        };
-        let (_, at) = pass(egui::RawInput::default());
-        let at = at.unwrap_or_else(|| panic!("`{target}` was never painted"));
-        let press = |pressed| egui::Event::PointerButton {
-            pos: at,
-            button: egui::PointerButton::Primary,
-            pressed,
-            modifiers: egui::Modifiers::default(),
-        };
-        pass(egui::RawInput {
-            events: vec![egui::Event::PointerMoved(at), press(true), press(false)],
-            ..Default::default()
-        })
-        .0
+        let clicked = core::cell::Cell::new(None);
+        painted_after_clicking(target, |ui| {
+            if let Some(to) = failure_lines(ui, row, &Theme::DEFAULT) {
+                clicked.set(Some(to));
+            }
+        });
+        clicked.get()
     }
 
     /// **A failed row whose words name another node to repair links to

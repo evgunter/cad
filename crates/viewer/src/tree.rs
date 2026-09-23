@@ -7,9 +7,10 @@
 //! failure is a typed value the GUI renders, never a string invented
 //! at the interaction layer. So a failing row's message is
 //! `NodeError`'s own `Display`, and nothing here composes a sentence
-//! about what went wrong. The one sentence this module writes ABOUT A
-//! FAILURE is a downstream row's ([`downstream_wording`]), and it says
-//! only WHERE the failure is.
+//! about what went wrong. The two sentences this module writes ABOUT
+//! A FAILURE are a downstream row's pointer ([`downstream_wording`])
+//! and a failed row's link to the node to repair
+//! ([`repair_wording`]), and both say only WHERE to go.
 //!
 //! What it does write, and what the rule above does not reach, is what
 //! a node IS: [`node_kind`]'s vocabulary spelling, [`node_number`]'s
@@ -41,13 +42,17 @@
 //! **The blamed node is the row that carries the fault's words, and
 //! it need not be the node an author edits.** This is the one
 //! statement of why; [`blamed_mates`] points here. Several arms name a
-//! node beside the mate, and three name one that the kernel's own doc
-//! for the arm calls the thing to repair, or could be read as calling
-//! so: `DanglingHead`'s `head`, `PartSelectsAnotherCopy`'s `part` and
-//! `PlacerRefused`'s `placer`. (`Under`'s pair and `SelfMate`'s
-//! instance are named as evidence about where the refusal held; the
-//! repair is the mate's.) Blame stays on the mate for all three, and
-//! what decides it is REACH — where the solve records the fault:
+//! node beside the mate, and ONE of them is a node the kernel's own
+//! doc for the arm calls the thing to repair: `PlacerRefused`'s
+//! `placer`, *"the node an author goes and fixes"*. The others are
+//! where the refusal was noticed or held, and the repair is the
+//! mate's: `DanglingHead`'s `head` *"may be perfectly live"* and its
+//! message's recourse, *"rebind it"*, is the mate's reference;
+//! `PartSelectsAnotherCopy` is refused *"rather than choosing"*
+//! between the name and the `Part`; `Under`'s pair and `SelfMate`'s
+//! instance are evidence about where the refusal held. Blame stays on
+//! the mate for every one of them, and what decides it is REACH —
+//! where the solve records the fault:
 //!
 //! - **Raised where the solve reads one mate's references**
 //!   (`mate::member::check_reference` and the walk): every
@@ -72,17 +77,27 @@
 //!   the arm's doc's *"this fault is the only place that cause
 //!   appears"*.
 //!
-//! **So the mate's row LINKS to the node to repair where that is not
-//! the mate** ([`TreeRow::repair_at`]), on either path: blame decides
-//! which row is loud and carries the words, and the link is how a
-//! reader gets from those words to the node they name. Only
-//! `PlacerRefused` links. The kernel's docs say why the other two do
-//! not: `DanglingHead`'s `head` *"may be perfectly live"* and its
-//! message's recourse, *"rebind it"*, is the mate's reference;
-//! `PartSelectsAnotherCopy` is refused *"rather than choosing"*
-//! between the name and the `Part`. `repaired_at` is where an arm
-//! answers this. `crates/viewer/tests/msolve3_placer_refused.rs` holds
-//! one fixture of each shape above.
+//! **So a `PlacerRefused` mate's row LINKS to the placer**
+//! ([`TreeRow::repair_at`]), on either path: blame decides which row
+//! is loud and carries the words, and the link is how a reader gets
+//! from those words to the node the kernel says to fix. No other arm
+//! links, for the reason above; `repaired_at` is where an arm answers
+//! this. On the fold's path the link lands on a poisoned placer whose
+//! own line points back at the mate — the words are on the mate's row,
+//! so the link's job is to put the placer under the selection, not to
+//! show a second copy of them.
+//!
+//! **One seat the link inherits is wrong, and it is the kernel's.**
+//! `check_reference` evaluates a `Part`'s index expression under the
+//! PATTERN below the `Part` (`count_of(level.node, index,
+//! SlotId::Instance)`), so a `Part` index that does not evaluate names
+//! the pattern as the placer: the link then selects an `Ok` pattern
+//! while the `Part` beside it is `Failed` with the real cause
+//! (`work/msolve/placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate.md`).
+//! The tree draws what the fault names; the fix is MSOLVE's.
+//!
+//! `crates/viewer/tests/msolve3_placer_refused.rs` holds one fixture
+//! of each shape above.
 //!
 //! **[`MateFault::Band`] names none, and it is the arm that still
 //! reaches rows.** A band is the RUN's tolerance, not a decision about
@@ -575,6 +590,9 @@ fn repair_of(id: RecipeNodeId, ev: &Evaluation<f64>) -> Option<RecipeNodeId> {
 fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
     match fault {
         // The kernel's own doc: "the node an author goes and fixes".
+        // For a `Part` index that does not evaluate, the kernel names
+        // the pattern below the `Part` here (the module header's
+        // kernel-seat paragraph).
         MateFault::PlacerRefused { placer, .. } => Some(*placer),
         // Named beside the mate, and not the repair (module header).
         MateFault::DanglingHead { .. } | MateFault::PartSelectsAnotherCopy { .. } => None,
@@ -711,8 +729,10 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
 /// and those gates would stay green over it. It reds HERE — at the
 /// policy the new state has to answer — rather than a schedule away
 /// from it. (Not nowhere: `pane::features`'s badge draw and its link
-/// decision, and `frame::badge_site`'s guard, are exhaustive too, so a
-/// fifth state is a compile error in four places. What none of them
+/// decision, `tree::rows`' decision of which rows carry a
+/// [`TreeRow::repair_at`], and `frame::badge_site`'s guard, are
+/// exhaustive too, so a fifth state is a compile error in five
+/// places. What none of them
 /// is, is this policy.)
 ///
 /// **Every arm is this chrome's own policy, and none of it is read off

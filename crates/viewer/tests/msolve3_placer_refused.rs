@@ -466,3 +466,48 @@ fn a_pattern_of_no_copies_fails_beside_the_mate() {
     );
     assert_both_loud(&ev, &doc, s.mate, s.pattern);
 }
+
+/// **The link on the OTHER path**: a pattern whose count does not
+/// evaluate refuses where the solve reads the mate's references, not in
+/// the fold. The fault reaches the mate alone and the pattern fails in
+/// its own right, so both rows are loud — and the mate's row still
+/// links to the pattern, the node its words name.
+#[test]
+fn a_pattern_count_that_does_not_evaluate_links_the_mate_to_the_pattern() {
+    let tol = Tol::witness();
+    let s = copies("msolve3-view-count-overflow", 1, None, tol);
+    let overflowing =
+        Expr::mul(Expr::count(i64::MAX), Expr::count(2)).expect("a count times a count is a count");
+    let (doc, _) = common::edited(
+        &s.doc,
+        DocEdit::SetStructuralParam {
+            node: s.pattern,
+            slot: SlotId::Count,
+            expr: overflowing,
+        },
+        tol,
+    );
+    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &s.opts, tol);
+    let fault = mate_fault(&ev, s.mate);
+    assert!(
+        matches!(fault, MateFault::PlacerRefused { placer, .. } if placer == s.pattern),
+        "the fixture reaches the arm, naming the pattern: {fault:?}"
+    );
+    let rows = tree::rows(&doc, Some(&ev));
+    assert!(
+        matches!(
+            common::status_of(&rows, s.pattern),
+            RowStatus::Failed { .. }
+        ),
+        "the pattern fails in its own right on this path"
+    );
+    let linking: Vec<(RecipeNodeId, RecipeNodeId)> = rows
+        .iter()
+        .filter_map(|row| row.repair_at.map(|at| (row.id, at)))
+        .collect();
+    assert_eq!(
+        linking,
+        vec![(s.mate, s.pattern)],
+        "the mate's row, and only it, links to the pattern"
+    );
+}
