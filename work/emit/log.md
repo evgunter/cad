@@ -88,3 +88,36 @@ The other two first-wave PRs do not wait on it.
   `rim_between`, `face_half_edges`, `edge_ends` and `emit_topo`'s
   `chord_faces` through a genuinely dangling body. Folding the rim
   walk onto `face_of_half_edge` turns it red.
+
+## 2026-09-23 — the two vanish rows are one event
+
+A design lane measured both rows before anything was specified. In
+every scene it measured, neither row is a missing predicate flip.
+Both are the same event: a fragment group changed size between the
+two runs (2 → 1) while every discriminator verdict held. So the
+shadow-exec rung can answer neither, whatever witness it is given:
+
+- `name_frag_order_along` ranks siblings against each other. It has
+  no cutting partner, so a partner in the `OrderAlong` qualifier would
+  have been a name-vocabulary and stored-bits migration that still
+  finds no flip.
+
+Chosen: one new rung, `Diagnosis::GroupResized { node, was, now }`,
+read off the two name tables. It sits last, before the evidence-free
+fallback, so it only converts rows that would otherwise hit that
+fallback and can never outrank a recorded flip. It touches no name,
+serde or content key. It does add an arm and a rung to N5
+(`crates/editor-core/src/names/README.md`, ratified) and re-pins the
+diagnosis digest, so the PR goes to Ev as `[ev]`. The rows re-price
+from H + H to D + E, with the SideOf row riding with the OrderAlong
+one.
+
+The orchestrator's picks on the proposal's open questions:
+- the rung goes last;
+- the name is `GroupResized`, because a group that grows also vanishes
+  every rank;
+- a group that vanishes entirely (`now: 0`) is reported;
+- the SideOf base offer lands in the same PR;
+- the `cutters_gone` enrichment becomes a follow-up row.
+
+Ev can overturn any of these on the PR.

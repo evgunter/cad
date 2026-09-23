@@ -2,10 +2,11 @@
 id: seam-junction-vertex-name-cannot-be-collapsed-by-the-union-fold
 kind: issue
 title: A seam JUNCTION vertex's multi-Seam name is a shape emit_union's collapse refuses
-status: open
+status: dispatched
 opened: 2026-09-15
 priority: P0
 cost: H
+branch: emit/seam-junction
 ---
 
 
