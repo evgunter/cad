@@ -4,7 +4,7 @@ kind: issue
 title: A legal declared union reaches the seam-edge-between-two-merged-faces Emission refusal
 status: open
 opened: 2026-09-23
-priority: P1
+priority: P0
 cost: D
 ---
 
@@ -43,6 +43,11 @@ own (`DeclareResolve` Vanished,
 `work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`;
 `SharedRim`), so nothing here says the documents fuse in another
 order except the first.
+
+## Why it matters
+
+It is P0 because a normal verb (a declared union) breaks on normal
+geometry (axis-aligned blocks), and it says the break is a kernel bug.
 
 ## Found by
 

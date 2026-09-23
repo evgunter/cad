@@ -21,9 +21,14 @@
 //! reads, and [`collapse_name`] for the refusal paths — three
 //! consumers of one rewrite): a fold-table name is rewritten by descending its
 //! `FromA`/`FromB` chain to the [`RoleSeg::FromMember`] at its foot —
-//! one wrapper, whatever the depth. `Seam`, `Merged` and `Fragment`
-//! keep the shapes the pair emitter minted, with the names they embed
-//! collapsed by the same rule.
+//! one wrapper, whatever the depth. The names a segment embeds are
+//! collapsed by the same rule, and what happens to their ORDER differs
+//! by segment: a `Seam`'s two sides are put in name order (a union has
+//! no A and B), and a junction's run of lines is re-sorted; a
+//! `Merged` set is re-sorted and deduplicated; a `Fragment`'s `SideOf`
+//! partners keep the order the pair emitter wrote them in, which is
+//! fold-space name order and not re-established here
+//! (`work/emit/name-ordered-positions-in-a-path-have-no-single-home.md`).
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -46,7 +51,9 @@
 use std::sync::Arc;
 
 use crate::names::emit::{NamingError, check_total};
-use crate::names::role::{NameRef, Qualifier, RoleSeg, StableName, never_in_a_boolean_table};
+use crate::names::role::{
+    EntityKind, NameRef, Qualifier, RoleSeg, StableName, never_in_a_boolean_table,
+};
 use crate::names::table::{Entry, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -177,16 +184,21 @@ pub(crate) fn collapse_name(
 /// segment the pair emitter does not mint.
 const FOREIGN: &str = "a union fold's table carries a segment the boolean emitter does not mint";
 
+/// Two lines of one seam junction collapsed to the same member-space
+/// line: the member-keying rewrite was not one-to-one on the lines.
+const JUNCTION_LINES_COLLIDE: &str =
+    "two lines of a union's seam junction collapse to one member-space line";
+
 use super::merged::NESTED_MERGED;
 
 /// One fold-table name, keyed by member.
 ///
 /// Returns a name in the UNION's own space (`node` is the union's, as
-/// every fold row's already is): the head is one
-/// [`RoleSeg::FromMember`], [`RoleSeg::Merged`] or
-/// [`RoleSeg::OutputBody`] segment, or a sorted run of
-/// [`RoleSeg::Seam`] lines, followed by the `Fragment` discriminators
-/// the fold accumulated, outermost step last.
+/// every fold row's already is): either one [`RoleSeg::FromMember`],
+/// [`RoleSeg::Seam`], [`RoleSeg::Merged`] or [`RoleSeg::OutputBody`]
+/// head followed by the `Fragment` discriminators the fold
+/// accumulated, outermost step last — or, for a seam JUNCTION vertex,
+/// a sorted run of two or more `Seam` lines and nothing else.
 fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
     let bug = |what| NamingError::Emission { what };
     if name.node != node {
@@ -209,23 +221,50 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // step's row: descended THROUGH, carrying its own
         // discriminators out with it.
         RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => collapse(node, inner)?.path,
-        // A seam, or a seam JUNCTION: the pair emitter names the
-        // vertex where k ≥ 2 seam lines meet by the sorted run of those
-        // lines' `Seam` segments, so a run of `Seam`s is ONE head — the
-        // set of lines — and each line is collapsed by [`seam_line`].
-        // The run is re-sorted afterwards: the pair emitter sorted it
-        // in the fold's space, and the collapsed lines are ordered by
-        // the member-space names, which is the order a name stable
-        // under member reordering has to use.
-        RoleSeg::Seam { a, b } => {
+        // A seam: one line, collapsed by [`seam_line`], with any
+        // `Fragment` tail after it.
+        //
+        // Or a seam JUNCTION: the pair emitter names the VERTEX where
+        // k ≥ 2 seam lines meet by the sorted run of those lines'
+        // `Seam` segments and nothing after them, so a run is admitted
+        // in exactly that shape — a vertex, the whole path — and any
+        // other run (an edge's, or one followed by a discriminator) is
+        // a shape the pair emitter does not mint. Each line is
+        // collapsed, then the run re-sorted: the pair emitter sorted
+        // it in the fold's space, and a name stable under member
+        // reordering is ordered by the member-space lines.
+        //
+        // The run is NOT deduplicated, unlike a `Merged` set. The pair
+        // emitter deduplicates the lines before it mints, so the run
+        // holds k DISTINCT fold-space lines; two collapsing to one
+        // would make the rewrite many-to-one on lines, and dropping one
+        // would publish a name for a vertex with fewer lines than it
+        // has. A `Merged` set is a set of FACES whose name is the set
+        // (N3), so there a repeat is the same constituent reached
+        // twice, and two merges that collapse to one set collide at
+        // insert instead.
+        RoleSeg::Seam { a, b }
+            if tail
+                .first()
+                .is_some_and(|s| matches!(s, RoleSeg::Seam { .. })) =>
+        {
+            if name.kind != EntityKind::Vertex {
+                return Err(bug(FOREIGN));
+            }
             let mut lines = vec![seam_line(node, a, b)?];
-            while let Some((RoleSeg::Seam { a, b }, rest)) = tail.split_first() {
+            for seg in std::mem::take(&mut tail) {
+                let RoleSeg::Seam { a, b } = seg else {
+                    return Err(bug(FOREIGN));
+                };
                 lines.push(seam_line(node, a, b)?);
-                tail = rest;
             }
             lines.sort_unstable();
+            if lines.windows(2).any(|w| w[0] == w[1]) {
+                return Err(bug(JUNCTION_LINES_COLLIDE));
+            }
             lines
         }
+        RoleSeg::Seam { a, b } => vec![seam_line(node, a, b)?],
         // An F7 merged face: its constituents are result-face names in
         // the minting node's space (N3), so they stay in this union's
         // space, each collapsed by this same rule.
@@ -290,10 +329,11 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             // Only a `Fragment` follows the head in a boolean table;
             // anything else in the tail is an emission bug — the head
             // segments above included, which are heads and not
-            // discriminators. A `Seam` reaching here is one the head
-            // arm's run did not take: it follows a `FromMember`,
-            // `Merged` or `OutputBody` head, or a `Fragment`, and the
-            // pair emitter mints neither shape. The long half is
+            // discriminators. A junction's run of `Seam`s never reaches
+            // this loop — the head arm takes the whole path or refuses
+            // it — so a `Seam` here follows a `FromMember`, `Merged` or
+            // `OutputBody` head, or a `Fragment`, and the pair emitter
+            // mints none of those shapes. The long half is
             // [`never_in_a_boolean_table`], for the reason the head
             // match names.
             RoleSeg::OutputBody
@@ -473,6 +513,58 @@ mod tests {
         let err = collapse(union, &name).unwrap_err();
         assert!(
             matches!(err, NamingError::Emission { what } if what == FOREIGN),
+            "{err:?}"
+        );
+    }
+
+    fn foreign(name: &StableName) -> bool {
+        let union = name.node;
+        matches!(collapse(union, name), Err(NamingError::Emission { what }) if what == FOREIGN)
+    }
+
+    #[test]
+    fn a_run_of_seams_is_admitted_only_as_a_whole_vertex_path() {
+        let union = RecipeNodeId(9);
+        let lines = || {
+            vec![
+                seam(from_a(union, member_cap(union, 3)), member_cap(union, 1)),
+                seam(from_b(union, member_cap(union, 2)), member_cap(union, 1)),
+            ]
+        };
+        // The junction shape itself is admitted.
+        assert!(collapse(union, &vertex(union, lines())).is_ok());
+        // An EDGE named by a run: the pair emitter names a seam edge by
+        // one line.
+        let edge = StableName {
+            kind: EntityKind::Edge,
+            node: union,
+            path: lines(),
+        };
+        assert!(foreign(&edge), "{:?}", collapse(union, &edge));
+        // A run followed by a discriminator: a junction is unique per
+        // line set, so the pair emitter never ranks one.
+        let mut path = lines();
+        path.push(RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }));
+        let tailed = vertex(union, path);
+        assert!(foreign(&tailed), "{:?}", collapse(union, &tailed));
+    }
+
+    #[test]
+    fn two_junction_lines_collapsing_to_one_refuse() {
+        let union = RecipeNodeId(9);
+        // Distinct in the fold's space — member 3's face reached as the
+        // A operand's row and as the B operand's — and one line in the
+        // union's.
+        let name = vertex(
+            union,
+            vec![
+                seam(from_a(union, member_cap(union, 3)), member_cap(union, 1)),
+                seam(from_b(union, member_cap(union, 3)), member_cap(union, 1)),
+            ],
+        );
+        let err = collapse(union, &name).unwrap_err();
+        assert!(
+            matches!(err, NamingError::Emission { what } if what == JUNCTION_LINES_COLLIDE),
             "{err:?}"
         );
     }

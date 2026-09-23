@@ -894,15 +894,27 @@ pub enum RoleSeg {
         of: NameRef,
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
-    /// and a B-operand entity (edges: face × face; vertices:
-    /// edge × face / face × edge), by their operand names. A seam
-    /// JUNCTION — the vertex where k ≥ 2 seam lines meet and no
-    /// operand edge does — is named by the sorted run of those lines'
-    /// face × face `Seam` segments, one segment per line.
+    /// and a B-operand entity, by their operand names. An edge is
+    /// face × face. A vertex is edge × edge, edge × face or
+    /// face × edge, face × face (every incident seam line agreeing on
+    /// one face pair), or edge × vertex / vertex × edge (the partner
+    /// read from the reduction's contact records); a pair that
+    /// crosses more than once carries a `Fragment(OrderAlong)` after
+    /// it. A seam JUNCTION — the vertex where k ≥ 2 seam lines meet
+    /// and no operand edge does — is named by the sorted run of those
+    /// lines' face × face `Seam` segments, one segment per line and
+    /// nothing after them.
+    ///
+    /// In a pair boolean's table `a` is the A side and `b` the B side.
+    /// In a UNION's published table they are not: a union has no A
+    /// and B, so its collapse puts the two sides in name order
+    /// (`emit_union::seam_line`), and `a` is only the lesser name.
     Seam {
-        /// The A-side crossing entity's name.
+        /// The A-side crossing entity's name (the lesser name, in a
+        /// union's table).
         a: NameRef,
-        /// The B-side crossing entity's name.
+        /// The B-side crossing entity's name (the greater name, in a
+        /// union's table).
         b: NameRef,
     },
     /// An F7 merged face: the sorted, FLAT set of constituent names
