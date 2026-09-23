@@ -16,19 +16,116 @@ use profile::ProfileLoop;
 use profile::RawLoop;
 use sweep::{Revolution, revolve};
 
-/// A hand-built mesh from raw positions and one patch of triangles
-/// (face key borrowed from a real body — check_mesh never reads it).
-fn hand_mesh(positions: Vec<Point3<f64>>, triangles: Vec<[u32; 3]>) -> Mesh {
+/// Two real face keys, borrowed from a real body: `check_mesh` reads
+/// one only to name the face of an empty patch
+/// (`MeshError::EmptyPatch`), and nothing else about a patch's face.
+fn two_face_keys() -> [topo::FaceKey; 2] {
     let body = ball();
-    let fk = body.faces().next().unwrap().0;
+    let mut faces = body.faces().map(|(fk, _)| fk);
+    let (a, b) = (faces.next().unwrap(), faces.next().unwrap());
+    assert_ne!(a, b, "the ball's two half-caps are distinct faces");
+    [a, b]
+}
+
+/// A hand-built mesh from raw positions and one patch per triangle
+/// list, in the order given (face keys borrowed from a real body).
+fn hand_mesh_patches(positions: Vec<Point3<f64>>, patches: Vec<Vec<[u32; 3]>>) -> Mesh {
+    let keys = two_face_keys();
     Mesh {
         positions,
-        patches: vec![FacePatch {
-            face: fk,
-            triangles,
-        }],
+        patches: patches
+            .into_iter()
+            .enumerate()
+            .map(|(i, triangles)| FacePatch {
+                face: keys[i % keys.len()],
+                triangles,
+            })
+            .collect(),
         boundaries: Vec::new(),
     }
+}
+
+/// A hand-built mesh from raw positions and one patch of triangles.
+fn hand_mesh(positions: Vec<Point3<f64>>, triangles: Vec<[u32; 3]>) -> Mesh {
+    hand_mesh_patches(positions, vec![triangles])
+}
+
+/// **The empty mesh is refused, not accepted vacuously.** Every
+/// 2-manifold condition `check_mesh` tests is universal over edges, so
+/// a mesh of no triangles passes all of them by having none — which is
+/// what this validator answered until TESS-4, `signed_volume` zero
+/// beside it. Each arm here is a mesh a caller can hold: no patch at
+/// all, positions with no patch, and a patch carrying nothing (the
+/// shape `tessellate` hands back for a zero-height or zero-width
+/// curved walk with debug assertions off).
+#[test]
+fn survives_checkmesh_refuses_the_empty_mesh() {
+    let no_patch = Mesh {
+        positions: Vec::new(),
+        patches: Vec::new(),
+        boundaries: Vec::new(),
+    };
+    assert_eq!(check_mesh(&no_patch), Err(MeshError::NoTriangles));
+    assert_eq!(mesh::validate::signed_volume(&no_patch), 0.0);
+
+    let positions_only = Mesh {
+        positions: tetra_positions(),
+        patches: Vec::new(),
+        boundaries: Vec::new(),
+    };
+    assert_eq!(check_mesh(&positions_only), Err(MeshError::NoTriangles));
+
+    // Every patch empty — the two-cap sphere's and the two-face torus's
+    // shape, whose positions are all minted (vertices and chord points)
+    // and whose patches carry nothing.
+    let all_empty = hand_mesh_patches(tetra_positions(), vec![Vec::new(), Vec::new()]);
+    assert_eq!(check_mesh(&all_empty), Err(MeshError::NoTriangles));
+}
+
+/// **The producer reachable by VALID input**: `Body::new()` is public,
+/// tier-1 and tier-2 validate it vacuously, and this lane has no
+/// face-count guard — so `tessellate` answers `Ok` with a mesh of
+/// nothing, which is the state the validator now names. The row pins
+/// both halves: the lane does not refuse, and the validator does.
+#[test]
+fn survives_the_empty_body_meshes_to_nothing_and_the_validator_says_so() {
+    let empty = topo::Body::<f64>::new();
+    assert_eq!(empty.faces().count(), 0);
+    let mesh = tessellate(&empty, 0.1, Tol::witness()).expect("the empty body does not refuse");
+    assert!(mesh.patches.is_empty() && mesh.positions.is_empty());
+    assert_eq!(check_mesh(&mesh), Err(MeshError::NoTriangles));
+}
+
+/// **An empty patch beside a filled one names the FACE that emitted
+/// nothing** — a hole where a face is. The first arm is what the guard
+/// buys: a closed tetrahedron gives the edge census nothing to say, so
+/// without the guard the mesh passes. The second arm buys nothing
+/// against a missing guard — remove it and the fan's `BoundaryEdge`
+/// still makes this `Err` — and pins only the ORDER of the two, that
+/// the emptiness outranks the boundary edge it causes.
+#[test]
+fn survives_checkmesh_names_the_face_of_an_empty_patch() {
+    let keys = two_face_keys();
+
+    // The tetrahedron is closed, so the edge census has nothing to say:
+    // without this arm the mesh passes.
+    let holed = hand_mesh_patches(tetra_positions(), vec![tetra_tris(), Vec::new()]);
+    assert_eq!(
+        check_mesh(&holed),
+        Err(MeshError::EmptyPatch { face: keys[1] })
+    );
+
+    // Empty patch FIRST, and an open fan after it: both faults are
+    // present and the emptiness is the one reported, because it is the
+    // cause and the boundary edge is its symptom. An ordering pin, not
+    // a guard pin — see the doc above.
+    let mut fan = tetra_tris();
+    fan.pop();
+    let both = hand_mesh_patches(tetra_positions(), vec![Vec::new(), fan]);
+    assert_eq!(
+        check_mesh(&both),
+        Err(MeshError::EmptyPatch { face: keys[0] })
+    );
 }
 
 fn tetra_positions() -> Vec<Point3<f64>> {
