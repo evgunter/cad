@@ -500,6 +500,14 @@ enum Descent {
     B(FaceKey),
 }
 
+/// Which operand a result VERTEX key belongs to, with its key in that
+/// operand's space.
+#[derive(Clone, Copy, Debug)]
+enum VertexSide {
+    A(VertexKey),
+    B(VertexKey),
+}
+
 /// Names a boolean result (spec D2's boolean vocabulary; N2/N3).
 pub(crate) fn name_boolean<T: Decide>(
     node: RecipeNodeId,
@@ -1129,25 +1137,43 @@ fn name_boolean_vertices<T: Decide>(
     for &(dead, kept) in &naming.vertex_merges {
         fused.entry(kept).or_default().push(dead);
     }
-    // The operand identity of one result-arena vertex key, if any:
-    // A-space direct, or grafted B through the graft rows.
-    let operand_identity = |k: VertexKey| -> Result<Option<(StableName, bool)>, NamingError> {
-        if let Some(&vb) = inv_vertices.get(&k) {
-            if b.table.name_of(&ent(0, EntityKey::Vertex(vb))).is_some() {
-                let inner = upstream_name(b.table, b.node, ent(0, EntityKey::Vertex(vb)))?;
-                return Ok(Some((
-                    name1(EntityKind::Vertex, node, RoleSeg::FromB(inner.name)),
-                    inner.tied,
-                )));
-            }
-        } else if a.table.name_of(&ent(0, EntityKey::Vertex(k))).is_some() {
-            let inner = upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(k)))?;
-            return Ok(Some((
-                name1(EntityKind::Vertex, node, RoleSeg::FromA(inner.name)),
-                inner.tied,
-            )));
+    // The operand a result-arena vertex key belongs to, with its key in
+    // that operand's space — the ONE read of the key layout this pass
+    // makes. A result key is an A key only where A's clone is the
+    // arena, and a B key either through the graft rows or because B's
+    // clone is the arena itself; reading "not grafted" as "A" would
+    // hand a B-arena key to A's table.
+    use topo::OperandKeys;
+    let operand_vertex = |k: VertexKey| -> Result<VertexSide, NamingError> {
+        match (naming.a_keys, naming.b_keys) {
+            (OperandKeys::Direct, OperandKeys::Grafted) => Ok(match inv_vertices.get(&k) {
+                Some(&vb) => VertexSide::B(vb),
+                None => VertexSide::A(k),
+            }),
+            (OperandKeys::Direct, OperandKeys::Absent) => Ok(VertexSide::A(k)),
+            (OperandKeys::Absent, OperandKeys::Direct) => Ok(VertexSide::B(k)),
+            _ => Err(bug("unsupported operand-key layout")),
         }
-        Ok(None)
+    };
+    // An operand vertex's upstream name, if that operand's table names
+    // it. A key the table does not name (a vertex the reduction minted)
+    // yields nothing; a table that names a key and then fails to resolve
+    // it is corrupt, and says so.
+    let named_in =
+        |op: &OperandCtx<'_, T>, k: VertexKey| -> Result<Option<Upstream>, NamingError> {
+            if op.table.name_of(&ent(0, EntityKey::Vertex(k))).is_none() {
+                return Ok(None);
+            }
+            upstream_name(op.table, op.node, ent(0, EntityKey::Vertex(k))).map(Some)
+        };
+    // The operand identity of one result-arena vertex key, if its
+    // operand's table names it.
+    let operand_identity = |k: VertexKey| -> Result<Option<(StableName, bool)>, NamingError> {
+        let (up, wrap): (_, fn(NameRef) -> RoleSeg) = match operand_vertex(k)? {
+            VertexSide::A(ka) => (named_in(a, ka)?, RoleSeg::FromA),
+            VertexSide::B(kb) => (named_in(b, kb)?, RoleSeg::FromB),
+        };
+        Ok(up.map(|u| (name1(EntityKind::Vertex, node, wrap(u.name)), u.tied)))
     };
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
@@ -1219,28 +1245,28 @@ fn name_boolean_vertices<T: Decide>(
         // Contact-record partner: the reduction's own declared
         // contacts (mint-time, PRE-remap — `reduction_contacts`),
         // read in the right key spaces: A rows are result keys, B
-        // rows are B-operand keys. A residual crossing vertex whose
-        // seam structure was consumed (shared-plane overlaps) finds
-        // its coincident operand partner here — recorded knowledge,
-        // never re-measured.
-        use topo::OperandKeys;
-        let (va_key, vb_key): (Option<VertexKey>, Option<VertexKey>) =
-            match (naming.a_keys, naming.b_keys) {
-                (OperandKeys::Direct, OperandKeys::Grafted) => match inv_vertices.get(&v) {
-                    Some(&vb) => (None, Some(vb)),
-                    None => (Some(v), None),
-                },
-                (OperandKeys::Direct, OperandKeys::Absent) => (Some(v), None),
-                (OperandKeys::Absent, OperandKeys::Direct) => (None, Some(v)),
-                _ => (None, None),
-            };
+        // rows are B-operand keys. A vertex with no seam structure of
+        // its own finds its coincident operand partner here — recorded
+        // knowledge, never re-measured. Two shapes have one: a residual
+        // crossing whose seam was consumed (shared-plane overlaps), and
+        // a vertex minted on one operand's edge where the other's
+        // vertex touches it with nothing zipped between them (an
+        // assembly, or a result that is one operand's clone). The
+        // second comes in both orientations, so each side's partner is
+        // read through `operand_vertex` rather than assuming the
+        // vertex is an A key.
         let rc = &naming.reduction_contacts;
-        let partner_b: Option<Upstream> = va_key
-            .and_then(|k| rc.vv.iter().find(|r| r.a == k).map(|r| r.b))
-            .and_then(|pb| upstream_name(b.table, b.node, ent(0, EntityKey::Vertex(pb))).ok());
-        let partner_a: Option<Upstream> = vb_key
-            .and_then(|k| rc.vv.iter().find(|r| r.b == k).map(|r| r.a))
-            .and_then(|pa| upstream_name(a.table, a.node, ent(0, EntityKey::Vertex(pa))).ok());
+        let (partner_a, partner_b): (Option<Upstream>, Option<Upstream>) = match operand_vertex(v)?
+        {
+            VertexSide::A(ka) => match rc.vv.iter().find(|r| r.a == ka) {
+                Some(r) => (None, named_in(b, r.b)?),
+                None => (None, None),
+            },
+            VertexSide::B(kb) => match rc.vv.iter().find(|r| r.b == kb) {
+                Some(r) => (named_in(a, r.a)?, None),
+                None => (None, None),
+            },
+        };
         from_tie |= partner_b.as_ref().is_some_and(|u| u.tied);
         from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
         let partner_b_inner: Option<NameRef> = partner_b.map(|u| u.name);
@@ -1303,19 +1329,12 @@ fn name_boolean_vertices<T: Decide>(
             // the recipe is legal, so what is missing is a rule.
             //
             // **Its mirror (`([], [_], None, _)`) is not here, and the
-            // reason is reach, not symmetry.** Censused over every seam
-            // vertex this tree's suites produce: the B-side lone edge is
-            // the COMMONER shape, not the rarer one, and the residue
-            // below is reached by neither. What the census does show is
-            // an asymmetry running the other way — `partner_a` was
-            // `Some` at none of those vertices while `partner_b` was at
-            // a large minority, so the rescue arm above this one fires
-            // and its B-side twin never does, which leaves the mirror
-            // structurally the more exposed of the two. That is
-            // `work/wire/the-b-side-contact-record-rescue-arm-never-fires.md`;
-            // it is not re-classified here because nothing reaches it,
-            // and a shape nobody has reached is not a shape known to be
-            // legal.
+            // reason is reach, not symmetry.** The B-side lone edge is
+            // the commoner seam-vertex shape, but every instance of it
+            // this tree's suites build is decided above — by a single A
+            // face or by the contact-record partner — and the residue
+            // below is reached by neither lone-edge shape. A shape
+            // nobody has reached is not a shape known to be legal.
             ([_], [], _, _) => return Err(NamingError::SeamVertexParentage { vertex: v }),
             // The unenumerated residue, which stays an emission bug. A
             // catch-all is the preimage of every case nobody has named
