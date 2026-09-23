@@ -263,9 +263,9 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   checks the finished program against them, so such a program closes
   when its walk is ratified, or on Ev's ruling that it needs none. A
   plan that set no criteria leaves a walk nothing to check, and its
-  program closes without one. The deletion is recorded in a note under `docs/doc-ledger/`
-  with the SHA they are recoverable at, and that note is the program's
-  done-state of record. Residue is re-homed before the sweep, never
+  program closes without one. The deletion is recorded in a note
+  under `docs/doc-ledger/` with the SHA they are recoverable at, and
+  that note is the program's done-state of record. Residue is re-homed before the sweep, never
   left behind in the closed directory: to a live program whose charter
   it fits, or to a new program opened for it when the residue coheres
   into a track of its own (a dozen items on one territory are a

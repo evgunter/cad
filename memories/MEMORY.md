@@ -10,9 +10,9 @@ item; **live state is there and never here.** A program whose plan set
 acceptance criteria (`## Exit criteria`) is closed when its
 `docs/<NAME>-EXIT-WALK.md` is ratified; one that set none closes
 without a walk. Either way a note is added to `docs/doc-ledger/`,
-which is the done-state of record. Ratified design is `docs/DESIGN.md` plus its companion table,
-whose closed-program rows are README pages beside the code. Merge
-gate = hosted Actions.
+which is the done-state of record. Ratified design is `docs/DESIGN.md`
+plus its companion table, whose closed-program rows are README pages
+beside the code. Merge gate = hosted Actions.
 
 ## Working with Ev
 
