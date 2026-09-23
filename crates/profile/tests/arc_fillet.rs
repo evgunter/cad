@@ -546,7 +546,7 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
     let rendered = err.to_string();
     assert!(rendered.contains("SWALLOW"), "situation: {rendered}");
     assert!(
-        rendered.contains("largest circle tangent to both carriers here has radius 0.190983"),
+        rendered.contains("largest circle tangent to both has radius 0.190983"),
         "recourse: {rendered}"
     );
     // ...and it renders that number for a person, not as a round-tripped
@@ -921,10 +921,7 @@ fn an_underflowed_arrival_carrier_is_refused_by_its_own_name() {
     }
     let msg = underflowed.to_string();
     assert!(msg.contains("underflowed out of the format"), "{msg}");
-    assert!(
-        msg.contains("scale that geometry into the session's range"),
-        "{msg}"
-    );
+    assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
     // Neither the wrong cause nor the recourse that cannot work.
     assert!(
         !msg.contains("the authored centre is within tolerance of an endpoint"),

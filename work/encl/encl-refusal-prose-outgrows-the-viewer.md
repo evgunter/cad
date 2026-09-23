@@ -46,3 +46,14 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## The stage prefix is gone; the lengths are not (CHROME concision fix pass, 2026-09-23)
+
+Every `OffsetFitError` arm opened with the function's name
+(`fit_offset:`), which is on screen under the shell op's
+`replace_face` refusals. The CHROME pass reworded each opening into a
+sentence ("the offset fit's refinement loop stopped …",
+`crates/geom-brep/src/offset_fit.rs:565-690`) and changed nothing
+else; the lengths in the table above, and the constant names the arms
+still hand the reader (`OFFSET_FIT_BUDGET`, `OFFSET_FIT_SAMPLE_CAP`),
+are this row's.
