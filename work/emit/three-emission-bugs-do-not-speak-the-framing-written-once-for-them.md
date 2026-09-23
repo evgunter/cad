@@ -2,10 +2,11 @@
 id: three-emission-bugs-do-not-speak-the-framing-written-once-for-them
 kind: issue
 title: Three NamingError emission bugs do not speak EMISSION_FRAMING, the sentence written once for that category
-status: open
+status: dispatched
 opened: 2026-09-15
 priority: P1
 cost: E
+branch: emit/emit-rs-drivebys
 ---
 
 
