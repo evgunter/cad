@@ -115,3 +115,83 @@ compare, so the verdict follows from the recorded patch counts alone.
 The same mesh shape is pinned hand-built by
 `survives_checkmesh_refuses_the_empty_mesh`'s all-patches-empty arm, so
 the claim has a row that goes red if it stops holding.
+
+## The fact, found and enforced (TESS-5, 2026-09-22)
+
+**The statement is about the EDGES the loop's iso sides open, not about
+poles and not about columns.** A rim-free loop's whole u-extent comes
+from its iso-side OPENINGS: a continuation repeats `prev_u` bitwise
+(#653), so only an opening can put a new column in the polygon. And a
+column belongs to an EDGE, not to a traversal —
+`topo::chart_iso::classify_kind` reads the edge's carrier and its stored
+span, and the walking direction touches neither, so a seam walked down
+and back states one column twice, bitwise. Together: the extent is the
+spread of the columns of the DISTINCT edges that open the loop's iso
+sides, and a loop that opens them all on one edge has an extent of
+exactly zero.
+
+`mesh::walk::require_two_columns` refuses that state
+`TessellateError::SingleColumnCurvedFace { face, surface }`, in every
+profile, before anything is emitted. It reads the loop's incidence and
+nothing else: no column is compared, and no width, area or triangle
+count is read. The ε in it is the iso-side rule's own separation band —
+the guard is exact to the resolution of the computation it guards, which
+is the most a premise check can be. On a cylinder or torus chart, whose
+axis lies off the surface, `Eps::separates` is still called but cannot
+answer `false` for any ε below the chart's radius, so the verdict there
+is the band's only in form.
+
+**Closed by it** (rows: `crates/mesh/tests/loops_with_no_rim.rs`):
+
+- the torus face bounded by one meridian circle — this row's own body;
+- the one-face, one-seam sphere — the member the paragraph above said a
+  "no rim and no pole" fact could not close, and the reason the
+  edge-identity rung closes it is that both of its openings state the
+  same edge's column;
+- the cylinder face bounded by one generator (built here for the first
+  time), which used to answer `MissingEntity { "degenerate curved
+  boundary" }` from the count guard behind the walk;
+- the one-face cone whose loop is one generator from the apex, also
+  built here for the first time.
+
+Positive controls, unchanged and rowed: the ball's two pole-to-pole
+bands and the rimless lune, whose two openings stand on two edges.
+
+**Not closed by it, and why that is right.** The sphere cut along a
+whole GREAT CIRCLE through both poles — two hemispheres, tier-3 VALID —
+is refused one door earlier, `UnsupportedCurvedShape` from props'
+`require_one_chart_branch`: each bounding arc carries a pole in its
+interior, where the azimuth it holds constant jumps by π. Measured, and
+rowed at
+`loops_with_no_rim::a_hemisphere_pair_is_refused_at_the_branch_door_not_by_the_walk`.
+Its recourse is to state the poles as vertices, which turns each face
+into the two-column band the lane meshes.
+
+**What the class does NOT reach**, unchanged: the trimmed and planar
+lanes' empty patches are
+`trimmed-and-planar-lanes-answer-ok-on-an-empty-patch`'s, and
+`check_mesh`'s verdict on a mesh of nothing is
+`check-mesh-passes-the-empty-mesh`'s.
+
+**Remaining residue: REACHABLE, and it is not this row's any more.** The
+sweep named the blind spot — two openings on two edges stating one column
+— and argued it would need two coincident edges, which is not a valid
+body. TESS-5's reviewer built it through the Euler doors, so the argument
+was wrong: a sphere slit bounded by two coincident edges satisfies the
+guard's premise and still walks to zero width (census panic with
+assertions on, `Ok` with `patches [0, 0]` and `check_mesh
+Err(NoTriangles)` without). Filed as its own row with the missing rung
+named — carrier identity, above edge identity:
+`work/tess/two-coincident-edges-open-two-columns-that-are-one.md`, and
+rowed where it is reached in `crates/mesh/tests/loops_with_no_rim.rs`.
+
+**So: the four members above close with TESS-5; that member does not.**
+This row closes on its four, and the coincident-edge member is tracked
+next door. The corpus measurement that stood in for the argument — every
+rim-free walk in the `mesh` suite, 237 of them, all with exactly 2
+openings and none narrower than 0.2 rad — says the corpus has no
+degenerate admitted loop, which is now a weaker claim than the row next
+door and is kept only as that. It has no committed apparatus and cannot
+have one: the polygon is `pub(crate)` and no seam exposes it, so the
+measurement is a three-line `eprintln` at the rim-free arm plus
+`cargo test -p mesh --test all -- --nocapture`, re-taken by hand.

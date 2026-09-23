@@ -239,13 +239,12 @@ pub(crate) enum Lane {
 /// exactly that shape, and nothing on this path screens loop SHAPE. So
 /// an iso boundary reaching `tessellate_curved` is a routing decision,
 /// not a guarantee about the domain; the domain itself is checked
-/// there — its SHAPE through props' iso-rectangle door before the
-/// walk (`curved::require_iso_rectangle_face`, refusing
-/// [`TessellateError::UnsupportedCurvedShape`]), that its loop carries
-/// a meridian by the walk itself (`walk::require_a_meridian`, refusing
-/// [`TessellateError::MeridianFreeCurvedFace`]) and the walk's
-/// consistency after it (`curved::require_swept_rectangle`, refusing
-/// [`TessellateError::UnsupportedCurvedDomain`]).
+/// there, by the numbered list of questions `curved`'s module header
+/// carries — which is the one home of what they are and in what order.
+/// Two of them are the WALK's rather than a door's
+/// (`walk::require_a_meridian` and `walk::require_two_columns`), which
+/// is why this dispatch can hand an iso boundary over without deciding
+/// anything about its shape.
 fn lane_of(body: &Body<f64>, fk: FaceKey, surface: &Surface<f64>) -> Result<Lane, TessellateError> {
     Ok(match *surface {
         Surface::Nurbs(_) | Surface::Approx(_) => Lane::Trimmed,
