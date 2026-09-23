@@ -1740,7 +1740,11 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand)
             ),
             Self::Euler(e) => write!(f, "euler operation refused: {e}"),
-            Self::Join(e) => write!(f, "joining refused: {e}"),
+            Self::Join(e) => write!(
+                f,
+                "joining the operands' sections refused: {}",
+                crate::chord_join::UnderBoolean(e)
+            ),
             Self::RestZipUnsupported { what } => write!(
                 f,
                 "declared-REST union zip: {what} — a named \

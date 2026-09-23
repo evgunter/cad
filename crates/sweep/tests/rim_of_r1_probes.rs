@@ -243,6 +243,10 @@ fn the_refusals_own_text_names_the_door_and_following_it_carves() {
         text.contains("request the rim whole, every arc the seam split it into"),
         "the refusal names the request that carves: {text}"
     );
+    assert!(
+        text.contains("the rim query, `rim_of`"),
+        "the refusal names the door that answers the request: {text}"
+    );
     let rim = topo::query::rim_of(&source, seed).expect("the refusing arc names its rim");
     assert_eq!(rim.len(), 2);
     let out = fillet_edges(&source, &rim, 0.05, tol()).expect("the door's answer carves");

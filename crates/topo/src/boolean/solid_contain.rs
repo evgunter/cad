@@ -353,6 +353,15 @@ impl core::fmt::Display for PointInSolidError {
                  boundary, so the question is ill-conditioned at this tolerance. \
                  Recourse: {COINCIDENCE_RECOURSE}"
             ),
+            // `PointInLoopError` is shared with the split, whose wrapper
+            // states its own recourse; so the ray-exhausted arm carries
+            // none, and this path supplies the one it needs, as its
+            // sibling `RayExhausted` above does. The escalated arm's
+            // margin already ends in the shared recourse.
+            Self::Loop(e @ crate::splitting::PointInLoopError::RayExhausted { .. }) => write!(
+                f,
+                "cannot tell what is inside the solid: {e}. Recourse: {COINCIDENCE_RECOURSE}"
+            ),
             Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
             Self::ZeroVolumeBody => write!(
                 f,

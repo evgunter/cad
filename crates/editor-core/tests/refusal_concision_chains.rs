@@ -51,6 +51,11 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Join/Corrupt",
     "Split/Join/Euler",
     "Split/Join/SectionInvariant",
+    "Boolean/Join/SectionLoopMixed",
+    "Boolean/Join/CutInvariant",
+    "Boolean/Join/Corrupt",
+    "Boolean/Join/Euler",
+    "Boolean/Join/SectionInvariant",
     "Split/Finish/TornComponent",
     "Split/Finish/UnclassifiableComponent",
     "Split/Finish/Euler",
@@ -108,7 +113,17 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ("Check/Unsupported", "mass properties"),
     // `geom-brep/src/certify.rs` (#2861), unowned: the same row.
     ("Transform/Certify", "certification"),
+    // `geom/src/curves.rs` (#2861): `EllipseInvalid` opens with
+    // "ellipse construction:" and offers "declare" under a split:
+    // work/chrome/the-refusal-shape-guard-has-blind-spots.md
+    ("Split/Join/Section(Carrier)", "ellipse construction"),
+    ("Boolean/Join/Section(Carrier)", "ellipse construction"),
 ];
+
+/// The split rows that may still offer "declare", which a split has no
+/// door for, each filed with its owner (the note above `FILED`'s
+/// `EllipseInvalid` entries).
+pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
 
 /// The rows that render a `Debug` struct from a file an open PR is
 /// reworking, by exact row id, each filed with its owner.
@@ -194,6 +209,29 @@ fn every_node_refusal_renders_within_the_budget() {
         .collect();
     let problems = over_budget(&rows);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+    // The join is shared; its recourse is its caller's. A split takes
+    // no declaration and a Boolean does, so the same arm offers
+    // "declare" under the one and not under the other.
+    for (name, text) in &rows {
+        if name.starts_with("Split/") && !FILED_DECLARE.contains(&name.as_str()) {
+            assert!(!text.contains("declare"), "{name}: {text}");
+        }
+        // Every arm whose split rendering offers the join's recourse
+        // offers the declaration under the Boolean instead.
+        if let Some(arm) = name.strip_prefix("Boolean/Join/") {
+            let split = rows
+                .iter()
+                .find(|(n, _)| *n == format!("Split/Join/{arm}"))
+                .map(|(_, t)| t)
+                .expect("every Boolean join row has its split twin");
+            if split.contains(geom_core::NO_DECLARATION_RECOURSE) {
+                assert!(
+                    text.contains(geom_core::COINCIDENCE_RECOURSE),
+                    "{name}: {text}"
+                );
+            }
+        }
+    }
 }
 
 /// Every `NodeErrorKind` arm, and every arm of each refusal it forwards.
@@ -671,57 +709,79 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         ("Euler", R::Euler(euler())),
     ]
     .map(|(n, e)| (format!("Reduce/{n}"), SplitError::Reduce(e)));
-    let join = [
-        ("OrderEscalated", J::OrderEscalated { diag: diag() }),
-        ("Escalated", J::Escalated { face, diag: diag() }),
-        ("DegenerateSection", J::DegenerateSection { face }),
-        (
-            "RingHoming",
-            J::RingHoming(topo::PointInLoopError::RayExhausted {
-                r#loop: LoopKey::default(),
-            }),
-        ),
-        (
-            "RingHomingAmbiguous",
-            J::RingHomingAmbiguous {
-                ring: LoopKey::default(),
-            },
-        ),
-        ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
-        ("SectionLoopMixed", J::SectionLoopMixed { face }),
-        ("CutInvariant", J::CutInvariant { edge }),
-        (
-            "Corrupt",
-            J::Corrupt {
-                entity: EntityId::Edge(edge),
-            },
-        ),
-        ("Band", J::Band(band_error())),
-        ("Euler", J::Euler(euler())),
-        (
-            "Section",
-            J::Section {
-                face,
-                source: geom_brep::SectionError::CoincidentSurfaces,
-            },
-        ),
-        (
-            "SectionArcWindow",
-            J::SectionArcWindow {
-                face,
-                case: topo::ArcWindowCase::NeitherContained,
-                band: band(),
-            },
-        ),
-        (
-            "SectionInvariant",
-            J::SectionInvariant {
-                face,
-                what: "a section arc with no endpoint on the face's boundary",
-            },
-        ),
-    ]
-    .map(|(n, e)| (format!("Join/{n}"), SplitError::Join(e)));
+    // The join is shared by the split and the Boolean, and each wraps it
+    // in its own words and recourse, so both chains are rendered.
+    let join_arms = || {
+        [
+            ("OrderEscalated", J::OrderEscalated { diag: diag() }),
+            ("Escalated", J::Escalated { face, diag: diag() }),
+            ("DegenerateSection", J::DegenerateSection { face }),
+            (
+                "RingHoming",
+                J::RingHoming(topo::PointInLoopError::RayExhausted {
+                    r#loop: LoopKey::default(),
+                }),
+            ),
+            (
+                "RingHomingAmbiguous",
+                J::RingHomingAmbiguous {
+                    ring: LoopKey::default(),
+                },
+            ),
+            ("UnpairedLooseEnds", J::UnpairedLooseEnds { count: 3 }),
+            ("SectionLoopMixed", J::SectionLoopMixed { face }),
+            ("CutInvariant", J::CutInvariant { edge }),
+            (
+                "Corrupt",
+                J::Corrupt {
+                    entity: EntityId::Edge(edge),
+                },
+            ),
+            ("Band", J::Band(band_error())),
+            ("Euler", J::Euler(euler())),
+            // The two section refusals a plane-inclusive pair can reach
+            // (the join reads no other): a lane bug, and the conic
+            // carrier's own refusal at a near-circular tilt.
+            (
+                "Section",
+                J::Section {
+                    face,
+                    source: geom_brep::SectionError::WrongLane {
+                        expected: "plane×cylinder",
+                    },
+                },
+            ),
+            (
+                "Section(Carrier)",
+                J::Section {
+                    face,
+                    source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::CircularAxes),
+                },
+            ),
+            (
+                "SectionArcWindow",
+                J::SectionArcWindow {
+                    face,
+                    case: topo::ArcWindowCase::NeitherContained,
+                    band: band(),
+                },
+            ),
+            (
+                "SectionInvariant",
+                J::SectionInvariant {
+                    face,
+                    what: "a section arc with no endpoint on the face's boundary",
+                },
+            ),
+        ]
+    };
+    let join = join_arms().map(|(n, e)| (format!("Join/{n}"), SplitError::Join(e)));
+    let boolean_join = join_arms().map(|(n, e)| {
+        row(
+            &format!("Boolean/Join/{n}"),
+            NodeErrorKind::Boolean(topo::BooleanError::Join(e)),
+        )
+    });
     let shell = ShellKey::default();
     let finish = [
         ("NotSingleSolid", F::NotSingleSolid { count: 2 }),
@@ -752,6 +812,7 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         .chain(finish)
         .chain([("Pcurves".to_owned(), SplitError::Pcurves(pcurve()))])
         .map(|(n, e)| row(&format!("Split/{n}"), NodeErrorKind::Split(e)))
+        .chain(boolean_join)
         .collect()
 }
 
@@ -2494,6 +2555,14 @@ fn every_check_finding_renders_within_the_budget() {
         .collect();
     let problems = over_budget(&rows);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
+    // A grazing ray is an ill-conditioned margin wherever it arrives
+    // from — the solid's own boundary or one of its loops — so each
+    // path states the recourse, once.
+    for (name, text) in &rows {
+        if name.contains("RayExhausted") {
+            assert_eq!(text.matches("Recourse:").count(), 1, "{name}: {text}");
+        }
+    }
 }
 
 fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
@@ -2656,6 +2725,19 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::Escalated { face, diag: diag() },
         ),
         ("RayExhausted", PointInSolidError::RayExhausted),
+        (
+            "Loop(RayExhausted)",
+            PointInSolidError::Loop(topo::PointInLoopError::RayExhausted {
+                r#loop: topo::LoopKey::default(),
+            }),
+        ),
+        (
+            "Loop(Escalated)",
+            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                r#loop: topo::LoopKey::default(),
+                diag: diag(),
+            }),
+        ),
         ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
         ("CorruptFace", PointInSolidError::CorruptFace { face }),
         (

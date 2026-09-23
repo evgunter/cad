@@ -486,20 +486,18 @@ fn parallel_equal_cylinders_trio() {
     .unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
     // Coaxial equal-radius: the coincident-surface refusal, carrying
-    // one recourse, and not the shared one: its one renderer is the
-    // chord join (split and Boolean), which takes no declaration, so
-    // "declare the coincidence" would name a lever the reader lacks.
+    // the shared recourse exactly once. Coincident operands are what a
+    // declaration exists for, so "declare the coincidence" is the lever.
     let err = cylinder_cylinder_section(&c1, &mk(0.0), RadiusEvidence::Declared, 1.0, band())
         .unwrap_err();
     assert!(matches!(err, SectionError::CoincidentSurfaces), "{err:?}");
     let msg = err.to_string();
     assert_eq!(
-        msg.matches("Recourse: move the geometry, or lower the tolerance")
-            .count(),
+        msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
         1,
         "{msg}"
     );
-    assert!(!msg.contains("declare"), "{msg}");
+    assert_eq!(msg.matches("Recourse:").count(), 1, "{msg}");
 }
 
 // ---------------------------------------------------------------------

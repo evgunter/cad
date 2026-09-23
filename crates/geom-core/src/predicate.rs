@@ -310,8 +310,9 @@ impl fmt::Display for BandError {
             Self::Empty { zero, escalate } => write!(
                 f,
                 "the band's zero threshold {zero:e} is not below its escalate threshold \
-                 {escalate:e}, so the band is empty. Recourse: raise escalate above zero; a \
-                 band derived from the tolerance does, with its multiplier K > 1"
+                 {escalate:e}, so the band is empty. Recourse: raise the escalate threshold \
+                 above the zero threshold; a band derived from the tolerance does, with its \
+                 multiplier K > 1"
             ),
         }
     }
@@ -994,6 +995,18 @@ pub const COINCIDENCE_RECOURSE: &str =
 /// it with `contains`.
 pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
 
+/// [`COINCIDENCE_RECOURSE`] at a door that takes no declaration: the
+/// two levers left, the geometry and the tolerance. The chord join
+/// that a split and a Boolean share composes it, since the join cannot
+/// know whether its caller declares; the Boolean's own wrapper adds the
+/// declaration back (`topo::BooleanError::Join`).
+pub const NO_DECLARATION_RECOURSE: &str = "move the geometry, or lower the tolerance";
+
+/// [`NO_DECLARATION_RECOURSE`] at a split, whose plane is the first
+/// lever: a split takes no declarations (`topo::split`'s signature).
+pub const SPLIT_PLANE_RECOURSE: &str =
+    "move the split plane or the geometry, or lower the tolerance";
+
 /// The one answer a refusal gives when the table that routes its
 /// recourse by predicate name does not carry the name that escalated:
 /// it NAMES the hole. Never a category asserted over the unknown name,
@@ -1376,8 +1389,8 @@ mod tests {
         assert_eq!(
             Band::new(1e-8, 1e-9).unwrap_err().to_string(),
             "the band's zero threshold 1e-8 is not below its escalate threshold 1e-9, so the \
-             band is empty. Recourse: raise escalate above zero; a band derived from the \
-             tolerance does, with its multiplier K > 1"
+             band is empty. Recourse: raise the escalate threshold above the zero threshold; \
+             a band derived from the tolerance does, with its multiplier K > 1"
         );
         // The lever-arm variant (an invalid arm returns before the global
         // tolerance is read, so this stays pure).

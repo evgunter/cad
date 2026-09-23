@@ -760,7 +760,7 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                 };
                 write!(
                     f,
-                    "the fillet would SWALLOW {whose} (radius {carrier_radius} m)",
+                    "it would SWALLOW {whose} (radius {carrier_radius} m)",
                     carrier_radius = num(carrier_radius),
                 )?;
                 match largest_tangent_radius {
@@ -775,10 +775,10 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                     ),
                     // Nothing endorsable at this site: the class bound is
                     // necessary and not sufficient, so the sentence states
-                    // only what it rules OUT — every radius from the
-                    // carrier's own up swallows it — and names no radius
-                    // below it, which would be a promise this gate cannot
-                    // keep.
+                    // what it rules OUT — every radius from the carrier's
+                    // own up swallows it — and names no radius below it,
+                    // which would be a promise this gate cannot keep; the
+                    // pair's sentence adds that none may fit at all.
                     None => write!(
                         f,
                         "; no radius from {carrier_radius} m up fits",
@@ -1690,6 +1690,20 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 )?;
                 for corner in corners {
                     write!(f, "; {corner}")?;
+                }
+                // The unbounded swallow's hedge is about the PAIR — its
+                // class bound is necessary and not sufficient — so it
+                // is said once, after every corner, not per corner.
+                if corners.iter().any(|c| {
+                    matches!(
+                        c.reason,
+                        CornerReason::EnclosesLegCarrier {
+                            largest_tangent_radius: None,
+                            ..
+                        }
+                    )
+                }) {
+                    write!(f, "; these carriers may admit no fillet at all")?;
                 }
                 // One recourse for the pair: moving the anchor is the
                 // wider menu, and it is offered whenever any corner's

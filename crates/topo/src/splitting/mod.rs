@@ -329,12 +329,9 @@ impl From<EulerOpError> for SplitReduceError {
     }
 }
 
-/// The recourse a split's escalations carry. A split takes no
-/// declarations (`split`'s signature), so the shared
-/// [`geom_core::COINCIDENCE_RECOURSE`]'s "declare the coincidence" is
-/// not a lever here; the split plane is.
-pub(crate) const SPLIT_COINCIDENCE_RECOURSE: &str =
-    "move the split plane or the geometry, or lower the tolerance";
+/// The recourse a split's escalations carry: a split takes no
+/// declarations, so its plane is the first lever.
+pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
 
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -346,20 +343,31 @@ impl core::fmt::Display for SplitReduceError {
             // of the plane is a way through. The gate also reports a
             // face whose surface does not resolve under the spline
             // kind, which is why that arm names both.
+            // The gate reports a face whose surface does not resolve as
+            // `Nurbs` (`classify::gate_operand`), so that arm says both
+            // things it can mean, and names the second as the corrupt
+            // body it is rather than as a feature not built yet.
+            Self::CurvedBooleanUnsupported {
+                kind: geom_brep::SurfaceKind::Nurbs,
+                ..
+            } => write!(
+                f,
+                "the body has a spline (NURBS) face, which the split cannot cut yet, or a \
+                 face with no surface, which means the body is corrupt. There is no way \
+                 through yet"
+            ),
             Self::CurvedBooleanUnsupported { kind, .. } => write!(
                 f,
                 "the body has {}, and the split cannot cut a body with such a face \
                  yet. There is no way through yet",
                 match kind {
-                    geom_brep::SurfaceKind::Nurbs => {
-                        "a spline (NURBS) face, or a face whose surface does not resolve"
-                    }
                     geom_brep::SurfaceKind::Approx => "an approximated spline face",
                     geom_brep::SurfaceKind::Cone => "a cone face",
                     geom_brep::SurfaceKind::Sphere => "a sphere face",
                     geom_brep::SurfaceKind::Torus => "a torus face",
                     geom_brep::SurfaceKind::Plane => "a plane face",
                     geom_brep::SurfaceKind::Cylinder => "a cylinder face",
+                    geom_brep::SurfaceKind::Nurbs => "a spline (NURBS) face",
                 }
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(

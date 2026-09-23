@@ -799,7 +799,7 @@ fn near_graze_escalates_typed() {
     assert!(msg.contains("split_conic_belly_graze"), "{msg}");
     // One recourse, the split's own: a split takes no declaration.
     assert_eq!(
-        msg.matches("Recourse: move the split plane or the geometry, or lower the tolerance")
+        msg.matches(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE)[..])
             .count(),
         1,
         "{msg}"

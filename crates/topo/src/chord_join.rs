@@ -330,42 +330,63 @@ impl From<PointInLoopError> for SplitJoinError {
 
 /// The recourse the section join's escalations carry. The join runs
 /// under a split, which takes no declarations, and under a Boolean,
-/// which does; the one lever true at both is the geometry (or the
-/// tolerance), so "declare the coincidence" is left to the Boolean's
-/// own refusals.
-const JOIN_RECOURSE: &str = "move the geometry, or lower the tolerance";
+/// which does; the levers true at both are the geometry and the
+/// tolerance, and `BooleanError::Join` adds the declaration.
+use geom_core::NO_DECLARATION_RECOURSE as JOIN_RECOURSE;
 
 impl core::fmt::Display for SplitJoinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.render(f, JOIN_RECOURSE)
+    }
+}
+
+/// A [`SplitJoinError`] as a Boolean shows it: the Boolean takes
+/// declarations, so its escalations offer the shared
+/// [`geom_core::COINCIDENCE_RECOURSE`] where the join's own `Display`
+/// (which a split shares) offers only the geometry and the tolerance.
+pub(crate) struct UnderBoolean<'a>(pub(crate) &'a SplitJoinError);
+
+impl core::fmt::Display for UnderBoolean<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.render(f, geom_core::COINCIDENCE_RECOURSE)
+    }
+}
+
+impl SplitJoinError {
+    /// The sentence, with the recourse every ill-conditioned arm
+    /// states supplied by the caller that knows which levers its reader
+    /// has: [`JOIN_RECOURSE`] under a split, the shared coincidence
+    /// recourse under a Boolean ([`UnderBoolean`]).
+    fn render(&self, f: &mut core::fmt::Formatter<'_>, recourse: &str) -> core::fmt::Result {
         match self {
             Self::OrderEscalated { diag } => write!(
                 f,
                 "the order of two section points is too close to call ({}). Recourse: \
-                 {JOIN_RECOURSE}",
+                 {recourse}",
                 diag.payload()
             ),
             Self::Escalated { diag, .. } => write!(
                 f,
                 "where a section runs across a face is too close to call ({}). Recourse: \
-                 {JOIN_RECOURSE}",
+                 {recourse}",
                 diag.payload()
             ),
             Self::DegenerateSection { .. } => write!(
                 f,
                 "a section is degenerate: it bounds zero area (a one-sided tangency), so \
-                 one side has no real material. Recourse: {JOIN_RECOURSE}"
+                 one side has no real material. Recourse: {recourse}"
             ),
             Self::RingHoming(e) => match e {
                 crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
                     f,
                     "which piece a hole loop falls in is too close to call ({}). Recourse: \
-                     {JOIN_RECOURSE}",
+                     {recourse}",
                     diag.payload()
                 ),
                 crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
                     f,
                     "every test ray grazed a hole loop, so which piece holds it is \
-                     ill-conditioned at this tolerance. Recourse: {JOIN_RECOURSE}"
+                     ill-conditioned at this tolerance. Recourse: {recourse}"
                 ),
                 crate::splitting::PointInLoopError::CorruptLoop { .. } => {
                     write!(f, "re-homing a hole loop refused: {e}")
@@ -374,7 +395,7 @@ impl core::fmt::Display for SplitJoinError {
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
                 "a hole loop sits on the divided face's outer boundary, so which piece \
-                 holds it cannot be decided. Recourse: {JOIN_RECOURSE}"
+                 holds it cannot be decided. Recourse: {recourse}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
@@ -404,7 +425,7 @@ impl core::fmt::Display for SplitJoinError {
                 if case.is_containment_verdict() {
                     write!(
                         f,
-                        " ('split_arc_window', band ({:e}, {:e})). Recourse: {JOIN_RECOURSE}",
+                        " ('split_arc_window', band ({:e}, {:e})). Recourse: {recourse}",
                         band.zero(),
                         band.escalate(),
                     )?;

@@ -684,8 +684,10 @@ pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in
 /// It names the REQUEST that describes what the caller wants — the rim
 /// entire, which is a closed chain — rather than a run-out policy,
 /// because a run-out at a smooth point is not what is missing, and it
-/// names the DOOR that produces it, so following the sentence is one
-/// call and not a scan the caller has to get right. The
+/// names the DOOR that produces it — the rim query, by its API name
+/// `rim_of` (`topo::query::rim_of`), since no user-facing verb wraps it
+/// yet — so following the sentence is one call and not a scan the
+/// caller has to get right. The
 /// closed-rim surgery CARVES that request: its annulus band takes a
 /// multi-link closed chain whose links are one rim's arcs across chart
 /// seams, walking through the seam vertices and resting on several
@@ -702,9 +704,10 @@ pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in
 /// `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
 /// which asserts the sentence and the whole-rim CARVE together, convex
 /// and concave, so neither half can drift alone.
-pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc the seam split it into, rather than stopping at \
-     the seam, a chart artifact; a fillet carves it as one band on either material side \
-     (a chamfer has no closed-chain band)";
+pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc the seam split it into (the rim query, `rim_of`, \
+     lists them from any one arc), rather than stopping at the seam, a chart artifact; a \
+     fillet carves it as one band on either material side (a chamfer has no closed-chain \
+     band)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through and rims

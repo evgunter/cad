@@ -576,14 +576,16 @@ impl core::fmt::Display for SectionError {
                  form is not exact. Recourse: size the section to an extent that covers \
                  the curve"
             ),
-            // No "declare": the one caller that renders this arm is the
-            // chord join (split and Boolean), which takes no declaration
-            // at this site; the Boolean's own frame maps it away.
+            // Raised by the cylinder×cylinder and sphere×sphere tables
+            // only. The chord join reads plane-inclusive pairs and never
+            // meets it; where a Boolean could (coincident operands), a
+            // declaration is exactly the lever, so the shared recourse
+            // is the true one.
             Self::CoincidentSurfaces => write!(
                 f,
-                "the surfaces are coincident (coaxial equal-radius cylinders), so they \
-                 share a surface rather than meet along a curve. Recourse: move the \
-                 geometry, or lower the tolerance"
+                "the surfaces are coincident (the same cylinder or the same sphere), so \
+                 they share a surface rather than meet along a curve. Recourse: {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::DegenerateTorus => write!(
                 f,

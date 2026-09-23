@@ -447,6 +447,20 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
          termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
+    // The corner clause's two conditions, each true of every corner the
+    // surgery carves and each a reader needs: a fully requested corner
+    // that is not trivalent, or is of mixed convexity, still refuses.
+    // Pinned one by one, so dropping either is red.
+    for condition in [
+        "fully requested trivalent plane\u{2013}plane corners",
+        "of one convexity",
+        "junction carry-through and run-outs are not implemented",
+    ] {
+        assert!(
+            FILLET3_ASSEMBLY_RECOURSE.contains(condition),
+            "the assembly recourse lost {condition:?}: {FILLET3_ASSEMBLY_RECOURSE}"
+        );
+    }
 
     let d = dome(1.0, tol());
     let equator = one_edge_rim_at(&d, 1.0, 0.0);
