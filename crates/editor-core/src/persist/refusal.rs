@@ -74,7 +74,7 @@
 //! `editor-core`, so the premise is a gate rather than a reading. (The
 //! crate's one `deserialize_with`, [`crate::persist::wire`]'s `plane_ref`, is a
 //! single `deserialize_u64` with one visit method and no fallback; the
-//! gate allows it by name and reds if a second appears.)
+//! gate allows it by that full path and reds if a second appears.)
 //!
 //! The reading back is narrow for the same reason: a recorded refusal
 //! is adopted only when serde_json classifies the failure as

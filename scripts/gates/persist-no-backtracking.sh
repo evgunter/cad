@@ -35,7 +35,7 @@
 #                                 failing deserialize can be re-attempted
 #                                 against a different target;
 #   * `deserialize_with = "…"`  — arbitrary code, which may retry;
-#                                 allowlisted BY NAME (one entry today);
+#                                 allowlisted BY PATH (one entry today);
 #   * `serde_json::Value`       — an intermediate the body is read into
 #                                 and then re-read from, which makes the
 #                                 recorded-then-discarded case reachable
@@ -49,10 +49,12 @@
 #
 # THE ALLOWLIST is one `deserialize_with`: `persist::wire`'s
 # `plane_ref`, a single `deserialize_u64` with one `visit_u64` and no
-# fallback of any kind. It is allowed by FUNCTION NAME, so a second
-# `deserialize_with` — or a `plane_ref` rewritten to try something else
-# — reds and wants a human. Widening this list is a decision about the
-# refusal channel's soundness, not a formatting fix.
+# fallback of any kind. It is allowed by its FULL PATH, the spelling
+# `program.rs` uses (`crate::persist::wire::plane_ref`), so a second
+# `deserialize_with` — including a bare `"plane_ref"` naming some other
+# module's function — reds and wants a human, as does a `plane_ref`
+# rewritten to try something else. Widening this list is a decision
+# about the refusal channel's soundness, not a formatting fix.
 #
 # WHAT IT STILL CANNOT SEE (stated because a sweep whose blind spot is
 # unstated is an unverified claim, §C15):
@@ -81,8 +83,8 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 SCAN_DIR=crates/editor-core/src
-# The one sanctioned `deserialize_with`, by the function it names.
-ALLOWED_WITH='deserialize_with[[:space:]]*=[[:space:]]*"plane_ref"'
+# The one sanctioned `deserialize_with`, by the full path it names.
+ALLOWED_WITH='deserialize_with[[:space:]]*=[[:space:]]*"crate::persist::wire::plane_ref"'
 
 PAT_UNTAGGED='#\[serde\([^]]*untagged'
 PAT_OTHER='#\[serde\([^]]*other[[:space:]]*[,)]'
@@ -137,7 +139,7 @@ pub(crate) enum WireExpr {
 
 #[derive(Deserialize)]
 pub(crate) struct WireProfile {
-    #[serde(deserialize_with = "plane_ref")]
+    #[serde(deserialize_with = "crate::persist::wire::plane_ref")]
     plane: u64,
 }
 
@@ -229,7 +231,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_other_beside_a_rename
   gate_selftest_passes "words that merely contain the needles" plant_words_that_merely_contain_the_needles
   gate_selftest_passes "a Value intermediate in another crate" plant_value_in_another_crate
-  printf '%s selftest OK: 7 planted spellings fire (the three attributes, each also beside another option; a second `deserialize_with`, which the by-name allowlist does not cover; and a `serde_json::Value` intermediate); the sanctioned `plane_ref`, an externally-tagged enum, a doc comment naming every banned spelling, an option whose name merely contains `other`, and a `Value` in another crate all stay green; the empty scan fails rather than passing hollow; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
+  printf '%s selftest OK: 7 planted spellings fire (the three attributes, each also beside another option; a second `deserialize_with`, which the by-path allowlist does not cover; and a `serde_json::Value` intermediate); the sanctioned `plane_ref`, an externally-tagged enum, a doc comment naming every banned spelling, an option whose name merely contains `other`, and a `Value` in another crate all stay green; the empty scan fails rather than passing hollow; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)"
 }
 
