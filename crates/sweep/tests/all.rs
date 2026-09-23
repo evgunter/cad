@@ -129,6 +129,8 @@ mod shellfix1_bitdump;
 mod shellfix1_r1_probes;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
+#[path = "tess_approx_survey_probe.rs"]
+mod tess_approx_survey_probe;
 #[path = "topo_ring_nesting.rs"]
 mod topo_ring_nesting;
 #[path = "torax_axial.rs"]
