@@ -9,13 +9,8 @@ client over the API), functional style, fail-loud.
   open questions). Do not re-litigate settled decisions; propose changes
   as revisions to the doc, discussed with Ev first.
 - `work/` — the tracker. `work/STATUS.md` is the board (generated on
-  main); each program is `work/<program>/` with `program.md`,
-  `plan.md`, `log.md` and one file per open item. `work/README.md` is
-  the contract; orchestrators read it in full. A program is closed when
-  its `docs/<NAME>-EXIT-WALK.md` is ratified; the walk is then
-  deleted with the program's tracker directory and a note added to
-  `docs/doc-ledger/`, which is its done-state of record (the walk
-  stays recoverable at the SHA the note names).
+  main, never hand-edited); `work/README.md` is the contract, and
+  orchestrators read it in full.
 - Design docs for finished work live as README pages beside the code
   they govern (`crates/<crate>/README.md`), present tense only, with
   their clause ids kept; DESIGN.md's companion table lists them.
@@ -42,14 +37,34 @@ criteria in `memories/cad-working-style.md` — the index is read at
 the start of every session and its pointers followed as relevant, so
 a new memory has to earn that.
 
-## Filing an issue (every agent)
+## Filing an issue
 
 Issues are files, not GitHub issues. Run
 `python3 scripts/work.py new <semantic-name> --kind issue --title "..."`
 (add `--program <p>` when the owner is obvious), write the finding in
 the body with its `file:line` citations, and commit it on your branch;
-`python3 scripts/work.py lint` must pass. Anything for Ev goes in a PR
-titled `[ev] ...`.
+`python3 scripts/work.py lint` must pass.
+
+## Asking Ev
+
+Anything that needs Ev — a design fork, a ruling, a ratification, a
+question — is a PR titled `[ev] ...`, and the `work/` item that asked
+sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
+
+- The PR states the question by editing the doc it concerns, and is
+  updated in place with the answer. Its body is a decision document
+  (`memories/ev-profile.md`).
+- Ev answers in the PR's comments, so arrange to be woken by them (a PR
+  subscription on a remote box, the away-channel monitor locally).
+  Never ask on a merged PR: Ev does not scan them.
+- **No status scaffolding in the diff** (Ev, 2026-09-21): "proposed",
+  "pending sign-off" or "awaits ratification" only has to come out
+  again before merging. The title, the PR body and `needs_ev:` carry
+  the status; the text carries its content.
+- A file move or other reshuffle with no design implication is not a
+  question (Ev, PR 1916, 2026-09-05: "you don't need to ask me about
+  moving things around, unless it has design implications"); do it and
+  log it.
 
 ## The GitHub surface
 

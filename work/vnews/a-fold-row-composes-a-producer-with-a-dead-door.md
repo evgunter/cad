@@ -4,7 +4,7 @@ kind: issue
 title: Two frame.rs rows compose fold_status with apply over a composition no caller performs
 status: closed
 opened: 2026-09-06
-refs: [status-line-writers-bypass-the-ranking, ranked-and-unranked-verdicts-are-one-type, 2026]
+refs: [ranked-and-unranked-verdicts-are-one-type, 2026]
 priority: P3
 cost: E
 closed: 2026-09-20

@@ -550,11 +550,14 @@ fn tessellate_impl(
     // chord segments of the body's own edges — and over nothing else.
     //
     // WHY NOT `check_mesh`, which is the oracle for the non-manifold
-    // shape of this class (though not for every shape it takes: a face
-    // that emits NO triangles leaves its chord segments used once, or
-    // by no face at all, and `check_mesh` passes a mesh of nothing but
-    // empty patches; this census is what sees it): it was the first
-    // candidate and it was MEASURED against this one.
+    // shape of this class, and names the emptiness shape too
+    // (`MeshError::EmptyPatch` for a face that emits no triangle,
+    // `NoTriangles` where no face emits one): it was the first
+    // candidate and it was MEASURED against this one. What this census
+    // is the only witness of is therefore narrower than the class —
+    // `tessellate` runs the census and does not run `check_mesh`, so in
+    // a debug build this is what sees the state without the caller
+    // asking, and in release nothing here sees it at all.
     //
     // THE PRICE ARGUMENT IS NARROWER THAN IT LOOKS, and is stated at
     // its real width. On sub-millisecond bodies the round-to-round

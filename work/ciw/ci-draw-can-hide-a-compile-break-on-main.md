@@ -4,7 +4,6 @@ kind: issue
 title: The ci.yml filter draw can hide a hard compile break on main for an unbounded number of merges
 status: closed
 opened: 2026-09-04
-refs: [blamed-mates-lost-its-exhaustive-arm]
 closed: 2026-09-07
 ---
 

@@ -3,7 +3,7 @@ id: projection-fault-has-no-sweeper
 kind: issue
 title: The projection fault this unit holds can go permanently stale, and neither of the two new app fields has a row
 status: open
-refs: [1957, news-and-standing-facts-are-orthogonal-axes]
+refs: [1957]
 opened: 2026-09-05
 priority: P3
 cost: E
