@@ -523,3 +523,14 @@ caller validates first. One style reviewer with a correctness arm
 dispatched. Undecided and named in prose only: whether
 `tessellate(&Body::new())` should answer at all — the reviewer is
 asked whether that is a deviation owing a row.
+
+## TESS-3 merged (2026-09-22)
+
+PR 3098 at `45077d84d` → `cd0019ec2`. The row was already closed by
+RING-2 and nobody had measured it; TESS-3 measured and pinned it
+(`== 0.0`, the affine arm's observable, the rational dust bracket).
+Diff was docs and four test rows, so it merged on green CI and my read
+of the assertions — the bottom tier, not the middle one it was
+dispatched at. Filed: `chords-m-bound-zero-arm-is-dead-…` (the same
+collapse open-coded twice in `chords.rs` with no exact-zero case).
+Lane reclaimed. TESS-4's review is in flight.

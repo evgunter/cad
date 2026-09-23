@@ -2,11 +2,12 @@
 id: exact-zero-second-partial-leaves-cell-component-as-subnormal-dust
 kind: issue
 title: A degree-1 direction's exactly-zero second partial reaches cell_component as 1.5e-323, so the == 0.0 arm split_steps decides on is dead
-status: open
+status: closed
 opened: 2026-09-18
 priority: P0
 cost: D
 parent: TESS-3
+closed: 2026-09-22
 ---
 
 
