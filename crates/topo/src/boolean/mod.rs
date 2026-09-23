@@ -1605,14 +1605,15 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "a direction the Boolean measures where the solids meet has no finite \
                  length \u{2014} its components overflow, or one of them is not a \
-                 number. Recourse: scale the geometry into the session's range"
+                 number. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::UnderflowedSectorChord { .. } => write!(
                 f,
                 "a direction the Boolean measures where the solids meet is too small \
                  for its length to be represented, so it measures exactly zero; no \
-                 tolerance reaches this. Recourse: scale the geometry into the \
-                 session's range"
+                 tolerance reaches this. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -1739,7 +1740,11 @@ impl core::fmt::Display for BooleanError {
                 operand_word(*operand)
             ),
             Self::Euler(e) => write!(f, "euler operation refused: {e}"),
-            Self::Join(e) => write!(f, "joining refused: {e}"),
+            Self::Join(e) => write!(
+                f,
+                "joining the operands' sections refused: {}",
+                crate::chord_join::UnderBoolean(e)
+            ),
             Self::RestZipUnsupported { what } => write!(
                 f,
                 "declared-REST union zip: {what} — a named \
@@ -1760,11 +1765,7 @@ impl core::fmt::Display for BooleanError {
             ),
             // The payload does not say which operand was being tested, so
             // the sentence says "one of the solids" rather than guess.
-            Self::Containment(e) => write!(
-                f,
-                "the solids do not cross, and to decide which lies inside the other \
-                 the Boolean {e}"
-            ),
+            Self::Containment(e) => write!(f, "the solids do not cross, and the Boolean {e}"),
             Self::Revert(e) => write!(f, "revert of the ∖ B side refused: {e}"),
             Self::SeamOrientation { a_face, b_face } => write!(
                 f,
@@ -2658,10 +2659,7 @@ mod tests {
         }
         .to_string();
         assert!(msg.contains("has no finite length"), "{msg}");
-        assert!(
-            msg.contains("scale the geometry into the session's range"),
-            "{msg}"
-        );
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
         assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 0, "{msg}");
         assert!(!msg.contains("zero length"), "{msg}");
         assert_eq!(

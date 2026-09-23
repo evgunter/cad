@@ -90,3 +90,32 @@ escalation log at all).
 `geom_core::k_stats` gained `decide_positive`, `decide_nonzero` and
 `gate_measured` in PR 2928; those are the doors for the arms that really
 are gates.
+
+## A third file, found by EMIT (2026-09-23)
+
+`crates/topo/src/boolean/plane_eq.rs` holds seven more `Indeterminate {
+margin: MarginDiag::Invalid, .. }` struct literals minted AFTER a definite
+sign — spelling 1, in a file the list above does not name (no open
+program's territory claims it):
+
+- `oriented_plane_eq_verdict`: `bool_plane_parallel` `Ok(Negative)`
+  → `Escalated`; `bool_plane_orient` `Ok(Zero)` → `Escalated`;
+  `bool_plane_offset` `Ok(Zero)` → `PlaneEqError::Undeclared` (rung 4).
+- `declared_rung`: `bool_plane_parallel` `Ok(Positive)` → `Contradicted`,
+  `Ok(Negative)` → `Escalated`; `bool_plane_orient` `Ok(Zero)` →
+  `Escalated`; `bool_plane_offset` `Ok(Positive | Negative)` →
+  `Contradicted`.
+
+The rung-4 site's payload is user-visible and the same shape as the note
+above. Measured on `tests/fixture/pr4.rs`'s sliding union, with B's
+transform moved to x = 1.0 so B's −x wall rests on A's +x wall: the union
+refuses, as the contact contract requires (the declaration covers only
+the flush planes), and the refusal reads *"… coincident with opposed
+orientations (resting contact) … predicate 'bool_plane_offset'
+indeterminate: margin is invalid (NaN or a poisoned enclosure) …"*
+about a margin that DECIDED exactly Zero. The same sentence appears on
+the undeclared flush case at x = 0.5 and 0.99. The refusal is correct;
+its diagnostic states a poison that did not occur.
+`work/stack/certified-lane-non-real-contract-audit.md` records the same
+payload from the M10-DI review as a member of its class; this is its
+minting site.

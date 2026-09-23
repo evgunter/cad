@@ -248,16 +248,18 @@ the 30-point ceiling, in two families and the class behind the second.
   `the-exhaustive-on-purpose-argument-is-restated-twenty-times` — one
   class, one unit.
 
-**After Wave 3 (20 points).** Next, in order:
+**Wave 4 LANDED 2026-09-23** — PRs 3100, 3101 and 3108;
+`work/chrome/log.md` has the record.
+
+**After Wave 4 (19 points).** Next, in order:
 - `messages-in-the-creation-and-properties-panes-still-draw-past-their-row`
-  (P0). The floor rule it was waiting on has landed; it waits now only
-  on `pane/create.rs` and `pane/properties.rs` leaving the live PRs.
-- The concision row's remaining chains (P0): `NodeErrorKind`'s other
-  kernel arms, `EditError`, and the checks window, measured on rendered
-  text the way `refusal_concision.rs` does.
-- The two badge rows, once Ev answers Q1 and Q2 (written on each).
-- The subset-policy class, once `session/refuse.rs` leaves the live
-  PRs.
+  (P0), `create.rs` half. It waits only on AUTH-4 (#3052) leaving
+  `pane/create.rs`. `add_part_ui`'s window owes a `default_width`.
+- The concision row (P0) closes when its named check can be made: the
+  unowned `props.rs` and `certify.rs` residue.
+- `at-rest-badge-reports-an-empty-document-as-a-refusal` and the
+  subset-policy class, once `session.rs` and `session/refuse.rs` leave
+  the live PRs.
 
 **Held back, and why.**
 `at-rest-badge-reports-an-empty-document-as-a-refusal` is the next row

@@ -2,7 +2,8 @@
 id: paths-refusal-prose-outgrows-the-viewer
 kind: issue
 title: profile: the path and corner refusals are the longest text the viewer shows (Ev's concision request)
-status: open
+status: closed
+closed: 2026-09-23
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 ---
@@ -54,3 +55,28 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## Closed (2026-09-23)
+
+Every arm listed above was rewritten at the source by the CHROME
+concision pass, with the method-name recourses kept (`.tangent()`,
+`.cusp()`, `Start.arrives_tangent()`). Rendered through the feature
+tree's `ProfileReplay` wrapper the worst was
+`SeamArrivalOffDirection` at 139 words; it is now 69, and the longest
+`PathError` row is 73 (`NoCornerOfPair` with a swallowed carrier). The
+fillet recourse constants in `validate.rs` were shortened with them,
+and the two routed escalation openings the recourse-roster suites pin
+were re-baselined ("the fillet at this corner is undecided:", "the
+fillet arc about to be stored is undecided:").
+
+`editor-core/tests/refusal_concision_chains.rs`
+`every_node_refusal_renders_within_the_budget` now renders every arm
+listed above the way the feature tree draws it and holds it to the
+75-word budget, with no stage prefix and no arena key outside the
+kernel-bug arms it names. The rewrite and its census are in the
+`chrome/concision-chains` PR and in
+`work/chrome/error-and-check-text-overflows-its-region.md`,
+section "The remaining chains".
+
+The profile editor's preview verdicts render the same `PathError`
+sentences, so they are covered by the same rows.
