@@ -48,7 +48,10 @@ use crate::node::RecipeNodeId;
 /// category-4 variant with the missing-rule one. Categories 2 and 3
 /// each have one variant and a sentence of their own, and borrow
 /// neither framing. So a reader tells a kernel bug from a MISSING RULE
-/// from everything else by the first clause.
+/// from everything else by the clause a refusal opens with: the first
+/// clause of this type's `Display`, which the node-level refusal
+/// (`NodeErrorKind::Naming`) renders after its own `name emission
+/// failed: `.
 ///
 /// What is machine-checked, measured rather than asserted — by adding
 /// a probe variant and watching what each guard did.
@@ -236,16 +239,20 @@ pub enum NamingError {
     },
 }
 
-/// **The one sentence every emission-inconsistency refusal opens
-/// with**, written once. Every category-1 variant of [`NamingError`]
-/// speaks it, followed by what that variant caught —
+/// **The one sentence every emission-bug refusal opens with**, written
+/// once, and true of each of them: every category-1 variant of
+/// [`NamingError`] reports an invariant the emitter relies on — its own
+/// injectivity and totality, an upstream table's totality, a mint-time
+/// fact's consistency with the body, an acyclic lineage — found broken.
+/// Each speaks it followed by what it caught —
 /// [`NamingError::Duplicate`] the name minted twice,
 /// [`NamingError::Unnamed`] the entity left uncovered,
 /// [`NamingError::MissingUpstream`] the upstream table that missed,
 /// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
 /// record it caught, [`NamingError::FragmentLineage`] the face — and a
 /// reworded copy would let refusals of one category read as several.
-const EMISSION_FRAMING: &str = "a mint-time emission fact was inconsistent with the result body";
+const EMISSION_FRAMING: &str =
+    "name emission found a kernel bug — an invariant it relies on does not hold";
 
 /// **The one sentence every missing-rule refusal opens with**, written
 /// once, and deliberately NOT a reworded copy of [`EMISSION_FRAMING`]:
@@ -303,8 +310,7 @@ impl core::fmt::Display for NamingError {
             ),
             Self::Unnamed { kind, body } => write!(
                 f,
-                "{EMISSION_FRAMING}: a live {} of output body {body} was left unnamed — a \
-                 kernel-emission gap, not a naming choice",
+                "{EMISSION_FRAMING}: a live {} of output body {body} was left unnamed",
                 kind.noun()
             ),
             Self::MissingUpstream { node } => write!(
@@ -1569,7 +1575,7 @@ mod display_tests {
     fn the_framings_are_the_sentences_they_are_written_as() {
         assert_eq!(
             EMISSION_FRAMING,
-            "a mint-time emission fact was inconsistent with the result body"
+            "name emission found a kernel bug — an invariant it relies on does not hold"
         );
         assert_eq!(
             UNRULED_FRAMING,
@@ -1592,29 +1598,12 @@ mod display_tests {
     /// each is speaking about its own premise.
     ///
     /// The control is the pair that DOES share one rim: without it this
-    /// row would pass if the walk had stopped finding rims at all.
+    /// row would pass if the walk had stopped finding rims at all. The
+    /// corruption the walk does refuse is driven hop by hop in
+    /// `walk_tests`.
     #[test]
-    fn the_rim_walk_reports_cardinality_and_refuses_only_corruption() {
-        use geom_core::Point2;
-        use profile::RawLoop;
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-        ));
-        let square = profile::ProfileLoop::polygon(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| Point2::new(x, y)),
-        );
-        let prof = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness())
-            .expect("a unit square validates");
-        let cube = sweep::extrude(
-            &prof,
-            sweep::Extrusion::Distance(1.0_f64),
-            geom_core::Tol::witness(),
-        )
-        .expect("a unit cube extrudes");
-        topo::validate_closed(&cube.body).expect("the cube is a sound closed body");
+    fn the_rim_walk_reports_cardinality_as_a_fact() {
+        let cube = super::walk_tests::cube();
 
         let wall = cube.side_faces[0][0];
         let Rim::One(rim) = rim_between(&cube.body, cube.top, wall)
@@ -1680,203 +1669,198 @@ mod display_tests {
     }
 }
 
+/// **Each hop of the hand-written walks refuses in its own words**,
+/// driven through a real body with that hop's entity removed
+/// (`Body::with_entity_removed_for_tests`, `topo`'s `sweep-testing`
+/// failure-injection door) and asserted by the sentence it refuses with.
+///
+/// The walks: [`rim_between`] and `emit_topo`'s `chord_faces` (half-edge
+/// → mate → mate's loop → face), [`face_half_edges`] (face → loop →
+/// cycle) and [`edge_ends`] (edge → half-edge → end).
+/// `topo::Body::face_of_half_edge` answers the last two hops of the first
+/// two walks as one `None`, so a walk folded onto it names one hop where
+/// there were two, and the row for the other hop reds.
 #[cfg(test)]
 mod walk_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+    use std::collections::BTreeSet;
+
+    use topo::EntityId;
+    use topo::splitting::PlaneSide;
+
     use super::*;
+    use crate::names::emit_topo::chord_faces;
 
-    /// This file, read as source.
-    const SOURCE: &str = include_str!("emit.rs");
-
-    /// The byte range of `fn <name>`'s body, braces included, in a
-    /// view with comments and literals blanked.
-    fn fn_body(code: &str, name: &str) -> std::ops::Range<usize> {
-        let head = format!("fn {name}");
-        let mut heads = code.match_indices(&head).filter(|(at, _)| {
-            test_utils::source::boundary_before(code, *at)
-                && test_utils::source::boundary_after(code, at + head.len())
-        });
-        let (at, _) = heads
-            .next()
-            .unwrap_or_else(|| panic!("emit.rs: `{head}` is gone"));
-        assert!(
-            heads.next().is_none(),
-            "emit.rs: `{head}` is declared twice"
+    /// A unit cube that `topo::validate_closed` accepts.
+    pub(super) fn cube() -> sweep::Extruded<f64> {
+        use geom_core::Point2;
+        use profile::RawLoop;
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+        ));
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| Point2::new(x, y)),
         );
-        match test_utils::source::item_body(code, at) {
-            test_utils::source::ItemBody::Body(body) => body,
-            other => panic!("emit.rs: `{head}` has no body: {other:?}"),
+        let prof = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tol::witness())
+            .expect("a unit square validates");
+        let cube = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance(1.0_f64),
+            geom_core::Tol::witness(),
+        )
+        .expect("a unit cube extrudes");
+        topo::validate_closed(&cube.body).expect("the cube is a sound closed body");
+        cube
+    }
+
+    /// The cube's top cap, one wall, and the rim between them: the rim
+    /// edge and its half in the wall.
+    struct Rim1 {
+        cube: sweep::Extruded<f64>,
+        top: FaceKey,
+        wall: FaceKey,
+        mate: HalfEdgeKey,
+        edge: EdgeKey,
+    }
+
+    fn rim1() -> Rim1 {
+        let cube = cube();
+        let (top, wall) = (cube.top, cube.side_faces[0][0]);
+        let body = &cube.body;
+        let (he, mate) = face_half_edges(body, top)
+            .unwrap()
+            .into_iter()
+            .map(|he| (he, body.mate(he).unwrap()))
+            .find(|&(_, m)| body.face_of_half_edge(m) == Some(wall))
+            .expect("a cap and a wall of a box share a rim");
+        let edge = body.get_half_edge(he).unwrap().edge;
+        Rim1 {
+            cube,
+            top,
+            wall,
+            mate,
+            edge,
         }
     }
 
-    /// The method whose call ends right before `at`, whitespace
-    /// skipped: the hop a refusal applied at `at` is attached to.
-    fn hop_before(code: &str, at: usize) -> &str {
-        let end = code[..at].trim_end().len();
-        let b = code.as_bytes();
-        assert_eq!(
-            end.checked_sub(1).map(|i| b[i]),
-            Some(b')'),
-            "the refusal at byte {at} does not follow a call: {:?}",
-            &code[end.saturating_sub(60)..at]
-        );
-        let mut depth = 0usize;
-        let mut open = end - 1;
-        loop {
-            match b[open] {
-                b')' => depth += 1,
-                b'(' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-                _ => {}
-            }
-            open -= 1;
+    impl Rim1 {
+        fn body(&self) -> &Body<f64> {
+            &self.cube.body
         }
-        let start = code[..open]
-            .rfind(|c: char| !(c.is_alphanumeric() || c == '_'))
-            .map_or(0, |p| p + 1);
-        &code[start..open]
+
+        /// The body with `entity` removed and every reference to it
+        /// dangling.
+        fn without(&self, entity: EntityId) -> Body<f64> {
+            self.body()
+                .with_entity_removed_for_tests(entity)
+                .expect("the removed entity is live")
+        }
+
+        /// The wall's loop, which the rim's mate half-edge names.
+        fn wall_loop(&self) -> EntityId {
+            EntityId::Loop(self.body().get_half_edge(self.mate).unwrap().parent_loop)
+        }
     }
 
-    /// The one site of `needle` inside `body`, which must be unique: a
-    /// refusal applied at two hops no longer names one.
-    fn sole(view: &str, body: &std::ops::Range<usize>, needle: &str) -> usize {
-        let hits: Vec<usize> = view[body.clone()]
-            .match_indices(needle)
-            .map(|(at, _)| body.start + at)
-            .collect();
-        assert_eq!(
-            hits.len(),
-            1,
-            "`{needle}` must be applied exactly once in its walk, found {}",
-            hits.len()
-        );
-        hits[0]
+    /// The sentence a walk refused with.
+    fn refusal<V>(walk: &str, r: Result<V, NamingError>) -> &'static str {
+        match r {
+            Err(NamingError::Emission { what }) => what,
+            Err(other) => panic!("{walk}: wanted an emission refusal, got {other}"),
+            Ok(_) => panic!("{walk}: a body with a dangling link must refuse"),
+        }
     }
 
-    /// **Each hop of the hand-written walks refuses in its own words.**
-    ///
-    /// `rim_between` walks mate half-edge → loop → face and refuses
-    /// with [`DANGLING_MATE`] on the first hop and [`DANGLING_LOOP`] on
-    /// the second, and `emit_topo`'s chord walk takes the same three
-    /// hops with its refusals spelled inline. `topo::Body::face_of_half_edge`
-    /// answers the last two hops as one `None`, so a fold onto it
-    /// merges two refusals into one and leaves every behavioural row
-    /// green. `face_half_edges` (face → loop → cycle) and `edge_ends`
-    /// (edge → half-edge → end) are the same hand-written shape and
-    /// name each hop the same way.
-    ///
-    /// **Why this reads source.** Only a walk's FIRST hop is reachable
-    /// with a real body, through a key the body does not hold
-    /// (`a_stale_face_refuses_at_the_face_hop`). `topo` keeps every
-    /// mutator that could leave a live entity naming a dead one — a
-    /// half-edge its mate or loop, a face its loop, an edge its
-    /// half-edge — `pub(crate)`, and every public door leaves the body
-    /// consistent, so the later hops cannot be driven from this crate.
-    /// What a fold changes is which call each refusal is attached to,
-    /// and that is what is read: the call ending right before each
-    /// refusal, in a view with comments blanked.
     #[test]
-    fn each_hop_of_the_hand_written_walks_refuses_in_its_own_words() {
-        let code = test_utils::source::code_only(SOURCE);
-        let rim = fn_body(&code, "rim_between");
-        for (refusal, hop) in [
-            (".ok_or(UNMATED)", "mate"),
-            (".ok_or(DANGLING_MATE)", "get_half_edge"),
-            (".ok_or(DANGLING_LOOP)", "get_loop"),
-        ] {
-            let at = sole(&code, &rim, refusal);
-            assert_eq!(
-                hop_before(&code, at),
-                hop,
-                "rim_between: `{refusal}` must refuse the `{hop}` hop alone"
-            );
+    fn the_rim_walk_refuses_each_hop_in_its_own_words() {
+        let r = rim1();
+        match rim_between(r.body(), r.top, r.wall) {
+            Ok(Rim::One(e)) => assert_eq!(e, r.edge, "the control finds the rim"),
+            _ => panic!("a cap and a wall of a sound box share exactly one rim"),
         }
-        assert!(
-            !code[rim].contains("face_of_half_edge"),
-            "rim_between folded onto `Body::face_of_half_edge`, whose one `None` \
-             cannot say which hop went stale"
+        let walk = |body: &Body<f64>| refusal("rim_between", rim_between(body, r.top, r.wall));
+        // The half-edge's edge is gone: it has no mate.
+        assert_eq!(
+            walk(&r.without(EntityId::Edge(r.edge))),
+            "rim walk: unmated half-edge"
         );
-        // Two sentences, not one spelled twice.
-        assert_ne!(DANGLING_MATE.to_string(), DANGLING_LOOP.to_string());
-
-        // The walks that spell each hop's refusal inline.
-        const EMIT_TOPO: &str = include_str!("emit_topo.rs");
-        // (source, function, [(refusal sentence, the hop it refuses)]).
-        type Walk<'a> = (&'a str, &'a str, &'a [(&'a str, &'a str)]);
-        let walks: [Walk<'_>; 3] = [
-            (
-                SOURCE,
-                "face_half_edges",
-                &[
-                    ("face walk: dangling face", "get_face"),
-                    ("face walk: dangling loop", "get_loop"),
-                    ("face walk: unwalkable loop", "loop_cycle"),
-                ],
-            ),
-            (
-                SOURCE,
-                "edge_ends",
-                &[
-                    ("edge ends: dangling edge", "get_edge"),
-                    ("edge ends: dangling he_plus", "get_half_edge"),
-                    ("edge ends: he_plus has no end", "half_edge_end"),
-                ],
-            ),
-            // The chord walk is the rim walk's hop sequence inside a
-            // larger function: mate, mate half-edge, its loop.
-            (
-                EMIT_TOPO,
-                "name_split_edges_vertices",
-                &[
-                    ("chord mate missing", "mate"),
-                    ("chord mate dangling", "get_half_edge"),
-                    ("chord loop dangling", "get_loop"),
-                ],
-            ),
-        ];
-        for (text, name, hops) in walks {
-            let code = test_utils::source::code_only(text);
-            let lit = test_utils::source::code_and_literals(text);
-            let body = fn_body(&code, name);
-            for (what, hop) in hops {
-                let at = sole(&lit, &body, &format!("bug(\"{what}\")"));
-                let refusal = lit[..at]
-                    .rfind(".ok_or_else(")
-                    .filter(|r| *r > body.start)
-                    .unwrap_or_else(|| {
-                        panic!("{name}: {what:?} is not applied through `ok_or_else`")
-                    });
-                assert_eq!(
-                    hop_before(&lit, refusal),
-                    *hop,
-                    "{name}: {what:?} must refuse the `{hop}` hop alone"
-                );
-            }
-            assert!(
-                !code[body].contains("face_of_half_edge"),
-                "{name} folded onto `Body::face_of_half_edge`, whose one `None` \
-                 cannot say which hop went stale"
-            );
-        }
+        // The mate is named but gone: the first hop.
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(r.mate))),
+            "rim walk: dangling mate"
+        );
+        // The mate is live and its loop is gone: the second hop.
+        assert_eq!(walk(&r.without(r.wall_loop())), "rim walk: dangling loop");
     }
 
-    /// The one hop a public door can make stale: a face key the body
-    /// does not hold refuses at the face walk's first hop, through the
-    /// rim walk, in the face hop's own words.
     #[test]
-    fn a_stale_face_refuses_at_the_face_hop() {
-        let body = Body::<f64>::new();
-        match rim_between(&body, FaceKey::default(), FaceKey::default()) {
-            Err(NamingError::Emission { what }) => {
-                assert_eq!(what, "face walk: dangling face");
-            }
-            Err(other) => panic!("wanted the face hop's refusal, got {other}"),
-            Ok(_) => panic!("a stale face key must refuse, not report a rim"),
-        }
+    fn the_chord_walk_refuses_each_hop_in_its_own_words() {
+        let r = rim1();
+        let sections = [(r.top, PlaneSide::Above)];
+        let keys = BTreeSet::from([r.top]);
+        let control = chord_faces(r.body(), &sections, &keys).unwrap();
+        assert_eq!(
+            control.get(&r.edge),
+            Some(&r.wall),
+            "the control carries the rim edge to the wall across it"
+        );
+        let walk = |body: &Body<f64>| refusal("chord_faces", chord_faces(body, &sections, &keys));
+        assert_eq!(
+            walk(&r.without(EntityId::Edge(r.edge))),
+            "chord mate missing"
+        );
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(r.mate))),
+            "chord mate dangling"
+        );
+        assert_eq!(walk(&r.without(r.wall_loop())), "chord loop dangling");
+    }
+
+    #[test]
+    fn the_face_walk_refuses_each_hop_in_its_own_words() {
+        let r = rim1();
+        let hes = face_half_edges(r.body(), r.top).unwrap();
+        assert_eq!(hes.len(), 4, "the control walks the square cap");
+        let walk = |body: &Body<f64>| refusal("face_half_edges", face_half_edges(body, r.top));
+        assert_eq!(
+            walk(&r.without(EntityId::Face(r.top))),
+            "face walk: dangling face"
+        );
+        let outer = r.body().get_face(r.top).unwrap().outer;
+        assert_eq!(
+            walk(&r.without(EntityId::Loop(outer))),
+            "face walk: dangling loop"
+        );
+        // A live loop whose cycle runs through a removed half-edge.
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(hes[1]))),
+            "face walk: unwalkable loop"
+        );
+    }
+
+    #[test]
+    fn edge_ends_refuses_each_hop_in_its_own_words() {
+        let r = rim1();
+        let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
+        let next = r.body().get_half_edge(he_plus).unwrap().next;
+        let (start, end) = edge_ends(r.body(), r.edge).unwrap();
+        assert_ne!(start, end, "the control reads two ends");
+        let walk = |body: &Body<f64>| refusal("edge_ends", edge_ends(body, r.edge));
+        assert_eq!(
+            walk(&r.without(EntityId::Edge(r.edge))),
+            "edge ends: dangling edge"
+        );
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(he_plus))),
+            "edge ends: dangling he_plus"
+        );
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(next))),
+            "edge ends: he_plus has no end"
+        );
     }
 }
