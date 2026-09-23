@@ -225,10 +225,20 @@ pub(crate) struct NurbsFaceBound {
     /// control net whose differences vanish in f64), so the split
     /// selection's degenerate-direction predicates are decided on the
     /// value rather than on a threshold ([`cell_component`]).
+    ///
+    /// **The exact zero is an INTEGRAL-arm fact.** On the rational arm
+    /// a degree-1 direction's `Ã_uu` and `w_uu` are exact zeros but the
+    /// cross terms are not (module docs), and even where the cross
+    /// terms cancel in ℝ — a weight column constant along the
+    /// direction — the ring chain reports the width its refinement
+    /// contributed rather than zero. So a rational face's `muu` is
+    /// positive dust, the degenerate arms are not taken for it, and
+    /// that is correct: the assembly did not prove a zero.
     pub muu: f64,
     /// `sup ‖S_uv‖`.
     pub muv: f64,
-    /// `sup ‖S_vv‖` (exact `0.0` for the v-direction analogue).
+    /// `sup ‖S_vv‖` (exact `0.0` for the v-direction analogue, on the
+    /// same integral arm).
     pub mvv: f64,
     /// `sup ‖S_u‖` — the first-fundamental-form sample the split
     /// selection's 3-D aspect cap reads ([`ASPECT_CAP`]): the same
@@ -307,10 +317,13 @@ impl NurbsFaceBound {
     /// # Degenerate directions — exact arms, decided predicates
     ///
     /// The predicates are `== 0.0` against the assembled enclosures'
-    /// exact zeros ([`cell_component`] preserves them), never a
-    /// threshold. Each degenerate case gets its own arm rather than a
-    /// limit of the generic formula (spec D-1; the test pins the arm
-    /// against the limit):
+    /// exact zeros ([`cell_component`] preserves them, from a ring that
+    /// pads only inexact operations), never a threshold — so the arms
+    /// are an INTEGRAL-arm story: a rational degree-1 direction's sup
+    /// is positive dust ([`Self::muu`]) and takes the generic formula,
+    /// which is what its surviving cross terms deserve. Each degenerate
+    /// case gets its own arm rather than a limit of the generic formula
+    /// (spec D-1; the test pins the arm against the limit):
     ///
     /// * `muu = mvv = muv = 0` (affine patch): nothing constrains
     ///   either step — `(∞, ∞)`, one cell, deviation exactly zero.
@@ -497,6 +510,17 @@ pub(crate) struct CellBound {
 /// ([`NurbsFaceBound::split_steps`]) are decided on `== 0.0`, so the
 /// structurally-exact zero of a degree-1 direction must not leave here
 /// as subnormal dust.
+///
+/// **The zero reaches here exact because the ring's arithmetic keeps
+/// it.** `patch_bound::sq_norm` folds `acc + c.sqr()` from
+/// `RingInterval::zero()`, and the backend pads only where an
+/// operation was inexact: `0 · 0` is exact by the zero-factor corner
+/// convention and `0 + 0` by the TwoSum witness
+/// (`interval_transcendentals`' `mul_lo`/`mul_hi`, `add_lo`/`add_hi`),
+/// so a direction whose derivative net is the exact zero assembles to
+/// `[0, 0]` and takes the arm below. An enclosure that is merely
+/// NARROW does not, and must not: it is an enclosure of something the
+/// assembly could not prove zero.
 fn cell_component(sq: RingInterval) -> f64 {
     // The refusal is asked by name: the ring keeps it in the
     // decoration, so a refused enclosure carries an ordinary `hi` and
@@ -1594,9 +1618,24 @@ pub(crate) mod tests {
     /// enclosure assembles to the EXACT zero (the differences of these
     /// coordinates are exact in f64), which [`cell_component`]
     /// preserves as `0.0` — the decided degenerate-direction predicate
-    /// — and both grid steps come out unconstrained. A net whose
-    /// arithmetic does round assembles to dust instead, which is the
-    /// conservative side.
+    /// — and both grid steps come out unconstrained.
+    ///
+    /// **`muu` and `mvv` are pinned at `== 0.0`, not under a ceiling.**
+    /// They are the structural zeros of two degree-1 directions, and a
+    /// ceiling cannot tell the zero from dust: this row reds if the
+    /// ring ever pads `0 + 0` or `0²` again, or if `sq_norm` stops
+    /// folding from the exact ring zero, either of which kills the
+    /// `hi == 0.0` arm the split selection is decided on. `muv` keeps a
+    /// ceiling because its zero is not structural — `S_uv = ΔΔP`
+    /// vanishes here only because these coordinates' differences are
+    /// exact in f64, and a net whose arithmetic rounds is entitled to
+    /// dust there.
+    ///
+    /// **The second half pins the ARM, not the answer.** Infinite steps
+    /// with no cap are produced by the `muu = mvv = muv = 0` arm and by
+    /// nothing else: any dust at all makes `q` positive and `h_v`
+    /// finite. So a regression that revives the dust cannot pass this
+    /// row by landing on numerically similar steps.
     #[test]
     fn planar_bilinear_bounds_collapse() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
@@ -1609,17 +1648,24 @@ pub(crate) mod tests {
         let s = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
         assert!(
-            b.muu < 1e-100 && b.muv < 1e-12 && b.mvv < 1e-100,
-            "integral dust escaped its derivation: certified (uu, uv, vv) \
-             ({:.17e}, {:.17e}, {:.17e}) against ceilings (1e-100, 1e-12, 1e-100)",
+            b.muu == 0.0 && b.mvv == 0.0 && b.muv < 1e-12,
+            "a degree-1 direction's certified sup is not the exact zero: (uu, uv, vv) \
+             ({:.17e}, {:.17e}, {:.17e}) against (exactly 0, < 1e-12, exactly 0)",
             b.muu,
             b.muv,
             b.mvv
         );
-        let (hu, hv) = b.grid_steps(1e-3);
-        // Effectively unconstrained: one cell across any real chart
-        // rectangle (spans are O(1)).
-        assert!(hu > 1e3 && hv > 1e3);
+        // The affine arm, pinned by the only observable it alone
+        // produces: unconstrained steps with the aspect cap inactive.
+        let st = b.split_steps(1e-3);
+        assert!(
+            st.hu == f64::INFINITY && st.hv == f64::INFINITY && !st.cap,
+            "the affine degenerate arm was not taken: (hu, hv, cap) \
+             ({:.17e}, {:.17e}, {}) against (inf, inf, false)",
+            st.hu,
+            st.hv,
+            st.cap
+        );
     }
 
     /// A TWISTED bilinear quad has S_uv = ΔΔP exactly; the hull pins
@@ -1637,9 +1683,9 @@ pub(crate) mod tests {
         let s = NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap();
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
         assert!(
-            b.muu < 1e-100 && b.mvv < 1e-100,
-            "a bilinear quad's certified (uu, vv) is not dust: ({:.17e}, {:.17e}) against \
-             a ceiling of 1e-100",
+            b.muu == 0.0 && b.mvv == 0.0,
+            "a bilinear quad's certified (uu, vv) is not the exact zero of its two \
+             degree-1 directions: ({:.17e}, {:.17e})",
             b.muu,
             b.mvv
         );
@@ -1650,6 +1696,133 @@ pub(crate) mod tests {
             "certified uv {:.17e} against the exact |S_uv| = 5.00000000000000000e-1: it \
              must dominate it, and by less than 1e-12",
             b.muv
+        );
+    }
+
+    /// **The ONE-SIDED degenerate arm, on a face where only `u` is
+    /// degenerate**: degree 1 in `u`, degree 2 with a real bend in `v`,
+    /// integral. `muu` is the structural zero and `mvv` is not, so
+    /// [`NurbsFaceBound::split_steps`] must take its `muu == 0.0 &&
+    /// mvv > 0.0` ruled-wall arm rather than the generic interior
+    /// optimum.
+    ///
+    /// **Which arm ran is observable on the WINDOWLESS variant only,
+    /// and that is why the variant is here.** With a 3-D aspect window
+    /// the ruled-wall arm answers `t = ρ·ASPECT_CAP` with the cap
+    /// active — and so does the generic arm at a dusty `muu`, because
+    /// `t* = √(mvv/muu)` is then enormous and clamps to the same
+    /// ceiling. The two arms are numerically indistinguishable there,
+    /// so the exact-zero comparison is the only pin the windowed case
+    /// admits — which is what
+    /// [`ruled_wall_degenerate_arm_is_exact`] measures, on hand-built
+    /// bounds, one level down from the assembly. Strip the `u` direction's 3-D extent (`mu1 = 0`, no
+    /// window) and they separate sharply: the ruled-wall arm's
+    /// windowless fallback is the balanced point `t = 1` — equal steps
+    /// — while a dusty `muu` would take the generic arm to
+    /// `t* = √(2.8/dust)`, steps apart by eighty decades.
+    ///
+    /// Neither half samples the surface, so the ~1e-16 `duu` noise
+    /// `NurbsSurface::ders` returns on an integral degree-1 direction
+    /// never meets the zero bound. A `Domination` cannot state this
+    /// claim at all: its allowance is RELATIVE
+    /// ([`SAMPLER_ULPS`]), hence zero against a zero certified
+    /// side, so a sampled 1e-16 under a certified `0.0` reds. The claim
+    /// here is about the arm the selection took, not about a sample.
+    #[test]
+    fn one_sided_degenerate_arm_on_a_degree_one_direction() {
+        let bent = |extent_in_u: f64| {
+            let kv_u = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+            let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+            let mut control = Vec::new();
+            for i in 0..2 {
+                for j in 0..3 {
+                    let y = f64::from(j) * 0.5;
+                    let z = if j == 1 { 0.7 } else { 0.0 };
+                    control.push(Point3::new(f64::from(i) * extent_in_u, y, z));
+                }
+            }
+            NurbsSurface::new(kv_u, kv_v, control, vec![1.0; 6]).unwrap()
+        };
+        for (name, extent) in [("with a 3-D window", 1.0), ("windowless", 0.0)] {
+            let s = bent(extent);
+            let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
+            assert!(
+                b.muu == 0.0 && b.muv == 0.0 && b.mvv > 1.0,
+                "{name}: the degree-1 u direction is not the exact zero over a bending v: \
+                 (uu, uv, vv) ({:.17e}, {:.17e}, {:.17e})",
+                b.muu,
+                b.muv,
+                b.mvv
+            );
+            let st = b.split_steps(1e-3);
+            assert!(
+                st.hu.is_finite() && st.hv > 0.0,
+                "{name}: v constrains the mesh, so both steps are real: \
+                 ({:.17e}, {:.17e})",
+                st.hu,
+                st.hv
+            );
+            if extent == 0.0 {
+                // The arm: `t = 1` exactly. A dusty `muu` would reach
+                // the generic interior optimum instead and drive the
+                // steps eighty decades apart.
+                assert!(
+                    st.hu == st.hv && !st.cap,
+                    "{name}: the ruled-wall arm's windowless fallback was not taken: \
+                     (hu, hv, cap) ({:.17e}, {:.17e}, {})",
+                    st.hu,
+                    st.hv,
+                    st.cap
+                );
+            } else {
+                // The cap is what binds a ruled wall that HAS a window.
+                let rho = b.mv1 / b.mu1;
+                assert!(
+                    st.cap && st.hu / st.hv == rho * ASPECT_CAP,
+                    "{name}: the ruled wall did not saturate the aspect cap: \
+                     hu/hv {:.17e} against ρ·cap {:.17e}, cap {}",
+                    st.hu / st.hv,
+                    rho * ASPECT_CAP,
+                    st.cap
+                );
+            }
+        }
+    }
+
+    /// **A RATIONAL degree-1 direction is NOT degenerate**, so the
+    /// degenerate arms must not be taken for it. The quarter cylinder
+    /// is degree 1 in `v`; its `Ã_vv` and `w_vv` are exact zeros, but
+    /// the quotient rule's cross terms are not (module docs), and the
+    /// ring chain reports their width. The arm predicate IS the
+    /// observable: `split_steps`' v-degenerate arms are guarded by
+    /// `mvv == 0.0`, so a strictly positive `mvv` is exactly the claim
+    /// that neither is entered.
+    ///
+    /// This row reds from either side. A `mvv` that collapsed to `0.0`
+    /// would be the integral arm's promise made on an arm that never
+    /// proved it — the split selection would then treat a rational
+    /// ruling as unconstrained in `v`. A `mvv` above the ceiling would
+    /// mean the enclosure of a direction that is zero in ℝ (this
+    /// cylinder's weight column is constant along `v`) had stopped
+    /// being dust.
+    #[test]
+    fn rational_degree_one_direction_is_not_taken_as_degenerate() {
+        let s = quarter_cylinder();
+        let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
+        assert!(
+            b.mvv > 1e-14 && b.mvv < 1e-11,
+            "the rational degree-1 v direction's certified sup {:.17e} is not the ring \
+             chain's dust in [1e-14, 1e-11]: at exactly 0.0 the split selection would \
+             read it as a degenerate direction it never proved",
+            b.mvv
+        );
+        let st = b.split_steps(1e-3);
+        assert!(
+            st.hv.is_finite() && b.step_v_at(st.hu, 1e-3).is_finite(),
+            "a rational ruling's v steps must stay real: hv {:.17e}, projected \
+             {:.17e}",
+            st.hv,
+            b.step_v_at(st.hu, 1e-3)
         );
     }
 
@@ -2070,9 +2243,12 @@ pub(crate) mod tests {
     /// **Row 4: the ruled wall's flat direction gets its exact arm,
     /// pinned against the generic formula's limit.** The exact arm's
     /// answer is asserted BITWISE against its own closed form, and the
-    /// generic arm evaluated at muu = dust (the value the collapse
-    /// used to leak) must agree to a stated 1e-6 relative bound — the
-    /// arm is the limit's value, reached without the division by zero.
+    /// generic arm evaluated at muu = a dust value must agree to a
+    /// stated 1e-6 relative bound — the arm is the limit's value,
+    /// reached without the division by zero. That agreement is also why
+    /// this row cannot tell which arm ran:
+    /// [`one_sided_degenerate_arm_on_a_degree_one_direction`] is the
+    /// row that can, and it does it on a described face.
     #[test]
     fn ruled_wall_degenerate_arm_is_exact() {
         let delta_s = 1e-3;
@@ -2093,8 +2269,8 @@ pub(crate) mod tests {
         let hv = (delta_s / q).sqrt();
         assert_eq!(s.hv.to_bits(), hv.to_bits(), "exact arm hv");
         assert_eq!(s.hu.to_bits(), (t * hv).to_bits(), "exact arm hu");
-        // The generic arm at muu = subnormal dust lands on the same
-        // point through the clamp (t* = √(mvv/dust) is far beyond the
+        // The generic arm at a subnormal muu lands on the same point
+        // through the clamp (t* = √(mvv/dust) is far beyond the
         // window): agreement to 1e-6 relative is the stated bound.
         let dusty = NurbsFaceBound {
             muu: 3.8e-162,
