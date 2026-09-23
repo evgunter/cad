@@ -30,10 +30,9 @@ not what it says.
 - [Agent lane operations](agent-lane-operations.md) — lane creation,
   build-slot locks, disk, liveness, death recovery, and the ways CI
   silently does not run
-- [Model A/B experiment](model-ab-experiment.md) — SUSPENDED
-  2026-09-23: everything runs on Opus, and units the protocol would
-  have taken get dual Opus reviews, recorded in
-  `docs/DUAL-REVIEW-LOG.md`; `docs/MODEL-AB-LOG.md` is normative
+- [Experiments](experiments.md) — the process experiments that are
+  live (dual Opus review concordance) or suspended (model A/B), where
+  each one's normative log is, and what any experiment binds
 
 ## Testing, review, measurement
 

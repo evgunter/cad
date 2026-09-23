@@ -17,13 +17,11 @@ logs.
 
 ## Protocol
 
-1. **Population.** Every unit the suspension entry sends to a DUAL
-   OPUS REVIEW — especially tricky logic, or an architectural or
-   design decision with broad or hard-to-reverse impact (the v7
-   triage test) — enters this log. The triage call is made at spec
-   time and recorded where the unit lives (its program's `log.md` or
-   item file), naming the tier and its one-line reason. Units that
-   get a single review or the orchestrator's read do not enter.
+1. **Population.** Every unit the review tiers
+   (`memories/orchestration-model.md`) send to a DUAL review enters
+   this log. Which unit gets which tier is decided there, not here;
+   units that get a single review or the orchestrator's read do not
+   enter.
 2. **The pair.** Two Opus reviewers, dispatched CONCURRENTLY on the
    SAME FROZEN HEAD (the commit is named in both briefs and in the
    row). Identical brief and claims to falsify, each also pointed at
