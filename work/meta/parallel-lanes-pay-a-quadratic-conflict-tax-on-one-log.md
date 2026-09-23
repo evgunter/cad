@@ -90,3 +90,10 @@ a conflict, but `.gitattributes` was then on the head only, and
 so it does not settle whether GitHub reads the attribute. Where it
 does not, a PR with a diverged log shows as conflicting and is brought
 up to date by a local base merge, which the attribute does cover.
+
+**GitHub's merge, settled (2026-09-23).** With `.gitattributes` on
+both sides, PR 3109 appended one line to the end of `work/tess/log.md`
+from `1f04912c` while main had appended 29 lines there since (#3107).
+GitHub reported the PR `dirty`, and a local `git merge-tree` of the
+same pair was clean. GitHub's merge ignores `merge=union`, so the
+attribute pays off only in local base merges; `work/README.md` says so.
