@@ -292,7 +292,7 @@ impl fmt::Display for ClassifiedMargin {
         }
         write!(
             f,
-            " ({} decided {}; band zero = {zero:e}, escalate = {escalate:e})",
+            " ({} decided {}; band ({zero:e}, {escalate:e}))",
             self.predicate, self.sign
         )
     }
@@ -352,9 +352,9 @@ pub enum BlendSite {
 impl fmt::Display for BlendSite {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Link { edge } => write!(f, "the link on edge {edge:?}"),
-            Self::Joint { vertex } => write!(f, "the joint at vertex {vertex:?}"),
-            Self::Chain => f.write_str("the chain as a whole"),
+            Self::Link { .. } => f.write_str("an edge"),
+            Self::Joint { .. } => f.write_str("a vertex"),
+            Self::Chain => f.write_str("the chain"),
         }
     }
 }
@@ -582,13 +582,10 @@ pub const FILLET3_RADIUS_RECOURSE: &str =
 /// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`,
 /// `review_contact_edge_must_carry_r1_probes::r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door`.
 /// Ball language kept: only a fillet mints a tangential contact.
-pub const FILLET3_CONTACT_RECOURSE: &str = "the contact's second-order separation is levered by the blend radius, in a \
-     direction the site fixes: on a plane support it grows with the radius; on a \
-     support curving the band's own way it peaks at half the support's radius of \
-     curvature, and past that peak only a smaller radius raises it; on a slim corner \
-     arc the arc's own extent is the lever, and a smaller radius leaves the join \
-     under-determined and builds it conventionally — move the radius that way, blend \
-     a larger feature, or lower the tolerance";
+pub const FILLET3_CONTACT_RECOURSE: &str = "change the fillet radius \u{2014} larger on a plane support; on a curved one the \
+     margin peaks at half its curvature radius, and past that peak only a smaller radius \
+     raises it, as on a slim corner arc \u{2014} or blend a larger feature, or lower the \
+     tolerance";
 /// The recourse for a support face whose survival the clearance screen
 /// cannot certify. Both verbs meter clearance (each on its own
 /// setbacks), so the sentence names the blend size, which is the
@@ -602,16 +599,15 @@ pub const FILLET3_CLEARANCE_RECOURSE: &str =
 /// previous carve actually left, which is exact where the one-call
 /// screen is conservative (and refuses with its own exact reason where
 /// the geometry really collides).
-pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlarge the shared support face, or split the request: \
-     the two setbacks belong to two different chains, and SEQUENTIAL calls (the second \
-     on the first's result) meter each chain against the face the previous carve \
-     actually left";
+pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlarge the shared support face, or split the request \
+     into SEQUENTIAL calls (the second on the first's result), since the two setbacks \
+     belong to different chains";
 /// The recourse for an edge whose dihedral sign decided Zero — no
 /// definite wedge side at the metered lever, at any size. Both verbs
 /// meter the dihedral (the strip needs a wedge to sit in exactly as
 /// the ball does), so the sentence speaks of the blend, not the ball.
-pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a dihedral with no definite \
-     wedge side gives the blend no side to sit in, at any size";
+pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; with no definite wedge \
+     side the blend has no side to sit in, at any size";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
@@ -641,11 +637,8 @@ pub const FILLET3_SPINE_RECOURSE: &str =
 /// `blend_recourse_followability::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
 /// which executes the one-corner request and the whole-body one
 /// together, so the hedge cannot drift from the door.
-pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain. Splitting the request at the break \
-     helps only where the break is a genuine tangent break between two blendable runs; \
-     where it is a CORNER, splitting leaves that corner partly requested and refuses \
-     again as a run-out — request every edge of EVERY corner the chain terminates at \
-     instead, since one corner's edges alone still run out at the corners they reach";
+pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain; split the request only at a \
+     genuine tangent break, and request every edge of EVERY corner the chain terminates at";
 /// The recourse for a convexity sign flip along a chain.
 ///
 /// **No fixture in the followability suite reaches this sentence.**
@@ -677,14 +670,9 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// sentence — at the corners they run to. Held to it by
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
 /// beside the chain row that pins the partly-requested outcome.
-pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices whose \
-     three edges are all convex or all concave (over plane\u{2013}plane supports) — a \
-     corner left partly requested refuses as a run-out wherever it sits — or, for a \
-     straight edge between a cylinder and a plane or cylinder sharing its ruling, in \
-     TRANSVERSE CAPS (plane faces perpendicular to the ruling), where the band is cut \
-     off in the cap's own section of it, on either material side; mixed-convexity \
-     corners and general run-outs (an oblique or curved end face, a mid-curve stop) \
-     are not implemented";
+pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices of one \
+     convexity between planes, or in TRANSVERSE CAPS on a straight cylinder edge; general \
+     run-outs (an oblique or curved end face) are not implemented";
 /// The recourse for a chain that stops at a CHART SEAM on an otherwise
 /// smooth rim.
 ///
@@ -709,11 +697,9 @@ pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in
 /// `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
 /// which asserts the sentence and the whole-rim CARVE together, convex
 /// and concave, so neither half can drift alone.
-pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo::query::rim_of` on any one of its arcs hands you \
-     every arc the seam split it into — rather than a chain that stops at the seam, \
-     which is a chart artifact the surface is smooth through; the fillet's closed-rim \
-     band carves that rim as one annulus on either material side (a chamfer has no \
-     closed-chain band)";
+pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole (`topo::query::rim_of` on any one of its arcs hands you \
+     every arc) rather than stopping at the seam, a chart artifact; a fillet carves it as \
+     one band on either material side (a chamfer has no closed-chain band)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through and rims
@@ -741,8 +727,8 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// stored convexity verdict, and a concave rim's band adds material
 /// through the same carve that removes a convex rim's.
 ///
-/// **The closed clause names the door's extent, and its second half is
-/// CONDITIONED because the door is.** Any coaxial revolution pair
+/// **The closed clause names the door's extent — a WHOLE rim, with its
+/// rings clear — and says no more than the door does.** Any coaxial revolution pair
 /// carves — the plane–cylinder top rim of
 /// `review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`
 /// included — either with each support face carrying one arc of the
@@ -751,7 +737,7 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// on one plane face, and it carves through the annulus band's HOSTLESS
 /// crossing (README A3-2; the surgery's `HostFoot`).
 ///
-/// **The condition on that second half is load-bearing**: the rim must
+/// **"Whole" is load-bearing**: in the one-face case the rim must
 /// be that face's WHOLE outer cycle, which is what the hostless host
 /// gate asks. A RING of the host does not disqualify it — the band's
 /// host trim becomes the face's new outer boundary and each ring is
@@ -761,20 +747,10 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — `topo:
 /// A merged flat top that is an ANNULUS carves through this clause:
 /// `ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single links ending either at \
-     fully-requested trivalent corners, over plane\u{2013}plane supports, or, for a straight \
-     edge along a ruling shared by a cylinder and a plane or another cylinder, at \
-     TRANSVERSE CAPS (plane end faces perpendicular to that ruling, where the band is \
-     cut off in the cap's own section of it); either termination carves on either \
-     material side. For a fillet, closed chains that are circular rims between two \
-     coaxial surfaces of revolution (a pip's plane\u{2013}sphere rim, a solid of revolution's \
-     latitude rim) also carve, on either material side, either with each support face \
-     carrying one arc of the rim, or with one face carrying every arc as its whole \
-     outer cycle and its rings clear of the band's setback (a ring that is not gets \
-     its own refusal, which says what to move); \
-     (a chamfer has no closed-chain band); \
-     junction carry-through and \
-     run-outs are not implemented";
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend single-link open chains ending at fully requested plane\u{2013}plane corners \
+     or at TRANSVERSE CAPS on a cylinder's ruling. For a fillet, a circular rim between \
+     coaxial surfaces of revolution (a latitude rim) carves too, as arcs or one face's \
+     whole outer cycle, its rings clear of the band's setback";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -807,14 +783,10 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// support face's own ring has to be carried through the blend too —
 /// so a sentence that only described the request endorsed exactly what
 /// the caller had already done (issue 1278's dead-recourse class).
-pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside the surgery's exact forms, which read planes and, \
-     for a fillet, spheres, cylinders and cones as well, carried by lines and circles; \
-     approximating any \
-     other stored shape is not implemented. It need not be a shape you requested — a \
-     support face's own ring is carried through the blend as well, and only a CIRCLE ring \
-     is, so a ring left by some other feature blocks every blend on the face it sits on, \
-     at every size. Request edges whose supports and carriers are covered, and cut a \
-     feature that leaves a non-circular ring AFTER the blend rather than before it";
+pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, for a fillet, spheres, cylinders and cones) \
+     whose edges are lines and circles \u{2014} a support face's own rings included, which \
+     must be circles; cut a feature that leaves any other ring AFTER the blend rather \
+     than before it";
 /// The recourse for a ring the blend's trimline would consume (the
 /// surgery's ring carry-through check).
 ///
@@ -859,14 +831,9 @@ pub const FILLET3_RING_RECOURSE: &str =
 /// clause and its family — read off [`arms::BlendArm::is_coaxial_torus`]
 /// and [`arms::BlendArm::is_ruled`], not off any re-split of the
 /// name — named after it.
-pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms. Each support must be a \
-     plane, a sphere, a cylinder or a cone; the two must then meet either in a rim they \
-     share as coaxial surfaces of revolution, which blends to a torus band, or along a \
-     ruling shared by two supports that are each a plane or a cylinder, which blends to \
-     a cylinder band. A torus or any other stored surface among the supports, and the \
-     one coaxial pair the table has no row for (two coaxial cylinders), need the \
-     canal-surface approximating blend, which is not implemented; where a pair roster \
-     is named above, it lists the admitted pairs";
+pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use plane, sphere, cylinder or cone supports; they must be coaxial surfaces of \
+     revolution sharing a rim, or planes or cylinders sharing a ruling; other pairs \
+     need the canal-surface approximating blend (not implemented)";
 /// The recourse for a CHAMFER over a support pair its one arm does not
 /// cover. Its own sentence rather than the fillet's: the chamfer's
 /// missing door is the curved-support strip, not the canal surface,
@@ -1289,26 +1256,18 @@ impl fmt::Display for BlendError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
-            Self::ChainNotConnected { edge } => write!(
+            Self::ChainNotConnected { .. } => write!(
                 f,
-                "the edge sequence is not a connected path at {edge:?} — \
+                "the requested edges do not form one connected chain. Recourse: \
                  {FILLET3_CHAIN_RECOURSE}"
             ),
-            Self::RadiusHeadroom {
-                face,
-                margin,
-                radius,
-            } => write!(
+            Self::RadiusHeadroom { margin, radius, .. } => write!(
                 f,
-                "radius {radius} m exceeds the curvature headroom of support \
-                 {face:?} — {margin} at lever arm {radius} m; \
-                 {FILLET3_RADIUS_RECOURSE}"
+                "radius {radius} m exceeds a support face's curvature headroom \
+                 ({margin} at lever arm {radius} m). Recourse: {FILLET3_RADIUS_RECOURSE}"
             ),
             Self::FaceClearanceUncertified {
-                face,
-                margin,
-                gap,
-                cross_chain,
+                gap, cross_chain, ..
             } => {
                 let recourse = if *cross_chain {
                     FILLET3_CLEARANCE_SPLIT_RECOURSE
@@ -1317,45 +1276,35 @@ impl fmt::Display for BlendError {
                 };
                 write!(
                     f,
-                    "the clearance screen cannot certify that support face {face:?} \
-                     survives — two of its boundary features are {} m apart and their \
-                     blends set back further than that, {margin}. The screen is \
-                     conservative by direction and does not assert the face IS consumed; \
+                    "the clearance screen cannot certify that a support face survives: two \
+                     of its boundary features are {} m apart and their blends set back \
+                     further than that; the screen is conservative by direction. Recourse: \
                      {recourse}",
                     Measured(*gap)
                 )
             }
-            Self::TangentialEdge { edge, margin } => write!(
+            Self::TangentialEdge { margin, .. } => write!(
                 f,
-                "edge {edge:?}'s dihedral has no definite wedge side — its sign \
-                 decided Zero at the metered lever ({margin}), as a tangential \
-                 join does; {FILLET3_TANGENTIAL_RECOURSE}"
+                "an edge's supports meet tangentially, so its dihedral has no definite \
+                 wedge side ({margin}). Recourse: {FILLET3_TANGENTIAL_RECOURSE}"
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
-                "the rolling-ball spine folds at radius {radius} m — \
-                 {margin} at lever arm {radius} m; {FILLET3_SPINE_RECOURSE}"
+                "the rolling-ball spine folds at radius {radius} m ({margin} at lever \
+                 arm {radius} m). Recourse: {FILLET3_SPINE_RECOURSE}"
             ),
-            Self::ChainNotG1 {
-                vertex,
-                margin,
-                arm,
-            } => write!(
+            Self::ChainNotG1 { margin, arm, .. } => write!(
                 f,
-                "the chain's links at {vertex:?} are not tangent-continuous — \
-                 {margin} at lever arm {} m; {FILLET3_CHAIN_RECOURSE}",
+                "the chain is not tangent-continuous at a vertex ({margin} at lever arm \
+                 {} m). Recourse: {FILLET3_CHAIN_RECOURSE}",
                 Measured(*arm)
             ),
-            Self::ConvexitySignFlip {
-                edge,
-                margin,
-                chain,
-            } => write!(
+            Self::ConvexitySignFlip { margin, chain, .. } => write!(
                 f,
-                "edge {edge:?} is not {chain} like the rest of the chain \
-                 — {margin}; {FILLET3_CONVEXITY_RECOURSE}"
+                "an edge is not {chain} like the rest of the chain ({margin}). Recourse: \
+                 {FILLET3_CONVEXITY_RECOURSE}"
             ),
-            Self::UnsupportedCorner { vertex, corner, .. } => {
+            Self::UnsupportedCorner { corner, .. } => {
                 // Both halves of this sentence come from the TAG — the
                 // policy it names and the recourse that is true of it —
                 // so the payload's `policy` field cannot make the
@@ -1374,21 +1323,21 @@ impl fmt::Display for BlendError {
                 match corner.policy() {
                     Some(policy) => write!(
                         f,
-                        "the corner at {vertex:?} is {corner}, which only a run-out policy \
-                         would handle ({policy}) — {recourse}"
+                        "a corner of the chain is {corner}, which only a run-out policy \
+                         would handle ({policy}). Recourse: {recourse}"
                     ),
-                    None => write!(f, "the corner at {vertex:?} is {corner} — {recourse}"),
+                    None => write!(f, "a corner of the chain is {corner}. Recourse: {recourse}"),
                 }
             }
-            Self::SpineUnsupported { edge, supports } => write!(
+            Self::SpineUnsupported { supports, .. } => write!(
                 f,
-                "the {supports} support pair at edge {edge:?} has no analytic \
-                 blend arm — {FILLET3_SPINE_KIND_RECOURSE}"
+                "an edge's support pair has no analytic blend ({supports}). Recourse: \
+                 {FILLET3_SPINE_KIND_RECOURSE}"
             ),
-            Self::ChamferArmUnsupported { edge, supports } => write!(
+            Self::ChamferArmUnsupported { supports, .. } => write!(
                 f,
-                "the {supports} support pair at edge {edge:?} has no ruled \
-                 strip — {CHAMFER_ARM_RECOURSE}"
+                "an edge's support pair has no chamfer strip ({supports}). Recourse: \
+                 {CHAMFER_ARM_RECOURSE}"
             ),
             Self::Escalated { site, source } => {
                 let recourse = match source.predicate {
@@ -1437,58 +1386,57 @@ impl fmt::Display for BlendError {
                     other => {
                         return write!(
                             f,
-                            "escalated at {site}: {source} — {}",
+                            "escalated at {site}: {source}; {}",
                             geom_core::MissingRecourse(other)
                         );
                     }
                 };
-                write!(f, "escalated at {site}: {source} — {recourse}")
+                // A routed name carries its own recourse, so the payload
+                // view renders without the shared coincidence tail: a
+                // blend decision is not a coincidence the caller declared.
+                write!(
+                    f,
+                    "escalated at {site}: {}. Recourse: {recourse}",
+                    source.payload()
+                )
             }
-            Self::RepeatedEdge { edge } => write!(
+            Self::RepeatedEdge { .. } => write!(
                 f,
-                "the request repeats edge {edge:?} — request each edge once; a \
-                 repeated edge would double a link in the chain walk"
+                "the request names one edge twice — request each edge once"
             ),
             Self::NonpositiveSize { size } => write!(
                 f,
                 "the band size {size} m is not definitely positive — supply a \
-                 positive radius or setback. A nonpositive size has no band to build, and \
-                 it also levers the corner and clearance margins that quote it, so it is \
-                 refused as the invalid input it is rather than reported as a fact about \
-                 the body"
+                 positive radius or setback"
             ),
             Self::UnsupportedBody { solids, shells } => write!(
                 f,
-                "the body is {solids} solid(s) and {shells} shell(s), not a \
-                 single solid with a single shell — {FILLET3_BODY_RECOURSE}"
+                "the body is {solids} solid(s) and {shells} shell(s), not one solid \
+                 with one shell. Recourse: {FILLET3_BODY_RECOURSE}"
             ),
-            Self::UnsupportedChain { edge, detail } => write!(
-                f,
-                "{detail} (chain at edge {edge:?}) — \
-                 {FILLET3_ASSEMBLY_RECOURSE}"
-            ),
-            Self::UnsupportedRunOut { at, detail } => {
-                write!(f, "{detail} (at {at}) — {FILLET3_CORNER_RECOURSE}")
+            Self::UnsupportedChain { detail, .. } => {
+                write!(f, "{detail}. Recourse: {FILLET3_ASSEMBLY_RECOURSE}")
             }
-            Self::UnsupportedGeometry { at, detail } => {
-                write!(f, "{detail} (at {at}) — {FILLET3_GEOMETRY_RECOURSE}")
+            Self::UnsupportedRunOut { detail, .. } => {
+                write!(f, "{detail}. Recourse: {FILLET3_CORNER_RECOURSE}")
+            }
+            Self::UnsupportedGeometry { detail, .. } => {
+                write!(f, "{detail}. Recourse: {FILLET3_GEOMETRY_RECOURSE}")
             }
             Self::BodyNotIntact { at, detail } => write!(
                 f,
-                "{detail} — {at} did not resolve. The body handed to the \
-                 surgery does not hold together there; this is invalid input, not a blend \
-                 frontier, and no recourse applies"
+                "{detail} — {at} did not resolve: the body is not intact there, and \
+                 no recourse applies"
             ),
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
-                "{detail} — at {at}. This is the blend surgery's OWN invariant, established \
-                 by earlier steps of this same carve: the body handed in is not what is \
-                 wrong, so there is nothing to change about it and no recourse applies"
+                "{detail} — at {at}: the blend surgery contradicted its own earlier \
+                 steps (a kernel bug); nothing about the body needs changing"
             ),
-            Self::RingClearance { face, margin } => write!(
+            Self::RingClearance { margin, .. } => write!(
                 f,
-                "a ring of support face {face:?} sits within a blend's \
-                 trimline — {margin}; {FILLET3_RING_RECOURSE}"
+                "a ring of a support face sits inside a blend's setback ({margin}). \
+                 Recourse: {FILLET3_RING_RECOURSE}"
             ),
             Self::Certify { site, source } => {
                 write!(f, "{site} — {source}")

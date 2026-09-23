@@ -722,8 +722,8 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
             Self::NoTangentCircle(reason) => match reason {
                 NoCornerReason::OffsetCarriersDisjoint => write!(
                     f,
-                    "no circle of that radius is tangent to both carriers here — the radius \
-                     is too large for this corner"
+                    "no circle of that radius touches both carriers here — the radius is \
+                     too large"
                 ),
                 NoCornerReason::NoCornerSideCandidate => write!(
                     f,
@@ -737,9 +737,9 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                 available,
             } => write!(
                 f,
-                "the fillet trim would eat the {side} side's anchoring on-path point on its \
-                 {carrier} carrier: tangent setback {setback} m exceeds the {available} m \
-                 the anchor pins — reduce the radius or move the anchor",
+                "the fillet trim would eat the {side}'s anchor on its {carrier} carrier \
+                 (setback {setback} m, {available} m available); reduce the radius or move \
+                 the anchor",
                 setback = num(setback),
                 available = num(available)
             ),
@@ -755,14 +755,8 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                 };
                 write!(
                     f,
-                    "a fillet of that radius cannot round this corner: it would SWALLOW \
-                     {whose} (radius {carrier_radius} m). The offset radius \
-                     rho = R - sigma*tau*r is {offset_radius} m, and a negative rho means \
-                     every circle of that radius tangent \
-                     to that carrier on the corner's turn side contains the carrier \
-                     whole — the corner with it, since the corner sits on that carrier — so \
-                     the arc could never touch the corner it was asked to round. That is not \
-                     a fillet of the corner, and no door builds it",
+                    "a fillet of that radius would SWALLOW {whose} (radius \
+                     {carrier_radius} m; offset radius rho = {offset_radius} m)",
                     carrier_radius = num(carrier_radius),
                     offset_radius = num(offset_radius)
                 )?;
@@ -773,9 +767,9 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                     // own words when they do.
                     Some(bound) => write!(
                         f,
-                        " — the largest circle tangent to both carriers here has radius \
-                         {bound} m, so try a radius below that (a short anchored leg can \
-                         need less still)",
+                        ". Recourse: the largest circle tangent to both carriers here has \
+                         radius {bound} m, so use a radius below that (a short anchored leg \
+                         can need less)",
                         bound = num(bound)
                     ),
                     // Nothing endorsable at this site: the class bound is
@@ -783,9 +777,8 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                     // below it would be a promise this gate cannot keep.
                     None => write!(
                         f,
-                        " — any fillet of this corner needs a radius below {carrier_radius} m, \
-                         which is a necessary bound and not a sufficient one: these carriers \
-                         may admit no fillet at all at this corner",
+                        ". Recourse: use a radius below {carrier_radius} m, though these \
+                         carriers may admit no fillet at this corner at all",
                         carrier_radius = num(carrier_radius)
                     ),
                 }
@@ -1587,77 +1580,56 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::JunctionTangent { margin, arm } => write!(
                 f,
                 "this junction is tangent at any precision you could care about \
-                 (turn margin {margin} m on a {arm} m arm) — if intended as tangency onto a \
-                 new carrier, use .tangent(), which makes it exact by construction (or the \
-                 tangent-arc / seam-fillet close at the seam); if intended as a straight \
-                 continuation of the same line, spell it line(len) off the directed point — \
-                 no junction exists there; otherwise move the geometry (or lower the \
-                 tolerance)",
+                 (turn margin {margin} m on a {arm} m arm). Recourse: for tangency onto a \
+                 new carrier use .tangent() (or the tangent-arc or seam-fillet close at the \
+                 seam); for a straight continuation spell it line(len) off the directed \
+                 point; otherwise move the geometry (or lower the tolerance)",
                 margin = num(margin),
                 arm = num(arm)
             ),
             Self::JunctionCusp { margin, arm } => write!(
                 f,
                 "this junction reverses onto the incoming direction at any precision you \
-                 could care about (turn margin {margin} m on a {arm} m arm): a cusp, and \
-                 the material-wedge invariant admits one only where it is DECLARED — if \
-                 intended, author it structurally: .cusp() at an interior junction (exact by \
-                 construction, and it emits the declaration); otherwise move the geometry. AT \
-                 THE SEAM this is the closing leg arriving REVERSED into the entry\'s outgoing \
-                 direction, and no declared arrival makes it anything else: rotate the loop\'s \
-                 authoring origin, or cut the seam at a corner",
+                 could care about (turn margin {margin} m on a {arm} m arm): an undeclared \
+                 cusp. Recourse: if intended, author .cusp() at an interior junction; \
+                 otherwise move the geometry. At the seam the closing leg arrives REVERSED: \
+                 rotate the loop\'s authoring origin, or cut the seam at a corner",
                 margin = num(margin),
                 arm = num(arm)
             ),
             Self::SeamTangent { margin } => write!(
                 f,
                 "the SEAM arrives tangent to the entry\'s first side (margin {margin} m) and \
-                 nothing declared it: the loop closes on one carrier, and an UNDECLARED one is \
-                 refused however the closing leg is spelled — `continue_to(Start)` does not \
-                 reach it either, because the junction in band is the entry\'s, not the \
-                 closer\'s. DECLARE the joint on the target — Start.arrives_tangent(), \
-                 which every closing verb takes and which is CHECKED, never inferred. Or cut \
-                 the loop at a CORNER \
-                 instead (author the seam where the outline actually turns)",
+                 nothing declared it. Recourse: DECLARE the joint on the target with \
+                 Start.arrives_tangent(), which every closing verb takes, or cut the loop at \
+                 a CORNER instead (author the seam where the outline actually turns)",
                 margin = num(margin)
             ),
             Self::SeamArrivalOffDirection { margin, arm } => write!(
                 f,
-                "the declared seam arrival does not continue the entry\'s outgoing \
-                 direction: it misses by {margin} m over the arriving leg\'s {arm} m arm. \
-                 The TARGET declares the seam a tangent joint (Start.arrives_tangent()), so \
-                 the two directions must agree to within the input tolerance — this is \
-                 authored data disagreeing with itself, not a tangency judgement. Move the \
-                 geometry so the leg does arrive continuing that side; a LARGER input \
-                 tolerance admits a miss inside its own band, but this margin is definite \
-                 and raising K only moves where definite starts; or drop the declaration and \
-                 author the seam at a CORNER. If BOTH ends of a closing ARC must be tangent, \
-                 no circular arc generically carries both: that is the seam FILLET\'s \
-                 spelling (.angle(theta).fillet(r).to(Start)), which constructs them",
+                "the declared seam arrival (Start.arrives_tangent()) does not continue the \
+                 entry\'s outgoing direction: it misses by {margin} m over the arriving \
+                 leg\'s {arm} m arm. Recourse: move the geometry so the leg arrives along \
+                 that side, or drop the declaration and author the seam at a CORNER; for a \
+                 closing ARC tangent at BOTH ends, use the seam FILLET \
+                 (.angle(theta).fillet(r).to(Start))",
                 margin = num(margin),
                 arm = num(arm)
             ),
             Self::SeamArrivalLeverTooShort { arm } => write!(
                 f,
                 "the declared seam arrival has no lever: the closing leg\'s arm is {arm} m, \
-                 which is not definitely positive, so the levered turn cannot tell one \
-                 arriving direction from another and the declaration would be accepted \
-                 whatever the geometry says. A leg this short is a degenerate segment however \
-                 it is spelled — move the geometry (lengthen the closing leg, or move the \
-                 entry off it), or drop the vertex if it was not wanted",
+                 not definitely positive, so its direction cannot be checked. Recourse: \
+                 lengthen the closing leg or move the entry off it, or drop the vertex if it \
+                 was not wanted",
                 arm = num(arm)
             ),
             Self::ContinuationTargetOffRay { across, along } => write!(
                 f,
                 "the declared straight continuation\'s target is not on the departing ray: it \
-                 misses by {across} m across the ray, {along} m along it. The verb DECLARES \
-                 the leg to continue the run onto that point, so the point must lie on the ray \
-                 to within the input tolerance — this is authored data disagreeing with \
-                 itself, not a tangency judgement. Move the target onto the ray (the other \
-                 direction — a LARGER input tolerance — would admit this miss, which is the \
-                 opposite of the tangency refusals\' recourse: there closeness is what \
-                 refuses, here distance is); if a TURN was meant here, author the direction \
-                 (.turn(delta)/.angle(theta)) and use line_to",
+                 misses by {across} m across the ray, {along} m along it. Recourse: move the \
+                 target onto the ray (or widen the input tolerance); if a TURN was meant, \
+                 author the direction (.turn(delta)/.angle(theta)) and use line_to",
                 across = num(across),
                 along = num(along)
             ),
@@ -1689,16 +1661,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 // is worse than no fact.
                 write!(
                     f,
-                    "no corner of these carriers takes a radius-{radius} m fillet \
-                     ({n} refusing corner{plural}{ordered})",
+                    "no corner of these carriers takes a radius-{radius} m fillet",
                     radius = num(radius),
-                    n = corners.len(),
-                    plural = if corners.len() == 1 { "" } else { "s" },
-                    ordered = if corners.len() == 1 {
-                        ""
-                    } else {
-                        ", nearest the bracketing anchors first"
-                    }
                 )?;
                 for corner in corners {
                     write!(f, "; {corner}")?;
@@ -1714,12 +1678,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             } => write!(
                 f,
                 "the {side} side's offset lever rho {offset_radius} m (carrier radius \
-                 {carrier_radius} m) is shorter than the {least_lever} m this corner's \
-                 scale needs at the run's tolerance (margin {margin} m): the fillet's \
-                 tangent point is recovered by projecting its centre back onto that \
-                 carrier, and dividing by a lever that short cannot place the point within \
-                 tolerance — move the fillet radius away from that side's carrier radius, \
-                 or bring the corner's carriers closer together",
+                 {carrier_radius} m) is shorter than the {least_lever} m this corner needs \
+                 at the run's tolerance (margin {margin} m), so the fillet's tangent point \
+                 cannot be placed. Recourse: move the fillet radius away from that side's \
+                 carrier radius, or bring the corner's carriers closer together",
                 offset_radius = num(offset_radius),
                 carrier_radius = num(carrier_radius),
                 least_lever = num(least_lever),
@@ -1734,10 +1696,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             } => write!(
                 f,
                 "a radius-{radius} m fillet through a turn of {turn} rad is a {arc_length} m \
-                 arc, and a profile stores an arc as a chord and a bulge: read back, it is \
-                 too shallow to be an arc at all — '{predicate}' classifies it at \
-                 {margin} m — so the carrier this fillet computed is not in the stored loop \
-                 and validation would contradict the declaration. {FILLET_FLATTENED_RECOURSE}",
+                 arc, too shallow to store as a chord and a bulge ('{predicate}' classifies \
+                 it at {margin} m). Recourse: {FILLET_FLATTENED_RECOURSE}",
                 radius = num(radius),
                 turn = num(turn),
                 arc_length = num(arc_length),
@@ -1752,11 +1712,9 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 margin,
             } => write!(
                 f,
-                "a radius-{radius} m fillet through a turn of {turn} rad stores as a real \
-                 arc, but its joint's clearance is a difference of lengths of about \
-                 {scale} m, which resolves only to about {resolution} m: '{predicate}' \
-                 classifies it at {margin} m, so the stored loop does not carry the tangency \
-                 this fillet computed and validation would contradict the declaration. \
+                "a radius-{radius} m fillet through a turn of {turn} rad needs a tangency \
+                 the scene cannot resolve: lengths of about {scale} m resolve only to about \
+                 {resolution} m ('{predicate}' classifies it at {margin} m). Recourse: \
                  {FILLET_SCENE_RESOLUTION_RECOURSE}",
                 radius = num(radius),
                 turn = num(turn),
@@ -1821,23 +1779,20 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::NonFiniteDirection { dx, dy } => write!(
                 f,
-                "a direction derived from ({dx}, {dy}) has no finite length \u{2014} its \
-                 components overflow the norm, or one of them is not a number; only the \
-                 ratio of the components is read, so divide them through by a common \
-                 factor \u{2014} or, where they are derived from authored geometry rather \
-                 than spelled, scale that geometry into the session's range",
+                "a direction derived from ({dx}, {dy}) has no finite length (a component \
+                 overflows the norm or is not a number). Recourse: only the ratio of the \
+                 components is read, so divide them through by a common factor, or, if they \
+                 come from authored geometry, scale that geometry into the session's range",
                 dx = num(dx),
                 dy = num(dy)
             ),
             Self::UnderflowedDirection { dx, dy } => write!(
                 f,
-                "a direction derived from ({dx}, {dy}) has a length that underflowed out \
-                 of the format \u{2014} its components are too small for their squares to \
-                 be represented, so the length measures exactly zero while the direction \
-                 itself is perfectly good; no tolerance reaches this, and only the ratio \
-                 of the components is read, so multiply them through by a common factor \
-                 \u{2014} or, where they are derived from authored geometry rather than \
-                 spelled, scale that geometry into the session's range",
+                "a direction derived from ({dx}, {dy}) has a length that underflowed out of \
+                 the format, though the direction is good. Recourse: only the ratio of the \
+                 components is read, so multiply them through by a common factor, or, if \
+                 they come from authored geometry, scale that geometry into the session's \
+                 range",
                 dx = num(dx),
                 dy = num(dy)
             ),
@@ -1908,8 +1863,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     // authored.
                     return write!(
                         f,
-                        "resolving the fillet at this corner, '{predicate}' could not be \
-                         classified: {payload}. {recourse}",
+                        "the fillet at this corner is undecided: {payload}. Recourse: \
+                         {recourse}",
                         payload = source.payload()
                     );
                 }
@@ -1917,27 +1872,23 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     Some("path_continuation_target_offset") => write!(
                         f,
                         "the declared straight continuation's target is neither on the \
-                     departing ray nor definitely off it: {payload}. The verb DECLARES the \
-                     leg, so there is no coincidence to declare here — the declaration is \
-                     the verb. Move the target onto the ray, or widen the input tolerance \
-                     (K·ε) so this miss is admissible",
+                     departing ray nor definitely off it: {payload}. Recourse: move the \
+                     target onto the ray, or widen the input tolerance (K·ε) so this miss is \
+                     admissible",
                         payload = source.payload()
                     ),
                     Some("path_seam_arrival_turn" | "path_seam_arrival_side") => write!(
                         f,
                         "the declared seam arrival is neither continuing the entry\'s outgoing \
-                     direction nor definitely off it: {payload}. The TARGET declares the \
-                     arrival, so there is no coincidence left to declare here — the \
-                     declaration is the target. Move the geometry so the two directions agree, \
-                     or widen the input tolerance (K·ε) so a miss this size is admissible. \
-                     LOWERING the tolerance is the wrong direction at this site: closeness is \
-                     what is being ASSERTED here, not what is refusing",
+                     direction nor definitely off it: {payload}; the declaration is the target. \
+                     Recourse: move the geometry so the two directions agree, or widen the \
+                     input tolerance (K·ε); LOWERING the tolerance is the wrong direction here",
                         payload = source.payload()
                     ),
                     Some("path_leg_length") => write!(
                         f,
                         "an authored leg extent could not be told from zero: {payload}. \
-                     Author a longer leg, or widen the input tolerance (K·ε)",
+                     Recourse: author a longer leg, or widen the input tolerance (K·ε)",
                         payload = source.payload()
                     ),
                     // The STORED-FORM read's own classifications
@@ -1977,10 +1928,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                         | "carrier_circles_internal",
                     ) => write!(
                         f,
-                        "reading back the fillet arc this door is about to store, \
-                     '{predicate}' could not be classified: {payload}. \
-                     {FILLET_STORED_FORM_INBAND_RECOURSE}",
-                        predicate = source.predicate.unwrap_or("<unnamed>"),
+                        "the fillet arc about to be stored is undecided: {payload}. \
+                     Recourse: {FILLET_STORED_FORM_INBAND_RECOURSE}",
                         payload = source.payload()
                     ),
                     // The junction keys keep the full `Indeterminate`
@@ -5111,8 +5060,8 @@ mod tests {
         .to_string();
         assert!(
             s.contains(
-                "circular (carrier radius 0.008 m, angular margin 0.0035 rad) carrier: \
-                 tangent setback 0.008 m exceeds the 0.0035 m the anchor pins"
+                "circular (carrier radius 0.008 m, angular margin 0.0035 rad) carrier \
+                 (setback 0.008 m, 0.0035 m available)"
             ),
             "{s}"
         );

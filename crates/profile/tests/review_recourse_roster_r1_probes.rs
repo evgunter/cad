@@ -18,7 +18,7 @@ use profile::PathError;
 /// owns. A name renders its own layer's opening and no other's.
 const LAYERS: &[(&str, &[&str])] = &[
     (
-        "resolving the fillet at this corner,",
+        "the fillet at this corner is undecided:",
         &[
             "fillet_corner_arm",
             "fillet_corner_turn",
@@ -44,7 +44,7 @@ const LAYERS: &[(&str, &[&str])] = &[
         &["path_leg_length"],
     ),
     (
-        "reading back the fillet arc this door is about to store,",
+        "the fillet arc about to be stored is undecided:",
         &[
             "arc_diameter_clearance",
             "carrier_circles_external",

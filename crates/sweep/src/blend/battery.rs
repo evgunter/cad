@@ -981,8 +981,8 @@ pub fn arm_roster() -> &'static str {
 
 /// The refusal a pair takes when its supports ARE an arm's kinds but do
 /// not share the axis (or the ruling) that arm's spine is derived from.
-pub(super) const NOT_COAXIAL: &str = "a curved support pair whose two supports do not share one axis of revolution (nor one \
-     ruling); its spine is neither a line nor a circle";
+pub(super) const NOT_COAXIAL: &str =
+    "a curved support pair whose supports do not share one axis of revolution or one ruling";
 
 /// **`fillet3_support_coaxiality`** — do a curved pair's two supports
 /// really share the axis (or the ruling) its arm's spine is derived

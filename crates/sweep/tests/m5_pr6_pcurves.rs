@@ -510,10 +510,10 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
             // configuration; a panic or a silently wrong body is not.
             // `split`'s signature is what makes the refusal typed, so
             // what is left to check at runtime is that it reaches a
-            // human as prose: every arm of `SplitError` names the split
-            // — three through their own stage (`split_reduce`, `split
-            // join`, `split finish`), one through the door's name —
-            // and none of them renders a payload's `Debug`.
+            // human as prose naming the split — the arms this
+            // configuration reaches speak of the split plane or the
+            // split's section — and none of them renders a payload's
+            // `Debug`.
             let msg = format!("{e}");
             assert!(
                 msg.contains("split"),

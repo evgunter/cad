@@ -1191,8 +1191,10 @@ fn structure_refusal_indeterminate() -> profile::StructureRefusal {
 /// the path refusal it carries; every `PathError` arm is a sketch edit
 /// the person made.
 fn profile_replay() -> Vec<(String, NodeErrorKind)> {
+    use geom_core::Point2;
     use payloads::*;
     use profile::path::{PathError as P, PathNoCornerReason};
+    use profile::{CornerReason, CornerRefusal, FilletLegCarrier, NoCornerReason};
     use profile::{FilletLeg, ReplayError, ReplayErrorKind, TipState};
     let path: Vec<(&str, P<f64>)> = vec![
         (
@@ -1323,6 +1325,51 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         ),
         ("FarEndAnchorWithoutFillet", P::FarEndAnchorWithoutFillet),
         ("Escalated", P::Escalated { source: diag() }),
+        (
+            "NoCornerForFillet(disjoint)",
+            P::NoCornerForFillet {
+                reason: PathNoCornerReason::CarriersDoNotMeet,
+                radius: 0.1,
+            },
+        ),
+        (
+            "NoCornerOfPair(swallows)",
+            P::NoCornerOfPair {
+                radius: 0.3,
+                corners: vec![CornerRefusal {
+                    at: Point2::new(0.25, -0.5),
+                    reason: CornerReason::EnclosesLegCarrier {
+                        side: Some(FilletLeg::Incoming),
+                        carrier_radius: 0.2,
+                        offset_radius: -0.1,
+                        largest_tangent_radius: Some(0.15),
+                    },
+                }],
+            },
+        ),
+        (
+            "NoCornerOfPair(two)",
+            P::NoCornerOfPair {
+                radius: 0.3,
+                corners: vec![
+                    CornerRefusal {
+                        at: Point2::new(0.25, -0.5),
+                        reason: CornerReason::AnchorOutsideTrimmedExtent {
+                            side: FilletLeg::Outgoing,
+                            carrier: FilletLegCarrier::Line,
+                            setback: 0.4,
+                            available: 0.3,
+                        },
+                    },
+                    CornerRefusal {
+                        at: Point2::new(1.25, 0.5),
+                        reason: CornerReason::NoTangentCircle(
+                            NoCornerReason::OffsetCarriersDisjoint,
+                        ),
+                    },
+                ],
+            },
+        ),
         ("Band", P::Band(band_error())),
         ("Structure", P::Structure(structure_refusal())),
         (
@@ -1336,6 +1383,34 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
             P::OverdeterminedJunction { site: "arc_to" },
         ),
     ];
+    let routed = [
+        "fillet_corner_turn",
+        "fillet_corner_arm",
+        "fillet_leg_reach",
+        "fillet_leg_fit",
+        "fillet_offset_lever",
+        "fillet_enclosing_carrier",
+        "path_continuation_target_offset",
+        "path_seam_arrival_turn",
+        "path_leg_length",
+        "vertex_separation",
+        "path_junction_turn",
+    ];
+    let path: Vec<(String, P<f64>)> = path
+        .into_iter()
+        .map(|(n, p)| (n.to_owned(), p))
+        .chain(routed.into_iter().map(|predicate| {
+            (
+                format!("Escalated({predicate})"),
+                P::Escalated {
+                    source: geom_core::Indeterminate {
+                        predicate: Some(predicate),
+                        ..diag()
+                    },
+                },
+            )
+        }))
+        .collect();
     let transition = ReplayError {
         step: 2,
         kind: ReplayErrorKind::Transition {
@@ -2224,4 +2299,230 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
         other => panic!("{n}: the designation must refuse; got {other:?}"),
     })
     .collect()
+}
+
+/// **Every checks-window finding fits the window it is listed in.** The
+/// checks window draws each finding's `Display` verbatim beside its
+/// root's button, so each `CheckEvidence` arm is rendered as the window
+/// draws it, on a representative payload, and held to the budget. The
+/// separation arm forwards a Boolean refusal's own sentence; it is
+/// rendered over every containment refusal the separation read can
+/// raise.
+#[test]
+fn every_check_finding_renders_within_the_budget() {
+    let rows: Vec<(String, String)> = check_findings()
+        .into_iter()
+        .map(|(name, finding)| (name, finding.to_string()))
+        .collect();
+    let problems = over_budget(&rows);
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
+    use editor_core::{CheckEvidence as E, CheckFinding, CheckId};
+    use payloads::*;
+    use topo::{
+        BooleanError, CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey,
+        PointInSolidError, ShellClassifyError, ShellKey, StructureRead, Unexaminable, Unexamined,
+        VertexKey,
+    };
+    let shell = ShellKey::default();
+    let finding = |check, evidence| CheckFinding {
+        check,
+        root: RecipeNodeId(4),
+        output_ix: 0,
+        evidence,
+    };
+    let coherence = |condition| CoherenceFinding {
+        face: FaceKey::default(),
+        r#loop: LoopKey::default(),
+        edge: EdgeKey::default(),
+        condition,
+        gap: 1.0e-10,
+        lever: 100.0,
+        metres: 1.0e-8,
+        eps: 1.0e-9,
+    };
+    let unexamined = |why| Unexamined {
+        face: FaceKey::default(),
+        r#loop: LoopKey::default(),
+        why,
+    };
+    let mut rows = vec![
+        (
+            "Connectedness",
+            finding(
+                CheckId::Connectedness,
+                E::Connectedness {
+                    actual: 2,
+                    expected: 1,
+                },
+            ),
+        ),
+        (
+            "Escalated",
+            finding(
+                CheckId::Connectedness,
+                E::Escalated {
+                    source: ShellClassifyError::Escalated {
+                        shell,
+                        source: diag(),
+                    },
+                },
+            ),
+        ),
+        (
+            "Escalated(zero volume)",
+            finding(
+                CheckId::Connectedness,
+                E::Escalated {
+                    source: ShellClassifyError::ZeroVolume { shell },
+                },
+            ),
+        ),
+        (
+            "Unsupported",
+            finding(
+                CheckId::Connectedness,
+                E::Unsupported {
+                    source: ShellClassifyError::Props {
+                        shell,
+                        source: topo::MassPropsError::RingOnCurvedFace {
+                            face: FaceKey::default(),
+                        },
+                    },
+                },
+            ),
+        ),
+        (
+            "StaleExpectation",
+            finding(CheckId::Connectedness, E::StaleExpectation { expected: 2 }),
+        ),
+        (
+            "NotSeparated",
+            finding(
+                CheckId::Separation,
+                E::NotSeparated {
+                    other_root: RecipeNodeId(7),
+                    other_output: 0,
+                },
+            ),
+        ),
+        (
+            "ChartCoherence(meridian closure)",
+            finding(
+                CheckId::ChartCoherence,
+                E::ChartCoherence {
+                    finding: coherence(CoherenceCondition::MeridianClosure {
+                        vertex: VertexKey::default(),
+                    }),
+                },
+            ),
+        ),
+        (
+            "ChartCoherence(rim)",
+            finding(
+                CheckId::ChartCoherence,
+                E::ChartCoherence {
+                    finding: coherence(CoherenceCondition::RimContinuation {
+                        opens: EdgeKey::default(),
+                    }),
+                },
+            ),
+        ),
+        (
+            "ChartCoherenceUnexamined(corrupt)",
+            finding(
+                CheckId::ChartCoherence,
+                E::ChartCoherenceUnexamined {
+                    unexamined: unexamined(Unexaminable::Corrupt {
+                        at: StructureRead::Cycle,
+                    }),
+                },
+            ),
+        ),
+        (
+            "ChartCoherenceUnexamined(scaffold)",
+            finding(
+                CheckId::ChartCoherence,
+                E::ChartCoherenceUnexamined {
+                    unexamined: unexamined(Unexaminable::NullScaffoldEdge {
+                        edge: EdgeKey::default(),
+                    }),
+                },
+            ),
+        ),
+        (
+            "ChartCoherenceUnexamined(non-iso)",
+            finding(
+                CheckId::ChartCoherence,
+                E::ChartCoherenceUnexamined {
+                    unexamined: unexamined(Unexaminable::NonIsoCarrier {
+                        edge: EdgeKey::default(),
+                    }),
+                },
+            ),
+        ),
+        (
+            "ChartCoherenceUnavailable",
+            finding(CheckId::ChartCoherence, E::ChartCoherenceUnavailable),
+        ),
+    ]
+    .into_iter()
+    .map(|(n, f)| (n.to_owned(), f))
+    .collect::<Vec<_>>();
+    let face = FaceKey::default();
+    let separation_reasons = [
+        (
+            "Escalated",
+            PointInSolidError::Escalated { face, diag: diag() },
+        ),
+        ("RayExhausted", PointInSolidError::RayExhausted),
+        ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
+        ("CorruptFace", PointInSolidError::CorruptFace { face }),
+        (
+            "KindUnsupported",
+            PointInSolidError::KindUnsupported {
+                face,
+                kind: geom_brep::SurfaceKind::Nurbs,
+            },
+        ),
+        ("VolumeUncertified", PointInSolidError::VolumeUncertified),
+        (
+            "PartialSphereFace",
+            PointInSolidError::PartialSphereFace { face },
+        ),
+        (
+            "PartialConeFace",
+            PointInSolidError::PartialConeFace { face },
+        ),
+        (
+            "PartialTorusFace",
+            PointInSolidError::PartialTorusFace { face },
+        ),
+        (
+            "NoSuchSolid",
+            PointInSolidError::NoSuchSolid {
+                solid: topo::SolidKey::default(),
+            },
+        ),
+        (
+            "SurfaceSharedOutsideSolid",
+            PointInSolidError::SurfaceSharedOutsideSolid { face, other: face },
+        ),
+    ];
+    for (n, e) in separation_reasons {
+        let source = BooleanError::Containment(e);
+        rows.push((
+            format!("SeparationUnavailable/Containment({n})"),
+            finding(
+                CheckId::Separation,
+                E::SeparationUnavailable {
+                    kind: source.kind(),
+                    reason: source.to_string(),
+                },
+            ),
+        ));
+    }
+    rows
 }

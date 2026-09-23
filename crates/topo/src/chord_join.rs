@@ -332,56 +332,59 @@ impl core::fmt::Display for SplitJoinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::OrderEscalated { diag } => {
-                write!(f, "split join: lexicographic order escalated: {diag}")
+                write!(
+                    f,
+                    "the order of two section points is too close to call: {diag}"
+                )
             }
-            Self::Escalated { face, diag } => {
-                write!(f, "split join: escalated at face {face:?}: {diag}")
+            Self::Escalated { diag, .. } => {
+                write!(
+                    f,
+                    "where the section runs across a face is too close to call: {diag}"
+                )
             }
-            Self::DegenerateSection { face } => write!(
+            Self::DegenerateSection { .. } => write!(
                 f,
-                "split join: section polygon at {face:?} bounds zero area — one-sided \
-                 tangency: the degenerate side has no real material (refused, never \
-                 emitted); {}",
+                "the split's section is degenerate: it bounds zero area (a one-sided \
+                 tangency), so one side has no real material. Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::RingHoming(e) => write!(f, "split join: ring re-homing: {e}"),
-            Self::RingHomingAmbiguous { ring } => write!(
+            Self::RingHoming(e) => write!(f, "re-homing a hole loop refused: {e}"),
+            Self::RingHomingAmbiguous { .. } => write!(
                 f,
-                "split join: ring {ring:?} sits ON the divided face's outer loop — \
-                 containment undecidable (ill-conditioned operand)"
+                "a hole loop sits on the divided face's outer boundary, so which piece \
+                 holds it cannot be decided. Recourse: {}",
+                geom_core::COINCIDENCE_RECOURSE
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
-                "split join: {count} loose null-edge halves survived the sweep (kernel bug)"
+                "{count} loose null-edge halves survived the join sweep (kernel bug)"
             ),
             Self::SectionLoopMixed { face } => write!(
                 f,
-                "split join: null face {face:?} has a side-mixed section loop (kernel bug)"
+                "null face {face:?} has a side-mixed section loop (kernel bug)"
             ),
             Self::CutInvariant { edge } => write!(
                 f,
-                "split join: neither face flanking null edge {edge:?} is a sliver (kernel bug)"
+                "neither face flanking null edge {edge:?} is a sliver (kernel bug)"
             ),
             Self::Corrupt { entity } => {
-                write!(f, "split join: traversal failed at {entity} (corrupt body)")
+                write!(f, "the join's traversal failed at {entity} (corrupt body)")
             }
-            Self::Band(e) => write!(f, "split join: invalid band: {e}"),
-            Self::Euler(e) => write!(f, "split join: euler operation refused: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
             Self::Section { face, source } => {
-                write!(f, "split join: section chord in face {face:?}: {source}")
+                write!(f, "the section chord in face {face:?} refused: {source}")
             }
             Self::SectionArcWindow { face, case, band } => {
                 write!(
                     f,
-                    "split join: section chord in face {face:?}: arc-side selection \
-                     refused — {case}"
+                    "the section chord in face {face:?} has no arc to take: {case}"
                 )?;
                 if case.is_containment_verdict() {
                     write!(
                         f,
-                        "; predicate 'split_arc_window' classified definite against the band \
-                         (zero = {:e}, escalate = {:e}) — the same margin inside that band \
-                         escalates instead, and it is the same ill-conditioning either way; {}",
+                        " ('split_arc_window', band ({:e}, {:e})). Recourse: {}",
                         band.zero(),
                         band.escalate(),
                         geom_core::COINCIDENCE_RECOURSE
@@ -390,10 +393,7 @@ impl core::fmt::Display for SplitJoinError {
                 Ok(())
             }
             Self::SectionInvariant { face, what } => {
-                write!(
-                    f,
-                    "split join: curved-section invariant at face {face:?}: {what}"
-                )
+                write!(f, "curved-section invariant at face {face:?}: {what}")
             }
         }
     }

@@ -442,8 +442,7 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
             if *detail == "an open chain's supports are neither plane–plane nor a ruled cylinder \
-                 pair (the trivalent corner patch and the transverse cut-off are the only \
-                 terminations built)"),
+                 pair, the only terminations built"),
         "an open chain whose supports are neither plane–plane nor ruled has no built \
          termination: {err:?}"
     );

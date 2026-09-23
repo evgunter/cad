@@ -457,7 +457,7 @@ fn curved_face_refuses() {
             assert_eq!(face, cube.seed.face);
             let msg = e.to_string();
             assert!(
-                msg.contains("routes to") && msg.contains("general rung"),
+                msg.contains("a torus face") && msg.contains("not supported yet"),
                 "{msg}"
             );
         }
@@ -573,7 +573,7 @@ fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
         face: topo::FaceKey::default(),
     }
     .to_string();
-    assert!(msg.contains("split_reduce:"), "{msg}");
+    assert!(!msg.contains("split_reduce"), "no stage prefix: {msg}");
     assert!(msg.contains("has no finite length"), "{msg}");
     assert!(
         msg.contains("scale the geometry into the session's range"),

@@ -1760,11 +1760,7 @@ impl core::fmt::Display for BooleanError {
             ),
             // The payload does not say which operand was being tested, so
             // the sentence says "one of the solids" rather than guess.
-            Self::Containment(e) => write!(
-                f,
-                "the solids do not cross, and to decide which lies inside the other \
-                 the Boolean {e}"
-            ),
+            Self::Containment(e) => write!(f, "the solids do not cross, and the Boolean {e}"),
             Self::Revert(e) => write!(f, "revert of the ∖ B side refused: {e}"),
             Self::SeamOrientation { a_face, b_face } => write!(
                 f,

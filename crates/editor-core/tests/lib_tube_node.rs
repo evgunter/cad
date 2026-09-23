@@ -595,12 +595,12 @@ fn the_shared_refusals_are_reachable_from_both_kinds() {
             tube_refusal(s, z).unwrap_or_else(|| panic!("{what} must refuse through Node::Tube"));
         let hm = tube_refusal(h, z)
             .unwrap_or_else(|| panic!("{what} must refuse through Node::HollowTube"));
-        // A shared arm names "tube door", never one of the two: the
+        // A shared arm names the hollow tube from neither kind: the
         // kernel refuses to guess which caller it was, and the recipe
         // layer must not invent an answer either.
-        assert!(sm.contains("tube door"), "{what} (solid): {sm}");
+        assert!(!sm.contains("hollow tube"), "{what} (solid): {sm}");
         assert!(
-            !hm.contains("tube_along_arc_hollow"),
+            !hm.contains("hollow tube"),
             "{what} is reachable through both doors, so its message must not claim \
              the hollow one: {hm}"
         );
@@ -723,7 +723,7 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
     // produce them, and the message says so.
     for msg in [&nonpositive, &eats_the_bore, &collapsed] {
         assert!(
-            msg.contains("tube_along_arc_hollow"),
+            msg.contains("the hollow tube"),
             "a wall refusal must name the door only it can come from: {msg}"
         );
     }

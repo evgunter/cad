@@ -321,7 +321,7 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
         // The kernel's own words are forwarded, not paraphrased.
         (
             InterrogateError::Readback(topo::ReadbackError::NoCarrier),
-            vec!["interrogate:", "scaffolding"],
+            vec!["scaffolding", "tier 2 refuses at rest"],
         ),
     ];
     assert_f6_every_variant(&cases, &INTERROGATE_ERROR, &[]);

@@ -176,8 +176,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             if !fd.rings.is_empty() {
                 return Err(unbuilt_chain(
                     edge,
-                    "a ruled band's support face carries a ring; the band's carve on a curved \
-                     support does not carry rings through",
+                    "a ruled band's support face carries a ring, which a curved support's carve \
+             does not carry through",
                 ));
             }
             if loop_of_half(body, half) != Some(fd.outer) {

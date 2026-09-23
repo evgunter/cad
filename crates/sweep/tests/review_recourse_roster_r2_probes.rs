@@ -150,12 +150,12 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
 #[test]
 fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     for (name, door) in [
-        ("tube_wall", "tube_along_arc_hollow"),
-        ("tube_wall_bore", "tube_along_arc_hollow"),
-        ("tube_wall_gap", "tube_along_arc_hollow"),
-        ("tube_frame_unit", "tube door"),
-        ("tube_window_span", "tube door"),
-        (UNKNOWN, "tube door"),
+        ("tube_wall", "the hollow tube"),
+        ("tube_wall_bore", "the hollow tube"),
+        ("tube_wall_gap", "the hollow tube"),
+        ("tube_frame_unit", "the tube"),
+        ("tube_window_span", "the tube"),
+        (UNKNOWN, "the tube"),
     ] {
         let text = TubeError::Escalated {
             source: escalation(Some(name)),
@@ -177,7 +177,7 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     }
     .to_string();
     assert!(
-        text.starts_with("tube door escalated: sign indeterminate:"),
+        text.starts_with("the tube escalated: sign indeterminate:"),
         "{text}"
     );
 }

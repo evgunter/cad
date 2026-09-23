@@ -1349,7 +1349,7 @@ impl core::fmt::Display for EditError {
         match self {
             Self::UnknownNode { id } => write!(f, "node {} is not live", id.0),
             Self::ProfileProgramRefused { node, refusal } => {
-                write!(f, "node {}'s profile program refused: {refusal}", node.0)
+                write!(f, "node {}'s sketch refused: {refusal}", node.0)
             }
             Self::UnresolvedInput { input } => {
                 write!(f, "input {} does not resolve to a live node", input.0)

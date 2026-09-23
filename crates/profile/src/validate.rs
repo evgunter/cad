@@ -355,14 +355,9 @@ impl fmt::Display for NoCornerReason {
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner's turn is metered through its lever arm — the sine of the angle between the \
-     legs times the shorter leg's extent — so either the angle is degenerate at any precision \
-     you could care about, and which kind is below the tolerance, or the angle is real and the \
-     leg is too short to state it: if the legs run smoothly into each other, keep them and \
-     declare the tangency (the joint's index in the loop's tangent_joints); if they double back, \
-     that is a cusp and the kernel refuses it; if the angle is real, give the shorter leg a \
-     longer extent, which is the lever a leg of a few tolerances does not have; otherwise move \
-     the geometry so a real corner exists (or lower the tolerance)";
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the legs run smoothly into each other, declare the tangency (tangent_joints); \
+     if they double back, the cusp is refused; if the angle is real, give the shorter \
+     leg a longer extent; otherwise move the geometry";
 
 /// The recourse for a corner that admits no tangent circle of the
 /// requested radius — one sentence for the definite refusal and for the
@@ -426,14 +421,8 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
-     carrier, and the projection divides by the offset radius rho = R - sigma*tau*r, so a \
-     fillet radius this close to the leg's carrier radius cannot place the tangent point \
-     within tolerance: move the fillet radius away from that leg's carrier radius — that is \
-     the direction, and the window is bounded, because the threshold this lever is measured \
-     against grows as the corner's squared scale and that scale carries rho itself, so on a \
-     scene rho already dominates a larger move refuses again. Where it does, what is left is \
-     to bring the corner's carriers closer together, or lower the tolerance";
+pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "move the fillet radius away from that leg's carrier radius (a large move can \
+     refuse again), or bring the corner's carriers closer together, or lower the tolerance";
 
 /// The recourse for a fillet radius sitting within the band of a leg's
 /// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
@@ -462,12 +451,8 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered b
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward, a fillet radius above the leg's own carrier radius \
-     puts that carrier INSIDE the fillet circle, and the corner with it, so the arc could not \
-     touch the corner it would round — and whether this radius is above or below that carrier \
-     radius is itself below the tolerance here: move the radius clearly away from the leg's \
-     carrier radius, downward, and expect to go well below it (a circle that large need not \
-     be tangent to both of this corner's carriers at all)";
+pub const FILLET_ENCLOSING_RECOURSE: &str = "the fillet radius is too close to the leg's own carrier radius to tell whether the \
+     fillet would swallow that carrier: move the radius well below the carrier radius";
 
 /// The recourse for a radius whose tangent points fall outside their
 /// legs — shared by the definite refusal and the in-band escalation.
@@ -515,10 +500,8 @@ pub const FILLET_FIT_RECOURSE: &str =
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_FLATTENED_RECOURSE: &str = "the stored sagitta goes as r(1 - cos(theta/2)), so turn the corner further, or round \
-     it with a LARGER radius while the scene still resolves one; a corner too shallow for \
-     both is one no arc of any radius can be stored at, and the lever that always works \
-     is to drop the fillet and leave the corner sharp";
+pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a LARGER radius while the scene still resolves \
+     one; if the corner is too shallow for both, drop the fillet and leave the corner sharp";
 
 /// **The recourse for a fillet whose carrier the scene cannot resolve.**
 ///
@@ -545,10 +528,8 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "the stored sagitta goes as r(1 - co
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "a carrier clearance is a difference of lengths at the scene's own magnitude, and such \
-     a difference resolves only to about that magnitude times 2^-52 — so a LARGER radius \
-     makes this worse, not better: use a smaller radius, or place the geometry nearer the \
-     origin, or drop the fillet and leave the corner sharp";
+pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "use a smaller radius (a LARGER one makes this worse), place the geometry nearer \
+     the origin, or drop the fillet and leave the corner sharp";
 
 /// **The recourse when the stored form's own classification is in
 /// band** — the undecided twin of the two above.
@@ -570,11 +551,9 @@ pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "a carrier clearance is a dif
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "this run cannot say whether the loop would hold the tangency: either the arc is too \
-     shallow to store as an arc (turn the corner further, or use a larger radius) or the \
-     carrier clearance is finer than the scene resolves (use a smaller radius, or place \
-     the geometry nearer the origin) — dropping the fillet settles it either way, and so \
-     does lowering the tolerance";
+pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "the arc may be too shallow to store (turn the corner further, or use a larger \
+     radius) or too fine for the scene (use a smaller radius, or move nearer the \
+     origin); dropping the fillet, or lowering the tolerance, settles either";
 
 /// The recourse for a fillet leg with no extent to round against.
 ///

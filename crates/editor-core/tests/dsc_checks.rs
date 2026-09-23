@@ -865,7 +865,7 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
         "the band it was judged at: {rendered}"
     );
     assert!(
-        rendered.contains("MEASUREMENT and nothing refuses on it"),
+        rendered.contains("MEASUREMENT, not a refusal"),
         "the recourse says what a finding is and is not: {rendered}"
     );
 }

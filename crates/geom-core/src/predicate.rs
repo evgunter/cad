@@ -1018,13 +1018,9 @@ pub struct MissingRecourse<'a>(pub Option<&'a str>);
 impl fmt::Display for MissingRecourse<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded")?,
-            None => f.write_str("no recourse is recorded for this unnamed decision")?,
+            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded"),
+            None => f.write_str("no recourse is recorded for this unnamed decision"),
         }
-        f.write_str(
-            ": the shared clause above is all this door can say about it, and that absence \
-             is a gap in the error table rather than a finding that nothing further applies",
-        )
     }
 }
 
@@ -1048,18 +1044,17 @@ impl fmt::Display for IndeterminatePayload<'_> {
         match self.0.margin {
             MarginDiag::Value(m) => write!(
                 f,
-                "margin {m:e} lies inside the ambiguity band (zero = {zero:e}, \
-                 escalate = {escalate:e})"
+                "margin {m:e} lies inside the ambiguity band ({zero:e}, {escalate:e})"
             ),
             MarginDiag::Enclosure { lo, hi } => write!(
                 f,
-                "enclosure [{lo:e}, {hi:e}] cannot be classified against the band \
-                 (zero = {zero:e}, escalate = {escalate:e})"
+                "enclosure [{lo:e}, {hi:e}] cannot be classified against the ambiguity \
+                 band ({zero:e}, {escalate:e})"
             ),
             MarginDiag::Invalid => write!(
                 f,
-                "margin is invalid (NaN or a poisoned enclosure); band \
-                 (zero = {zero:e}, escalate = {escalate:e})"
+                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
+                 band ({zero:e}, {escalate:e})"
             ),
         }
     }
@@ -1097,16 +1092,11 @@ impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.payload())?;
         match self.margin {
-            MarginDiag::Value(_) => write!(
-                f,
-                " — coincident at any precision you could care about, too close \
-                 to build sound geometry from; {COINCIDENCE_RECOURSE} (D4)"
-            ),
+            MarginDiag::Value(_) => write!(f, " — a near-coincidence; {COINCIDENCE_RECOURSE}"),
             MarginDiag::Enclosure { .. } => write!(
                 f,
-                " — it straddles a decision boundary or lies inside the ambiguity \
-                 band; subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE} (D4)"
+                " — subdivide the parameter box for a tighter enclosure, or \
+                 {COINCIDENCE_RECOURSE}"
             ),
             // Poison explains WHY the sign is indeterminate, but the
             // user's levers at a coincidence site are unchanged — the
@@ -1114,8 +1104,7 @@ impl fmt::Display for Indeterminate {
             // (S6 review, MINOR-1).
             MarginDiag::Invalid => write!(
                 f,
-                " — a poisoned computation can never take a branch; check the \
-                 operation's inputs upstream, then {COINCIDENCE_RECOURSE} (D4)"
+                " — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
             ),
         }
     }
@@ -1625,9 +1614,7 @@ mod tests {
             bare.to_string(),
             format!(
                 "sign indeterminate: margin 5e-9 lies inside the ambiguity band \
-                 (zero = 1e-9, escalate = 1e-8) — coincident at any precision \
-                 you could care about, too close to build sound geometry from; \
-                 {COINCIDENCE_RECOURSE} (D4)"
+                 (1e-9, 1e-8) — a near-coincidence; {COINCIDENCE_RECOURSE}"
             )
         );
 
@@ -1639,9 +1626,8 @@ mod tests {
             named.to_string(),
             format!(
                 "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-                 the ambiguity band (zero = 1e-9, escalate = 1e-8) — coincident at \
-                 any precision you could care about, too close to build sound \
-                 geometry from; {COINCIDENCE_RECOURSE} (D4)"
+                 the ambiguity band (1e-9, 1e-8) — a near-coincidence; \
+                 {COINCIDENCE_RECOURSE}"
             )
         );
         // The payload view is the same message minus the shared tail —
@@ -1649,7 +1635,7 @@ mod tests {
         assert_eq!(
             named.payload().to_string(),
             "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-             the ambiguity band (zero = 1e-9, escalate = 1e-8)"
+             the ambiguity band (1e-9, 1e-8)"
         );
 
         let invalid = f64::NAN
@@ -1660,9 +1646,8 @@ mod tests {
             invalid.to_string(),
             format!(
                 "predicate 'transversality' indeterminate: margin is invalid (NaN \
-                 or a poisoned enclosure); band (zero = 1e-9, escalate = 1e-8) — a \
-                 poisoned computation can never take a branch; check the \
-                 operation's inputs upstream, then {COINCIDENCE_RECOURSE} (D4)"
+                 or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8) — \
+                 check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
             )
         );
 
@@ -1681,10 +1666,9 @@ mod tests {
             enclosure.to_string(),
             format!(
                 "predicate 'side_of_plane' indeterminate: enclosure [-2e-9, 5e-9] \
-                 cannot be classified against the band (zero = 1e-9, escalate = 1e-8) \
-                 — it straddles a decision boundary or lies inside the ambiguity \
-                 band; subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE} (D4)"
+                 cannot be classified against the ambiguity band (1e-9, 1e-8) — \
+                 subdivide the parameter box for a tighter enclosure, or \
+                 {COINCIDENCE_RECOURSE}"
             )
         );
     }

@@ -100,9 +100,8 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
         if !(link.arm.is_plane_plane() || link.arm.is_ruled()) {
             return Err(unbuilt_chain(
                 link.edge,
-                "an open chain's supports are neither plane–plane nor a ruled cylinder \
-                 pair (the trivalent corner patch and the transverse cut-off are the only \
-                 terminations built)",
+                "an open chain's supports are neither plane–plane nor a ruled cylinder pair, \
+             the only terminations built",
             ));
         }
         // No convexity clause, and no verb: neither band asks for

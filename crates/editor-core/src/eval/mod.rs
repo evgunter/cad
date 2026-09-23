@@ -1771,13 +1771,10 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
         // comment) — the one menu here is this finding's recourse.
         write!(
             f,
-            "a face pair of its operands is {} without a shared source or declared \
-             intent{}; the coincidence ladder reports: {}",
+            "two operand faces are {}, with no shared source or declared intent{} ({})",
             match self.finding.evidence.relation {
-                topo::PlaneRelation::SameOpposite =>
-                    "coincident with opposed orientations (resting contact)",
-                topo::PlaneRelation::SameOriented =>
-                    "coincident with the same orientation (flush walls)",
+                topo::PlaneRelation::SameOpposite => "coincident and opposed (resting contact)",
+                topo::PlaneRelation::SameOriented => "coincident and co-oriented (flush walls)",
                 // Never constructed on a finding; rendered honestly anyway.
                 topo::PlaneRelation::Distinct => "reported coincident",
             },
@@ -1793,34 +1790,28 @@ impl crate::finding::Finding for UndeclaredContactFinding<'_> {
     }
 
     fn recourse(&self) -> &str {
-        "the refusal carries the candidate declaration (the pair, by stable name, \
-         with its relation); declare that finding and wire it into the Boolean's \
-         declare input, or move the geometry"
+        "Recourse: declare the candidate pair this refusal carries and wire it into the \
+         Boolean's declare input, or move the geometry"
     }
 }
 
 /// The merged-side clause of an undeclared contact's story: silent
-/// when neither side is a merged row, and otherwise naming the
-/// constituents the fold retired into it.
+/// when neither side is a merged row, and otherwise counting the
+/// constituents the fold retired into it (their names ride the
+/// payload, so the sentence stays one length however many there are).
 struct MergedSides<'a>(&'a (Vec<crate::node::SitedRef>, Vec<crate::node::SitedRef>));
 
 impl core::fmt::Display for MergedSides<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         for (side, set) in [("first", &self.0.0), ("second", &self.0.1)] {
-            let Some((chosen, rest)) = set.split_first() else {
+            if set.is_empty() {
                 continue;
-            };
+            }
             write!(
                 f,
-                " (the {side} face is a merge the fold minted, of {}",
-                chosen.name
-            )?;
-            for r in rest {
-                write!(f, ", {}", r.name)?;
-            }
-            f.write_str(
-                "; the pair names one constituent and any other declares the \
-                         same contact)",
+                "; the {side} face merges {} member faces, and any of them declares the same \
+                 contact",
+                set.len()
             )?;
         }
         Ok(())
@@ -1839,24 +1830,21 @@ struct UndeclarableContactFinding<'a> {
 
 impl crate::finding::Finding for UndeclarableContactFinding<'_> {
     fn subject(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("the union refused a contact against a row its own fold minted")
+        f.write_str("the union refused a contact on a face its own fold made")
     }
 
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "a member's face rests on {}, which the fold minted and no member carries; \
-             the coincidence ladder reports: {}",
+            "a member's face rests on the {}, which no member carries ({})",
             self.row,
             self.diag.payload()
         )
     }
 
     fn recourse(&self) -> &str {
-        "a declaration names entities that exist BEFORE the union (each sited at a \
-         member), and this row exists only inside the fold, so there is no pair to \
-         declare: move the geometry, or reach the row through the member whose \
-         face it was minted from by unioning in two nodes"
+        "no declaration can name that face. Recourse: move the geometry, or union in two \
+         nodes so the face belongs to a member"
     }
 }
 
@@ -1907,10 +1895,7 @@ impl core::fmt::Display for NodeErrorKind {
                 ),
             },
             Self::ProfileReplay { loop_, error } => {
-                write!(
-                    f,
-                    "profile loop {loop_}'s program refused at replay: {error}"
-                )
+                write!(f, "profile loop {loop_} refused at {error}")
             }
             Self::ProfileAnchor { loop_ } => write!(
                 f,
@@ -1935,10 +1920,9 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
-            // The kernel error names its own door, so this line
-            // must not name one: "the tube op refused: tube door: …"
-            // would read a hollow refusal as a solid one half the
-            // time.
+            // The kernel error says which tube it is (solid or
+            // hollow), so this line names neither: a wrapper that did
+            // would read a hollow refusal as a solid one half the time.
             Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
@@ -1960,8 +1944,8 @@ impl core::fmt::Display for NodeErrorKind {
                 "document ε {document_eps:e} conflicts with the process ε {process_eps:e} \
                  (one process, one ε)"
             ),
-            Self::ParamBox { source } => write!(f, "parameter box: {source}"),
-            Self::Seed { source } => write!(f, "parameter seed: {source}"),
+            Self::ParamBox { source } => write!(f, "{source}"),
+            Self::Seed { source } => write!(f, "{source}"),
             Self::SeedPinnedSection { section, param } => write!(
                 f,
                 "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
