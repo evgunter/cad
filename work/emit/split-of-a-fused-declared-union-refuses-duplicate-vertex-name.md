@@ -2,10 +2,11 @@
 id: split-of-a-fused-declared-union-refuses-duplicate-vertex-name
 kind: issue
 title: A split of a legal declared union refuses Naming(Duplicate): a CrossingVertex and an OnToolVertex mint one name
-status: open
+status: dispatched
 opened: 2026-09-23
 priority: P0
 cost: D
+branch: emit/split-duplicate-vertex
 ---
 
 
