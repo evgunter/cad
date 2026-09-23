@@ -197,3 +197,44 @@ sites to revisit.
   path or a number where no space fits. "Correct today, by the caller"
   above is about where a line STARTS; it is no longer the whole of how
   the sentence reads.
+
+## properties.rs half, done (2026-09-23)
+
+`chrome/properties-messages` routed every sentence in
+`pane/properties.rs` through `crate::widgets::message`,
+`message_link` or `message_toned`, re-taking the census with the test
+above rather than the list.
+
+- **In a row: six, not five.** The five listed above, plus
+  `slot_value_ui`'s `{error}`, which the list put under *top-down*. Its
+  own body is top-down; both of its callers in `slot_group_ui` draw it
+  inside a `ui.horizontal` — the second blind spot above. Per Ev's
+  ruling (floor, then scroll, and a sentence that reaches the floor is
+  a finding about the layout), none of the six is converted in place.
+  Each sentence now has a line of its own under the control, in three
+  free functions a headless row can drive: `exists_notice` (the
+  already-declared wording, then its `edit` door under it),
+  `slot_notes` (the slot's fault — moved out of the field's row and
+  named by its slot, as the range reading already was — then the
+  affordance, then its `edit` doors in a wrapping row, then the
+  reading) and `bounds_notes` (a parameter's reading, then its
+  `range?` button under it). `properties.rs`'s `layout_tests` holds
+  one row per function, each red against the old layout.
+- **Top-down: fourteen**, the fifteen above less `slot_value_ui`'s.
+  All converted.
+- **Names, left as labels**: `"select a feature"`, `"document
+  parameters"`, `"add"`, the node-number and `"{noun} of {node}"`
+  headers, `"deleted"`, `"instance {id}"`, `"free-move probe (mm,
+  display only):"`, and every slot, family, axis, dimension and unit
+  label the rows draw.
+
+**Still owed here: `pane/create.rs`'s twenty-seven top-down sites and
+its three in-row sites**, which this wave left alone because
+`pane/create.rs` is live in AUTHOR's PR 3052. `add_part_ui`'s window
+still needs the `default_width` the bullet above asks for, landed
+with its three sentences.
+
+The sweep that found `slot_value_ui` also found a field that is not a
+message: a driven slot's value field shows its expression's source,
+unbounded, in the same row. Filed as
+`a-driven-slots-field-draws-its-expression-source-at-any-width`.

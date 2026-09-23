@@ -16,7 +16,7 @@ use pncad::geom_core::Tol;
 use pncad::profile::{Step, TipState, Verb};
 use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
 
-use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior, chrome};
+use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
 use crate::forms::{SHAPE_LOCKED, ShapeEdits};
 use crate::frame;
 use crate::session::SessionOp;
@@ -50,9 +50,11 @@ impl ViewerBehavior<'_> {
         let session = self.session;
         let doc = session.committed_doc();
         if let Err(refusal) = self.drafts.profile_edit(doc, node) {
-            ui.colored_label(
-                chrome(self.theme.unresolved),
+            crate::widgets::message_toned(
+                ui,
                 format!("the profile editor cannot hold this profile: {refusal}"),
+                &self.theme,
+                frame::Tone::Actionable,
             );
             return false;
         }
@@ -69,7 +71,7 @@ impl ViewerBehavior<'_> {
             unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
         };
         ui.label(format!("profile on frame {}", edit.plane().0));
-        ui.weak(SHAPE_LOCKED);
+        crate::widgets::message_toned(ui, SHAPE_LOCKED, &self.theme, frame::Tone::Advisory);
         let loops = edit.loops.len();
         for (index, steps) in edit.loops.iter_mut().enumerate() {
             // A loop label only where there is more than one: "loop 0"
