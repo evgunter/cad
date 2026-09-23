@@ -252,6 +252,7 @@ fn an_off_table_display_unit_refuses_the_same_way_on_either_route() {
             value: DocParam::continuous(Dimension::Length, 0.01),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the parameter applies")
     .doc;
@@ -337,7 +338,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
         },
         expr: len(2.0),
     };
-    let text = save(&doc, &[legal], tol).expect("a replayable log is written");
+    let text = save(&doc, &[legal.into()], tol).expect("a replayable log is written");
 
     // Now the hand edit: the logged replacement becomes an Angle.
     let (header, body_text) = text.split_once('\n').expect("a header line");
