@@ -146,6 +146,18 @@ fn sign_of(v: SideVerdict) -> geom_core::Sign {
     }
 }
 
+/// A fragment name's base: the name without its trailing `Fragment`
+/// qualifier (the suite's one spelling of that pop).
+fn base_of(name: &StableName) -> StableName {
+    assert!(
+        matches!(name.path.last(), Some(RoleSeg::Fragment(_))),
+        "{name:?} has no fragment tail"
+    );
+    let mut base = name.clone();
+    base.path.pop();
+    base
+}
+
 fn failure(res: &Resolution) -> &editor_core::ResolutionFailure {
     let Resolution::Failed(f) = res else {
         panic!("expected Failed, got {res:?}");
@@ -378,13 +390,10 @@ fn the_rung_writes_to_no_log() {
 
 #[test]
 fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
-    // The corpus's own pruned-pair row. An `OrderAlong` group ranks
-    // its members against EACH OTHER, so when the disjoint run leaves
-    // the rim edge undivided there is no pair left to re-execute and
-    // this rung, correctly, finds nothing. What the two tables DO say
-    // is that the group went from two fragments to one, and the
-    // group-size rung reports exactly that — not the evidence-free
-    // fallback. The undivided rim edge rides in the offers.
+    // The corpus's own pruned-pair row: the ranked rim edge's group
+    // goes from two to one (why no flip exists there:
+    // `resolve::group_resized`'s docs). The undivided rim edge rides
+    // in the offers.
     let rows = fixture::pr4::diagnosis_corpus::<f64>();
     let (_, res) = rows
         .iter()
@@ -409,9 +418,7 @@ fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
             now: 1,
         }
     );
-    let mut base = name.clone();
-    base.path.pop();
-    assert!(f.offers.contains(&base), "{:?}", f.offers);
+    assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
 
 // ---------------------------------------------------------------
@@ -705,12 +712,9 @@ fn the_pruned_pair_whose_sides_did_not_change_is_not_recovered() {
 #[test]
 fn a_collapsed_sideof_group_is_diagnosed_group_resized_and_offers_the_survivor() {
     // The collapse: the bar stops CROSSING the cap (it lands short in
-    // y), so the group is no longer multi-fragment and the qualifier
-    // is not minted — while the walls have not moved relative to the
-    // fragment at all. There is no flip for the shadow-exec rung to
-    // recover, and none is claimed: the group-size rung states that
-    // the cap's group went from two fragments to one, and the
-    // undivided cap is offered for an explicit rebind.
+    // y) and no side moves (`resolve::group_resized`'s docs). The
+    // cap's group goes from two to one, and the undivided cap is
+    // offered for an explicit rebind.
     for to in [2.5_f64, 3.5] {
         let s = slot();
         let ev1 = run(&s.doc, None);
@@ -739,8 +743,7 @@ fn a_collapsed_sideof_group_is_diagnosed_group_resized_and_offers_the_survivor()
             },
             "y = {to}"
         );
-        let mut base = frags[0].clone();
-        base.path.pop();
+        let base = base_of(&frags[0]);
         assert!(
             failure(&res).offers.contains(&base),
             "y = {to}: the undivided cap is the offer, got {:?}",
@@ -998,10 +1001,19 @@ fn group_diagnosis(
         let mut t = NameTable::new();
         let mut next = 0u32;
         for (row, n) in rows {
+            // A row's entity has the row's kind (the table refuses a
+            // kind disagreement); only the kind-decoy row is a face.
+            let kind = row.kind;
             let ents: Vec<_> = (0..n)
                 .map(|_| {
                     next += 1;
-                    body_ent(next)
+                    match kind {
+                        EntityKind::Face => editor_core::EntityRef {
+                            body: next,
+                            key: editor_core::EntityKey::Face(topo::FaceKey::default()),
+                        },
+                        _ => body_ent(next),
+                    }
                 })
                 .collect();
             if n == 1 {
@@ -1202,4 +1214,42 @@ fn without_a_prior_run_there_is_no_size_to_change_from() {
         &h.frag,
     );
     assert_eq!(vanished(&res), &fallback(&h));
+}
+
+#[test]
+fn the_group_is_counted_by_kind_and_minting_node_not_by_path_alone() {
+    // A row whose PATH spells the base but whose kind or minting node
+    // differs is another name, and another group: counting it would
+    // turn this 2 → 1 into 2 → 2 and silence the rung. One decoy per
+    // filter, each in its own run, so each filter is pinned alone.
+    let h = hand(1);
+    let other_node = h.inner[1].node;
+    assert_ne!(other_node, h.node, "the partner lives at a second node");
+    let decoys = [
+        StableName {
+            kind: EntityKind::Face,
+            ..h.base.clone()
+        },
+        StableName {
+            node: other_node,
+            ..h.base.clone()
+        },
+    ];
+    for decoy in decoys {
+        let f = group_diagnosis(
+            &h,
+            &h.frag,
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            vec![(h.base.clone(), 1), (decoy.clone(), 1)],
+        );
+        assert_eq!(
+            diag(&f),
+            &Diagnosis::GroupResized {
+                node: h.node,
+                was: 2,
+                now: 1,
+            },
+            "decoy {decoy:?} was counted"
+        );
+    }
 }

@@ -23,10 +23,8 @@ use geom_core::Tol;
 /// Scenario A's flip-vanish row therefore exercises the AMENDED N5
 /// semantics: the disjoint run's pair space is pruned and no flip
 /// evidence is computed. The vanished name is a ranked rim-edge
-/// fragment whose group went from two fragments to one, which no flip
-/// explains — an `OrderAlong` rank has no partner to re-probe — so
-/// the row diagnoses to `GroupResized`, read off the two name tables
-/// (`resolve::group_resized`'s docs). Engine-behavior tests
+/// fragment whose group went from two to one, so the row diagnoses
+/// to `GroupResized` (`resolve::group_resized`'s docs). Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.

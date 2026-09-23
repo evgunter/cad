@@ -58,9 +58,8 @@
 //! rule and reports the partner whose side changed. An exchange
 //! records a population, and the same one in both runs, so the rung's
 //! trigger is false there by construction. Nor is a fragment group
-//! that changes SIZE this blind spot: that vanish flips no verdict at
-//! all, and the group-size rung (`super::group_resized`) answers it
-//! from the two name tables. The cancelling exchange stays exactly as
+//! that changes size this blind spot (`super::group_resized`'s docs).
+//! The cancelling exchange stays exactly as
 //! this paragraph states it, with the recorded-qualifier delta
 //! (`super::qualifier_delta`, which reads the names rather than the
 //! log) as its live partial answer.
