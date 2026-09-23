@@ -11,53 +11,27 @@ use topo::FaceKey;
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeshError {
     /// The mesh carries no triangles at all — no patch, or every patch
-    /// empty. Not the mesh of a solid: a solid has surface, and its
-    /// mesh is watertight only vacuously (no edge, so every edge is
-    /// shared twice) with a [`signed_volume`] of zero.
+    /// empty. Not the mesh of a solid: a solid has surface, and every
+    /// closure condition below is universal over edges, so a mesh of
+    /// nothing satisfies all of them by having none, [`signed_volume`]
+    /// zero beside it.
     ///
     /// **Reachable by input, and invalid (D2 addendum row 1).**
-    /// [`Mesh`]'s fields are public, so the caller of this validator
-    /// may hold any triangle set at all — an empty one included, which
-    /// is what the hand-built rows of
-    /// `mesh/tests/review_m2_pr6_checkmesh_audit.rs` exercise. Three
-    /// producers reach it through [`fn@crate::tessellate`]:
+    /// [`Mesh`]'s fields are public, so a caller may hold any triangle
+    /// set at all; `tessellate` reaches the state too, most plainly on
+    /// a body with no faces (`topo::validate`'s own doc says the empty
+    /// body validates vacuously, and this lane has no face-count
+    /// guard), and on a curved face whose walk collapses to a
+    /// degenerate domain where debug assertions are off. Not row 4: a
+    /// validator is handed meshes of unknown provenance by contract, so
+    /// it answers typed rather than panics.
     ///
-    /// * **The empty body.** `topo::Body::new()` is public and every
-    ///   arena of it is empty; `topo::validate`'s own doc says the
-    ///   empty body validates vacuously, so it is tier-1 and tier-2
-    ///   VALID, and this lane has no face-count guard — it meshes to
-    ///   zero patches and `Ok`. A boolean that annihilates its operands
-    ///   does NOT go this way: `topo::BooleanResult::Empty` is a typed
-    ///   empty success carrying no body at all, so ∅ never arrives here
-    ///   wearing a solid's clothes. A caller meshing a body it did not
-    ///   author distinguishes "nothing to show" from "a hole" before
-    ///   this validator, by the body's own face count; asked of the
-    ///   mesh alone the two states are the same bytes, and this arm is
-    ///   the honest answer to the question this function was asked.
-    /// * **A curved face that walks to a degenerate domain**, with
-    ///   debug assertions off, where the cross-face census that
-    ///   otherwise catches it is compiled out: a loop of rims only
-    ///   walks to zero HEIGHT and a loop whose meridians all stand on
-    ///   one column to zero WIDTH, and either triangulates to nothing.
-    ///   The first is refused typed at the walk
-    ///   ([`crate::TessellateError::MeridianFreeCurvedFace`]); the
-    ///   second is open
-    ///   (`work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`)
-    ///   and today hands a two-face torus a mesh of two empty patches.
-    /// * **The planar lane's own shape of it**, read and not executed:
-    ///   a loop whose Newell sum is NEAR zero rather than exactly zero
-    ///   gets a finite noise normal instead of the NaN that refuses at
-    ///   `spade`'s insert, and `classify_faces` may then mark nothing
-    ///   inside and emit nothing
-    ///   (`work/tess/trimmed-and-planar-lanes-answer-ok-on-an-empty-patch.md`,
-    ///   which owns that question and the trimmed lane's beside it).
-    ///
-    /// It is not row 4: a validator is handed meshes of unknown
-    /// provenance by contract, so it answers typed rather than panics.
-    /// "Invalid" is invalid AGAINST THIS CONTRACT and says nothing
-    /// about the body — an empty body is a valid body, exactly as a
-    /// single triangle is a fine triangle, and neither is a solid's
-    /// boundary.
+    /// **Invalid AGAINST THIS CONTRACT**, and that is the whole of what
+    /// it says — an empty body is a valid body, exactly as a single
+    /// triangle is a fine triangle, and neither is a solid's boundary.
+    /// A caller who needs to tell "nothing to show" from "a hole"
+    /// cannot learn it here: asked of the mesh alone the two are the
+    /// same bytes.
     ///
     /// Row 0 (can the state be made unrepresentable?) is answered no:
     /// a non-emptiness guarantee on [`Mesh`] means a private triangle
@@ -66,27 +40,33 @@ pub enum MeshError {
     /// per-face emptiness below cannot be typed away at all without a
     /// non-empty vector in [`crate::FacePatch`], whose whole public
     /// surface is that vector.
+    ///
+    /// Rows: `survives_checkmesh_refuses_the_empty_mesh` and
+    /// `survives_the_empty_body_meshes_to_nothing_and_the_validator_says_so`.
     NoTriangles,
     /// One face's patch carries no triangles beside patches that do —
     /// a hole where a face is. Also not the mesh of a solid, and the
     /// same state as [`Self::NoTriangles`] one level down.
     ///
     /// **Why this validator names it, and `tessellate` does not.** A
-    /// REFUSAL is decided on structure and reads no triangle count —
-    /// [`crate::TessellateError::MeridianFreeCurvedFace`]'s doc states
-    /// that rule and is decided that way. This is the other thing: a
-    /// property RE-DERIVED from the emitted mesh, where the count is
-    /// the only evidence there is. `tessellate` re-derives it too, in
-    /// the cross-face census, which is `debug_assertions`-only; in
-    /// release this arm is the whole of what sees a hole whose
-    /// structural fact no guard in front of the walk has found yet.
+    /// REFUSAL is decided on structure and reads no count: TESS-1
+    /// ruled that (`work/tess/TESS-1.md`, `## Closed` — "no float
+    /// decides it"; the spec itself is deleted) and
+    /// [`crate::TessellateError::MeridianFreeCurvedFace`] is built that
+    /// way. This is the other thing: a property RE-DERIVED from the
+    /// emitted mesh, where the count is the only evidence there is.
+    /// `tessellate` re-derives it too, in the cross-face census, which
+    /// is `debug_assertions`-only; in release this arm is the whole of
+    /// what sees a hole whose structural fact no guard in front of the
+    /// walk has found yet.
     ///
     /// The state is not otherwise unnamed — an empty patch leaves its
     /// face's chord segments used once by each neighbour, so the edge
     /// census below reports [`Self::BoundaryEdge`] on one of them (a
     /// rim-only sphere cap closed by a disc measured exactly that).
     /// That names an edge and blames the wrong side; this arm names the
-    /// face that emitted nothing, which is the fact.
+    /// face that emitted nothing, which is the fact. Row:
+    /// `survives_checkmesh_names_the_face_of_an_empty_patch`.
     EmptyPatch {
         /// The face whose patch is empty.
         face: FaceKey,
@@ -137,10 +117,8 @@ pub enum MeshError {
 /// producers). An empty patch beside filled ones is the same state per
 /// face ([`MeshError::EmptyPatch`]). Both are refused before the edge
 /// census runs, so the report names the emptiness rather than a
-/// neighbour's dangling edge. (The crate already refuses a vacuous
-/// verdict once, one predicate over: `nurbs_cert`'s `Domination::new`
-/// asserts its component list non-empty rather than let `holds` answer
-/// `true` over none.)
+/// neighbour's dangling edge, and before the per-triangle checks, so
+/// an empty patch outranks a bad index in another one.
 ///
 /// The check is **combinatorial only** — it inspects indices and
 /// counts, never positions: geometrically-zero-area slivers (distinct
@@ -228,7 +206,10 @@ pub fn check_mesh(mesh: &Mesh) -> Result<(), MeshError> {
 /// Validity is [`check_mesh`]'s contract, not this fold's: a corrupt
 /// mesh whose triangles reference a missing position gets
 /// `IndexOutOfRange` there, while here it panics on the index — except
-/// the empty-positions case, which returns a quiet 0.0.
+/// the empty cases, which return a quiet 0.0: no position (the `else`
+/// below) and no triangle over positions that exist (the fold runs
+/// over nothing). Both are [`MeshError::NoTriangles`] at the
+/// validator.
 pub fn signed_volume(mesh: &Mesh) -> f64 {
     let Some(&first) = mesh.positions.first() else {
         return 0.0;

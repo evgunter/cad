@@ -97,11 +97,12 @@ fn survives_the_empty_body_meshes_to_nothing_and_the_validator_says_so() {
 }
 
 /// **An empty patch beside a filled one names the FACE that emitted
-/// nothing** — a hole where a face is. Before TESS-4 the state reached
-/// the edge census, which reported a neighbour's dangling
-/// `BoundaryEdge` on a closed body and nothing at all where the rest of
-/// the mesh happened to pair up; the second arm is the second case,
-/// which no arm named.
+/// nothing** — a hole where a face is. The first arm is what the guard
+/// buys: a closed tetrahedron gives the edge census nothing to say, so
+/// without the guard the mesh passes. The second arm buys nothing
+/// against a missing guard — remove it and the fan's `BoundaryEdge`
+/// still makes this `Err` — and pins only the ORDER of the two, that
+/// the emptiness outranks the boundary edge it causes.
 #[test]
 fn survives_checkmesh_names_the_face_of_an_empty_patch() {
     let keys = two_face_keys();
@@ -116,7 +117,8 @@ fn survives_checkmesh_names_the_face_of_an_empty_patch() {
 
     // Empty patch FIRST, and an open fan after it: both faults are
     // present and the emptiness is the one reported, because it is the
-    // cause and the boundary edge is its symptom.
+    // cause and the boundary edge is its symptom. An ordering pin, not
+    // a guard pin — see the doc above.
     let mut fan = tetra_tris();
     fan.pop();
     let both = hand_mesh_patches(tetra_positions(), vec![Vec::new(), fan]);
