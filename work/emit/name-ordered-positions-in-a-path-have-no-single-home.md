@@ -63,6 +63,19 @@ rows in `declared-flush-union-edge-and-vertex-names-follow-member-order`.
 The remap half is unmeasured: whether any caller's node map is
 non-monotone, so that it reorders two names.
 
+## A value that depends on a name order
+
+This is a sibling position, found by `seam-chain-ranks-are-oriented-a-first-so-an-operand-swap-may-reverse-them`.
+
+A seam EDGE's `Fragment(OrderAlong)` rank is measured along `n_a × n_b`,
+the pair emitter's A-first line. Once `seam_line` puts the pair in name
+order, the rank has to be read from the other end wherever that
+reordering swapped the two sides. `emit_union::collapse` now does this
+(`seam_line` reports the swap, and the tail loop applies
+`of − 1 − rank`). So the swap is not only a reordering: it also changes
+the VALUE of a later segment. The one canonicalizer this row proposes
+has to own that rule as well.
+
 ## Why it matters
 
 Re-sorting `SideOf` in `collapse` changes published names for unions

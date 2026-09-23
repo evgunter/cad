@@ -64,6 +64,36 @@ across the fused orders of a third-member family over the same pair:
   orders and a lone `FromMember` face in others. Whether the declared
   merge happens depends on the order.
 
+**The same happens without a declaration, once there are three
+members.** Measured 2026-09-23 while fixing
+`seam-chain-ranks-are-oriented-a-first-so-an-operand-swap-may-reverse-them`.
+
+The document is a plain `Node::Union` of three members:
+- `slab` = [0,3]×[0,2]×[0,1];
+- `rib` = an inverted U with arms at x∈[0.5,1] and x∈[2,2.5], y∈[0.5,1.5], z 0.5..2;
+- a second slab, [0,3]×[0.2,1.8]×[1.7,1.8].
+
+All six member orders fuse. Against `[slab, rib, s2]`:
+- `[rib, slab, s2]` publishes the same table;
+- `[slab, s2, rib]` and `[s2, slab, rib]` differ in 16 rows;
+- `[rib, s2, slab]` and `[s2, rib, slab]` differ in 20 rows.
+
+In THIS document the differences are fold history, not side
+orientation. When `s2` reaches the rib first, the rib's caps and its
+seam-partner faces carry a `Fragment(SideOf(..))` naming `s2`'s caps.
+The later seam with the slab then embeds that fragmented face name. When
+the slab reaches the rib first, the same faces are named without it.
+
+That attribution is for this document only; it is not a claim about the
+class. A cutter that crosses the seam edges makes the same name bind
+different pieces across member orders, because the seam's pieces are
+ranked by two different rankers. That case is its own row:
+`work/emit/union-seam-edge-ranks-follow-which-step-split-the-seam.md` (P0).
+
+The union of three disjoint-ish overlapping blocks
+(`[0,1]³`, `[0.5,1.5]×[0.2,0.8]×[0.2,0.8]`, `[1.2,2.2]×[0.1,0.9]×[0.1,0.9]`)
+is identical in all six orders.
+
 ## Why it matters, and why P1 rather than P0
 
 A downstream reference to one of these entities breaks when the author
