@@ -373,8 +373,8 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 ## Ev's channel
 
 Ev does not edit files. Anything that needs Ev is a PR whose title
-starts with **`[ev]`**; how to write one is "Asking Ev" in `CLAUDE.md`,
-which every agent reads. The tracker's half: the item that asked sets
+starts with **`[ev]`**; how to write one is "Asking Ev" in
+`CLAUDE.md`. The tracker's half: the item that asked sets
 `needs_ev: true`. The PR is not named in the item: which PR carries the
 question is one `git log` away, and the item usually exists before the
 PR does. Once Ev answers, the agent edits the item and the docs,

@@ -37,7 +37,7 @@ criteria in `memories/cad-working-style.md` — the index is read at
 the start of every session and its pointers followed as relevant, so
 a new memory has to earn that.
 
-## Filing an issue (every agent)
+## Filing an issue
 
 Issues are files, not GitHub issues. Run
 `python3 scripts/work.py new <semantic-name> --kind issue --title "..."`
@@ -45,7 +45,7 @@ Issues are files, not GitHub issues. Run
 the body with its `file:line` citations, and commit it on your branch;
 `python3 scripts/work.py lint` must pass.
 
-## Asking Ev (every agent)
+## Asking Ev
 
 Anything that needs Ev — a design fork, a ruling, a ratification, a
 question — is a PR titled `[ev] ...`, and the `work/` item that asked
