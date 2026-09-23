@@ -209,6 +209,10 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
     let Some((head, mut tail)) = name.path.split_first() else {
         return Err(bug("a union fold's table carries a name with no role"));
     };
+    // Whether this name's own seam pair was put in the other order by
+    // canonicalization — which reverses the direction its `OrderAlong`
+    // tail was ranked in (see the tail loop).
+    let mut pair_swapped = false;
     let mut path = match head {
         // Already member-keyed: the foot of a descent chain, put there
         // by `member_view` before the step ran.
@@ -251,12 +255,12 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             if name.kind != EntityKind::Vertex {
                 return Err(bug(FOREIGN));
             }
-            let mut lines = vec![seam_line(node, a, b)?];
+            let mut lines = vec![seam_line(node, a, b)?.0];
             for seg in std::mem::take(&mut tail) {
                 let RoleSeg::Seam { a, b } = seg else {
                     return Err(bug(FOREIGN));
                 };
-                lines.push(seam_line(node, a, b)?);
+                lines.push(seam_line(node, a, b)?.0);
             }
             lines.sort_unstable();
             if lines.windows(2).any(|w| w[0] == w[1]) {
@@ -264,7 +268,11 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             }
             lines
         }
-        RoleSeg::Seam { a, b } => vec![seam_line(node, a, b)?],
+        RoleSeg::Seam { a, b } => {
+            let (line, swapped) = seam_line(node, a, b)?;
+            pair_swapped = swapped;
+            vec![line]
+        }
         // An F7 merged face: its constituents are result-face names in
         // the minting node's space (N3), so they stay in this union's
         // space, each collapsed by this same rule.
@@ -325,6 +333,31 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
                     .collect::<Result<Vec<_>, NamingError>>()?;
                 RoleSeg::Fragment(Qualifier::SideOf(partners))
             }
+            // A seam EDGE's rank is its place along the pair's line,
+            // oriented `n_a × n_b` by the pair emitter (the A-side face's
+            // outward normal first). Canonicalizing the pair decides
+            // which face is first by NAME, so where it swapped the pair
+            // the line's orientation is the negation of the one the
+            // rank was taken in, and the rank is read from the other
+            // end: `of − 1 − rank`. That makes the rank relative to the
+            // canonical pair, which is what a name stable under member
+            // reordering has to be. A seam VERTEX group is ranked along
+            // its parent edge's own carrier in that edge's operand body —
+            // the same edge whichever side it sits on, so the swap does
+            // not reorient it and the rank stands. (Two EDGE parents, one
+            // per side, would pick A's; straight edges cross once, so
+            // such a group needs curved edges, and none is known.)
+            RoleSeg::Fragment(Qualifier::OrderAlong { rank, of })
+                if pair_swapped && name.kind == EntityKind::Edge =>
+            {
+                let Some(back) = of.checked_sub(1).and_then(|last| last.checked_sub(*rank)) else {
+                    return Err(bug("a seam chain's rank lies outside its count"));
+                };
+                RoleSeg::Fragment(Qualifier::OrderAlong {
+                    rank: back,
+                    of: *of,
+                })
+            }
             RoleSeg::Fragment(q @ Qualifier::OrderAlong { .. }) => RoleSeg::Fragment(q.clone()),
             // Only a `Fragment` follows the head in a boolean table;
             // anything else in the tail is an emission bug — the head
@@ -352,7 +385,8 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
     })
 }
 
-/// One seam line between two members, in the union's space.
+/// One seam line between two members, in the union's space, and
+/// whether canonicalizing it swapped the pair.
 ///
 /// The pair emitter's `a`/`b` are the crossing entities in the two
 /// OPERANDS' tables, which are this node's space on both sides, so
@@ -360,14 +394,24 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
 /// then CANONICALIZED by name order: a union is commutative, so
 /// "which side" would record only which of the two members the fold
 /// reached first, which is the position this node exists not to
-/// record.
-fn seam_line(node: RecipeNodeId, a: &StableName, b: &StableName) -> Result<RoleSeg, NamingError> {
+/// record. Anything the pair emitter oriented by side — a seam chain's
+/// `OrderAlong` rank — has to follow the swap, which is why it is
+/// reported.
+fn seam_line(
+    node: RecipeNodeId,
+    a: &StableName,
+    b: &StableName,
+) -> Result<(RoleSeg, bool), NamingError> {
     let (x, y) = (collapse(node, a)?, collapse(node, b)?);
-    let (a, b) = if x <= y { (x, y) } else { (y, x) };
-    Ok(RoleSeg::Seam {
-        a: NameRef::new(a),
-        b: NameRef::new(b),
-    })
+    let swapped = x > y;
+    let (a, b) = if swapped { (y, x) } else { (x, y) };
+    Ok((
+        RoleSeg::Seam {
+            a: NameRef::new(a),
+            b: NameRef::new(b),
+        },
+        swapped,
+    ))
 }
 
 #[cfg(test)]
