@@ -2,10 +2,11 @@
 id: seam-edge-between-two-merged-faces-refusal-a-legal-declared-union-reaches
 kind: issue
 title: A legal declared union reaches the seam-edge-between-two-merged-faces Emission refusal
-status: open
+status: dispatched
 opened: 2026-09-23
 priority: P0
 cost: D
+branch: emit/seam-edge-merged-faces
 ---
 
 
