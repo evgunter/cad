@@ -19,6 +19,18 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 /// does not run it**, so a consumer that needs the contract checked
 /// rather than argued has to call it.
 ///
+/// **A `Mesh` with no triangles is not the mesh of a solid**, and
+/// neither is one with an empty [`FacePatch`] beside filled ones: a
+/// solid has surface, and a face of one contributes some of it. The
+/// fields here are public and hold any triangle set at all, so this is
+/// a contract on the value rather than a guarantee of the type;
+/// `check_mesh` is where it is decided
+/// ([`crate::validate::MeshError::NoTriangles`] and
+/// [`EmptyPatch`](crate::validate::MeshError::EmptyPatch), whose docs
+/// name the producers). Every other condition above is universal over
+/// edges and so holds vacuously over none of them, which is why
+/// emptiness is stated separately instead of being read off them.
+///
 /// No `PartialEq`: positions are floats; D9 comparisons are bitwise
 /// (compare `f64::to_bits` of positions plus the index/key structure —
 /// the determinism suite does exactly that).

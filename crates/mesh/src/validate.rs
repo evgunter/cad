@@ -5,10 +5,92 @@
 use std::collections::BTreeMap;
 
 use crate::types::Mesh;
+use topo::FaceKey;
 
 /// Typed mesh-validity failure (closed enum).
 #[derive(Clone, Debug, PartialEq)]
 pub enum MeshError {
+    /// The mesh carries no triangles at all — no patch, or every patch
+    /// empty. Not the mesh of a solid: a solid has surface, and its
+    /// mesh is watertight only vacuously (no edge, so every edge is
+    /// shared twice) with a [`signed_volume`] of zero.
+    ///
+    /// **Reachable by input, and invalid (D2 addendum row 1).**
+    /// [`Mesh`]'s fields are public, so the caller of this validator
+    /// may hold any triangle set at all — an empty one included, which
+    /// is what the hand-built rows of
+    /// `mesh/tests/review_m2_pr6_checkmesh_audit.rs` exercise. Three
+    /// producers reach it through [`fn@crate::tessellate`]:
+    ///
+    /// * **The empty body.** `topo::Body::new()` is public and every
+    ///   arena of it is empty; `topo::validate`'s own doc says the
+    ///   empty body validates vacuously, so it is tier-1 and tier-2
+    ///   VALID, and this lane has no face-count guard — it meshes to
+    ///   zero patches and `Ok`. A boolean that annihilates its operands
+    ///   does NOT go this way: `topo::BooleanResult::Empty` is a typed
+    ///   empty success carrying no body at all, so ∅ never arrives here
+    ///   wearing a solid's clothes. A caller meshing a body it did not
+    ///   author distinguishes "nothing to show" from "a hole" before
+    ///   this validator, by the body's own face count; asked of the
+    ///   mesh alone the two states are the same bytes, and this arm is
+    ///   the honest answer to the question this function was asked.
+    /// * **A curved face that walks to a degenerate domain**, with
+    ///   debug assertions off, where the cross-face census that
+    ///   otherwise catches it is compiled out: a loop of rims only
+    ///   walks to zero HEIGHT and a loop whose meridians all stand on
+    ///   one column to zero WIDTH, and either triangulates to nothing.
+    ///   The first is refused typed at the walk
+    ///   ([`crate::TessellateError::MeridianFreeCurvedFace`]); the
+    ///   second is open
+    ///   (`work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`)
+    ///   and today hands a two-face torus a mesh of two empty patches.
+    /// * **The planar lane's own shape of it**, unmeasured: `planar`'s
+    ///   `classify_faces` seeds the inside-walk across the convex hull,
+    ///   and a CDT whose every hull edge has the outer face on both
+    ///   sides marks nothing inside, so the lane emits nothing and
+    ///   answers `Ok`. The frame-degenerate loops that would reach it
+    ///   refuse earlier as `Triangulation`; no body in this tree is
+    ///   known to get there.
+    ///
+    /// It is not row 4: a validator is handed meshes of unknown
+    /// provenance by contract, so it answers typed rather than panics.
+    /// "Invalid" is invalid AGAINST THIS CONTRACT and says nothing
+    /// about the body — an empty body is a valid body, exactly as a
+    /// single triangle is a fine triangle, and neither is a solid's
+    /// boundary.
+    ///
+    /// Row 0 (can the state be made unrepresentable?) is answered no:
+    /// a non-emptiness guarantee on [`Mesh`] means a private triangle
+    /// buffer and a fallible constructor, which costs exactly the
+    /// hand-built broken mesh this validator exists to catch — and the
+    /// per-face emptiness below cannot be typed away at all without a
+    /// non-empty vector in [`crate::FacePatch`], whose whole public
+    /// surface is that vector.
+    NoTriangles,
+    /// One face's patch carries no triangles beside patches that do —
+    /// a hole where a face is. Also not the mesh of a solid, and the
+    /// same state as [`Self::NoTriangles`] one level down.
+    ///
+    /// **Why this validator names it, and `tessellate` does not.** A
+    /// REFUSAL is decided on structure and reads no triangle count —
+    /// [`crate::TessellateError::MeridianFreeCurvedFace`]'s doc states
+    /// that rule and is decided that way. This is the other thing: a
+    /// property RE-DERIVED from the emitted mesh, where the count is
+    /// the only evidence there is. `tessellate` re-derives it too, in
+    /// the cross-face census, which is `debug_assertions`-only; in
+    /// release this arm is the whole of what sees a hole whose
+    /// structural fact no guard in front of the walk has found yet.
+    ///
+    /// The state is not otherwise unnamed — an empty patch leaves its
+    /// face's chord segments used once by each neighbour, so the edge
+    /// census below reports [`Self::BoundaryEdge`] on one of them (a
+    /// rim-only sphere cap closed by a disc measured exactly that).
+    /// That names an edge and blames the wrong side; this arm names the
+    /// face that emitted nothing, which is the fact.
+    EmptyPatch {
+        /// The face whose patch is empty.
+        face: FaceKey,
+    },
     /// A triangle references a position index out of range.
     IndexOutOfRange {
         /// The offending index.
@@ -40,21 +122,44 @@ pub enum MeshError {
     },
 }
 
-/// Checks that the mesh is a closed, consistently wound 2-manifold:
-/// every triangle index valid and non-degenerate, every undirected
-/// edge shared by exactly two triangles traversing it in opposite
-/// directions.
+/// Checks that the mesh is **the mesh of a solid**: a closed,
+/// consistently wound 2-manifold with surface — every patch carrying
+/// triangles, every triangle index valid and non-degenerate, every
+/// undirected edge shared by exactly two triangles traversing it in
+/// opposite directions.
 ///
-/// The check is **combinatorial only** — it inspects indices, never
-/// positions: geometrically-zero-area slivers (distinct indices,
-/// coincident points) and globally-inverted shells both pass;
+/// **Surface is part of the contract, not a consequence of it.** The
+/// 2-manifold conditions are all universal over edges, so a mesh of no
+/// triangles satisfies every one of them vacuously; read as "closed
+/// 2-manifold" this function would therefore accept a mesh of nothing,
+/// and so would every caller, each of which asks it whether it is
+/// holding a solid's boundary ([`MeshError::NoTriangles`] lists the
+/// producers). An empty patch beside filled ones is the same state per
+/// face ([`MeshError::EmptyPatch`]). Both are refused before the edge
+/// census runs, so the report names the emptiness rather than a
+/// neighbour's dangling edge. (The crate already refuses a vacuous
+/// verdict once, one predicate over: `nurbs_cert`'s `Domination::new`
+/// asserts its component list non-empty rather than let `holds` answer
+/// `true` over none.)
+///
+/// The check is **combinatorial only** — it inspects indices and
+/// counts, never positions: geometrically-zero-area slivers (distinct
+/// indices, coincident points) and globally-inverted shells both pass;
 /// [`signed_volume`] is the orientation backstop.
 ///
 /// # Errors
 ///
-/// The first failure in deterministic order (triangles in patch order,
-/// then edges in ascending index order), as a typed [`MeshError`].
+/// The first failure in deterministic order (the whole mesh's
+/// emptiness, then the first empty patch in patch order, then
+/// triangles in patch order, then edges in ascending index order), as
+/// a typed [`MeshError`].
 pub fn check_mesh(mesh: &Mesh) -> Result<(), MeshError> {
+    if triangle_count(mesh) == 0 {
+        return Err(MeshError::NoTriangles);
+    }
+    if let Some(patch) = mesh.patches.iter().find(|p| p.triangles.is_empty()) {
+        return Err(MeshError::EmptyPatch { face: patch.face });
+    }
     let n = mesh.positions.len();
     // (min, max) -> (uses, direction balance: +1 for min->max).
     let mut edges: BTreeMap<(u32, u32), (u32, i64)> = BTreeMap::new();
